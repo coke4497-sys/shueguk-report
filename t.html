@@ -3,11 +3,30 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>SHUEGUK 학부모 보고서 · 선생님용</title>
+<title>SHUEGUK REPORT</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#6B847B">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="SHUEGUK REPORT">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" type="image/png" href="icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=Noto+Serif+KR:wght@400;500&display=swap" rel="stylesheet">
 <style>
+/* 비밀번호 잠금 화면 */
+#lockScreen{position:fixed; inset:0; background:var(--sage-fog,#EEF2EF); z-index:9999; display:flex; align-items:center; justify-content:center; padding:24px;}
+.lock-card{background:#fff; border-radius:20px; padding:36px 28px; box-shadow:0 6px 30px rgba(46,61,56,.12); width:100%; max-width:340px; text-align:center;}
+.lock-logo{width:84px; height:84px; border-radius:20px; margin-bottom:14px;}
+.lock-title{font-family:'Noto Sans KR',sans-serif; font-weight:700; font-size:18px; color:#3F5650; margin:0 0 8px;}
+.lock-desc{font-family:'Noto Sans KR',sans-serif; font-size:13.5px; color:#5A6B65; line-height:1.7; margin:0 0 22px;}
+.lock-card input{width:100%; border:1.5px solid #C8D4CD; border-radius:12px; padding:14px; font-size:17px; text-align:center; letter-spacing:.2em; font-family:'Noto Sans KR'; margin-bottom:12px;}
+.lock-card input:focus{outline:none; border-color:#6B847B;}
+.lock-card .btn{width:100%; padding:14px; font-size:16px;}
+.lock-err{font-family:'Noto Sans KR'; font-size:13px; color:#C0563E; margin:12px 0 0; min-height:18px;}
+body.locked{overflow:hidden;}
+body.locked .panel, body.locked .report{display:none !important;}
 :root{
   --sage-deep:#6B847B; --sage-mid:#8FA89C; --sage-soft:#B8C9C0;
   --sage-mist:#DDE5E1; --sage-fog:#EEF2EF;
@@ -83,6 +102,18 @@ body{font-family:'Noto Sans KR',sans-serif; background:var(--sage-fog); color:va
 </style>
 </head>
 <body>
+
+<!-- 비밀번호 잠금 화면 -->
+<div id="lockScreen">
+  <div class="lock-card">
+    <img src="icon-192.png" alt="SHUEGUK REPORT" class="lock-logo">
+    <p class="lock-title">SHUEGUK REPORT</p>
+    <p class="lock-desc">선생님 전용 페이지입니다.<br>비밀번호를 입력해주세요.</p>
+    <input type="password" id="lockInput" placeholder="비밀번호" inputmode="numeric" autocomplete="off">
+    <button class="btn" id="lockBtn" onclick="checkLock()">입력</button>
+    <p class="lock-err" id="lockErr"></p>
+  </div>
+</div>
 
 <!-- 선생님 조작 패널 (인쇄 안 됨) -->
 <div class="panel" id="panel">
@@ -165,6 +196,37 @@ body{font-family:'Noto Sans KR',sans-serif; background:var(--sage-fog); color:va
 </div>
 
 <script>
+/* ===== 비밀번호 잠금 ===== */
+var LOCK_KEY = 'shueguk_teacher_unlocked';
+var PASS_ENC = 'MTAxMDEx'; // 비밀번호를 base64로 보관 (가벼운 잠금)
+(function(){
+  // 이미 이 기기에서 해제했으면 통과
+  try { if(localStorage.getItem(LOCK_KEY)==='1'){ unlock(); return; } } catch(e){}
+  document.body.classList.add('locked');
+})();
+function unlock(){
+  document.body.classList.remove('locked');
+  var ls=document.getElementById('lockScreen');
+  if(ls) ls.style.display='none';
+}
+function checkLock(){
+  var v=document.getElementById('lockInput').value;
+  var ok=false;
+  try { ok = (btoa(v)===PASS_ENC); } catch(e){ ok=false; }
+  if(ok){
+    try { localStorage.setItem(LOCK_KEY,'1'); } catch(e){}
+    unlock();
+  } else {
+    document.getElementById('lockErr').textContent='비밀번호가 올바르지 않습니다.';
+    document.getElementById('lockInput').value='';
+  }
+}
+// 엔터로도 입력
+document.addEventListener('DOMContentLoaded',function(){
+  var inp=document.getElementById('lockInput');
+  if(inp){ inp.addEventListener('keydown',function(e){ if(e.key==='Enter'){ checkLock(); } }); }
+});
+
 var ENDPOINT = "https://script.google.com/macros/s/AKfycbzhCncBwn-JlqXARC3wfrWUCuNHzlNK2df0bdhx-w78Xr8mzYUcIYZOJdRi9N4bHtsb/exec";
 var STUDENTS = [];
 var REVIEW = [];   // 현재 시험의 총평 (보고서 읽기에서 가져옴)
