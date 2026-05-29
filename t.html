@@ -21,6 +21,12 @@ body{font-family:'Noto Sans KR',sans-serif; background:var(--sage-fog); color:va
 /* 선생님 조작 영역 (인쇄 시 숨김) */
 .panel{max-width:680px; margin:0 auto; padding:20px; }
 .panel-card{background:#fff; border-radius:14px; padding:20px; box-shadow:0 2px 12px rgba(46,61,56,.06); margin-bottom:18px;}
+.link-box{margin-top:16px; padding:14px 16px; background:var(--sage-fog); border-radius:12px;}
+.link-label{display:block; font-size:13px; font-weight:700; color:var(--sage-deep); margin-bottom:9px;}
+.link-label span{font-weight:400; color:var(--ink-soft);}
+.link-row{display:flex; gap:8px;}
+.link-row input{flex:1; min-width:0; border:1.5px solid var(--line); border-radius:10px; padding:11px 12px; font-size:13.5px; font-family:'Noto Sans KR'; background:#fff; color:var(--ink-deep);}
+.link-row .btn{flex:0 0 auto; padding:11px 20px;}
 .panel h1{font-size:18px; font-weight:700; margin:0 0 4px;}
 .panel .desc{font-size:13px; color:var(--ink-mid); margin:0 0 16px; font-family:'Noto Serif KR',serif;}
 .ctl-row{display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end;}
@@ -89,6 +95,14 @@ body{font-family:'Noto Sans KR',sans-serif; background:var(--sage-fog); color:va
         <select id="reportSel" onchange="onReportChange()"><option value="">— 보고서를 불러오는 중... —</option></select>
       </div>
       <button class="btn ghost" onclick="loadReportList()">목록 새로고침</button>
+    </div>
+
+    <div id="studentLinkBox" class="link-box" style="display:none;">
+      <label class="link-label">학생용 링크 <span>· 이 반 학생들에게 보내세요</span></label>
+      <div class="link-row">
+        <input type="text" id="studentLink" readonly>
+        <button class="btn" id="copyLinkBtn" onclick="copyStudentLink()">복사</button>
+      </div>
     </div>
     <div class="ctl-row" style="margin-top:14px;">
       <div class="ctl">
@@ -199,8 +213,29 @@ function onReportChange(){
   document.getElementById('report').classList.remove('show');
   document.getElementById('pdfBtn').disabled = true;
   document.getElementById('htmlBtn').disabled = true;
-  if(!rid){ setStatus(''); return; }
+  var linkBox = document.getElementById('studentLinkBox');
+  if(!rid){ setStatus(''); linkBox.style.display='none'; return; }
+
+  // 학생용 링크 생성: 현재 주소에서 t.html → r.html 로 바꾸고 ?id= 붙이기
+  var base = location.href.split('?')[0].replace(/t\.html$/, 'r.html');
+  if(!/r\.html$/.test(base)){ base = base.replace(/[^/]*$/, 'r.html'); }
+  document.getElementById('studentLink').value = base + '?id=' + encodeURIComponent(rid);
+  linkBox.style.display='block';
+  document.getElementById('copyLinkBtn').textContent = '복사';
+
   loadStudents(rid);
+}
+
+function copyStudentLink(){
+  var inp = document.getElementById('studentLink');
+  inp.select(); inp.setSelectionRange(0, 99999);
+  var btn = document.getElementById('copyLinkBtn');
+  function done(){ btn.textContent='복사됨 ✓'; setTimeout(function(){ btn.textContent='복사'; }, 2000); }
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(inp.value).then(done, function(){ document.execCommand('copy'); done(); });
+  } else {
+    document.execCommand('copy'); done();
+  }
 }
 
 function loadStudents(rid){
