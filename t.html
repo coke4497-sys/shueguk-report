@@ -85,10 +85,10 @@ body{font-family:'Noto Sans KR',sans-serif; background:var(--sage-fog); color:va
     <p class="desc">시험을 고르고 학생을 선택하면, 학생이 제출한 분석에 '선생님의 한 마디'를 더해 학부모용 보고서가 만들어집니다. PDF로 저장해 공유하세요.</p>
     <div class="ctl-row">
       <div class="ctl">
-        <label>시험 (보고서 ID)</label>
-        <input type="text" id="reportId" placeholder="예) 서정고3화작">
+        <label>시험 선택</label>
+        <select id="reportSel" onchange="onReportChange()"><option value="">— 보고서를 불러오는 중... —</option></select>
       </div>
-      <button class="btn ghost" onclick="loadStudents()">학생 불러오기</button>
+      <button class="btn ghost" onclick="loadReportList()">목록 새로고침</button>
     </div>
     <div class="ctl-row" style="margin-top:14px;">
       <div class="ctl">
@@ -158,17 +158,54 @@ var REVIEW = [];   // 현재 시험의 총평 (보고서 읽기에서 가져옴)
 function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function setStatus(m){ document.getElementById('status').textContent = m||''; }
 
-// URL ?id= 가 있으면 자동 입력
+// URL ?id= 가 있으면 기본 선택할 보고서로 기억
+var PRESELECT = '';
 (function(){
   var m = location.search.match(/[?&]id=([^&]+)/);
-  if(m) document.getElementById('reportId').value = decodeURIComponent(m[1]);
+  if(m) PRESELECT = decodeURIComponent(m[1]);
 })();
 
-function loadStudents(){
-  var rid = document.getElementById('reportId').value.trim();
-  if(!rid){ setStatus('시험 ID를 입력해주세요.'); return; }
+// 페이지 열릴 때 보고서 목록 불러와 드롭다운 채우기
+function loadReportList(){
+  setStatus('보고서 목록을 불러오는 중...');
+  var sel = document.getElementById('reportSel');
+  fetch(ENDPOINT + '?list=1').then(function(r){return r.json();}).then(function(d){
+    if(d.result!=='success' || !d.reports || d.reports.length===0){
+      sel.innerHTML = '<option value="">등록된 보고서가 없습니다</option>';
+      setStatus("'보고서목록' 탭에 보고서를 먼저 등록해주세요.");
+      return;
+    }
+    sel.innerHTML = '<option value="">— 시험을 선택하세요 —</option>' +
+      d.reports.map(function(rp){
+        var label = rp.title ? rp.title : rp.id;
+        return '<option value="'+esc(rp.id)+'">'+esc(label)+'</option>';
+      }).join('');
+    // URL ?id= 로 들어온 경우 자동 선택 + 학생 불러오기
+    if(PRESELECT){
+      sel.value = PRESELECT;
+      if(sel.value){ onReportChange(); }
+      PRESELECT = '';
+    } else {
+      setStatus('시험을 선택하면 제출 학생을 불러옵니다.');
+    }
+  }).catch(function(){ setStatus('보고서 목록을 불러오지 못했어요. 인터넷을 확인해주세요.'); });
+}
+
+// 드롭다운에서 시험을 고르면 자동으로 학생 불러오기
+function onReportChange(){
+  var rid = document.getElementById('reportSel').value;
+  // 학생 선택·보고서 초기화
+  document.getElementById('studentSel').innerHTML = '<option value="">— 먼저 학생을 불러오세요 —</option>';
+  document.getElementById('report').classList.remove('show');
+  document.getElementById('pdfBtn').disabled = true;
+  document.getElementById('htmlBtn').disabled = true;
+  if(!rid){ setStatus(''); return; }
+  loadStudents(rid);
+}
+
+function loadStudents(rid){
+  if(!rid){ return; }
   setStatus('불러오는 중...');
-  // 총평도 같이 가져오기 (보고서 읽기)
   Promise.all([
     fetch(ENDPOINT + '?id=' + encodeURIComponent(rid)).then(function(r){return r.json();}),
     fetch(ENDPOINT + '?results=' + encodeURIComponent(rid)).then(function(r){return r.json();})
@@ -185,8 +222,11 @@ function loadStudents(){
     sel.innerHTML = '<option value="">— 학생을 선택하세요 —</option>' +
       STUDENTS.map(function(s,i){ return '<option value="'+i+'">'+esc(s.name)+' ('+esc(s.school)+' '+esc(s.grade)+')</option>'; }).join('');
     setStatus(STUDENTS.length + '명을 불러왔어요. 학생을 선택하세요.');
-  }).catch(function(){ setStatus('불러오기에 실패했어요. 인터넷과 시험 ID를 확인해주세요.'); });
+  }).catch(function(){ setStatus('불러오기에 실패했어요. 인터넷을 확인해주세요.'); });
 }
+
+// 페이지 로드 시 목록 자동 호출
+loadReportList();
 
 function syncNote(){
   document.getElementById('rNote').textContent = document.getElementById('teacherNote').value.trim() || '';
