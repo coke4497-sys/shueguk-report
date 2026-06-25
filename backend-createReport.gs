@@ -9,6 +9,7 @@
  *  (5) 시험 등록     : m.html POST(action:createReport) → '보고서목록'·'문항' 탭에 저장
  *  (6) 학생 개별페이지: ?key=토큰 → 학생 식별(성적 잠금). ?key=토큰&pw=부모님8자리 → 성적까지 반환 (s.html)
  *      · 접근코드(토큰) 생성: 편집기에서 assignAccessCodes() 한 번 실행 → '학생정보' L열 자동 채움
+ *  (7) 선생님 한마디 저장: t.html POST(action:saveTeacherNote, rowIndex, name, note) → '제출결과' I열 기록
  *
  * ───────────────────────────────────────────────────────────────
  * [시트 탭 / 열]  ※ v4에서 새 열을 "뒤에 추가"만 했으므로 기존 시험도 그대로 동작합니다.
@@ -303,6 +304,11 @@ function doPost(e) {
       return createReport(data);
     }
 
+    // (7) '선생님의 한 마디' 저장 (t.html) → '제출결과' I열에 기록
+    if (data && data.action === 'saveTeacherNote') {
+      return saveTeacherNote(data);
+    }
+
     // (2) 학생 제출 수집
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     var sh = ss.getSheetByName(TAB_RESULT);
@@ -320,6 +326,36 @@ function doPost(e) {
     return json({ result: 'success' });
   } catch (err) {
     return json({ result: 'error', message: String(err) });
+  }
+}
+
+/* ===== (7) '선생님의 한 마디' 저장 ===== t.html
+ * payload: { action:'saveTeacherNote', rowIndex, name, note }
+ * '제출결과' 탭 rowIndex 행의 I열(9)에 note를 기록한다. 안전을 위해 그 행의
+ * 이름(E열)이 전달된 name과 같을 때만 저장(목록 로드 후 행 변동 방지).
+ */
+var RESULT_NOTE_COL = 9;   // I열: 선생님의 한 마디
+
+function saveTeacherNote(data) {
+  try {
+    var rowIndex = parseInt(data.rowIndex, 10);
+    if (!rowIndex || rowIndex < 2) return json({ result:'error', message:'잘못된 행 번호입니다.' });
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var sh = ss.getSheetByName(TAB_RESULT);
+    if (!sh) return json({ result:'error', message:"'" + TAB_RESULT + "' 탭이 없습니다." });
+    if (rowIndex > sh.getLastRow()) return json({ result:'error', message:'존재하지 않는 행입니다.' });
+
+    // 행 검증: 이름(E열)이 일치해야 저장
+    if (data.name) {
+      var nameCell = String(sh.getRange(rowIndex, 5).getValue()).trim();
+      if (nameCell !== String(data.name).trim()) {
+        return json({ result:'error', message:'행 정보가 바뀌었습니다. 목록을 새로고침한 뒤 다시 시도해주세요.' });
+      }
+    }
+    sh.getRange(rowIndex, RESULT_NOTE_COL).setValue(String(data.note || ''));
+    return json({ result:'success', rowIndex: rowIndex });
+  } catch (err) {
+    return json({ result:'error', message:String(err) });
   }
 }
 
