@@ -12,7 +12,7 @@
  * [시트 탭 / 열]  ※ v4에서 새 열을 "뒤에 추가"만 했으므로 기존 시험도 그대로 동작합니다.
  *  ① 보고서목록   A:ID | B:제목 | C:총평 | D:시험범위                                  ★D 신규
  *  ② 문항         A:보고서ID | B:번호 | C:영역(상위) | D:형식(객/서술) | E:난도 | F:내용 | G:세부유형(하위) | H:지문그룹   ★G·H 신규
- *  ③ 제출결과     제출일시 | 시험 | 학교 | 학년 | 이름 | 틀린문항수 | 틀린문항·반성 | 다음시험다짐 | 선생님의한마디 | 예상점수
+ *  ③ 제출결과     제출일시 | 시험 | 학교 | 학년 | 이름 | 틀린문항수 | 틀린문항·반성 | 다음시험다짐 | 선생님의한마디 | 예상점수 | 부모님연락처   ★K 신규(010 제외 8자리 · 학생 매칭 키)
  *
  * [업데이트] 기존 코드를 전부 지우고 이 코드로 교체 → 저장
  *   → 배포 → 배포 관리 → 기존 배포 옆 연필(편집) → 버전 '새 버전' → 배포  (같은 URL 유지)
@@ -111,7 +111,7 @@ function getResults(reportId) {
   }
 
   var v = sh.getDataRange().getValues();
-  // 헤더: 0제출일시 1시험 2학교 3학년 4이름 5틀린문항수 6틀린문항·반성 7다짐 8선생님의한마디 9예상점수
+  // 헤더: 0제출일시 1시험 2학교 3학년 4이름 5틀린문항수 6틀린문항·반성 7다짐 8선생님의한마디 9예상점수 10부모님연락처
   var students = [];
   for (var i = 1; i < v.length; i++) {
     var row = v[i];
@@ -131,7 +131,8 @@ function getResults(reportId) {
       wrongText: String(row[6]||''),
       vow: String(row[7]||''),
       teacherNote: String(row[8]||''),
-      score: String(row[9]||'')
+      score: String(row[9]||''),
+      parentPhone: String(row[10]||'')   // K: 부모님 연락처(010 제외 8자리)
     });
   }
   return json({ result:'success', students: students });
@@ -152,12 +153,14 @@ function doPost(e) {
     var sh = ss.getSheetByName(TAB_RESULT);
     if (!sh) {
       sh = ss.insertSheet(TAB_RESULT);
-      sh.appendRow(['제출일시','시험','학교','학년','이름','틀린문항수','틀린문항 · 반성','다음 시험 다짐','선생님의 한 마디','예상 점수']);
-      sh.getRange(1,1,1,10).setFontWeight('bold').setBackground('#DDE5E1');
+      sh.appendRow(['제출일시','시험','학교','학년','이름','틀린문항수','틀린문항 · 반성','다음 시험 다짐','선생님의 한 마디','예상 점수','부모님 연락처']);
+      sh.getRange(1,1,1,11).setFontWeight('bold').setBackground('#DDE5E1');
     }
+    ensureHeader_(sh, 11, '부모님 연락처');   // K열 머리글 보장(기존 시트 호환)
     sh.appendRow([
       new Date(), data.title||'', data.school||'', data.grade||'',
-      data.name||'', data.wrongCount||0, data.wrongText||'', data.vow||'', '', data.score||''
+      data.name||'', data.wrongCount||0, data.wrongText||'', data.vow||'', '', data.score||'',
+      String(data.parentPhone||'')   // K: 부모님 연락처(010 제외 8자리) — 학생 매칭 키
     ]);
     return json({ result: 'success' });
   } catch (err) {

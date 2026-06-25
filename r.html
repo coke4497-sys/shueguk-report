@@ -144,6 +144,7 @@ body{font-family:'Noto Sans KR',sans-serif; background:var(--sage-fog); color:va
       <div class="fld"><label>학년</label><input type="text" id="f_grade" placeholder="예) 3학년"></div>
     </div>
     <div class="fld"><label>이름</label><input type="text" id="f_name" placeholder="이름을 입력해주세요"></div>
+    <div class="fld"><label>부모님 연락처 <span style="font-weight:400; color:#8A9994; font-size:13px;">(학원 안내 문자를 받으시는 번호 · 010 제외 뒤 8자리)</span></label><input type="tel" id="f_parent" placeholder="예) 12345678" inputmode="numeric" maxlength="8" autocomplete="off"></div>
     <div class="fld"><label>예상 점수 <span style="font-weight:400; color:#8A9994; font-size:13px;">(채점 전이면 예상되는 점수를 적어주세요)</span></label><input type="number" id="f_score" placeholder="예) 85" inputmode="numeric" min="0" max="100"></div>
   </div>
 
@@ -177,6 +178,7 @@ body{font-family:'Noto Sans KR',sans-serif; background:var(--sage-fog); color:va
     <p class="rc-h">기본 정보</p>
     <div class="r-row"><span class="k">학교 · 학년</span><span class="v" id="r_sch"></span></div>
     <div class="r-row"><span class="k">이름</span><span class="v" id="r_name"></span></div>
+    <div class="r-row"><span class="k">부모님 연락처</span><span class="v" id="r_parent"></span></div>
     <div class="r-row"><span class="k">예상 점수</span><span class="v" id="r_score"></span></div>
     <div class="r-row"><span class="k">틀린 문항</span><span class="v" id="r_wc"></span></div>
   </div>
@@ -305,6 +307,8 @@ function showResult(){
   document.getElementById('r_title').textContent=(name?name+' · ':'')+'시험 복기';
   document.getElementById('r_sch').textContent=((sch||'-')+' '+(gr||'')).trim();
   document.getElementById('r_name').textContent=name||'미입력';
+  var parent=document.getElementById('f_parent').value.replace(/\D/g,'');
+  document.getElementById('r_parent').textContent = parent ? ('010-'+parent.slice(0,4)+'-'+parent.slice(4,8)) : '미입력';
   var scoreVal=document.getElementById('f_score').value.trim();
   document.getElementById('r_score').textContent = scoreVal!=='' ? (scoreVal+'점') : '미입력';
   var keys=Object.keys(wrong);
@@ -360,6 +364,7 @@ function buildPayload(){
     school: document.getElementById('f_school').value.trim(),
     grade: document.getElementById('f_grade').value.trim(),
     name: document.getElementById('f_name').value.trim(),
+    parentPhone: document.getElementById('f_parent').value.replace(/\D/g,''),
     score: document.getElementById('f_score').value.trim(),
     wrongCount: keys.length,
     wrongText: lines.join('\n\n'),
@@ -370,6 +375,7 @@ function buildPayload(){
 function submitToSheet(){
   var p=buildPayload();
   if(!p.name){ toast('이름을 먼저 입력해주세요', 'err'); backToForm(); document.getElementById('f_name').focus(); return; }
+  if(!/^\d{8}$/.test(p.parentPhone)){ toast('부모님 연락처 8자리(010 제외)를 정확히 입력해주세요', 'err'); backToForm(); document.getElementById('f_parent').focus(); return; }
   if(ENDPOINT.indexOf('http')!==0){ toast('전송 주소가 설정되지 않았어요', 'err'); return; }
 
   var btn=document.getElementById('submitBtn');
