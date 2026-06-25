@@ -270,16 +270,18 @@ var ICON = {
   lock:'<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
   arrow:'<path d="M5 12h14M13 6l6 6-6 6"/>',
   back:'<path d="M19 12H5M11 18l-6-6 6-6"/>',
-  bell:'<path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>'
+  bell:'<path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>',
+  clip:'<path d="M9 3h6a1 1 0 0 1 1 1v1a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M16 5h2a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2"/><path d="M9 14l2 2 4-4"/>'
 };
 function svg(inner){ return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">'+inner+'</svg>'; }
 
 /* 나중에 연결할 기능들 — url을 채우면 자동 활성화(토큰 KEY가 ?key=로 붙음) */
 var FEATURES = [
-  { id:'voca',    icon:'book',   title:'어휘 테스트',   desc:'단어 시험 보기',       url:'' },
-  { id:'clinic',  icon:'pulse',  title:'H-work 클리닉', desc:'숙제 클리닉 신청·확인', url:'' },
-  { id:'mock',    icon:'paper',  title:'모의고사 신청', desc:'모의고사 응시 신청',    url:'' },
-  { id:'grammar', icon:'pencil', title:'문법 테스트',   desc:'문법 시험 보기',       url:'' }
+  { id:'voca',    icon:'book',   title:'어휘 테스트',   desc:'단어 시험 보기',     url:'' },
+  { id:'hwork',   icon:'clip',   title:'H-work',       desc:'숙제 제출·확인',     url:'' },
+  { id:'clinic',  icon:'pulse',  title:'클리닉 신청',   desc:'클리닉 신청·확인',   url:'' },
+  { id:'mock',    icon:'paper',  title:'모의고사 신청', desc:'모의고사 응시 신청',  url:'' },
+  { id:'grammar', icon:'pencil', title:'문법 테스트',   desc:'문법 시험 보기',     url:'' }
 ];
 
 function $(id){ return document.getElementById(id); }
