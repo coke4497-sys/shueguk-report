@@ -117,6 +117,21 @@ function getResults(reportId) {
     }
   }
 
+  // 학생정보 매핑(접근코드·학생ID 조회용): 부모님번호(A) 우선, 이름(B) 보조
+  var byPhone = {}, byName = {};
+  var stSh = ss.getSheetByName(TAB_STUDENTS);
+  if (stSh) {
+    var stv = stSh.getDataRange().getValues();
+    var codeColR = findHeaderCol_(stv[0], '접근코드', STU_CODE_COL);
+    for (var s = 1; s < stv.length; s++) {
+      var sId = String(stv[s][0] || '').trim();
+      var sNm = String(stv[s][1] || '').trim();
+      var code = String(stv[s][codeColR] || '').trim();
+      if (sId) byPhone[sId] = { code: code, id: sId };
+      if (sNm && !byName[sNm]) byName[sNm] = { code: code, id: sId };   // 동명이인은 첫 행만
+    }
+  }
+
   var v = sh.getDataRange().getValues();
   // 헤더: 0제출일시 1시험 2학교 3학년 4이름 5틀린문항수 6틀린문항·반성 7다짐 8선생님의한마디 9예상점수 10부모님연락처
   var students = [];
@@ -127,6 +142,9 @@ function getResults(reportId) {
     if (reportId && reportId !== 'ALL') {
       if (examVal !== reportId && examVal !== matchTitle) continue;
     }
+    var phone = String(row[10] || '').trim();
+    var nm = String(row[4] || '').trim();
+    var roster = (phone && byPhone[phone]) ? byPhone[phone] : (byName[nm] || null);
     students.push({
       rowIndex: i + 1,
       submittedAt: row[0] ? Utilities.formatDate(new Date(row[0]), 'GMT+9', 'yyyy-MM-dd HH:mm') : '',
@@ -139,7 +157,9 @@ function getResults(reportId) {
       vow: String(row[7]||''),
       teacherNote: String(row[8]||''),
       score: String(row[9]||''),
-      parentPhone: String(row[10]||'')   // K: 부모님 연락처(010 제외 8자리)
+      parentPhone: phone,                          // K: 부모님 연락처(010 제외 8자리)
+      studentId: roster ? roster.id : phone,       // 학생정보의 학생ID
+      accessCode: roster ? roster.code : ''        // 개별 페이지 링크용 토큰
     });
   }
   return json({ result:'success', students: students });

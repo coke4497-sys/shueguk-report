@@ -193,6 +193,15 @@ body{font-family:'Noto Sans KR',sans-serif; background:var(--sage-fog); color:va
       <button class="btn ghost" id="pdfBtn" onclick="printReport()" disabled>PDF로 저장 / 인쇄</button>
     </div>
     <p class="hint" id="fnameHint" style="margin-top:8px;">💡 파일명은 <b>시험-학생이름</b> 형식으로 자동 지정됩니다. 예) <b id="fnameEx">26-1-기말-화정고1-박보검</b> · 저장 창에서 그대로 저장하시면 됩니다. <span style="color:var(--ink-soft);">(PDF는 Chrome 등에서 파일명이 미리 채워집니다)</span></p>
+
+    <div id="sPageLinkBox" class="link-box" style="display:none;">
+      <label class="link-label">개별 페이지 링크 <span>· 학부모님·학생에게 발송할 개별 페이지 링크입니다</span></label>
+      <div class="link-row">
+        <input type="text" id="sPageLink" readonly>
+        <button class="btn" id="sPageLinkBtn" onclick="copyStudentPageLink()">복사</button>
+      </div>
+      <p class="hint" id="sPageLinkHint" style="margin-top:9px; display:none;"></p>
+    </div>
   </div>
 </div>
 
@@ -455,7 +464,7 @@ function fillNoteTemplate(){
 function renderReport(){
   var idx = document.getElementById('studentSel').value;
   var pdfBtn = document.getElementById('pdfBtn');
-  if(idx===''){ document.getElementById('report').classList.remove('show'); pdfBtn.disabled=true; document.getElementById('saveNoteBtn').disabled=true; return; }
+  if(idx===''){ document.getElementById('report').classList.remove('show'); pdfBtn.disabled=true; document.getElementById('saveNoteBtn').disabled=true; document.getElementById('sPageLinkBox').style.display='none'; return; }
   var s = STUDENTS[parseInt(idx,10)];
 
   var fx=document.getElementById('fnameEx'); if(fx) fx.textContent=reportFileName();
@@ -533,6 +542,48 @@ function renderReport(){
   pdfBtn.disabled = false;
   document.getElementById('htmlBtn').disabled = false;
   document.getElementById('saveNoteBtn').disabled = false;
+
+  updateStudentPageLink(s);
+}
+
+// 선택한 학생의 개별 페이지(s.html) 링크 생성 + 복사 박스
+function updateStudentPageLink(s){
+  var box = document.getElementById('sPageLinkBox');
+  var input = document.getElementById('sPageLink');
+  var btn = document.getElementById('sPageLinkBtn');
+  var hint = document.getElementById('sPageLinkHint');
+  box.style.display = 'block';
+  btn.textContent = '복사';
+
+  if(s.accessCode && String(s.accessCode).trim()){
+    // 현재 주소에서 t.html → s.html 로 바꾸고 ?key=토큰 붙이기
+    var base = location.href.split('?')[0].replace(/t\.html$/, 's.html');
+    if(!/s\.html$/.test(base)){ base = base.replace(/[^/]*$/, 's.html'); }
+    input.value = base + '?key=' + encodeURIComponent(s.accessCode);
+    input.style.display = '';
+    btn.style.display = '';
+    hint.style.display = 'none';
+  } else {
+    // 접근코드가 아직 없음 → 안내
+    input.value = '';
+    input.style.display = 'none';
+    btn.style.display = 'none';
+    hint.style.display = 'block';
+    hint.innerHTML = '⚠️ 이 학생의 <b>접근코드</b>가 아직 없습니다. ‘학생정보’ 탭에 학생을 등록한 뒤, 앱스 스크립트에서 <b>assignAccessCodes</b>를 한 번 실행하면 링크가 만들어집니다.';
+  }
+}
+
+function copyStudentPageLink(){
+  var inp = document.getElementById('sPageLink');
+  if(!inp.value){ return; }
+  inp.select(); inp.setSelectionRange(0, 99999);
+  var btn = document.getElementById('sPageLinkBtn');
+  function done(){ btn.textContent='복사됨 ✓'; setTimeout(function(){ btn.textContent='복사'; }, 2000); }
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(inp.value).then(done, function(){ document.execCommand('copy'); done(); });
+  } else {
+    document.execCommand('copy'); done();
+  }
 }
 
 // '선생님의 한 마디'를 '제출결과' 시트에 저장 → 학생 개별 페이지에도 반영
