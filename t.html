@@ -87,14 +87,16 @@ body{font-family:'Noto Sans KR',sans-serif; background:var(--sage-fog); color:va
 .vow-box, .teacher-box{font-family:'Noto Serif KR',serif; font-size:14px; line-height:1.8; color:var(--ink-deep); background:var(--sage-fog); border-radius:10px; padding:16px 18px; white-space:pre-wrap;}
 .teacher-box{background:#fff; border:1.5px solid var(--sage-soft); min-height:90px;}
 .r-foot{text-align:center; color:var(--ink-soft); font-size:11px; padding-top:24px; letter-spacing:.05em;}
-.chart-title{font-size:13px; font-weight:700; color:var(--accent-dark); margin:0 0 10px;}
-.chart-title.two{margin-top:18px;}
-.vchart{display:flex; align-items:flex-end; gap:10px; padding:4px 2px 0;}
+.chart-grid{display:flex; gap:12px; align-items:flex-start;}
+.chart-col{flex:1 1 0; min-width:0;}
+.chart-title{font-size:12.5px; font-weight:700; color:var(--accent-dark); margin:0 0 8px; display:flex; align-items:baseline; gap:5px; flex-wrap:wrap;}
+.chart-title .basis{font-size:10px; color:var(--ink-soft); font-weight:500;}
+.vchart{display:flex; align-items:flex-end; gap:5px; padding:2px 0 0;}
 .vbar{flex:1 1 0; min-width:0; display:flex; flex-direction:column; align-items:center; justify-content:flex-end;}
-.vb-val{font-size:11px; color:var(--ink-soft); margin-bottom:5px; line-height:1.2; text-align:center;}
-.vb-val b{display:block; font-size:13px; color:var(--ink-deep); font-weight:700;}
-.vb-col{width:72%; max-width:46px; min-height:3px; background:var(--sage-mid); border-radius:5px 5px 0 0; -webkit-print-color-adjust:exact; print-color-adjust:exact;}
-.vb-label{font-size:12px; color:var(--ink-deep); margin-top:7px; text-align:center; white-space:nowrap; font-weight:500;}
+.vb-val{font-size:9.5px; color:var(--ink-soft); margin-bottom:4px; line-height:1.15; text-align:center;}
+.vb-val b{display:block; font-size:11.5px; color:var(--ink-deep); font-weight:700;}
+.vb-col{width:78%; max-width:30px; min-height:3px; background:var(--sage-mid); border-radius:4px 4px 0 0; -webkit-print-color-adjust:exact; print-color-adjust:exact;}
+.vb-label{font-size:10.5px; color:var(--ink-deep); margin-top:6px; text-align:center; white-space:nowrap; font-weight:500;}
 .sign{text-align:right; margin-top:18px; font-family:'Noto Serif KR',serif; font-size:14px; color:var(--ink-deep);}
 .sign .role{color:var(--ink-mid); font-size:13px; margin-right:8px;}
 .sign .nm{font-weight:500; font-size:15.5px;}
@@ -166,8 +168,9 @@ body{font-family:'Noto Sans KR',sans-serif; background:var(--sage-fog); color:va
     <div class="status" id="status"></div>
     <div class="ctl-row" style="margin-top:6px;">
       <button class="btn" id="htmlBtn" onclick="saveAsHtml()" disabled>HTML로 저장 (노션·모바일용)</button>
-      <button class="btn ghost" id="pdfBtn" onclick="window.print()" disabled>PDF로 저장 / 인쇄</button>
+      <button class="btn ghost" id="pdfBtn" onclick="printReport()" disabled>PDF로 저장 / 인쇄</button>
     </div>
+    <p class="hint" id="fnameHint" style="margin-top:8px;">💡 파일명은 <b>시험-학생이름</b> 형식으로 자동 지정됩니다. 예) <b id="fnameEx">26-1-기말-화정고1-박보검</b> · 저장 창에서 그대로 저장하시면 됩니다. <span style="color:var(--ink-soft);">(PDF는 Chrome 등에서 파일명이 미리 채워집니다)</span></p>
   </div>
 </div>
 
@@ -195,19 +198,24 @@ body{font-family:'Noto Sans KR',sans-serif; background:var(--sage-fog); color:va
     <h2 class="sec-h">시험 총평</h2>
     <div class="review" id="rReview"></div>
 
-    <h2 class="sec-h" id="rCompH">문항 구성 <span style="font-size:12px; color:var(--ink-soft); font-weight:500;">· 이 시험 전체 기준</span></h2>
-    <div id="rComp">
-      <p class="chart-title">과목 비율</p>
-      <div id="rChartArea"></div>
-      <p class="chart-title two">난도 비율</p>
-      <div id="rChartLv"></div>
+    <h2 class="sec-h" id="rCompH">문항 분석</h2>
+    <div class="chart-grid" id="rComp">
+      <div class="chart-col">
+        <p class="chart-title">과목 비율<span class="basis">시험 전체</span></p>
+        <div id="rChartArea"></div>
+      </div>
+      <div class="chart-col">
+        <p class="chart-title">난도 비율<span class="basis">시험 전체</span></p>
+        <div id="rChartLv"></div>
+      </div>
+      <div class="chart-col" id="rWrongCol">
+        <p class="chart-title">틀린 문항<span class="basis">이 학생</span></p>
+        <div id="rWrongDist"></div>
+      </div>
     </div>
 
     <h2 class="sec-h">틀린 문항 · 학생의 반성</h2>
     <div id="rWrong"></div>
-
-    <h2 class="sec-h" id="rWrongDistH">틀린 문항 과목 분포 <span style="font-size:12px; color:var(--ink-soft); font-weight:500;">· 이 학생 기준</span></h2>
-    <div id="rWrongDist"></div>
 
     <h2 class="sec-h">다음 시험을 위한 다짐</h2>
     <div class="vow-box" id="rVow"></div>
@@ -418,6 +426,7 @@ function renderReport(){
   if(idx===''){ document.getElementById('report').classList.remove('show'); pdfBtn.disabled=true; return; }
   var s = STUDENTS[parseInt(idx,10)];
 
+  var fx=document.getElementById('fnameEx'); if(fx) fx.textContent=reportFileName();
   document.getElementById('rTitle').textContent = s.title;
   document.getElementById('rName').textContent = s.name;
   document.getElementById('rSch').textContent = (s.school+' '+s.grade).trim();
@@ -450,12 +459,12 @@ function renderReport(){
 
   // 틀린 문항 과목 분포 (이 학생 기준)
   var wd = studentWrongByArea_(s);
-  var wdH=document.getElementById('rWrongDistH'), wdEl=document.getElementById('rWrongDist');
+  var wcol=document.getElementById('rWrongCol');
   if(wd.length){
     renderBars_('rWrongDist', countBy_(wd,'area',AREA_ORDER), wd.length, null);
-    wdH.style.display=''; wdEl.style.display='';
+    wcol.style.display='';
   } else {
-    wdH.style.display='none'; wdEl.style.display='none';
+    wcol.style.display='none';
   }
 
   // 틀린 문항·반성: 제출 시 "[3번 · 화법 · 상] 내용\n  → 반성" 형식으로 저장됨. 블록 단위로 분리
@@ -494,6 +503,24 @@ function renderReport(){
 }
 
 // 현재 보고서를 시트에 의존하지 않는 독립 HTML 파일로 저장
+// 파일명: "시험제목-학생이름" (공백→-, 금지문자 제거)
+function reportFileName(){
+  var idx=document.getElementById('studentSel').value;
+  if(idx==='') return 'SHUEGUK-리포트';
+  var s=STUDENTS[parseInt(idx,10)];
+  var base=String(s.title||'')+'-'+String(s.name||'');
+  base=base.replace(/[\\/:*?"<>|]/g,'').replace(/\s+/g,'-').replace(/-+/g,'-').replace(/^-|-$/g,'');
+  return base || 'SHUEGUK-리포트';
+}
+// PDF 저장 시 인쇄 대화상자의 파일명이 reportFileName()으로 미리 채워지도록 document.title 설정
+function printReport(){
+  var prev=document.title;
+  document.title=reportFileName();
+  function restore(){ document.title=prev; window.removeEventListener('afterprint', restore); }
+  window.addEventListener('afterprint', restore);
+  window.print();
+}
+
 function saveAsHtml(){
   var idx = document.getElementById('studentSel').value;
   if(idx===''){ return; }
@@ -523,8 +550,8 @@ reportHtml + '\n</body>\n</html>';
   var blob = new Blob([doc], {type:'text/html;charset=utf-8'});
   var url = URL.createObjectURL(blob);
   var a = document.createElement('a');
-  // 파일명: 시험_이름.html (공백은 _ 로)
-  var fname = (s.title + '_' + s.name).replace(/[\\/:*?"<>|]/g,'').replace(/\s+/g,'_') + '.html';
+  // 파일명: 시험-이름.html
+  var fname = reportFileName() + '.html';
   a.href = url; a.download = fname;
   document.body.appendChild(a); a.click();
   document.body.removeChild(a);
