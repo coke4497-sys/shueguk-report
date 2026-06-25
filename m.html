@@ -171,18 +171,19 @@ body{font-family:'Noto Sans KR',sans-serif; background:var(--sage-fog); color:va
     </div>
 
     <!-- 3. 문항 -->
-    <h2 class="sec-h"><span class="step">3</span>문항 <span class="n">· 단독 문항 / 지문 묶음</span></h2>
-    <div class="gen-row">
-      <div class="fld num-fld"><label>단독 문항 수</label><input type="number" id="genCount" min="1" max="100" placeholder="예) 10"></div>
-      <button class="btn ghost sm" onclick="generateSolos()">단독 문항 생성</button>
-    </div>
-    <div class="add-row">
-      <button class="btn ghost sm" onclick="addSolo()">＋ 단독 문항</button>
-      <button class="btn ghost sm" onclick="addPassage()">＋ 지문 묶음</button>
-    </div>
-    <p class="hint" style="margin:-6px 0 12px; font-size:12px; color:var(--ink-soft);">지문으로 묶이는 문항은 <b>＋ 지문 묶음</b>을 누르고, 지문 이름·영역·세부유형을 <b>한 번만</b> 정한 뒤 그 안에 문항을 추가하세요.</p>
+    <h2 class="sec-h"><span class="step">3</span>문항 <span class="n">· 위에서부터 시험지 순서대로</span></h2>
+    <p class="hint" style="margin:0 0 12px; font-size:12px; color:var(--ink-soft);">시험지 순서대로 추가하세요. 지문에 여러 문항이 딸리면 <b>＋ 지문 묶음</b>, 혼자면 <b>＋ 단독 문항</b>. 아래 버튼을 누르면 새 문항이 <b>버튼 위로</b> 쌓입니다.</p>
     <div class="block-list" id="blockList"></div>
     <p class="q-count">전체 <b id="qCount">0</b>문항</p>
+    <!-- 문항 추가 버튼 (시험 총평 바로 위) -->
+    <div class="add-row" style="margin-top:12px;">
+      <button class="btn ghost sm" onclick="addSolo(true)">＋ 단독 문항</button>
+      <button class="btn ghost sm" onclick="addPassage(true)">＋ 지문 묶음</button>
+    </div>
+    <div class="gen-row" style="margin-top:8px;">
+      <div class="fld num-fld"><label>단독 문항 여러 개</label><input type="number" id="genCount" min="1" max="100" placeholder="예) 10"></div>
+      <button class="btn ghost sm" onclick="generateSolos()">한 번에 생성</button>
+    </div>
 
     <!-- 8. 시험 총평 -->
     <h2 class="sec-h"><span class="step">8</span>시험 총평 <span class="n">· 학생 화면 상단에 표시</span></h2>
@@ -267,6 +268,7 @@ var LV_OPTS   = ['중','중상','상','최상'];
 function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function setStatus(m, kind){ var el=document.getElementById('status'); el.textContent=m||''; el.className='status'+(kind?' '+kind:''); }
 function opts(arr, sel){ return arr.map(function(o){ return '<option'+(o===sel?' selected':'')+'>'+o+'</option>'; }).join(''); }
+function scrollTo_(el, mode){ if(el && el.scrollIntoView) el.scrollIntoView({behavior:'smooth', block:mode||'center'}); }
 
 function nextNo(){
   var ins=document.querySelectorAll('#blockList .no-in');
@@ -286,7 +288,7 @@ function txtCellHtml(){
 }
 
 /* ----- 단독 문항 ----- */
-function addSolo(){
+function addSolo(scroll){
   var no=nextNo();
   var d=document.createElement('div'); d.className='block solo';
   d.innerHTML =
@@ -301,11 +303,12 @@ function addSolo(){
     txtCellHtml();
   document.getElementById('blockList').appendChild(d);
   renumberAll();
+  if(scroll) scrollTo_(d);
   return d;
 }
 
 /* ----- 지문 묶음 ----- */
-function addPassage(){
+function addPassage(scroll){
   var d=document.createElement('div'); d.className='block passage';
   d.innerHTML =
     '<div class="block-head"><span class="b-label">📖 지문 묶음</span>'+
@@ -321,6 +324,7 @@ function addPassage(){
   document.getElementById('blockList').appendChild(d);
   addSubQuestion(d.querySelector('.add-sub'));  // 기본 1문항
   renumberAll();
+  if(scroll) scrollTo_(d);
   return d;
 }
 function addSubQuestion(btn){
@@ -338,6 +342,7 @@ function addSubQuestion(btn){
     '<button class="del-sub" onclick="delSub(this)">문항 삭제</button>';
   list.appendChild(d);
   renumberAll();
+  scrollTo_(d,'nearest');
 }
 function delSub(btn){ btn.closest('.subq').remove(); renumberAll(); }
 function delBlock(btn){ btn.closest('.block').remove(); renumberAll(); }
@@ -360,7 +365,9 @@ function generateSolos(){
   var n=parseInt(document.getElementById('genCount').value,10);
   if(isNaN(n)||n<1){ setStatus('단독 문항 수를 1 이상으로 입력해주세요.', 'err'); return; }
   if(n>100){ n=100; }
-  for(var i=0;i<n;i++){ addSolo(); }
+  var first=null;
+  for(var i=0;i<n;i++){ var el=addSolo(); if(i===0) first=el; }
+  if(first) scrollTo_(first);
   setStatus(n+'개 단독 문항을 추가했어요.', '');
 }
 
