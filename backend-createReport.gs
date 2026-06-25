@@ -7,14 +7,15 @@
  *  (3) 제출결과 조회 : ?results=서정고3화작 → 제출 학생 목록 반환
  *  (4) 보고서 목록   : ?list=1 → 등록된 시험 목록 반환
  *  (5) 시험 등록     : m.html POST(action:createReport) → '보고서목록'·'문항' 탭에 저장
- *  (6) 학생 개별페이지: ?student=71514497 → '학생정보'+'제출결과'를 부모님 8자리로 매칭해 반환 (s.html)
+ *  (6) 학생 개별페이지: ?key=토큰 → 학생 식별(성적 잠금). ?key=토큰&pw=부모님8자리 → 성적까지 반환 (s.html)
+ *      · 접근코드(토큰) 생성: 편집기에서 assignAccessCodes() 한 번 실행 → '학생정보' L열 자동 채움
  *
  * ───────────────────────────────────────────────────────────────
  * [시트 탭 / 열]  ※ v4에서 새 열을 "뒤에 추가"만 했으므로 기존 시험도 그대로 동작합니다.
  *  ① 보고서목록   A:ID | B:제목 | C:총평 | D:시험범위                                  ★D 신규
  *  ② 문항         A:보고서ID | B:번호 | C:영역(상위) | D:형식(객/서술) | E:난도 | F:내용 | G:세부유형(하위) | H:지문그룹   ★G·H 신규
  *  ③ 제출결과     제출일시 | 시험 | 학교 | 학년 | 이름 | 틀린문항수 | 틀린문항·반성 | 다음시험다짐 | 선생님의한마디 | 예상점수 | 부모님연락처   ★K 신규(010 제외 8자리 · 학생 매칭 키)
- *  ④ 학생정보     A:학생ID(부모님8자리) | B:이름 | C:학교 | D:학년 | E:담당교사 | F:메모 | G:정규가 | H:정규나 | I:내신진도 | J:내신확인 | K:재원여부   ★신규 탭
+ *  ④ 학생정보     A:학생ID(부모님8자리=비밀번호) | B:이름 | C:학교 | D:학년 | E:담당교사 | F:메모 | G:정규가 | H:정규나 | I:내신진도 | J:내신확인 | K:재원여부 | L:접근코드(토큰)   ★신규 탭
  *
  * [업데이트] 기존 코드를 전부 지우고 이 코드로 교체 → 저장
  *   → 배포 → 배포 관리 → 기존 배포 옆 연필(편집) → 버전 '새 버전' → 배포  (같은 URL 유지)
@@ -31,7 +32,8 @@ function doGet(e) {
   var p = (e && e.parameter) ? e.parameter : {};
   if (p.list)    { return getList(); }
   if (p.results) { return getResults(String(p.results).trim()); }
-  if (p.student) { return getStudent(String(p.student).trim()); }   // ?student=27927388 → 학생 개별 페이지용
+  if (p.key)     { return getStudent({ key: p.key, pw: p.pw }); }     // ?key=토큰[&pw=번호] → 학생 허브
+  if (p.student) { return getStudent({ id: p.student, pw: p.pw }); }  // (테스트용) ?student=학생ID[&pw=번호]
   var id = p.id ? String(p.id).trim() : '';
   if (!id) {
     return json({ result: 'error', message: 'id 파라미터가 없습니다. 예: ?id=서정고3화작' });
@@ -142,42 +144,68 @@ function getResults(reportId) {
   return json({ result:'success', students: students });
 }
 
-/* ===== (6) 학생 개별 페이지 ===== s.html?id=학생ID(=부모님 8자리)
- *  '학생정보' 탭에서 기본정보를 찾고, '제출결과'에서 그 학생의 모든 시험 기록을 모은다.
- *  매칭: 제출결과 K열(부모님번호) === 학생ID. 단, 번호 칸이 생기기 전의 옛 기록은
- *        번호가 비어 있으므로 이름이 같으면 보조 매칭한다.
+/* ===== (6) 학생 개별 페이지 (비밀 링크 + 비밀번호) =====
+ *  s.html?key=<접근코드>            → 학생 식별(1차). info(이름·학교·시간표 등)만 반환, 성적은 미포함.
+ *  s.html?key=<접근코드>&pw=<번호>  → 비밀번호(=부모님 8자리=학생ID) 일치 시 exams(성적)까지 반환.
+ *  (테스트용) ?student=<학생ID> 로도 동일하게 동작. pw 없으면 잠금 상태(authed:false).
+ *
+ *  '학생정보' 탭 열: 0학생ID(=부모님8자리,비밀번호) 1이름 2학교 3학년 4담당교사 5메모
+ *                    6정규가 7정규나 8내신진도 9내신확인 10재원여부 11접근코드(토큰)
  */
-function getStudent(studentId) {
-  if (!studentId) return json({ result:'error', message:'학생 ID가 없습니다.' });
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
+var STU_CODE_COL = 11;   // L열: 접근코드(토큰). 헤더로 못 찾으면 이 위치를 사용.
 
-  // (a) 학생정보에서 기본정보
+function getStudent(opts) {
+  opts = opts || {};
+  var key = String(opts.key || '').trim();
+  var id  = String(opts.id  || '').trim();
+  var pw  = String(opts.pw  || '').trim();
+  if (!key && !id) return json({ result:'error', message:'학생 식별 정보가 없습니다.' });
+
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
   var stSh = ss.getSheetByName(TAB_STUDENTS);
   if (!stSh) return json({ result:'error', message:"'" + TAB_STUDENTS + "' 탭이 없습니다." });
   var sv = stSh.getDataRange().getValues();
-  var info = null;
-  // 0학생ID 1이름 2학교 3학년 4담당교사 5메모 6정규가 7정규나 8내신진도 9내신확인 10재원여부
-  for (var i = 1; i < sv.length; i++) {
-    if (String(sv[i][0]).trim() === studentId) {
-      info = {
-        id:        studentId,
-        name:      String(sv[i][1] || '').trim(),
-        school:    String(sv[i][2] || ''),
-        grade:     String(sv[i][3] || ''),
-        teacher:   String(sv[i][4] || ''),
-        memo:      String(sv[i][5] || ''),
-        classA:    String(sv[i][6] || ''),
-        classB:    String(sv[i][7] || ''),
-        progress:  String(sv[i][8] || ''),
-        checkup:   String(sv[i][9] || ''),
-        enrolled:  String(sv[i][10] || '')
-      };
-      break;
-    }
-  }
-  if (!info) return json({ result:'error', message:"학생을 찾을 수 없습니다. (ID: " + studentId + ")" });
+  var codeCol = findHeaderCol_(sv[0], '접근코드', STU_CODE_COL);
 
-  // (b) 제출결과에서 이 학생의 시험 기록
+  // 학생 행 찾기 (토큰 우선, 없으면 학생ID)
+  var r = null;
+  for (var i = 1; i < sv.length; i++) {
+    var matchRow = key ? (String(sv[i][codeCol] || '').trim() === key)
+                       : (String(sv[i][0] || '').trim() === id);
+    if (matchRow) { r = sv[i]; break; }
+  }
+  if (!r) return json({ result:'error', message: key ? '유효하지 않은 링크입니다.' : '학생을 찾을 수 없습니다.' });
+
+  var sid = String(r[0] || '').trim();   // 학생ID(=부모님 8자리)=비밀번호
+  var info = {
+    id:       sid,
+    name:     String(r[1]  || '').trim(),
+    school:   String(r[2]  || ''),
+    grade:    String(r[3]  || ''),
+    teacher:  String(r[4]  || ''),
+    memo:     String(r[5]  || ''),
+    classA:   String(r[6]  || ''),
+    classB:   String(r[7]  || ''),
+    progress: String(r[8]  || ''),
+    checkup:  String(r[9]  || ''),
+    enrolled: String(r[10] || '')
+  };
+
+  // 비밀번호 검증: 입력값이 학생ID(부모님 8자리)와 일치해야 성적 공개
+  var pwTried = pw !== '';
+  var authed  = pwTried && pw === sid;
+
+  var resp = { result:'success', info: info, authed: authed, pwTried: pwTried };
+  if (authed) {
+    resp.exams = collectExams_(ss, sid, info.name);
+  } else {
+    resp.examCount = countExams_(ss, sid, info.name);   // 잠금 상태에선 개수만 안내
+  }
+  return json(resp);
+}
+
+/** 제출결과에서 이 학생의 시험 기록을 모은다(최신순). 부모님번호 매칭, 옛 기록은 이름 보조 매칭. */
+function collectExams_(ss, sid, name) {
   var exams = [];
   var rSh = ss.getSheetByName(TAB_RESULT);
   if (rSh) {
@@ -188,7 +216,7 @@ function getStudent(studentId) {
       if (!row[4]) continue;
       var phone = String(row[10] || '').trim();
       var nm    = String(row[4]  || '').trim();
-      var match = (phone && phone === studentId) || (!phone && nm === info.name);
+      var match = (phone && phone === sid) || (!phone && nm === name);
       if (!match) continue;
       exams.push({
         submittedAt: row[0] ? Utilities.formatDate(new Date(row[0]), 'GMT+9', 'yyyy-MM-dd HH:mm') : '',
@@ -203,10 +231,66 @@ function getStudent(studentId) {
       });
     }
   }
-  // 최신 제출이 위로
   exams.sort(function(a, b){ return a.submittedAt < b.submittedAt ? 1 : (a.submittedAt > b.submittedAt ? -1 : 0); });
+  return exams;
+}
 
-  return json({ result:'success', info: info, exams: exams });
+function countExams_(ss, sid, name) {
+  return collectExams_(ss, sid, name).length;
+}
+
+/** 머리글 행에서 label과 일치하는 열 인덱스를 찾고, 없으면 fallback 인덱스를 반환. */
+function findHeaderCol_(headerRow, label, fallback) {
+  if (headerRow) {
+    for (var c = 0; c < headerRow.length; c++) {
+      if (String(headerRow[c] || '').trim() === label) return c;
+    }
+  }
+  return fallback;
+}
+
+/* ===== 접근코드(토큰) 일괄 생성 =====
+ * Apps Script 편집기에서 이 함수를 한 번 실행하면 '학생정보' L열에
+ * 비어 있는 학생마다 무작위 접근코드를 채운다(기존 코드는 보존).
+ * 실행: 편집기 상단 함수 선택 → assignAccessCodes → 실행.
+ */
+function assignAccessCodes() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ss.getSheetByName(TAB_STUDENTS);
+  if (!sh) throw new Error("'" + TAB_STUDENTS + "' 탭이 없습니다.");
+  var last = sh.getLastRow();
+  if (last < 2) return;
+
+  var headerRow = sh.getRange(1, 1, 1, Math.max(sh.getLastColumn(), STU_CODE_COL + 1)).getValues()[0];
+  var codeCol = findHeaderCol_(headerRow, '접근코드', STU_CODE_COL);   // 0-base
+  // 머리글 보장
+  if (String(sh.getRange(1, codeCol + 1).getValue()).trim() === '') {
+    sh.getRange(1, codeCol + 1).setValue('접근코드');
+  }
+
+  var rng = sh.getRange(2, codeCol + 1, last - 1, 1);
+  var vals = rng.getValues();
+  var used = {};
+  for (var i = 0; i < vals.length; i++) { var c = String(vals[i][0] || '').trim(); if (c) used[c] = true; }
+
+  var made = 0;
+  for (var r = 0; r < vals.length; r++) {
+    if (String(vals[r][0] || '').trim() !== '') continue;   // 이미 있으면 건너뜀
+    var code;
+    do { code = genAccessCode_(); } while (used[code]);
+    used[code] = true;
+    vals[r][0] = code;
+    made++;
+  }
+  rng.setValues(vals);
+  SpreadsheetApp.getActive().toast(made + '개의 접근코드를 생성했습니다.', '완료', 5);
+}
+
+function genAccessCode_() {
+  var charset = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';   // 헷갈리는 0,O,1,I,l 제외
+  var s = '';
+  for (var i = 0; i < 12; i++) { s += charset.charAt(Math.floor(Math.random() * charset.length)); }
+  return s;
 }
 
 /* ===== (2) 제출 수집 / (5) 시험 등록 ===== */

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>SHUEGUK 학생 리포트</title>
+<title>SHUEGUK 학생 페이지</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=Noto+Serif+KR:wght@400;500&display=swap" rel="stylesheet">
@@ -16,10 +16,9 @@
 }
 *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
 html,body{margin:0; padding:0;}
-body{font-family:'Noto Sans KR',sans-serif; background:var(--sage-fog); color:var(--ink-deep); font-size:16px; line-height:1.6; padding-bottom:90px;}
-.wrap{max-width:480px; margin:0 auto; background:#fff; min-height:100vh;}
+body{font-family:'Noto Sans KR',sans-serif; background:var(--sage-fog); color:var(--ink-deep); font-size:16px; line-height:1.6;}
+.wrap{max-width:480px; margin:0 auto; background:#fff; min-height:100vh; position:relative;}
 
-/* 로딩 / 에러 */
 #loadBox,#errBox{display:none;}
 .load-inner,.err-inner{padding:64px 30px; text-align:center;}
 .load-inner p{color:var(--ink-mid); font-family:'Noto Serif KR',serif; font-size:14.5px; margin-top:20px;}
@@ -29,24 +28,34 @@ body{font-family:'Noto Sans KR',sans-serif; background:var(--sage-fog); color:va
 .err-inner .e-s{font-family:'Noto Serif KR',serif; font-size:14px; color:var(--ink-mid); line-height:1.7; margin:0;}
 
 /* 헤더 */
-.top{background:var(--sage-deep); color:#fff; padding:26px 22px 22px;}
+.top{background:var(--sage-deep); color:#fff; padding:28px 22px 24px;}
 .top .brand{font-size:11px; letter-spacing:.18em; opacity:.85; margin:0 0 12px;}
 .top .name{font-size:25px; font-weight:700; margin:0;}
 .top .meta{font-family:'Noto Serif KR',serif; font-size:14px; opacity:.92; margin:6px 0 0;}
 .badge{display:inline-block; margin-top:13px; padding:4px 12px; border-radius:999px; font-size:12px; font-weight:500; background:rgba(255,255,255,.18); border:1px solid rgba(255,255,255,.3);}
 
-/* 섹션 제목 */
-.sec-h{font-weight:700; font-size:14px; color:var(--accent-dark); margin:26px 20px 12px; padding-bottom:8px; border-bottom:2px solid var(--sage-soft);}
+.sec-h{font-weight:700; font-size:13px; color:var(--accent-dark); margin:24px 20px 12px; letter-spacing:.02em;}
 
-/* 카드 공통 */
-.card{margin:0 20px 13px; padding:17px 18px; border-radius:14px; background:var(--sage-fog); border:1px solid var(--line-soft);}
-.row{display:flex; justify-content:space-between; padding:7px 0; border-bottom:1px solid var(--line-soft); font-size:15px; gap:14px;}
-.row:last-child{border-bottom:none;}
-.row .k{color:var(--ink-mid); font-weight:500; white-space:nowrap;}
-.row .v{color:var(--ink-deep); font-family:'Noto Serif KR',serif; font-weight:500; text-align:right;}
+/* 메뉴 */
+.menu{padding:0 16px 28px;}
+.m-item{display:flex; align-items:center; gap:14px; width:100%; text-align:left; background:#fff; border:1.5px solid var(--line-soft); border-radius:15px; padding:16px 17px; margin-bottom:11px; cursor:pointer; font-family:'Noto Sans KR'; transition:all .12s;}
+.m-item:active{transform:scale(.99);}
+.m-item.disabled{opacity:.55; cursor:default;}
+.m-ic{flex:0 0 auto; width:42px; height:42px; border-radius:12px; background:var(--sage-fog); display:flex; align-items:center; justify-content:center; font-size:20px;}
+.m-tx{flex:1; min-width:0;}
+.m-tt{font-weight:700; font-size:15.5px; color:var(--ink-deep); margin:0;}
+.m-ds{font-size:12.5px; color:var(--ink-soft); margin:2px 0 0; font-family:'Noto Serif KR',serif;}
+.m-rt{flex:0 0 auto; font-size:12px; color:var(--ink-soft);}
+.m-lock .m-ic{background:var(--sage-deep); color:#fff;}
+.tag{display:inline-block; font-size:10.5px; padding:2px 7px; border-radius:6px; background:var(--sage-mist); color:var(--accent-dark); margin-left:6px; vertical-align:middle;}
 
-/* 시험 카드 */
+/* 성적 뷰 */
+#gradeView{display:none;}
+.gv-bar{position:sticky; top:0; z-index:5; background:#fff; border-bottom:1px solid var(--line-soft); padding:14px 18px; display:flex; align-items:center; gap:12px;}
+.gv-back{border:none; background:var(--sage-fog); color:var(--ink-mid); border-radius:10px; padding:9px 13px; font-size:14px; font-weight:700; cursor:pointer; font-family:'Noto Sans KR';}
+.gv-ttl{font-weight:700; font-size:15px; color:var(--ink-deep);}
 .exam{margin:0 20px 16px; border:1.5px solid var(--sage-soft); border-radius:15px; overflow:hidden;}
+.exam:first-of-type{margin-top:16px;}
 .exam .x-head{background:var(--sage-mist); padding:14px 17px;}
 .exam .x-title{font-weight:700; font-size:15px; color:var(--accent-dark); margin:0; line-height:1.5;}
 .exam .x-date{font-size:12px; color:var(--ink-mid); margin:5px 0 0;}
@@ -58,150 +67,223 @@ body{font-family:'Noto Sans KR',sans-serif; background:var(--sage-fog); color:va
 .block:last-child{padding-bottom:16px;}
 .b-h{font-weight:700; font-size:12.5px; color:var(--ink-mid); margin:14px 0 7px;}
 .b-text{font-family:'Noto Serif KR',serif; font-size:14px; line-height:1.75; white-space:pre-wrap; color:var(--ink-deep); background:#fff; border:1px solid var(--line-soft); border-radius:11px; padding:13px 14px;}
-.b-text.empty{color:var(--ink-soft); font-style:normal;}
+.b-text.empty{color:var(--ink-soft);}
 .b-note{background:var(--sage-deep); color:#fff; border:none;}
-
-.empty-state{margin:0 20px; padding:34px 24px; text-align:center; background:var(--sage-fog); border:1px dashed var(--sage-soft); border-radius:14px;}
+.empty-state{margin:16px 20px 0; padding:34px 24px; text-align:center; background:var(--sage-fog); border:1px dashed var(--sage-soft); border-radius:14px;}
 .empty-state p{font-family:'Noto Serif KR',serif; font-size:14px; color:var(--ink-mid); margin:0; line-height:1.7;}
 
-.foot{text-align:center; color:var(--ink-soft); font-size:11px; padding:22px 0 10px; letter-spacing:.05em;}
+.foot{text-align:center; color:var(--ink-soft); font-size:11px; padding:22px 0 26px; letter-spacing:.05em;}
 
-/* 하단 바 */
-.bar{position:fixed; bottom:0; left:0; right:0; background:#fff; border-top:1px solid var(--line-soft); padding:14px 20px calc(14px + env(safe-area-inset-bottom)); display:flex; gap:10px; max-width:480px; margin:0 auto; box-shadow:0 -4px 20px rgba(46,61,56,.06);}
-.btn{flex:1; border:none; border-radius:13px; padding:15px; font-size:15px; font-weight:700; font-family:'Noto Sans KR'; cursor:pointer; background:var(--sage-deep); color:#fff;}
-.btn:active{opacity:.8;}
-
-@media print{ .bar{display:none;} body{padding-bottom:0;} }
+/* 비밀번호 모달 */
+.modal{position:fixed; inset:0; background:rgba(46,61,56,.5); display:none; align-items:center; justify-content:center; padding:24px; z-index:50;}
+.modal.show{display:flex;}
+.modal-card{background:#fff; border-radius:18px; padding:24px 22px; width:100%; max-width:340px; box-shadow:0 12px 40px rgba(0,0,0,.2);}
+.modal-card .mc-ic{font-size:30px; text-align:center;}
+.modal-card .mc-t{font-weight:700; font-size:17px; text-align:center; margin:10px 0 6px;}
+.modal-card .mc-s{font-family:'Noto Serif KR',serif; font-size:13px; color:var(--ink-mid); text-align:center; margin:0 0 18px; line-height:1.6;}
+.modal-card input{width:100%; border:1.5px solid var(--line); border-radius:12px; padding:14px; font-size:18px; text-align:center; letter-spacing:.15em; font-family:'Noto Sans KR'; color:var(--ink-deep); background:#FBFCFB; -webkit-appearance:none;}
+.modal-card input:focus{outline:none; border-color:var(--sage-deep); background:#fff;}
+.mc-err{color:#B4544A; font-size:13px; text-align:center; min-height:18px; margin:9px 0 0;}
+.mc-btns{display:flex; gap:10px; margin-top:14px;}
+.mc-btns button{flex:1; border:none; border-radius:12px; padding:14px; font-size:15px; font-weight:700; font-family:'Noto Sans KR'; cursor:pointer;}
+.mc-cancel{background:var(--sage-fog); color:var(--ink-mid);}
+.mc-ok{background:var(--sage-deep); color:#fff;}
+.mc-btns button:active{opacity:.8;}
 </style>
 </head>
 <body>
 <div class="wrap">
 
-  <div id="loadBox"><div class="load-inner"><div class="spinner"></div><p>학생 리포트를 불러오는 중...</p></div></div>
+  <div id="loadBox"><div class="load-inner"><div class="spinner"></div><p>불러오는 중...</p></div></div>
 
   <div id="errBox"><div class="err-inner">
     <p class="e-t" id="errTitle">불러올 수 없습니다</p>
     <p class="e-s" id="errMsg"></p>
   </div></div>
 
-  <div id="view" style="display:none;">
+  <!-- 허브 -->
+  <div id="hubView" style="display:none;">
     <div class="top">
-      <p class="brand">SHUEGUK RE:)PORT · 이수경국어</p>
+      <p class="brand">SHUEGUK · 이수경국어</p>
       <p class="name" id="s_name"></p>
       <p class="meta" id="s_meta"></p>
       <span class="badge" id="s_badge" style="display:none;"></span>
     </div>
+    <div class="sec-h">메뉴</div>
+    <div class="menu" id="menu"></div>
+    <p class="foot">SHUEGUK RE:)PORT · 이수경국어</p>
+  </div>
 
-    <div class="sec-h">학습 정보</div>
-    <div class="card" id="infoCard"></div>
-
-    <div class="sec-h">시험 복기 기록 <span id="examCnt" style="font-weight:500; color:var(--ink-soft); font-size:12px;"></span></div>
+  <!-- 성적 데이터 -->
+  <div id="gradeView">
+    <div class="gv-bar">
+      <button class="gv-back" onclick="closeGrades()">‹ 메뉴</button>
+      <span class="gv-ttl">성적 데이터 · 시험 복기</span>
+    </div>
     <div id="examList"></div>
-
     <p class="foot">SHUEGUK RE:)PORT · 이수경국어</p>
   </div>
 
 </div>
 
-<div class="bar" id="bar" style="display:none;">
-  <button class="btn" onclick="window.print()">PDF로 저장 · 인쇄</button>
+<!-- 비밀번호 모달 -->
+<div class="modal" id="pwModal">
+  <div class="modal-card">
+    <div class="mc-ic">🔒</div>
+    <p class="mc-t">성적 데이터 잠금</p>
+    <p class="mc-s">본인 확인을 위해<br><b>부모님 연락처 8자리</b>(010 제외)를 입력해주세요.</p>
+    <input id="pwInput" type="tel" inputmode="numeric" maxlength="8" placeholder="● ● ● ● ● ● ● ●" autocomplete="off">
+    <p class="mc-err" id="pwErr"></p>
+    <div class="mc-btns">
+      <button class="mc-cancel" onclick="closePw()">취소</button>
+      <button class="mc-ok" id="pwOk" onclick="submitPw()">확인</button>
+    </div>
+  </div>
 </div>
 
 <script>
 var ENDPOINT = "https://script.google.com/macros/s/AKfycbzhCncBwn-JlqXARC3wfrWUCuNHzlNK2df0bdhx-w78Xr8mzYUcIYZOJdRi9N4bHtsb/exec";
+
+/* 나중에 연결할 기능들 — url을 채우면 자동으로 활성화됩니다(토큰 KEY가 ?key=로 붙습니다). */
+var FEATURES = [
+  { id:'voca',    icon:'📝', title:'어휘 테스트',    desc:'단어 시험 보기',          url:'' },
+  { id:'clinic',  icon:'🩺', title:'H-work 클리닉',  desc:'숙제 클리닉 신청·확인',    url:'' },
+  { id:'mock',    icon:'🗓️', title:'모의고사 신청',  desc:'모의고사 응시 신청',       url:'' },
+  { id:'grammar', icon:'📐', title:'문법 테스트',    desc:'문법 시험 보기',          url:'' }
+];
 
 function $(id){ return document.getElementById(id); }
 function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function show(id){ $(id).style.display='block'; }
 function hide(id){ $(id).style.display='none'; }
 
+var KEY = '';        // 접근코드(토큰) — 없으면 테스트용 id
+var IS_ID = false;   // ?id= 로 들어온 경우
+var STATE = { info:null, authed:false, exams:null, examCount:0 };
+
 function showError(title, msg){
-  hide('loadBox'); hide('view'); hide('bar');
+  hide('loadBox'); hide('hubView'); $('gradeView').style.display='none';
   $('errTitle').textContent = title || '불러올 수 없습니다';
   $('errMsg').textContent = msg || '';
   show('errBox');
 }
 
-function row(k, v){
-  if(v==null || String(v).trim()==='') return '';
-  return '<div class="row"><span class="k">'+esc(k)+'</span><span class="v">'+esc(v)+'</span></div>';
+function api(extra){
+  var q = (IS_ID ? '?student=' : '?key=') + encodeURIComponent(KEY) + (extra||'');
+  return fetch(ENDPOINT + q).then(function(r){ return r.json(); });
 }
 
-function block(title, text, isNote){
-  var has = text && String(text).trim()!=='';
-  var cls = 'b-text' + (isNote?' b-note':'') + (has?'':' empty');
-  var body = has ? esc(text) : '작성된 내용이 없습니다.';
-  return '<div class="block"><p class="b-h">'+esc(title)+'</p><div class="'+cls+'">'+body+'</div></div>';
-}
+/* ---- 허브 렌더 ---- */
+function renderHub(){
+  var info = STATE.info;
+  $('s_name').textContent = info.name || '학생';
+  var mp = []; if(info.school) mp.push(info.school); if(info.grade) mp.push(info.grade);
+  $('s_meta').textContent = mp.join(' · ');
+  document.title = (info.name||'학생') + ' · SHUEGUK';
+  if(info.enrolled){ var b=$('s_badge'); b.textContent=info.enrolled; b.style.display='inline-block'; }
 
-function render(d){
-  var info = d.info, exams = d.exams || [];
-
-  // 헤더
-  $('s_name').textContent = info.name || '이름 미입력';
-  var metaParts = [];
-  if(info.school) metaParts.push(info.school);
-  if(info.grade)  metaParts.push(info.grade);
-  $('s_meta').textContent = metaParts.join(' · ');
-  document.title = (info.name||'학생') + ' · SHUEGUK 리포트';
-  if(info.enrolled){
-    var b = $('s_badge'); b.textContent = info.enrolled; b.style.display='inline-block';
-  }
-
-  // 학습 정보 카드
   var html = '';
-  html += row('담당 교사', info.teacher);
-  html += row('정규 가 수업', info.classA);
-  html += row('정규 나 수업', info.classB);
-  html += row('내신 진도', info.progress);
-  html += row('내신 확인', info.checkup);
-  html += row('메모', info.memo);
-  if(html===''){ html = '<div class="row"><span class="k" style="color:var(--ink-soft)">등록된 학습 정보가 없습니다.</span></div>'; }
-  $('infoCard').innerHTML = html;
+  // 기능 메뉴
+  FEATURES.forEach(function(f){
+    var ready = f.url && f.url.indexOf('http')===0;
+    if(ready){
+      var href = f.url + (f.url.indexOf('?')>=0?'&':'?') + 'key=' + encodeURIComponent(KEY);
+      html += '<a class="m-item" href="'+esc(href)+'">' +
+                '<span class="m-ic">'+f.icon+'</span>' +
+                '<span class="m-tx"><p class="m-tt">'+esc(f.title)+'</p><p class="m-ds">'+esc(f.desc)+'</p></span>' +
+                '<span class="m-rt">›</span></a>';
+    } else {
+      html += '<div class="m-item disabled">' +
+                '<span class="m-ic">'+f.icon+'</span>' +
+                '<span class="m-tx"><p class="m-tt">'+esc(f.title)+'<span class="tag">준비 중</span></p><p class="m-ds">'+esc(f.desc)+'</p></span>' +
+              '</div>';
+    }
+  });
+  // 성적 데이터 (잠금)
+  var cntTxt = STATE.examCount>0 ? ('시험 복기 '+STATE.examCount+'건 · 비밀번호 필요') : '시험 복기 리포트 · 비밀번호 필요';
+  html += '<button class="m-item m-lock" onclick="openGrades()">' +
+            '<span class="m-ic">📊</span>' +
+            '<span class="m-tx"><p class="m-tt">성적 데이터 🔒</p><p class="m-ds">'+esc(cntTxt)+'</p></span>' +
+            '<span class="m-rt">›</span></button>';
+  $('menu').innerHTML = html;
 
-  // 시험 기록
-  $('examCnt').textContent = '· 총 ' + exams.length + '회';
+  hide('loadBox'); hide('errBox'); $('gradeView').style.display='none'; show('hubView');
+}
+
+/* ---- 성적 열기 ---- */
+function openGrades(){
+  if(STATE.authed && STATE.exams){ renderGrades(); return; }
+  openPw();
+}
+function closeGrades(){ $('gradeView').style.display='none'; show('hubView'); window.scrollTo(0,0); }
+
+function renderGrades(){
+  var exams = STATE.exams || [];
   var list = $('examList');
-  if(exams.length === 0){
+  if(exams.length===0){
     list.innerHTML = '<div class="empty-state"><p>아직 제출된 시험 복기가 없습니다.<br>복기 입력을 제출하면 이곳에 기록이 쌓입니다.</p></div>';
   } else {
     list.innerHTML = exams.map(function(x){
-      var stats =
-        '<div class="x-stats">' +
-          '<div class="stat"><div class="s-n">'+(x.score!==''? esc(x.score) : '–')+'</div><div class="s-l">예상 점수</div></div>' +
-          '<div class="stat"><div class="s-n">'+esc(x.wrongCount||0)+'</div><div class="s-l">틀린 문항</div></div>' +
-        '</div>';
+      var stats = '<div class="x-stats">' +
+          '<div class="stat"><div class="s-n">'+(x.score!==''?esc(x.score):'–')+'</div><div class="s-l">예상 점수</div></div>' +
+          '<div class="stat"><div class="s-n">'+esc(x.wrongCount||0)+'</div><div class="s-l">틀린 문항</div></div></div>';
       return '<div class="exam">' +
           '<div class="x-head"><p class="x-title">'+esc(x.title||'시험')+'</p>' +
-            (x.submittedAt? '<p class="x-date">'+esc(x.submittedAt)+' 제출</p>':'') + '</div>' +
+            (x.submittedAt?'<p class="x-date">'+esc(x.submittedAt)+' 제출</p>':'') + '</div>' +
           stats +
           block('틀린 문항 · 반성', x.wrongText) +
           block('다음 시험을 위한 다짐', x.vow) +
-          (x.teacherNote && x.teacherNote.trim()!=='' ? block('선생님의 한 마디', x.teacherNote, true) : '') +
+          (x.teacherNote && x.teacherNote.trim()!==''? block('선생님의 한 마디', x.teacherNote, true) : '') +
         '</div>';
     }).join('');
   }
-
-  hide('loadBox'); hide('errBox');
-  show('view'); show('bar');
+  hide('hubView'); $('gradeView').style.display='block'; window.scrollTo(0,0);
+}
+function block(title, text, isNote){
+  var has = text && String(text).trim()!=='';
+  var cls = 'b-text' + (isNote?' b-note':'') + (has?'':' empty');
+  return '<div class="block"><p class="b-h">'+esc(title)+'</p><div class="'+cls+'">'+(has?esc(text):'작성된 내용이 없습니다.')+'</div></div>';
 }
 
+/* ---- 비밀번호 모달 ---- */
+function openPw(){ $('pwErr').textContent=''; $('pwInput').value=''; $('pwModal').classList.add('show'); setTimeout(function(){ $('pwInput').focus(); },50); }
+function closePw(){ $('pwModal').classList.remove('show'); }
+function submitPw(){
+  var pw = $('pwInput').value.replace(/\D/g,'');
+  if(!/^\d{8}$/.test(pw)){ $('pwErr').textContent='8자리 숫자를 입력해주세요.'; return; }
+  var btn=$('pwOk'); btn.disabled=true; btn.textContent='확인 중...'; $('pwErr').textContent='';
+  api('&pw='+encodeURIComponent(pw))
+    .then(function(d){
+      btn.disabled=false; btn.textContent='확인';
+      if(d.result!=='success'){ $('pwErr').textContent=d.message||'오류가 발생했습니다.'; return; }
+      if(!d.authed){ $('pwErr').textContent='비밀번호가 일치하지 않습니다.'; return; }
+      STATE.authed=true; STATE.exams=d.exams||[];
+      closePw(); renderGrades();
+    })
+    .catch(function(){ btn.disabled=false; btn.textContent='확인'; $('pwErr').textContent='연결 실패 — 다시 시도해주세요.'; });
+}
+$('pwInput') && $('pwInput').addEventListener('keydown', function(e){ if(e.key==='Enter') submitPw(); });
+
+/* ---- 시작 ---- */
 function boot(){
   show('loadBox');
-  if(ENDPOINT.indexOf('http')!==0){ showError('설정 오류', '전송 주소(ENDPOINT)가 설정되지 않았습니다.'); return; }
-  var id = new URLSearchParams(location.search).get('id') || new URLSearchParams(location.search).get('student');
-  id = (id||'').trim();
-  if(!id){ showError('학생 정보가 없습니다', '주소에 학생 번호가 빠졌습니다. 예) s.html?id=71514497'); return; }
+  if(ENDPOINT.indexOf('http')!==0){ showError('설정 오류','전송 주소(ENDPOINT)가 설정되지 않았습니다.'); return; }
+  var qs = new URLSearchParams(location.search);
+  var key = (qs.get('key')||'').trim();
+  var id  = (qs.get('id')||qs.get('student')||'').trim();
+  if(key){ KEY=key; IS_ID=false; }
+  else if(id){ KEY=id; IS_ID=true; }
+  else { showError('잘못된 접근','개인 링크로 접속해주세요. 링크를 분실하셨다면 선생님께 문의해주세요.'); return; }
 
-  fetch(ENDPOINT + '?student=' + encodeURIComponent(id))
-    .then(function(r){ return r.json(); })
+  api('')
     .then(function(d){
-      if(d.result !== 'success'){ showError('학생을 찾을 수 없습니다', d.message || ''); return; }
-      render(d);
+      if(d.result!=='success'){ showError('열 수 없습니다', d.message||''); return; }
+      STATE.info=d.info; STATE.authed=!!d.authed; STATE.examCount=d.examCount||0;
+      if(d.exams){ STATE.exams=d.exams; }
+      renderHub();
     })
-    .catch(function(){ showError('연결 실패', '인터넷 상태를 확인한 뒤 새로고침해 주세요.'); });
+    .catch(function(){ showError('연결 실패','인터넷 상태를 확인한 뒤 새로고침해 주세요.'); });
 }
-
 boot();
 </script>
 </body>
