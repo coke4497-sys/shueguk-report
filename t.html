@@ -61,6 +61,13 @@ body{font-family:'Noto Sans KR',sans-serif; background:var(--sage-fog); color:va
 .note-edit textarea{width:100%; border:1.5px solid var(--line); border-radius:10px; padding:12px; font-size:15px; font-family:'Noto Serif KR',serif; line-height:1.7; resize:vertical; min-height:90px; background:#FBFCFB;}
 .note-edit textarea:focus{outline:none; border-color:var(--sage-deep);}
 .note-edit .hint{font-size:12px; color:var(--ink-soft); margin-top:6px;}
+.note-guide{background:var(--sage-fog); border:1px solid var(--line-soft); border-radius:10px; padding:11px 14px; margin-bottom:9px;}
+.note-guide .ng-head{display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:6px;}
+.note-guide .ng-head b{font-size:12.5px; color:var(--sage-deep);}
+.note-guide .ng-btn{border:1px solid var(--sage-soft); background:#fff; color:var(--sage-deep); font-size:11.5px; font-weight:700; border-radius:8px; padding:5px 11px; cursor:pointer; font-family:'Noto Sans KR'; flex:0 0 auto;}
+.note-guide .ng-btn:active{opacity:.8;}
+.note-guide ol{margin:0; padding-left:20px;}
+.note-guide li{font-size:12.5px; color:var(--ink-mid); line-height:1.75;}
 .status{font-size:13px; color:var(--ink-mid); padding:6px 0;}
 
 /* === 학부모용 보고서 (인쇄 대상) === */
@@ -165,7 +172,16 @@ body{font-family:'Noto Sans KR',sans-serif; background:var(--sage-fog); color:va
     </div>
     <div class="note-edit">
       <label>선생님의 한 마디</label>
-      <textarea id="teacherNote" placeholder="학생을 선택한 뒤, 학부모님께 전할 선생님의 코멘트를 적어주세요." oninput="syncNote()"></textarea>
+      <div class="note-guide">
+        <div class="ng-head"><b>작성 요령</b><button type="button" class="ng-btn" onclick="fillNoteTemplate()">양식 넣기</button></div>
+        <ol>
+          <li>전반적 시험 분석</li>
+          <li>학생이 잘한 점</li>
+          <li>학생이 부족한 점</li>
+          <li>앞으로 함께 노력할 방향</li>
+        </ol>
+      </div>
+      <textarea id="teacherNote" placeholder="학생을 선택한 뒤, 학부모님께 전할 코멘트를 적어주세요.&#10;위 4가지 흐름으로 적으면 좋습니다. ‘양식 넣기’를 누르면 뼈대가 채워집니다." oninput="syncNote()"></textarea>
       <p class="hint">여기 적은 내용이 아래 보고서의 '선생님의 한 마디'에 실시간 반영됩니다. (시트에 저장하려면 '제출결과' 탭에 직접 적어두셔도 됩니다)</p>
     </div>
     <div class="status" id="status"></div>
@@ -421,6 +437,16 @@ function studentWrongByArea_(s){
     if(area) list.push({area:area});
   });
   return list;
+}
+
+// '선생님의 한 마디' 작성 양식 뼈대 삽입
+function fillNoteTemplate(){
+  var ta=document.getElementById('teacherNote');
+  var tpl='1. 전반적 시험 분석\n\n2. 잘한 점\n\n3. 부족한 점\n\n4. 앞으로 함께 노력할 방향\n';
+  if(ta.value.trim()!=='' && !confirm('작성 중인 내용을 양식으로 바꿀까요?')) return;
+  ta.value=tpl; ta.focus();
+  try{ ta.setSelectionRange(tpl.indexOf('\n'), tpl.indexOf('\n')); }catch(e){}
+  syncNote();
 }
 
 function renderReport(){
