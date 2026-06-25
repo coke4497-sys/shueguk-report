@@ -175,7 +175,7 @@ body{font-family:'Noto Sans KR',sans-serif; background:var(--sage-fog); color:va
       <div class="note-guide">
         <div class="ng-head"><b>작성 요령</b><button type="button" class="ng-btn" onclick="fillNoteTemplate()">양식 넣기</button></div>
         <ol>
-          <li>전반적 시험 분석</li>
+          <li>이번 시험의 주요 포인트</li>
           <li>학생이 잘한 점</li>
           <li>학생이 부족한 점</li>
           <li>앞으로 함께 노력할 방향</li>
@@ -442,7 +442,7 @@ function studentWrongByArea_(s){
 // '선생님의 한 마디' 작성 양식 뼈대 삽입
 function fillNoteTemplate(){
   var ta=document.getElementById('teacherNote');
-  var tpl='1. 전반적 시험 분석\n\n2. 잘한 점\n\n3. 부족한 점\n\n4. 앞으로 함께 노력할 방향\n';
+  var tpl='1. 이번 시험의 주요 포인트\n\n2. 잘한 점\n\n3. 부족한 점\n\n4. 앞으로 함께 노력할 방향\n';
   if(ta.value.trim()!=='' && !confirm('작성 중인 내용을 양식으로 바꿀까요?')) return;
   ta.value=tpl; ta.focus();
   try{ ta.setSelectionRange(tpl.indexOf('\n'), tpl.indexOf('\n')); }catch(e){}
