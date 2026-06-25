@@ -92,6 +92,10 @@
   .gv-back{border:1px solid var(--line);background:var(--surface);color:var(--ink-soft);border-radius:11px;padding:9px 14px;font-size:.85rem;font-family:var(--sans);cursor:pointer;display:inline-flex;align-items:center;gap:5px;}
   .gv-back svg{width:15px;height:15px;}
   .gv-ttl{font-family:var(--serif);font-weight:700;font-size:1rem;color:var(--ink);}
+  .exam-tabs{display:flex;gap:8px;overflow-x:auto;padding:2px 0 14px;-webkit-overflow-scrolling:touch;}
+  .exam-tab{flex:0 0 auto;border:1px solid var(--line);background:var(--surface);color:var(--ink-soft);border-radius:11px;padding:9px 15px;font-size:.84rem;font-family:var(--sans);cursor:pointer;white-space:nowrap;}
+  .exam-tab.active{background:#CFE0D8;color:var(--accent);border-color:#9DBDB0;font-weight:700;}
+  .exam-tab:active{opacity:.85;}
   .exam{background:var(--surface);border:1px solid var(--line-soft);border-radius:var(--radius);overflow:hidden;margin-bottom:15px;}
   .x-head{padding:16px 18px;border-bottom:1px solid var(--line-soft);}
   .x-title{font-family:var(--serif);font-weight:700;font-size:1.04rem;color:var(--ink);margin:0;line-height:1.4;}
@@ -196,6 +200,7 @@
     <button class="gv-back" onclick="closeGrades()" id="gvBack"></button>
     <span class="gv-ttl">성적 데이터 · 시험 복기</span>
   </div>
+  <div class="exam-tabs" id="examTabs" style="display:none;"></div>
   <div id="examList"></div>
   <footer><p>이수경국어 Shueguk · 학생용</p></footer>
 </main></div>
@@ -400,15 +405,36 @@ function examCardHtml(x){
   return html;
 }
 
+var GRADE_SEL = 0;   // 선택한 시험 인덱스
+
 function renderGrades(){
   var exams = STATE.exams || [];
-  var list = $('examList');
+  var tabs = $('examTabs'), list = $('examList');
   if(exams.length===0){
+    tabs.style.display='none';
     list.innerHTML = '<div class="empty-state"><p>아직 제출된 시험 복기가 없습니다.<br>복기 입력을 제출하면 이곳에 기록이 쌓입니다.</p></div>';
   } else {
-    list.innerHTML = exams.map(examCardHtml).join('');
+    if(GRADE_SEL >= exams.length) GRADE_SEL = 0;
+    if(exams.length > 1){
+      tabs.style.display='flex';
+      tabs.innerHTML = exams.map(function(x,i){
+        return '<button class="exam-tab'+(i===GRADE_SEL?' active':'')+'" onclick="pickExam('+i+')">'+esc(x.title||('시험 '+(i+1)))+'</button>';
+      }).join('');
+    } else {
+      tabs.style.display='none';
+    }
+    list.innerHTML = examCardHtml(exams[GRADE_SEL]);
   }
   hide('hubView'); $('gradeView').style.display='block'; window.scrollTo(0,0);
+}
+
+function pickExam(i){
+  var exams = STATE.exams || [];
+  GRADE_SEL = i;
+  var tabs = $('examTabs').children;
+  for(var k=0;k<tabs.length;k++){ tabs[k].className = 'exam-tab' + (k===i?' active':''); }
+  $('examList').innerHTML = examCardHtml(exams[i]);
+  window.scrollTo(0,0);
 }
 
 /* ---- 비밀번호 모달 ---- */
