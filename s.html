@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>SHUEGUK 학생 리포트</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=Noto+Serif+KR:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --sage-deep:#6B847B; --sage-mid:#8FA89C; --sage-soft:#B8C9C0;
+  --sage-mist:#DDE5E1; --sage-fog:#EEF2EF;
+  --ink-deep:#2E3D38; --ink-mid:#5A6B65; --ink-soft:#8A9994;
+  --line:#C8D4CD; --line-soft:#E2E8E4; --accent-dark:#3F5650;
+}
+*{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+html,body{margin:0; padding:0;}
+body{font-family:'Noto Sans KR',sans-serif; background:var(--sage-fog); color:var(--ink-deep); font-size:16px; line-height:1.6; padding-bottom:90px;}
+.wrap{max-width:480px; margin:0 auto; background:#fff; min-height:100vh;}
+
+/* 로딩 / 에러 */
+#loadBox,#errBox{display:none;}
+.load-inner,.err-inner{padding:64px 30px; text-align:center;}
+.load-inner p{color:var(--ink-mid); font-family:'Noto Serif KR',serif; font-size:14.5px; margin-top:20px;}
+.spinner{width:38px; height:38px; border:3px solid var(--line-soft); border-top-color:var(--sage-deep); border-radius:50%; margin:0 auto; animation:spin .8s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg);}}
+.err-inner .e-t{font-weight:700; font-size:17px; color:var(--ink-deep); margin:0 0 10px;}
+.err-inner .e-s{font-family:'Noto Serif KR',serif; font-size:14px; color:var(--ink-mid); line-height:1.7; margin:0;}
+
+/* 헤더 */
+.top{background:var(--sage-deep); color:#fff; padding:26px 22px 22px;}
+.top .brand{font-size:11px; letter-spacing:.18em; opacity:.85; margin:0 0 12px;}
+.top .name{font-size:25px; font-weight:700; margin:0;}
+.top .meta{font-family:'Noto Serif KR',serif; font-size:14px; opacity:.92; margin:6px 0 0;}
+.badge{display:inline-block; margin-top:13px; padding:4px 12px; border-radius:999px; font-size:12px; font-weight:500; background:rgba(255,255,255,.18); border:1px solid rgba(255,255,255,.3);}
+
+/* 섹션 제목 */
+.sec-h{font-weight:700; font-size:14px; color:var(--accent-dark); margin:26px 20px 12px; padding-bottom:8px; border-bottom:2px solid var(--sage-soft);}
+
+/* 카드 공통 */
+.card{margin:0 20px 13px; padding:17px 18px; border-radius:14px; background:var(--sage-fog); border:1px solid var(--line-soft);}
+.row{display:flex; justify-content:space-between; padding:7px 0; border-bottom:1px solid var(--line-soft); font-size:15px; gap:14px;}
+.row:last-child{border-bottom:none;}
+.row .k{color:var(--ink-mid); font-weight:500; white-space:nowrap;}
+.row .v{color:var(--ink-deep); font-family:'Noto Serif KR',serif; font-weight:500; text-align:right;}
+
+/* 시험 카드 */
+.exam{margin:0 20px 16px; border:1.5px solid var(--sage-soft); border-radius:15px; overflow:hidden;}
+.exam .x-head{background:var(--sage-mist); padding:14px 17px;}
+.exam .x-title{font-weight:700; font-size:15px; color:var(--accent-dark); margin:0; line-height:1.5;}
+.exam .x-date{font-size:12px; color:var(--ink-mid); margin:5px 0 0;}
+.exam .x-stats{display:flex; gap:10px; padding:13px 17px 4px;}
+.stat{flex:1; background:#fff; border:1px solid var(--line-soft); border-radius:11px; padding:11px; text-align:center;}
+.stat .s-n{font-weight:700; font-size:19px; color:var(--sage-deep);}
+.stat .s-l{font-size:11px; color:var(--ink-soft); margin-top:2px;}
+.block{padding:6px 17px 0;}
+.block:last-child{padding-bottom:16px;}
+.b-h{font-weight:700; font-size:12.5px; color:var(--ink-mid); margin:14px 0 7px;}
+.b-text{font-family:'Noto Serif KR',serif; font-size:14px; line-height:1.75; white-space:pre-wrap; color:var(--ink-deep); background:#fff; border:1px solid var(--line-soft); border-radius:11px; padding:13px 14px;}
+.b-text.empty{color:var(--ink-soft); font-style:normal;}
+.b-note{background:var(--sage-deep); color:#fff; border:none;}
+
+.empty-state{margin:0 20px; padding:34px 24px; text-align:center; background:var(--sage-fog); border:1px dashed var(--sage-soft); border-radius:14px;}
+.empty-state p{font-family:'Noto Serif KR',serif; font-size:14px; color:var(--ink-mid); margin:0; line-height:1.7;}
+
+.foot{text-align:center; color:var(--ink-soft); font-size:11px; padding:22px 0 10px; letter-spacing:.05em;}
+
+/* 하단 바 */
+.bar{position:fixed; bottom:0; left:0; right:0; background:#fff; border-top:1px solid var(--line-soft); padding:14px 20px calc(14px + env(safe-area-inset-bottom)); display:flex; gap:10px; max-width:480px; margin:0 auto; box-shadow:0 -4px 20px rgba(46,61,56,.06);}
+.btn{flex:1; border:none; border-radius:13px; padding:15px; font-size:15px; font-weight:700; font-family:'Noto Sans KR'; cursor:pointer; background:var(--sage-deep); color:#fff;}
+.btn:active{opacity:.8;}
+
+@media print{ .bar{display:none;} body{padding-bottom:0;} }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div id="loadBox"><div class="load-inner"><div class="spinner"></div><p>학생 리포트를 불러오는 중...</p></div></div>
+
+  <div id="errBox"><div class="err-inner">
+    <p class="e-t" id="errTitle">불러올 수 없습니다</p>
+    <p class="e-s" id="errMsg"></p>
+  </div></div>
+
+  <div id="view" style="display:none;">
+    <div class="top">
+      <p class="brand">SHUEGUK RE:)PORT · 이수경국어</p>
+      <p class="name" id="s_name"></p>
+      <p class="meta" id="s_meta"></p>
+      <span class="badge" id="s_badge" style="display:none;"></span>
+    </div>
+
+    <div class="sec-h">학습 정보</div>
+    <div class="card" id="infoCard"></div>
+
+    <div class="sec-h">시험 복기 기록 <span id="examCnt" style="font-weight:500; color:var(--ink-soft); font-size:12px;"></span></div>
+    <div id="examList"></div>
+
+    <p class="foot">SHUEGUK RE:)PORT · 이수경국어</p>
+  </div>
+
+</div>
+
+<div class="bar" id="bar" style="display:none;">
+  <button class="btn" onclick="window.print()">PDF로 저장 · 인쇄</button>
+</div>
+
+<script>
+var ENDPOINT = "https://script.google.com/macros/s/AKfycbzhCncBwn-JlqXARC3wfrWUCuNHzlNK2df0bdhx-w78Xr8mzYUcIYZOJdRi9N4bHtsb/exec";
+
+function $(id){ return document.getElementById(id); }
+function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function show(id){ $(id).style.display='block'; }
+function hide(id){ $(id).style.display='none'; }
+
+function showError(title, msg){
+  hide('loadBox'); hide('view'); hide('bar');
+  $('errTitle').textContent = title || '불러올 수 없습니다';
+  $('errMsg').textContent = msg || '';
+  show('errBox');
+}
+
+function row(k, v){
+  if(v==null || String(v).trim()==='') return '';
+  return '<div class="row"><span class="k">'+esc(k)+'</span><span class="v">'+esc(v)+'</span></div>';
+}
+
+function block(title, text, isNote){
+  var has = text && String(text).trim()!=='';
+  var cls = 'b-text' + (isNote?' b-note':'') + (has?'':' empty');
+  var body = has ? esc(text) : '작성된 내용이 없습니다.';
+  return '<div class="block"><p class="b-h">'+esc(title)+'</p><div class="'+cls+'">'+body+'</div></div>';
+}
+
+function render(d){
+  var info = d.info, exams = d.exams || [];
+
+  // 헤더
+  $('s_name').textContent = info.name || '이름 미입력';
+  var metaParts = [];
+  if(info.school) metaParts.push(info.school);
+  if(info.grade)  metaParts.push(info.grade);
+  $('s_meta').textContent = metaParts.join(' · ');
+  document.title = (info.name||'학생') + ' · SHUEGUK 리포트';
+  if(info.enrolled){
+    var b = $('s_badge'); b.textContent = info.enrolled; b.style.display='inline-block';
+  }
+
+  // 학습 정보 카드
+  var html = '';
+  html += row('담당 교사', info.teacher);
+  html += row('정규 가 수업', info.classA);
+  html += row('정규 나 수업', info.classB);
+  html += row('내신 진도', info.progress);
+  html += row('내신 확인', info.checkup);
+  html += row('메모', info.memo);
+  if(html===''){ html = '<div class="row"><span class="k" style="color:var(--ink-soft)">등록된 학습 정보가 없습니다.</span></div>'; }
+  $('infoCard').innerHTML = html;
+
+  // 시험 기록
+  $('examCnt').textContent = '· 총 ' + exams.length + '회';
+  var list = $('examList');
+  if(exams.length === 0){
+    list.innerHTML = '<div class="empty-state"><p>아직 제출된 시험 복기가 없습니다.<br>복기 입력을 제출하면 이곳에 기록이 쌓입니다.</p></div>';
+  } else {
+    list.innerHTML = exams.map(function(x){
+      var stats =
+        '<div class="x-stats">' +
+          '<div class="stat"><div class="s-n">'+(x.score!==''? esc(x.score) : '–')+'</div><div class="s-l">예상 점수</div></div>' +
+          '<div class="stat"><div class="s-n">'+esc(x.wrongCount||0)+'</div><div class="s-l">틀린 문항</div></div>' +
+        '</div>';
+      return '<div class="exam">' +
+          '<div class="x-head"><p class="x-title">'+esc(x.title||'시험')+'</p>' +
+            (x.submittedAt? '<p class="x-date">'+esc(x.submittedAt)+' 제출</p>':'') + '</div>' +
+          stats +
+          block('틀린 문항 · 반성', x.wrongText) +
+          block('다음 시험을 위한 다짐', x.vow) +
+          (x.teacherNote && x.teacherNote.trim()!=='' ? block('선생님의 한 마디', x.teacherNote, true) : '') +
+        '</div>';
+    }).join('');
+  }
+
+  hide('loadBox'); hide('errBox');
+  show('view'); show('bar');
+}
+
+function boot(){
+  show('loadBox');
+  if(ENDPOINT.indexOf('http')!==0){ showError('설정 오류', '전송 주소(ENDPOINT)가 설정되지 않았습니다.'); return; }
+  var id = new URLSearchParams(location.search).get('id') || new URLSearchParams(location.search).get('student');
+  id = (id||'').trim();
+  if(!id){ showError('학생 정보가 없습니다', '주소에 학생 번호가 빠졌습니다. 예) s.html?id=71514497'); return; }
+
+  fetch(ENDPOINT + '?student=' + encodeURIComponent(id))
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      if(d.result !== 'success'){ showError('학생을 찾을 수 없습니다', d.message || ''); return; }
+      render(d);
+    })
+    .catch(function(){ showError('연결 실패', '인터넷 상태를 확인한 뒤 새로고침해 주세요.'); });
+}
+
+boot();
+</script>
+</body>
+</html>

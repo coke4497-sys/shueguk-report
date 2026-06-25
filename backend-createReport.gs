@@ -7,12 +7,14 @@
  *  (3) 제출결과 조회 : ?results=서정고3화작 → 제출 학생 목록 반환
  *  (4) 보고서 목록   : ?list=1 → 등록된 시험 목록 반환
  *  (5) 시험 등록     : m.html POST(action:createReport) → '보고서목록'·'문항' 탭에 저장
+ *  (6) 학생 개별페이지: ?student=71514497 → '학생정보'+'제출결과'를 부모님 8자리로 매칭해 반환 (s.html)
  *
  * ───────────────────────────────────────────────────────────────
  * [시트 탭 / 열]  ※ v4에서 새 열을 "뒤에 추가"만 했으므로 기존 시험도 그대로 동작합니다.
  *  ① 보고서목록   A:ID | B:제목 | C:총평 | D:시험범위                                  ★D 신규
  *  ② 문항         A:보고서ID | B:번호 | C:영역(상위) | D:형식(객/서술) | E:난도 | F:내용 | G:세부유형(하위) | H:지문그룹   ★G·H 신규
  *  ③ 제출결과     제출일시 | 시험 | 학교 | 학년 | 이름 | 틀린문항수 | 틀린문항·반성 | 다음시험다짐 | 선생님의한마디 | 예상점수 | 부모님연락처   ★K 신규(010 제외 8자리 · 학생 매칭 키)
+ *  ④ 학생정보     A:학생ID(부모님8자리) | B:이름 | C:학교 | D:학년 | E:담당교사 | F:메모 | G:정규가 | H:정규나 | I:내신진도 | J:내신확인 | K:재원여부   ★신규 탭
  *
  * [업데이트] 기존 코드를 전부 지우고 이 코드로 교체 → 저장
  *   → 배포 → 배포 관리 → 기존 배포 옆 연필(편집) → 버전 '새 버전' → 배포  (같은 URL 유지)
@@ -20,14 +22,16 @@
  * ───────────────────────────────────────────────────────────────
  */
 
-var TAB_LIST   = '보고서목록';
-var TAB_ITEMS  = '문항';
-var TAB_RESULT = '제출결과';
+var TAB_LIST     = '보고서목록';
+var TAB_ITEMS    = '문항';
+var TAB_RESULT   = '제출결과';
+var TAB_STUDENTS = '학생정보';   // 학생 명단 (A:학생ID=부모님번호8자리 | B:이름 | C:학교 | D:학년 | E:담당교사 | F:메모 | G~J:시간표 | K:재원여부)
 
 function doGet(e) {
   var p = (e && e.parameter) ? e.parameter : {};
   if (p.list)    { return getList(); }
   if (p.results) { return getResults(String(p.results).trim()); }
+  if (p.student) { return getStudent(String(p.student).trim()); }   // ?student=27927388 → 학생 개별 페이지용
   var id = p.id ? String(p.id).trim() : '';
   if (!id) {
     return json({ result: 'error', message: 'id 파라미터가 없습니다. 예: ?id=서정고3화작' });
@@ -136,6 +140,73 @@ function getResults(reportId) {
     });
   }
   return json({ result:'success', students: students });
+}
+
+/* ===== (6) 학생 개별 페이지 ===== s.html?id=학생ID(=부모님 8자리)
+ *  '학생정보' 탭에서 기본정보를 찾고, '제출결과'에서 그 학생의 모든 시험 기록을 모은다.
+ *  매칭: 제출결과 K열(부모님번호) === 학생ID. 단, 번호 칸이 생기기 전의 옛 기록은
+ *        번호가 비어 있으므로 이름이 같으면 보조 매칭한다.
+ */
+function getStudent(studentId) {
+  if (!studentId) return json({ result:'error', message:'학생 ID가 없습니다.' });
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+
+  // (a) 학생정보에서 기본정보
+  var stSh = ss.getSheetByName(TAB_STUDENTS);
+  if (!stSh) return json({ result:'error', message:"'" + TAB_STUDENTS + "' 탭이 없습니다." });
+  var sv = stSh.getDataRange().getValues();
+  var info = null;
+  // 0학생ID 1이름 2학교 3학년 4담당교사 5메모 6정규가 7정규나 8내신진도 9내신확인 10재원여부
+  for (var i = 1; i < sv.length; i++) {
+    if (String(sv[i][0]).trim() === studentId) {
+      info = {
+        id:        studentId,
+        name:      String(sv[i][1] || '').trim(),
+        school:    String(sv[i][2] || ''),
+        grade:     String(sv[i][3] || ''),
+        teacher:   String(sv[i][4] || ''),
+        memo:      String(sv[i][5] || ''),
+        classA:    String(sv[i][6] || ''),
+        classB:    String(sv[i][7] || ''),
+        progress:  String(sv[i][8] || ''),
+        checkup:   String(sv[i][9] || ''),
+        enrolled:  String(sv[i][10] || '')
+      };
+      break;
+    }
+  }
+  if (!info) return json({ result:'error', message:"학생을 찾을 수 없습니다. (ID: " + studentId + ")" });
+
+  // (b) 제출결과에서 이 학생의 시험 기록
+  var exams = [];
+  var rSh = ss.getSheetByName(TAB_RESULT);
+  if (rSh) {
+    var rv = rSh.getDataRange().getValues();
+    // 0제출일시 1시험 2학교 3학년 4이름 5틀린문항수 6틀린문항·반성 7다짐 8선생님의한마디 9예상점수 10부모님연락처
+    for (var j = 1; j < rv.length; j++) {
+      var row = rv[j];
+      if (!row[4]) continue;
+      var phone = String(row[10] || '').trim();
+      var nm    = String(row[4]  || '').trim();
+      var match = (phone && phone === studentId) || (!phone && nm === info.name);
+      if (!match) continue;
+      exams.push({
+        submittedAt: row[0] ? Utilities.formatDate(new Date(row[0]), 'GMT+9', 'yyyy-MM-dd HH:mm') : '',
+        title:       String(row[1] || ''),
+        school:      String(row[2] || ''),
+        grade:       String(row[3] || ''),
+        wrongCount:  row[5] || 0,
+        wrongText:   String(row[6] || ''),
+        vow:         String(row[7] || ''),
+        teacherNote: String(row[8] || ''),
+        score:       String(row[9] || '')
+      });
+    }
+  }
+  // 최신 제출이 위로
+  exams.sort(function(a, b){ return a.submittedAt < b.submittedAt ? 1 : (a.submittedAt > b.submittedAt ? -1 : 0); });
+
+  return json({ result:'success', info: info, exams: exams });
 }
 
 /* ===== (2) 제출 수집 / (5) 시험 등록 ===== */
