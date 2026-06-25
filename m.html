@@ -37,15 +37,15 @@ body.locked .panel{display:none !important;}
 html,body{margin:0;padding:0;}
 body{font-family:'Noto Sans KR',sans-serif; background:var(--sage-fog); color:var(--ink-deep); font-size:15px; line-height:1.6;}
 
-.panel{max-width:720px; margin:0 auto; padding:20px; }
+.panel{max-width:760px; margin:0 auto; padding:20px; }
 .panel-card{background:#fff; border-radius:14px; padding:22px; box-shadow:0 2px 12px rgba(46,61,56,.06); margin-bottom:18px;}
 .panel-head{display:flex; align-items:center; gap:12px; margin-bottom:6px;}
 .panel-head img{width:40px; height:40px; border-radius:10px;}
 .panel h1{font-size:18px; font-weight:700; margin:0;}
 .panel .desc{font-size:13px; color:var(--ink-mid); margin:0 0 18px; font-family:'Noto Serif KR',serif; line-height:1.7;}
 
-.sec-h{font-size:14px; font-weight:700; color:var(--ink-deep); margin:22px 0 12px; padding-bottom:8px; border-bottom:2px solid var(--sage-soft); display:flex; align-items:center; gap:8px;}
-.sec-h:first-of-type{margin-top:0;}
+.sec-h{font-size:14px; font-weight:700; color:var(--ink-deep); margin:24px 0 12px; padding-bottom:8px; border-bottom:2px solid var(--sage-soft); display:flex; align-items:center; gap:8px;}
+.sec-h .step{flex:0 0 auto; width:22px; height:22px; border-radius:50%; background:var(--sage-deep); color:#fff; font-size:12px; display:flex; align-items:center; justify-content:center; font-weight:700;}
 .sec-h .n{font-size:12px; color:var(--ink-soft); font-weight:500;}
 
 .fld{margin-bottom:14px;}
@@ -55,7 +55,7 @@ body{font-family:'Noto Sans KR',sans-serif; background:var(--sage-fog); color:va
   width:100%; border:1.5px solid var(--line); border-radius:10px; padding:11px 12px;
   font-size:15px; font-family:'Noto Sans KR'; background:#FBFCFB; color:var(--ink-deep); -webkit-appearance:none; appearance:none;
 }
-.fld textarea{font-family:'Noto Serif KR',serif; line-height:1.7; resize:vertical; min-height:120px;}
+.fld textarea{font-family:'Noto Serif KR',serif; line-height:1.7; resize:vertical; min-height:80px;}
 .fld input:focus, .fld textarea:focus, .fld select:focus{outline:none; border-color:var(--sage-deep); background:#fff;}
 .fld .hint{font-size:12px; color:var(--ink-soft); margin-top:6px; line-height:1.6;}
 .row2{display:flex; gap:12px;} .row2 .fld{flex:1; min-width:0;}
@@ -65,23 +65,33 @@ body{font-family:'Noto Sans KR',sans-serif; background:var(--sage-fog); color:va
 .btn:disabled{opacity:.45; cursor:default;}
 .btn.sm{padding:9px 14px; font-size:13.5px; border-radius:9px;}
 
-/* 문항 목록 */
-.q-list{display:flex; flex-direction:column; gap:10px;}
-.qrow{border:1.5px solid var(--line-soft); border-radius:12px; padding:13px 13px 13px 14px; background:#fff;}
-.qrow-top{display:flex; gap:8px; align-items:center; margin-bottom:9px; flex-wrap:wrap;}
-.qrow-top .no-in{flex:0 0 64px; width:64px; text-align:center;}
-.qrow-top .area-in{flex:1 1 90px; min-width:0;}
-.qrow-top .type-in{flex:1 1 90px; min-width:0;}
-.qrow-top .lv-in{flex:0 0 84px; width:84px;}
-.qrow-top input, .qrow-top select{padding:9px 10px; font-size:14px;}
-.qrow .txt-in{font-family:'Noto Serif KR',serif; min-height:0; height:auto; padding:10px 11px; font-size:14px;}
-.qrow .qrow-foot{display:flex; justify-content:space-between; align-items:center; margin-top:8px;}
-.qrow .qidx{font-size:12px; color:var(--ink-soft);}
-.qrow .del{background:none; border:none; color:#B5544E; font-size:13px; font-weight:700; cursor:pointer; padding:4px 6px; font-family:'Noto Sans KR';}
+/* 문항 수 생성 */
+.gen-row{display:flex; gap:8px; align-items:flex-end; flex-wrap:wrap; margin-bottom:6px;}
+.gen-row .fld{margin-bottom:0;} .gen-row .num-fld{flex:0 0 130px;}
+
+/* 문항 블록 */
+.q-list{display:flex; flex-direction:column; gap:12px;}
+.qrow{border:1.5px solid var(--line-soft); border-radius:13px; padding:14px; background:#fff;}
+.qrow.passage{border-color:var(--sage-soft); background:#FCFDFC;}
+.qrow-head{display:flex; align-items:center; gap:10px; margin-bottom:11px;}
+.qrow-head .qnum{font-weight:700; font-size:13px; color:var(--sage-deep); background:var(--sage-fog); border-radius:8px; padding:5px 11px;}
+.qrow-head .no-wrap{display:flex; align-items:center; gap:6px;}
+.qrow-head .no-wrap label{font-size:12px; color:var(--ink-mid); margin:0;}
+.qrow-head .no-in{width:62px; padding:8px 9px; font-size:14px; text-align:center; border:1.5px solid var(--line); border-radius:8px; background:#FBFCFB; font-family:'Noto Sans KR';}
+.qrow-head .del{margin-left:auto; background:none; border:none; color:#B5544E; font-size:13px; font-weight:700; cursor:pointer; padding:4px 6px; font-family:'Noto Sans KR';}
+.qrow-grid{display:grid; grid-template-columns:repeat(2,1fr); gap:9px; margin-bottom:10px;}
+.qrow-grid .cell label{display:block; font-size:11.5px; color:var(--ink-soft); margin-bottom:4px;}
+.qrow-grid select, .qrow-grid input{width:100%; padding:9px 10px; font-size:14px; border:1.5px solid var(--line); border-radius:9px; background:#FBFCFB; font-family:'Noto Sans KR'; color:var(--ink-deep); -webkit-appearance:none; appearance:none;}
+.qrow-grid select:focus, .qrow-grid input:focus{outline:none; border-color:var(--sage-deep); background:#fff;}
+.qrow-grid .cell.pg-cell{grid-column:1 / -1;}
+.qrow .txt-cell label{display:block; font-size:11.5px; color:var(--ink-soft); margin-bottom:4px;}
+.qrow .txt-in{width:100%; border:1.5px solid var(--line); border-radius:9px; padding:10px 11px; font-size:14px; font-family:'Noto Serif KR',serif; line-height:1.6; background:#FBFCFB; resize:vertical; min-height:52px; -webkit-appearance:none;}
+.qrow .txt-in:focus{outline:none; border-color:var(--sage-deep); background:#fff;}
+
 .q-add-row{display:flex; gap:8px; margin-top:12px; align-items:center; flex-wrap:wrap;}
 .q-count{font-size:13px; color:var(--ink-mid);} .q-count b{color:var(--sage-deep);}
 
-.actions{display:flex; gap:10px; margin-top:8px; flex-wrap:wrap;}
+.actions{display:flex; gap:10px; margin-top:18px; flex-wrap:wrap;}
 .actions .btn{flex:1; min-width:140px;}
 .status{font-size:13px; color:var(--ink-mid); padding:10px 0 2px; min-height:20px; line-height:1.6;}
 .status.err{color:#B5544E;} .status.ok{color:var(--sage-deep); font-weight:700;}
@@ -97,11 +107,15 @@ body{font-family:'Noto Sans KR',sans-serif; background:var(--sage-fog); color:va
 
 /* 미리보기 */
 .preview{margin-top:8px;}
+.pv-scope{background:var(--sage-fog); border-radius:10px; padding:12px 14px; font-family:'Noto Serif KR',serif; font-size:13.5px; color:var(--ink-deep); line-height:1.7; white-space:pre-wrap; margin-bottom:8px;}
 .pv-review{background:var(--sage-fog); border-radius:12px; padding:15px 16px; font-family:'Noto Serif KR',serif; font-size:14px; line-height:1.85; color:var(--ink-deep);}
 .pv-review p{margin:0 0 10px;} .pv-review p:last-child{margin:0;}
+.pv-group-label{font-size:12px; font-weight:700; color:var(--sage-deep); margin:14px 0 6px; padding-left:2px;}
 .pv-q{border:1px solid var(--line-soft); border-radius:10px; padding:11px 13px; margin-top:8px;}
+.pv-q.in-group{margin-left:12px; border-left:3px solid var(--sage-soft);}
 .pv-q .m{display:flex; gap:6px; flex-wrap:wrap; align-items:center; margin-bottom:5px;}
 .pv-tag{font-size:11px; padding:3px 9px; border-radius:11px; background:var(--sage-mist); color:var(--ink-mid); font-weight:500;}
+.pv-tag.sub{background:var(--line-soft);}
 .pv-badge{font-size:11px; padding:3px 10px; border-radius:11px; font-weight:700;}
 .b-중상{background:var(--sage-mist); color:var(--ink-deep);}
 .b-상{background:var(--sage-soft); color:var(--ink-deep);}
@@ -131,34 +145,43 @@ body{font-family:'Noto Sans KR',sans-serif; background:var(--sage-fog); color:va
       <img src="icon-192.png" alt="">
       <h1>SHUEGUK 시험 등록</h1>
     </div>
-    <p class="desc">새 시험의 제목·총평·문항을 입력해 등록하면, 학생용 복기 링크가 바로 만들어집니다. 입력한 내용은 구글시트의 ‘보고서목록’·‘문항’ 탭에 자동 저장됩니다.</p>
+    <p class="desc">새 시험의 제목·범위·문항·총평을 입력해 등록하면, 학생용 복기 링크가 바로 만들어집니다. 입력한 내용은 구글시트의 ‘보고서목록’·‘문항’ 탭에 자동 저장됩니다.</p>
 
-    <h2 class="sec-h">기본 정보</h2>
-    <div class="row2">
-      <div class="fld">
-        <label>시험 ID <span class="req">*</span></label>
-        <input type="text" id="f_id" placeholder="예) 서정고3화작" autocomplete="off">
-        <p class="hint">학생 링크에 들어가는 짧은 식별자입니다. 시험마다 겹치지 않게 정해주세요. (한글·영문·숫자)</p>
-      </div>
-    </div>
+    <!-- 1. 제목 / 시험 ID -->
+    <h2 class="sec-h"><span class="step">1</span>제목</h2>
     <div class="fld">
       <label>시험 제목 <span class="req">*</span></label>
       <input type="text" id="f_title" placeholder="예) 26-1-중간-서정고3-화법과 작문" autocomplete="off">
-      <p class="hint">학생·학부모에게 보이는 시험 이름입니다.</p>
     </div>
-
-    <h2 class="sec-h">시험 총평 <span class="n">· 학생 화면 상단에 표시</span></h2>
     <div class="fld">
-      <textarea id="f_review" placeholder="이번 시험의 출제 경향, 난도 분포, 응원의 한마디 등을 적어주세요.&#10;&#10;빈 줄(엔터 두 번)로 문단을 나누면 학생 화면에서도 문단으로 구분됩니다."></textarea>
-      <p class="hint">문단은 <b>빈 줄</b>로 구분됩니다.</p>
+      <label>시험 ID <span class="req">*</span></label>
+      <input type="text" id="f_id" placeholder="예) 서정고3화작" autocomplete="off">
+      <p class="hint">학생 링크에 들어가는 짧은 식별자입니다. 시험마다 겹치지 않게 정해주세요. (한글·영문·숫자)</p>
     </div>
 
-    <h2 class="sec-h">문항 목록 <span class="n">· 시험에 출제된 모든 문항</span></h2>
+    <!-- 2. 시험 범위 -->
+    <h2 class="sec-h"><span class="step">2</span>시험 범위</h2>
+    <div class="fld">
+      <textarea id="f_scope" placeholder="예) EBS 수능특강 화법과 작문 1~2강, 수능특강 문학 현대시 전 작품, 학습지 화법·작문 원리"></textarea>
+    </div>
+
+    <!-- 3. 문항 -->
+    <h2 class="sec-h"><span class="step">3</span>문항 <span class="n">· 문항 수를 정해 한 번에 만들 수 있어요</span></h2>
+    <div class="gen-row">
+      <div class="fld num-fld"><label>문항 수</label><input type="number" id="genCount" min="1" max="100" placeholder="예) 20"></div>
+      <button class="btn ghost sm" onclick="generateToCount()">입력란 생성</button>
+    </div>
     <div class="q-list" id="qList"></div>
     <div class="q-add-row">
       <button class="btn ghost sm" onclick="addQuestion()">＋ 문항 추가</button>
-      <button class="btn ghost sm" onclick="addQuestion(true)">＋ 5개 추가</button>
       <span class="q-count">현재 <b id="qCount">0</b>문항</span>
+    </div>
+
+    <!-- 8. 시험 총평 -->
+    <h2 class="sec-h"><span class="step">8</span>시험 총평 <span class="n">· 학생 화면 상단에 표시</span></h2>
+    <div class="fld">
+      <textarea id="f_review" placeholder="이번 시험의 출제 경향, 난도 분포, 응원의 한마디 등을 적어주세요.&#10;&#10;빈 줄(엔터 두 번)로 문단을 나누면 학생 화면에서도 문단으로 구분됩니다."></textarea>
+      <p class="hint">문단은 <b>빈 줄</b>로 구분됩니다.</p>
     </div>
 
     <div class="status" id="status"></div>
@@ -222,72 +245,122 @@ document.addEventListener('DOMContentLoaded',function(){
 /* ===== 설정 ===== */
 var ENDPOINT = "https://script.google.com/macros/s/AKfycbzhCncBwn-JlqXARC3wfrWUCuNHzlNK2df0bdhx-w78Xr8mzYUcIYZOJdRi9N4bHtsb/exec";
 
-var AREA_OPTS = ['화법','작문','문학','독서','문법','매체'];
-var TYPE_OPTS = ['객관식','서술형','논술형'];
+// 유형: 상위(영역) → 하위(세부유형)
+var SUBTYPES = {
+  '문학': ['현대시','현대소설','고전시가','고전소설','수필','극'],
+  '독서': ['인문','사회','과학기술'],
+  '화법': [],
+  '작문': [],
+  '문법': ['음운','형태소','단어','문장','문법요소','국어사']
+};
+var AREA_OPTS = ['문학','독서','화법','작문','문법'];
+var FORM_OPTS = ['객관식','서술형'];
 var LV_OPTS   = ['중','중상','상','최상'];
 
 function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function setStatus(m, kind){ var el=document.getElementById('status'); el.textContent=m||''; el.className='status'+(kind?' '+kind:''); }
 
-/* ===== 문항 행 ===== */
+/* ===== 문항 블록 ===== */
 function nextNo(){
-  // 마지막 숫자 번호 +1 자동 추천
   var rows=document.querySelectorAll('#qList .qrow .no-in');
   var max=0;
   rows.forEach(function(i){ var n=parseInt(i.value,10); if(!isNaN(n)&&n>max) max=n; });
   return max+1;
 }
-function addQuestion(five){
-  var times = five===true ? 5 : 1;
-  for(var k=0;k<times;k++){
-    var no=nextNo();
-    var d=document.createElement('div'); d.className='qrow';
-    d.innerHTML =
-      '<div class="qrow-top">'+
-        '<input class="no-in" type="text" value="'+no+'" placeholder="번호" oninput="renumber()">'+
-        '<input class="area-in" type="text" list="areaList" placeholder="영역">'+
-        '<input class="type-in" type="text" list="typeList" placeholder="유형">'+
-        '<select class="lv-in">'+LV_OPTS.map(function(l){return '<option'+(l==='상'?' selected':'')+'>'+l+'</option>';}).join('')+'</select>'+
-      '</div>'+
-      '<input class="txt-in fld-txt" type="text" placeholder="문항 내용 (예: 윗글에 활용된 글쓰기 방식 분석)">'+
-      '<div class="qrow-foot"><span class="qidx"></span><button class="del" onclick="delQuestion(this)">삭제</button></div>';
-    document.getElementById('qList').appendChild(d);
-  }
+function optionsHtml(arr, sel){
+  return arr.map(function(o){ return '<option'+(o===sel?' selected':'')+'>'+o+'</option>'; }).join('');
+}
+function addQuestion(){
+  var no=nextNo();
+  var d=document.createElement('div'); d.className='qrow';
+  d.innerHTML =
+    '<div class="qrow-head">'+
+      '<span class="qnum"></span>'+
+      '<div class="no-wrap"><label>번호</label><input class="no-in" type="text" value="'+no+'" placeholder="번호"></div>'+
+      '<button class="del" onclick="delQuestion(this)">삭제</button>'+
+    '</div>'+
+    '<div class="qrow-grid">'+
+      '<div class="cell"><label>구분 (단독/지문)</label>'+
+        '<select class="g-in" onchange="onGroupChange(this)"><option value="">단독</option><option value="지문">지문</option></select></div>'+
+      '<div class="cell pg-cell pg-wrap" style="display:none;"><label>지문 이름 (같은 이름끼리 묶임)</label>'+
+        '<input class="pg-in" type="text" list="pgList" placeholder="예) (가)~(다) 현대시"></div>'+
+      '<div class="cell"><label>영역 (상위)</label>'+
+        '<select class="area-in" onchange="onAreaChange(this)"><option value="">— 선택 —</option>'+optionsHtml(AREA_OPTS,'')+'</select></div>'+
+      '<div class="cell"><label>세부유형 (하위)</label>'+
+        '<select class="detail-in"><option value="">—</option></select></div>'+
+      '<div class="cell"><label>형식</label>'+
+        '<select class="type-in">'+optionsHtml(FORM_OPTS,'객관식')+'</select></div>'+
+      '<div class="cell"><label>난이도</label>'+
+        '<select class="lv-in">'+optionsHtml(LV_OPTS,'상')+'</select></div>'+
+    '</div>'+
+    '<div class="txt-cell"><label>문항 내용 · 분석</label>'+
+      '<textarea class="txt-in" rows="2" placeholder="이 문항이 무엇을 묻는지 / 분석 (예: 윗글에 활용된 글쓰기 방식 분석 (복수 선택))"></textarea></div>';
+  document.getElementById('qList').appendChild(d);
   renumber();
+  return d;
 }
 function delQuestion(btn){ btn.closest('.qrow').remove(); renumber(); }
 function renumber(){
   var rows=document.querySelectorAll('#qList .qrow');
-  rows.forEach(function(r,i){ r.querySelector('.qidx').textContent='문항 '+(i+1); });
+  rows.forEach(function(r,i){ r.querySelector('.qnum').textContent='문항 '+(i+1); });
   document.getElementById('qCount').textContent=rows.length;
+}
+function onGroupChange(sel){
+  var row=sel.closest('.qrow'); var wrap=row.querySelector('.pg-wrap');
+  if(sel.value==='지문'){ wrap.style.display=''; row.classList.add('passage'); }
+  else { wrap.style.display='none'; row.classList.remove('passage'); row.querySelector('.pg-in').value=''; }
+}
+function onAreaChange(sel){
+  var row=sel.closest('.qrow'); var detail=row.querySelector('.detail-in');
+  var subs=SUBTYPES[sel.value]||[];
+  if(subs.length===0){ detail.innerHTML='<option value="">—</option>'; detail.disabled=true; }
+  else { detail.disabled=false; detail.innerHTML='<option value="">— 선택 —</option>'+optionsHtml(subs,''); }
+}
+function generateToCount(){
+  var n=parseInt(document.getElementById('genCount').value,10);
+  if(isNaN(n)||n<1){ setStatus('문항 수를 1 이상으로 입력해주세요.', 'err'); return; }
+  if(n>100){ n=100; }
+  var cur=document.querySelectorAll('#qList .qrow').length;
+  if(n>cur){ for(var i=cur;i<n;i++){ addQuestion(); } }
+  else if(n<cur){
+    var rows=document.querySelectorAll('#qList .qrow');
+    for(var j=rows.length-1;j>=n;j--){ rows[j].remove(); }
+    renumber();
+  }
+  setStatus(n+'개 문항 입력란을 준비했어요.', '');
 }
 
 /* ===== 데이터 수집 ===== */
 function collect(){
   var id=document.getElementById('f_id').value.trim();
   var title=document.getElementById('f_title').value.trim();
+  var scope=document.getElementById('f_scope').value.trim();
   var review=document.getElementById('f_review').value.trim()
-              .split(/\n\s*\n/).map(function(p){return p.replace(/\s+\n/g,'\n').trim();}).filter(Boolean);
+              .split(/\n\s*\n/).map(function(p){return p.replace(/[ \t]+\n/g,'\n').trim();}).filter(Boolean);
   var questions=[];
   document.querySelectorAll('#qList .qrow').forEach(function(r){
     var no=r.querySelector('.no-in').value.trim();
+    var group=(r.querySelector('.g-in').value==='지문') ? r.querySelector('.pg-in').value.trim() : '';
     var area=r.querySelector('.area-in').value.trim();
+    var detail=r.querySelector('.detail-in').value.trim();
     var type=r.querySelector('.type-in').value.trim();
     var lv=r.querySelector('.lv-in').value.trim();
     var txt=r.querySelector('.txt-in').value.trim();
-    if(no||area||type||txt){ questions.push({no:no, area:area, type:type, lv:lv, txt:txt}); }
+    if(no||area||detail||type||txt||group){
+      questions.push({no:no, group:group, area:area, detail:detail, type:type, lv:lv, txt:txt});
+    }
   });
-  return {id:id, title:title, review:review, questions:questions};
+  return {id:id, title:title, scope:scope, review:review, questions:questions};
 }
 
 function validate(data){
-  if(!data.id){ setStatus('시험 ID를 입력해주세요.', 'err'); document.getElementById('f_id').focus(); return false; }
   if(!data.title){ setStatus('시험 제목을 입력해주세요.', 'err'); document.getElementById('f_title').focus(); return false; }
+  if(!data.id){ setStatus('시험 ID를 입력해주세요.', 'err'); document.getElementById('f_id').focus(); return false; }
   if(data.questions.length===0){ setStatus('문항을 1개 이상 입력해주세요.', 'err'); return false; }
   for(var i=0;i<data.questions.length;i++){
-    if(!data.questions[i].no || !data.questions[i].txt){
-      setStatus('문항 '+(i+1)+'의 번호와 내용을 채워주세요.', 'err'); return false;
-    }
+    var q=data.questions[i];
+    if(!q.no || !q.txt){ setStatus('문항 '+(i+1)+'의 번호와 내용을 채워주세요.', 'err'); return false; }
+    if(!q.area){ setStatus('문항 '+(i+1)+'의 영역을 선택해주세요.', 'err'); return false; }
   }
   return true;
 }
@@ -298,12 +371,17 @@ function togglePreview(){
   if(pv.style.display!=='none'){ pv.style.display='none'; document.getElementById('previewBtn').textContent='미리보기'; return; }
   var d=collect();
   var html='<h2 class="sec-h">미리보기 <span class="n">· 학생 화면 기준</span></h2>';
+  if(d.scope){ html+='<div class="pv-scope"><b>시험 범위</b>\n'+esc(d.scope)+'</div>'; }
   html+='<div class="pv-review">'+ (d.review.length? d.review.map(function(p){return '<p>'+esc(p)+'</p>';}).join('') : '<p style="color:#8A9994">총평이 비어 있습니다.</p>') +'</div>';
+  var lastGroup=null;
   d.questions.forEach(function(q){
     var lv=q.lv||'중';
-    html+='<div class="pv-q"><div class="m">'+
-          '<span class="pv-tag">'+esc(q.area||'-')+'</span>'+
-          '<span class="pv-tag">'+esc(q.type||'-')+'</span>'+
+    if(q.group && q.group!==lastGroup){ html+='<div class="pv-group-label">📖 지문: '+esc(q.group)+'</div>'; }
+    lastGroup=q.group||null;
+    var tags='<span class="pv-tag">'+esc(q.area||'-')+'</span>';
+    if(q.detail){ tags+='<span class="pv-tag sub">'+esc(q.detail)+'</span>'; }
+    if(q.type){ tags+='<span class="pv-tag">'+esc(q.type)+'</span>'; }
+    html+='<div class="pv-q'+(q.group?' in-group':'')+'"><div class="m">'+tags+
           '<span class="pv-badge b-'+lv+'">'+esc(lv)+'</span></div>'+
           '<div class="t"><span class="qno">'+esc(q.no)+'번</span>'+esc(q.txt)+'</div></div>';
   });
@@ -324,6 +402,7 @@ function saveReport(){
     action: 'createReport',
     id: data.id,
     title: data.title,
+    scope: data.scope,
     review: data.review,
     questions: data.questions
   };
@@ -371,7 +450,6 @@ function copyLink(inputId, btnId){
 addQuestion(); addQuestion(); addQuestion();
 </script>
 
-<datalist id="areaList"><option value="화법"><option value="작문"><option value="문학"><option value="독서"><option value="문법"><option value="매체"></datalist>
-<datalist id="typeList"><option value="객관식"><option value="서술형"><option value="논술형"></datalist>
+<datalist id="pgList"></datalist>
 </body>
 </html>
