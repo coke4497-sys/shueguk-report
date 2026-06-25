@@ -47,11 +47,19 @@
   .sec-h .n{font-family:var(--sans);font-weight:400;font-size:.78rem;color:var(--ink-soft);margin-left:6px;}
 
   /* 내 수업 정보 카드 */
-  .info-card{background:var(--surface);border:1px solid var(--line-soft);border-radius:var(--radius);padding:6px 18px;}
-  .row{display:flex;justify-content:space-between;gap:14px;padding:12px 0;border-bottom:1px solid var(--line-soft);font-size:.92rem;}
-  .row:last-child{border-bottom:none;}
-  .row .k{color:var(--ink-soft);}
-  .row .v{color:var(--ink);font-family:var(--serif);font-weight:700;text-align:right;}
+  .info-card{background:var(--surface);border:1px solid var(--line-soft);border-radius:var(--radius);padding:16px 18px;}
+  .info-teacher{display:flex;justify-content:space-between;gap:14px;padding:2px 2px 13px;margin-bottom:13px;border-bottom:1px solid var(--line-soft);font-size:.92rem;}
+  .info-teacher .k{color:var(--ink-soft);}
+  .info-teacher .v{color:var(--ink);font-family:var(--serif);font-weight:700;}
+  .sched-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+  .sched-h{font-family:var(--serif);font-weight:700;font-size:.9rem;color:var(--ink);margin:0 0 9px;}
+  .sched-tb{width:100%;border-collapse:collapse;font-size:.84rem;}
+  .sched-tb th{font-weight:400;font-size:.7rem;color:var(--ink-soft);text-align:left;padding:0 0 7px;border-bottom:1px solid var(--line-soft);}
+  .sched-tb th:last-child{text-align:right;}
+  .sched-tb td{padding:9px 0;border-bottom:1px solid var(--line-soft);color:var(--ink);}
+  .sched-tb tr:last-child td{border-bottom:none;}
+  .sched-tb td:last-child{text-align:right;}
+  .time{display:inline-block;background:var(--icon-bg);color:var(--accent);border-radius:7px;padding:2px 9px;font-size:.8rem;}
 
   /* 메뉴 그리드 */
   .grid{display:grid;gap:13px;grid-template-columns:repeat(2,1fr);}
@@ -252,9 +260,13 @@ function api(extra){
   return fetch(ENDPOINT + q).then(function(r){ return r.json(); });
 }
 
-function infoRow(k, v){
-  if(v==null || String(v).trim()==='') return '';
-  return '<div class="row"><span class="k">'+esc(k)+'</span><span class="v">'+esc(v)+'</span></div>';
+function schedTable(title, rows){
+  var trs = rows.filter(function(r){ return r[1] && String(r[1]).trim()!==''; });
+  if(!trs.length) return '';
+  return '<div class="sched"><p class="sched-h">'+esc(title)+'</p>' +
+    '<table class="sched-tb"><tr><th>구분</th><th>시간</th></tr>' +
+    trs.map(function(r){ return '<tr><td>'+esc(r[0])+'</td><td><span class="time">'+esc(r[1])+'</span></td></tr>'; }).join('') +
+    '</table></div>';
 }
 
 /* ---- 허브 렌더 ---- */
@@ -266,14 +278,15 @@ function renderHub(){
   document.title = (info.name||'학생') + ' · 슈국';
   if(info.enrolled){ var b=$('s_badge'); b.textContent=info.enrolled; b.style.display='inline-block'; }
 
-  // 내 수업 정보
-  var infoHtml = '';
-  infoHtml += infoRow('담당 교사', info.teacher);
-  infoHtml += infoRow('정규 가 수업', info.classA);
-  infoHtml += infoRow('정규 나 수업', info.classB);
-  infoHtml += infoRow('내신 진도', info.progress);
-  infoHtml += infoRow('내신 확인', info.checkup);
-  if(infoHtml){ $('infoCard').innerHTML = infoHtml; $('infoCard').style.display='block'; $('infoSecH').style.display='block'; }
+  // 내 수업 정보 (담당 교사 + 정규/내신 시간표 가로 배치)
+  var teacherRow = (info.teacher && String(info.teacher).trim()!=='')
+    ? '<div class="info-teacher"><span class="k">담당 교사</span><span class="v">'+esc(info.teacher)+'</span></div>' : '';
+  var reg = schedTable('정규 기간 시간표', [['가 수업', info.classA], ['나 수업', info.classB]]);
+  var nae = schedTable('내신 기간 시간표', [['진도 수업', info.progress], ['확인 수업', info.checkup]]);
+  if(teacherRow || reg || nae){
+    $('infoCard').innerHTML = teacherRow + ((reg||nae) ? '<div class="sched-grid">'+reg+nae+'</div>' : '');
+    $('infoCard').style.display='block'; $('infoSecH').style.display='block';
+  }
 
   // 메뉴
   var html = '';
