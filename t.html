@@ -87,8 +87,11 @@ body{font-family:'Noto Sans KR',sans-serif; background:var(--sage-fog); color:va
 .vow-box, .teacher-box{font-family:'Noto Serif KR',serif; font-size:14px; line-height:1.8; color:var(--ink-deep); background:var(--sage-fog); border-radius:10px; padding:16px 18px; white-space:pre-wrap;}
 .teacher-box{background:#fff; border:1.5px solid var(--sage-soft); min-height:90px;}
 .r-foot{text-align:center; color:var(--ink-soft); font-size:11px; padding-top:24px; letter-spacing:.05em;}
-.chart-grid{display:flex; gap:12px; align-items:flex-start;}
-.chart-col{flex:1 1 0; min-width:0;}
+.chart-grid{display:flex; gap:0; align-items:stretch;}
+.chart-col{flex:1 1 0; min-width:0; padding:0 14px;}
+.chart-col:first-child{padding-left:0;}
+.chart-col:last-child{padding-right:0;}
+.chart-col + .chart-col{border-left:1px solid var(--line); -webkit-print-color-adjust:exact; print-color-adjust:exact;}
 .chart-title{font-size:12.5px; font-weight:700; color:var(--accent-dark); margin:0 0 8px; display:flex; align-items:baseline; gap:5px; flex-wrap:wrap;}
 .chart-title .basis{font-size:10px; color:var(--ink-soft); font-weight:500;}
 .vchart{display:flex; align-items:flex-end; gap:5px; padding:2px 0 0;}
