@@ -181,6 +181,9 @@ body{font-family:'Noto Sans KR',sans-serif; background:var(--sage-fog); color:va
       <div class="info-cell"><div class="k">제출일</div><div class="v" id="rDate"></div></div>
     </div>
 
+    <h2 class="sec-h" id="rScopeH">시험 범위</h2>
+    <div class="vow-box" id="rScope"></div>
+
     <h2 class="sec-h">시험 총평</h2>
     <div class="review" id="rReview"></div>
 
@@ -234,6 +237,7 @@ document.addEventListener('DOMContentLoaded',function(){
 var ENDPOINT = "https://script.google.com/macros/s/AKfycbzhCncBwn-JlqXARC3wfrWUCuNHzlNK2df0bdhx-w78Xr8mzYUcIYZOJdRi9N4bHtsb/exec";
 var STUDENTS = [];
 var REVIEW = [];   // 현재 시험의 총평 (보고서 읽기에서 가져옴)
+var SCOPE = '';    // 현재 시험의 시험범위
 
 function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function setStatus(m){ document.getElementById('status').textContent = m||''; }
@@ -313,6 +317,7 @@ function loadStudents(rid){
   ]).then(function(arr){
     var rep = arr[0], res = arr[1];
     REVIEW = (rep.result==='success' && rep.review) ? rep.review : [];
+    SCOPE = (rep.result==='success' && rep.scope) ? rep.scope : '';
     STUDENTS = (res.result==='success' && res.students) ? res.students : [];
     var sel = document.getElementById('studentSel');
     if(STUDENTS.length===0){
@@ -357,6 +362,14 @@ function renderReport(){
   document.getElementById('rScore').textContent = (s.score && String(s.score).trim()!=='') ? (s.score + '점') : '—';
   document.getElementById('rWc').textContent = s.wrongCount + '개';
   document.getElementById('rDate').textContent = s.submittedAt;
+
+  // 시험 범위 (있을 때만 표시)
+  var scopeH=document.getElementById('rScopeH'), scopeBox=document.getElementById('rScope');
+  if(SCOPE && String(SCOPE).trim()){
+    scopeBox.textContent = SCOPE; scopeH.style.display=''; scopeBox.style.display='';
+  } else {
+    scopeH.style.display='none'; scopeBox.style.display='none';
+  }
 
   document.getElementById('rReview').innerHTML = REVIEW.length
     ? REVIEW.map(function(p){return '<p>'+esc(p)+'</p>';}).join('')
