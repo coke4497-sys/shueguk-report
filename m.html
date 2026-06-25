@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SHUEGUK 시험 등록</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#6B847B">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="SHUEGUK 시험 등록">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" type="image/png" href="icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=Noto+Serif+KR:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* 비밀번호 잠금 화면 (t.html과 동일) */
+#lockScreen{position:fixed; inset:0; background:var(--sage-fog,#EEF2EF); z-index:9999; display:flex; align-items:center; justify-content:center; padding:24px;}
+.lock-card{background:#fff; border-radius:20px; padding:36px 28px; box-shadow:0 6px 30px rgba(46,61,56,.12); width:100%; max-width:340px; text-align:center;}
+.lock-logo{width:84px; height:84px; border-radius:20px; margin-bottom:14px;}
+.lock-title{font-family:'Noto Sans KR',sans-serif; font-weight:700; font-size:18px; color:#3F5650; margin:0 0 8px;}
+.lock-desc{font-family:'Noto Sans KR',sans-serif; font-size:13.5px; color:#5A6B65; line-height:1.7; margin:0 0 22px;}
+.lock-card input{width:100%; border:1.5px solid #C8D4CD; border-radius:12px; padding:14px; font-size:17px; text-align:center; letter-spacing:.2em; font-family:'Noto Sans KR'; margin-bottom:12px;}
+.lock-card input:focus{outline:none; border-color:#6B847B;}
+.lock-card .btn{width:100%; padding:14px; font-size:16px;}
+.lock-err{font-family:'Noto Sans KR'; font-size:13px; color:#C0563E; margin:12px 0 0; min-height:18px;}
+body.locked{overflow:hidden;}
+body.locked .panel{display:none !important;}
+:root{
+  --sage-deep:#6B847B; --sage-mid:#8FA89C; --sage-soft:#B8C9C0;
+  --sage-mist:#DDE5E1; --sage-fog:#EEF2EF;
+  --ink-deep:#2E3D38; --ink-mid:#5A6B65; --ink-soft:#8A9994;
+  --line:#C8D4CD; --line-soft:#E2E8E4; --accent-dark:#3F5650;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{font-family:'Noto Sans KR',sans-serif; background:var(--sage-fog); color:var(--ink-deep); font-size:15px; line-height:1.6;}
+
+.panel{max-width:720px; margin:0 auto; padding:20px; }
+.panel-card{background:#fff; border-radius:14px; padding:22px; box-shadow:0 2px 12px rgba(46,61,56,.06); margin-bottom:18px;}
+.panel-head{display:flex; align-items:center; gap:12px; margin-bottom:6px;}
+.panel-head img{width:40px; height:40px; border-radius:10px;}
+.panel h1{font-size:18px; font-weight:700; margin:0;}
+.panel .desc{font-size:13px; color:var(--ink-mid); margin:0 0 18px; font-family:'Noto Serif KR',serif; line-height:1.7;}
+
+.sec-h{font-size:14px; font-weight:700; color:var(--ink-deep); margin:22px 0 12px; padding-bottom:8px; border-bottom:2px solid var(--sage-soft); display:flex; align-items:center; gap:8px;}
+.sec-h:first-of-type{margin-top:0;}
+.sec-h .n{font-size:12px; color:var(--ink-soft); font-weight:500;}
+
+.fld{margin-bottom:14px;}
+.fld label{display:block; font-size:13px; color:var(--ink-mid); margin-bottom:6px; font-weight:500;}
+.fld label .req{color:#C0563E;}
+.fld input, .fld textarea, .fld select{
+  width:100%; border:1.5px solid var(--line); border-radius:10px; padding:11px 12px;
+  font-size:15px; font-family:'Noto Sans KR'; background:#FBFCFB; color:var(--ink-deep); -webkit-appearance:none; appearance:none;
+}
+.fld textarea{font-family:'Noto Serif KR',serif; line-height:1.7; resize:vertical; min-height:120px;}
+.fld input:focus, .fld textarea:focus, .fld select:focus{outline:none; border-color:var(--sage-deep); background:#fff;}
+.fld .hint{font-size:12px; color:var(--ink-soft); margin-top:6px; line-height:1.6;}
+.row2{display:flex; gap:12px;} .row2 .fld{flex:1; min-width:0;}
+
+.btn{border:none; border-radius:10px; padding:12px 20px; font-size:15px; font-weight:700; font-family:'Noto Sans KR'; cursor:pointer; background:var(--sage-deep); color:#fff;}
+.btn:active{opacity:.85;} .btn.ghost{background:var(--sage-fog); color:var(--ink-mid);}
+.btn:disabled{opacity:.45; cursor:default;}
+.btn.sm{padding:9px 14px; font-size:13.5px; border-radius:9px;}
+
+/* 문항 목록 */
+.q-list{display:flex; flex-direction:column; gap:10px;}
+.qrow{border:1.5px solid var(--line-soft); border-radius:12px; padding:13px 13px 13px 14px; background:#fff;}
+.qrow-top{display:flex; gap:8px; align-items:center; margin-bottom:9px; flex-wrap:wrap;}
+.qrow-top .no-in{flex:0 0 64px; width:64px; text-align:center;}
+.qrow-top .area-in{flex:1 1 90px; min-width:0;}
+.qrow-top .type-in{flex:1 1 90px; min-width:0;}
+.qrow-top .lv-in{flex:0 0 84px; width:84px;}
+.qrow-top input, .qrow-top select{padding:9px 10px; font-size:14px;}
+.qrow .txt-in{font-family:'Noto Serif KR',serif; min-height:0; height:auto; padding:10px 11px; font-size:14px;}
+.qrow .qrow-foot{display:flex; justify-content:space-between; align-items:center; margin-top:8px;}
+.qrow .qidx{font-size:12px; color:var(--ink-soft);}
+.qrow .del{background:none; border:none; color:#B5544E; font-size:13px; font-weight:700; cursor:pointer; padding:4px 6px; font-family:'Noto Sans KR';}
+.q-add-row{display:flex; gap:8px; margin-top:12px; align-items:center; flex-wrap:wrap;}
+.q-count{font-size:13px; color:var(--ink-mid);} .q-count b{color:var(--sage-deep);}
+
+.actions{display:flex; gap:10px; margin-top:8px; flex-wrap:wrap;}
+.actions .btn{flex:1; min-width:140px;}
+.status{font-size:13px; color:var(--ink-mid); padding:10px 0 2px; min-height:20px; line-height:1.6;}
+.status.err{color:#B5544E;} .status.ok{color:var(--sage-deep); font-weight:700;}
+
+/* 등록 후 링크 박스 */
+.link-box{margin-top:4px; padding:16px; background:var(--sage-fog); border-radius:12px;}
+.link-box + .link-box{margin-top:10px;}
+.link-label{display:block; font-size:13px; font-weight:700; color:var(--sage-deep); margin-bottom:9px;}
+.link-label span{font-weight:400; color:var(--ink-soft);}
+.link-row{display:flex; gap:8px;}
+.link-row input{flex:1; min-width:0; border:1.5px solid var(--line); border-radius:10px; padding:11px 12px; font-size:13px; font-family:'Noto Sans KR'; background:#fff; color:var(--ink-deep);}
+.link-row .btn{flex:0 0 auto; padding:11px 18px;}
+
+/* 미리보기 */
+.preview{margin-top:8px;}
+.pv-review{background:var(--sage-fog); border-radius:12px; padding:15px 16px; font-family:'Noto Serif KR',serif; font-size:14px; line-height:1.85; color:var(--ink-deep);}
+.pv-review p{margin:0 0 10px;} .pv-review p:last-child{margin:0;}
+.pv-q{border:1px solid var(--line-soft); border-radius:10px; padding:11px 13px; margin-top:8px;}
+.pv-q .m{display:flex; gap:6px; flex-wrap:wrap; align-items:center; margin-bottom:5px;}
+.pv-tag{font-size:11px; padding:3px 9px; border-radius:11px; background:var(--sage-mist); color:var(--ink-mid); font-weight:500;}
+.pv-badge{font-size:11px; padding:3px 10px; border-radius:11px; font-weight:700;}
+.b-중상{background:var(--sage-mist); color:var(--ink-deep);}
+.b-상{background:var(--sage-soft); color:var(--ink-deep);}
+.b-최상{background:var(--accent-dark); color:#fff;}
+.b-중{background:var(--line-soft); color:var(--ink-mid);}
+.pv-q .qno{font-weight:700; color:var(--accent-dark); margin-right:4px;}
+.pv-q .t{font-family:'Noto Serif KR',serif; font-size:13.5px; color:var(--ink-deep); line-height:1.55;}
+</style>
+</head>
+<body>
+
+<!-- 비밀번호 잠금 화면 -->
+<div id="lockScreen">
+  <div class="lock-card">
+    <img src="icon-192.png" alt="SHUEGUK" class="lock-logo">
+    <p class="lock-title">SHUEGUK 시험 등록</p>
+    <p class="lock-desc">선생님 전용 페이지입니다.<br>비밀번호를 입력해주세요.</p>
+    <input type="password" id="lockInput" placeholder="비밀번호" inputmode="numeric" autocomplete="off">
+    <button class="btn" id="lockBtn" onclick="checkLock()">입력</button>
+    <p class="lock-err" id="lockErr"></p>
+  </div>
+</div>
+
+<div class="panel" id="panel">
+  <div class="panel-card">
+    <div class="panel-head">
+      <img src="icon-192.png" alt="">
+      <h1>SHUEGUK 시험 등록</h1>
+    </div>
+    <p class="desc">새 시험의 제목·총평·문항을 입력해 등록하면, 학생용 복기 링크가 바로 만들어집니다. 입력한 내용은 구글시트의 ‘보고서목록’·‘문항’ 탭에 자동 저장됩니다.</p>
+
+    <h2 class="sec-h">기본 정보</h2>
+    <div class="row2">
+      <div class="fld">
+        <label>시험 ID <span class="req">*</span></label>
+        <input type="text" id="f_id" placeholder="예) 서정고3화작" autocomplete="off">
+        <p class="hint">학생 링크에 들어가는 짧은 식별자입니다. 시험마다 겹치지 않게 정해주세요. (한글·영문·숫자)</p>
+      </div>
+    </div>
+    <div class="fld">
+      <label>시험 제목 <span class="req">*</span></label>
+      <input type="text" id="f_title" placeholder="예) 26-1-중간-서정고3-화법과 작문" autocomplete="off">
+      <p class="hint">학생·학부모에게 보이는 시험 이름입니다.</p>
+    </div>
+
+    <h2 class="sec-h">시험 총평 <span class="n">· 학생 화면 상단에 표시</span></h2>
+    <div class="fld">
+      <textarea id="f_review" placeholder="이번 시험의 출제 경향, 난도 분포, 응원의 한마디 등을 적어주세요.&#10;&#10;빈 줄(엔터 두 번)로 문단을 나누면 학생 화면에서도 문단으로 구분됩니다."></textarea>
+      <p class="hint">문단은 <b>빈 줄</b>로 구분됩니다.</p>
+    </div>
+
+    <h2 class="sec-h">문항 목록 <span class="n">· 시험에 출제된 모든 문항</span></h2>
+    <div class="q-list" id="qList"></div>
+    <div class="q-add-row">
+      <button class="btn ghost sm" onclick="addQuestion()">＋ 문항 추가</button>
+      <button class="btn ghost sm" onclick="addQuestion(true)">＋ 5개 추가</button>
+      <span class="q-count">현재 <b id="qCount">0</b>문항</span>
+    </div>
+
+    <div class="status" id="status"></div>
+
+    <div class="actions">
+      <button class="btn ghost" id="previewBtn" onclick="togglePreview()">미리보기</button>
+      <button class="btn" id="saveBtn" onclick="saveReport()">시트에 등록</button>
+    </div>
+
+    <div id="preview" class="preview" style="display:none;"></div>
+
+    <div id="resultBox" style="display:none; margin-top:18px;">
+      <div class="link-box">
+        <span class="link-label">학생용 복기 링크 <span>· 이 시험을 본 학생들에게 보내세요</span></span>
+        <div class="link-row">
+          <input type="text" id="studentLink" readonly>
+          <button class="btn" id="copyStudentBtn" onclick="copyLink('studentLink','copyStudentBtn')">복사</button>
+        </div>
+      </div>
+      <div class="link-box">
+        <span class="link-label">선생님용 보고서 제작 링크 <span>· 학부모 보고서를 만들 때</span></span>
+        <div class="link-row">
+          <input type="text" id="teacherLink" readonly>
+          <button class="btn" id="copyTeacherBtn" onclick="copyLink('teacherLink','copyTeacherBtn')">복사</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ===== 비밀번호 잠금 (t.html과 동일) ===== */
+var LOCK_KEY = 'shueguk_teacher_unlocked';
+var PASS_ENC = 'MTAxMDEx';
+(function(){
+  try { if(localStorage.getItem(LOCK_KEY)==='1'){ unlock(); return; } } catch(e){}
+  document.body.classList.add('locked');
+})();
+function unlock(){
+  document.body.classList.remove('locked');
+  var ls=document.getElementById('lockScreen');
+  if(ls) ls.style.display='none';
+}
+function checkLock(){
+  var v=document.getElementById('lockInput').value;
+  var ok=false;
+  try { ok = (btoa(v)===PASS_ENC); } catch(e){ ok=false; }
+  if(ok){
+    try { localStorage.setItem(LOCK_KEY,'1'); } catch(e){}
+    unlock();
+  } else {
+    document.getElementById('lockErr').textContent='비밀번호가 올바르지 않습니다.';
+    document.getElementById('lockInput').value='';
+  }
+}
+document.addEventListener('DOMContentLoaded',function(){
+  var inp=document.getElementById('lockInput');
+  if(inp){ inp.addEventListener('keydown',function(e){ if(e.key==='Enter'){ checkLock(); } }); }
+});
+
+/* ===== 설정 ===== */
+var ENDPOINT = "https://script.google.com/macros/s/AKfycbzhCncBwn-JlqXARC3wfrWUCuNHzlNK2df0bdhx-w78Xr8mzYUcIYZOJdRi9N4bHtsb/exec";
+
+var AREA_OPTS = ['화법','작문','문학','독서','문법','매체'];
+var TYPE_OPTS = ['객관식','서술형','논술형'];
+var LV_OPTS   = ['중','중상','상','최상'];
+
+function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function setStatus(m, kind){ var el=document.getElementById('status'); el.textContent=m||''; el.className='status'+(kind?' '+kind:''); }
+
+/* ===== 문항 행 ===== */
+function nextNo(){
+  // 마지막 숫자 번호 +1 자동 추천
+  var rows=document.querySelectorAll('#qList .qrow .no-in');
+  var max=0;
+  rows.forEach(function(i){ var n=parseInt(i.value,10); if(!isNaN(n)&&n>max) max=n; });
+  return max+1;
+}
+function addQuestion(five){
+  var times = five===true ? 5 : 1;
+  for(var k=0;k<times;k++){
+    var no=nextNo();
+    var d=document.createElement('div'); d.className='qrow';
+    d.innerHTML =
+      '<div class="qrow-top">'+
+        '<input class="no-in" type="text" value="'+no+'" placeholder="번호" oninput="renumber()">'+
+        '<input class="area-in" type="text" list="areaList" placeholder="영역">'+
+        '<input class="type-in" type="text" list="typeList" placeholder="유형">'+
+        '<select class="lv-in">'+LV_OPTS.map(function(l){return '<option'+(l==='상'?' selected':'')+'>'+l+'</option>';}).join('')+'</select>'+
+      '</div>'+
+      '<input class="txt-in fld-txt" type="text" placeholder="문항 내용 (예: 윗글에 활용된 글쓰기 방식 분석)">'+
+      '<div class="qrow-foot"><span class="qidx"></span><button class="del" onclick="delQuestion(this)">삭제</button></div>';
+    document.getElementById('qList').appendChild(d);
+  }
+  renumber();
+}
+function delQuestion(btn){ btn.closest('.qrow').remove(); renumber(); }
+function renumber(){
+  var rows=document.querySelectorAll('#qList .qrow');
+  rows.forEach(function(r,i){ r.querySelector('.qidx').textContent='문항 '+(i+1); });
+  document.getElementById('qCount').textContent=rows.length;
+}
+
+/* ===== 데이터 수집 ===== */
+function collect(){
+  var id=document.getElementById('f_id').value.trim();
+  var title=document.getElementById('f_title').value.trim();
+  var review=document.getElementById('f_review').value.trim()
+              .split(/\n\s*\n/).map(function(p){return p.replace(/\s+\n/g,'\n').trim();}).filter(Boolean);
+  var questions=[];
+  document.querySelectorAll('#qList .qrow').forEach(function(r){
+    var no=r.querySelector('.no-in').value.trim();
+    var area=r.querySelector('.area-in').value.trim();
+    var type=r.querySelector('.type-in').value.trim();
+    var lv=r.querySelector('.lv-in').value.trim();
+    var txt=r.querySelector('.txt-in').value.trim();
+    if(no||area||type||txt){ questions.push({no:no, area:area, type:type, lv:lv, txt:txt}); }
+  });
+  return {id:id, title:title, review:review, questions:questions};
+}
+
+function validate(data){
+  if(!data.id){ setStatus('시험 ID를 입력해주세요.', 'err'); document.getElementById('f_id').focus(); return false; }
+  if(!data.title){ setStatus('시험 제목을 입력해주세요.', 'err'); document.getElementById('f_title').focus(); return false; }
+  if(data.questions.length===0){ setStatus('문항을 1개 이상 입력해주세요.', 'err'); return false; }
+  for(var i=0;i<data.questions.length;i++){
+    if(!data.questions[i].no || !data.questions[i].txt){
+      setStatus('문항 '+(i+1)+'의 번호와 내용을 채워주세요.', 'err'); return false;
+    }
+  }
+  return true;
+}
+
+/* ===== 미리보기 ===== */
+function togglePreview(){
+  var pv=document.getElementById('preview');
+  if(pv.style.display!=='none'){ pv.style.display='none'; document.getElementById('previewBtn').textContent='미리보기'; return; }
+  var d=collect();
+  var html='<h2 class="sec-h">미리보기 <span class="n">· 학생 화면 기준</span></h2>';
+  html+='<div class="pv-review">'+ (d.review.length? d.review.map(function(p){return '<p>'+esc(p)+'</p>';}).join('') : '<p style="color:#8A9994">총평이 비어 있습니다.</p>') +'</div>';
+  d.questions.forEach(function(q){
+    var lv=q.lv||'중';
+    html+='<div class="pv-q"><div class="m">'+
+          '<span class="pv-tag">'+esc(q.area||'-')+'</span>'+
+          '<span class="pv-tag">'+esc(q.type||'-')+'</span>'+
+          '<span class="pv-badge b-'+lv+'">'+esc(lv)+'</span></div>'+
+          '<div class="t"><span class="qno">'+esc(q.no)+'번</span>'+esc(q.txt)+'</div></div>';
+  });
+  pv.innerHTML=html; pv.style.display='block';
+  document.getElementById('previewBtn').textContent='미리보기 닫기';
+}
+
+/* ===== 등록(저장) ===== */
+function saveReport(){
+  var data=collect();
+  if(!validate(data)) return;
+  if(ENDPOINT.indexOf('http')!==0){ setStatus('전송 주소(ENDPOINT)가 설정되지 않았습니다.', 'err'); return; }
+
+  var btn=document.getElementById('saveBtn');
+  btn.disabled=true; setStatus('등록하는 중입니다...', '');
+
+  var payload = {
+    action: 'createReport',
+    id: data.id,
+    title: data.title,
+    review: data.review,
+    questions: data.questions
+  };
+
+  fetch(ENDPOINT, {
+    method:'POST',
+    headers:{'Content-Type':'text/plain;charset=utf-8'},
+    body: JSON.stringify(payload)
+  })
+  .then(function(r){ return r.text(); })
+  .then(function(t){
+    var ok=true, msg='';
+    try{ var j=JSON.parse(t); if(j.result && j.result!=='success'){ ok=false; msg=j.message||''; } }catch(e){}
+    if(!ok){ btn.disabled=false; setStatus('등록에 실패했습니다. '+msg, 'err'); return; }
+    setStatus('✓ 등록되었습니다. 아래 링크를 학생들에게 보내세요.', 'ok');
+    showLinks(data.id);
+    btn.textContent='등록됨';
+  })
+  .catch(function(){
+    btn.disabled=false;
+    setStatus('전송에 실패했어요. 인터넷 상태를 확인해주세요.', 'err');
+  });
+}
+
+function showLinks(id){
+  var base=location.href.split('?')[0];
+  var rUrl=base.replace(/[^/]*$/, 'r.html')+'?id='+encodeURIComponent(id);
+  var tUrl=base.replace(/[^/]*$/, 't.html')+'?id='+encodeURIComponent(id);
+  document.getElementById('studentLink').value=rUrl;
+  document.getElementById('teacherLink').value=tUrl;
+  document.getElementById('resultBox').style.display='block';
+  document.getElementById('resultBox').scrollIntoView({behavior:'smooth', block:'center'});
+}
+
+function copyLink(inputId, btnId){
+  var inp=document.getElementById(inputId), btn=document.getElementById(btnId);
+  inp.select(); inp.setSelectionRange(0,99999);
+  function done(){ btn.textContent='복사됨 ✓'; setTimeout(function(){ btn.textContent='복사'; },2000); }
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(inp.value).then(done, function(){ document.execCommand('copy'); done(); });
+  } else { document.execCommand('copy'); done(); }
+}
+
+/* 시작: 기본 문항 3개 */
+addQuestion(); addQuestion(); addQuestion();
+</script>
+
+<datalist id="areaList"><option value="화법"><option value="작문"><option value="문학"><option value="독서"><option value="문법"><option value="매체"></datalist>
+<datalist id="typeList"><option value="객관식"><option value="서술형"><option value="논술형"></datalist>
+</body>
+</html>
