@@ -1,140 +1,180 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>SHUEGUK 학생 페이지</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=Noto+Serif+KR:wght@400;500&display=swap" rel="stylesheet">
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+<title>슈국 학생 페이지</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=Gowun+Dodum&family=Sacramento&display=swap" rel="stylesheet" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='48' fill='%23DCE9E4'/%3E%3C/svg%3E" />
+<meta name="theme-color" content="#E4EFEA" />
 <style>
-:root{
-  --sage-deep:#6B847B; --sage-mid:#8FA89C; --sage-soft:#B8C9C0;
-  --sage-mist:#DDE5E1; --sage-fog:#EEF2EF;
-  --ink-deep:#2E3D38; --ink-mid:#5A6B65; --ink-soft:#8A9994;
-  --line:#C8D4CD; --line-soft:#E2E8E4; --accent-dark:#3F5650;
-}
-*{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
-html,body{margin:0; padding:0;}
-body{font-family:'Noto Sans KR',sans-serif; background:var(--sage-fog); color:var(--ink-deep); font-size:16px; line-height:1.6;}
-.wrap{max-width:480px; margin:0 auto; background:#fff; min-height:100vh; position:relative;}
+  :root{
+    --bg:#E4EFEA; --surface:#FFFFFF;
+    --ink:#2A332F; --ink-soft:#65726B;
+    --accent:#3A6B5E; --icon:#3F4541; --icon-bg:#EBF0ED;
+    --line:#D7E3DD; --line-soft:#E5EDE8; --radius:18px;
+    --sans:"Gowun Dodum","Apple SD Gothic Neo","Malgun Gothic",-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+    --serif:"Gowun Batang",serif;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bg); color:var(--ink);
+    font-family:var(--sans); font-size:16px; line-height:1.75;
+    -webkit-font-smoothing:antialiased; padding:0 0 40px;
+  }
+  .wrap{max-width:560px;margin:0 auto;padding:0 20px;}
 
-#loadBox,#errBox{display:none;}
-.load-inner,.err-inner{padding:64px 30px; text-align:center;}
-.load-inner p{color:var(--ink-mid); font-family:'Noto Serif KR',serif; font-size:14.5px; margin-top:20px;}
-.spinner{width:38px; height:38px; border:3px solid var(--line-soft); border-top-color:var(--sage-deep); border-radius:50%; margin:0 auto; animation:spin .8s linear infinite;}
-@keyframes spin{to{transform:rotate(360deg);}}
-.err-inner .e-t{font-weight:700; font-size:17px; color:var(--ink-deep); margin:0 0 10px;}
-.err-inner .e-s{font-family:'Noto Serif KR',serif; font-size:14px; color:var(--ink-mid); line-height:1.7; margin:0;}
+  /* 로딩 / 에러 */
+  #loadBox,#errBox{display:none;}
+  .load-inner,.err-inner{padding:80px 30px;text-align:center;}
+  .load-inner p{color:var(--ink-soft);font-family:var(--serif);font-size:.95rem;margin-top:20px;}
+  .spinner{width:38px;height:38px;border:3px solid var(--line-soft);border-top-color:var(--accent);border-radius:50%;margin:0 auto;animation:spin .8s linear infinite;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  .err-inner .e-t{font-family:var(--serif);font-weight:700;font-size:1.15rem;color:var(--ink);margin:0 0 10px;}
+  .err-inner .e-s{font-family:var(--serif);font-size:.92rem;color:var(--ink-soft);line-height:1.8;margin:0;}
 
-/* 헤더 */
-.top{background:var(--sage-deep); color:#fff; padding:28px 22px 24px;}
-.top .brand{font-size:11px; letter-spacing:.18em; opacity:.85; margin:0 0 12px;}
-.top .name{font-size:25px; font-weight:700; margin:0;}
-.top .meta{font-family:'Noto Serif KR',serif; font-size:14px; opacity:.92; margin:6px 0 0;}
-.badge{display:inline-block; margin-top:13px; padding:4px 12px; border-radius:999px; font-size:12px; font-weight:500; background:rgba(255,255,255,.18); border:1px solid rgba(255,255,255,.3);}
+  /* 헤더 */
+  header{padding:58px 22px 30px;text-align:center;}
+  .brand .script{font-family:"Sacramento",cursive;font-size:3.4rem;line-height:1;color:var(--ink);font-weight:400;}
+  .tagline{font-family:var(--serif);font-size:1.32rem;font-weight:700;color:var(--accent);margin:10px 0 0;letter-spacing:.01em;}
+  .intro{color:var(--ink-soft);font-size:.92rem;margin:8px 0 0;}
+  .badge{display:inline-block;margin-top:14px;font-size:.78rem;color:var(--accent);background:#DCE6E0;border-radius:20px;padding:3px 13px;}
 
-.sec-h{font-weight:700; font-size:13px; color:var(--accent-dark); margin:24px 20px 12px; letter-spacing:.02em;}
+  .sec-h{font-family:var(--serif);font-weight:700;font-size:1rem;color:var(--ink);margin:30px 2px 13px;}
+  .sec-h .n{font-family:var(--sans);font-weight:400;font-size:.78rem;color:var(--ink-soft);margin-left:6px;}
 
-/* 메뉴 */
-.menu{padding:0 16px 28px;}
-.m-item{display:flex; align-items:center; gap:14px; width:100%; text-align:left; background:#fff; border:1.5px solid var(--line-soft); border-radius:15px; padding:16px 17px; margin-bottom:11px; cursor:pointer; font-family:'Noto Sans KR'; transition:all .12s;}
-.m-item:active{transform:scale(.99);}
-.m-item.disabled{opacity:.55; cursor:default;}
-.m-ic{flex:0 0 auto; width:42px; height:42px; border-radius:12px; background:var(--sage-fog); display:flex; align-items:center; justify-content:center; font-size:20px;}
-.m-tx{flex:1; min-width:0;}
-.m-tt{font-weight:700; font-size:15.5px; color:var(--ink-deep); margin:0;}
-.m-ds{font-size:12.5px; color:var(--ink-soft); margin:2px 0 0; font-family:'Noto Serif KR',serif;}
-.m-rt{flex:0 0 auto; font-size:12px; color:var(--ink-soft);}
-.m-lock .m-ic{background:var(--sage-deep); color:#fff;}
-.tag{display:inline-block; font-size:10.5px; padding:2px 7px; border-radius:6px; background:var(--sage-mist); color:var(--accent-dark); margin-left:6px; vertical-align:middle;}
+  /* 내 수업 정보 카드 */
+  .info-card{background:var(--surface);border:1px solid var(--line-soft);border-radius:var(--radius);padding:6px 18px;}
+  .row{display:flex;justify-content:space-between;gap:14px;padding:12px 0;border-bottom:1px solid var(--line-soft);font-size:.92rem;}
+  .row:last-child{border-bottom:none;}
+  .row .k{color:var(--ink-soft);}
+  .row .v{color:var(--ink);font-family:var(--serif);font-weight:700;text-align:right;}
 
-/* 성적 뷰 */
-#gradeView{display:none;}
-.gv-bar{position:sticky; top:0; z-index:5; background:#fff; border-bottom:1px solid var(--line-soft); padding:14px 18px; display:flex; align-items:center; gap:12px;}
-.gv-back{border:none; background:var(--sage-fog); color:var(--ink-mid); border-radius:10px; padding:9px 13px; font-size:14px; font-weight:700; cursor:pointer; font-family:'Noto Sans KR';}
-.gv-ttl{font-weight:700; font-size:15px; color:var(--ink-deep);}
-.exam{margin:0 20px 16px; border:1.5px solid var(--sage-soft); border-radius:15px; overflow:hidden;}
-.exam:first-of-type{margin-top:16px;}
-.exam .x-head{background:var(--sage-mist); padding:14px 17px;}
-.exam .x-title{font-weight:700; font-size:15px; color:var(--accent-dark); margin:0; line-height:1.5;}
-.exam .x-date{font-size:12px; color:var(--ink-mid); margin:5px 0 0;}
-.exam .x-stats{display:flex; gap:10px; padding:13px 17px 4px;}
-.stat{flex:1; background:#fff; border:1px solid var(--line-soft); border-radius:11px; padding:11px; text-align:center;}
-.stat .s-n{font-weight:700; font-size:19px; color:var(--sage-deep);}
-.stat .s-l{font-size:11px; color:var(--ink-soft); margin-top:2px;}
-.block{padding:6px 17px 0;}
-.block:last-child{padding-bottom:16px;}
-.b-h{font-weight:700; font-size:12.5px; color:var(--ink-mid); margin:14px 0 7px;}
-.b-text{font-family:'Noto Serif KR',serif; font-size:14px; line-height:1.75; white-space:pre-wrap; color:var(--ink-deep); background:#fff; border:1px solid var(--line-soft); border-radius:11px; padding:13px 14px;}
-.b-text.empty{color:var(--ink-soft);}
-.b-note{background:var(--sage-deep); color:#fff; border:none;}
-.empty-state{margin:16px 20px 0; padding:34px 24px; text-align:center; background:var(--sage-fog); border:1px dashed var(--sage-soft); border-radius:14px;}
-.empty-state p{font-family:'Noto Serif KR',serif; font-size:14px; color:var(--ink-mid); margin:0; line-height:1.7;}
+  /* 메뉴 그리드 */
+  .grid{display:grid;gap:13px;grid-template-columns:repeat(2,1fr);}
+  .card{
+    display:flex;flex-direction:column;align-items:flex-start;text-align:left;
+    background:var(--surface);border:1px solid var(--line-soft);border-radius:var(--radius);
+    padding:20px 18px 18px;text-decoration:none;color:inherit;min-height:150px;width:100%;
+    font-family:var(--sans);cursor:pointer;
+    transition:transform .16s ease, box-shadow .16s ease, border-color .16s ease;
+  }
+  a.card:hover,button.card:hover{transform:translateY(-3px);border-color:var(--line);box-shadow:0 12px 28px rgba(42,51,47,.08);}
+  .card:active{transform:translateY(-1px);}
+  .icon{width:46px;height:46px;border-radius:13px;display:flex;align-items:center;justify-content:center;background:var(--icon-bg);color:var(--icon);margin-bottom:15px;}
+  .icon svg{width:23px;height:23px;}
+  .card h3{font-family:var(--serif);font-size:1.06rem;font-weight:700;margin:0;letter-spacing:-.01em;line-height:1.35;}
+  .card .desc{margin:6px 0 0;color:var(--ink-soft);font-size:.82rem;line-height:1.55;flex:1;}
+  .go{margin-top:13px;display:inline-flex;align-items:center;gap:5px;font-size:.8rem;color:var(--accent);}
+  .go svg{width:15px;height:15px;transition:transform .16s ease;}
+  a.card:hover .go svg,button.card:hover .go svg{transform:translateX(4px);}
+  .card.pending{opacity:.55;cursor:default;}
+  .card.pending:hover{transform:none;box-shadow:none;border-color:var(--line-soft);}
+  .tag{margin-top:13px;display:inline-block;font-size:.74rem;color:var(--ink-soft);background:#DCE6E0;border-radius:20px;padding:3px 11px;}
+  .card.lock .icon{background:var(--accent);color:#fff;}
 
-.foot{text-align:center; color:var(--ink-soft); font-size:11px; padding:22px 0 26px; letter-spacing:.05em;}
+  footer{text-align:center;margin-top:46px;color:var(--ink-soft);font-size:.82rem;line-height:2;}
 
-/* 비밀번호 모달 */
-.modal{position:fixed; inset:0; background:rgba(46,61,56,.5); display:none; align-items:center; justify-content:center; padding:24px; z-index:50;}
-.modal.show{display:flex;}
-.modal-card{background:#fff; border-radius:18px; padding:24px 22px; width:100%; max-width:340px; box-shadow:0 12px 40px rgba(0,0,0,.2);}
-.modal-card .mc-ic{font-size:30px; text-align:center;}
-.modal-card .mc-t{font-weight:700; font-size:17px; text-align:center; margin:10px 0 6px;}
-.modal-card .mc-s{font-family:'Noto Serif KR',serif; font-size:13px; color:var(--ink-mid); text-align:center; margin:0 0 18px; line-height:1.6;}
-.modal-card input{width:100%; border:1.5px solid var(--line); border-radius:12px; padding:14px; font-size:18px; text-align:center; letter-spacing:.15em; font-family:'Noto Sans KR'; color:var(--ink-deep); background:#FBFCFB; -webkit-appearance:none;}
-.modal-card input:focus{outline:none; border-color:var(--sage-deep); background:#fff;}
-.mc-err{color:#B4544A; font-size:13px; text-align:center; min-height:18px; margin:9px 0 0;}
-.mc-btns{display:flex; gap:10px; margin-top:14px;}
-.mc-btns button{flex:1; border:none; border-radius:12px; padding:14px; font-size:15px; font-weight:700; font-family:'Noto Sans KR'; cursor:pointer;}
-.mc-cancel{background:var(--sage-fog); color:var(--ink-mid);}
-.mc-ok{background:var(--sage-deep); color:#fff;}
-.mc-btns button:active{opacity:.8;}
+  /* 성적 데이터 뷰 */
+  #gradeView{display:none;}
+  .gv-bar{position:sticky;top:0;z-index:5;background:var(--bg);padding:16px 0 12px;display:flex;align-items:center;gap:12px;}
+  .gv-back{border:1px solid var(--line);background:var(--surface);color:var(--ink-soft);border-radius:11px;padding:9px 14px;font-size:.85rem;font-family:var(--sans);cursor:pointer;display:inline-flex;align-items:center;gap:5px;}
+  .gv-back svg{width:15px;height:15px;}
+  .gv-ttl{font-family:var(--serif);font-weight:700;font-size:1rem;color:var(--ink);}
+  .exam{background:var(--surface);border:1px solid var(--line-soft);border-radius:var(--radius);overflow:hidden;margin-bottom:15px;}
+  .x-head{padding:16px 18px;border-bottom:1px solid var(--line-soft);}
+  .x-title{font-family:var(--serif);font-weight:700;font-size:1.04rem;color:var(--ink);margin:0;line-height:1.4;}
+  .x-date{font-size:.78rem;color:var(--ink-soft);margin:5px 0 0;}
+  .x-stats{display:flex;gap:11px;padding:15px 18px 6px;}
+  .stat{flex:1;background:var(--icon-bg);border-radius:13px;padding:12px;text-align:center;}
+  .stat .s-n{font-family:var(--serif);font-weight:700;font-size:1.3rem;color:var(--accent);}
+  .stat .s-l{font-size:.74rem;color:var(--ink-soft);margin-top:2px;}
+  .block{padding:8px 18px 0;}
+  .block:last-child{padding-bottom:18px;}
+  .b-h{font-weight:400;font-size:.8rem;color:var(--ink-soft);margin:14px 0 7px;}
+  .b-text{font-family:var(--serif);font-size:.92rem;line-height:1.85;white-space:pre-wrap;color:var(--ink);background:var(--bg);border-radius:13px;padding:14px 15px;}
+  .b-text.empty{color:var(--ink-soft);}
+  .b-note{background:var(--accent);color:#fff;}
+  .empty-state{background:var(--surface);border:1px dashed var(--line);border-radius:var(--radius);padding:38px 24px;text-align:center;}
+  .empty-state p{font-family:var(--serif);font-size:.92rem;color:var(--ink-soft);margin:0;line-height:1.8;}
+
+  /* 비밀번호 모달 */
+  .modal{position:fixed;inset:0;background:rgba(42,51,47,.45);display:none;align-items:center;justify-content:center;padding:24px;z-index:50;}
+  .modal.show{display:flex;}
+  .modal-card{background:var(--surface);border-radius:22px;padding:28px 24px 22px;width:100%;max-width:340px;box-shadow:0 16px 48px rgba(42,51,47,.22);text-align:center;}
+  .mc-ic{width:52px;height:52px;border-radius:15px;background:var(--icon-bg);color:var(--accent);display:flex;align-items:center;justify-content:center;margin:0 auto;}
+  .mc-ic svg{width:26px;height:26px;}
+  .mc-t{font-family:var(--serif);font-weight:700;font-size:1.12rem;margin:14px 0 6px;color:var(--ink);}
+  .mc-s{font-family:var(--serif);font-size:.86rem;color:var(--ink-soft);margin:0 0 18px;line-height:1.7;}
+  .modal-card input{width:100%;border:1.5px solid var(--line);border-radius:13px;padding:14px;font-size:1.1rem;text-align:center;letter-spacing:.18em;font-family:var(--sans);color:var(--ink);background:#FBFCFB;-webkit-appearance:none;}
+  .modal-card input:focus{outline:none;border-color:var(--accent);background:#fff;}
+  .mc-err{color:#B4544A;font-size:.82rem;min-height:18px;margin:9px 0 0;}
+  .mc-btns{display:flex;gap:10px;margin-top:14px;}
+  .mc-btns button{flex:1;border:none;border-radius:13px;padding:14px;font-size:.95rem;font-weight:700;font-family:var(--sans);cursor:pointer;}
+  .mc-cancel{background:var(--icon-bg);color:var(--ink-soft);}
+  .mc-ok{background:var(--accent);color:#fff;}
+  .mc-btns button:active{opacity:.85;}
+
+  @media (max-width:380px){
+    header{padding:46px 22px 24px;}
+    .brand .script{font-size:2.9rem;}
+    .grid{grid-template-columns:1fr;}
+    .card{min-height:0;}
+  }
+  @media (prefers-reduced-motion:reduce){*{transition:none !important;}}
 </style>
 </head>
 <body>
-<div class="wrap">
 
-  <div id="loadBox"><div class="load-inner"><div class="spinner"></div><p>불러오는 중...</p></div></div>
+<div id="loadBox"><div class="load-inner"><div class="spinner"></div><p>불러오는 중...</p></div></div>
 
-  <div id="errBox"><div class="err-inner">
-    <p class="e-t" id="errTitle">불러올 수 없습니다</p>
-    <p class="e-s" id="errMsg"></p>
-  </div></div>
+<div id="errBox"><div class="err-inner">
+  <p class="e-t" id="errTitle">불러올 수 없습니다</p>
+  <p class="e-s" id="errMsg"></p>
+</div></div>
 
-  <!-- 허브 -->
-  <div id="hubView" style="display:none;">
-    <div class="top">
-      <p class="brand">SHUEGUK · 이수경국어</p>
-      <p class="name" id="s_name"></p>
-      <p class="meta" id="s_meta"></p>
-      <span class="badge" id="s_badge" style="display:none;"></span>
-    </div>
-    <div class="sec-h" id="infoSecH" style="display:none;">내 수업 정보</div>
-    <div class="card" id="infoCard" style="display:none; margin:0 20px 4px;"></div>
-    <div class="sec-h">메뉴</div>
-    <div class="menu" id="menu"></div>
-    <p class="foot">SHUEGUK RE:)PORT · 이수경국어</p>
-  </div>
+<!-- 허브 -->
+<div id="hubView" style="display:none;">
+  <header>
+    <div class="brand"><span class="script">Shueguk</span></div>
+    <p class="tagline" id="s_name"></p>
+    <p class="intro" id="s_meta"></p>
+    <span class="badge" id="s_badge" style="display:none;"></span>
+  </header>
 
-  <!-- 성적 데이터 -->
-  <div id="gradeView">
-    <div class="gv-bar">
-      <button class="gv-back" onclick="closeGrades()">‹ 메뉴</button>
-      <span class="gv-ttl">성적 데이터 · 시험 복기</span>
-    </div>
-    <div id="examList"></div>
-    <p class="foot">SHUEGUK RE:)PORT · 이수경국어</p>
-  </div>
+  <main class="wrap">
+    <h2 class="sec-h" id="infoSecH" style="display:none;">내 수업 정보</h2>
+    <div class="info-card" id="infoCard" style="display:none;"></div>
 
+    <h2 class="sec-h">메뉴</h2>
+    <div class="grid" id="menu"></div>
+
+    <footer>
+      <p>이수경국어 Shueguk · 학생용</p>
+    </footer>
+  </main>
 </div>
+
+<!-- 성적 데이터 -->
+<div id="gradeView"><main class="wrap">
+  <div class="gv-bar">
+    <button class="gv-back" onclick="closeGrades()" id="gvBack"></button>
+    <span class="gv-ttl">성적 데이터 · 시험 복기</span>
+  </div>
+  <div id="examList"></div>
+  <footer><p>이수경국어 Shueguk · 학생용</p></footer>
+</main></div>
 
 <!-- 비밀번호 모달 -->
 <div class="modal" id="pwModal">
   <div class="modal-card">
-    <div class="mc-ic">🔒</div>
+    <div class="mc-ic" id="pwIcon"></div>
     <p class="mc-t">성적 데이터 잠금</p>
     <p class="mc-s">본인 확인을 위해<br><b>부모님 연락처 8자리</b>(010 제외)를 입력해주세요.</p>
-    <input id="pwInput" type="tel" inputmode="numeric" maxlength="8" placeholder="● ● ● ● ● ● ● ●" autocomplete="off">
+    <input id="pwInput" type="tel" inputmode="numeric" maxlength="8" placeholder="● ● ● ● ● ● ● ●" autocomplete="off" />
     <p class="mc-err" id="pwErr"></p>
     <div class="mc-btns">
       <button class="mc-cancel" onclick="closePw()">취소</button>
@@ -146,12 +186,25 @@ body{font-family:'Noto Sans KR',sans-serif; background:var(--sage-fog); color:va
 <script>
 var ENDPOINT = "https://script.google.com/macros/s/AKfycbzhCncBwn-JlqXARC3wfrWUCuNHzlNK2df0bdhx-w78Xr8mzYUcIYZOJdRi9N4bHtsb/exec";
 
-/* 나중에 연결할 기능들 — url을 채우면 자동으로 활성화됩니다(토큰 KEY가 ?key=로 붙습니다). */
+/* 슈국 티쳐스 페이지와 동일한 라인 아이콘 세트 */
+var ICON = {
+  book:'<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>',
+  pencil:'<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/>',
+  pulse:'<path d="M22 12h-4l-3 8L9 4l-3 8H2"/>',
+  paper:'<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M9 13h6M9 17h6"/>',
+  chart:'<line x1="6" y1="21" x2="6" y2="15"/><line x1="12" y1="21" x2="12" y2="9"/><line x1="18" y1="21" x2="18" y2="4"/>',
+  lock:'<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
+  arrow:'<path d="M5 12h14M13 6l6 6-6 6"/>',
+  back:'<path d="M19 12H5M11 18l-6-6 6-6"/>'
+};
+function svg(inner){ return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">'+inner+'</svg>'; }
+
+/* 나중에 연결할 기능들 — url을 채우면 자동 활성화(토큰 KEY가 ?key=로 붙음) */
 var FEATURES = [
-  { id:'voca',    icon:'📝', title:'어휘 테스트',    desc:'단어 시험 보기',          url:'' },
-  { id:'clinic',  icon:'🩺', title:'H-work 클리닉',  desc:'숙제 클리닉 신청·확인',    url:'' },
-  { id:'mock',    icon:'🗓️', title:'모의고사 신청',  desc:'모의고사 응시 신청',       url:'' },
-  { id:'grammar', icon:'📐', title:'문법 테스트',    desc:'문법 시험 보기',          url:'' }
+  { id:'voca',    icon:'book',   title:'어휘 테스트',   desc:'단어 시험 보기',       url:'' },
+  { id:'clinic',  icon:'pulse',  title:'H-work 클리닉', desc:'숙제 클리닉 신청·확인', url:'' },
+  { id:'mock',    icon:'paper',  title:'모의고사 신청', desc:'모의고사 응시 신청',    url:'' },
+  { id:'grammar', icon:'pencil', title:'문법 테스트',   desc:'문법 시험 보기',       url:'' }
 ];
 
 function $(id){ return document.getElementById(id); }
@@ -160,7 +213,7 @@ function show(id){ $(id).style.display='block'; }
 function hide(id){ $(id).style.display='none'; }
 
 var KEY = '';        // 접근코드(토큰) — 없으면 테스트용 id
-var IS_ID = false;   // ?id= 로 들어온 경우
+var IS_ID = false;
 var STATE = { info:null, authed:false, exams:null, examCount:0 };
 
 function showError(title, msg){
@@ -175,62 +228,62 @@ function api(extra){
   return fetch(ENDPOINT + q).then(function(r){ return r.json(); });
 }
 
+function infoRow(k, v){
+  if(v==null || String(v).trim()==='') return '';
+  return '<div class="row"><span class="k">'+esc(k)+'</span><span class="v">'+esc(v)+'</span></div>';
+}
+
 /* ---- 허브 렌더 ---- */
 function renderHub(){
   var info = STATE.info;
-  $('s_name').textContent = info.name || '학생';
+  $('s_name').textContent = (info.name || '학생') + ' 학생 페이지';
   var mp = []; if(info.school) mp.push(info.school); if(info.grade) mp.push(info.grade);
   $('s_meta').textContent = mp.join(' · ');
-  document.title = (info.name||'학생') + ' · SHUEGUK';
+  document.title = (info.name||'학생') + ' · 슈국';
   if(info.enrolled){ var b=$('s_badge'); b.textContent=info.enrolled; b.style.display='inline-block'; }
 
-  // 내 수업 정보 카드 (비밀번호 없이 표시)
+  // 내 수업 정보
   var infoHtml = '';
   infoHtml += infoRow('담당 교사', info.teacher);
   infoHtml += infoRow('정규 가 수업', info.classA);
   infoHtml += infoRow('정규 나 수업', info.classB);
   infoHtml += infoRow('내신 진도', info.progress);
   infoHtml += infoRow('내신 확인', info.checkup);
-  if(infoHtml){
-    $('infoCard').innerHTML = infoHtml;
-    $('infoCard').style.display = 'block';
-    $('infoSecH').style.display = 'block';
-  }
+  if(infoHtml){ $('infoCard').innerHTML = infoHtml; $('infoCard').style.display='block'; $('infoSecH').style.display='block'; }
 
+  // 메뉴
   var html = '';
-  // 기능 메뉴
   FEATURES.forEach(function(f){
+    var ic = '<span class="icon">'+svg(ICON[f.icon]||ICON.book)+'</span>';
+    var body = ic + '<h3>'+esc(f.title)+'</h3><p class="desc">'+esc(f.desc)+'</p>';
     var ready = f.url && f.url.indexOf('http')===0;
     if(ready){
       var href = f.url + (f.url.indexOf('?')>=0?'&':'?') + 'key=' + encodeURIComponent(KEY);
-      html += '<a class="m-item" href="'+esc(href)+'">' +
-                '<span class="m-ic">'+f.icon+'</span>' +
-                '<span class="m-tx"><p class="m-tt">'+esc(f.title)+'</p><p class="m-ds">'+esc(f.desc)+'</p></span>' +
-                '<span class="m-rt">›</span></a>';
+      html += '<a class="card" href="'+esc(href)+'">'+body+'<span class="go">열기 '+svg(ICON.arrow)+'</span></a>';
     } else {
-      html += '<div class="m-item disabled">' +
-                '<span class="m-ic">'+f.icon+'</span>' +
-                '<span class="m-tx"><p class="m-tt">'+esc(f.title)+'<span class="tag">준비 중</span></p><p class="m-ds">'+esc(f.desc)+'</p></span>' +
-              '</div>';
+      html += '<div class="card pending">'+body+'<span class="tag">준비 중</span></div>';
     }
   });
   // 성적 데이터 (잠금)
-  var cntTxt = STATE.examCount>0 ? ('시험 복기 '+STATE.examCount+'건 · 비밀번호 필요') : '시험 복기 리포트 · 비밀번호 필요';
-  html += '<button class="m-item m-lock" onclick="openGrades()">' +
-            '<span class="m-ic">📊</span>' +
-            '<span class="m-tx"><p class="m-tt">성적 데이터 🔒</p><p class="m-ds">'+esc(cntTxt)+'</p></span>' +
-            '<span class="m-rt">›</span></button>';
+  var cntTxt = STATE.examCount>0 ? ('시험 복기 '+STATE.examCount+'건') : '시험 복기 리포트';
+  html += '<button class="card lock" onclick="openGrades()">' +
+            '<span class="icon">'+svg(ICON.chart)+'</span>' +
+            '<h3>성적 데이터</h3><p class="desc">'+esc(cntTxt)+'</p>' +
+            '<span class="go">'+svg(ICON.lock)+' 비밀번호 필요</span></button>';
   $('menu').innerHTML = html;
 
   hide('loadBox'); hide('errBox'); $('gradeView').style.display='none'; show('hubView');
 }
 
-/* ---- 성적 열기 ---- */
-function openGrades(){
-  if(STATE.authed && STATE.exams){ renderGrades(); return; }
-  openPw();
-}
+/* ---- 성적 ---- */
+function openGrades(){ if(STATE.authed && STATE.exams){ renderGrades(); return; } openPw(); }
 function closeGrades(){ $('gradeView').style.display='none'; show('hubView'); window.scrollTo(0,0); }
+
+function block(title, text, isNote){
+  var has = text && String(text).trim()!=='';
+  var cls = 'b-text' + (isNote?' b-note':'') + (has?'':' empty');
+  return '<div class="block"><p class="b-h">'+esc(title)+'</p><div class="'+cls+'">'+(has?esc(text):'작성된 내용이 없습니다.')+'</div></div>';
+}
 
 function renderGrades(){
   var exams = STATE.exams || [];
@@ -254,15 +307,6 @@ function renderGrades(){
   }
   hide('hubView'); $('gradeView').style.display='block'; window.scrollTo(0,0);
 }
-function infoRow(k, v){
-  if(v==null || String(v).trim()==='') return '';
-  return '<div class="row"><span class="k">'+esc(k)+'</span><span class="v">'+esc(v)+'</span></div>';
-}
-function block(title, text, isNote){
-  var has = text && String(text).trim()!=='';
-  var cls = 'b-text' + (isNote?' b-note':'') + (has?'':' empty');
-  return '<div class="block"><p class="b-h">'+esc(title)+'</p><div class="'+cls+'">'+(has?esc(text):'작성된 내용이 없습니다.')+'</div></div>';
-}
 
 /* ---- 비밀번호 모달 ---- */
 function openPw(){ $('pwErr').textContent=''; $('pwInput').value=''; $('pwModal').classList.add('show'); setTimeout(function(){ $('pwInput').focus(); },50); }
@@ -281,10 +325,13 @@ function submitPw(){
     })
     .catch(function(){ btn.disabled=false; btn.textContent='확인'; $('pwErr').textContent='연결 실패 — 다시 시도해주세요.'; });
 }
-$('pwInput') && $('pwInput').addEventListener('keydown', function(e){ if(e.key==='Enter') submitPw(); });
 
 /* ---- 시작 ---- */
 function boot(){
+  $('gvBack').innerHTML = svg(ICON.back) + ' 메뉴';
+  $('pwIcon').innerHTML = svg(ICON.lock);
+  $('pwInput').addEventListener('keydown', function(e){ if(e.key==='Enter') submitPw(); });
+
   show('loadBox');
   if(ENDPOINT.indexOf('http')!==0){ showError('설정 오류','전송 주소(ENDPOINT)가 설정되지 않았습니다.'); return; }
   var qs = new URLSearchParams(location.search);
