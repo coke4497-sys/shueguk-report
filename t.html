@@ -87,13 +87,14 @@ body{font-family:'Noto Sans KR',sans-serif; background:var(--sage-fog); color:va
 .vow-box, .teacher-box{font-family:'Noto Serif KR',serif; font-size:14px; line-height:1.8; color:var(--ink-deep); background:var(--sage-fog); border-radius:10px; padding:16px 18px; white-space:pre-wrap;}
 .teacher-box{background:#fff; border:1.5px solid var(--sage-soft); min-height:90px;}
 .r-foot{text-align:center; color:var(--ink-soft); font-size:11px; padding-top:24px; letter-spacing:.05em;}
-.chart-title{font-size:13px; font-weight:700; color:var(--accent-dark); margin:0 0 9px;}
-.chart-title.two{margin-top:16px;}
-.bar-row{display:flex; align-items:center; gap:9px; margin-bottom:7px;}
-.bar-label{flex:0 0 54px; font-size:12.5px; color:var(--ink-deep); text-align:right; font-weight:500;}
-.bar-track{flex:1; background:var(--sage-fog); border-radius:6px; height:20px; overflow:hidden; -webkit-print-color-adjust:exact; print-color-adjust:exact;}
-.bar-fill{display:block; height:100%; background:var(--sage-mid); border-radius:6px; min-width:3px; -webkit-print-color-adjust:exact; print-color-adjust:exact;}
-.bar-val{flex:0 0 96px; font-size:11.5px; color:var(--ink-mid);}
+.chart-title{font-size:13px; font-weight:700; color:var(--accent-dark); margin:0 0 10px;}
+.chart-title.two{margin-top:18px;}
+.vchart{display:flex; align-items:flex-end; gap:10px; padding:4px 2px 0;}
+.vbar{flex:1 1 0; min-width:0; display:flex; flex-direction:column; align-items:center; justify-content:flex-end;}
+.vb-val{font-size:11px; color:var(--ink-soft); margin-bottom:5px; line-height:1.2; text-align:center;}
+.vb-val b{display:block; font-size:13px; color:var(--ink-deep); font-weight:700;}
+.vb-col{width:72%; max-width:46px; min-height:3px; background:var(--sage-mid); border-radius:5px 5px 0 0; -webkit-print-color-adjust:exact; print-color-adjust:exact;}
+.vb-label{font-size:12px; color:var(--ink-deep); margin-top:7px; text-align:center; white-space:nowrap; font-weight:500;}
 .sign{text-align:right; margin-top:18px; font-family:'Noto Serif KR',serif; font-size:14px; color:var(--ink-deep);}
 .sign .role{color:var(--ink-mid); font-size:13px; margin-right:8px;}
 .sign .nm{font-weight:500; font-size:15.5px;}
@@ -204,6 +205,9 @@ body{font-family:'Noto Sans KR',sans-serif; background:var(--sage-fog); color:va
 
     <h2 class="sec-h">틀린 문항 · 학생의 반성</h2>
     <div id="rWrong"></div>
+
+    <h2 class="sec-h" id="rWrongDistH">틀린 문항 과목 분포 <span style="font-size:12px; color:var(--ink-soft); font-weight:500;">· 이 학생 기준</span></h2>
+    <div id="rWrongDist"></div>
 
     <h2 class="sec-h">다음 시험을 위한 다짐</h2>
     <div class="vow-box" id="rVow"></div>
@@ -380,14 +384,32 @@ function countBy_(arr, key, order){
   }).map(function(k){ return {key:k, count:m[k]}; });
 }
 function renderBars_(elId, entries, total, colorFn){
-  document.getElementById(elId).innerHTML = entries.map(function(e){
-    var w = total? (e.count/total*100) : 0;
-    var color = colorFn ? colorFn(e.key) : 'var(--sage-mid)';
-    return '<div class="bar-row">'+
-      '<span class="bar-label">'+esc(e.key)+'</span>'+
-      '<span class="bar-track"><span class="bar-fill" style="width:'+w.toFixed(1)+'%; background:'+color+';"></span></span>'+
-      '<span class="bar-val">'+e.count+'문항 · '+Math.round(w)+'%</span></div>';
-  }).join('');
+  var max = entries.reduce(function(a,e){ return Math.max(a, e.count); }, 0) || 1;
+  document.getElementById(elId).innerHTML =
+    '<div class="vchart">' + entries.map(function(e){
+      var h = Math.max(Math.round(e.count/max*96), 3);
+      var color = colorFn ? colorFn(e.key) : 'var(--sage-mid)';
+      var pctv = total ? Math.round(e.count/total*100) : 0;
+      return '<div class="vbar">'+
+        '<span class="vb-val"><b>'+pctv+'%</b>'+e.count+'문항</span>'+
+        '<span class="vb-col" style="height:'+h+'px; background:'+color+';"></span>'+
+        '<span class="vb-label">'+esc(e.key)+'</span></div>';
+    }).join('') + '</div>';
+}
+/* 학생이 틀린 문항을 영역(과목)별로 집계 (틀린문항·반성 텍스트의 번호 → 전체 문항에서 영역 조회) */
+function studentWrongByArea_(s){
+  var qmap={}; QUESTIONS.forEach(function(q){ qmap[String(q.no).trim()]=q; });
+  var blocks = String(s.wrongText||'').split(/\n\s*\n/).map(function(b){return b.trim();}).filter(Boolean);
+  var list=[];
+  blocks.forEach(function(bk){
+    var area='';
+    var m = bk.match(/^\[\s*([^·\]\s]+)\s*번/);
+    var q = m ? qmap[m[1].trim()] : null;
+    if(q && q.area){ area = q.area; }
+    else { var inside=(bk.match(/^\[([^\]]*)\]/)||[])[1]||''; var segs=inside.split(' · '); if(segs[1]) area=segs[1].split('·')[0].trim(); }
+    if(area) list.push({area:area});
+  });
+  return list;
 }
 
 function renderReport(){
@@ -424,6 +446,16 @@ function renderReport(){
     compH.style.display=''; comp.style.display='';
   } else {
     compH.style.display='none'; comp.style.display='none';
+  }
+
+  // 틀린 문항 과목 분포 (이 학생 기준)
+  var wd = studentWrongByArea_(s);
+  var wdH=document.getElementById('rWrongDistH'), wdEl=document.getElementById('rWrongDist');
+  if(wd.length){
+    renderBars_('rWrongDist', countBy_(wd,'area',AREA_ORDER), wd.length, null);
+    wdH.style.display=''; wdEl.style.display='';
+  } else {
+    wdH.style.display='none'; wdEl.style.display='none';
   }
 
   // 틀린 문항·반성: 제출 시 "[3번 · 화법 · 상] 내용\n  → 반성" 형식으로 저장됨. 블록 단위로 분리
