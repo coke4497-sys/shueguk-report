@@ -65,31 +65,36 @@ body{font-family:'Noto Sans KR',sans-serif; background:var(--sage-fog); color:va
 .btn:disabled{opacity:.45; cursor:default;}
 .btn.sm{padding:9px 14px; font-size:13.5px; border-radius:9px;}
 
-/* 문항 수 생성 */
-.gen-row{display:flex; gap:8px; align-items:flex-end; flex-wrap:wrap; margin-bottom:6px;}
+/* 문항 수 생성 + 추가 버튼 */
+.gen-row{display:flex; gap:8px; align-items:flex-end; flex-wrap:wrap; margin-bottom:10px;}
 .gen-row .fld{margin-bottom:0;} .gen-row .num-fld{flex:0 0 130px;}
+.add-row{display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px;}
 
-/* 문항 블록 */
-.q-list{display:flex; flex-direction:column; gap:12px;}
-.qrow{border:1.5px solid var(--line-soft); border-radius:13px; padding:14px; background:#fff;}
-.qrow.passage{border-color:var(--sage-soft); background:#FCFDFC;}
-.qrow-head{display:flex; align-items:center; gap:10px; margin-bottom:11px;}
-.qrow-head .qnum{font-weight:700; font-size:13px; color:var(--sage-deep); background:var(--sage-fog); border-radius:8px; padding:5px 11px;}
-.qrow-head .no-wrap{display:flex; align-items:center; gap:6px;}
-.qrow-head .no-wrap label{font-size:12px; color:var(--ink-mid); margin:0;}
-.qrow-head .no-in{width:62px; padding:8px 9px; font-size:14px; text-align:center; border:1.5px solid var(--line); border-radius:8px; background:#FBFCFB; font-family:'Noto Sans KR';}
-.qrow-head .del{margin-left:auto; background:none; border:none; color:#B5544E; font-size:13px; font-weight:700; cursor:pointer; padding:4px 6px; font-family:'Noto Sans KR';}
-.qrow-grid{display:grid; grid-template-columns:repeat(2,1fr); gap:9px; margin-bottom:10px;}
-.qrow-grid .cell label{display:block; font-size:11.5px; color:var(--ink-soft); margin-bottom:4px;}
-.qrow-grid select, .qrow-grid input{width:100%; padding:9px 10px; font-size:14px; border:1.5px solid var(--line); border-radius:9px; background:#FBFCFB; font-family:'Noto Sans KR'; color:var(--ink-deep); -webkit-appearance:none; appearance:none;}
-.qrow-grid select:focus, .qrow-grid input:focus{outline:none; border-color:var(--sage-deep); background:#fff;}
-.qrow-grid .cell.pg-cell{grid-column:1 / -1;}
-.qrow .txt-cell label{display:block; font-size:11.5px; color:var(--ink-soft); margin-bottom:4px;}
-.qrow .txt-in{width:100%; border:1.5px solid var(--line); border-radius:9px; padding:10px 11px; font-size:14px; font-family:'Noto Serif KR',serif; line-height:1.6; background:#FBFCFB; resize:vertical; min-height:52px; -webkit-appearance:none;}
-.qrow .txt-in:focus{outline:none; border-color:var(--sage-deep); background:#fff;}
+/* 블록 공통 */
+.block-list{display:flex; flex-direction:column; gap:12px;}
+.block{border:1.5px solid var(--line-soft); border-radius:13px; padding:14px; background:#fff;}
+.block.passage{border-color:var(--sage-soft); background:#FBFCFB;}
+.block-head{display:flex; align-items:center; gap:10px; margin-bottom:11px;}
+.block-head .b-label{font-weight:700; font-size:13px; color:var(--sage-deep); background:var(--sage-fog); border-radius:8px; padding:5px 11px;}
+.block-head .del{margin-left:auto; background:none; border:none; color:#B5544E; font-size:13px; font-weight:700; cursor:pointer; padding:4px 6px; font-family:'Noto Sans KR';}
+.solo-grid, .group-fields, .subq-grid{display:grid; gap:9px; margin-bottom:10px;}
+.solo-grid{grid-template-columns:repeat(2,1fr);}
+.group-fields{grid-template-columns:repeat(2,1fr); padding:11px; background:var(--sage-fog); border-radius:10px;}
+.subq-grid{grid-template-columns:74px 1fr 1fr; margin-bottom:8px;}
+.cell label{display:block; font-size:11.5px; color:var(--ink-soft); margin-bottom:4px;}
+.cell select, .cell input{width:100%; padding:9px 10px; font-size:14px; border:1.5px solid var(--line); border-radius:9px; background:#fff; font-family:'Noto Sans KR'; color:var(--ink-deep); -webkit-appearance:none; appearance:none;}
+.cell select:focus, .cell input:focus{outline:none; border-color:var(--sage-deep);}
+.cell.pg-cell{grid-column:1 / -1;}
+.txt-cell label{display:block; font-size:11.5px; color:var(--ink-soft); margin-bottom:4px;}
+.txt-in{width:100%; border:1.5px solid var(--line); border-radius:9px; padding:10px 11px; font-size:14px; font-family:'Noto Serif KR',serif; line-height:1.6; background:#fff; resize:vertical; min-height:50px; -webkit-appearance:none;}
+.txt-in:focus{outline:none; border-color:var(--sage-deep);}
+.subq-list-label{font-size:11.5px; color:var(--ink-soft); margin:4px 0 7px; font-weight:500;}
+.subq{border-top:1px dashed var(--line-soft); padding-top:11px; margin-top:11px;}
+.subq:first-child{border-top:none; padding-top:0; margin-top:0;}
+.subq .del-sub{background:none; border:none; color:#B5544E; font-size:12px; cursor:pointer; padding:2px 4px; margin-top:4px; font-family:'Noto Sans KR';}
+.add-sub{margin-top:6px;}
 
-.q-add-row{display:flex; gap:8px; margin-top:12px; align-items:center; flex-wrap:wrap;}
-.q-count{font-size:13px; color:var(--ink-mid);} .q-count b{color:var(--sage-deep);}
+.q-count{font-size:13px; color:var(--ink-mid); margin-top:12px;} .q-count b{color:var(--sage-deep);}
 
 .actions{display:flex; gap:10px; margin-top:18px; flex-wrap:wrap;}
 .actions .btn{flex:1; min-width:140px;}
@@ -166,16 +171,18 @@ body{font-family:'Noto Sans KR',sans-serif; background:var(--sage-fog); color:va
     </div>
 
     <!-- 3. 문항 -->
-    <h2 class="sec-h"><span class="step">3</span>문항 <span class="n">· 문항 수를 정해 한 번에 만들 수 있어요</span></h2>
+    <h2 class="sec-h"><span class="step">3</span>문항 <span class="n">· 단독 문항 / 지문 묶음</span></h2>
     <div class="gen-row">
-      <div class="fld num-fld"><label>문항 수</label><input type="number" id="genCount" min="1" max="100" placeholder="예) 20"></div>
-      <button class="btn ghost sm" onclick="generateToCount()">입력란 생성</button>
+      <div class="fld num-fld"><label>단독 문항 수</label><input type="number" id="genCount" min="1" max="100" placeholder="예) 10"></div>
+      <button class="btn ghost sm" onclick="generateSolos()">단독 문항 생성</button>
     </div>
-    <div class="q-list" id="qList"></div>
-    <div class="q-add-row">
-      <button class="btn ghost sm" onclick="addQuestion()">＋ 문항 추가</button>
-      <span class="q-count">현재 <b id="qCount">0</b>문항</span>
+    <div class="add-row">
+      <button class="btn ghost sm" onclick="addSolo()">＋ 단독 문항</button>
+      <button class="btn ghost sm" onclick="addPassage()">＋ 지문 묶음</button>
     </div>
+    <p class="hint" style="margin:-6px 0 12px; font-size:12px; color:var(--ink-soft);">지문으로 묶이는 문항은 <b>＋ 지문 묶음</b>을 누르고, 지문 이름·영역·세부유형을 <b>한 번만</b> 정한 뒤 그 안에 문항을 추가하세요.</p>
+    <div class="block-list" id="blockList"></div>
+    <p class="q-count">전체 <b id="qCount">0</b>문항</p>
 
     <!-- 8. 시험 총평 -->
     <h2 class="sec-h"><span class="step">8</span>시험 총평 <span class="n">· 학생 화면 상단에 표시</span></h2>
@@ -259,78 +266,105 @@ var LV_OPTS   = ['중','중상','상','최상'];
 
 function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function setStatus(m, kind){ var el=document.getElementById('status'); el.textContent=m||''; el.className='status'+(kind?' '+kind:''); }
+function opts(arr, sel){ return arr.map(function(o){ return '<option'+(o===sel?' selected':'')+'>'+o+'</option>'; }).join(''); }
 
-/* ===== 문항 블록 ===== */
 function nextNo(){
-  var rows=document.querySelectorAll('#qList .qrow .no-in');
+  var ins=document.querySelectorAll('#blockList .no-in');
   var max=0;
-  rows.forEach(function(i){ var n=parseInt(i.value,10); if(!isNaN(n)&&n>max) max=n; });
+  ins.forEach(function(i){ var n=parseInt(i.value,10); if(!isNaN(n)&&n>max) max=n; });
   return max+1;
 }
-function optionsHtml(arr, sel){
-  return arr.map(function(o){ return '<option'+(o===sel?' selected':'')+'>'+o+'</option>'; }).join('');
+function areaCellHtml(){
+  return '<div class="cell"><label>영역 (상위)</label>'+
+           '<select class="area-in" onchange="onAreaChange(this)"><option value="">— 선택 —</option>'+opts(AREA_OPTS,'')+'</select></div>'+
+         '<div class="cell"><label>세부유형 (하위)</label>'+
+           '<select class="detail-in"><option value="">—</option></select></div>';
 }
-function addQuestion(){
-  var no=nextNo();
-  var d=document.createElement('div'); d.className='qrow';
-  d.innerHTML =
-    '<div class="qrow-head">'+
-      '<span class="qnum"></span>'+
-      '<div class="no-wrap"><label>번호</label><input class="no-in" type="text" value="'+no+'" placeholder="번호"></div>'+
-      '<button class="del" onclick="delQuestion(this)">삭제</button>'+
-    '</div>'+
-    '<div class="qrow-grid">'+
-      '<div class="cell"><label>구분 (단독/지문)</label>'+
-        '<select class="g-in" onchange="onGroupChange(this)"><option value="">단독</option><option value="지문">지문</option></select></div>'+
-      '<div class="cell pg-cell pg-wrap" style="display:none;"><label>지문 이름 (같은 이름끼리 묶임)</label>'+
-        '<input class="pg-in" type="text" list="pgList" placeholder="예) (가)~(다) 현대시"></div>'+
-      '<div class="cell"><label>영역 (상위)</label>'+
-        '<select class="area-in" onchange="onAreaChange(this)"><option value="">— 선택 —</option>'+optionsHtml(AREA_OPTS,'')+'</select></div>'+
-      '<div class="cell"><label>세부유형 (하위)</label>'+
-        '<select class="detail-in"><option value="">—</option></select></div>'+
-      '<div class="cell"><label>형식</label>'+
-        '<select class="type-in">'+optionsHtml(FORM_OPTS,'객관식')+'</select></div>'+
-      '<div class="cell"><label>난이도</label>'+
-        '<select class="lv-in">'+optionsHtml(LV_OPTS,'상')+'</select></div>'+
-    '</div>'+
-    '<div class="txt-cell"><label>문항 내용 · 분석</label>'+
-      '<textarea class="txt-in" rows="2" placeholder="이 문항이 무엇을 묻는지 / 분석 (예: 윗글에 활용된 글쓰기 방식 분석 (복수 선택))"></textarea></div>';
-  document.getElementById('qList').appendChild(d);
-  renumber();
-  return d;
-}
-function delQuestion(btn){ btn.closest('.qrow').remove(); renumber(); }
-function renumber(){
-  var rows=document.querySelectorAll('#qList .qrow');
-  rows.forEach(function(r,i){ r.querySelector('.qnum').textContent='문항 '+(i+1); });
-  document.getElementById('qCount').textContent=rows.length;
-}
-function onGroupChange(sel){
-  var row=sel.closest('.qrow'); var wrap=row.querySelector('.pg-wrap');
-  if(sel.value==='지문'){ wrap.style.display=''; row.classList.add('passage'); }
-  else { wrap.style.display='none'; row.classList.remove('passage'); row.querySelector('.pg-in').value=''; }
-}
-function onAreaChange(sel){
-  var row=sel.closest('.qrow'); var detail=row.querySelector('.detail-in');
-  var subs=SUBTYPES[sel.value]||[];
-  if(subs.length===0){ detail.innerHTML='<option value="">—</option>'; detail.disabled=true; }
-  else { detail.disabled=false; detail.innerHTML='<option value="">— 선택 —</option>'+optionsHtml(subs,''); }
-}
-function generateToCount(){
-  var n=parseInt(document.getElementById('genCount').value,10);
-  if(isNaN(n)||n<1){ setStatus('문항 수를 1 이상으로 입력해주세요.', 'err'); return; }
-  if(n>100){ n=100; }
-  var cur=document.querySelectorAll('#qList .qrow').length;
-  if(n>cur){ for(var i=cur;i<n;i++){ addQuestion(); } }
-  else if(n<cur){
-    var rows=document.querySelectorAll('#qList .qrow');
-    for(var j=rows.length-1;j>=n;j--){ rows[j].remove(); }
-    renumber();
-  }
-  setStatus(n+'개 문항 입력란을 준비했어요.', '');
+function txtCellHtml(){
+  return '<div class="txt-cell"><label>문항 내용 · 분석</label>'+
+         '<textarea class="txt-in" rows="2" placeholder="이 문항이 무엇을 묻는지 / 분석"></textarea></div>';
 }
 
-/* ===== 데이터 수집 ===== */
+/* ----- 단독 문항 ----- */
+function addSolo(){
+  var no=nextNo();
+  var d=document.createElement('div'); d.className='block solo';
+  d.innerHTML =
+    '<div class="block-head"><span class="b-label">단독 문항</span>'+
+      '<button class="del" onclick="delBlock(this)">삭제</button></div>'+
+    '<div class="solo-grid">'+
+      '<div class="cell"><label>번호</label><input class="no-in" type="text" value="'+no+'" placeholder="번호"></div>'+
+      areaCellHtml()+
+      '<div class="cell"><label>형식</label><select class="type-in">'+opts(FORM_OPTS,'객관식')+'</select></div>'+
+      '<div class="cell"><label>난이도</label><select class="lv-in">'+opts(LV_OPTS,'상')+'</select></div>'+
+    '</div>'+
+    txtCellHtml();
+  document.getElementById('blockList').appendChild(d);
+  renumberAll();
+  return d;
+}
+
+/* ----- 지문 묶음 ----- */
+function addPassage(){
+  var d=document.createElement('div'); d.className='block passage';
+  d.innerHTML =
+    '<div class="block-head"><span class="b-label">📖 지문 묶음</span>'+
+      '<button class="del" onclick="delBlock(this)">삭제</button></div>'+
+    '<div class="group-fields">'+
+      '<div class="cell pg-cell"><label>지문 이름 (한 번만 입력)</label>'+
+        '<input class="pg-in" type="text" placeholder="예) (가)~(다) 현대시"></div>'+
+      areaCellHtml()+
+    '</div>'+
+    '<p class="subq-list-label">이 지문에 묶이는 문항</p>'+
+    '<div class="subq-list"></div>'+
+    '<button class="btn ghost sm add-sub" onclick="addSubQuestion(this)">＋ 이 지문에 문항 추가</button>';
+  document.getElementById('blockList').appendChild(d);
+  addSubQuestion(d.querySelector('.add-sub'));  // 기본 1문항
+  renumberAll();
+  return d;
+}
+function addSubQuestion(btn){
+  var block=btn.closest('.block');
+  var list=block.querySelector('.subq-list');
+  var no=nextNo();
+  var d=document.createElement('div'); d.className='subq';
+  d.innerHTML =
+    '<div class="subq-grid">'+
+      '<div class="cell"><label>번호</label><input class="no-in" type="text" value="'+no+'" placeholder="번호"></div>'+
+      '<div class="cell"><label>형식</label><select class="type-in">'+opts(FORM_OPTS,'객관식')+'</select></div>'+
+      '<div class="cell"><label>난이도</label><select class="lv-in">'+opts(LV_OPTS,'상')+'</select></div>'+
+    '</div>'+
+    txtCellHtml()+
+    '<button class="del-sub" onclick="delSub(this)">문항 삭제</button>';
+  list.appendChild(d);
+  renumberAll();
+}
+function delSub(btn){ btn.closest('.subq').remove(); renumberAll(); }
+function delBlock(btn){ btn.closest('.block').remove(); renumberAll(); }
+
+function onAreaChange(sel){
+  var block=sel.closest('.block');
+  var detail=block.querySelector('.detail-in');
+  var subs=SUBTYPES[sel.value]||[];
+  if(subs.length===0){ detail.innerHTML='<option value="">—</option>'; detail.disabled=true; }
+  else { detail.disabled=false; detail.innerHTML='<option value="">— 선택 —</option>'+opts(subs,''); }
+}
+function renumberAll(){
+  document.getElementById('qCount').textContent=document.querySelectorAll('#blockList .no-in').length;
+  document.querySelectorAll('#blockList .block.passage').forEach(function(b){
+    var c=b.querySelectorAll('.subq').length;
+    b.querySelector('.b-label').textContent='📖 지문 묶음'+(c?' ('+c+'문항)':'');
+  });
+}
+function generateSolos(){
+  var n=parseInt(document.getElementById('genCount').value,10);
+  if(isNaN(n)||n<1){ setStatus('단독 문항 수를 1 이상으로 입력해주세요.', 'err'); return; }
+  if(n>100){ n=100; }
+  for(var i=0;i<n;i++){ addSolo(); }
+  setStatus(n+'개 단독 문항을 추가했어요.', '');
+}
+
+/* ===== 데이터 수집 (블록 → 평면 문항 목록으로 펼치기) ===== */
 function collect(){
   var id=document.getElementById('f_id').value.trim();
   var title=document.getElementById('f_title').value.trim();
@@ -338,31 +372,63 @@ function collect(){
   var review=document.getElementById('f_review').value.trim()
               .split(/\n\s*\n/).map(function(p){return p.replace(/[ \t]+\n/g,'\n').trim();}).filter(Boolean);
   var questions=[];
-  document.querySelectorAll('#qList .qrow').forEach(function(r){
-    var no=r.querySelector('.no-in').value.trim();
-    var group=(r.querySelector('.g-in').value==='지문') ? r.querySelector('.pg-in').value.trim() : '';
-    var area=r.querySelector('.area-in').value.trim();
-    var detail=r.querySelector('.detail-in').value.trim();
-    var type=r.querySelector('.type-in').value.trim();
-    var lv=r.querySelector('.lv-in').value.trim();
-    var txt=r.querySelector('.txt-in').value.trim();
-    if(no||area||detail||type||txt||group){
-      questions.push({no:no, group:group, area:area, detail:detail, type:type, lv:lv, txt:txt});
+  document.querySelectorAll('#blockList > .block').forEach(function(block){
+    if(block.classList.contains('passage')){
+      var gname=block.querySelector('.pg-in').value.trim();
+      var garea=block.querySelector('.area-in').value.trim();
+      var gdetail=block.querySelector('.detail-in').value.trim();
+      block.querySelectorAll('.subq').forEach(function(sq){
+        var no=sq.querySelector('.no-in').value.trim();
+        var type=sq.querySelector('.type-in').value.trim();
+        var lv=sq.querySelector('.lv-in').value.trim();
+        var txt=sq.querySelector('.txt-in').value.trim();
+        if(no||txt){ questions.push({no:no, group:gname, area:garea, detail:gdetail, type:type, lv:lv, txt:txt}); }
+      });
+    } else {
+      var no=block.querySelector('.no-in').value.trim();
+      var area=block.querySelector('.area-in').value.trim();
+      var detail=block.querySelector('.detail-in').value.trim();
+      var type=block.querySelector('.type-in').value.trim();
+      var lv=block.querySelector('.lv-in').value.trim();
+      var txt=block.querySelector('.txt-in').value.trim();
+      if(no||txt||area){ questions.push({no:no, group:'', area:area, detail:detail, type:type, lv:lv, txt:txt}); }
     }
   });
   return {id:id, title:title, scope:scope, review:review, questions:questions};
 }
 
-function validate(data){
-  if(!data.title){ setStatus('시험 제목을 입력해주세요.', 'err'); document.getElementById('f_title').focus(); return false; }
-  if(!data.id){ setStatus('시험 ID를 입력해주세요.', 'err'); document.getElementById('f_id').focus(); return false; }
-  if(data.questions.length===0){ setStatus('문항을 1개 이상 입력해주세요.', 'err'); return false; }
-  for(var i=0;i<data.questions.length;i++){
-    var q=data.questions[i];
-    if(!q.no || !q.txt){ setStatus('문항 '+(i+1)+'의 번호와 내용을 채워주세요.', 'err'); return false; }
-    if(!q.area){ setStatus('문항 '+(i+1)+'의 영역을 선택해주세요.', 'err'); return false; }
+/* 블록 단위 구조 검증 (정확한 안내용) */
+function validateForm(data){
+  if(!data.title){ document.getElementById('f_title').focus(); return '시험 제목을 입력해주세요.'; }
+  if(!data.id){ document.getElementById('f_id').focus(); return '시험 ID를 입력해주세요.'; }
+  var blocks=document.querySelectorAll('#blockList > .block');
+  if(data.questions.length===0){ return '문항을 1개 이상 입력해주세요.'; }
+  for(var b=0;b<blocks.length;b++){
+    var block=blocks[b];
+    if(block.classList.contains('passage')){
+      var gname=block.querySelector('.pg-in').value.trim();
+      var garea=block.querySelector('.area-in').value.trim();
+      var subs=block.querySelectorAll('.subq');
+      var has=false;
+      subs.forEach(function(sq){ if(sq.querySelector('.no-in').value.trim()||sq.querySelector('.txt-in').value.trim()) has=true; });
+      if(!has) continue;
+      if(!gname) return '지문 묶음의 ‘지문 이름’을 입력해주세요.';
+      if(!garea) return '지문 묶음(‘'+gname+'’)의 영역을 선택해주세요.';
+      for(var s=0;s<subs.length;s++){
+        var no=subs[s].querySelector('.no-in').value.trim();
+        var txt=subs[s].querySelector('.txt-in').value.trim();
+        if(!no||!txt) return '지문 묶음(‘'+gname+'’) 안 문항의 번호와 내용을 채워주세요.';
+      }
+    } else {
+      var no2=block.querySelector('.no-in').value.trim();
+      var txt2=block.querySelector('.txt-in').value.trim();
+      var area2=block.querySelector('.area-in').value.trim();
+      if(!no2 && !txt2 && !area2) continue;
+      if(!no2||!txt2) return '단독 문항의 번호와 내용을 채워주세요.';
+      if(!area2) return '단독 문항(‘'+(no2||'')+'번’)의 영역을 선택해주세요.';
+    }
   }
-  return true;
+  return '';
 }
 
 /* ===== 미리보기 ===== */
@@ -392,7 +458,8 @@ function togglePreview(){
 /* ===== 등록(저장) ===== */
 function saveReport(){
   var data=collect();
-  if(!validate(data)) return;
+  var err=validateForm(data);
+  if(err){ setStatus(err, 'err'); return; }
   if(ENDPOINT.indexOf('http')!==0){ setStatus('전송 주소(ENDPOINT)가 설정되지 않았습니다.', 'err'); return; }
 
   var btn=document.getElementById('saveBtn');
@@ -446,10 +513,8 @@ function copyLink(inputId, btnId){
   } else { document.execCommand('copy'); done(); }
 }
 
-/* 시작: 기본 문항 3개 */
-addQuestion(); addQuestion(); addQuestion();
+/* 시작: 기본 단독 문항 3개 */
+addSolo(); addSolo(); addSolo();
 </script>
-
-<datalist id="pgList"></datalist>
 </body>
 </html>
