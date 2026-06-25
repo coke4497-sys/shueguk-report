@@ -109,6 +109,8 @@ body{font-family:'Noto Sans KR',sans-serif; background:var(--sage-fog); color:va
       <p class="meta" id="s_meta"></p>
       <span class="badge" id="s_badge" style="display:none;"></span>
     </div>
+    <div class="sec-h" id="infoSecH" style="display:none;">내 수업 정보</div>
+    <div class="card" id="infoCard" style="display:none; margin:0 20px 4px;"></div>
     <div class="sec-h">메뉴</div>
     <div class="menu" id="menu"></div>
     <p class="foot">SHUEGUK RE:)PORT · 이수경국어</p>
@@ -182,6 +184,19 @@ function renderHub(){
   document.title = (info.name||'학생') + ' · SHUEGUK';
   if(info.enrolled){ var b=$('s_badge'); b.textContent=info.enrolled; b.style.display='inline-block'; }
 
+  // 내 수업 정보 카드 (비밀번호 없이 표시)
+  var infoHtml = '';
+  infoHtml += infoRow('담당 교사', info.teacher);
+  infoHtml += infoRow('정규 가 수업', info.classA);
+  infoHtml += infoRow('정규 나 수업', info.classB);
+  infoHtml += infoRow('내신 진도', info.progress);
+  infoHtml += infoRow('내신 확인', info.checkup);
+  if(infoHtml){
+    $('infoCard').innerHTML = infoHtml;
+    $('infoCard').style.display = 'block';
+    $('infoSecH').style.display = 'block';
+  }
+
   var html = '';
   // 기능 메뉴
   FEATURES.forEach(function(f){
@@ -238,6 +253,10 @@ function renderGrades(){
     }).join('');
   }
   hide('hubView'); $('gradeView').style.display='block'; window.scrollTo(0,0);
+}
+function infoRow(k, v){
+  if(v==null || String(v).trim()==='') return '';
+  return '<div class="row"><span class="k">'+esc(k)+'</span><span class="v">'+esc(v)+'</span></div>';
 }
 function block(title, text, isNote){
   var has = text && String(text).trim()!=='';
