@@ -442,7 +442,7 @@ function studentWrongByArea_(s){
 // '선생님의 한 마디' 작성 양식 뼈대 삽입
 function fillNoteTemplate(){
   var ta=document.getElementById('teacherNote');
-  var tpl='1. 이번 시험의 주요 포인트\n\n2. 잘한 점\n\n3. 부족한 점\n\n4. 앞으로 함께 노력할 방향\n';
+  var tpl='1. 꼭 칭찬해주세요\n\n2. 이런 점은 아쉬웠습니다.\n\n3. 앞으로 함께 노력하겠습니다.\n';
   if(ta.value.trim()!=='' && !confirm('작성 중인 내용을 양식으로 바꿀까요?')) return;
   ta.value=tpl; ta.focus();
   try{ ta.setSelectionRange(tpl.indexOf('\n'), tpl.indexOf('\n')); }catch(e){}
