@@ -56,6 +56,8 @@ body{font-family:'Noto Sans KR',sans-serif; background:var(--sage-fog); color:va
 .btn{border:none; border-radius:10px; padding:12px 20px; font-size:15px; font-weight:700; font-family:'Noto Sans KR'; cursor:pointer; background:var(--sage-deep); color:#fff;}
 .btn:active{opacity:.85;} .btn.ghost{background:var(--sage-fog); color:var(--ink-mid);}
 .btn:disabled{opacity:.4;}
+/* 선생님 한 마디 저장 버튼: 채도 약 5%p 낮춘 차분한 톤 */
+#saveNoteBtn{background:#737E79;}
 .note-edit{margin-top:14px;}
 .note-edit label{display:block; font-size:13px; color:var(--ink-mid); margin-bottom:6px; font-weight:500;}
 .note-edit textarea{width:100%; border:1.5px solid var(--line); border-radius:10px; padding:12px; font-size:15px; font-family:'Noto Serif KR',serif; line-height:1.7; resize:vertical; min-height:90px; background:#FBFCFB;}
@@ -183,7 +185,7 @@ body{font-family:'Noto Sans KR',sans-serif; background:var(--sage-fog); color:va
       </div>
       <textarea id="teacherNote" placeholder="학생을 선택한 뒤, 학부모님께 전할 코멘트를 적어주세요.&#10;위 4가지 흐름으로 적으면 좋습니다. ‘양식 넣기’를 누르면 뼈대가 채워집니다." oninput="syncNote()"></textarea>
       <div class="ctl-row" style="margin-top:10px;">
-        <button class="btn" id="saveNoteBtn" onclick="saveTeacherNoteToSheet()" disabled>💬 선생님의 한 마디 시트에 저장</button>
+        <button class="btn" id="saveNoteBtn" onclick="saveTeacherNoteToSheet()" disabled>선생님의 한 마디 저장</button>
       </div>
       <p class="hint">여기 적은 내용은 아래 보고서에 실시간 반영됩니다. <b>‘시트에 저장’</b>을 누르면 ‘제출결과’ 탭에 기록되어 <b>학생 개별 페이지에도 바로 나타납니다.</b></p>
     </div>
