@@ -74,7 +74,7 @@
   .card.pending{opacity:.55;cursor:default;}
   .card.pending:hover{transform:none;box-shadow:none;border-color:var(--line-soft);}
   .tag{margin-top:13px;display:inline-block;font-size:.74rem;color:var(--ink-soft);background:#DCE6E0;border-radius:20px;padding:3px 11px;}
-  .card.lock .icon{background:var(--accent);color:#fff;}
+  .card.lock .icon{background:#DCE6E0;color:#5E7A6F;}
 
   footer{text-align:center;margin-top:46px;color:var(--ink-soft);font-size:.82rem;line-height:2;}
 
@@ -100,6 +100,30 @@
   .b-note{background:var(--accent);color:#fff;}
   .empty-state{background:var(--surface);border:1px dashed var(--line);border-radius:var(--radius);padding:38px 24px;text-align:center;}
   .empty-state p{font-family:var(--serif);font-size:.92rem;color:var(--ink-soft);margin:0;line-height:1.8;}
+
+  /* 리포트 상세(시험범위·총평·그래프·반성) */
+  .x-sec{padding:0 18px;}
+  .x-sec:last-child{padding-bottom:18px;}
+  .x-sec-h{font-family:var(--serif);font-weight:700;font-size:.92rem;color:var(--accent);margin:18px 0 9px;}
+  .scope-box{font-family:var(--serif);font-size:.9rem;line-height:1.85;color:var(--ink);background:var(--bg);border-radius:13px;padding:13px 15px;white-space:pre-wrap;}
+  .review-box{font-family:var(--serif);font-size:.9rem;line-height:1.9;color:var(--ink);background:var(--bg);border-radius:13px;padding:13px 15px;}
+  .review-box p{margin:0 0 11px;} .review-box p:last-child{margin:0;}
+  .charts{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;}
+  .chart-col{background:var(--bg);border-radius:13px;padding:11px 6px 9px;}
+  .chart-title{font-size:.72rem;color:var(--ink);text-align:center;margin:0 0 8px;font-weight:700;font-family:var(--sans);}
+  .chart-title .basis{display:block;font-size:.62rem;color:var(--ink-soft);font-weight:400;margin-top:1px;}
+  .vchart{display:flex;align-items:flex-end;justify-content:center;gap:6px;height:120px;}
+  .vbar{display:flex;flex-direction:column;align-items:center;justify-content:flex-end;flex:1;height:100%;}
+  .vb-val{font-size:.56rem;color:var(--ink-soft);margin-bottom:4px;text-align:center;line-height:1.25;}
+  .vb-val b{display:block;color:var(--accent);font-size:.7rem;}
+  .vb-col{width:64%;max-width:24px;border-radius:5px 5px 0 0;min-height:3px;}
+  .vb-label{font-size:.64rem;color:var(--ink-soft);margin-top:5px;}
+  .wrong-item{background:var(--bg);border-radius:13px;padding:12px 14px;margin-bottom:9px;}
+  .wrong-item:last-child{margin-bottom:0;}
+  .wrong-item .wn{font-family:var(--serif);font-weight:700;font-size:.82rem;color:var(--accent);margin:0 0 4px;}
+  .wrong-item .wt{font-size:.82rem;color:var(--ink-soft);margin:0 0 8px;line-height:1.55;}
+  .wrong-item .wr{font-family:var(--serif);font-size:.88rem;color:var(--ink);line-height:1.75;background:var(--surface);border-radius:9px;padding:10px 12px;}
+  .wrong-item .wr .empty{color:var(--ink-soft);}
 
   /* 비밀번호 모달 */
   .modal{position:fixed;inset:0;background:rgba(42,51,47,.45);display:none;align-items:center;justify-content:center;padding:24px;z-index:50;}
@@ -279,10 +303,88 @@ function renderHub(){
 function openGrades(){ if(STATE.authed && STATE.exams){ renderGrades(); return; } openPw(); }
 function closeGrades(){ $('gradeView').style.display='none'; show('hubView'); window.scrollTo(0,0); }
 
-function block(title, text, isNote){
-  var has = text && String(text).trim()!=='';
-  var cls = 'b-text' + (isNote?' b-note':'') + (has?'':' empty');
-  return '<div class="block"><p class="b-h">'+esc(title)+'</p><div class="'+cls+'">'+(has?esc(text):'작성된 내용이 없습니다.')+'</div></div>';
+/* 그래프 집계 (강사 페이지와 동일 기준) */
+var AREA_ORDER=['문학','독서','화법','작문','문법'];
+var LV_ORDER=['중','중상','상','최상'];
+var LV_COLOR={'중':'#E5EDE8','중상':'#C7DAD0','상':'#9DBDB0','최상':'#3A6B5E'};
+function countBy(arr,key,order){
+  var m={}; arr.forEach(function(q){ var v=String(q[key]||'').trim()||'기타'; m[v]=(m[v]||0)+1; });
+  return Object.keys(m).sort(function(a,b){ var ia=order.indexOf(a),ib=order.indexOf(b); return (ia<0?999:ia)-(ib<0?999:ib); })
+    .map(function(k){ return {key:k,count:m[k]}; });
+}
+function barsHtml(entries,total,colorFn){
+  var max=entries.reduce(function(a,e){return Math.max(a,e.count);},0)||1;
+  return '<div class="vchart">'+entries.map(function(e){
+    var h=Math.max(Math.round(e.count/max*96),3);
+    var color=colorFn?colorFn(e.key):'#9DBDB0';
+    var pctv=total?Math.round(e.count/total*100):0;
+    return '<div class="vbar"><span class="vb-val"><b>'+pctv+'%</b>'+e.count+'문항</span>'+
+      '<span class="vb-col" style="height:'+h+'px;background:'+color+';"></span>'+
+      '<span class="vb-label">'+esc(e.key)+'</span></div>';
+  }).join('')+'</div>';
+}
+function chartCol(title,basis,inner){ return '<div class="chart-col"><p class="chart-title">'+esc(title)+'<span class="basis">'+esc(basis)+'</span></p>'+inner+'</div>'; }
+function wrongByArea(questions, wrongText){
+  var qmap={}; questions.forEach(function(q){ qmap[String(q.no).trim()]=q; });
+  var blocks=String(wrongText||'').split(/\n\s*\n/).map(function(b){return b.trim();}).filter(Boolean);
+  var list=[];
+  blocks.forEach(function(bk){
+    var area='';
+    var m=bk.match(/^\[\s*([^·\]\s]+)\s*번/);
+    var q=m?qmap[m[1].trim()]:null;
+    if(q&&q.area){ area=q.area; }
+    else { var inside=(bk.match(/^\[([^\]]*)\]/)||[])[1]||''; var segs=inside.split(' · '); if(segs[1]) area=segs[1].split('·')[0].trim(); }
+    if(area) list.push({area:area});
+  });
+  return list;
+}
+function wrongItemsHtml(wrongText){
+  var blocks=String(wrongText||'').split(/\n\s*\n/).map(function(b){return b.trim();}).filter(Boolean);
+  if(!blocks.length){ return '<div class="b-text empty">표시한 틀린 문항이 없습니다.</div>'; }
+  return blocks.map(function(b){
+    var parts=b.split(/\n\s*→\s*/);
+    var head=parts[0]||'', reason=parts[1]||'';
+    var hm=head.match(/^\[([^\]]+)\]\s*(.*)$/);
+    var label=hm?hm[1]:'', qtxt=hm?hm[2]:head;
+    return '<div class="wrong-item">'+(label?'<p class="wn">'+esc(label)+'</p>':'')+
+      '<p class="wt">'+esc(qtxt)+'</p>'+
+      '<div class="wr">'+(reason?esc(reason):'<span class="empty">반성 미작성</span>')+'</div></div>';
+  }).join('');
+}
+function sec(title, inner){ return '<div class="x-sec"><p class="x-sec-h">'+esc(title)+'</p>'+inner+'</div>'; }
+function boxText(t){ var has=t&&String(t).trim()!==''; return '<div class="b-text'+(has?'':' empty')+'">'+(has?esc(t):'작성하지 않음')+'</div>'; }
+
+function examCardHtml(x){
+  var html = '<div class="exam">';
+  var sub=[];
+  if(x.school||x.grade) sub.push(((x.school||'')+' '+(x.grade||'')).trim());
+  if(x.submittedAt) sub.push(x.submittedAt+' 제출');
+  html += '<div class="x-head"><p class="x-title">'+esc(x.title||'시험')+'</p>'+
+          (sub.length?'<p class="x-date">'+esc(sub.join(' · '))+'</p>':'')+'</div>';
+  html += '<div class="x-stats">'+
+    '<div class="stat"><div class="s-n">'+(x.score!==''?esc(x.score):'–')+'</div><div class="s-l">예상 점수</div></div>'+
+    '<div class="stat"><div class="s-n">'+esc(x.wrongCount||0)+'</div><div class="s-l">틀린 문항</div></div></div>';
+
+  if(x.scope && String(x.scope).trim()){ html += sec('시험 범위', '<div class="scope-box">'+esc(x.scope)+'</div>'); }
+  if(x.review && x.review.length){ html += sec('시험 총평', '<div class="review-box">'+x.review.map(function(p){return '<p>'+esc(p)+'</p>';}).join('')+'</div>'); }
+
+  if(x.questions && x.questions.length){
+    var total=x.questions.length;
+    var wl=wrongByArea(x.questions, x.wrongText);
+    var charts='<div class="charts">'+
+      chartCol('과목 비율','시험 전체', barsHtml(countBy(x.questions,'area',AREA_ORDER), total, null))+
+      chartCol('난도 비율','시험 전체', barsHtml(countBy(x.questions,'lv',LV_ORDER), total, function(k){return LV_COLOR[k]||'#9DBDB0';}))+
+      (wl.length? chartCol('틀린 문항','이 학생', barsHtml(countBy(wl,'area',AREA_ORDER), wl.length, null)) : '')+
+      '</div>';
+    html += sec('문항 분석', charts);
+  }
+
+  html += sec('틀린 문항 · 반성', wrongItemsHtml(x.wrongText));
+  html += sec('다음 시험을 위한 다짐', boxText(x.vow));
+  if(x.teacherNote && String(x.teacherNote).trim()!==''){ html += sec('선생님의 한 마디', '<div class="b-text b-note">'+esc(x.teacherNote)+'</div>'); }
+
+  html += '</div>';
+  return html;
 }
 
 function renderGrades(){
@@ -291,19 +393,7 @@ function renderGrades(){
   if(exams.length===0){
     list.innerHTML = '<div class="empty-state"><p>아직 제출된 시험 복기가 없습니다.<br>복기 입력을 제출하면 이곳에 기록이 쌓입니다.</p></div>';
   } else {
-    list.innerHTML = exams.map(function(x){
-      var stats = '<div class="x-stats">' +
-          '<div class="stat"><div class="s-n">'+(x.score!==''?esc(x.score):'–')+'</div><div class="s-l">예상 점수</div></div>' +
-          '<div class="stat"><div class="s-n">'+esc(x.wrongCount||0)+'</div><div class="s-l">틀린 문항</div></div></div>';
-      return '<div class="exam">' +
-          '<div class="x-head"><p class="x-title">'+esc(x.title||'시험')+'</p>' +
-            (x.submittedAt?'<p class="x-date">'+esc(x.submittedAt)+' 제출</p>':'') + '</div>' +
-          stats +
-          block('틀린 문항 · 반성', x.wrongText) +
-          block('다음 시험을 위한 다짐', x.vow) +
-          (x.teacherNote && x.teacherNote.trim()!==''? block('선생님의 한 마디', x.teacherNote, true) : '') +
-        '</div>';
-    }).join('');
+    list.innerHTML = exams.map(examCardHtml).join('');
   }
   hide('hubView'); $('gradeView').style.display='block'; window.scrollTo(0,0);
 }

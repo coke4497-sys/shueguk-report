@@ -218,11 +218,61 @@ function getStudent(opts) {
 
   var resp = { result:'success', info: info, authed: authed, pwTried: pwTried };
   if (authed) {
-    resp.exams = collectExams_(ss, sid, info.name);
+    var exams = collectExams_(ss, sid, info.name);
+    // 각 시험에 보고서 상세(시험범위·총평·문항)를 붙여 PDF/HTML 리포트와 동일하게 표시
+    var idx = getReportsIndex_(ss);
+    exams.forEach(function(x){
+      var key = String(x.title || '').trim();
+      var rep = idx.byTitle[key] || idx.byId[key] || null;
+      x.scope     = rep ? rep.scope : '';
+      x.review    = rep ? rep.review : [];
+      x.questions = rep ? rep.questions : [];
+    });
+    resp.exams = exams;
   } else {
     resp.examCount = countExams_(ss, sid, info.name);   // 잠금 상태에선 개수만 안내
   }
   return json(resp);
+}
+
+/** '보고서목록'+'문항'을 한 번에 읽어 제목/ID로 조회 가능한 인덱스 생성. */
+function getReportsIndex_(ss) {
+  var byId = {}, byTitle = {};
+  var listSh = ss.getSheetByName(TAB_LIST);
+  if (listSh) {
+    var lv = listSh.getDataRange().getValues();
+    for (var i = 1; i < lv.length; i++) {
+      var id = String(lv[i][0] || '').trim();
+      if (!id) continue;
+      var rec = {
+        id: id,
+        title: String(lv[i][1] || '').trim(),
+        review: String(lv[i][2] || '').split(/\n\s*\n/).map(function(s){return s.trim();}).filter(Boolean),
+        scope: String(lv[i][3] || ''),
+        questions: []
+      };
+      byId[id] = rec;
+      if (rec.title) byTitle[rec.title] = rec;
+    }
+  }
+  var itemSh = ss.getSheetByName(TAB_ITEMS);
+  if (itemSh) {
+    var iv = itemSh.getDataRange().getValues();
+    for (var j = 1; j < iv.length; j++) {
+      var rid = String(iv[j][0] || '').trim();
+      if (!byId[rid]) continue;
+      byId[rid].questions.push({
+        no:   String(iv[j][1]||''),
+        area: String(iv[j][2]||''),
+        type: String(iv[j][3]||''),
+        lv:   String(iv[j][4]||'').trim(),
+        txt:  String(iv[j][5]||''),
+        detail: String(iv[j][6]||''),
+        group:  String(iv[j][7]||'')
+      });
+    }
+  }
+  return { byId: byId, byTitle: byTitle };
 }
 
 /** 제출결과에서 이 학생의 시험 기록을 모은다(최신순). 부모님번호 매칭, 옛 기록은 이름 보조 매칭. */
