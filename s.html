@@ -39,9 +39,12 @@
   /* 헤더 */
   header{padding:58px 22px 30px;text-align:center;}
   .brand .script{font-family:"Sacramento",cursive;font-size:3.4rem;line-height:1;color:var(--ink);font-weight:400;}
-  .tagline{font-family:var(--serif);font-size:1.32rem;font-weight:700;color:var(--accent);margin:10px 0 0;letter-spacing:.01em;}
-  .intro{color:var(--ink-soft);font-size:.92rem;margin:8px 0 0;}
-  .badge{display:inline-block;margin-top:14px;font-size:.78rem;color:var(--accent);background:#DCE6E0;border-radius:20px;padding:3px 13px;}
+  .eyebrow{font-family:var(--sans);font-size:.76rem;letter-spacing:.24em;color:var(--accent);margin:12px 0 0;}
+  .hideout{font-family:var(--serif);font-size:.96rem;color:var(--ink-soft);margin:7px 0 0;}
+  .who{margin:16px 0 0;}
+  .who .nm{font-family:var(--serif);font-size:1.5rem;font-weight:700;color:var(--ink);}
+  .who .gr{font-family:var(--serif);font-size:1rem;color:var(--ink-soft);margin-left:8px;}
+  .badge{display:inline-block;margin-top:12px;font-size:.78rem;color:var(--accent);background:#DCE6E0;border-radius:20px;padding:3px 13px;}
 
   .sec-h{font-family:var(--serif);font-weight:700;font-size:1rem;color:var(--ink);margin:30px 2px 13px;}
   .sec-h .n{font-family:var(--sans);font-weight:400;font-size:.78rem;color:var(--ink-soft);margin-left:6px;}
@@ -176,8 +179,9 @@
 <div id="hubView" style="display:none;">
   <header>
     <div class="brand"><span class="script">Shueguk</span></div>
-    <p class="tagline" id="s_name"></p>
-    <p class="intro" id="s_meta"></p>
+    <p class="eyebrow">STUDENT PRIVATE PAGE</p>
+    <p class="hideout">우리의 비밀 아지트</p>
+    <p class="who" id="s_name"></p>
     <span class="badge" id="s_badge" style="display:none;"></span>
   </header>
 
@@ -198,7 +202,7 @@
 <div id="gradeView"><main class="wrap">
   <div class="gv-bar">
     <button class="gv-back" onclick="closeGrades()" id="gvBack"></button>
-    <span class="gv-ttl">성적 데이터 · 시험 복기</span>
+    <span class="gv-ttl">지필고사 데이터 · 내신 기록</span>
   </div>
   <div class="exam-tabs" id="examTabs" style="display:none;"></div>
   <div id="examList"></div>
@@ -209,7 +213,7 @@
 <div class="modal" id="pwModal">
   <div class="modal-card">
     <div class="mc-ic" id="pwIcon"></div>
-    <p class="mc-t">성적 데이터 잠금</p>
+    <p class="mc-t">지필고사 데이터 잠금</p>
     <p class="mc-s">본인 확인을 위해<br><b>부모님 연락처 8자리</b>(010 제외)를 입력해주세요.</p>
     <input id="pwInput" type="tel" inputmode="numeric" maxlength="8" placeholder="● ● ● ● ● ● ● ●" autocomplete="off" />
     <p class="mc-err" id="pwErr"></p>
@@ -277,11 +281,14 @@ function schedTable(title, rows){
 /* ---- 허브 렌더 ---- */
 function renderHub(){
   var info = STATE.info;
-  $('s_name').textContent = (info.name || '학생') + ' 학생 페이지';
-  var mp = []; if(info.school) mp.push(info.school); if(info.grade) mp.push(info.grade);
-  $('s_meta').textContent = mp.join(' · ');
+  $('s_name').innerHTML = '<span class="nm">'+esc(info.name||'학생')+'</span>' +
+    (info.grade && String(info.grade).trim()!=='' ? ' <span class="gr">'+esc(info.grade)+'</span>' : '');
   document.title = (info.name||'학생') + ' · 슈국';
-  if(info.enrolled){ var b=$('s_badge'); b.textContent=info.enrolled; b.style.display='inline-block'; }
+  if(info.enrolled && String(info.enrolled).trim()!==''){
+    var b=$('s_badge');
+    b.textContent = (String(info.enrolled).trim()==='재원' ? '재원생' : info.enrolled);
+    b.style.display='inline-block';
+  }
 
   // 내 수업 정보 (담당 교사 + 정규/내신 시간표 가로 배치)
   var teacherRow = (info.teacher && String(info.teacher).trim()!=='')
@@ -306,11 +313,11 @@ function renderHub(){
       html += '<div class="card pending">'+body+'<span class="tag">준비 중</span></div>';
     }
   });
-  // 성적 데이터 (잠금)
-  var cntTxt = STATE.examCount>0 ? ('시험 복기 '+STATE.examCount+'건') : '시험 복기 리포트';
+  // 지필고사 데이터 (잠금)
+  var cntTxt = STATE.examCount>0 ? ('내신 기록 '+STATE.examCount+'건') : '내신 기록';
   html += '<button class="card lock" onclick="openGrades()">' +
             '<span class="icon">'+svg(ICON.chart)+'</span>' +
-            '<h3>성적 데이터</h3><p class="desc">'+esc(cntTxt)+'</p>' +
+            '<h3>지필고사 데이터</h3><p class="desc">'+esc(cntTxt)+'</p>' +
             '<span class="go">'+svg(ICON.lock)+' 비밀번호 필요</span></button>';
   $('menu').innerHTML = html;
 
