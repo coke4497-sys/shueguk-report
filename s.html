@@ -89,6 +89,19 @@
 
   footer{text-align:center;margin-top:46px;color:var(--ink-soft);font-size:.82rem;line-height:2;}
 
+  /* 알려드립니다 — 카드 알림 점 */
+  .card .icon{position:relative;}
+  .card .icon .new-dot{position:absolute;top:-3px;right:-3px;min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:#B4544A;color:#fff;font-size:.66rem;font-weight:700;display:flex;align-items:center;justify-content:center;line-height:1;border:2px solid var(--surface);}
+
+  /* 알려드립니다 뷰 */
+  #noticeView{display:none;}
+  .notice-item{background:var(--surface);border:1px solid var(--line-soft);border-radius:var(--radius);padding:16px 18px;margin-bottom:12px;}
+  .notice-item .ntag{display:inline-block;font-size:.7rem;color:var(--accent);background:#DCE6E0;border-radius:20px;padding:2px 11px;margin-bottom:9px;}
+  .notice-item .nh{display:flex;justify-content:space-between;align-items:baseline;gap:12px;margin-bottom:8px;}
+  .notice-item .ntitle{font-family:var(--serif);font-weight:700;font-size:1.04rem;color:var(--ink);line-height:1.4;}
+  .notice-item .ndate{font-size:.76rem;color:var(--ink-soft);white-space:nowrap;}
+  .notice-item .nbody{font-family:var(--serif);font-size:.93rem;color:var(--ink);line-height:1.85;white-space:pre-wrap;}
+
   /* 지필고사 데이터 뷰 */
   #gradeView{display:none;}
   .gwrap{max-width:720px;}
@@ -208,6 +221,16 @@
   </main>
 </div>
 
+<!-- 알려드립니다 -->
+<div id="noticeView"><main class="wrap gwrap">
+  <div class="gv-bar">
+    <button class="gv-back" onclick="closeNotices()" id="nvBack"></button>
+    <span class="gv-ttl">알려드립니다 · 공지</span>
+  </div>
+  <div id="noticeList"></div>
+  <footer><p>이수경국어 Shueguk · 학생용</p></footer>
+</main></div>
+
 <!-- 지필고사 데이터 -->
 <div id="gradeView"><main class="wrap gwrap">
   <div class="gv-bar">
@@ -246,7 +269,8 @@ var ICON = {
   chart:'<line x1="6" y1="21" x2="6" y2="15"/><line x1="12" y1="21" x2="12" y2="9"/><line x1="18" y1="21" x2="18" y2="4"/>',
   lock:'<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
   arrow:'<path d="M5 12h14M13 6l6 6-6 6"/>',
-  back:'<path d="M19 12H5M11 18l-6-6 6-6"/>'
+  back:'<path d="M19 12H5M11 18l-6-6 6-6"/>',
+  bell:'<path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>'
 };
 function svg(inner){ return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">'+inner+'</svg>'; }
 
@@ -265,7 +289,7 @@ function hide(id){ $(id).style.display='none'; }
 
 var KEY = '';        // 접근코드(토큰) — 없으면 테스트용 id
 var IS_ID = false;
-var STATE = { info:null, authed:false, exams:null, examCount:0 };
+var STATE = { info:null, authed:false, exams:null, examCount:0, notices:null };
 
 function showError(title, msg){
   hide('loadBox'); hide('hubView'); $('gradeView').style.display='none';
@@ -312,6 +336,16 @@ function renderHub(){
 
   // 메뉴
   var html = '';
+
+  // 알려드립니다 (공지) — 비밀번호 없이 열람
+  var nCnt = (STATE.notices||[]).length;
+  var nDot = nCnt>0 ? '<span class="new-dot">'+(nCnt>9?'9+':nCnt)+'</span>' : '';
+  var nDesc = nCnt>0 ? (nCnt+'건의 새 소식') : '받은 공지 확인';
+  html += '<button class="card" onclick="openNotices()">' +
+            '<span class="icon">'+svg(ICON.bell)+nDot+'</span>' +
+            '<h3>알려드립니다</h3><p class="desc">'+esc(nDesc)+'</p>' +
+            '<span class="go">'+(nCnt>0?'새 소식 ':'열기 ')+svg(ICON.arrow)+'</span></button>';
+
   FEATURES.forEach(function(f){
     var ic = '<span class="icon">'+svg(ICON[f.icon]||ICON.book)+'</span>';
     var body = ic + '<h3>'+esc(f.title)+'</h3><p class="desc">'+esc(f.desc)+'</p>';
@@ -331,7 +365,32 @@ function renderHub(){
             '<span class="go">'+svg(ICON.lock)+' 비밀번호 필요</span></button>';
   $('menu').innerHTML = html;
 
-  hide('loadBox'); hide('errBox'); $('gradeView').style.display='none'; show('hubView');
+  hide('loadBox'); hide('errBox'); $('gradeView').style.display='none'; $('noticeView').style.display='none'; show('hubView');
+}
+
+/* ---- 알려드립니다(공지) ---- */
+function openNotices(){ renderNotices(); }
+function closeNotices(){ $('noticeView').style.display='none'; show('hubView'); window.scrollTo(0,0); }
+function renderNotices(){
+  var ns = STATE.notices || [];
+  var list = $('noticeList');
+  if(!ns.length){
+    list.innerHTML = '<div class="empty-state"><p>아직 등록된 공지가 없습니다.<br>새로운 소식이 있으면 이곳에 표시됩니다.</p></div>';
+  } else {
+    list.innerHTML = ns.map(function(n){
+      var tag = n.type==='개인' ? '나에게'
+              : n.type==='전체' ? '전체 공지'
+              : n.type==='학년' ? '학년 공지'
+              : (n.type ? '안내' : '');
+      return '<div class="notice-item">' +
+        (tag ? '<span class="ntag">'+esc(tag)+'</span>' : '') +
+        '<div class="nh"><span class="ntitle">'+esc(n.title||'공지')+'</span>' +
+        (n.date ? '<span class="ndate">'+esc(n.date)+'</span>' : '') + '</div>' +
+        (n.body ? '<div class="nbody">'+esc(n.body)+'</div>' : '') +
+        '</div>';
+    }).join('');
+  }
+  hide('hubView'); $('noticeView').style.display='block'; window.scrollTo(0,0);
 }
 
 /* ---- 성적 ---- */
@@ -492,6 +551,7 @@ function submitPw(){
 /* ---- 시작 ---- */
 function boot(){
   $('gvBack').innerHTML = svg(ICON.back) + ' 메뉴';
+  $('nvBack').innerHTML = svg(ICON.back) + ' 메뉴';
   $('pwIcon').innerHTML = svg(ICON.lock);
   $('pwInput').addEventListener('keydown', function(e){ if(e.key==='Enter') submitPw(); });
 
@@ -508,6 +568,7 @@ function boot(){
     .then(function(d){
       if(d.result!=='success'){ showError('열 수 없습니다', d.message||''); return; }
       STATE.info=d.info; STATE.authed=!!d.authed; STATE.examCount=d.examCount||0;
+      STATE.notices=d.notices||[];
       if(d.exams){ STATE.exams=d.exams; }
       renderHub();
     })

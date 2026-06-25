@@ -17,6 +17,7 @@
  *  ② 문항         A:보고서ID | B:번호 | C:영역(상위) | D:형식(객/서술) | E:난도 | F:내용 | G:세부유형(하위) | H:지문그룹   ★G·H 신규
  *  ③ 제출결과     제출일시 | 시험 | 학교 | 학년 | 이름 | 틀린문항수 | 틀린문항·반성 | 다음시험다짐 | 선생님의한마디 | 예상점수 | 부모님연락처   ★K 신규(010 제외 8자리 · 학생 매칭 키)
  *  ④ 학생정보     A:학생ID(부모님8자리=비밀번호) | B:이름 | C:학교 | D:학년 | E:담당교사 | F:메모 | G:정규가 | H:정규나 | I:내신진도 | J:내신확인 | K:재원여부 | L:접근코드(토큰)   ★신규 탭
+ *  ⑤ 공지         A:작성일 | B:대상유형(전체/학년/개인/일부) | C:대상 | D:제목 | E:내용 | F:게시(빈칸=노출, N/숨김/off=숨김)   ★알려드립니다 탭
  *
  * [업데이트] 기존 코드를 전부 지우고 이 코드로 교체 → 저장
  *   → 배포 → 배포 관리 → 기존 배포 옆 연필(편집) → 버전 '새 버전' → 배포  (같은 URL 유지)
@@ -28,6 +29,7 @@ var TAB_LIST     = '보고서목록';
 var TAB_ITEMS    = '문항';
 var TAB_RESULT   = '제출결과';
 var TAB_STUDENTS = '학생정보';   // 학생 명단 (A:학생ID=부모님번호8자리 | B:이름 | C:학교 | D:학년 | E:담당교사 | F:메모 | G~J:시간표 | K:재원여부)
+var TAB_NOTICE   = '공지';        // 알려드립니다 (A:작성일 | B:대상유형(전체/학년/개인/일부) | C:대상 | D:제목 | E:내용 | F:게시)
 
 function doGet(e) {
   var p = (e && e.parameter) ? e.parameter : {};
@@ -217,6 +219,8 @@ function getStudent(opts) {
   var authed  = pwTried && pw === sid;
 
   var resp = { result:'success', info: info, authed: authed, pwTried: pwTried };
+  // 알려드립니다: 이 학생에게 해당하는 공지(비밀번호 없이 key만으로 표시)
+  resp.notices = collectNotices_(ss, info, key);
   if (authed) {
     var exams = collectExams_(ss, sid, info.name);
     // 각 시험에 보고서 상세(시험범위·총평·문항)를 붙여 PDF/HTML 리포트와 동일하게 표시
@@ -308,6 +312,94 @@ function collectExams_(ss, sid, name) {
 
 function countExams_(ss, sid, name) {
   return collectExams_(ss, sid, name).length;
+}
+
+/* ===== 알려드립니다(공지) =====
+ *  '공지' 탭에서 이 학생에게 해당하는 공지만 골라 최신순으로 반환.
+ *  열(헤더로 찾고, 없으면 A~F 고정): A작성일 B대상유형 C대상 D제목 E내용 F게시
+ *  대상유형:  전체 → 모든 학생 / 학년 → C열 학년과 일치 / 개인·일부 → C열 명단(이름·ID·접근코드)에 포함
+ *  게시: 'N'·'숨김'·'off'·'x'면 숨김, 그 외(빈칸 포함)는 노출
+ */
+function collectNotices_(ss, info, key) {
+  var sh = ss.getSheetByName(TAB_NOTICE);
+  if (!sh) return [];
+  var v = sh.getDataRange().getValues();
+  if (v.length < 2) return [];
+
+  var H = v[0];
+  var cDate  = findHeaderCol_(H, '작성일',   0);
+  var cType  = findHeaderCol_(H, '대상유형', 1);
+  var cTarget= findHeaderCol_(H, '대상',     2);
+  var cTitle = findHeaderCol_(H, '제목',     3);
+  var cBody  = findHeaderCol_(H, '내용',     4);
+  var cShow  = findHeaderCol_(H, '게시',     5);
+
+  var stu = {
+    sid:    String(info.id     || '').trim(),
+    name:   String(info.name   || '').trim(),
+    grade:  String(info.grade  || '').trim(),
+    school: String(info.school || '').trim(),
+    code:   String(key         || '').trim()
+  };
+
+  var out = [];
+  for (var i = 1; i < v.length; i++) {
+    var row = v[i];
+    var title = String(row[cTitle] || '').trim();
+    var body  = String(row[cBody]  || '').trim();
+    if (!title && !body) continue;
+
+    var show = String(row[cShow] || '').trim().toLowerCase();
+    if (show === 'n' || show === 'no' || show === '숨김' || show === 'off' || show === 'x') continue;
+
+    var type   = String(row[cType]   || '').trim();
+    var target = String(row[cTarget] || '').trim();
+    if (!noticeMatches_(type, target, stu)) continue;
+
+    var d = row[cDate], dateStr = '';
+    if (d) {
+      try { dateStr = Utilities.formatDate(new Date(d), 'GMT+9', 'yyyy-MM-dd'); }
+      catch (e) { dateStr = String(d).trim(); }
+    }
+    out.push({ date: dateStr, type: type, title: title, body: body, _row: i });
+  }
+
+  // 최신순: 작성일 내림차순, 같으면 시트에서 나중에 입력한 행이 위로
+  out.sort(function(a, b) {
+    if (a.date !== b.date) return a.date < b.date ? 1 : -1;
+    return b._row - a._row;
+  });
+  out.forEach(function(o) { delete o._row; });
+  return out;
+}
+
+/** 공지 한 건이 이 학생에게 해당하는지 판단. */
+function noticeMatches_(type, target, stu) {
+  type   = String(type   || '').trim();
+  target = String(target || '').trim();
+
+  // 전체 (유형이 '전체'이거나, 유형·대상이 모두 비어 있으면 전체로 간주)
+  if (type.indexOf('전체') >= 0) return true;
+  if (type === '' && target === '') return true;
+
+  // 대상 명단을 토큰으로 분리 (쉼표·줄바꿈·세미콜론·슬래시·가운뎃점·공백 구분)
+  var tokens = target.split(/[,\n;\/·\s]+/).map(function(s){ return s.trim(); }).filter(Boolean);
+  if (!tokens.length) return false;
+
+  // 학년: 학생의 학년 또는 '학교+학년'이 대상 토큰과 일치/포함
+  if (type.indexOf('학년') >= 0) {
+    var g  = stu.grade.replace(/\s+/g, '');
+    var sg = (stu.school + stu.grade).replace(/\s+/g, '');
+    return tokens.some(function(t){
+      var tt = t.replace(/\s+/g, '');
+      return !!tt && (tt === g || sg.indexOf(tt) >= 0 || g.indexOf(tt) >= 0);
+    });
+  }
+
+  // 개인 · 일부 (그 외 유형 포함): 이름·ID·접근코드 중 하나라도 일치하면 노출
+  return tokens.some(function(t){
+    return t === stu.name || t === stu.sid || t === stu.code;
+  });
 }
 
 /** 머리글 행에서 label과 일치하는 열 인덱스를 찾고, 없으면 fallback 인덱스를 반환. */
