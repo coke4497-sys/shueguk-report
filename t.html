@@ -87,6 +87,13 @@ body{font-family:'Noto Sans KR',sans-serif; background:var(--sage-fog); color:va
 .vow-box, .teacher-box{font-family:'Noto Serif KR',serif; font-size:14px; line-height:1.8; color:var(--ink-deep); background:var(--sage-fog); border-radius:10px; padding:16px 18px; white-space:pre-wrap;}
 .teacher-box{background:#fff; border:1.5px solid var(--sage-soft); min-height:90px;}
 .r-foot{text-align:center; color:var(--ink-soft); font-size:11px; padding-top:24px; letter-spacing:.05em;}
+.chart-title{font-size:13px; font-weight:700; color:var(--accent-dark); margin:0 0 9px;}
+.chart-title.two{margin-top:16px;}
+.bar-row{display:flex; align-items:center; gap:9px; margin-bottom:7px;}
+.bar-label{flex:0 0 54px; font-size:12.5px; color:var(--ink-deep); text-align:right; font-weight:500;}
+.bar-track{flex:1; background:var(--sage-fog); border-radius:6px; height:20px; overflow:hidden; -webkit-print-color-adjust:exact; print-color-adjust:exact;}
+.bar-fill{display:block; height:100%; background:var(--sage-mid); border-radius:6px; min-width:3px; -webkit-print-color-adjust:exact; print-color-adjust:exact;}
+.bar-val{flex:0 0 96px; font-size:11.5px; color:var(--ink-mid);}
 .sign{text-align:right; margin-top:18px; font-family:'Noto Serif KR',serif; font-size:14px; color:var(--ink-deep);}
 .sign .role{color:var(--ink-mid); font-size:13px; margin-right:8px;}
 .sign .nm{font-weight:500; font-size:15.5px;}
@@ -187,6 +194,14 @@ body{font-family:'Noto Sans KR',sans-serif; background:var(--sage-fog); color:va
     <h2 class="sec-h">시험 총평</h2>
     <div class="review" id="rReview"></div>
 
+    <h2 class="sec-h" id="rCompH">문항 구성 <span style="font-size:12px; color:var(--ink-soft); font-weight:500;">· 이 시험 전체 기준</span></h2>
+    <div id="rComp">
+      <p class="chart-title">과목 비율</p>
+      <div id="rChartArea"></div>
+      <p class="chart-title two">난도 비율</p>
+      <div id="rChartLv"></div>
+    </div>
+
     <h2 class="sec-h">틀린 문항 · 학생의 반성</h2>
     <div id="rWrong"></div>
 
@@ -238,6 +253,7 @@ var ENDPOINT = "https://script.google.com/macros/s/AKfycbzhCncBwn-JlqXARC3wfrWUC
 var STUDENTS = [];
 var REVIEW = [];   // 현재 시험의 총평 (보고서 읽기에서 가져옴)
 var SCOPE = '';    // 현재 시험의 시험범위
+var QUESTIONS = [];// 현재 시험의 전체 문항 (영역·난도 그래프용)
 
 function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function setStatus(m){ document.getElementById('status').textContent = m||''; }
@@ -318,6 +334,7 @@ function loadStudents(rid){
     var rep = arr[0], res = arr[1];
     REVIEW = (rep.result==='success' && rep.review) ? rep.review : [];
     SCOPE = (rep.result==='success' && rep.scope) ? rep.scope : '';
+    QUESTIONS = (rep.result==='success' && rep.questions) ? rep.questions : [];
     STUDENTS = (res.result==='success' && res.students) ? res.students : [];
     var sel = document.getElementById('studentSel');
     if(STUDENTS.length===0){
@@ -350,6 +367,29 @@ function syncNote(){
   }
 }
 
+/* 막대그래프: 영역/난도 분포 (시험 전체 문항 기준) */
+var AREA_ORDER=['문학','독서','화법','작문','문법'];
+var LV_ORDER=['중','중상','상','최상'];
+var LV_COLOR={'중':'var(--line-soft)','중상':'var(--sage-mist)','상':'var(--sage-soft)','최상':'var(--accent-dark)'};
+function countBy_(arr, key, order){
+  var m={};
+  arr.forEach(function(q){ var v=String(q[key]||'').trim()||'기타'; m[v]=(m[v]||0)+1; });
+  return Object.keys(m).sort(function(a,b){
+    var ia=order.indexOf(a), ib=order.indexOf(b);
+    return (ia<0?999:ia)-(ib<0?999:ib);
+  }).map(function(k){ return {key:k, count:m[k]}; });
+}
+function renderBars_(elId, entries, total, colorFn){
+  document.getElementById(elId).innerHTML = entries.map(function(e){
+    var w = total? (e.count/total*100) : 0;
+    var color = colorFn ? colorFn(e.key) : 'var(--sage-mid)';
+    return '<div class="bar-row">'+
+      '<span class="bar-label">'+esc(e.key)+'</span>'+
+      '<span class="bar-track"><span class="bar-fill" style="width:'+w.toFixed(1)+'%; background:'+color+';"></span></span>'+
+      '<span class="bar-val">'+e.count+'문항 · '+Math.round(w)+'%</span></div>';
+  }).join('');
+}
+
 function renderReport(){
   var idx = document.getElementById('studentSel').value;
   var pdfBtn = document.getElementById('pdfBtn');
@@ -374,6 +414,17 @@ function renderReport(){
   document.getElementById('rReview').innerHTML = REVIEW.length
     ? REVIEW.map(function(p){return '<p>'+esc(p)+'</p>';}).join('')
     : '<p class="empty">총평 데이터를 불러오지 못했습니다.</p>';
+
+  // 문항 구성 막대그래프 (시험 전체 문항 기준)
+  var compH=document.getElementById('rCompH'), comp=document.getElementById('rComp');
+  if(QUESTIONS && QUESTIONS.length){
+    var total=QUESTIONS.length;
+    renderBars_('rChartArea', countBy_(QUESTIONS,'area',AREA_ORDER), total, null);
+    renderBars_('rChartLv', countBy_(QUESTIONS,'lv',LV_ORDER), total, function(k){ return LV_COLOR[k]||'var(--sage-mid)'; });
+    compH.style.display=''; comp.style.display='';
+  } else {
+    compH.style.display='none'; comp.style.display='none';
+  }
 
   // 틀린 문항·반성: 제출 시 "[3번 · 화법 · 상] 내용\n  → 반성" 형식으로 저장됨. 블록 단위로 분리
   var wrongHtml = '';
