@@ -1,22 +1,22 @@
 /**
- * SHUEGUK 시험 복기 — 통합 Apps Script 웹앱 v4 (읽기 + 제출 수집 + 제출결과 조회 + 시험 등록)
+ * SHUEGUK 시험 복기 — 통합 Apps Script 웹앱 v5
+ *  (읽기 + 제출 수집 + 제출결과 조회 + 시험 등록 / 시험범위·세부유형·지문그룹 지원)
  *
- * v3에서 (5) '시험 등록'을 추가한 버전입니다.
- *  (1) 보고서 읽기   : 학생이 ?id=서정고3화작 로 접속 → 총평·문항 데이터를 JSON으로 반환
- *  (2) 제출 수집     : 학생이 '선생님께 제출' → '제출결과' 탭에 한 행씩 저장
- *  (3) 제출결과 조회 : 선생님이 ?results=서정고3화작 → 제출 학생 목록 반환
- *  (4) 보고서 목록   : ?list=1 → 등록된 시험 목록 반환 (드롭다운 채우기)
- *  (5) 시험 등록     : m.html 에서 POST(action:createReport) → '보고서목록'·'문항' 탭에 저장  ★신규
+ *  (1) 보고서 읽기   : ?id=서정고3화작 → 제목·시험범위·총평·문항(영역·세부유형·형식·난도·내용·지문그룹) 반환
+ *  (2) 제출 수집     : 학생 '선생님께 제출' → '제출결과' 탭에 한 행씩 저장
+ *  (3) 제출결과 조회 : ?results=서정고3화작 → 제출 학생 목록 반환
+ *  (4) 보고서 목록   : ?list=1 → 등록된 시험 목록 반환
+ *  (5) 시험 등록     : m.html POST(action:createReport) → '보고서목록'·'문항' 탭에 저장
  *
  * ───────────────────────────────────────────────────────────────
- * [시트 탭]
- *  ① 보고서목록   열: ID | 제목 | 총평
- *  ② 문항         열: 보고서ID | 번호 | 영역 | 유형 | 난도 | 내용
- *  ③ 제출결과     열: 제출일시 | 시험 | 학교 | 학년 | 이름 | 틀린문항수 | 틀린문항·반성 | 다음시험다짐 | 선생님의한마디 | 예상점수
+ * [시트 탭 / 열]  ※ v4에서 새 열을 "뒤에 추가"만 했으므로 기존 시험도 그대로 동작합니다.
+ *  ① 보고서목록   A:ID | B:제목 | C:총평 | D:시험범위                                  ★D 신규
+ *  ② 문항         A:보고서ID | B:번호 | C:영역(상위) | D:형식(객/서술) | E:난도 | F:내용 | G:세부유형(하위) | H:지문그룹   ★G·H 신규
+ *  ③ 제출결과     제출일시 | 시험 | 학교 | 학년 | 이름 | 틀린문항수 | 틀린문항·반성 | 다음시험다짐 | 선생님의한마디 | 예상점수
  *
- * [업데이트 방법] 기존 Apps Script 코드를 전부 지우고 이 코드로 교체 → 저장
- *   → 배포 → 배포 관리 → 기존 배포 옆 연필(편집) → 버전을 '새 버전'으로 → 배포
- *   (이렇게 해야 같은 URL이 유지됩니다. '새 배포'로 하면 URL이 바뀌니 주의)
+ * [업데이트] 기존 코드를 전부 지우고 이 코드로 교체 → 저장
+ *   → 배포 → 배포 관리 → 기존 배포 옆 연필(편집) → 버전 '새 버전' → 배포  (같은 URL 유지)
+ *   ※ '보고서목록'·'문항' 탭의 새 열 머리글(D / G·H)은 시험을 한 번 등록하면 자동으로 채워집니다.
  * ───────────────────────────────────────────────────────────────
  */
 
@@ -26,18 +26,8 @@ var TAB_RESULT = '제출결과';
 
 function doGet(e) {
   var p = (e && e.parameter) ? e.parameter : {};
-
-  // (4) 선생님 화면: 보고서 목록 전체 조회 (드롭다운 채우기용)
-  if (p.list) {
-    return getList();
-  }
-
-  // (3) 선생님 화면: 제출결과 조회
-  if (p.results) {
-    return getResults(String(p.results).trim());
-  }
-
-  // (1) 학생 화면: 보고서 읽기
+  if (p.list)    { return getList(); }
+  if (p.results) { return getResults(String(p.results).trim()); }
   var id = p.id ? String(p.id).trim() : '';
   if (!id) {
     return json({ result: 'error', message: 'id 파라미터가 없습니다. 예: ?id=서정고3화작' });
@@ -65,18 +55,20 @@ function getList() {
 function getReport(id) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var listSh = ss.getSheetByName(TAB_LIST);
-  var title = '', review = '';
+  var title = '', review = '', scope = '', found = false;
   if (listSh) {
     var lv = listSh.getDataRange().getValues();
     for (var i = 1; i < lv.length; i++) {
       if (String(lv[i][0]).trim() === id) {
         title  = String(lv[i][1] || '');
         review = String(lv[i][2] || '');
+        scope  = String(lv[i][3] || '');   // D열: 시험범위
+        found = true;
         break;
       }
     }
   }
-  if (!title && !review) {
+  if (!found) {
     return json({ result: 'error', message: "'" + id + "' 보고서를 찾을 수 없습니다." });
   }
   var itemSh = ss.getSheetByName(TAB_ITEMS);
@@ -86,15 +78,19 @@ function getReport(id) {
     for (var j = 1; j < iv.length; j++) {
       if (String(iv[j][0]).trim() === id) {
         questions.push({
-          no: String(iv[j][1]||''), area: String(iv[j][2]||''),
-          type: String(iv[j][3]||''), lv: String(iv[j][4]||'').trim(),
-          txt: String(iv[j][5]||'')
+          no:     String(iv[j][1]||''),
+          area:   String(iv[j][2]||''),          // C: 영역(상위)
+          type:   String(iv[j][3]||''),          // D: 형식(객/서술)
+          lv:     String(iv[j][4]||'').trim(),   // E: 난도
+          txt:    String(iv[j][5]||''),          // F: 내용
+          detail: String(iv[j][6]||''),          // G: 세부유형(하위)
+          group:  String(iv[j][7]||'')           // H: 지문그룹
         });
       }
     }
   }
   var reviewArr = review.split(/\n\s*\n/).map(function(s){return s.trim();}).filter(Boolean);
-  return json({ result:'success', title:title, review:reviewArr, questions:questions });
+  return json({ result:'success', title:title, scope:scope, review:reviewArr, questions:questions });
 }
 
 /* ===== (3) 제출결과 조회 ===== */
@@ -103,9 +99,6 @@ function getResults(reportId) {
   var sh = ss.getSheetByName(TAB_RESULT);
   if (!sh) return json({ result:'success', students: [] });
 
-  // reportId 가 ID(예: 서정고3화작)일 경우, 보고서목록에서 그 제목도 찾아둔다.
-  // 제출결과의 '시험' 칸에는 제목(예: 26-1-중간-서정고3-화법과 작문)이 저장되므로,
-  // ID와 제목 둘 중 무엇으로 와도 매칭되게 한다.
   var matchTitle = '';
   if (reportId && reportId !== 'ALL') {
     var listSh = ss.getSheetByName(TAB_LIST);
@@ -122,14 +115,13 @@ function getResults(reportId) {
   var students = [];
   for (var i = 1; i < v.length; i++) {
     var row = v[i];
-    if (!row[4]) continue;                          // 이름 없으면 skip
+    if (!row[4]) continue;
     var examVal = String(row[1]).trim();
-    // reportId 가 지정되면: 시험값이 ID와 같거나 제목과 같으면 통과. 아니면(ALL/빈값) 전부.
     if (reportId && reportId !== 'ALL') {
       if (examVal !== reportId && examVal !== matchTitle) continue;
     }
     students.push({
-      rowIndex: i + 1,                              // 시트 실제 행 번호
+      rowIndex: i + 1,
       submittedAt: row[0] ? Utilities.formatDate(new Date(row[0]), 'GMT+9', 'yyyy-MM-dd HH:mm') : '',
       title: String(row[1]||''),
       school: String(row[2]||''),
@@ -138,8 +130,8 @@ function getResults(reportId) {
       wrongCount: row[5] || 0,
       wrongText: String(row[6]||''),
       vow: String(row[7]||''),
-      teacherNote: String(row[8]||''),             // 선생님의 한 마디
-      score: String(row[9]||'')                      // 예상 점수 (J열)
+      teacherNote: String(row[8]||''),
+      score: String(row[9]||'')
     });
   }
   return json({ result:'success', students: students });
@@ -174,8 +166,9 @@ function doPost(e) {
 }
 
 /* ===== (5) 시험 등록 =====
- * m.html 이 보내는 payload:
- *   { action:'createReport', id, title, review:[문단...], questions:[{no,area,type,lv,txt}...] }
+ * m.html payload:
+ *   { action:'createReport', id, title, scope, review:[문단...],
+ *     questions:[{no, group, area(상위), detail(하위), type(객/서술), lv, txt(내용)} ...] }
  * 동작: 같은 ID가 있으면 보고서목록·문항에서 기존 행을 지우고 새로 기록(덮어쓰기).
  */
 function createReport(data) {
@@ -186,33 +179,46 @@ function createReport(data) {
 
     // 보고서목록 탭 (없으면 생성)
     var listSh = ss.getSheetByName(TAB_LIST);
-    if (!listSh) { listSh = ss.insertSheet(TAB_LIST); listSh.appendRow(['ID','제목','총평']); }
+    if (!listSh) { listSh = ss.insertSheet(TAB_LIST); listSh.appendRow(['ID','제목','총평','시험범위']); }
+    ensureHeader_(listSh, 4, '시험범위');     // D열 머리글 보장
 
     // 문항 탭 (없으면 생성)
     var itemSh = ss.getSheetByName(TAB_ITEMS);
-    if (!itemSh) { itemSh = ss.insertSheet(TAB_ITEMS); itemSh.appendRow(['보고서ID','번호','영역','유형','난도','내용']); }
+    if (!itemSh) { itemSh = ss.insertSheet(TAB_ITEMS); itemSh.appendRow(['보고서ID','번호','영역','형식','난도','내용','세부유형','지문그룹']); }
+    ensureHeader_(itemSh, 7, '세부유형');     // G열 머리글 보장
+    ensureHeader_(itemSh, 8, '지문그룹');     // H열 머리글 보장
 
     // 같은 ID 덮어쓰기 (기존 행 제거)
-    deleteRowsById_(listSh, 1, id);   // 보고서목록: 1열(ID)
-    deleteRowsById_(itemSh, 1, id);   // 문항: 1열(보고서ID)
+    deleteRowsById_(listSh, 1, id);
+    deleteRowsById_(itemSh, 1, id);
 
     // 총평: 문단 배열을 빈 줄로 이어 한 셀에 저장 (getReport 가 /\n\s*\n/ 로 다시 분리)
     var review = Array.isArray(data.review) ? data.review.join('\n\n') : String(data.review || '');
-    listSh.appendRow([id, String(data.title || ''), review]);
+    var scope  = String(data.scope || '');
+    listSh.appendRow([id, String(data.title || ''), review, scope]);
 
-    // 문항: 한 번에 기록
+    // 문항: 한 번에 기록  (A~H = 보고서ID·번호·영역·형식·난도·내용·세부유형·지문그룹)
     var qs = data.questions || [];
     if (qs.length) {
       var rows = qs.map(function(q){
-        return [id, String(q.no||''), String(q.area||''), String(q.type||''), String(q.lv||''), String(q.txt||'')];
+        return [
+          id, String(q.no||''), String(q.area||''), String(q.type||''),
+          String(q.lv||''), String(q.txt||''), String(q.detail||''), String(q.group||'')
+        ];
       });
-      itemSh.getRange(itemSh.getLastRow()+1, 1, rows.length, 6).setValues(rows);
+      itemSh.getRange(itemSh.getLastRow()+1, 1, rows.length, 8).setValues(rows);
     }
 
     return json({ result:'success', id:id, count:qs.length });
   } catch (err) {
     return json({ result:'error', message:String(err) });
   }
+}
+
+/** col열(1-base) 머리글이 비어 있으면 label로 채운다. */
+function ensureHeader_(sheet, col, label) {
+  var cell = sheet.getRange(1, col);
+  if (String(cell.getValue()).trim() === '') { cell.setValue(label); }
 }
 
 /** 지정한 열(col)의 값이 id와 같은 모든 행을 삭제(헤더 1행 제외). 아래에서 위로 삭제. */
