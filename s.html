@@ -361,6 +361,12 @@ function renderHub(){
     var ready = f.url && f.url.indexOf('http')===0;
     if(ready){
       var href = f.url + (f.url.indexOf('?')>=0?'&':'?') + 'key=' + encodeURIComponent(KEY);
+      // 클리닉: 토큰과 함께 이름·학생ID·담당강사를 실어 보내 자동 식별·강사구분에 사용
+      if(f.id==='clinic' && STATE.info){
+        href += '&nm='  + encodeURIComponent(STATE.info.name    || '')
+              + '&sid=' + encodeURIComponent(STATE.info.id      || '')
+              + '&tc='  + encodeURIComponent(STATE.info.teacher || '');
+      }
       html += '<a class="card" href="'+esc(href)+'">'+body+'<span class="go">열기 '+svg(ICON.arrow)+'</span></a>';
     } else {
       html += '<div class="card pending">'+body+'<span class="tag">준비 중</span></div>';
