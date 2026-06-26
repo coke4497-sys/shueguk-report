@@ -296,7 +296,7 @@ var ENDPOINT = "https://script.google.com/macros/s/AKfycbzhCncBwn-JlqXARC3wfrWUC
 /* 주말 실전 모의고사 채점 백엔드(.../exec). 비우면 '모의고사 성적' 카드가 '준비 중'으로 표시됩니다.
    실제 연결 시 학생ID(부모님 8자리)로 '그 학생 성적표만' 돌려주는 액션을 쓰세요:
    <WEEKEND_API>?action=studentReports&id=<8자리>&name=<이름>&school=<학교>&callback=<함수> (JSONP) */
-var WEEKEND_API = "";
+var WEEKEND_API = "https://script.google.com/macros/s/AKfycbyUHMdCH_u35Oeu6lEmx3yOYscoKLwEB8TC0QHGBOaCXZ4rbAnkMpP9_Na4l3QLOajGPA/exec";
 var MOCK_DEMO = [
   { examName:'상상3-5회차', examDate:'6월 21일', subject:'언어와매체', school:'행신고', grade:'3',
     got:92, level:'1', cuts:[88,80,72,64],
