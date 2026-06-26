@@ -214,6 +214,14 @@ function getStudent(opts) {
     enrolled: String(r[10] || '')
   };
 
+  // 형제 구분: 같은 부모님 8자리(=학생ID)를 가진 학생이 2명 이상이면 '공유 번호'.
+  // 이 경우 성적 매칭에 이름까지 확인해 형제 기록이 섞이지 않게 한다.
+  var shareCount = 0;
+  for (var s2 = 1; s2 < sv.length; s2++) {
+    if (String(sv[s2][0] || '').trim() === sid) shareCount++;
+  }
+  var siblingShared = shareCount > 1;
+
   // 비밀번호 검증: 입력값이 학생ID(부모님 8자리)와 일치해야 성적 공개
   var pwTried = pw !== '';
   var authed  = pwTried && pw === sid;
@@ -222,7 +230,7 @@ function getStudent(opts) {
   // 알려드립니다: 이 학생에게 해당하는 공지(비밀번호 없이 key만으로 표시)
   resp.notices = collectNotices_(ss, info, key);
   if (authed) {
-    var exams = collectExams_(ss, sid, info.name);
+    var exams = collectExams_(ss, sid, info.name, siblingShared);
     // 각 시험에 보고서 상세(시험범위·총평·문항)를 붙여 PDF/HTML 리포트와 동일하게 표시
     var idx = getReportsIndex_(ss);
     exams.forEach(function(x){
@@ -234,7 +242,7 @@ function getStudent(opts) {
     });
     resp.exams = exams;
   } else {
-    resp.examCount = countExams_(ss, sid, info.name);   // 잠금 상태에선 개수만 안내
+    resp.examCount = countExams_(ss, sid, info.name, siblingShared);   // 잠금 상태에선 개수만 안내
   }
   return json(resp);
 }
@@ -279,8 +287,10 @@ function getReportsIndex_(ss) {
   return { byId: byId, byTitle: byTitle };
 }
 
-/** 제출결과에서 이 학생의 시험 기록을 모은다(최신순). 부모님번호 매칭, 옛 기록은 이름 보조 매칭. */
-function collectExams_(ss, sid, name) {
+/** 제출결과에서 이 학생의 시험 기록을 모은다(최신순).
+ *  기본: 부모님번호 매칭(옛 기록은 이름 보조). 단 strictName=true(형제가 같은 번호 공유)면
+ *  번호가 같아도 이름까지 일치해야 인정 → 형제 성적이 섞이지 않는다. */
+function collectExams_(ss, sid, name, strictName) {
   var exams = [];
   var rSh = ss.getSheetByName(TAB_RESULT);
   if (rSh) {
@@ -291,7 +301,13 @@ function collectExams_(ss, sid, name) {
       if (!row[4]) continue;
       var phone = String(row[10] || '').trim();
       var nm    = String(row[4]  || '').trim();
-      var match = (phone && phone === sid) || (!phone && nm === name);
+      var match;
+      if (strictName) {
+        // 같은 번호를 형제가 공유 → 번호+이름이 모두 같아야(옛 기록처럼 번호 없으면 이름으로) 인정
+        match = phone ? (phone === sid && nm === name) : (nm === name);
+      } else {
+        match = (phone && phone === sid) || (!phone && nm === name);
+      }
       if (!match) continue;
       exams.push({
         submittedAt: row[0] ? Utilities.formatDate(new Date(row[0]), 'GMT+9', 'yyyy-MM-dd HH:mm') : '',
@@ -310,8 +326,8 @@ function collectExams_(ss, sid, name) {
   return exams;
 }
 
-function countExams_(ss, sid, name) {
-  return collectExams_(ss, sid, name).length;
+function countExams_(ss, sid, name, strictName) {
+  return collectExams_(ss, sid, name, strictName).length;
 }
 
 /* ===== 알려드립니다(공지) =====
