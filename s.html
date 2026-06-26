@@ -375,25 +375,17 @@ var FEATURES = [
   { id:'grammar', icon:'pencil', title:'문법 테스트',   desc:'문법 시험 보기',     url:'' }
 ];
 
-/* ── 어휘 테스트(주차별) 연결 설정 ───────────────────────────
+/* ── 어휘 테스트 연결 설정 ───────────────────────────────────
  * 학생 응시 링크 형식: VOCA_BASE?g=<학년코드>&w=<주차>
  *   학년코드: 고1~3 → h1·h2·h3, 중1~3 → m1·m2·m3
- *   주차(w): 2026-07-08(수)~07-14(화)가 1주차, 이후 매주 수요일에 +1 (주차: 수~화)
- * 시작일을 바꾸려면 VOCA_WEEK1_START 날짜(1주차 시작 수요일)만 수정하면 됩니다. */
+ * 주차는 교사용 어휘 페이지에서 지정(설정 탭 '어휘 주차') → 학생은 그 주차만 열림. */
 var VOCA_BASE = 'https://coke4497-sys.github.io/shueguk-voca/test.html';
-var VOCA_WEEK1_START = new Date(2026, 5, 24);   // [임시 테스트] 2026-06-24(수) — 확인 후 (2026,6,8)로 되돌릴 것
 
 function vocaGradeCode(gradeStr){
   var s = String(gradeStr||'').replace(/20\d{2}/,'');   // 연도 제거(2026 등)
   var level = s.indexOf('고')>=0 ? 'h' : (s.indexOf('중')>=0 ? 'm' : '');
   var num = (s.match(/[1-3]/)||[])[0];
   return (level && num) ? (level + num) : '';
-}
-function vocaCurrentWeek(){
-  var now = new Date();
-  var today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  var diffDays = Math.floor((today - VOCA_WEEK1_START) / 86400000);
-  return diffDays < 0 ? 0 : (Math.floor(diffDays / 7) + 1);   // 시작 전이면 0
 }
 
 function $(id){ return document.getElementById(id); }
@@ -403,7 +395,7 @@ function hide(id){ $(id).style.display='none'; }
 
 var KEY = '';        // 접근코드(토큰) — 없으면 테스트용 id
 var IS_ID = false;
-var STATE = { info:null, authed:false, exams:null, examCount:0, notices:null, clinic:null, vocaOpen:null };
+var STATE = { info:null, authed:false, exams:null, examCount:0, notices:null, clinic:null, vocaOpen:null, vocaWeek:null };
 
 function showError(title, msg){
   hide('loadBox'); hide('hubView'); $('gradeView').style.display='none';
@@ -479,18 +471,16 @@ function renderHub(){
       var md = (c.date||'').slice(5,10).replace('-','/');   // MM/DD
       desc = '신청함 · ' + (c.time||'') + (md? ' · '+md : '');
     }
-    // 어휘 테스트: 학년→g코드, 오늘 날짜→현재 주차(w)로 그 학생 시험에 자동 연결
+    // 어휘 테스트: 학년→g코드 + 교사가 연 주차(vocaWeek)로 그 학생 시험에 연결
     if(f.id==='voca'){
       var vg = vocaGradeCode(STATE.info && STATE.info.grade);
-      var vw = vocaCurrentWeek();
       if(STATE.vocaOpen===false){
         desc = '잠시 쉬어갑니다';        // 선생님이 중단 → 준비 중 유지
-      } else if(vg && vw>=1){
-        url = VOCA_BASE + '?g=' + encodeURIComponent(vg) + '&w=' + vw;
-        desc = '이번 주 ' + vw + '주차 어휘';
-      } else if(vg){
-        desc = '7월 8일 시작';           // 시작 전 → 준비 중 유지
+      } else if(vg && STATE.vocaWeek>=1){
+        url = VOCA_BASE + '?g=' + encodeURIComponent(vg) + '&w=' + STATE.vocaWeek;
+        desc = STATE.vocaWeek + '주차 어휘';
       }
+      // 그 외(주차 미설정 등)는 기본 설명 + '준비 중'
     }
     var ic = '<span class="icon">'+svg(ICON[f.icon]||ICON.book)+'</span>';
     var body = ic + '<h3>'+esc(f.title)+'</h3><p class="desc">'+esc(desc)+'</p>';
@@ -835,6 +825,7 @@ function boot(){
       STATE.notices=d.notices||[];
       STATE.clinic=d.clinic||null;
       STATE.vocaOpen=d.vocaOpen;   // true/false/undefined(=열림)
+      STATE.vocaWeek=d.vocaWeek;   // 교사가 연 주차(없으면 null → 준비 중)
       if(d.exams){ STATE.exams=d.exams; }
       renderHub();
     })
