@@ -50,6 +50,7 @@
   .who{margin:16px 0 0;}
   .who .nm{font-family:var(--serif);font-size:1.5rem;font-weight:700;color:var(--ink);}
   .who .gr{font-family:var(--serif);font-size:1rem;color:var(--ink-soft);margin-left:8px;}
+  .who .sch{display:block;font-family:var(--serif);font-size:.95rem;color:var(--ink-soft);margin-top:5px;}
   .badge{display:inline-block;margin-top:12px;font-size:.78rem;color:var(--accent);background:#DCE6E0;border-radius:20px;padding:3px 13px;}
 
   .sec-h{font-family:var(--serif);font-weight:700;font-size:1rem;color:var(--ink);margin:30px 2px 13px;}
@@ -408,7 +409,8 @@ function schedTable(title, rows){
 function renderHub(){
   var info = STATE.info;
   $('s_name').innerHTML = '<span class="nm">'+esc(info.name||'학생')+'</span>' +
-    (info.grade && String(info.grade).trim()!=='' ? ' <span class="gr">'+esc(info.grade)+'</span>' : '');
+    (info.grade && String(info.grade).trim()!=='' ? ' <span class="gr">'+esc(info.grade)+'</span>' : '') +
+    (info.school && String(info.school).trim()!=='' ? '<span class="sch">'+esc(info.school)+'</span>' : '');
   document.title = (info.name||'학생') + ' · 슈국';
   // 홈 화면 저장 시 아이콘 이름을 학생 이름으로
   var wt = document.querySelector('meta[name="apple-mobile-web-app-title"]');
