@@ -384,10 +384,18 @@ function renderHub(){
             '<span class="icon">'+svg(ICON.chart)+'</span>' +
             '<h3>지필고사 데이터</h3><p class="desc">'+esc(cntTxt)+'</p>' +
             '<span class="go">'+svg(ICON.lock)+' 비밀번호 필요</span></button>';
-  html += '<button class="card lock" onclick="openMock()">' +
-            '<span class="icon">'+svg(ICON.paper)+'</span>' +
-            '<h3>모의고사 성적</h3><p class="desc">주말 실전 모의고사 성적표</p>' +
-            '<span class="go">'+svg(ICON.lock)+' 비밀번호 필요</span></button>';
+  var mockReady = (typeof WEEKEND_API==='string' && WEEKEND_API.indexOf('http')===0);
+  if(mockReady){
+    html += '<button class="card lock" onclick="openMock()">' +
+              '<span class="icon">'+svg(ICON.paper)+'</span>' +
+              '<h3>모의고사 성적</h3><p class="desc">주말 실전 모의고사 성적표</p>' +
+              '<span class="go">'+svg(ICON.lock)+' 비밀번호 필요</span></button>';
+  } else {
+    html += '<div class="card pending">' +
+              '<span class="icon">'+svg(ICON.paper)+'</span>' +
+              '<h3>모의고사 성적</h3><p class="desc">주말 실전 모의고사 성적표</p>' +
+              '<span class="tag">준비 중</span></div>';
+  }
   $('menu').innerHTML = html;
 
   hide('loadBox'); hide('errBox'); $('gradeView').style.display='none'; show('hubView');
@@ -558,20 +566,24 @@ function submitPw(){
 /* ---- 모의고사 성적 ---- */
 function fetchMock(id){
   var btn=$('pwOk'); btn.disabled=true; btn.textContent='확인 중...'; $('pwErr').textContent='';
-  if(!WEEKEND_API || WEEKEND_API.indexOf('http')!==0){   // 데모(백엔드 미연결)
-    btn.disabled=false; btn.textContent='확인'; closePw(); STATE.mock=MOCK_DEMO; renderMock(); return;
-  }
-  fetch(WEEKEND_API + (WEEKEND_API.indexOf('?')>=0?'&':'?') + 'action=studentReports&id=' + encodeURIComponent(id))
-    .then(function(r){ return r.json(); })
-    .then(function(d){
-      btn.disabled=false; btn.textContent='확인';
-      var ok = d && (d.result==='success' || d.ok);
-      if(!ok){ $('pwErr').textContent=(d&&d.message)||'성적을 불러오지 못했습니다.'; return; }
-      var reps = d.reports || d.list || [];
-      if(!reps.length && d.authed===false){ $('pwErr').textContent='비밀번호가 일치하지 않습니다.'; return; }
-      closePw(); STATE.mock=reps; renderMock();
-    })
-    .catch(function(){ btn.disabled=false; btn.textContent='확인'; $('pwErr').textContent='연결 실패 — 다시 시도해주세요.'; });
+  if(!WEEKEND_API || WEEKEND_API.indexOf('http')!==0){ btn.disabled=false; btn.textContent='확인'; closePw(); STATE.mock=[]; renderMock(); return; }
+  var info=STATE.info||{};
+  var cb='weekendCb'+Date.now()+Math.floor(Math.random()*1000);
+  var sc=document.createElement('script'); var done=false;
+  var clean=function(){ try{window[cb]=undefined;}catch(e){} if(sc.parentNode) sc.parentNode.removeChild(sc); };
+  var timer=setTimeout(function(){ if(done)return; done=true; clean(); btn.disabled=false; btn.textContent='확인'; $('pwErr').textContent='연결 시간이 초과됐어요. 다시 시도해주세요.'; },10000);
+  window[cb]=function(d){ if(done)return; done=true; clearTimeout(timer); clean(); btn.disabled=false; btn.textContent='확인';
+    var ok=d&&(d.result==='success'||d.ok);
+    if(!ok){ $('pwErr').textContent=(d&&d.message)||'성적을 불러오지 못했습니다.'; return; }
+    closePw(); STATE.mock=d.reports||d.list||[]; renderMock();
+  };
+  sc.onerror=function(){ if(done)return; done=true; clearTimeout(timer); clean(); btn.disabled=false; btn.textContent='확인'; $('pwErr').textContent='연결 실패 — 다시 시도해주세요.'; };
+  sc.src=WEEKEND_API + (WEEKEND_API.indexOf('?')>=0?'&':'?') +
+    'action=studentReports&id='+encodeURIComponent(id)+
+    '&name='+encodeURIComponent(info.name||'')+
+    '&school='+encodeURIComponent(info.school||'')+
+    '&callback='+cb+'&t='+Date.now();
+  document.body.appendChild(sc);
 }
 var MOCK_SEL=0;
 function closeMock(){ $('mockView').style.display='none'; show('hubView'); window.scrollTo(0,0); }
