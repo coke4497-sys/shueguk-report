@@ -291,7 +291,7 @@ function hide(id){ $(id).style.display='none'; }
 
 var KEY = '';        // 접근코드(토큰) — 없으면 테스트용 id
 var IS_ID = false;
-var STATE = { info:null, authed:false, exams:null, examCount:0, notices:null };
+var STATE = { info:null, authed:false, exams:null, examCount:0, notices:null, clinic:null };
 
 function showError(title, msg){
   hide('loadBox'); hide('hubView'); $('gradeView').style.display='none';
@@ -349,8 +349,15 @@ function renderHub(){
             '<span class="go">'+(nCnt>0?'새 소식 ':'열기 ')+svg(ICON.arrow)+'</span></button>';
 
   FEATURES.forEach(function(f){
+    var desc = f.desc;
+    // 클리닉: 이 학생의 최근 신청 내역이 있으면 카드 설명에 표시
+    if(f.id==='clinic' && STATE.clinic && STATE.clinic.latest){
+      var c = STATE.clinic.latest;
+      var md = (c.date||'').slice(5,10).replace('-','/');   // MM/DD
+      desc = '신청함 · ' + (c.time||'') + (md? ' · '+md : '');
+    }
     var ic = '<span class="icon">'+svg(ICON[f.icon]||ICON.book)+'</span>';
-    var body = ic + '<h3>'+esc(f.title)+'</h3><p class="desc">'+esc(f.desc)+'</p>';
+    var body = ic + '<h3>'+esc(f.title)+'</h3><p class="desc">'+esc(desc)+'</p>';
     var ready = f.url && f.url.indexOf('http')===0;
     if(ready){
       var href = f.url + (f.url.indexOf('?')>=0?'&':'?') + 'key=' + encodeURIComponent(KEY);
@@ -571,6 +578,7 @@ function boot(){
       if(d.result!=='success'){ showError('열 수 없습니다', d.message||''); return; }
       STATE.info=d.info; STATE.authed=!!d.authed; STATE.examCount=d.examCount||0;
       STATE.notices=d.notices||[];
+      STATE.clinic=d.clinic||null;
       if(d.exams){ STATE.exams=d.exams; }
       renderHub();
     })

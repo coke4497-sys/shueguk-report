@@ -31,6 +31,10 @@ var TAB_RESULT   = '제출결과';
 var TAB_STUDENTS = '학생정보';   // 학생 명단 (A:학생ID=부모님번호8자리 | B:이름 | C:학교 | D:학년 | E:담당교사 | F:메모 | G~J:시간표 | K:재원여부)
 var TAB_NOTICE   = '공지';        // 알려드립니다 (A:작성일 | B:대상유형(전체/학년/개인/일부) | C:대상 | D:제목 | E:내용 | F:게시)
 
+// 클리닉 신청(별도 스프레드시트) — 학생 페이지에 '내 클리닉 신청'을 토큰으로 조회해 표시
+var CLINIC_SHEET_ID = '1q-D_cGhSpVgX5epGKIVy-HH9P26ygj-TeT9yrMaHAO8';
+var CLINIC_TAB      = '응답';     // 제출시각|이름|학교|전화뒤4|클리닉시간|유형|영역|구체내용|질문개수|메모|토큰(신규)
+
 function doGet(e) {
   var p = (e && e.parameter) ? e.parameter : {};
   if (p.list)    { return getList(); }
@@ -229,6 +233,8 @@ function getStudent(opts) {
   var resp = { result:'success', info: info, authed: authed, pwTried: pwTried };
   // 알려드립니다: 이 학생에게 해당하는 공지(비밀번호 없이 key만으로 표시)
   resp.notices = collectNotices_(ss, info, key);
+  // 클리닉 신청: 이 학생(토큰)의 최근 신청 내역(없거나 실패 시 null)
+  resp.clinic = collectClinic_(key);
   if (authed) {
     var exams = collectExams_(ss, sid, info.name, siblingShared);
     // 각 시험에 보고서 상세(시험범위·총평·문항)를 붙여 PDF/HTML 리포트와 동일하게 표시
@@ -416,6 +422,43 @@ function noticeMatches_(type, target, stu) {
   return tokens.some(function(t){
     return t === stu.name || t === stu.sid || t === stu.code;
   });
+}
+
+/* ===== 클리닉 신청 조회 =====
+ *  별도 스프레드시트(CLINIC_SHEET_ID)의 '응답' 탭에서 이 학생(토큰)의 신청을 찾아
+ *  최근 신청 1건과 총 신청 수를 반환. '토큰' 열이 아직 없으면(클리닉 미배포) null.
+ *  같은 제출시각+시간대는 한 '신청'으로 묶고, 요청 줄 수를 센다.
+ */
+function collectClinic_(token) {
+  token = String(token || '').trim();
+  if (!token) return null;
+  var sh;
+  try { sh = SpreadsheetApp.openById(CLINIC_SHEET_ID).getSheetByName(CLINIC_TAB); }
+  catch (e) { return null; }     // 권한·접근 실패 시 조용히 건너뜀(학생 페이지는 정상 동작)
+  if (!sh) return null;
+
+  var v = sh.getDataRange().getValues();
+  if (v.length < 2) return null;
+  var H = v[0];
+  var iTok  = H.indexOf('토큰');
+  if (iTok < 0) return null;     // 클리닉에 토큰 열이 아직 없음 → 표시 안 함
+  var iDate = H.indexOf('제출시각');
+  var iTime = H.indexOf('클리닉시간');
+
+  var apps = {};   // key: 제출시각|시간 → { date, time, count }
+  for (var i = 1; i < v.length; i++) {
+    if (String(v[i][iTok] || '').trim() !== token) continue;
+    var date = String(v[i][iDate] || '').trim();
+    var time = String(v[i][iTime] || '').trim();
+    var k = date + '|' + time;
+    if (!apps[k]) apps[k] = { date: date, time: time, count: 0 };
+    apps[k].count++;
+  }
+  var list = Object.keys(apps).map(function (k) { return apps[k]; });
+  if (!list.length) return null;
+  list.sort(function (a, b) { return a.date < b.date ? 1 : (a.date > b.date ? -1 : 0); });
+
+  return { latest: list[0], total: list.length };
 }
 
 /** 머리글 행에서 label과 일치하는 열 인덱스를 찾고, 없으면 fallback 인덱스를 반환. */
