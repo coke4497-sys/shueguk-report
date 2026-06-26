@@ -41,9 +41,11 @@ var TEACHER_PW = 'sh';   // 티쳐스 페이지에서 어휘 켜기/끄기 할 �
 
 function doGet(e) {
   var p = (e && e.parameter) ? e.parameter : {};
-  // 어휘 테스트 켜짐 상태 조회 (티쳐스 페이지 토글용)
+  // 어휘 테스트 켜짐 상태 + 열린 주차 조회 (티쳐스 페이지 토글·주차 드롭다운용)
   if (p.action === 'vocaStatus') {
-    return json({ result:'success', open: configOpen_(SpreadsheetApp.getActiveSpreadsheet(), '어휘 테스트', true) });
+    var ssv = SpreadsheetApp.getActiveSpreadsheet();
+    var wkv = configVal_(ssv, '어휘 주차', '');
+    return json({ result:'success', open: configOpen_(ssv, '어휘 테스트', true), week: wkv ? parseInt(wkv, 10) : null });
   }
   // 어휘 테스트 켜기/끄기 (비밀번호 필요) — '설정' 탭에 열림/중단 기록
   if (p.action === 'setVoca') {
@@ -51,6 +53,14 @@ function doGet(e) {
     var vopen = (p.open === '1' || p.open === 'true');
     setConfig_(SpreadsheetApp.getActiveSpreadsheet(), '어휘 테스트', vopen ? '열림' : '중단');
     return json({ result:'success', open: vopen });
+  }
+  // 열린 어휘 주차 지정 (비밀번호 필요) — '설정' 탭에 주차 번호 기록
+  if (p.action === 'setVocaWeek') {
+    if (String(p.pw || '') !== TEACHER_PW) return json({ result:'error', message:'unauthorized' });
+    var wset = parseInt(p.w, 10);
+    if (!(wset >= 1)) return json({ result:'error', message:'bad week' });
+    setConfig_(SpreadsheetApp.getActiveSpreadsheet(), '어휘 주차', String(wset));
+    return json({ result:'success', week: wset });
   }
   if (p.list)    { return getList(); }
   if (p.results) { return getResults(String(p.results).trim()); }
@@ -252,6 +262,9 @@ function getStudent(opts) {
   resp.clinic = collectClinic_(key);
   // 어휘 테스트 켜짐/꺼짐 (설정 탭의 '어휘 테스트' 값. 기본 열림)
   resp.vocaOpen = configOpen_(ss, '어휘 테스트', true);
+  // 어휘 주차: 교사가 연 주차(없으면 null → 학생 카드 준비 중)
+  var vwk = configVal_(ss, '어휘 주차', '');
+  resp.vocaWeek = vwk ? parseInt(vwk, 10) : null;
   if (authed) {
     var exams = collectExams_(ss, sid, info.name, siblingShared);
     // 각 시험에 보고서 상세(시험범위·총평·문항)를 붙여 PDF/HTML 리포트와 동일하게 표시
@@ -476,6 +489,17 @@ function collectClinic_(token) {
   list.sort(function (a, b) { return a.date < b.date ? 1 : (a.date > b.date ? -1 : 0); });
 
   return { latest: list[0], total: list.length };
+}
+
+/** '설정' 탭에서 label 항목(A열)의 값(B열) 원문을 반환(없으면 dflt). */
+function configVal_(ss, label, dflt) {
+  var sh = ss.getSheetByName(TAB_CONFIG);
+  if (!sh) return dflt;
+  var v = sh.getDataRange().getValues();
+  for (var i = 0; i < v.length; i++) {
+    if (String(v[i][0] || '').trim() === label) return String(v[i][1] || '').trim();
+  }
+  return dflt;
 }
 
 /** '설정' 탭에서 label 항목(A열)의 값(B열)을 보고 켜짐/꺼짐 판단.
