@@ -35,6 +35,9 @@ var TAB_NOTICE   = '공지';        // 알려드립니다 (A:작성일 | B:대�
 var CLINIC_SHEET_ID = '1q-D_cGhSpVgX5epGKIVy-HH9P26ygj-TeT9yrMaHAO8';
 var CLINIC_TAB      = '응답';     // 제출시각|이름|학교|전화뒤4|클리닉시간|유형|영역|구체내용|질문개수|메모|토큰(신규)
 
+// 설정 탭 — 학생 페이지 기능 켜고/끄기 (A:항목 | B:값). 예: '어휘 테스트' | '중단'
+var TAB_CONFIG = '설정';
+
 function doGet(e) {
   var p = (e && e.parameter) ? e.parameter : {};
   if (p.list)    { return getList(); }
@@ -235,6 +238,8 @@ function getStudent(opts) {
   resp.notices = collectNotices_(ss, info, key);
   // 클리닉 신청: 이 학생(토큰)의 최근 신청 내역(없거나 실패 시 null)
   resp.clinic = collectClinic_(key);
+  // 어휘 테스트 켜짐/꺼짐 (설정 탭의 '어휘 테스트' 값. 기본 열림)
+  resp.vocaOpen = configOpen_(ss, '어휘 테스트', true);
   if (authed) {
     var exams = collectExams_(ss, sid, info.name, siblingShared);
     // 각 시험에 보고서 상세(시험범위·총평·문항)를 붙여 PDF/HTML 리포트와 동일하게 표시
@@ -459,6 +464,22 @@ function collectClinic_(token) {
   list.sort(function (a, b) { return a.date < b.date ? 1 : (a.date > b.date ? -1 : 0); });
 
   return { latest: list[0], total: list.length };
+}
+
+/** '설정' 탭에서 label 항목(A열)의 값(B열)을 보고 켜짐/꺼짐 판단.
+ *  값이 중단·off·n·no·x·0·닫힘·꺼짐이면 false(끄기), 그 외/빈칸/항목없음은 dflt. */
+function configOpen_(ss, label, dflt) {
+  var sh = ss.getSheetByName(TAB_CONFIG);
+  if (!sh) return dflt;
+  var v = sh.getDataRange().getValues();
+  for (var i = 0; i < v.length; i++) {
+    if (String(v[i][0] || '').trim() === label) {
+      var s = String(v[i][1] || '').trim().toLowerCase();
+      if (s === '') return dflt;
+      return !(s === '중단' || s === 'off' || s === 'n' || s === 'no' || s === 'x' || s === '0' || s === '닫힘' || s === '꺼짐');
+    }
+  }
+  return dflt;
 }
 
 /** 머리글 행에서 label과 일치하는 열 인덱스를 찾고, 없으면 fallback 인덱스를 반환. */
