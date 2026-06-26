@@ -375,7 +375,13 @@ function renderHub(){
   // 내 수업 정보 (담당 교사 + 정규/내신 시간표 가로 배치)
   var teacherRow = (info.teacher && String(info.teacher).trim()!=='')
     ? '<div class="info-teacher"><span class="k">담당 교사</span><span class="v">'+esc(info.teacher)+'</span></div>' : '';
-  var reg = schedTable('정규 기간 시간표', [['가 수업', info.classA], ['나 수업', info.classB]]);
+  // 정규 기간: 가·나 둘 다 있으면 '가/나 수업'(고등), 하나만 있으면 '정규 수업'(중등: 주 1회)
+  var hasA = info.classA && String(info.classA).trim()!=='';
+  var hasB = info.classB && String(info.classB).trim()!=='';
+  var regRows = (hasA && hasB)
+    ? [['가 수업', info.classA], ['나 수업', info.classB]]
+    : [['정규 수업', hasA ? info.classA : info.classB]];
+  var reg = schedTable('정규 기간 시간표', regRows);
   var nae = schedTable('내신 기간 시간표', [['진도 수업', info.progress], ['확인 수업', info.checkup]]);
   if(teacherRow || reg || nae){
     $('infoCard').innerHTML = teacherRow + ((reg||nae) ? '<div class="sched-grid">'+reg+nae+'</div>' : '');
