@@ -381,7 +381,7 @@ var FEATURES = [
  *   주차(w): 2026-07-08(수)~07-14(화)가 1주차, 이후 매주 수요일에 +1 (주차: 수~화)
  * 시작일을 바꾸려면 VOCA_WEEK1_START 날짜(1주차 시작 수요일)만 수정하면 됩니다. */
 var VOCA_BASE = 'https://coke4497-sys.github.io/shueguk-voca/test.html';
-var VOCA_WEEK1_START = new Date(2026, 6, 8);   // 2026-07-08(수) = 1주차 시작 (주차: 수~화)
+var VOCA_WEEK1_START = new Date(2026, 5, 24);   // [임시 테스트] 2026-06-24(수) — 확인 후 (2026,6,8)로 되돌릴 것
 
 function vocaGradeCode(gradeStr){
   var s = String(gradeStr||'').replace(/20\d{2}/,'');   // 연도 제거(2026 등)
