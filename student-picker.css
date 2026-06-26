@@ -1,0 +1,53 @@
+/* ============================================================
+   student-picker.css  ·  공용 학생 선택 위젯
+   공지 / H WORK / 클리닉 등 교사용 페이지에서 공통으로 사용.
+   모든 클래스는 .sp- 네임스페이스로 격리되어 페이지 스타일과 충돌하지 않음.
+   ============================================================ */
+.sp-root{ font-family:inherit; color:#2A332F; }
+.sp-tabs{ display:flex; gap:6px; flex-wrap:wrap; margin-bottom:14px; }
+.sp-tab{
+  flex:1; min-width:72px; padding:10px 8px; border:1.5px solid #D7E3DD; background:#fff;
+  border-radius:10px; font:inherit; font-size:14px; font-weight:700; color:#65726B;
+  cursor:pointer; transition:background .15s,border-color .15s,color .15s;
+}
+.sp-tab.on{ background:#3A6B5E; border-color:#3A6B5E; color:#fff; }
+
+.sp-panel{ display:none; }
+.sp-panel.on{ display:block; }
+
+.sp-note{ font-size:13.5px; color:#65726B; background:#EBF0ED; border-radius:10px; padding:12px 14px; line-height:1.65; }
+
+.sp-search{
+  width:100%; padding:11px 13px; border:1.5px solid #D7E3DD; border-radius:10px;
+  font:inherit; font-size:15px; background:#fafbfa; margin-bottom:10px;
+}
+.sp-search:focus{ outline:none; border-color:#3A6B5E; background:#fff; }
+
+.sp-grades{ display:flex; flex-wrap:wrap; gap:8px; }
+.sp-chip{
+  padding:8px 15px; border:1.5px solid #D7E3DD; background:#fff; border-radius:20px;
+  font:inherit; font-size:14px; color:#2A332F; cursor:pointer; transition:background .15s,border-color .15s,color .15s;
+}
+.sp-chip.on{ background:#7fa08f; border-color:#7fa08f; color:#fff; font-weight:700; }
+
+.sp-list{ max-height:300px; overflow-y:auto; border:1.5px solid #E5EDE8; border-radius:10px; background:#fff; }
+.sp-item{ display:flex; align-items:center; gap:10px; padding:10px 13px; border-bottom:1px solid #EEF3F0; cursor:pointer; font-size:14.5px; }
+.sp-item:last-child{ border-bottom:none; }
+.sp-item:hover{ background:#F2F7F4; }
+.sp-item.on{ background:#E1EDE7; }
+.sp-item .sp-box{
+  width:18px; height:18px; border:1.6px solid #B6C7BE; border-radius:5px; flex:none;
+  display:flex; align-items:center; justify-content:center; color:#fff; font-size:12px; line-height:1;
+}
+.sp-item.on .sp-box{ background:#3A6B5E; border-color:#3A6B5E; }
+.sp-radio .sp-box{ border-radius:50%; }
+.sp-name{ font-weight:700; }
+.sp-meta{ color:#8a9690; font-size:12.5px; margin-left:auto; white-space:nowrap; }
+
+.sp-empty,.sp-loading{ padding:24px; text-align:center; color:#8a9690; font-size:13.5px; }
+
+.sp-selbar{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:10px; font-size:13px; color:#65726B; }
+.sp-clear{ border:none; background:none; color:#3A6B5E; font:inherit; font-size:13px; cursor:pointer; text-decoration:underline; padding:0; }
+.sp-summary{ font-size:13.5px; color:#3A6B5E; font-weight:700; margin-top:10px; min-height:1.2em; }
+
+@media (prefers-reduced-motion:reduce){ .sp-tab,.sp-chip{ transition:none; } }

@@ -62,6 +62,13 @@ function doGet(e) {
     setConfig_(SpreadsheetApp.getActiveSpreadsheet(), '어휘 주차', String(wset));
     return json({ result:'success', week: wset });
   }
+  // 학생 명단(roster) — 티쳐스 공지·선택 위젯용. 민감정보(학생ID=비밀번호)는 제외.
+  if (p.action === 'roster')     { return getRoster(); }
+  // 공지 목록(관리용) — 비밀번호 필요
+  if (p.action === 'noticeList') {
+    if (String(p.pw || '') !== TEACHER_PW) return json({ result:'error', message:'unauthorized' });
+    return getNoticeList();
+  }
   if (p.list)    { return getList(); }
   if (p.results) { return getResults(String(p.results).trim()); }
   if (p.key)     { return getStudent({ key: p.key, pw: p.pw }); }     // ?key=토큰[&pw=번호] → 학생 허브
@@ -602,6 +609,11 @@ function doPost(e) {
       return saveTeacherNote(data);
     }
 
+    // (8) 알려드립니다(공지) 입력·관리 (notice.html)
+    if (data && data.action === 'addNotice')     { return addNotice(data); }
+    if (data && data.action === 'setNoticeShow') { return setNoticeShow(data); }
+    if (data && data.action === 'deleteNotice')  { return deleteNotice(data); }
+
     // (2) 학생 제출 수집
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     var sh = ss.getSheetByName(TAB_RESULT);
@@ -650,6 +662,126 @@ function saveTeacherNote(data) {
   } catch (err) {
     return json({ result:'error', message:String(err) });
   }
+}
+
+/* ===== (8) 학생 명단 + 알려드립니다(공지) 입력·관리 ===== notice.html / student-picker.js
+ *  roster      : '학생정보'에서 이름·학교·학년만 반환(학생ID=비밀번호는 절대 노출 안 함). 재원 학생만.
+ *  noticeList  : '공지' 탭 전체(관리용, 최신순). 행번호 포함.
+ *  addNotice   : '공지' 탭에 한 줄 추가  [작성일, 대상유형, 대상, 제목, 내용, 게시]
+ *  setNoticeShow / deleteNotice : 게시(노출/숨김) 토글 · 삭제
+ *  쓰기·관리 작업은 pw === TEACHER_PW 필요.
+ */
+function getRoster() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ss.getSheetByName(TAB_STUDENTS);
+  if (!sh) return json({ result:'error', message:"'" + TAB_STUDENTS + "' 탭이 없습니다." });
+  var v = sh.getDataRange().getValues();
+  // 0학생ID(=비밀번호, 제외) 1이름 2학교 3학년 4담당교사 ... 10재원여부(K)
+  var out = [];
+  for (var i = 1; i < v.length; i++) {
+    var name = String(v[i][1] || '').trim();
+    if (!name) continue;
+    var enrolled = String(v[i][10] || '').trim();   // K: 재원여부
+    if (/^(퇴원|n|no|off|x|중단|비재원)$/i.test(enrolled)) continue;   // 퇴원 등은 제외
+    out.push({
+      name: name,
+      school: String(v[i][2] || '').trim(),
+      grade:  String(v[i][3] || '').trim(),
+      teacher:String(v[i][4] || '').trim()
+    });
+  }
+  return json({ result:'success', students: out });
+}
+
+function ensureNoticeSheet_(ss) {
+  var sh = ss.getSheetByName(TAB_NOTICE);
+  if (!sh) {
+    sh = ss.insertSheet(TAB_NOTICE);
+    sh.appendRow(['작성일','대상유형','대상','제목','내용','게시']);
+    sh.getRange(1,1,1,6).setFontWeight('bold').setBackground('#DDE5E1');
+  }
+  return sh;
+}
+
+function getNoticeList() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ss.getSheetByName(TAB_NOTICE);
+  var notices = [];
+  if (sh) {
+    var v = sh.getDataRange().getValues();
+    var H = v[0] || [];
+    var cDate  = findHeaderCol_(H, '작성일',   0);
+    var cType  = findHeaderCol_(H, '대상유형', 1);
+    var cTarget= findHeaderCol_(H, '대상',     2);
+    var cTitle = findHeaderCol_(H, '제목',     3);
+    var cBody  = findHeaderCol_(H, '내용',     4);
+    var cShow  = findHeaderCol_(H, '게시',     5);
+    for (var i = 1; i < v.length; i++) {
+      var row = v[i];
+      var title  = String(row[cTitle]||'').trim();
+      var body   = String(row[cBody]||'').trim();
+      var target = String(row[cTarget]||'').trim();
+      var type   = String(row[cType]||'').trim();
+      if (!title && !body && !target && !type) continue;   // 빈 줄 건너뛰기
+      var d = row[cDate], dateStr = '';
+      if (d) {
+        try { dateStr = (d instanceof Date) ? Utilities.formatDate(d, Session.getScriptTimeZone(), 'yyyy-MM-dd') : String(d); }
+        catch(e){ dateStr = String(d); }
+      }
+      var show = String(row[cShow]||'').trim();
+      var hidden = /^(n|숨김|off|x)$/i.test(show);
+      notices.push({
+        rowIndex: i + 1, date: dateStr, type: type, target: target,
+        title: title, body: body, hidden: hidden
+      });
+    }
+  }
+  notices.reverse();   // 최신이 위로
+  return json({ result:'success', notices: notices });
+}
+
+function addNotice(data) {
+  if (String(data.pw||'') !== TEACHER_PW) return json({ result:'error', message:'unauthorized' });
+  var type  = String(data.type||'').trim();
+  var title = String(data.title||'').trim();
+  if (!type) return json({ result:'error', message:'대상유형이 없습니다.' });
+  if (!title && !String(data.body||'').trim()) return json({ result:'error', message:'제목 또는 내용을 입력하세요.' });
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ensureNoticeSheet_(ss);
+  var show = (data.hidden===true || data.hidden==='1') ? 'N' : '노출';
+  sh.appendRow([ new Date(), type, String(data.target||'').trim(), title, String(data.body||''), show ]);
+  return json({ result:'success' });
+}
+
+function setNoticeShow(data) {
+  if (String(data.pw||'') !== TEACHER_PW) return json({ result:'error', message:'unauthorized' });
+  var rowIndex = parseInt(data.rowIndex, 10);
+  if (!rowIndex || rowIndex < 2) return json({ result:'error', message:'잘못된 행입니다.' });
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ss.getSheetByName(TAB_NOTICE);
+  if (!sh || rowIndex > sh.getLastRow()) return json({ result:'error', message:'존재하지 않는 행입니다.' });
+  var H = sh.getRange(1,1,1,sh.getLastColumn()).getValues()[0];
+  var cShow = findHeaderCol_(H, '게시', 5);
+  sh.getRange(rowIndex, cShow + 1).setValue((data.hidden===true || data.hidden==='1') ? 'N' : '노출');
+  return json({ result:'success' });
+}
+
+function deleteNotice(data) {
+  if (String(data.pw||'') !== TEACHER_PW) return json({ result:'error', message:'unauthorized' });
+  var rowIndex = parseInt(data.rowIndex, 10);
+  if (!rowIndex || rowIndex < 2) return json({ result:'error', message:'잘못된 행입니다.' });
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ss.getSheetByName(TAB_NOTICE);
+  if (!sh || rowIndex > sh.getLastRow()) return json({ result:'error', message:'존재하지 않는 행입니다.' });
+  // 안전 검증: 제목이 일치할 때만 삭제(목록 로드 후 행 변동 방지)
+  if (data.title) {
+    var H = sh.getRange(1,1,1,sh.getLastColumn()).getValues()[0];
+    var cTitle = findHeaderCol_(H, '제목', 3);
+    var cur = String(sh.getRange(rowIndex, cTitle + 1).getValue()).trim();
+    if (cur !== String(data.title).trim()) return json({ result:'error', message:'목록이 변경되었습니다. 새로고침 후 다시 시도하세요.' });
+  }
+  sh.deleteRow(rowIndex);
+  return json({ result:'success' });
 }
 
 /* ===== (5) 시험 등록 =====
