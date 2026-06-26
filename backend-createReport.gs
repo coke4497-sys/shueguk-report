@@ -492,12 +492,16 @@ function assignAccessCodes() {
 
   var rng = sh.getRange(2, codeCol + 1, last - 1, 1);
   var vals = rng.getValues();
+  // 학생ID(A)·이름(B)을 함께 읽어, 둘 다 비어 있는 '구분용 빈 행'은 코드 생성에서 제외
+  var idName = sh.getRange(2, 1, last - 1, 2).getValues();
   var used = {};
   for (var i = 0; i < vals.length; i++) { var c = String(vals[i][0] || '').trim(); if (c) used[c] = true; }
 
   var made = 0;
   for (var r = 0; r < vals.length; r++) {
-    if (String(vals[r][0] || '').trim() !== '') continue;   // 이미 있으면 건너뜀
+    if (String(vals[r][0] || '').trim() !== '') continue;   // 이미 코드가 있으면 건너뜀
+    var hasStudent = String(idName[r][0] || '').trim() !== '' || String(idName[r][1] || '').trim() !== '';
+    if (!hasStudent) continue;                               // 이름·ID 둘 다 없는 빈 행은 건너뜀
     var code;
     do { code = genAccessCode_(); } while (used[code]);
     used[code] = true;
