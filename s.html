@@ -210,6 +210,44 @@
   .mr-chart .b span{font-size:10px;color:var(--ink-soft);margin-bottom:3px;}
   .mr-clabels{display:flex;gap:5px;margin:7px 20px 18px;padding:0 2px;}
   .mr-clabels span{flex:1;text-align:center;font-size:10px;color:var(--ink);word-break:keep-all;line-height:1.2;}
+
+  /* 모의고사 성적표 (OMR 스타일 · 정오표 포함) */
+  .omr-report{ --shadow:0 2px 10px rgba(63,58,68,.06);
+    background:#f7f6f3; border:1px solid var(--line-soft); border-radius:var(--radius); overflow:hidden; margin-bottom:16px;
+    font-family:"Gowun Dodum",sans-serif; color:#3f3a44; }
+  .omr-report .rbrand{ background:linear-gradient(135deg,#d8cfe6 0%,#c4d4cc 100%); padding:18px 20px;
+    display:flex; align-items:center; justify-content:space-between; }
+  .omr-report .rname{ font-family:"Gowun Batang",serif; font-weight:700; font-size:21px; letter-spacing:2px; color:#473f55; }
+  .omr-report .rsub{ font-family:"Gowun Batang",serif; font-size:12px; color:#5d5568; letter-spacing:2px; margin-top:3px; }
+  .omr-report .rlogo{ width:48px;height:48px;border-radius:50%;background:rgba(255,255,255,.55);
+    display:flex;align-items:center;justify-content:center;font-family:"Gowun Batang",serif;font-size:10px;color:#6b6280; }
+  .omr-report .tbar{ background:#e8e3f0; margin:14px; padding:10px 16px; border-radius:10px;
+    font-family:"Gowun Batang",serif; font-size:14px; font-weight:700; color:#4a4356; text-align:center; }
+  .omr-report section{ margin:14px; }
+  .omr-report h2{ font-family:"Gowun Batang",serif; font-size:15px; margin:0 0 10px; display:flex; align-items:center; gap:8px; }
+  .omr-report h2::before{ content:""; width:9px;height:9px;border-radius:2px;background:#b8b0cc; }
+  .omr-report table{ width:100%; border-collapse:collapse; background:#fff; border-radius:10px; overflow:hidden; box-shadow:var(--shadow); }
+  .omr-report th,.omr-report td{ padding:10px 7px; text-align:center; font-size:13.5px; }
+  .omr-report .info th{ background:#cdd9e0; color:#3c4a52; font-weight:700; }
+  .omr-report .info td{ background:#efeef1; }
+  .omr-report .score th{ background:#cdd9e0; color:#3c4a52; }
+  .omr-report .score td{ background:#efeef1; font-size:15px; }
+  .omr-report .score .big{ font-family:"Gowun Batang",serif; font-size:22px; font-weight:700; color:#8d83a8; }
+  .omr-report table.areatbl th{ background:#dcd5e6; color:#473f55; font-size:13px; padding:9px 6px; }
+  .omr-report table.areatbl td{ padding:9px 6px; font-size:13px; border-bottom:1px solid #e4e0e8; white-space:nowrap; }
+  .omr-report table.areatbl td.areaname{ text-align:left; padding-left:14px; }
+  .omr-report table.areatbl .cat{ color:#8a8590; font-size:12px; font-weight:700; }
+  .omr-report table.areatbl .hit{ color:#8d83a8; font-weight:700; }
+  .omr-report table.areatbl tr.total td{ background:#efeef1; font-weight:700; }
+  .omr-report .chart{ background:#fff; border-radius:10px; box-shadow:var(--shadow); padding:14px 10px 8px; margin-top:14px; }
+  .omr-report .grid-wrap{ overflow-x:auto; background:#fff; border-radius:10px; box-shadow:var(--shadow); padding:4px; }
+  .omr-report table.scoretbl{ min-width:480px; }
+  .omr-report table.scoretbl th,.omr-report table.scoretbl td{ padding:7px 5px; font-size:12.5px; border:1px solid #eee; }
+  .omr-report .rowlabel{ background:#dcd5e6; color:#473f55; font-weight:700; white-space:nowrap; font-size:12px; }
+  .omr-report .qn{ background:#e8e3f0; font-weight:700; color:#4a4356; }
+  .omr-report td.o{ color:#1b8a3a; font-weight:700; }
+  .omr-report td.x{ color:#d0473f; font-weight:700; background:#fcebea; }
+  .omr-report .legend{ font-size:12px; color:#8a8590; margin-top:8px; text-align:right; }
 </style>
 </head>
 <body>
@@ -669,26 +707,50 @@ function renderMock(){
   hide('hubView'); $('gradeView').style.display='none'; $('mockView').style.display='block'; window.scrollTo(0,0);
 }
 function mockCardHtml(x){
-  var info=STATE.info||{}; var areas=x.areas||[];
+  var info=STATE.info||{};
+  var name=x.name||info.name||'';
+  var areas=x.areas||[]; var detail=x.detail||{};
+  // 3. 영역분류별 성취도
   var catCount={}; areas.forEach(function(a){ catCount[a.cat]=(catCount[a.cat]||0)+1; });
-  var seen={}, rows='';
+  var seen={}, areaRows='';
   areas.forEach(function(a){ var first=!seen[a.cat]; seen[a.cat]=true;
-    rows+='<tr>'+(first?'<td rowspan="'+catCount[a.cat]+'">'+esc(a.cat)+'</td>':'')+
-      '<td class="an">'+esc(a.name)+'</td><td>'+esc(a.full)+'</td><td class="hit">'+esc(a.score)+'</td><td>'+esc(a.rate)+'%</td></tr>'; });
-  var bars=areas.map(function(a){ var h=Math.max(Math.round((Number(a.rate)||0)/100*120),3);
-    return '<div class="b"><span>'+esc(a.rate)+'%</span><i style="height:'+h+'px"></i></div>'; }).join('');
-  var labels=areas.map(function(a){ return '<span>'+esc(a.name)+'</span>'; }).join('');
+    areaRows+='<tr>'+(first?'<td class="cat" rowspan="'+catCount[a.cat]+'">'+esc(a.cat)+'</td>':'')+
+      '<td class="areaname">'+esc(a.name)+'</td><td>'+esc(a.full)+'</td><td class="hit">'+esc(a.score)+'</td><td>'+esc(a.rate)+'</td></tr>'; });
+  var total=x.total||areas.reduce(function(s2,a){return s2+(Number(a.full)||0);},0);
+  var got=x.got; var totalRate=total?Math.round(got/total*100):0;
+  var PLOT=130;
+  var bars=areas.map(function(a){ return '<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;">'+
+    '<div style="font-size:11px;color:#8a8590;margin-bottom:3px;">'+esc(a.rate)+'</div>'+
+    '<div style="width:58%;height:'+((Number(a.rate)||0)/100*PLOT)+'px;background:#9b8fb5;border-radius:3px 3px 0 0;"></div></div>'; }).join('');
+  var labels=areas.map(function(a){ return '<div style="flex:1;text-align:center;font-size:10.5px;color:#3f3a44;line-height:1.2;word-break:keep-all;padding:0 2px;">'+esc(a.name)+'</div>'; }).join('');
+  var chart='<div style="display:flex;align-items:flex-end;gap:4px;height:'+(PLOT+20)+'px;border-bottom:1.5px solid #e4e0e8;padding:0 6px;">'+bars+'</div>'+
+    '<div style="display:flex;gap:4px;padding:7px 6px 0;">'+labels+'</div>';
+  function block(s2,e2){
+    var qn='<tr><td class="rowlabel">문항</td>',an='<tr><td class="rowlabel">정답</td>',
+        my='<tr><td class="rowlabel">학생답안</td>',ox='<tr><td class="rowlabel">정오</td>';
+    for(var q=s2;q<=e2;q++){ var d=detail[q]||{};
+      qn+='<td class="qn">'+q+'</td>'; an+='<td>'+esc(d.ans)+'</td>';
+      my+='<td class="'+(d.ok?'':'x')+'">'+esc(d.mine)+'</td>';
+      ox+='<td class="'+(d.ok?'o':'x')+'">'+(d.ok?esc(d.pt):0)+'</td>'; }
+    return '<table class="scoretbl">'+qn+'</tr>'+an+'</tr>'+my+'</tr>'+ox+'</tr></table>';
+  }
   var cuts=(x.cuts&&x.cuts.length)?x.cuts.join('-'):'';
-  var meta=esc(info.name||'')+' · '+esc(x.school||info.school||'')+' '+esc(x.grade||info.grade||'')+' · '+esc(x.subject||'')+(x.examDate?' · '+esc(x.examDate):'');
-  return '<div class="mock-report">'+
-    '<div class="mr-hd">'+esc(x.examName||'주말 모의고사')+'</div>'+
-    '<div class="mr-meta">'+meta+'</div>'+
-    '<div class="mr-score"><div class="big">'+esc(x.got)+'점</div><div class="g">'+esc(x.level)+'등급</div>'+
-      (cuts?'<div class="cut">등급컷 '+esc(cuts)+'</div>':'')+'</div>'+
-    '<p class="mr-sec">영역별 성취도</p>'+
-    '<table class="mr-areas"><tr><th>분류</th><th>영역</th><th>배점</th><th>득점</th><th>성취도</th></tr>'+rows+'</table>'+
-    '<p class="mr-sec">성취도 그래프</p>'+
-    '<div class="mr-chart">'+bars+'</div><div class="mr-clabels">'+labels+'</div>'+
+  return '<div class="omr-report">'+
+    '<div class="rbrand"><div><div class="rname">이수경국어</div><div class="rsub">Shueguk</div></div><div class="rlogo">Shueguk</div></div>'+
+    '<div class="tbar">2026 주간 모의고사 성적표 · '+esc(x.code||x.examName||'')+'</div>'+
+    '<section><h2>1. 학생정보</h2>'+
+      '<table class="info"><tr><th>성명</th><th>학교</th><th>학년</th><th>선택과목</th><th>응시일</th></tr>'+
+      '<tr><td>'+esc(name)+'</td><td>'+esc(x.school)+'</td><td>'+esc(x.grade)+'</td><td>'+esc(x.subject)+'</td><td>'+esc(x.examDate)+'</td></tr></table></section>'+
+    '<section><h2>2. 성적</h2>'+
+      '<table class="score"><tr><th>점수(100점 만점)</th><th>등급</th><th>등급컷</th></tr>'+
+      '<tr><td class="big">'+esc(got)+'</td><td class="big">'+esc(x.level)+'</td><td>'+esc(cuts)+'</td></tr></table></section>'+
+    '<section><h2>3. 영역분류별 성취도 분석</h2>'+
+      '<table class="areatbl"><tr><th>분류</th><th>영역</th><th>배점</th><th>득점</th><th>성취도(%)</th></tr>'+
+      areaRows+'<tr class="total"><td colspan="2">합계</td><td>'+esc(total)+'</td><td>'+esc(got)+'</td><td>'+totalRate+'</td></tr></table>'+
+      '<div class="chart">'+chart+'</div></section>'+
+    '<section><h2>4. 문항 채점표</h2>'+
+      '<div class="grid-wrap">'+block(1,15)+block(16,30)+block(31,45)+'</div>'+
+      '<div class="legend">정오 칸의 숫자 = 획득 배점 · 0 = 오답</div></section>'+
     '</div>';
 }
 
