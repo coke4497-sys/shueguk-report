@@ -37,9 +37,21 @@ var CLINIC_TAB      = '응답';     // 제출시각|이름|학교|전화뒤4|클
 
 // 설정 탭 — 학생 페이지 기능 켜고/끄기 (A:항목 | B:값). 예: '어휘 테스트' | '중단'
 var TAB_CONFIG = '설정';
+var TEACHER_PW = 'sh';   // 티쳐스 페이지에서 어휘 켜기/끄기 할 때 쓰는 비밀번호 (원하면 변경)
 
 function doGet(e) {
   var p = (e && e.parameter) ? e.parameter : {};
+  // 어휘 테스트 켜짐 상태 조회 (티쳐스 페이지 토글용)
+  if (p.action === 'vocaStatus') {
+    return json({ result:'success', open: configOpen_(SpreadsheetApp.getActiveSpreadsheet(), '어휘 테스트', true) });
+  }
+  // 어휘 테스트 켜기/끄기 (비밀번호 필요) — '설정' 탭에 열림/중단 기록
+  if (p.action === 'setVoca') {
+    if (String(p.pw || '') !== TEACHER_PW) return json({ result:'error', message:'unauthorized' });
+    var vopen = (p.open === '1' || p.open === 'true');
+    setConfig_(SpreadsheetApp.getActiveSpreadsheet(), '어휘 테스트', vopen ? '열림' : '중단');
+    return json({ result:'success', open: vopen });
+  }
   if (p.list)    { return getList(); }
   if (p.results) { return getResults(String(p.results).trim()); }
   if (p.key)     { return getStudent({ key: p.key, pw: p.pw }); }     // ?key=토큰[&pw=번호] → 학생 허브
@@ -480,6 +492,17 @@ function configOpen_(ss, label, dflt) {
     }
   }
   return dflt;
+}
+
+/** '설정' 탭에 label(A열) 항목의 값(B열)을 기록(없으면 행 추가). */
+function setConfig_(ss, label, value) {
+  var sh = ss.getSheetByName(TAB_CONFIG);
+  if (!sh) { sh = ss.insertSheet(TAB_CONFIG); sh.appendRow(['항목', '값']); sh.getRange(1,1,1,2).setFontWeight('bold'); }
+  var v = sh.getDataRange().getValues();
+  for (var i = 1; i < v.length; i++) {
+    if (String(v[i][0] || '').trim() === label) { sh.getRange(i+1, 2).setValue(value); return; }
+  }
+  sh.appendRow([label, value]);
 }
 
 /** 머리글 행에서 label과 일치하는 열 인덱스를 찾고, 없으면 fallback 인덱스를 반환. */
