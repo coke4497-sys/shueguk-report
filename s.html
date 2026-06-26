@@ -378,10 +378,10 @@ var FEATURES = [
 /* ── 어휘 테스트(주차별) 연결 설정 ───────────────────────────
  * 학생 응시 링크 형식: VOCA_BASE?g=<학년코드>&w=<주차>
  *   학년코드: 고1~3 → h1·h2·h3, 중1~3 → m1·m2·m3
- *   주차(w): 2026-07-08(수) 주가 1주차, 이후 매주 월요일에 +1
- * 시작 요일을 바꾸려면 VOCA_WEEK1_START 날짜(그 주의 월요일)만 수정하면 됩니다. */
+ *   주차(w): 2026-07-08(수)~07-14(화)가 1주차, 이후 매주 수요일에 +1 (주차: 수~화)
+ * 시작일을 바꾸려면 VOCA_WEEK1_START 날짜(1주차 시작 수요일)만 수정하면 됩니다. */
 var VOCA_BASE = 'https://coke4497-sys.github.io/shueguk-voca/test.html';
-var VOCA_WEEK1_START = new Date(2026, 6, 6);   // 2026-07-06(월) = 1주차 시작 주(7/8 포함)
+var VOCA_WEEK1_START = new Date(2026, 6, 8);   // 2026-07-08(수) = 1주차 시작 (주차: 수~화)
 
 function vocaGradeCode(gradeStr){
   var s = String(gradeStr||'').replace(/20\d{2}/,'');   // 연도 제거(2026 등)
