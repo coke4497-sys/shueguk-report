@@ -9,6 +9,12 @@
 <link href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=Gowun+Dodum&family=Sacramento&family=Noto+Sans+KR:wght@400;500;700&family=Noto+Serif+KR:wght@400;500&display=swap" rel="stylesheet" />
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='48' fill='%23DCE9E4'/%3E%3C/svg%3E" />
 <meta name="theme-color" content="#E4EFEA" />
+<!-- 홈 화면 앱 아이콘(각 학생 링크를 앱처럼 저장) -->
+<link rel="apple-touch-icon" href="icon-180.png" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="default" />
+<meta name="apple-mobile-web-app-title" content="슈국 리포트" />
 <style>
   :root{
     --bg:#E4EFEA; --surface:#FFFFFF;
@@ -404,6 +410,9 @@ function renderHub(){
   $('s_name').innerHTML = '<span class="nm">'+esc(info.name||'학생')+'</span>' +
     (info.grade && String(info.grade).trim()!=='' ? ' <span class="gr">'+esc(info.grade)+'</span>' : '');
   document.title = (info.name||'학생') + ' · 슈국';
+  // 홈 화면 저장 시 아이콘 이름을 학생 이름으로
+  var wt = document.querySelector('meta[name="apple-mobile-web-app-title"]');
+  if(wt){ wt.setAttribute('content', (info.name||'슈국') + ' 리포트'); }
   if(info.enrolled && String(info.enrolled).trim()!==''){
     var b=$('s_badge');
     b.textContent = (String(info.enrolled).trim()==='재원' ? '재원생' : info.enrolled);
