@@ -1,0 +1,221 @@
+/* ============================================================
+   student-picker.js  ·  공용 학생 선택 위젯  (의존성 없음)
+   ------------------------------------------------------------
+   '학생정보'(지필고사 리포트 시트)에서 재원 학생 명단을 불러와
+   대상유형(전 학년 / 학년 / 개인 / 일부)을 선택하는 UI를 그려준다.
+   공지(notice.html)뿐 아니라 H WORK · 클리닉 등에서 재사용한다.
+
+   사용법:
+     <link rel="stylesheet" href="student-picker.css">
+     <div id="picker"></div>
+     <script src="student-picker.js"></script>
+     <script>
+       var picker = StudentPicker.create(document.getElementById('picker'), {
+         onChange: function(sel){ ... }   // 선택 바뀔 때마다 호출(없으면 생략)
+       });
+       // 제출 시:
+       var sel = picker.getSelection();
+       //  → null(미완성) 또는
+       //    { type:'전체'|'학년'|'개인'|'일부', target:'고1, 고2'|'박보검'|..., count:N, summary:'...' }
+     </script>
+
+   옵션: { endpoint, onChange, onReady, allowAll(기본 true) }
+     - type/target 값은 시트 '공지' 탭의 B대상유형 · C대상에 그대로 들어가는 형식.
+   ============================================================ */
+(function(){
+  var DEFAULT_ENDPOINT =
+    "https://script.google.com/macros/s/AKfycbzhCncBwn-JlqXARC3wfrWUCuNHzlNK2df0bdhx-w78Xr8mzYUcIYZOJdRi9N4bHtsb/exec";
+
+  var MODES = [
+    { key:'전체', label:'전 학년' },
+    { key:'학년', label:'학년' },
+    { key:'개인', label:'개인' },
+    { key:'일부', label:'일부' }
+  ];
+
+  function esc(s){
+    return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  function create(container, opts){
+    opts = opts || {};
+    var endpoint = opts.endpoint || DEFAULT_ENDPOINT;
+    var allowAll = opts.allowAll !== false;
+    var onChange = typeof opts.onChange === 'function' ? opts.onChange : function(){};
+
+    var students = [];            // [{name, school, grade, teacher}]
+    var grades   = [];            // 정렬된 학년 목록
+    var mode     = allowAll ? '전체' : '학년';
+    var gradeSel = {};            // 학년 모드: { '고1':true }
+    var one      = null;          // 개인 모드: 이름 한 명
+    var many     = {};            // 일부 모드: { '박보검':true }
+
+    // ── 스켈레톤 ──
+    var root = document.createElement('div');
+    root.className = 'sp-root';
+    var visibleModes = MODES.filter(function(m){ return allowAll || m.key !== '전체'; });
+    root.innerHTML =
+      '<div class="sp-tabs">' +
+        visibleModes.map(function(m){
+          return '<button type="button" class="sp-tab' + (m.key===mode?' on':'') + '" data-mode="'+m.key+'">'+esc(m.label)+'</button>';
+        }).join('') +
+      '</div>' +
+      '<div class="sp-body"><div class="sp-loading">학생 명단을 불러오는 중…</div></div>' +
+      '<div class="sp-summary" aria-live="polite"></div>';
+    container.innerHTML = '';
+    container.appendChild(root);
+
+    var tabsEl = root.querySelector('.sp-tabs');
+    var bodyEl = root.querySelector('.sp-body');
+    var sumEl  = root.querySelector('.sp-summary');
+
+    tabsEl.addEventListener('click', function(e){
+      var b = e.target.closest('.sp-tab'); if(!b) return;
+      mode = b.getAttribute('data-mode');
+      tabsEl.querySelectorAll('.sp-tab').forEach(function(t){ t.classList.toggle('on', t===b); });
+      renderBody();
+      fire();
+    });
+
+    function gradeCount(g){
+      var n = 0; for (var i=0;i<students.length;i++) if (students[i].grade===g) n++; return n;
+    }
+
+    // ── 본문 렌더 ──
+    function renderBody(){
+      if (mode === '전체'){
+        bodyEl.innerHTML = '<div class="sp-note"><b>전 학년 공지</b> — 모든 재원 학생('+students.length+'명)의 개별 페이지에 표시됩니다.</div>';
+        return;
+      }
+      if (mode === '학년'){
+        if (!grades.length){ bodyEl.innerHTML = '<div class="sp-empty">학년 정보가 없습니다.</div>'; return; }
+        bodyEl.innerHTML = '<div class="sp-grades">' +
+          grades.map(function(g){
+            return '<button type="button" class="sp-chip'+(gradeSel[g]?' on':'')+'" data-grade="'+esc(g)+'">'+esc(g)+' <span style="opacity:.7">'+gradeCount(g)+'</span></button>';
+          }).join('') + '</div>';
+        bodyEl.querySelector('.sp-grades').addEventListener('click', function(e){
+          var c = e.target.closest('.sp-chip'); if(!c) return;
+          var g = c.getAttribute('data-grade');
+          if (gradeSel[g]) delete gradeSel[g]; else gradeSel[g] = true;
+          c.classList.toggle('on');
+          fire();
+        });
+        return;
+      }
+      // 개인 / 일부 — 검색 + 목록
+      var multi = (mode === '일부');
+      bodyEl.innerHTML =
+        '<input type="text" class="sp-search" placeholder="이름·학교 검색">' +
+        '<div class="sp-list"></div>' +
+        (multi ? '<div class="sp-selbar"><span class="sp-count"></span><button type="button" class="sp-clear">전체 해제</button></div>' : '');
+      var searchEl = bodyEl.querySelector('.sp-search');
+      var listEl   = bodyEl.querySelector('.sp-list');
+      searchEl.addEventListener('input', function(){ renderList(listEl, searchEl.value, multi); });
+      if (multi){
+        bodyEl.querySelector('.sp-clear').addEventListener('click', function(){
+          many = {}; renderList(listEl, searchEl.value, true); updateCount(); fire();
+        });
+      }
+      renderList(listEl, '', multi);
+    }
+
+    function renderList(listEl, q, multi){
+      q = (q||'').trim();
+      var rows = students.filter(function(s){
+        if (!q) return true;
+        return (s.name && s.name.indexOf(q)>=0) || (s.school && s.school.indexOf(q)>=0);
+      });
+      if (!rows.length){ listEl.innerHTML = '<div class="sp-empty">검색 결과가 없어요.</div>'; return; }
+      listEl.innerHTML = rows.map(function(s){
+        var sel = multi ? !!many[s.name] : (one===s.name);
+        var meta = [s.school, s.grade].filter(Boolean).join(' · ');
+        return '<div class="sp-item'+(multi?'':' sp-radio')+(sel?' on':'')+'" data-name="'+esc(s.name)+'">' +
+                 '<span class="sp-box">'+(sel?'✓':'')+'</span>' +
+                 '<span class="sp-name">'+esc(s.name)+'</span>' +
+                 '<span class="sp-meta">'+esc(meta)+'</span>' +
+               '</div>';
+      }).join('');
+      listEl.onclick = function(e){
+        var it = e.target.closest('.sp-item'); if(!it) return;
+        var name = it.getAttribute('data-name');
+        if (multi){
+          if (many[name]) delete many[name]; else many[name] = true;
+          updateCount();
+        } else {
+          one = (one===name) ? null : name;
+        }
+        renderList(listEl, q, multi);
+        fire();
+      };
+      if (multi) updateCount();
+    }
+
+    function updateCount(){
+      var c = bodyEl.querySelector('.sp-count');
+      if (c) c.textContent = '선택 ' + Object.keys(many).length + '명';
+    }
+
+    // ── 선택값 ──
+    function getSelection(){
+      if (mode === '전체'){
+        return { type:'전체', target:'', count:students.length, summary:'전 학년 — 모든 재원 학생('+students.length+'명)' };
+      }
+      if (mode === '학년'){
+        var gs = grades.filter(function(g){ return gradeSel[g]; });
+        if (!gs.length) return null;
+        var n = students.filter(function(s){ return gradeSel[s.grade]; }).length;
+        return { type:'학년', target:gs.join(', '), count:n, summary:gs.join(', ')+' — '+n+'명' };
+      }
+      if (mode === '개인'){
+        if (!one) return null;
+        return { type:'개인', target:one, count:1, summary:'개인 — '+one };
+      }
+      if (mode === '일부'){
+        var names = Object.keys(many);
+        if (!names.length) return null;
+        return { type:'일부', target:names.join(', '), count:names.length, summary:'일부 — '+names.length+'명 ('+names.join(', ')+')' };
+      }
+      return null;
+    }
+
+    function fire(){
+      var sel = getSelection();
+      sumEl.textContent = sel ? ('✓ ' + sel.summary) : '대상을 선택해 주세요.';
+      onChange(sel);
+    }
+
+    function reset(){
+      gradeSel = {}; one = null; many = {};
+      mode = allowAll ? '전체' : '학년';
+      tabsEl.querySelectorAll('.sp-tab').forEach(function(t){ t.classList.toggle('on', t.getAttribute('data-mode')===mode); });
+      renderBody(); fire();
+    }
+
+    function load(){
+      bodyEl.innerHTML = '<div class="sp-loading">학생 명단을 불러오는 중…</div>';
+      fetch(endpoint + '?action=roster&t=' + Date.now())
+        .then(function(r){ return r.json(); })
+        .then(function(d){
+          if (!d || d.result !== 'success' || !Array.isArray(d.students)){
+            bodyEl.innerHTML = '<div class="sp-empty">명단을 불러오지 못했어요.'+(d&&d.message?'<br>'+esc(d.message):'')+'</div>';
+            return;
+          }
+          students = d.students;
+          // 학년 목록(중복 제거 + 정렬)
+          var seen = {};
+          students.forEach(function(s){ if (s.grade) seen[s.grade] = true; });
+          grades = Object.keys(seen).sort(function(a,b){ return a.localeCompare(b, 'ko'); });
+          renderBody(); fire();
+          if (typeof opts.onReady === 'function') opts.onReady(students);
+        })
+        .catch(function(){
+          bodyEl.innerHTML = '<div class="sp-empty">명단을 불러오지 못했어요. 인터넷 연결을 확인해 주세요.</div>';
+        });
+    }
+
+    load();
+    return { getSelection:getSelection, reset:reset, reload:load, get students(){ return students; } };
+  }
+
+  window.StudentPicker = { create:create };
+})();
