@@ -49,6 +49,8 @@
     var gradeSel = {};            // 학년 모드: { '고1':true }
     var one      = null;          // 개인 모드: 이름 한 명
     var many     = {};            // 일부 모드: { '박보검':true }
+    var fGrade   = '';            // 개인/일부 목록 필터: 학년
+    var fSchool  = '';            // 개인/일부 목록 필터: 학교
 
     // ── 스켈레톤 ──
     var root = document.createElement('div');
@@ -102,29 +104,57 @@
         });
         return;
       }
-      // 개인 / 일부 — 검색 + 목록
+      // 개인 / 일부 — 학년·학교 필터 + 검색 + 목록
       var multi = (mode === '일부');
+      fGrade = ''; fSchool = '';
+      var gradeOpts = '<option value="">전체 학년</option>' + grades.map(function(g){ return '<option value="'+esc(g)+'">'+esc(g)+'</option>'; }).join('');
       bodyEl.innerHTML =
-        '<input type="text" class="sp-search" placeholder="이름·학교 검색">' +
+        '<div class="sp-filters">' +
+          '<select class="sp-fgrade">'+gradeOpts+'</select>' +
+          '<select class="sp-fschool"><option value="">전체 학교</option></select>' +
+        '</div>' +
+        (multi ? '<div class="sp-hint2">학년·학교로 거른 뒤 <b>‘보이는 학생 모두 선택’</b>을 누르면 특정 학년·학교만 한 번에 담을 수 있어요.</div>' : '') +
+        '<input type="text" class="sp-search" placeholder="이름 검색">' +
         '<div class="sp-list"></div>' +
-        (multi ? '<div class="sp-selbar"><span class="sp-count"></span><button type="button" class="sp-clear">전체 해제</button></div>' : '');
+        (multi ? '<div class="sp-selbar"><span class="sp-count"></span><span class="sp-actions2"><button type="button" class="sp-all">보이는 학생 모두 선택</button><button type="button" class="sp-clear">전체 해제</button></span></div>' : '');
       var searchEl = bodyEl.querySelector('.sp-search');
       var listEl   = bodyEl.querySelector('.sp-list');
+      var fgEl     = bodyEl.querySelector('.sp-fgrade');
+      var fsEl     = bodyEl.querySelector('.sp-fschool');
+      function rebuildSchools(){
+        var seen = {}, schools = [];
+        students.forEach(function(s){ if ((!fGrade || s.grade===fGrade) && s.school && !seen[s.school]){ seen[s.school]=1; schools.push(s.school); } });
+        schools.sort(function(a,b){ return a.localeCompare(b, 'ko'); });
+        fsEl.innerHTML = '<option value="">전체 학교</option>' + schools.map(function(s){ return '<option value="'+esc(s)+'">'+esc(s)+'</option>'; }).join('');
+      }
+      rebuildSchools();
+      fgEl.addEventListener('change', function(){ fGrade=fgEl.value; fSchool=''; rebuildSchools(); renderList(listEl, searchEl.value, multi); });
+      fsEl.addEventListener('change', function(){ fSchool=fsEl.value; renderList(listEl, searchEl.value, multi); });
       searchEl.addEventListener('input', function(){ renderList(listEl, searchEl.value, multi); });
       if (multi){
         bodyEl.querySelector('.sp-clear').addEventListener('click', function(){
           many = {}; renderList(listEl, searchEl.value, true); updateCount(); fire();
         });
+        bodyEl.querySelector('.sp-all').addEventListener('click', function(){
+          filteredRows(searchEl.value).forEach(function(s){ many[s.name] = true; });
+          renderList(listEl, searchEl.value, true); updateCount(); fire();
+        });
       }
       renderList(listEl, '', multi);
     }
 
+    function filteredRows(q){
+      q = (q||'').trim();
+      return students.filter(function(s){
+        if (fGrade  && s.grade  !== fGrade)  return false;
+        if (fSchool && s.school !== fSchool) return false;
+        if (q && !((s.name && s.name.indexOf(q)>=0) || (s.school && s.school.indexOf(q)>=0))) return false;
+        return true;
+      });
+    }
     function renderList(listEl, q, multi){
       q = (q||'').trim();
-      var rows = students.filter(function(s){
-        if (!q) return true;
-        return (s.name && s.name.indexOf(q)>=0) || (s.school && s.school.indexOf(q)>=0);
-      });
+      var rows = filteredRows(q);
       if (!rows.length){ listEl.innerHTML = '<div class="sp-empty">검색 결과가 없어요.</div>'; return; }
       listEl.innerHTML = rows.map(function(s){
         var sel = multi ? !!many[s.name] : (one===s.name);
