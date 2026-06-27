@@ -30,6 +30,7 @@ var TAB_ITEMS    = '문항';
 var TAB_RESULT   = '제출결과';
 var TAB_STUDENTS = '학생정보';   // 학생 명단 (A:학생ID=부모님번호8자리 | B:이름 | C:학교 | D:학년 | E:담당교사 | F:메모 | G~J:시간표 | K:재원여부)
 var TAB_NOTICE   = '공지';        // 알려드립니다 (A:작성일 | B:대상유형(전체/학년/개인/일부) | C:대상 | D:제목 | E:내용 | F:게시)
+var TAB_ASSIGN   = '배정';        // 도구별 배정 (A:작성일 | B:도구 | C:항목 | D:대상유형 | E:대상 | F:마감 | G:비고) — H WORK·클리닉·주말 공용
 
 // 클리닉 신청(별도 스프레드시트) — 학생 페이지에 '내 클리닉 신청'을 토큰으로 조회해 표시
 var CLINIC_SHEET_ID = '1q-D_cGhSpVgX5epGKIVy-HH9P26ygj-TeT9yrMaHAO8';
@@ -68,6 +69,11 @@ function doGet(e) {
   if (p.action === 'noticeList') {
     if (String(p.pw || '') !== TEACHER_PW) return json({ result:'error', message:'unauthorized' });
     return getNoticeList();
+  }
+  // 배정 목록(도구별) — 비밀번호 필요. ?action=assignList&tool=H WORK[&item=...]
+  if (p.action === 'assignList') {
+    if (String(p.pw || '') !== TEACHER_PW) return json({ result:'error', message:'unauthorized' });
+    return getAssignList(p.tool ? String(p.tool).trim() : '', p.item ? String(p.item).trim() : '');
   }
   if (p.list)    { return getList(); }
   if (p.results) { return getResults(String(p.results).trim()); }
@@ -614,6 +620,10 @@ function doPost(e) {
     if (data && data.action === 'setNoticeShow') { return setNoticeShow(data); }
     if (data && data.action === 'deleteNotice')  { return deleteNotice(data); }
 
+    // (9) 도구별 배정 입력·삭제 (hwork_assign.html 등)
+    if (data && data.action === 'addAssignment')    { return addAssignment(data); }
+    if (data && data.action === 'deleteAssignment') { return deleteAssignment(data); }
+
     // (2) 학생 제출 수집
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     var sh = ss.getSheetByName(TAB_RESULT);
@@ -780,6 +790,71 @@ function deleteNotice(data) {
     var cur = String(sh.getRange(rowIndex, cTitle + 1).getValue()).trim();
     if (cur !== String(data.title).trim()) return json({ result:'error', message:'목록이 변경되었습니다. 새로고침 후 다시 시도하세요.' });
   }
+  sh.deleteRow(rowIndex);
+  return json({ result:'success' });
+}
+
+/* ===== (9) 도구별 배정 ===== hwork_assign.html 등 (H WORK·클리닉·주말 공용)
+ *  배정 탭: A작성일 B도구 C항목 D대상유형(전체/학년/개인/일부) E대상 F마감 G비고
+ *  '항목'은 도구 내에서 대상을 특정하는 키 (예: H WORK = "강사 / 제목").
+ *  쓰기·조회 모두 pw === TEACHER_PW 필요.
+ */
+function ensureAssignSheet_(ss) {
+  var sh = ss.getSheetByName(TAB_ASSIGN);
+  if (!sh) {
+    sh = ss.insertSheet(TAB_ASSIGN);
+    sh.appendRow(['작성일','도구','항목','대상유형','대상','마감','비고']);
+    sh.getRange(1,1,1,7).setFontWeight('bold').setBackground('#DDE5E1');
+  }
+  return sh;
+}
+
+function getAssignList(tool, item) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ss.getSheetByName(TAB_ASSIGN);
+  var out = [];
+  if (sh) {
+    var v = sh.getDataRange().getValues();
+    for (var i = 1; i < v.length; i++) {
+      var r = v[i];
+      var t  = String(r[1]||'').trim();
+      var it = String(r[2]||'').trim();
+      var tg = String(r[4]||'').trim();
+      if (!t && !it && !tg) continue;
+      if (tool && t !== tool) continue;
+      if (item && it !== item) continue;
+      var d = r[0], ds = '';
+      if (d) { try { ds = (d instanceof Date) ? Utilities.formatDate(d, Session.getScriptTimeZone(), 'yyyy-MM-dd') : String(d); } catch(e){ ds = String(d); } }
+      out.push({
+        rowIndex: i+1, date: ds, tool: t, item: it,
+        type: String(r[3]||'').trim(), target: tg,
+        due: String(r[5]||'').trim(), memo: String(r[6]||'').trim()
+      });
+    }
+  }
+  out.reverse();
+  return json({ result:'success', assignments: out });
+}
+
+function addAssignment(data) {
+  if (String(data.pw||'') !== TEACHER_PW) return json({ result:'error', message:'unauthorized' });
+  var tool = String(data.tool||'').trim();
+  var type = String(data.type||'').trim();
+  if (!tool) return json({ result:'error', message:'도구가 없습니다.' });
+  if (!type) return json({ result:'error', message:'대상유형이 없습니다.' });
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ensureAssignSheet_(ss);
+  sh.appendRow([ new Date(), tool, String(data.item||'').trim(), type, String(data.target||'').trim(), String(data.due||'').trim(), String(data.memo||'').trim() ]);
+  return json({ result:'success' });
+}
+
+function deleteAssignment(data) {
+  if (String(data.pw||'') !== TEACHER_PW) return json({ result:'error', message:'unauthorized' });
+  var rowIndex = parseInt(data.rowIndex, 10);
+  if (!rowIndex || rowIndex < 2) return json({ result:'error', message:'잘못된 행입니다.' });
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ss.getSheetByName(TAB_ASSIGN);
+  if (!sh || rowIndex > sh.getLastRow()) return json({ result:'error', message:'존재하지 않는 행입니다.' });
   sh.deleteRow(rowIndex);
   return json({ result:'success' });
 }
