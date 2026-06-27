@@ -358,6 +358,9 @@ var ENDPOINT = "https://script.google.com/macros/s/AKfycbzhCncBwn-JlqXARC3wfrWUC
    실제 연결 시 학생ID(부모님 8자리)로 '그 학생 성적표만' 돌려주는 액션을 쓰세요:
    <WEEKEND_API>?action=studentReports&id=<8자리>&name=<이름>&school=<학교>&callback=<함수> (JSONP) */
 var WEEKEND_API = "https://script.google.com/macros/s/AKfycbyUHMdCH_u35Oeu6lEmx3yOYscoKLwEB8TC0QHGBOaCXZ4rbAnkMpP9_Na4l3QLOajGPA/exec";
+// 신청 가능 학년 게이팅용 백엔드 (모의고사 신청 / 클리닉)
+var SIGNUP_API = "https://script.google.com/macros/s/AKfycbzdqac0xTnCaOo_t_2swJQqdfxjiA14sTo-ThTV8VvwcwaTucM1MQGeJfMfV4lNLM75/exec";
+var CLINIC_API = "https://script.google.com/macros/s/AKfycbw8e-054e4VUfRRx-PadyuoXRb-jxsKRcdOaq04SJH1oJyFVS_VOh9GUN_pL5cHPPzKVA/exec";
 var MOCK_DEMO = [
   { examName:'상상3-5회차', examDate:'6월 21일', subject:'언어와매체', school:'행신고', grade:'3',
     got:92, level:'1', cuts:[88,80,72,64],
@@ -403,6 +406,30 @@ function vocaGradeCode(gradeStr){
   return (level && num) ? (level + num) : '';
 }
 
+// 학생 학년에서 고1~3 숫자 추출 (중학생/미상은 빈값 → 고 프로그램 대상 아님)
+function hsGradeNum(gradeStr){
+  var s = String(gradeStr||'').replace(/20\d{2}/,'');
+  if (s.indexOf('고')<0 && s.indexOf('중')>=0) return '';
+  var m = s.match(/[1-3]/); return m ? m[0] : '';
+}
+// openGrades(예: ["3"])에 학생 학년이 포함되는지. 설정 미상이면 막지 않음.
+function gradeEligible(openGrades){
+  if (!openGrades || !openGrades.length) return true;
+  var num = hsGradeNum(STATE.info && STATE.info.grade);
+  return num ? openGrades.indexOf(num) >= 0 : false;
+}
+// 모의고사·클리닉의 '이번 주 신청 가능 학년'을 백엔드에서 읽어와 카드에 반영
+function loadGradeGates(){
+  Promise.all([
+    fetch(SIGNUP_API + '?action=days&t='+Date.now()).then(function(r){return r.json();}).catch(function(){return null;}),
+    fetch(CLINIC_API + '?action=slots&t='+Date.now()).then(function(r){return r.json();}).catch(function(){return null;})
+  ]).then(function(g){
+    STATE.mockGrades   = (g[0] && g[0].grades) ? g[0].grades : null;
+    STATE.clinicGrades = (g[1] && g[1].grades) ? g[1].grades : null;
+    if ($('hubView').style.display !== 'none') renderHub();   // 허브 화면일 때만 새로고침
+  });
+}
+
 function $(id){ return document.getElementById(id); }
 function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function show(id){ $(id).style.display='block'; }
@@ -410,7 +437,7 @@ function hide(id){ $(id).style.display='none'; }
 
 var KEY = '';        // 접근코드(토큰) — 없으면 테스트용 id
 var IS_ID = false;
-var STATE = { info:null, authed:false, exams:null, examCount:0, notices:null, homework:null, clinic:null, vocaOpen:null, vocaWeek:null };
+var STATE = { info:null, authed:false, exams:null, examCount:0, notices:null, homework:null, clinic:null, vocaOpen:null, vocaWeek:null, mockGrades:null, clinicGrades:null };
 
 function showError(title, msg){
   hide('loadBox'); hide('hubView'); $('gradeView').style.display='none';
@@ -507,6 +534,16 @@ function renderHub(){
       // 그 외(주차 미설정 등)는 기본 설명 + '준비 중'
     }
     var ic = '<span class="icon">'+svg(ICON[f.icon]||ICON.book)+'</span>';
+    // 모의고사·클리닉: 이번 주 해당 학년이 아니면 비활성 + 안내
+    if(f.id==='mock' || f.id==='clinic'){
+      var og = (f.id==='mock') ? STATE.mockGrades : STATE.clinicGrades;
+      if(!gradeEligible(og)){
+        var gmsg = (f.id==='mock') ? '이번 주는 해당 학년 실전 모의고사를 운영하지 않아요.'
+                                   : '이번 주는 해당 학년 클리닉을 운영하지 않아요.';
+        html += '<div class="card pending">'+ic+'<h3>'+esc(f.title)+'</h3><p class="desc">'+esc(gmsg)+'</p><span class="tag">이번 주 운영 안 함</span></div>';
+        return;
+      }
+    }
     var body = ic + '<h3>'+esc(f.title)+'</h3><p class="desc">'+esc(desc)+'</p>';
     var ready = url && url.indexOf('http')===0;
     if(ready){
@@ -887,6 +924,7 @@ function boot(){
       STATE.vocaWeek=d.vocaWeek;   // 교사가 연 주차(없으면 null → 준비 중)
       if(d.exams){ STATE.exams=d.exams; }
       renderHub();
+      loadGradeGates();
     })
     .catch(function(){ showError('연결 실패','인터넷 상태를 확인한 뒤 새로고침해 주세요.'); });
 }
