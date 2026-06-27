@@ -361,6 +361,7 @@ var WEEKEND_API = "https://script.google.com/macros/s/AKfycbyUHMdCH_u35Oeu6lEmx3
 // 신청 가능 학년 게이팅용 백엔드 (모의고사 신청 / 클리닉)
 var SIGNUP_API = "https://script.google.com/macros/s/AKfycbzdqac0xTnCaOo_t_2swJQqdfxjiA14sTo-ThTV8VvwcwaTucM1MQGeJfMfV4lNLM75/exec";
 var CLINIC_API = "https://script.google.com/macros/s/AKfycbw8e-054e4VUfRRx-PadyuoXRb-jxsKRcdOaq04SJH1oJyFVS_VOh9GUN_pL5cHPPzKVA/exec";
+var VOCA_API   = "https://script.google.com/macros/s/AKfycbxW4aXPUq9Iu3VtnjHuInUxhG6dPaNIYawDRWTYEjvEIsv4kjEceXDb_y9OX5Lx3-9e/exec";  // 어휘 결과 백엔드 (응시 여부 조회)
 var MOCK_DEMO = [
   { examName:'상상3-5회차', examDate:'6월 21일', subject:'언어와매체', school:'행신고', grade:'3',
     got:92, level:'1', cuts:[88,80,72,64],
@@ -418,14 +419,41 @@ function gradeEligible(openGrades){
   var num = hsGradeNum(STATE.info && STATE.info.grade);
   return num ? openGrades.indexOf(num) >= 0 : false;
 }
-// 모의고사·클리닉의 '이번 주 신청 가능 학년'을 백엔드에서 읽어와 카드에 반영
+// JSONP 헬퍼 (Apps Script CORS 회피, 실패/타임아웃 시 null)
+function jsonp(url){
+  return new Promise(function(resolve){
+    var cb = 'shuegukJ' + Date.now() + Math.floor(Math.random()*10000);
+    var s = document.createElement('script');
+    var done = false;
+    function cleanup(){ try{ delete window[cb]; }catch(e){ window[cb]=undefined; } if(s.parentNode) s.parentNode.removeChild(s); }
+    window[cb] = function(d){ if(done) return; done=true; cleanup(); resolve(d); };
+    s.onerror = function(){ if(done) return; done=true; cleanup(); resolve(null); };
+    setTimeout(function(){ if(done) return; done=true; cleanup(); resolve(null); }, 8000);
+    s.src = url + (url.indexOf('?')>=0?'&':'?') + 'callback=' + cb + '&t=' + Date.now();
+    document.body.appendChild(s);
+  });
+}
+
+// 모의고사·클리닉 신청 가능 학년 + 어휘 응시 여부를 읽어와 카드에 반영
 function loadGradeGates(){
+  var vg = vocaGradeCode(STATE.info && STATE.info.grade);
+  var wantVoca = (STATE.vocaOpen !== false && STATE.vocaWeek >= 1 && !!vg);
+  var vocaJob;
+  if (wantVoca){
+    var nm = encodeURIComponent(STATE.info.name || '');
+    var ph = encodeURIComponent(String(STATE.info.id || '').slice(-4));
+    vocaJob = jsonp(VOCA_API + '?action=taken&name=' + nm + '&phone4=' + ph + '&round=' + encodeURIComponent(STATE.vocaWeek));
+  } else {
+    vocaJob = Promise.resolve(null);
+  }
   Promise.all([
-    fetch(SIGNUP_API + '?action=days&t='+Date.now()).then(function(r){return r.json();}).catch(function(){return null;}),
-    fetch(CLINIC_API + '?action=slots&t='+Date.now()).then(function(r){return r.json();}).catch(function(){return null;})
+    jsonp(SIGNUP_API + '?action=days'),
+    jsonp(CLINIC_API + '?action=slots'),
+    vocaJob
   ]).then(function(g){
     STATE.mockGrades   = (g[0] && g[0].grades) ? g[0].grades : null;
     STATE.clinicGrades = (g[1] && g[1].grades) ? g[1].grades : null;
+    STATE.vocaTaken    = (wantVoca && g[2] && typeof g[2].taken !== 'undefined') ? !!g[2].taken : null;
     if ($('hubView').style.display !== 'none') renderHub();   // 허브 화면일 때만 새로고침
   });
 }
@@ -437,7 +465,7 @@ function hide(id){ $(id).style.display='none'; }
 
 var KEY = '';        // 접근코드(토큰) — 없으면 테스트용 id
 var IS_ID = false;
-var STATE = { info:null, authed:false, exams:null, examCount:0, notices:null, homework:null, clinic:null, vocaOpen:null, vocaWeek:null, mockGrades:null, clinicGrades:null };
+var STATE = { info:null, authed:false, exams:null, examCount:0, notices:null, homework:null, clinic:null, vocaOpen:null, vocaWeek:null, mockGrades:null, clinicGrades:null, vocaTaken:null };
 
 function showError(title, msg){
   hide('loadBox'); hide('hubView'); $('gradeView').style.display='none';
@@ -523,6 +551,7 @@ function renderHub(){
       desc = '신청함 · ' + (c.time||'') + (md? ' · '+md : '');
     }
     // 어휘 테스트: 학년→g코드 + 교사가 연 주차(vocaWeek)로 그 학생 시험에 연결
+    var vocaBadge = false;
     if(f.id==='voca'){
       var vg = vocaGradeCode(STATE.info && STATE.info.grade);
       if(STATE.vocaOpen===false){
@@ -530,10 +559,11 @@ function renderHub(){
       } else if(vg && STATE.vocaWeek>=1){
         url = VOCA_BASE + '?g=' + encodeURIComponent(vg) + '&w=' + STATE.vocaWeek;
         desc = STATE.vocaWeek + '주차 어휘';
+        if(STATE.vocaTaken === false) vocaBadge = true;   // 아직 미응시 → 빨간 뱃지
       }
       // 그 외(주차 미설정 등)는 기본 설명 + '준비 중'
     }
-    var ic = '<span class="icon">'+svg(ICON[f.icon]||ICON.book)+'</span>';
+    var ic = '<span class="icon">'+svg(ICON[f.icon]||ICON.book)+(vocaBadge?'<span class="new-dot">1</span>':'')+'</span>';
     // 모의고사·클리닉: 이번 주 해당 학년이 아니면 비활성 + 안내
     if(f.id==='mock' || f.id==='clinic'){
       var og = (f.id==='mock') ? STATE.mockGrades : STATE.clinicGrades;
