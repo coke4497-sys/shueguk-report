@@ -109,6 +109,12 @@
   .notice-item .ndate{font-size:.76rem;color:var(--ink-soft);white-space:nowrap;}
   .notice-item .nbody{font-family:var(--serif);font-size:.93rem;color:var(--ink);line-height:1.85;white-space:pre-wrap;}
 
+  /* H WORK 배정 뷰 */
+  #homeworkView{display:none;}
+  .hw-go{display:inline-flex;align-items:center;gap:5px;margin-top:12px;color:var(--accent);font-size:.84rem;font-weight:700;text-decoration:none;}
+  .hw-go svg{width:15px;height:15px;}
+  .hw-go:hover{opacity:.8;}
+
   /* 지필고사 데이터 뷰 */
   #gradeView{display:none;}
   .gwrap{max-width:720px;}
@@ -298,6 +304,16 @@
   <footer><p>이수경국어 Shueguk · 학생용</p></footer>
 </main></div>
 
+<!-- H WORK 배정된 과제 -->
+<div id="homeworkView"><main class="wrap gwrap">
+  <div class="gv-bar">
+    <button class="gv-back" onclick="closeHomework()" id="hwBack"></button>
+    <span class="gv-ttl">H WORK · 배정된 과제</span>
+  </div>
+  <div id="homeworkList"></div>
+  <footer><p>이수경국어 Shueguk · 학생용</p></footer>
+</main></div>
+
 <!-- 지필고사 데이터 -->
 <div id="gradeView"><main class="wrap gwrap">
   <div class="gv-bar">
@@ -369,7 +385,6 @@ function svg(inner){ return '<svg viewBox="0 0 24 24" fill="none" stroke="curren
 /* 나중에 연결할 기능들 — url을 채우면 자동 활성화(토큰 KEY가 ?key=로 붙음) */
 var FEATURES = [
   { id:'voca',    icon:'book',   title:'어휘 테스트',   desc:'단어 시험 보기',     url:'' },
-  { id:'hwork',   icon:'clip',   title:'H-work',       desc:'숙제 제출·확인',     url:'https://coke4497-sys.github.io/shueguk-h-work/hwork.html' },
   { id:'clinic',  icon:'pulse',  title:'클리닉 신청',   desc:'클리닉 신청·확인',   url:'https://coke4497-sys.github.io/shueguk-clinic/' },
   { id:'mock',    icon:'paper',  title:'모의고사 신청', desc:'모의고사 응시 신청',  url:'https://coke4497-sys.github.io/shuegukweekendtest/signup.html' },
   { id:'grammar', icon:'pencil', title:'문법 테스트',   desc:'문법 시험 보기',     url:'' }
@@ -395,7 +410,7 @@ function hide(id){ $(id).style.display='none'; }
 
 var KEY = '';        // 접근코드(토큰) — 없으면 테스트용 id
 var IS_ID = false;
-var STATE = { info:null, authed:false, exams:null, examCount:0, notices:null, clinic:null, vocaOpen:null, vocaWeek:null };
+var STATE = { info:null, authed:false, exams:null, examCount:0, notices:null, homework:null, clinic:null, vocaOpen:null, vocaWeek:null };
 
 function showError(title, msg){
   hide('loadBox'); hide('hubView'); $('gradeView').style.display='none';
@@ -462,6 +477,15 @@ function renderHub(){
             '<h3>알려드립니다</h3><p class="desc">'+esc(nDesc)+'</p>' +
             '<span class="go">'+(nCnt>0?'새 소식 ':'열기 ')+svg(ICON.arrow)+'</span></button>';
 
+  // H WORK — 이 학생에게 배정된 과제만 표시
+  var hCnt = (STATE.homework||[]).length;
+  var hDot = hCnt>0 ? '<span class="new-dot">'+(hCnt>9?'9+':hCnt)+'</span>' : '';
+  var hDesc = hCnt>0 ? ('배정된 과제 '+hCnt+'건') : '배정된 과제 없음';
+  html += '<button class="card" onclick="openHomework()">' +
+            '<span class="icon">'+svg(ICON.clip)+hDot+'</span>' +
+            '<h3>H-work</h3><p class="desc">'+esc(hDesc)+'</p>' +
+            '<span class="go">'+(hCnt>0?'확인 ':'열기 ')+svg(ICON.arrow)+'</span></button>';
+
   FEATURES.forEach(function(f){
     var desc = f.desc;
     var url = f.url;
@@ -523,7 +547,7 @@ function renderHub(){
   }
   $('menu').innerHTML = html;
 
-  hide('loadBox'); hide('errBox'); $('gradeView').style.display='none'; $('noticeView').style.display='none'; show('hubView');
+  hide('loadBox'); hide('errBox'); $('gradeView').style.display='none'; $('noticeView').style.display='none'; $('homeworkView').style.display='none'; show('hubView');
 }
 
 /* ---- 알려드립니다(공지) ---- */
@@ -549,6 +573,39 @@ function renderNotices(){
     }).join('');
   }
   hide('hubView'); $('noticeView').style.display='block'; window.scrollTo(0,0);
+}
+
+/* ---- H WORK (배정된 과제) ---- */
+function openHomework(){ renderHomework(); }
+function closeHomework(){ $('homeworkView').style.display='none'; show('hubView'); window.scrollTo(0,0); }
+function hwFmtDue(s){
+  if(!s) return '';
+  var m=String(s).match(/(\d{4})-(\d{2})-(\d{2})/);
+  if(m) return m[1]+'년 '+(+m[2])+'월 '+(+m[3])+'일';
+  return String(s);
+}
+function renderHomework(){
+  var hs = STATE.homework || [];
+  var list = $('homeworkList');
+  if(!hs.length){
+    list.innerHTML = '<div class="empty-state"><p>아직 배정된 H WORK이 없습니다.<br>선생님이 과제를 배정하면 이곳에 표시됩니다.</p></div>';
+  } else {
+    var base = 'https://coke4497-sys.github.io/shueguk-h-work/hwork.html';
+    list.innerHTML = hs.map(function(h){
+      var title = (h.teacher ? (h.teacher+' · ') : '') + (h.code||'과제');
+      var meta = [];
+      if(h.due)  meta.push('마감 '+hwFmtDue(h.due));
+      if(h.memo) meta.push(h.memo);
+      return '<div class="notice-item">' +
+        '<span class="ntag">배정 과제</span>' +
+        '<div class="nh"><span class="ntitle">'+esc(title)+'</span>' +
+        (h.date ? '<span class="ndate">'+esc(h.date)+'</span>' : '') + '</div>' +
+        (meta.length ? '<div class="nbody">'+esc(meta.join(' · '))+'</div>' : '') +
+        '<a class="hw-go" href="'+esc(base)+'" target="_blank" rel="noopener">H WORK 풀러 가기 '+svg(ICON.arrow)+'</a>' +
+        '</div>';
+    }).join('');
+  }
+  hide('hubView'); $('homeworkView').style.display='block'; window.scrollTo(0,0);
 }
 
 /* ---- 성적 ---- */
@@ -806,6 +863,7 @@ function boot(){
   $('gvBack').innerHTML = svg(ICON.back) + ' 메뉴';
   $('mockBack').innerHTML = svg(ICON.back) + ' 메뉴';
   $('nvBack').innerHTML = svg(ICON.back) + ' 메뉴';
+  $('hwBack').innerHTML = svg(ICON.back) + ' 메뉴';
   $('pwIcon').innerHTML = svg(ICON.lock);
   $('pwInput').addEventListener('keydown', function(e){ if(e.key==='Enter') submitPw(); });
 
@@ -823,6 +881,7 @@ function boot(){
       if(d.result!=='success'){ showError('열 수 없습니다', d.message||''); return; }
       STATE.info=d.info; STATE.authed=!!d.authed; STATE.examCount=d.examCount||0;
       STATE.notices=d.notices||[];
+      STATE.homework=d.homework||[];
       STATE.clinic=d.clinic||null;
       STATE.vocaOpen=d.vocaOpen;   // true/false/undefined(=열림)
       STATE.vocaWeek=d.vocaWeek;   // 교사가 연 주차(없으면 null → 준비 중)

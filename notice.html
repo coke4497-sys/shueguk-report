@@ -165,10 +165,17 @@
   document.getElementById('lockInput').addEventListener('keydown', function(e){ if(e.key==='Enter') checkLock(); });
 
   /* ===== 초기화 (잠금 해제 후 1회) ===== */
-  var picker=null, inited=false;
+  var picker=null, inited=false, currentSel=null;
   function init(){
     if(inited) return; inited=true;
-    picker = StudentPicker.create(document.getElementById('picker'), { endpoint: ENDPOINT });
+    picker = StudentPicker.create(document.getElementById('picker'), {
+      endpoint: ENDPOINT,
+      onChange: function(sel){
+        currentSel = sel;   // 위젯 선택값을 직접 보관
+        var s=document.getElementById('status');
+        if(sel && s.classList.contains('err')){ s.textContent=''; s.className='status'; }
+      }
+    });
     loadNotices();
   }
 
@@ -179,7 +186,7 @@
 
   /* ===== 공지 등록 ===== */
   function submitNotice(){
-    var sel = picker && picker.getSelection();
+    var sel = currentSel || (picker && picker.getSelection());
     if(!sel){ setStatus('대상을 먼저 선택해 주세요.', 'err'); return; }
     var title = document.getElementById('title').value.trim();
     var body  = document.getElementById('body').value;

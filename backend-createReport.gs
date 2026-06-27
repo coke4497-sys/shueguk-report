@@ -271,6 +271,8 @@ function getStudent(opts) {
   var resp = { result:'success', info: info, authed: authed, pwTried: pwTried };
   // 알려드립니다: 이 학생에게 해당하는 공지(비밀번호 없이 key만으로 표시)
   resp.notices = collectNotices_(ss, info, key);
+  // 배정된 H WORK: 이 학생에게 배정된 과제만 (학생 개인 페이지용)
+  resp.homework = collectAssignments_(ss, info, key, 'H WORK');
   // 클리닉 신청: 이 학생(토큰)의 최근 신청 내역(없거나 실패 시 null)
   resp.clinic = collectClinic_(key);
   // 어휘 테스트 켜짐/꺼짐 (설정 탭의 '어휘 테스트' 값. 기본 열림)
@@ -436,6 +438,65 @@ function collectNotices_(ss, info, key) {
   });
   out.forEach(function(o) { delete o._row; });
   return out;
+}
+
+/* ===== 배정된 항목(도구별) 조회 ===== 학생 개인 페이지(s.html)
+ *  '배정' 탭에서 이 학생에게 해당하는 항목만(공지와 동일한 noticeMatches_ 규칙) 최신순 반환.
+ *  열: A작성일 B도구 C항목 D대상유형 E대상 F마감 G비고.  항목 "강사 / 제목" → teacher·code로 분리.
+ */
+function collectAssignments_(ss, info, key, tool) {
+  var sh = ss.getSheetByName(TAB_ASSIGN);
+  if (!sh) return [];
+  var v = sh.getDataRange().getValues();
+  if (v.length < 2) return [];
+
+  var H = v[0];
+  var cDate  = findHeaderCol_(H, '작성일',   0);
+  var cTool  = findHeaderCol_(H, '도구',     1);
+  var cItem  = findHeaderCol_(H, '항목',     2);
+  var cType  = findHeaderCol_(H, '대상유형', 3);
+  var cTarget= findHeaderCol_(H, '대상',     4);
+  var cDue   = findHeaderCol_(H, '마감',     5);
+  var cMemo  = findHeaderCol_(H, '비고',     6);
+
+  var stu = {
+    sid:    String(info.id     || '').trim(),
+    name:   String(info.name   || '').trim(),
+    grade:  String(info.grade  || '').trim(),
+    school: String(info.school || '').trim(),
+    code:   String(key         || '').trim()
+  };
+
+  var out = [];
+  for (var i = 1; i < v.length; i++) {
+    var row = v[i];
+    if (tool && String(row[cTool] || '').trim() !== tool) continue;
+    var type   = String(row[cType]   || '').trim();
+    var target = String(row[cTarget] || '').trim();
+    if (!noticeMatches_(type, target, stu)) continue;
+
+    var item = String(row[cItem] || '').trim();
+    var teacher = '', code = item, idx = item.indexOf(' / ');
+    if (idx >= 0) { teacher = item.slice(0, idx).trim(); code = item.slice(idx + 3).trim(); }
+
+    out.push({
+      teacher: teacher, code: code, item: item,
+      due:  fmtCellDate_(row[cDue]),
+      memo: String(row[cMemo] || '').trim(),
+      date: fmtCellDate_(row[cDate]),
+      _row: i
+    });
+  }
+  out.sort(function(a, b){ if (a.date !== b.date) return a.date < b.date ? 1 : -1; return b._row - a._row; });
+  out.forEach(function(o){ delete o._row; });
+  return out;
+}
+
+/** 날짜 셀을 yyyy-MM-dd 문자열로 (빈값·문자열도 안전) */
+function fmtCellDate_(d) {
+  if (!d) return '';
+  try { return (d instanceof Date) ? Utilities.formatDate(d, 'GMT+9', 'yyyy-MM-dd') : String(d).trim(); }
+  catch (e) { return String(d).trim(); }
 }
 
 /** 공지 한 건이 이 학생에게 해당하는지 판단. */
