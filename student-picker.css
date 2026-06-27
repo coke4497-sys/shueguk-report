@@ -23,6 +23,20 @@
 }
 .sp-search:focus{ outline:none; border-color:#3A6B5E; background:#fff; }
 
+.sp-filters{ display:flex; gap:8px; margin-bottom:10px; }
+.sp-filters select{
+  flex:1; min-width:0; padding:10px 12px; border:1.5px solid #D7E3DD; border-radius:10px;
+  font:inherit; font-size:14px; background:#fafbfa; color:#2A332F;
+  -webkit-appearance:none; appearance:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%2365726B' stroke-width='1.6' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat:no-repeat; background-position:right 12px center; padding-right:32px;
+}
+.sp-filters select:focus{ outline:none; border-color:#3A6B5E; background-color:#fff; }
+.sp-hint2{ font-size:12.5px; color:#65726B; background:#EBF0ED; border-radius:9px; padding:9px 12px; margin-bottom:10px; line-height:1.55; }
+.sp-actions2{ display:flex; gap:8px; }
+.sp-all{ border:1.5px solid #3A6B5E; background:#3A6B5E; color:#fff; font:inherit; font-size:12.5px; font-weight:700; padding:6px 11px; border-radius:8px; cursor:pointer; }
+.sp-all:hover{ background:#2f5a4e; }
+
 .sp-grades{ display:flex; flex-wrap:wrap; gap:8px; }
 .sp-chip{
   padding:8px 15px; border:1.5px solid #D7E3DD; background:#fff; border-radius:20px;
