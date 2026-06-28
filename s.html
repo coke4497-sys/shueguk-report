@@ -48,9 +48,8 @@
   .eyebrow{font-family:var(--sans);font-size:.76rem;letter-spacing:.24em;color:var(--accent);margin:12px 0 0;}
   .hideout{font-family:var(--serif);font-size:.96rem;color:var(--ink-soft);margin:15px 0 0;}
   .who{margin:16px 0 0;}
-  .who .nm{font-family:var(--serif);font-size:1.5rem;font-weight:700;color:var(--ink);}
-  .who .gr{font-family:var(--serif);font-size:1rem;color:var(--ink-soft);margin-left:8px;}
-  .who .sch{font-family:var(--serif);font-size:1rem;color:var(--ink-soft);margin-left:7px;}
+  .who .nm{display:block;font-family:var(--serif);font-size:1.35rem;font-weight:700;color:var(--ink);line-height:1.4;}
+  .who .sub{display:block;font-family:var(--serif);font-size:1rem;color:var(--ink-soft);margin-top:6px;}
   .badge{display:inline-block;margin-top:12px;font-size:.78rem;color:var(--accent);background:#DCE6E0;border-radius:20px;padding:3px 13px;}
 
   .sec-h{font-family:var(--serif);font-weight:700;font-size:1rem;color:var(--ink);margin:30px 2px 13px;}
@@ -491,9 +490,9 @@ function schedTable(title, rows){
 /* ---- 허브 렌더 ---- */
 function renderHub(){
   var info = STATE.info;
-  $('s_name').innerHTML = '<span class="nm">'+esc(info.name||'학생')+'</span>' +
-    (info.grade && String(info.grade).trim()!=='' ? ' <span class="gr">'+esc(info.grade)+'</span>' : '') +
-    (info.school && String(info.school).trim()!=='' ? '<span class="sch">'+esc(info.school)+'</span>' : '');
+  var sub = [info.grade, info.school].map(function(x){ return String(x||'').trim(); }).filter(Boolean).join(' ');
+  $('s_name').innerHTML = '<span class="nm">슈국 슈퍼스타 '+esc(info.name||'학생')+'의 페이지</span>' +
+    (sub ? '<span class="sub">'+esc(sub)+'</span>' : '');
   document.title = (info.name||'학생') + ' · 슈국';
   // 홈 화면 저장 시 아이콘 이름을 학생 이름으로
   var wt = document.querySelector('meta[name="apple-mobile-web-app-title"]');
