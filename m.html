@@ -157,11 +157,7 @@ body{font-family:'Noto Sans KR',sans-serif; background:var(--sage-fog); color:va
     <div class="fld">
       <label>시험 제목 <span class="req">*</span></label>
       <input type="text" id="f_title" placeholder="예) 26-1-중간-서정고3-화법과 작문" autocomplete="off">
-    </div>
-    <div class="fld">
-      <label>시험 ID <span class="req">*</span></label>
-      <input type="text" id="f_id" placeholder="예) 서정고3화작" autocomplete="off">
-      <p class="hint">학생 링크에 들어가는 짧은 식별자입니다. 시험마다 겹치지 않게 정해주세요. (한글·영문·숫자)</p>
+      <p class="hint">이 제목이 시험을 구분하는 기준입니다. 시험마다 겹치지 않게 정해주세요. 같은 제목으로 다시 저장하면 덮어써집니다(수정).</p>
     </div>
 
     <!-- 2. 시험 범위 -->
@@ -373,8 +369,8 @@ function generateSolos(){
 
 /* ===== 데이터 수집 (블록 → 평면 문항 목록으로 펼치기) ===== */
 function collect(){
-  var id=document.getElementById('f_id').value.trim();
   var title=document.getElementById('f_title').value.trim();
+  var id=title;   // 제목을 그대로 시험 ID로 사용
   var scope=document.getElementById('f_scope').value.trim();
   var review=document.getElementById('f_review').value.trim()
               .split(/\n\s*\n/).map(function(p){return p.replace(/[ \t]+\n/g,'\n').trim();}).filter(Boolean);
@@ -407,7 +403,6 @@ function collect(){
 /* 블록 단위 구조 검증 (정확한 안내용) */
 function validateForm(data){
   if(!data.title){ document.getElementById('f_title').focus(); return '시험 제목을 입력해주세요.'; }
-  if(!data.id){ document.getElementById('f_id').focus(); return '시험 ID를 입력해주세요.'; }
   var blocks=document.querySelectorAll('#blockList > .block');
   if(data.questions.length===0){ return '문항을 1개 이상 입력해주세요.'; }
   for(var b=0;b<blocks.length;b++){
