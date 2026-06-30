@@ -150,6 +150,7 @@ body{font-family:'Noto Sans KR',sans-serif; background:var(--sage-fog); color:va
       <button class="btn ghost" onclick="loadReportList()">목록 새로고침</button>
     </div>
     <div style="margin-top:12px; text-align:right;">
+      <button class="btn ghost" onclick="openBlankSheet()" style="margin-right:8px;">🖼️ 빈 분석지 이미지</button>
       <a href="m.html" class="btn ghost" style="display:inline-block; text-decoration:none;">＋ 새 시험 등록</a>
     </div>
 
@@ -309,6 +310,13 @@ var PRESELECT = '';
   var m = location.search.match(/[?&]id=([^&]+)/);
   if(m) PRESELECT = decodeURIComponent(m[1]);
 })();
+
+// 선택한 시험의 '빈 분석지'를 새 탭에서 열어 자동으로 이미지(PNG) 저장
+function openBlankSheet(){
+  var rid = document.getElementById('reportSel').value;
+  if(!rid){ setStatus('먼저 시험을 선택해주세요.'); return; }
+  window.open('r.html?id=' + encodeURIComponent(rid) + '&blank=1', '_blank');
+}
 
 // 페이지 열릴 때 보고서 목록 불러와 드롭다운 채우기
 function loadReportList(){
