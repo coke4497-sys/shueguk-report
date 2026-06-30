@@ -120,6 +120,10 @@ body{font-family:'Noto Sans KR',sans-serif; background:var(--sage-fog); color:va
 .pv-q.in-group{margin-left:12px; border-left:3px solid var(--sage-soft);}
 .pv-q .m{display:flex; gap:6px; flex-wrap:wrap; align-items:center; margin-bottom:5px;}
 .pv-tag{font-size:11px; padding:3px 9px; border-radius:11px; background:var(--sage-mist); color:var(--ink-mid); font-weight:500;}
+.pv-tag.multi{background:#E7DCF2; color:#6b4fa0; font-weight:700;}
+.multi-row{display:inline-flex; align-items:center; gap:7px; margin:2px 0 6px; font-size:13px; color:var(--ink-mid); cursor:pointer; user-select:none;}
+.multi-row input{width:16px; height:16px; accent-color:var(--sage-deep);}
+.multi-row .mh{color:var(--ink-soft); font-size:12px;}
 .pv-tag.sub{background:var(--line-soft);}
 .pv-badge{font-size:11px; padding:3px 10px; border-radius:11px; font-weight:700;}
 .b-중상{background:var(--sage-mist); color:var(--ink-deep);}
@@ -282,6 +286,10 @@ function txtCellHtml(){
   return '<div class="txt-cell"><label>문항 내용 · 분석</label>'+
          '<textarea class="txt-in" rows="2" placeholder="이 문항이 무엇을 묻는지 / 분석"></textarea></div>';
 }
+/* 복수 선택 유형 체크 (ㄱ·ㄴ·ㄷ 중 고르는 객관식) */
+function multiRowHtml(){
+  return '<label class="multi-row"><input type="checkbox" class="multi-in"> 복수 선택 유형 <span class="mh">(ㄱ·ㄴ·ㄷ 중 고르기)</span></label>';
+}
 
 /* ----- 단독 문항 ----- */
 function addSolo(scroll){
@@ -296,6 +304,7 @@ function addSolo(scroll){
       '<div class="cell"><label>형식</label><select class="type-in">'+opts(FORM_OPTS,'객관식')+'</select></div>'+
       '<div class="cell"><label>난이도</label><select class="lv-in">'+opts(LV_OPTS,'상')+'</select></div>'+
     '</div>'+
+    multiRowHtml()+
     txtCellHtml();
   document.getElementById('blockList').appendChild(d);
   renumberAll();
@@ -334,6 +343,7 @@ function addSubQuestion(btn){
       '<div class="cell"><label>형식</label><select class="type-in">'+opts(FORM_OPTS,'객관식')+'</select></div>'+
       '<div class="cell"><label>난이도</label><select class="lv-in">'+opts(LV_OPTS,'상')+'</select></div>'+
     '</div>'+
+    multiRowHtml()+
     txtCellHtml()+
     '<button class="del-sub" onclick="delSub(this)">문항 삭제</button>';
   list.appendChild(d);
@@ -385,7 +395,8 @@ function collect(){
         var type=sq.querySelector('.type-in').value.trim();
         var lv=sq.querySelector('.lv-in').value.trim();
         var txt=sq.querySelector('.txt-in').value.trim();
-        if(no||txt){ questions.push({no:no, group:gname, area:garea, detail:gdetail, type:type, lv:lv, txt:txt}); }
+        var mq=sq.querySelector('.multi-in'); var multi=!!(mq&&mq.checked);
+        if(no||txt){ questions.push({no:no, group:gname, area:garea, detail:gdetail, type:type, lv:lv, txt:txt, multi:multi}); }
       });
     } else {
       var no=block.querySelector('.no-in').value.trim();
@@ -394,7 +405,8 @@ function collect(){
       var type=block.querySelector('.type-in').value.trim();
       var lv=block.querySelector('.lv-in').value.trim();
       var txt=block.querySelector('.txt-in').value.trim();
-      if(no||txt||area){ questions.push({no:no, group:'', area:area, detail:detail, type:type, lv:lv, txt:txt}); }
+      var mq=block.querySelector('.multi-in'); var multi=!!(mq&&mq.checked);
+      if(no||txt||area){ questions.push({no:no, group:'', area:area, detail:detail, type:type, lv:lv, txt:txt, multi:multi}); }
     }
   });
   return {id:id, title:title, scope:scope, review:review, questions:questions};
@@ -449,6 +461,7 @@ function togglePreview(){
     var tags='<span class="pv-tag">'+esc(q.area||'-')+'</span>';
     if(q.detail){ tags+='<span class="pv-tag sub">'+esc(q.detail)+'</span>'; }
     if(q.type){ tags+='<span class="pv-tag">'+esc(q.type)+'</span>'; }
+    if(q.multi){ tags+='<span class="pv-tag multi">복수 선택</span>'; }
     html+='<div class="pv-q'+(q.group?' in-group':'')+'"><div class="m">'+tags+
           '<span class="pv-badge b-'+lv+'">'+esc(lv)+'</span></div>'+
           '<div class="t"><span class="qno">'+esc(q.no)+'번</span>'+esc(q.txt)+'</div></div>';
