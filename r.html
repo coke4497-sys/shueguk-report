@@ -242,6 +242,7 @@ function boot(){
       document.getElementById('loading').style.display='none';
       document.getElementById('formView').style.display='block';
       document.getElementById('formBar').style.display='flex';
+      autoBlankIfNeeded();
     })
     .catch(function(){ showError('연결에 실패했습니다.', '인터넷 상태를 확인하고 새로고침해주세요.'); });
 }
@@ -369,6 +370,17 @@ function saveBlankImage(){
     document.body.appendChild(a); a.click(); a.remove();
     toast('✓ 빈 분석지 이미지를 저장했어요.');
   }).catch(function(){ restore(); toast('이미지 저장에 실패했어요. 다시 시도해주세요.'); });
+}
+
+/* ?blank=1 로 열리면(티쳐스 페이지에서) 자동으로 빈 양식 이미지 저장 */
+function autoBlankIfNeeded(){
+  try { if(new URLSearchParams(location.search).get('blank')!=='1') return; } catch(e){ return; }
+  var tries=0;
+  (function go(){
+    if(typeof html2canvas!=='undefined'){ setTimeout(saveBlankImage, 400); return; }
+    if(tries++ > 25) return;   // html2canvas 로딩 대기(최대 ~7.5초)
+    setTimeout(go, 300);
+  })();
 }
 
 function toast(msg, kind){
