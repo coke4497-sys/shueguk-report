@@ -116,9 +116,15 @@ body{font-family:'Noto Sans KR',sans-serif; background:var(--sage-fog); color:va
 .done-mark{margin:14px 20px 0; padding:13px 16px; border-radius:13px; background:var(--sage-fog); border:1px solid var(--sage-soft); text-align:center; font-family:'Noto Serif KR',serif; font-size:13.5px; color:var(--accent-dark); display:none;}
 .done-mark.show{display:block;}
 @media print{ .bar,#toast{display:none!important;} body{padding-bottom:0;} }
+/* 빈 분석지 이미지 캡처 모드: 바·안내·작성칸 숨기고 입력 힌트 비표시 */
+body.capturing .bar, body.capturing #toast{ display:none !important; }
+body.capturing .guide, body.capturing .counter{ display:none !important; }
+body.capturing .q-reason{ display:none !important; }
+body.capturing ::placeholder{ color:transparent !important; }
 </style>
 </head>
 <body>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <div class="wrap">
 
 <div id="loading">
@@ -190,7 +196,7 @@ body{font-family:'Noto Sans KR',sans-serif; background:var(--sage-fog); color:va
   <p class="foot">SHUEGUK RE:)PORT · 이수경국어</p>
 </div>
 
-<div class="bar" id="formBar"><button class="btn btn-primary" onclick="showResult()">입력 완료 · 확인하기</button></div>
+<div class="bar" id="formBar"><button class="btn btn-ghost" onclick="saveBlankImage()">🖼️ 빈 양식 이미지</button><button class="btn btn-primary" onclick="showResult()">입력 완료 · 확인하기</button></div>
 <div id="toast"></div>
 <div class="bar" id="resultBar" style="display:none;">
   <button class="btn btn-ghost" onclick="backToForm()">수정</button>
@@ -342,6 +348,27 @@ function backToForm(){
   document.getElementById('formBar').style.display='flex';
   document.getElementById('resultBar').style.display='none';
   window.scrollTo(0,0);
+}
+
+/* 빈 분석지(학생 작성칸 비움)를 PNG 이미지로 저장 */
+function saveBlankImage(){
+  if(typeof html2canvas==='undefined'){ toast('이미지 도구를 불러오는 중이에요. 잠시 후 다시 눌러주세요.'); return; }
+  var view=document.getElementById('formView');
+  if(!view || view.style.display==='none'){ toast('분석지를 먼저 불러와주세요.'); return; }
+  var fields=view.querySelectorAll('input, textarea');
+  var saved=[]; fields.forEach(function(el){ saved.push(el.value); el.value=''; });
+  document.body.classList.add('capturing');
+  var base=((window.REPORT && REPORT.title) ? REPORT.title : '지필고사')+' 분석지';
+  var restore=function(){ document.body.classList.remove('capturing'); fields.forEach(function(el,i){ el.value=saved[i]; }); };
+  toast('이미지를 만드는 중이에요…');
+  html2canvas(view, {backgroundColor:'#ffffff', scale:2, useCORS:true}).then(function(canvas){
+    restore();
+    var a=document.createElement('a');
+    a.download=base.replace(/[\\/:*?"<>|]/g,'_')+'.png';
+    a.href=canvas.toDataURL('image/png');
+    document.body.appendChild(a); a.click(); a.remove();
+    toast('✓ 빈 분석지 이미지를 저장했어요.');
+  }).catch(function(){ restore(); toast('이미지 저장에 실패했어요. 다시 시도해주세요.'); });
 }
 
 function toast(msg, kind){
