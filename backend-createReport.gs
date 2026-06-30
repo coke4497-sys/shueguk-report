@@ -135,7 +135,8 @@ function getReport(id) {
           lv:     String(iv[j][4]||'').trim(),   // E: 난도
           txt:    String(iv[j][5]||''),          // F: 내용
           detail: String(iv[j][6]||''),          // G: 세부유형(하위)
-          group:  String(iv[j][7]||'')           // H: 지문그룹
+          group:  String(iv[j][7]||''),          // H: 지문그룹
+          multi:  isMulti_(iv[j][8])             // I: 복수선택 유형
         });
       }
     }
@@ -331,7 +332,8 @@ function getReportsIndex_(ss) {
         lv:   String(iv[j][4]||'').trim(),
         txt:  String(iv[j][5]||''),
         detail: String(iv[j][6]||''),
-        group:  String(iv[j][7]||'')
+        group:  String(iv[j][7]||''),
+        multi:  isMulti_(iv[j][8])
       });
     }
   }
@@ -939,9 +941,10 @@ function createReport(data) {
 
     // 문항 탭 (없으면 생성)
     var itemSh = ss.getSheetByName(TAB_ITEMS);
-    if (!itemSh) { itemSh = ss.insertSheet(TAB_ITEMS); itemSh.appendRow(['보고서ID','번호','영역','형식','난도','내용','세부유형','지문그룹']); }
+    if (!itemSh) { itemSh = ss.insertSheet(TAB_ITEMS); itemSh.appendRow(['보고서ID','번호','영역','형식','난도','내용','세부유형','지문그룹','복수선택']); }
     ensureHeader_(itemSh, 7, '세부유형');     // G열 머리글 보장
     ensureHeader_(itemSh, 8, '지문그룹');     // H열 머리글 보장
+    ensureHeader_(itemSh, 9, '복수선택');     // I열 머리글 보장(복수 선택 유형 Y/빈칸)
 
     // 같은 ID 덮어쓰기 (기존 행 제거)
     deleteRowsById_(listSh, 1, id);
@@ -958,10 +961,11 @@ function createReport(data) {
       var rows = qs.map(function(q){
         return [
           id, String(q.no||''), String(q.area||''), String(q.type||''),
-          String(q.lv||''), String(q.txt||''), String(q.detail||''), String(q.group||'')
+          String(q.lv||''), String(q.txt||''), String(q.detail||''), String(q.group||''),
+          (q.multi === true || q.multi === 'Y' || q.multi === 1) ? 'Y' : ''
         ];
       });
-      itemSh.getRange(itemSh.getLastRow()+1, 1, rows.length, 8).setValues(rows);
+      itemSh.getRange(itemSh.getLastRow()+1, 1, rows.length, 9).setValues(rows);
     }
 
     return json({ result:'success', id:id, count:qs.length });
@@ -984,6 +988,11 @@ function deleteRowsById_(sheet, col, id) {
   for (var r = vals.length-1; r >= 0; r--) {
     if (String(vals[r][0]).trim() === id) { sheet.deleteRow(r+2); }
   }
+}
+
+/** 복수 선택 유형 여부 판정 (Y/1/복수/○ 등은 true). */
+function isMulti_(v) {
+  return /^(y|yes|true|1|복수|○|o)/i.test(String(v == null ? '' : v).trim());
 }
 
 function json(obj) {

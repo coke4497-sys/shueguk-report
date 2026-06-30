@@ -69,6 +69,7 @@ body{font-family:'Noto Sans KR',sans-serif; background:var(--sage-fog); color:va
 .b-중{background:var(--line-soft); color:var(--ink-mid);}
 .q-txt{font-family:'Noto Serif KR',serif; font-size:13.5px; color:var(--ink-deep); line-height:1.55;}
 .q-tag.sub{background:var(--line-soft);}
+.q-tag.multi{background:#E7DCF2; color:#6b4fa0; font-weight:700;}
 .q-group-label{font-size:12.5px; font-weight:700; color:var(--sage-deep); margin:16px 4px 2px; display:flex; align-items:center; gap:5px;}
 .q.in-group{margin-left:10px; border-left:3px solid var(--sage-soft);}
 #scopeBox{white-space:pre-wrap;}
@@ -275,7 +276,7 @@ function renderReport(){
       '<div class="q-head">'+
         '<div class="q-no">'+esc(q.no)+'</div>'+
         '<div class="q-body">'+
-          '<div class="q-meta"><span class="q-tag">'+esc(q.area)+'</span>'+(q.detail?'<span class="q-tag sub">'+esc(q.detail)+'</span>':'')+(q.type?'<span class="q-tag">'+esc(q.type)+'</span>':'')+'<span class="q-badge b-'+lv+'">'+esc(lv)+'</span></div>'+
+          '<div class="q-meta"><span class="q-tag">'+esc(q.area)+'</span>'+(q.detail?'<span class="q-tag sub">'+esc(q.detail)+'</span>':'')+(q.type?'<span class="q-tag">'+esc(q.type)+'</span>':'')+(q.multi?'<span class="q-tag multi">복수 선택</span>':'')+'<span class="q-badge b-'+lv+'">'+esc(lv)+'</span></div>'+
           '<div class="q-txt">'+esc(q.txt)+'</div>'+
         '</div>'+
         '<div class="q-mark">'+CHK+'</div>'+
