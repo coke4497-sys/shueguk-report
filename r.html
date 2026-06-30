@@ -196,7 +196,7 @@ body.capturing ::placeholder{ color:transparent !important; }
   <p class="foot">SHUEGUK RE:)PORT · 이수경국어</p>
 </div>
 
-<div class="bar" id="formBar"><button class="btn btn-ghost" onclick="saveBlankImage()">🖼️ 빈 양식 이미지</button><button class="btn btn-primary" onclick="showResult()">입력 완료 · 확인하기</button></div>
+<div class="bar" id="formBar"><button class="btn btn-ghost" onclick="saveBlankImage()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:15px;height:15px;vertical-align:-3px;margin-right:6px;"><rect x="3" y="3" width="18" height="18" rx="2.5"/><circle cx="8.5" cy="9" r="1.6"/><path d="M21 14l-4.5-4.5L5 21"/></svg>리포트 이미지로 저장</button><button class="btn btn-primary" onclick="showResult()">입력 완료 · 확인하기</button></div>
 <div id="toast"></div>
 <div class="bar" id="resultBar" style="display:none;">
   <button class="btn btn-ghost" onclick="backToForm()">수정</button>
@@ -359,7 +359,7 @@ function saveBlankImage(){
   var fields=view.querySelectorAll('input, textarea');
   var saved=[]; fields.forEach(function(el){ saved.push(el.value); el.value=''; });
   document.body.classList.add('capturing');
-  var base=((window.REPORT && REPORT.title) ? REPORT.title : '지필고사')+' 분석지';
+  var base=((window.REPORT && REPORT.title) ? REPORT.title : '지필고사')+' 리포트';
   var restore=function(){ document.body.classList.remove('capturing'); fields.forEach(function(el,i){ el.value=saved[i]; }); };
   toast('이미지를 만드는 중이에요…');
   html2canvas(view, {backgroundColor:'#ffffff', scale:2, useCORS:true}).then(function(canvas){
@@ -368,7 +368,7 @@ function saveBlankImage(){
     a.download=base.replace(/[\\/:*?"<>|]/g,'_')+'.png';
     a.href=canvas.toDataURL('image/png');
     document.body.appendChild(a); a.click(); a.remove();
-    toast('✓ 빈 분석지 이미지를 저장했어요.');
+    toast('✓ 리포트 이미지를 저장했어요.');
   }).catch(function(){ restore(); toast('이미지 저장에 실패했어요. 다시 시도해주세요.'); });
 }
 
