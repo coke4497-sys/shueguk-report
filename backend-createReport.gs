@@ -96,7 +96,7 @@ function getList() {
     for (var i = 1; i < v.length; i++) {
       var id = String(v[i][0]||'').trim();
       if (!id) continue;
-      reports.push({ id: id, title: String(v[i][1]||'').trim() });
+      reports.push({ id: id, title: String(v[i][1]||'').trim(), school: String(v[i][4]||'').trim(), grade: String(v[i][5]||'').trim() });
     }
   }
   return json({ result:'success', reports: reports });
@@ -274,6 +274,8 @@ function getStudent(opts) {
   resp.notices = collectNotices_(ss, info, key);
   // 배정된 H WORK: 이 학생에게 배정된 과제만 (학생 개인 페이지용)
   resp.homework = collectAssignments_(ss, info, key, 'H WORK');
+  // 지필고사 분석지: 이 학생의 학교·학년과 일치하는 시험만(최신순). done=복기 제출 여부
+  resp.analyses = collectAnalyses_(ss, info);
   // 클리닉 신청: 이 학생(토큰)의 최근 신청 내역(없거나 실패 시 null)
   resp.clinic = collectClinic_(key);
   // 어휘 테스트 켜짐/꺼짐 (설정 탭의 '어휘 테스트' 값. 기본 열림)
@@ -565,6 +567,97 @@ function collectClinic_(token) {
   list.sort(function (a, b) { return a.date < b.date ? 1 : (a.date > b.date ? -1 : 0); });
 
   return { latest: list[0], total: list.length };
+}
+
+/* ===== 지필고사 분석지(학생 개별 페이지) =====
+ *  '보고서목록'에서 이 학생의 학교·학년과 일치하는 시험만 골라 최신순으로 반환.
+ *  각 시험에 done(이 학생이 이미 복기를 제출했는지)을 표시 → 학생 페이지에서
+ *  '복기 입력하기' / '입력 완료'로 구분. 학교·학년 정보가 없는 옛 시험은 제외.
+ *  열: A:ID B:제목 C:총평 D:시험범위 E:학교 F:학년
+ */
+function collectAnalyses_(ss, info) {
+  var listSh = ss.getSheetByName(TAB_LIST);
+  if (!listSh) return [];
+  var v = listSh.getDataRange().getValues();
+  if (v.length < 2) return [];
+
+  var myGrade  = normGrade_(info.grade);
+  var mySchool = String(info.school || '').trim();
+  if (!myGrade || !mySchool) return [];   // 학생 학교·학년 미상 → 표시 안 함
+
+  var done = submittedTitles_(ss, info);   // 이 학생이 제출한 시험(제목·ID) 집합
+
+  var out = [];
+  for (var i = 1; i < v.length; i++) {
+    var id     = String(v[i][0] || '').trim();
+    if (!id) continue;
+    var title  = String(v[i][1] || '').trim();
+    var school = String(v[i][4] || '').trim();
+    var grade  = normGrade_(v[i][5]);
+    if (!school || !grade) continue;                    // 학교·학년 없는 옛 시험은 제외
+    if (grade !== myGrade) continue;                    // 학년 불일치
+    if (!schoolMatch_(school, mySchool)) continue;      // 학교 불일치
+    out.push({
+      id: id,
+      title: title,
+      school: school,
+      grade: grade,
+      done: !!(done[id] || (title && done[title])),
+      _row: i
+    });
+  }
+  // 최신순: 시트에서 나중에 등록한 행이 위로
+  out.sort(function(a, b){ return b._row - a._row; });
+  out.forEach(function(o){ delete o._row; });
+  return out;
+}
+
+/** 이 학생이 '제출결과'에 복기를 낸 시험(제목·ID)의 집합을 만든다.
+ *  매칭: 부모님번호(K)=학생ID 또는 이름(E)=학생 이름. 값은 시험명(제출결과 B열). */
+function submittedTitles_(ss, info) {
+  var set = {};
+  var sh = ss.getSheetByName(TAB_RESULT);
+  if (!sh) return set;
+  var sid  = String(info.id   || '').trim();
+  var name = String(info.name || '').trim();
+  var v = sh.getDataRange().getValues();
+  for (var i = 1; i < v.length; i++) {
+    var row = v[i];
+    if (!row[4]) continue;
+    var phone = String(row[10] || '').trim();
+    var nm    = String(row[4]  || '').trim();
+    var match = (phone && phone === sid) || (nm && nm === name);
+    if (!match) continue;
+    var t = String(row[1] || '').trim();   // 시험명(=제목 또는 ID)
+    if (t) set[t] = true;
+  }
+  return set;
+}
+
+/** 학년 문자열을 '고1/고2/고3/중1..' 형태로 정규화.
+ *  "2026 고등 1학년"→"고1", "고3"→"고3", "1"→"" (학교급 불명은 빈값). */
+function normGrade_(s) {
+  s = String(s == null ? '' : s).trim();
+  if (!s) return '';
+  var m = s.match(/(고|중|초)\s*([1-6])/);   // "고3","중2" 등
+  if (m) return m[1] + m[2];
+  // "고등학교 1학년" / "고등 1학년"
+  if (/고/.test(s)) { var g = s.match(/([1-3])\s*학?년?/); if (g) return '고' + g[1]; }
+  if (/중/.test(s)) { var g2 = s.match(/([1-3])\s*학?년?/); if (g2) return '중' + g2[1]; }
+  return '';
+}
+
+/** 학교명 느슨한 일치: 공백 제거 후 완전 일치 또는 한쪽이 다른 쪽을 포함(예: "화정고"↔"화정고등학교"). */
+function schoolMatch_(a, b) {
+  a = String(a || '').replace(/\s+/g, '');
+  b = String(b || '').replace(/\s+/g, '');
+  if (!a || !b) return false;
+  if (a === b) return true;
+  // '고등학교'·'고' 접미어 차이를 흡수해 비교
+  var na = a.replace(/(등학교|고등학교|중학교|학교|고|중)$/,'');
+  var nb = b.replace(/(등학교|고등학교|중학교|학교|고|중)$/,'');
+  if (na && nb && na === nb) return true;
+  return a.indexOf(b) >= 0 || b.indexOf(a) >= 0;
 }
 
 /** '설정' 탭에서 label 항목(A열)의 값(B열) 원문을 반환(없으면 dflt). */
@@ -936,8 +1029,10 @@ function createReport(data) {
 
     // 보고서목록 탭 (없으면 생성)
     var listSh = ss.getSheetByName(TAB_LIST);
-    if (!listSh) { listSh = ss.insertSheet(TAB_LIST); listSh.appendRow(['ID','제목','총평','시험범위']); }
+    if (!listSh) { listSh = ss.insertSheet(TAB_LIST); listSh.appendRow(['ID','제목','총평','시험범위','학교','학년']); }
     ensureHeader_(listSh, 4, '시험범위');     // D열 머리글 보장
+    ensureHeader_(listSh, 5, '학교');         // E열 머리글 보장(학생 개별 페이지 매칭)
+    ensureHeader_(listSh, 6, '학년');         // F열 머리글 보장
 
     // 문항 탭 (없으면 생성)
     var itemSh = ss.getSheetByName(TAB_ITEMS);
@@ -953,7 +1048,7 @@ function createReport(data) {
     // 총평: 문단 배열을 빈 줄로 이어 한 셀에 저장 (getReport 가 /\n\s*\n/ 로 다시 분리)
     var review = Array.isArray(data.review) ? data.review.join('\n\n') : String(data.review || '');
     var scope  = String(data.scope || '');
-    listSh.appendRow([id, String(data.title || ''), review, scope]);
+    listSh.appendRow([id, String(data.title || ''), review, scope, String(data.school || ''), String(data.grade || '')]);
 
     // 문항: 한 번에 기록  (A~H = 보고서ID·번호·영역·형식·난도·내용·세부유형·지문그룹)
     var qs = data.questions || [];
