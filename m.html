@@ -173,7 +173,7 @@ body{font-family:'Noto Sans KR',sans-serif; background:var(--sage-fog); color:va
     <div class="fld">
       <label>학생 배정 <span class="req">*</span></label>
       <div id="assignPicker"></div>
-      <p class="hint">여기서 고른 학생의 개별 페이지 ‘지필고사 분석지’에만 이 시험이 표시됩니다. <b>전 학년 / 학년 / 개인 / 일부</b> 중에서 고르세요. (특정 학교 학생만 고르려면 <b>일부</b> → 학교로 거른 뒤 ‘보이는 학생 모두 선택’)</p>
+      <p class="hint">여기서 고른 학생의 개별 페이지 ‘지필고사 분석지’에만 이 시험이 표시됩니다. <b>전 학년 / 학년 / 개인 / 일부</b> 중에서 고르세요. (특정 학교 학생만 고르려면 <b>일부</b> → 학교로 거른 뒤 ‘보이는 학생 모두 선택’)<br><b style="color:var(--sage-deep);">고른 뒤 맨 아래 저장 버튼을 눌러야 배정이 저장됩니다.</b></p>
     </div>
 
     <!-- 2. 시험 범위 -->
@@ -597,7 +597,7 @@ function loadCurrentAssign(id){
         var a=d.assignments[0]; cur=assignText(a.type, a.target);
       }
       var apHint=document.getElementById('assignPicker').parentNode.querySelector('.hint');
-      if(apHint) apHint.innerHTML='<b>현재 배정:</b> '+esc(cur)+' · 바꾸려면 아래에서 다시 선택하세요. <b>그대로 두면 유지</b>됩니다.';
+      if(apHint) apHint.innerHTML='<b>현재 배정:</b> '+esc(cur)+' · 바꾸려면 아래에서 다시 선택하세요(그대로 두면 유지). <b style="color:var(--sage-deep);">선택 후 맨 아래 ‘수정 저장’을 눌러야 반영됩니다.</b>';
     })
     .catch(function(){});
 }
