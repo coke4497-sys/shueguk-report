@@ -53,6 +53,8 @@
   .a-edit svg{width:14px;height:14px;}
   .a-clear{border:none;background:none;font:inherit;font-size:12.5px;font-weight:700;color:var(--ink-soft);cursor:pointer;padding:8px 6px;text-decoration:underline;}
   .a-clear:hover{color:var(--bad);}
+  .a-del{border:none;background:none;font:inherit;font-size:12.5px;font-weight:700;color:var(--bad);cursor:pointer;padding:8px 6px;text-decoration:underline;margin-left:auto;}
+  .a-del:hover{opacity:.8;}
   .mgr-empty{text-align:center;color:#9aa6a0;font-size:13.5px;padding:24px;}
 
   /* 잠금 */
@@ -168,6 +170,7 @@
       '<div class="a-actions">' +
         '<a class="a-edit" href="m.html?id='+encodeURIComponent(rep.id)+'">'+editIcon+' 리포트 수정 · 학생 배정</a>' +
         (hasAssign ? '<button type="button" class="a-clear" onclick="clearAssign(\''+esc(rep.id).replace(/'/g,"\\'")+'\',this)">배정 해제</button>' : '') +
+        '<button type="button" class="a-del" onclick="deleteReport(\''+esc(rep.id).replace(/'/g,"\\'")+'\',this)">리포트 삭제</button>' +
       '</div>' +
     '</div>';
   }
@@ -183,6 +186,21 @@
     .then(function(r){ return r.json(); })
     .then(function(res){ if(res.result==='success'){ loadAll(); } else { btn.disabled=false; alert('해제 실패: '+(res.message||'오류')); } })
     .catch(function(){ btn.disabled=false; alert('해제 실패 — 인터넷을 확인해 주세요.'); });
+  }
+
+  /* 리포트 완전 삭제 (보고서목록·문항·배정에서 제거. 학생이 이미 낸 복기 기록은 보존) */
+  function deleteReport(id, btn){
+    var item = btn.closest('.a-item');
+    var title = item ? (item.querySelector('.a-title')||{}).textContent : id;
+    if(!confirm('“'+ (title||id) +'” 리포트를 완전히 삭제할까요?\n\n· 리포트 내용·문항·학생 배정이 모두 지워집니다.\n· 학생이 이미 낸 복기 기록은 남습니다.\n· 되돌릴 수 없습니다.')) return;
+    btn.disabled=true; btn.textContent='삭제 중…';
+    fetch(ENDPOINT, {
+      method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body: JSON.stringify({ action:'deleteReport', pw:SERVER_PW, id:id })
+    })
+    .then(function(r){ return r.json(); })
+    .then(function(res){ if(res.result==='success'){ loadAll(); } else { btn.disabled=false; btn.textContent='리포트 삭제'; alert('삭제 실패: '+(res.message==='unauthorized'?'권한이 없습니다.':(res.message||'오류'))); } })
+    .catch(function(){ btn.disabled=false; btn.textContent='리포트 삭제'; alert('삭제 실패 — 인터넷을 확인해 주세요.'); });
   }
 </script>
 </body>
