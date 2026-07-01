@@ -571,18 +571,17 @@ function collectClinic_(token) {
 }
 
 /* ===== 지필고사 분석지(학생 개별 페이지) =====
- *  이 학생에게 해당하는 지필고사 분석지만 골라 최신순으로 반환. 두 경로를 모두 지원:
- *   (A) 교사가 등록 화면에서 학생을 '배정'한 경우 → '배정' 탭(도구=지필고사 분석지, 항목=시험ID)
- *       에서 공지와 동일한 noticeMatches_ 규칙(전체/학년/개인/일부)으로 매칭.
- *   (B) '보고서목록' E:학교·F:학년을 직접 채운 경우 → 학생 학교·학년과 일치하면 표시(수기·기존분).
+ *  교사가 '배정'한 학생에게만 해당 분석지를 최신순으로 반환.
+ *  배정은 '배정' 탭(도구=지필고사 분석지, 항목=시험ID)에 기록되며, 공지와 동일한
+ *  noticeMatches_ 규칙(전체/학년/개인/일부)으로 이 학생 해당 여부를 판단한다.
+ *  (학교+학년 자동배정은 선택과목 차이로 오배정 위험이 있어 사용하지 않는다.)
  *  각 시험에 done(이 학생이 이미 복기를 제출했는지)을 표시 → '복기 입력하기'/'입력 완료' 구분.
- *  열: 보고서목록 A:ID B:제목 C:총평 D:시험범위 E:학교 F:학년
  */
 function collectAnalyses_(ss, info, key) {
-  var listSh = ss.getSheetByName(TAB_LIST);
-  if (!listSh) return [];
-  var v = listSh.getDataRange().getValues();
-  if (v.length < 2) return [];
+  var aSh = ss.getSheetByName(TAB_ASSIGN);
+  if (!aSh) return [];
+  var av = aSh.getDataRange().getValues();
+  if (av.length < 2) return [];
 
   var stu = {
     sid:    String(info.id     || '').trim(),
@@ -591,60 +590,64 @@ function collectAnalyses_(ss, info, key) {
     school: String(info.school || '').trim(),
     code:   String(key         || '').trim()
   };
-  var myGrade  = normGrade_(info.grade);
-  var mySchool = String(info.school || '').trim();
 
-  // (A) 배정 탭에서 이 학생에게 배정된 분석지 ID 집합
+  var AH = av[0];
+  var acTool  = findHeaderCol_(AH, '도구',     1);
+  var acItem  = findHeaderCol_(AH, '항목',     2);
+  var acType  = findHeaderCol_(AH, '대상유형', 3);
+  var acTarget= findHeaderCol_(AH, '대상',     4);
+
+  // 이 학생에게 배정된 분석지 ID (중복 제거)
   var assigned = {};
-  var aSh = ss.getSheetByName(TAB_ASSIGN);
-  if (aSh) {
-    var av = aSh.getDataRange().getValues();
-    if (av.length >= 2) {
-      var AH = av[0];
-      var acTool  = findHeaderCol_(AH, '도구',     1);
-      var acItem  = findHeaderCol_(AH, '항목',     2);
-      var acType  = findHeaderCol_(AH, '대상유형', 3);
-      var acTarget= findHeaderCol_(AH, '대상',     4);
-      for (var a = 1; a < av.length; a++) {
-        if (String(av[a][acTool] || '').trim() !== ANALYSIS_TOOL) continue;
-        var itemId = String(av[a][acItem] || '').trim();
-        if (!itemId) continue;
-        if (noticeMatches_(String(av[a][acType]||''), String(av[a][acTarget]||''), stu)) assigned[itemId] = true;
-      }
+  for (var a = 1; a < av.length; a++) {
+    if (String(av[a][acTool] || '').trim() !== ANALYSIS_TOOL) continue;
+    var itemId = String(av[a][acItem] || '').trim();
+    if (!itemId || assigned[itemId]) continue;
+    if (noticeMatches_(String(av[a][acType]||''), String(av[a][acTarget]||''), stu)) assigned[itemId] = true;
+  }
+  if (!Object.keys(assigned).length) return [];
+
+  // 보고서목록에서 제목 조회
+  var titleById = {};
+  var listSh = ss.getSheetByName(TAB_LIST);
+  if (listSh) {
+    var lv = listSh.getDataRange().getValues();
+    for (var i = 1; i < lv.length; i++) {
+      var lid = String(lv[i][0] || '').trim();
+      if (lid) titleById[lid] = String(lv[i][1] || '').trim();
     }
   }
 
   var done = submittedTitles_(ss, info);   // 이 학생이 제출한 시험(제목·ID) 집합
+  var order = getListOrder_(ss);           // 보고서목록 등록 순서(최신순 정렬용)
 
   var out = [];
-  for (var i = 1; i < v.length; i++) {
-    var id     = String(v[i][0] || '').trim();
-    if (!id) continue;
-    var title  = String(v[i][1] || '').trim();
-    var school = String(v[i][4] || '').trim();
-    var grade  = normGrade_(v[i][5]);
-
-    var match = false;
-    if (assigned[id]) {
-      match = true;                                       // (A) 배정됨
-    } else if (school && grade && myGrade && mySchool) {  // (B) 학교·학년 수기 일치
-      match = (grade === myGrade) && schoolMatch_(school, mySchool);
-    }
-    if (!match) continue;
-
+  Object.keys(assigned).forEach(function(id){
+    var title = titleById[id] || id;
     out.push({
       id: id,
       title: title,
-      school: school,
-      grade: grade,
       done: !!(done[id] || (title && done[title])),
-      _row: i
+      _ord: (typeof order[id] === 'number') ? order[id] : -1
     });
-  }
-  // 최신순: 시트에서 나중에 등록한 행이 위로
-  out.sort(function(a, b){ return b._row - a._row; });
-  out.forEach(function(o){ delete o._row; });
+  });
+  // 최신순: 보고서목록에서 나중에 등록된 것이 위로
+  out.sort(function(a, b){ return b._ord - a._ord; });
+  out.forEach(function(o){ delete o._ord; });
   return out;
+}
+
+/** 보고서목록에서 각 ID의 행 위치(등록 순서)를 반환 { id: rowIndex }. 최신순 정렬용. */
+function getListOrder_(ss) {
+  var order = {};
+  var listSh = ss.getSheetByName(TAB_LIST);
+  if (!listSh) return order;
+  var lv = listSh.getDataRange().getValues();
+  for (var i = 1; i < lv.length; i++) {
+    var id = String(lv[i][0] || '').trim();
+    if (id) order[id] = i;
+  }
+  return order;
 }
 
 /** 이 학생이 '제출결과'에 복기를 낸 시험(제목·ID)의 집합을 만든다.
@@ -814,6 +817,10 @@ function doPost(e) {
     // (9) 도구별 배정 입력·삭제 (hwork_assign.html 등)
     if (data && data.action === 'addAssignment')    { return addAssignment(data); }
     if (data && data.action === 'deleteAssignment') { return deleteAssignment(data); }
+
+    // (10) 지필고사 분석지 배정 관리 (analyses.html) — 지난 분석지에 학생 배정/해제
+    if (data && data.action === 'setAnalysisAssign')    { return setAnalysisAssign(data); }
+    if (data && data.action === 'deleteAnalysisAssign') { return deleteAnalysisAssign(data); }
 
     // (2) 학생 제출 수집
     var ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -1111,6 +1118,35 @@ function createReport(data) {
   } catch (err) {
     return json({ result:'error', message:String(err) });
   }
+}
+
+/* ===== (10) 지필고사 분석지 배정 관리 ===== analyses.html
+ *  setAnalysisAssign   : { pw, id, type, target } → '배정' 탭에 (도구=지필고사 분석지, 항목=id)
+ *                        기존 배정을 지우고 새 대상(type/target)으로 저장. type이 비면 배정 해제.
+ *  deleteAnalysisAssign: { pw, id } → 해당 분석지의 배정을 모두 제거(전 학생에게서 내림).
+ */
+function setAnalysisAssign(data) {
+  if (String(data.pw||'') !== TEACHER_PW) return json({ result:'error', message:'unauthorized' });
+  var id = String(data.id||'').trim();
+  if (!id) return json({ result:'error', message:'시험 ID가 없습니다.' });
+  var type = String(data.type||'').trim();
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ensureAssignSheet_(ss);
+  deleteAssignByToolItem_(sh, ANALYSIS_TOOL, id);
+  if (type) {
+    sh.appendRow([ new Date(), ANALYSIS_TOOL, id, type, String(data.target||'').trim(), '', '' ]);
+  }
+  return json({ result:'success', id:id });
+}
+
+function deleteAnalysisAssign(data) {
+  if (String(data.pw||'') !== TEACHER_PW) return json({ result:'error', message:'unauthorized' });
+  var id = String(data.id||'').trim();
+  if (!id) return json({ result:'error', message:'시험 ID가 없습니다.' });
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ss.getSheetByName(TAB_ASSIGN);
+  if (sh) deleteAssignByToolItem_(sh, ANALYSIS_TOOL, id);
+  return json({ result:'success', id:id });
 }
 
 /** '배정' 탭에서 도구(B)+항목(C)이 일치하는 행을 모두 삭제(헤더 제외, 아래에서 위로). */
