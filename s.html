@@ -310,7 +310,7 @@
 <div id="noticeView"><main class="wrap gwrap">
   <div class="gv-bar">
     <button class="gv-back" onclick="closeNotices()" id="nvBack"></button>
-    <span class="gv-ttl">알려드립니다 · 공지</span>
+    <span class="gv-ttl">알려드립니다 · 공지·지필고사 분석지</span>
   </div>
   <div id="noticeList"></div>
   <footer><p>이수경국어 Shueguk · 학생용</p></footer>
@@ -546,14 +546,17 @@ function renderHub(){
   // 메뉴
   var html = '';
 
-  // 알려드립니다 (공지) — 비밀번호 없이 열람
+  // 알려드립니다 (공지 + 지필고사 분석지 복기) — 비밀번호 없이 열람
   var nCnt = (STATE.notices||[]).length;
-  var nDot = nCnt>0 ? '<span class="new-dot">'+(nCnt>9?'9+':nCnt)+'</span>' : '';
-  var nDesc = nCnt>0 ? (nCnt+'건의 새 소식') : '받은 공지 확인';
+  var anTodo = (STATE.analyses||[]).filter(function(a){ return !a.done; }).length;
+  var nTotal = nCnt + anTodo;   // 빨간 뱃지: 새 공지 + 미입력 복기
+  var nDot = nTotal>0 ? '<span class="new-dot">'+(nTotal>9?'9+':nTotal)+'</span>' : '';
+  var nDesc = anTodo>0 ? ('지필고사 복기 '+anTodo+'건 입력 필요')
+            : (nCnt>0 ? (nCnt+'건의 새 소식') : '공지 · 지필고사 분석지 확인');
   html += '<button class="card" onclick="openNotices()">' +
             '<span class="icon">'+svg(ICON.bell)+nDot+'</span>' +
             '<h3>알려드립니다</h3><p class="desc">'+esc(nDesc)+'</p>' +
-            '<span class="go">'+(nCnt>0?'새 소식 ':'열기 ')+svg(ICON.arrow)+'</span></button>';
+            '<span class="go">'+(nTotal>0?'확인 ':'열기 ')+svg(ICON.arrow)+'</span></button>';
 
   // H WORK — 이 학생에게 배정된 과제만 표시
   var hCnt = (STATE.homework||[]).length;
@@ -563,17 +566,6 @@ function renderHub(){
             '<span class="icon">'+svg(ICON.clip)+hDot+'</span>' +
             '<h3>H-work</h3><p class="desc">'+esc(hDesc)+'</p>' +
             '<span class="go">'+(hCnt>0?'확인 ':'열기 ')+svg(ICON.arrow)+'</span></button>';
-
-  // 지필고사 분석지 — 내 학교·학년 시험만. 아직 복기 안 낸(미입력) 건수를 빨간 뱃지로.
-  var anAll = STATE.analyses||[];
-  var anTodo = anAll.filter(function(a){ return !a.done; }).length;
-  var aDot = anTodo>0 ? '<span class="new-dot">'+(anTodo>9?'9+':anTodo)+'</span>' : '';
-  var aDesc = anAll.length===0 ? '입력할 분석지 없음'
-            : (anTodo>0 ? ('입력할 분석지 '+anTodo+'건') : '모두 입력 완료');
-  html += '<button class="card" onclick="openAnalyses()">' +
-            '<span class="icon">'+svg(ICON.pencil)+aDot+'</span>' +
-            '<h3>지필고사 분석지</h3><p class="desc">'+esc(aDesc)+'</p>' +
-            '<span class="go">'+(anTodo>0?'입력하기 ':'열기 ')+svg(ICON.arrow)+'</span></button>';
 
   FEATURES.forEach(function(f){
     var desc = f.desc;
@@ -654,24 +646,50 @@ function renderHub(){
 /* ---- 알려드립니다(공지) ---- */
 function openNotices(){ renderNotices(); }
 function closeNotices(){ $('noticeView').style.display='none'; show('hubView'); window.scrollTo(0,0); }
+/* 지필고사 분석지(복기)를 공지 항목처럼 렌더 — 미입력은 초록 강조 + 복기 입력 버튼 */
+function analysisNoticeHtml(a){
+  var href = 'r.html?id=' + encodeURIComponent(a.id);
+  if(a.done){
+    return '<div class="notice-item">' +
+      '<span class="ntag" style="background:#DCE6E0;color:var(--accent);">지필고사 분석지</span>' +
+      '<div class="nh"><span class="ntitle">'+esc(a.title||'지필고사 분석지')+'</span></div>' +
+      '<div class="nbody" style="color:var(--accent);">✓ 복기 입력을 마쳤어요.</div>' +
+      '<a class="hw-go" href="'+esc(href)+'">다시 보기 '+svg(ICON.arrow)+'</a>' +
+      '</div>';
+  }
+  return '<div class="notice-item" style="border-color:#8FA89C;background:#F4F8F6;">' +
+    '<span class="ntag" style="background:#CFE0D8;color:var(--accent);">복기 입력</span>' +
+    '<div class="nh"><span class="ntitle">'+esc(a.title||'지필고사 분석지')+'</span></div>' +
+    '<div class="nbody">지필고사 분석지 복기를 입력해 주세요.</div>' +
+    '<a class="hw-go" href="'+esc(href)+'">복기 입력하기 '+svg(ICON.arrow)+'</a>' +
+    '</div>';
+}
+function noticeItemHtml(n){
+  var tag = n.type==='개인' ? '나에게'
+          : n.type==='전체' ? '전체 공지'
+          : n.type==='학년' ? '학년 공지'
+          : (n.type ? '안내' : '');
+  return '<div class="notice-item">' +
+    (tag ? '<span class="ntag">'+esc(tag)+'</span>' : '') +
+    '<div class="nh"><span class="ntitle">'+esc(n.title||'공지')+'</span>' +
+    (n.date ? '<span class="ndate">'+esc(n.date)+'</span>' : '') + '</div>' +
+    (n.body ? '<div class="nbody">'+esc(n.body)+'</div>' : '') +
+    '</div>';
+}
 function renderNotices(){
   var ns = STATE.notices || [];
+  var as = STATE.analyses || [];
+  var todo = as.filter(function(a){ return !a.done; });
+  var done = as.filter(function(a){ return a.done; });
+  var parts = [];
+  todo.forEach(function(a){ parts.push(analysisNoticeHtml(a)); });   // 미입력 복기 먼저
+  ns.forEach(function(n){ parts.push(noticeItemHtml(n)); });         // 일반 공지
+  done.forEach(function(a){ parts.push(analysisNoticeHtml(a)); });   // 입력 완료는 아래
   var list = $('noticeList');
-  if(!ns.length){
-    list.innerHTML = '<div class="empty-state"><p>아직 등록된 공지가 없습니다.<br>새로운 소식이 있으면 이곳에 표시됩니다.</p></div>';
+  if(!parts.length){
+    list.innerHTML = '<div class="empty-state"><p>아직 등록된 공지가 없습니다.<br>새로운 소식이나 지필고사 분석지가 있으면 이곳에 표시됩니다.</p></div>';
   } else {
-    list.innerHTML = ns.map(function(n){
-      var tag = n.type==='개인' ? '나에게'
-              : n.type==='전체' ? '전체 공지'
-              : n.type==='학년' ? '학년 공지'
-              : (n.type ? '안내' : '');
-      return '<div class="notice-item">' +
-        (tag ? '<span class="ntag">'+esc(tag)+'</span>' : '') +
-        '<div class="nh"><span class="ntitle">'+esc(n.title||'공지')+'</span>' +
-        (n.date ? '<span class="ndate">'+esc(n.date)+'</span>' : '') + '</div>' +
-        (n.body ? '<div class="nbody">'+esc(n.body)+'</div>' : '') +
-        '</div>';
-    }).join('');
+    list.innerHTML = parts.join('');
   }
   hide('hubView'); $('noticeView').style.display='block'; window.scrollTo(0,0);
 }
