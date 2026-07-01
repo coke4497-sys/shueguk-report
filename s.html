@@ -114,6 +114,20 @@
   .hw-go svg{width:15px;height:15px;}
   .hw-go:hover{opacity:.8;}
 
+  /* 지필고사 분석지(복기 입력) 뷰 */
+  #analysesView{display:none;}
+  .an-item{background:var(--surface);border:1px solid var(--line-soft);border-radius:var(--radius);padding:16px 18px;margin-bottom:12px;}
+  .an-item .ah{display:flex;justify-content:space-between;align-items:baseline;gap:12px;margin-bottom:10px;}
+  .an-item .atitle{font-family:var(--serif);font-weight:700;font-size:1.04rem;color:var(--ink);line-height:1.4;}
+  .an-item .ameta{font-size:.76rem;color:var(--ink-soft);white-space:nowrap;}
+  .an-go{display:inline-flex;align-items:center;gap:6px;text-decoration:none;font-size:.9rem;font-weight:700;font-family:var(--sans);border-radius:12px;padding:11px 16px;}
+  .an-go svg{width:15px;height:15px;}
+  .an-go.todo{background:var(--accent);color:#fff;}
+  .an-go.todo:hover{opacity:.88;}
+  .an-done{display:inline-flex;align-items:center;gap:6px;font-size:.86rem;color:var(--accent);font-weight:700;}
+  .an-done svg{width:16px;height:16px;}
+  .an-redo{display:block;margin-top:8px;font-size:.78rem;color:var(--ink-soft);text-decoration:underline;}
+
   /* 지필고사 데이터 뷰 */
   #gradeView{display:none;}
   .gwrap{max-width:720px;}
@@ -312,6 +326,16 @@
   <footer><p>이수경국어 Shueguk · 학생용</p></footer>
 </main></div>
 
+<!-- 지필고사 분석지 (복기 입력) -->
+<div id="analysesView"><main class="wrap gwrap">
+  <div class="gv-bar">
+    <button class="gv-back" onclick="closeAnalyses()" id="avBack"></button>
+    <span class="gv-ttl">지필고사 분석지 · 복기 입력</span>
+  </div>
+  <div id="analysesList"></div>
+  <footer><p>이수경국어 Shueguk · 학생용</p></footer>
+</main></div>
+
 <!-- 지필고사 데이터 -->
 <div id="gradeView"><main class="wrap gwrap">
   <div class="gv-bar">
@@ -380,7 +404,8 @@ var ICON = {
   arrow:'<path d="M5 12h14M13 6l6 6-6 6"/>',
   back:'<path d="M19 12H5M11 18l-6-6 6-6"/>',
   bell:'<path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>',
-  clip:'<path d="M9 3h6a1 1 0 0 1 1 1v1a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M16 5h2a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2"/><path d="M9 14l2 2 4-4"/>'
+  clip:'<path d="M9 3h6a1 1 0 0 1 1 1v1a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M16 5h2a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2"/><path d="M9 14l2 2 4-4"/>',
+  check:'<path d="M20 6L9 17l-5-5"/>'
 };
 function svg(inner){ return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">'+inner+'</svg>'; }
 
@@ -463,7 +488,7 @@ function hide(id){ $(id).style.display='none'; }
 
 var KEY = '';        // 접근코드(토큰) — 없으면 테스트용 id
 var IS_ID = false;
-var STATE = { info:null, authed:false, exams:null, examCount:0, notices:null, homework:null, clinic:null, vocaOpen:null, vocaWeek:null, mockGrades:null, clinicGrades:null, vocaTaken:null };
+var STATE = { info:null, authed:false, exams:null, examCount:0, notices:null, homework:null, analyses:null, clinic:null, vocaOpen:null, vocaWeek:null, mockGrades:null, clinicGrades:null, vocaTaken:null };
 
 function showError(title, msg){
   hide('loadBox'); hide('hubView'); $('gradeView').style.display='none';
@@ -539,6 +564,17 @@ function renderHub(){
             '<h3>H-work</h3><p class="desc">'+esc(hDesc)+'</p>' +
             '<span class="go">'+(hCnt>0?'확인 ':'열기 ')+svg(ICON.arrow)+'</span></button>';
 
+  // 지필고사 분석지 — 내 학교·학년 시험만. 아직 복기 안 낸(미입력) 건수를 빨간 뱃지로.
+  var anAll = STATE.analyses||[];
+  var anTodo = anAll.filter(function(a){ return !a.done; }).length;
+  var aDot = anTodo>0 ? '<span class="new-dot">'+(anTodo>9?'9+':anTodo)+'</span>' : '';
+  var aDesc = anAll.length===0 ? '입력할 분석지 없음'
+            : (anTodo>0 ? ('입력할 분석지 '+anTodo+'건') : '모두 입력 완료');
+  html += '<button class="card" onclick="openAnalyses()">' +
+            '<span class="icon">'+svg(ICON.pencil)+aDot+'</span>' +
+            '<h3>지필고사 분석지</h3><p class="desc">'+esc(aDesc)+'</p>' +
+            '<span class="go">'+(anTodo>0?'입력하기 ':'열기 ')+svg(ICON.arrow)+'</span></button>';
+
   FEATURES.forEach(function(f){
     var desc = f.desc;
     var url = f.url;
@@ -612,7 +648,7 @@ function renderHub(){
   }
   $('menu').innerHTML = html;
 
-  hide('loadBox'); hide('errBox'); $('gradeView').style.display='none'; $('noticeView').style.display='none'; $('homeworkView').style.display='none'; show('hubView');
+  hide('loadBox'); hide('errBox'); $('gradeView').style.display='none'; $('noticeView').style.display='none'; $('homeworkView').style.display='none'; $('analysesView').style.display='none'; show('hubView');
 }
 
 /* ---- 알려드립니다(공지) ---- */
@@ -671,6 +707,33 @@ function renderHomework(){
     }).join('');
   }
   hide('hubView'); $('homeworkView').style.display='block'; window.scrollTo(0,0);
+}
+
+/* ---- 지필고사 분석지 (복기 입력) ---- */
+function openAnalyses(){ renderAnalyses(); }
+function closeAnalyses(){ $('analysesView').style.display='none'; show('hubView'); window.scrollTo(0,0); }
+function renderAnalyses(){
+  var as = STATE.analyses || [];
+  var list = $('analysesList');
+  if(!as.length){
+    list.innerHTML = '<div class="empty-state"><p>지금 입력할 지필고사 분석지가 없습니다.<br>내 학교·학년 시험이 등록되면 이곳에 표시됩니다.</p></div>';
+  } else {
+    var base = 'r.html?id=';
+    list.innerHTML = as.map(function(a){
+      var href = base + encodeURIComponent(a.id);
+      var meta = [a.school, a.grade].filter(Boolean).join(' · ');
+      var action = a.done
+        ? '<span class="an-done">'+svg(ICON.check)+' 복기 입력 완료</span>' +
+          '<a class="an-redo" href="'+esc(href)+'">다시 열어보기</a>'
+        : '<a class="an-go todo" href="'+esc(href)+'">복기 입력하기 '+svg(ICON.arrow)+'</a>';
+      return '<div class="an-item">' +
+        '<div class="ah"><span class="atitle">'+esc(a.title||'지필고사 분석지')+'</span>' +
+        (meta ? '<span class="ameta">'+esc(meta)+'</span>' : '') + '</div>' +
+        action +
+        '</div>';
+    }).join('');
+  }
+  hide('hubView'); $('analysesView').style.display='block'; window.scrollTo(0,0);
 }
 
 /* ---- 성적 ---- */
@@ -929,6 +992,7 @@ function boot(){
   $('mockBack').innerHTML = svg(ICON.back) + ' 메뉴';
   $('nvBack').innerHTML = svg(ICON.back) + ' 메뉴';
   $('hwBack').innerHTML = svg(ICON.back) + ' 메뉴';
+  $('avBack').innerHTML = svg(ICON.back) + ' 메뉴';
   $('pwIcon').innerHTML = svg(ICON.lock);
   $('pwInput').addEventListener('keydown', function(e){ if(e.key==='Enter') submitPw(); });
 
@@ -947,6 +1011,7 @@ function boot(){
       STATE.info=d.info; STATE.authed=!!d.authed; STATE.examCount=d.examCount||0;
       STATE.notices=d.notices||[];
       STATE.homework=d.homework||[];
+      STATE.analyses=d.analyses||[];
       STATE.clinic=d.clinic||null;
       STATE.vocaOpen=d.vocaOpen;   // true/false/undefined(=열림)
       STATE.vocaWeek=d.vocaWeek;   // 교사가 연 주차(없으면 null → 준비 중)

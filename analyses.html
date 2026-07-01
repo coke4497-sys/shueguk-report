@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+<title>지필고사 분석지 배정 · 슈국 티쳐스</title>
+<meta name="description" content="지필고사 분석지를 학생에게 배정합니다 (교사용)" />
+<link href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=Gowun+Dodum&display=swap" rel="stylesheet" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='48' fill='%23DCE9E4'/%3E%3C/svg%3E" />
+<link rel="stylesheet" href="student-picker.css" />
+<style>
+  :root{
+    --bg:#E4EFEA; --surface:#FFFFFF; --ink:#2A332F; --ink-soft:#65726B;
+    --accent:#3A6B5E; --line:#D7E3DD; --line-soft:#E5EDE8; --radius:18px;
+    --bad:#c0463e; --ok:#1b8a3a;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bg); color:var(--ink);
+    font-family:"Gowun Dodum","Apple SD Gothic Neo","Malgun Gothic",-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+    font-size:16px; line-height:1.7; -webkit-font-smoothing:antialiased; padding:0 0 80px;
+  }
+  .wrap{max-width:600px;margin:0 auto;padding:0 20px;}
+
+  .back{display:inline-flex;align-items:center;gap:6px;margin:24px 0 0;color:var(--ink-soft);text-decoration:none;font-size:14px;}
+  .back svg{width:16px;height:16px;}
+  .back:hover{color:var(--accent);}
+
+  header{padding:16px 4px 22px;text-align:center;}
+  .tagline{font-family:"Gowun Batang",serif;font-size:1.5rem;font-weight:700;color:var(--accent);margin:0;}
+  .intro{color:var(--ink-soft);font-size:.92rem;margin:9px auto 0;max-width:27em;}
+
+  .card{background:var(--surface);border:1px solid var(--line-soft);border-radius:var(--radius);padding:22px 20px;margin-bottom:16px;}
+  .card h2{font-family:"Gowun Batang",serif;font-size:1.12rem;font-weight:700;margin:0 0 4px;display:flex;align-items:center;gap:8px;}
+  .card h2 .dot{width:8px;height:8px;border-radius:50%;background:var(--accent);display:inline-block;}
+  .card .sub{color:var(--ink-soft);font-size:.84rem;margin:0 0 16px;}
+
+  .mgr-bar{display:flex;justify-content:flex-end;margin-bottom:10px;}
+  .refresh{border:1.5px solid var(--line);background:#fff;color:var(--accent);font:inherit;font-size:13px;font-weight:700;padding:8px 14px;border-radius:9px;cursor:pointer;}
+  .refresh:hover{border-color:var(--accent);}
+
+  .a-item{border:1px solid var(--line-soft);border-radius:12px;padding:14px 15px;margin-bottom:11px;background:#fcfdfc;}
+  .a-title{font-weight:700;font-size:15px;margin:0 0 7px;line-height:1.4;}
+  .a-assign{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+  .a-tag{font-size:11.5px;font-weight:700;padding:2px 10px;border-radius:20px;background:#E1EDE7;color:var(--accent);}
+  .a-tag.none{background:#f0e7dd;color:#9a6b3e;}
+  .a-tag.t전체{background:#dceae3;} .a-tag.t학년{background:#e3eadd;color:#5d7a4e;}
+  .a-tag.t개인{background:#e8e3f0;color:#7a6e9a;} .a-tag.t일부{background:#f0e7dd;color:#9a7a4e;}
+  .a-target{font-size:12.5px;color:var(--ink-soft);flex:1;min-width:0;}
+  .a-actions{display:flex;gap:8px;margin-top:11px;flex-wrap:wrap;}
+  .a-actions button,.a-actions .editrep{border:1.5px solid var(--line);background:#fff;font:inherit;font-size:12.5px;font-weight:700;padding:8px 14px;border-radius:9px;cursor:pointer;color:var(--accent);text-decoration:none;display:inline-flex;align-items:center;}
+  .a-actions .edit:hover,.a-actions .editrep:hover{border-color:var(--accent);}
+  .a-actions .editrep{color:var(--ink-soft);}
+  .a-actions .clear{color:var(--ink-soft);}
+  .a-actions .clear:hover{border-color:var(--bad);color:var(--bad);}
+  .mgr-empty{text-align:center;color:#9aa6a0;font-size:13.5px;padding:24px;}
+
+  /* 배정 모달 */
+  .modal{position:fixed;inset:0;background:rgba(42,51,47,.45);display:none;align-items:flex-start;justify-content:center;padding:24px 16px;z-index:60;overflow-y:auto;}
+  .modal.show{display:flex;}
+  .modal-card{background:var(--surface);border-radius:18px;padding:22px 20px;width:100%;max-width:520px;margin:auto;box-shadow:0 16px 48px rgba(42,51,47,.22);}
+  .modal-card .m-t{font-family:"Gowun Batang",serif;font-weight:700;font-size:1.05rem;color:var(--ink);margin:0 0 3px;}
+  .modal-card .m-s{font-size:.82rem;color:var(--ink-soft);margin:0 0 16px;}
+  .modal-card .m-cur{font-size:12.5px;color:var(--ink-soft);background:#f2f7f4;border-radius:9px;padding:8px 11px;margin:0 0 14px;}
+  .m-btns{display:flex;gap:10px;margin-top:16px;}
+  .m-btns button{flex:1;border:none;border-radius:12px;padding:14px;font-family:"Gowun Batang",serif;font-size:15px;font-weight:700;cursor:pointer;}
+  .m-cancel{background:#eef2ef;color:var(--ink-soft);}
+  .m-ok{background:var(--accent);color:#fff;}
+  .m-btns button:active{opacity:.85;}
+  .m-status{font-size:13px;margin-top:11px;min-height:1.2em;text-align:center;color:var(--ink-soft);}
+  .m-status.ok{color:var(--ok);} .m-status.err{color:var(--bad);}
+
+  /* 잠금 */
+  .lock{position:fixed;inset:0;background:var(--bg);z-index:100;display:flex;align-items:center;justify-content:center;padding:24px;}
+  .lock-card{background:#fff;border:1px solid var(--line-soft);border-radius:18px;padding:34px 28px;text-align:center;max-width:330px;width:100%;}
+  .lock-card .t{font-family:"Gowun Batang",serif;font-weight:700;font-size:20px;color:var(--accent);}
+  .lock-card .d{font-size:13px;color:var(--ink-soft);margin:10px 0 18px;}
+  .lock-card input{width:100%;padding:13px;border:1.5px solid var(--line);border-radius:10px;font:inherit;font-size:16px;text-align:center;}
+  .lock-card input:focus{outline:none;border-color:var(--accent);}
+  .lock-card button{width:100%;margin-top:11px;padding:13px;border:none;border-radius:11px;background:var(--accent);color:#fff;font-family:"Gowun Batang",serif;font-weight:700;font-size:16px;cursor:pointer;}
+  .lock-err{color:var(--bad);font-size:12.5px;min-height:1.1em;margin-top:10px;}
+  body.locked{overflow:hidden;}
+  body:not(.locked) .lock{display:none;}
+  @media (prefers-reduced-motion:reduce){*{transition:none !important;}}
+</style>
+</head>
+<body class="locked">
+
+<!-- 비밀번호 잠금 -->
+<div class="lock" id="lockScreen">
+  <div class="lock-card">
+    <div class="t">분석지 배정</div>
+    <div class="d">선생님 전용 페이지입니다.<br>비밀번호를 입력해 주세요.</div>
+    <input type="password" id="lockInput" placeholder="비밀번호" inputmode="numeric" autocomplete="off" />
+    <button type="button" onclick="checkLock()">확인</button>
+    <div class="lock-err" id="lockErr"></div>
+  </div>
+</div>
+
+<main class="wrap">
+  <a class="back" href="https://coke4497-sys.github.io/shueguk-hub/index.html">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M11 18l-6-6 6-6"/></svg>
+    티쳐스 메인 페이지로 가기
+  </a>
+
+  <header>
+    <p class="tagline">리포트 수정 및 학생 배정</p>
+    <p class="intro">이미 만든 지필고사 리포트의 <b>내용을 수정</b>하거나 <b>학생을 배정</b>합니다. 배정된 학생의 개별 페이지 ‘지필고사 분석지’에만 표시돼요.</p>
+  </header>
+
+  <section class="card">
+    <h2><span class="dot"></span>리포트 목록</h2>
+    <p class="sub"><b>학생 배정</b>으로 대상을 고르고(전 학년/학년/개인/일부), <b>리포트 내용 수정</b>으로 제목 외 항목을 고칠 수 있어요.</p>
+    <div class="mgr-bar"><button type="button" class="refresh" onclick="loadAll()">새로고침</button></div>
+    <div id="list"><div class="mgr-empty">불러오는 중…</div></div>
+  </section>
+</main>
+
+<!-- 배정 모달 -->
+<div class="modal" id="modal">
+  <div class="modal-card">
+    <p class="m-t" id="mTitle">배정</p>
+    <p class="m-s">이 분석지를 볼 학생을 선택하세요.</p>
+    <p class="m-cur" id="mCur"></p>
+    <div id="modalPicker"></div>
+    <div class="m-status" id="mStatus"></div>
+    <div class="m-btns">
+      <button type="button" class="m-cancel" onclick="closeModal()">취소</button>
+      <button type="button" class="m-ok" id="mOk" onclick="saveAssign()">이 학생들에게 배정</button>
+    </div>
+  </div>
+</div>
+
+<script src="student-picker.js"></script>
+<script>
+  /* ===== 설정 ===== */
+  var ENDPOINT  = "https://script.google.com/macros/s/AKfycbzhCncBwn-JlqXARC3wfrWUCuNHzlNK2df0bdhx-w78Xr8mzYUcIYZOJdRi9N4bHtsb/exec";
+  var SERVER_PW = "sh";          // 백엔드 TEACHER_PW
+  var PASS_ENC  = "MTAxMDEx";    // 클라이언트 잠금 비밀번호(base64, 다른 교사 페이지와 동일)
+  var LOCK_KEY  = "shueguk_teacher_unlocked";
+
+  function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+  /* ===== 잠금 ===== */
+  (function(){ try{ if(localStorage.getItem(LOCK_KEY)==='1'){ unlock(); } }catch(e){} })();
+  function unlock(){ document.body.classList.remove('locked'); init(); }
+  function checkLock(){
+    var v=document.getElementById('lockInput').value, ok=false;
+    try{ ok=(btoa(v)===PASS_ENC); }catch(e){ ok=false; }
+    if(ok){ try{ localStorage.setItem(LOCK_KEY,'1'); }catch(e){} unlock(); }
+    else { document.getElementById('lockErr').textContent='비밀번호가 올바르지 않습니다.'; document.getElementById('lockInput').value=''; }
+  }
+  document.getElementById('lockInput').addEventListener('keydown', function(e){ if(e.key==='Enter') checkLock(); });
+
+  /* ===== 초기화 ===== */
+  var inited=false;
+  var REPORTS=[];      // [{id,title}]
+  var ASSIGN={};       // id → {type,target}
+  function init(){ if(inited) return; inited=true; loadAll(); }
+
+  /* ===== 목록 로드: 분석지 목록 + 현재 배정 ===== */
+  function loadAll(){
+    var box=document.getElementById('list');
+    box.innerHTML='<div class="mgr-empty">불러오는 중…</div>';
+    Promise.all([
+      fetch(ENDPOINT + '?list=1&t=' + Date.now()).then(function(r){ return r.json(); }),
+      fetch(ENDPOINT + '?action=assignList&tool=' + encodeURIComponent('지필고사 분석지') + '&pw=' + encodeURIComponent(SERVER_PW) + '&t=' + Date.now()).then(function(r){ return r.json(); })
+    ]).then(function(res){
+      var lst=res[0], asg=res[1];
+      if(!lst || lst.result!=='success'){ box.innerHTML='<div class="mgr-empty">분석지 목록을 불러오지 못했어요.</div>'; return; }
+      REPORTS = lst.reports || [];
+      ASSIGN = {};
+      if(asg && asg.result==='success' && asg.assignments){
+        asg.assignments.forEach(function(a){ if(a.item){ ASSIGN[a.item] = { type:a.type||'', target:a.target||'' }; } });
+      }
+      if(!REPORTS.length){ box.innerHTML='<div class="mgr-empty">등록된 분석지가 없어요.<br>먼저 ‘새 시험 등록’에서 분석지를 만들어 주세요.</div>'; return; }
+      box.innerHTML = REPORTS.map(renderItem).join('');
+    }).catch(function(){ box.innerHTML='<div class="mgr-empty">불러오지 못했어요. 인터넷을 확인해 주세요.</div>'; });
+  }
+
+  function assignSummary(a){
+    if(!a || !a.type) return { cls:'none', tag:'미배정', target:'아직 아무에게도 보이지 않아요' };
+    if(a.type==='전체') return { cls:'t전체', tag:'전 학년', target:'모든 재원 학생' };
+    if(a.type==='학년') return { cls:'t학년', tag:'학년', target:a.target||'—' };
+    if(a.type==='개인') return { cls:'t개인', tag:'개인', target:a.target||'—' };
+    if(a.type==='일부'){ var n=(a.target||'').split(/\s*,\s*/).filter(Boolean).length; return { cls:'t일부', tag:'일부', target:(n?n+'명 · ':'')+(a.target||'—') }; }
+    return { cls:'t'+a.type, tag:a.type, target:a.target||'—' };
+  }
+
+  function renderItem(rep){
+    var a = ASSIGN[rep.id];
+    var s = assignSummary(a);
+    var hasAssign = !!(a && a.type);
+    return '<div class="a-item" data-id="'+esc(rep.id)+'">' +
+      '<p class="a-title">'+esc(rep.title||rep.id)+'</p>' +
+      '<div class="a-assign">' +
+        '<span class="a-tag '+(hasAssign?('t'+esc(a.type)):'none')+'">'+esc(s.tag)+'</span>' +
+        '<span class="a-target">'+esc(s.target)+'</span>' +
+      '</div>' +
+      '<div class="a-actions">' +
+        '<button type="button" class="edit" onclick="openModal(\''+esc(rep.id).replace(/'/g,"\\'")+'\')">'+(hasAssign?'학생 배정 수정':'학생 배정')+'</button>' +
+        '<a class="editrep" href="m.html?id='+encodeURIComponent(rep.id)+'">리포트 내용 수정</a>' +
+        (hasAssign ? '<button type="button" class="clear" onclick="clearAssign(\''+esc(rep.id).replace(/'/g,"\\'")+'\',this)">배정 해제</button>' : '') +
+      '</div>' +
+    '</div>';
+  }
+
+  /* ===== 배정 모달 ===== */
+  var picker=null, currentSel=null, editId=null, editTitle='';
+  function openModal(id){
+    editId=id;
+    var rep=null; for(var i=0;i<REPORTS.length;i++){ if(REPORTS[i].id===id){ rep=REPORTS[i]; break; } }
+    editTitle = rep ? (rep.title||rep.id) : id;
+    document.getElementById('mTitle').textContent = editTitle;
+    var a=ASSIGN[id], s=assignSummary(a);
+    document.getElementById('mCur').textContent = '현재 배정: ' + (a&&a.type ? (s.tag+' — '+s.target) : '미배정');
+    setMStatus('');
+    document.getElementById('modal').classList.add('show');
+    if(!picker){
+      picker = StudentPicker.create(document.getElementById('modalPicker'), {
+        endpoint: ENDPOINT,
+        onChange: function(sel){ currentSel = sel; if(sel) setMStatus(''); }
+      });
+    } else {
+      picker.reset();
+    }
+    currentSel = null;
+  }
+  function closeModal(){ document.getElementById('modal').classList.remove('show'); }
+  function setMStatus(msg, kind){ var s=document.getElementById('mStatus'); s.textContent=msg||''; s.className='m-status'+(kind?(' '+kind):''); }
+
+  function saveAssign(){
+    var sel = currentSel || (picker && picker.getSelection());
+    if(!sel){ setMStatus('대상을 먼저 선택해 주세요.', 'err'); return; }
+    var btn=document.getElementById('mOk'); btn.disabled=true; var label=btn.textContent; btn.textContent='저장 중…';
+    setMStatus('배정하는 중…');
+    fetch(ENDPOINT, {
+      method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body: JSON.stringify({ action:'setAnalysisAssign', pw:SERVER_PW, id:editId, type:sel.type, target:sel.target })
+    })
+    .then(function(r){ return r.json(); })
+    .then(function(res){
+      btn.disabled=false; btn.textContent=label;
+      if(res.result==='success'){
+        setMStatus('✓ 배정됐어요 — '+sel.summary, 'ok');
+        setTimeout(function(){ closeModal(); loadAll(); }, 700);
+      } else {
+        setMStatus('실패: '+(res.message==='unauthorized'?'권한이 없습니다.':(res.message||'오류')), 'err');
+      }
+    })
+    .catch(function(){ btn.disabled=false; btn.textContent=label; setMStatus('실패 — 인터넷을 확인해 주세요.', 'err'); });
+  }
+
+  function clearAssign(id, btn){
+    if(!confirm('이 분석지의 배정을 해제할까요? 학생 페이지에서 사라집니다.')) return;
+    btn.disabled=true;
+    fetch(ENDPOINT, {
+      method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body: JSON.stringify({ action:'deleteAnalysisAssign', pw:SERVER_PW, id:id })
+    })
+    .then(function(r){ return r.json(); })
+    .then(function(res){ if(res.result==='success'){ loadAll(); } else { btn.disabled=false; alert('해제 실패: '+(res.message||'오류')); } })
+    .catch(function(){ btn.disabled=false; alert('해제 실패 — 인터넷을 확인해 주세요.'); });
+  }
+</script>
+</body>
+</html>

@@ -14,6 +14,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=Noto+Serif+KR:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="student-picker.css">
 <style>
 /* 비밀번호 잠금 화면 (t.html과 동일) */
 #lockScreen{position:fixed; inset:0; background:var(--sage-fog,#EEF2EF); z-index:9999; display:flex; align-items:center; justify-content:center; padding:24px;}
@@ -59,6 +60,11 @@ body{font-family:'Noto Sans KR',sans-serif; background:var(--sage-fog); color:va
 .fld input:focus, .fld textarea:focus, .fld select:focus{outline:none; border-color:var(--sage-deep); background:#fff;}
 .fld .hint{font-size:12px; color:var(--ink-soft); margin-top:6px; line-height:1.6;}
 .row2{display:flex; gap:12px;} .row2 .fld{flex:1; min-width:0;}
+
+/* 학년 선택 버튼 */
+.choices{display:flex; gap:8px;}
+.choices button{flex:1; border:1.5px solid var(--line); border-radius:10px; padding:11px 0; font-size:15px; font-family:'Noto Sans KR'; font-weight:500; background:#FBFCFB; color:var(--ink-mid); cursor:pointer;}
+.choices button.on{background:var(--sage-deep); border-color:var(--sage-deep); color:#fff; font-weight:700;}
 
 .btn{border:none; border-radius:10px; padding:12px 20px; font-size:15px; font-weight:700; font-family:'Noto Sans KR'; cursor:pointer; background:var(--sage-deep); color:#fff;}
 .btn:active{opacity:.85;} .btn.ghost{background:var(--sage-fog); color:var(--ink-mid);}
@@ -154,7 +160,8 @@ body{font-family:'Noto Sans KR',sans-serif; background:var(--sage-fog); color:va
       <img src="icon-192.png" alt="">
       <h1>SHUEGUK 시험 등록</h1>
     </div>
-    <p class="desc">새 시험의 제목·범위·문항·총평을 입력해 등록하면, 학생용 복기 링크가 바로 만들어집니다. 입력한 내용은 구글시트의 ‘보고서목록’·‘문항’ 탭에 자동 저장됩니다.</p>
+    <p class="desc">새 시험의 제목·범위·문항·총평을 입력하고 <b>학생을 배정</b>해 등록하면, 배정된 학생의 개별 페이지에 표시되고 복기 링크도 만들어집니다. 입력한 내용은 구글시트의 ‘보고서목록’·‘문항’ 탭에 저장됩니다.</p>
+    <p style="margin:0 0 6px;"><a href="analyses.html" style="display:inline-flex;align-items:center;gap:6px;color:var(--sage-deep);font-weight:700;font-size:13.5px;text-decoration:none;">지난 분석지에 학생 배정하기 →</a></p>
 
     <!-- 1. 제목 / 시험 ID -->
     <h2 class="sec-h"><span class="step">1</span>제목</h2>
@@ -162,6 +169,11 @@ body{font-family:'Noto Sans KR',sans-serif; background:var(--sage-fog); color:va
       <label>시험 제목 <span class="req">*</span></label>
       <input type="text" id="f_title" placeholder="예) 26-1-중간-서정고3-화법과 작문" autocomplete="off">
       <p class="hint">이 제목이 시험을 구분하는 기준입니다. 시험마다 겹치지 않게 정해주세요. 같은 제목으로 다시 저장하면 덮어써집니다(수정).</p>
+    </div>
+    <div class="fld">
+      <label>학생 배정 <span class="req">*</span></label>
+      <div id="assignPicker"></div>
+      <p class="hint">여기서 고른 학생의 개별 페이지 ‘지필고사 분석지’에만 이 시험이 표시됩니다. <b>전 학년 / 학년 / 개인 / 일부</b> 중에서 고르세요. (특정 학교 학생만 고르려면 <b>일부</b> → 학교로 거른 뒤 ‘보이는 학생 모두 선택’)</p>
     </div>
 
     <!-- 2. 시험 범위 -->
@@ -220,6 +232,7 @@ body{font-family:'Noto Sans KR',sans-serif; background:var(--sage-fog); color:va
   </div>
 </div>
 
+<script src="student-picker.js"></script>
 <script>
 /* ===== 비밀번호 잠금 (t.html과 동일) ===== */
 var LOCK_KEY = 'shueguk_teacher_unlocked';
@@ -248,7 +261,26 @@ function checkLock(){
 document.addEventListener('DOMContentLoaded',function(){
   var inp=document.getElementById('lockInput');
   if(inp){ inp.addEventListener('keydown',function(e){ if(e.key==='Enter'){ checkLock(); } }); }
+  initPicker();   // 학생 배정 위젯 (공지와 동일)
+  maybeLoadEdit();   // ?id= 있으면 기존 리포트 수정 모드로 불러오기
 });
+
+/* ===== 학생 배정 위젯 (공지·H WORK와 동일한 StudentPicker) ===== */
+var assignPicker=null, assignSel=null, pickerInited=false;
+function initPicker(){
+  if(pickerInited) return; pickerInited=true;
+  var el=document.getElementById('assignPicker');
+  if(!el || !window.StudentPicker){ pickerInited=false; return; }   // 스크립트 로드 전이면 다음 기회에
+  assignPicker = StudentPicker.create(el, {
+    endpoint: ENDPOINT,
+    onChange: function(sel){
+      assignSel = sel;   // {type,target,count,summary} 또는 null
+      // 상태창에 err가 떠 있으면 지워준다
+      var s=document.getElementById('status');
+      if(sel && s && s.classList.contains('err')){ setStatus(''); }
+    }
+  });
+}
 
 /* ===== 설정 ===== */
 var ENDPOINT = "https://script.google.com/macros/s/AKfycbzhCncBwn-JlqXARC3wfrWUCuNHzlNK2df0bdhx-w78Xr8mzYUcIYZOJdRi9N4bHtsb/exec";
@@ -268,7 +300,8 @@ var LV_OPTS   = ['중','중상','상','최상'];
 function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function setStatus(m, kind){ var el=document.getElementById('status'); el.textContent=m||''; el.className='status'+(kind?' '+kind:''); }
 function opts(arr, sel){ return arr.map(function(o){ return '<option'+(o===sel?' selected':'')+'>'+o+'</option>'; }).join(''); }
-function scrollTo_(el, mode){ if(el && el.scrollIntoView) el.scrollIntoView({behavior:'smooth', block:mode||'center'}); }
+var SUPPRESS_SCROLL=false;   // 수정 모드 프리필 중에는 자동 스크롤을 끈다
+function scrollTo_(el, mode){ if(SUPPRESS_SCROLL) return; if(el && el.scrollIntoView) el.scrollIntoView({behavior:'smooth', block:mode||'center'}); }
 
 function nextNo(){
   var ins=document.querySelectorAll('#blockList .no-in');
@@ -415,6 +448,8 @@ function collect(){
 /* 블록 단위 구조 검증 (정확한 안내용) */
 function validateForm(data){
   if(!data.title){ document.getElementById('f_title').focus(); return '시험 제목을 입력해주세요.'; }
+  var sel = assignSel || (assignPicker && assignPicker.getSelection());
+  if(!sel && !EDIT_MODE){ return '이 시험을 볼 학생을 배정해주세요. (전 학년 / 학년 / 개인 / 일부 중 선택)'; }
   var blocks=document.querySelectorAll('#blockList > .block');
   if(data.questions.length===0){ return '문항을 1개 이상 입력해주세요.'; }
   for(var b=0;b<blocks.length;b++){
@@ -480,10 +515,13 @@ function saveReport(){
   var btn=document.getElementById('saveBtn');
   btn.disabled=true; setStatus('등록하는 중입니다...', '');
 
+  var sel = assignSel || (assignPicker && assignPicker.getSelection());
   var payload = {
     action: 'createReport',
     id: data.id,
     title: data.title,
+    assignType: sel ? sel.type : '',
+    assignTarget: sel ? sel.target : '',
     scope: data.scope,
     review: data.review,
     questions: data.questions
@@ -499,7 +537,7 @@ function saveReport(){
     var ok=true, msg='';
     try{ var j=JSON.parse(t); if(j.result && j.result!=='success'){ ok=false; msg=j.message||''; } }catch(e){}
     if(!ok){ btn.disabled=false; setStatus('등록에 실패했습니다. '+msg, 'err'); return; }
-    setStatus('✓ 등록되었습니다. 아래 링크를 학생들에게 보내세요.', 'ok');
+    setStatus('✓ 등록되었습니다. 배정된 학생의 개별 페이지에 표시됩니다.', 'ok');
     showLinks(data.id);
     btn.textContent='등록됨';
   })
@@ -526,6 +564,78 @@ function copyLink(inputId, btnId){
   if(navigator.clipboard && navigator.clipboard.writeText){
     navigator.clipboard.writeText(inp.value).then(done, function(){ document.execCommand('copy'); done(); });
   } else { document.execCommand('copy'); done(); }
+}
+
+/* ===== 수정 모드 (?id=) : 기존 리포트를 불러와 폼에 채운다 ===== */
+var EDIT_MODE=false, EDIT_ID='';
+function maybeLoadEdit(){
+  var qs=new URLSearchParams(location.search);
+  var id=(qs.get('id')||'').trim();
+  if(!id) return;
+  EDIT_MODE=true; EDIT_ID=id;
+  var h1=document.querySelector('.panel h1'); if(h1) h1.textContent='SHUEGUK 시험 수정';
+  var sb=document.getElementById('saveBtn'); if(sb) sb.textContent='수정 저장';
+  setStatus('기존 리포트를 불러오는 중...', '');
+  fetch(ENDPOINT+'?id='+encodeURIComponent(id))
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      if(!d || d.result!=='success'){ setStatus('기존 리포트를 불러오지 못했습니다. '+((d&&d.message)||''), 'err'); return; }
+      prefillForm(d, id);
+      setStatus('불러왔습니다. 내용을 수정한 뒤 ‘수정 저장’을 누르세요.', 'ok');
+    })
+    .catch(function(){ setStatus('불러오기 실패 — 인터넷을 확인해주세요.', 'err'); });
+}
+function prefillForm(d, id){
+  SUPPRESS_SCROLL=true;
+  var t=document.getElementById('f_title');
+  t.value=d.title||id; t.readOnly=true; t.style.background='#EEF2EF';
+  var titleHint=t.parentNode.querySelector('.hint');
+  if(titleHint) titleHint.innerHTML='수정 모드에서는 제목(시험 구분 기준)을 바꿀 수 없습니다. 다른 항목만 수정하세요.';
+  var apHint=document.getElementById('assignPicker').parentNode.querySelector('.hint');
+  if(apHint) apHint.innerHTML='배정을 바꾸려면 아래에서 다시 선택하세요. <b>그대로 두면 기존 배정이 그대로 유지</b>됩니다.';
+  document.getElementById('f_scope').value=d.scope||'';
+  document.getElementById('f_review').value=(d.review||[]).join('\n\n');
+  var listEl=document.getElementById('blockList'); listEl.innerHTML='';
+  var qs=d.questions||[]; var i=0;
+  while(i<qs.length){
+    var q=qs[i];
+    if(q.group){
+      var g=q.group, subs=[];
+      while(i<qs.length && qs[i].group===g){ subs.push(qs[i]); i++; }
+      buildPassageFromData(g, subs);
+    } else {
+      fillSolo_(addSolo(), q); i++;
+    }
+  }
+  renumberAll();
+  SUPPRESS_SCROLL=false;
+}
+function fillSolo_(block, q){
+  block.querySelector('.no-in').value=q.no||'';
+  var area=block.querySelector('.area-in'); area.value=q.area||''; onAreaChange(area);
+  var det=block.querySelector('.detail-in'); if(det && q.detail){ det.value=q.detail; }
+  block.querySelector('.type-in').value=q.type||'객관식';
+  block.querySelector('.lv-in').value=q.lv||'상';
+  block.querySelector('.txt-in').value=q.txt||'';
+  var mi=block.querySelector('.multi-in'); if(mi) mi.checked=!!q.multi;
+}
+function buildPassageFromData(groupName, subs){
+  var blk=addPassage();   // 기본 1문항 포함해 생성
+  blk.querySelector('.pg-in').value=groupName||'';
+  var area=blk.querySelector('.area-in'); area.value=(subs[0]&&subs[0].area)||''; onAreaChange(area);
+  var det=blk.querySelector('.detail-in'); if(det && subs[0] && subs[0].detail){ det.value=subs[0].detail; }
+  var list=blk.querySelector('.subq-list'); list.innerHTML='';   // 기본 문항 비우고 실제 개수만큼 다시
+  var addBtn=blk.querySelector('.add-sub');
+  subs.forEach(function(){ addSubQuestion(addBtn); });
+  var sqs=list.querySelectorAll('.subq');
+  subs.forEach(function(q, idx){
+    var sq=sqs[idx]; if(!sq) return;
+    sq.querySelector('.no-in').value=q.no||'';
+    sq.querySelector('.type-in').value=q.type||'객관식';
+    sq.querySelector('.lv-in').value=q.lv||'상';
+    sq.querySelector('.txt-in').value=q.txt||'';
+    var mi=sq.querySelector('.multi-in'); if(mi) mi.checked=!!q.multi;
+  });
 }
 
 /* 시작: 빈 상태에서 선생님이 직접 문항을 추가합니다 */

@@ -31,6 +31,7 @@ var TAB_RESULT   = '제출결과';
 var TAB_STUDENTS = '학생정보';   // 학생 명단 (A:학생ID=부모님번호8자리 | B:이름 | C:학교 | D:학년 | E:담당교사 | F:메모 | G~J:시간표 | K:재원여부)
 var TAB_NOTICE   = '공지';        // 알려드립니다 (A:작성일 | B:대상유형(전체/학년/개인/일부) | C:대상 | D:제목 | E:내용 | F:게시)
 var TAB_ASSIGN   = '배정';        // 도구별 배정 (A:작성일 | B:도구 | C:항목 | D:대상유형 | E:대상 | F:마감 | G:비고) — H WORK·클리닉·주말 공용
+var ANALYSIS_TOOL = '지필고사 분석지';   // '배정' 탭에서 지필고사 분석지 배정을 구분하는 도구명 (항목=시험ID)
 
 // 클리닉 신청(별도 스프레드시트) — 학생 페이지에 '내 클리닉 신청'을 토큰으로 조회해 표시
 var CLINIC_SHEET_ID = '1q-D_cGhSpVgX5epGKIVy-HH9P26ygj-TeT9yrMaHAO8';
@@ -96,7 +97,7 @@ function getList() {
     for (var i = 1; i < v.length; i++) {
       var id = String(v[i][0]||'').trim();
       if (!id) continue;
-      reports.push({ id: id, title: String(v[i][1]||'').trim() });
+      reports.push({ id: id, title: String(v[i][1]||'').trim(), school: String(v[i][4]||'').trim(), grade: String(v[i][5]||'').trim() });
     }
   }
   return json({ result:'success', reports: reports });
@@ -274,6 +275,8 @@ function getStudent(opts) {
   resp.notices = collectNotices_(ss, info, key);
   // 배정된 H WORK: 이 학생에게 배정된 과제만 (학생 개인 페이지용)
   resp.homework = collectAssignments_(ss, info, key, 'H WORK');
+  // 지필고사 분석지: 배정(전체/학년/개인/일부) 또는 학교·학년 일치 시험만(최신순). done=복기 제출 여부
+  resp.analyses = collectAnalyses_(ss, info, key);
   // 클리닉 신청: 이 학생(토큰)의 최근 신청 내역(없거나 실패 시 null)
   resp.clinic = collectClinic_(key);
   // 어휘 테스트 켜짐/꺼짐 (설정 탭의 '어휘 테스트' 값. 기본 열림)
@@ -567,6 +570,134 @@ function collectClinic_(token) {
   return { latest: list[0], total: list.length };
 }
 
+/* ===== 지필고사 분석지(학생 개별 페이지) =====
+ *  교사가 '배정'한 학생에게만 해당 분석지를 최신순으로 반환.
+ *  배정은 '배정' 탭(도구=지필고사 분석지, 항목=시험ID)에 기록되며, 공지와 동일한
+ *  noticeMatches_ 규칙(전체/학년/개인/일부)으로 이 학생 해당 여부를 판단한다.
+ *  (학교+학년 자동배정은 선택과목 차이로 오배정 위험이 있어 사용하지 않는다.)
+ *  각 시험에 done(이 학생이 이미 복기를 제출했는지)을 표시 → '복기 입력하기'/'입력 완료' 구분.
+ */
+function collectAnalyses_(ss, info, key) {
+  var aSh = ss.getSheetByName(TAB_ASSIGN);
+  if (!aSh) return [];
+  var av = aSh.getDataRange().getValues();
+  if (av.length < 2) return [];
+
+  var stu = {
+    sid:    String(info.id     || '').trim(),
+    name:   String(info.name   || '').trim(),
+    grade:  String(info.grade  || '').trim(),
+    school: String(info.school || '').trim(),
+    code:   String(key         || '').trim()
+  };
+
+  var AH = av[0];
+  var acTool  = findHeaderCol_(AH, '도구',     1);
+  var acItem  = findHeaderCol_(AH, '항목',     2);
+  var acType  = findHeaderCol_(AH, '대상유형', 3);
+  var acTarget= findHeaderCol_(AH, '대상',     4);
+
+  // 이 학생에게 배정된 분석지 ID (중복 제거)
+  var assigned = {};
+  for (var a = 1; a < av.length; a++) {
+    if (String(av[a][acTool] || '').trim() !== ANALYSIS_TOOL) continue;
+    var itemId = String(av[a][acItem] || '').trim();
+    if (!itemId || assigned[itemId]) continue;
+    if (noticeMatches_(String(av[a][acType]||''), String(av[a][acTarget]||''), stu)) assigned[itemId] = true;
+  }
+  if (!Object.keys(assigned).length) return [];
+
+  // 보고서목록에서 제목 조회
+  var titleById = {};
+  var listSh = ss.getSheetByName(TAB_LIST);
+  if (listSh) {
+    var lv = listSh.getDataRange().getValues();
+    for (var i = 1; i < lv.length; i++) {
+      var lid = String(lv[i][0] || '').trim();
+      if (lid) titleById[lid] = String(lv[i][1] || '').trim();
+    }
+  }
+
+  var done = submittedTitles_(ss, info);   // 이 학생이 제출한 시험(제목·ID) 집합
+  var order = getListOrder_(ss);           // 보고서목록 등록 순서(최신순 정렬용)
+
+  var out = [];
+  Object.keys(assigned).forEach(function(id){
+    var title = titleById[id] || id;
+    out.push({
+      id: id,
+      title: title,
+      done: !!(done[id] || (title && done[title])),
+      _ord: (typeof order[id] === 'number') ? order[id] : -1
+    });
+  });
+  // 최신순: 보고서목록에서 나중에 등록된 것이 위로
+  out.sort(function(a, b){ return b._ord - a._ord; });
+  out.forEach(function(o){ delete o._ord; });
+  return out;
+}
+
+/** 보고서목록에서 각 ID의 행 위치(등록 순서)를 반환 { id: rowIndex }. 최신순 정렬용. */
+function getListOrder_(ss) {
+  var order = {};
+  var listSh = ss.getSheetByName(TAB_LIST);
+  if (!listSh) return order;
+  var lv = listSh.getDataRange().getValues();
+  for (var i = 1; i < lv.length; i++) {
+    var id = String(lv[i][0] || '').trim();
+    if (id) order[id] = i;
+  }
+  return order;
+}
+
+/** 이 학생이 '제출결과'에 복기를 낸 시험(제목·ID)의 집합을 만든다.
+ *  매칭: 부모님번호(K)=학생ID 또는 이름(E)=학생 이름. 값은 시험명(제출결과 B열). */
+function submittedTitles_(ss, info) {
+  var set = {};
+  var sh = ss.getSheetByName(TAB_RESULT);
+  if (!sh) return set;
+  var sid  = String(info.id   || '').trim();
+  var name = String(info.name || '').trim();
+  var v = sh.getDataRange().getValues();
+  for (var i = 1; i < v.length; i++) {
+    var row = v[i];
+    if (!row[4]) continue;
+    var phone = String(row[10] || '').trim();
+    var nm    = String(row[4]  || '').trim();
+    var match = (phone && phone === sid) || (nm && nm === name);
+    if (!match) continue;
+    var t = String(row[1] || '').trim();   // 시험명(=제목 또는 ID)
+    if (t) set[t] = true;
+  }
+  return set;
+}
+
+/** 학년 문자열을 '고1/고2/고3/중1..' 형태로 정규화.
+ *  "2026 고등 1학년"→"고1", "고3"→"고3", "1"→"" (학교급 불명은 빈값). */
+function normGrade_(s) {
+  s = String(s == null ? '' : s).trim();
+  if (!s) return '';
+  var m = s.match(/(고|중|초)\s*([1-6])/);   // "고3","중2" 등
+  if (m) return m[1] + m[2];
+  // "고등학교 1학년" / "고등 1학년"
+  if (/고/.test(s)) { var g = s.match(/([1-3])\s*학?년?/); if (g) return '고' + g[1]; }
+  if (/중/.test(s)) { var g2 = s.match(/([1-3])\s*학?년?/); if (g2) return '중' + g2[1]; }
+  return '';
+}
+
+/** 학교명 느슨한 일치: 공백 제거 후 완전 일치 또는 한쪽이 다른 쪽을 포함(예: "화정고"↔"화정고등학교"). */
+function schoolMatch_(a, b) {
+  a = String(a || '').replace(/\s+/g, '');
+  b = String(b || '').replace(/\s+/g, '');
+  if (!a || !b) return false;
+  if (a === b) return true;
+  // '고등학교'·'고' 접미어 차이를 흡수해 비교
+  var na = a.replace(/(등학교|고등학교|중학교|학교|고|중)$/,'');
+  var nb = b.replace(/(등학교|고등학교|중학교|학교|고|중)$/,'');
+  if (na && nb && na === nb) return true;
+  return a.indexOf(b) >= 0 || b.indexOf(a) >= 0;
+}
+
 /** '설정' 탭에서 label 항목(A열)의 값(B열) 원문을 반환(없으면 dflt). */
 function configVal_(ss, label, dflt) {
   var sh = ss.getSheetByName(TAB_CONFIG);
@@ -686,6 +817,10 @@ function doPost(e) {
     // (9) 도구별 배정 입력·삭제 (hwork_assign.html 등)
     if (data && data.action === 'addAssignment')    { return addAssignment(data); }
     if (data && data.action === 'deleteAssignment') { return deleteAssignment(data); }
+
+    // (10) 지필고사 분석지 배정 관리 (analyses.html) — 지난 분석지에 학생 배정/해제
+    if (data && data.action === 'setAnalysisAssign')    { return setAnalysisAssign(data); }
+    if (data && data.action === 'deleteAnalysisAssign') { return deleteAnalysisAssign(data); }
 
     // (2) 학생 제출 수집
     var ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -936,8 +1071,10 @@ function createReport(data) {
 
     // 보고서목록 탭 (없으면 생성)
     var listSh = ss.getSheetByName(TAB_LIST);
-    if (!listSh) { listSh = ss.insertSheet(TAB_LIST); listSh.appendRow(['ID','제목','총평','시험범위']); }
+    if (!listSh) { listSh = ss.insertSheet(TAB_LIST); listSh.appendRow(['ID','제목','총평','시험범위','학교','학년']); }
     ensureHeader_(listSh, 4, '시험범위');     // D열 머리글 보장
+    ensureHeader_(listSh, 5, '학교');         // E열 머리글 보장(학생 개별 페이지 매칭)
+    ensureHeader_(listSh, 6, '학년');         // F열 머리글 보장
 
     // 문항 탭 (없으면 생성)
     var itemSh = ss.getSheetByName(TAB_ITEMS);
@@ -953,7 +1090,7 @@ function createReport(data) {
     // 총평: 문단 배열을 빈 줄로 이어 한 셀에 저장 (getReport 가 /\n\s*\n/ 로 다시 분리)
     var review = Array.isArray(data.review) ? data.review.join('\n\n') : String(data.review || '');
     var scope  = String(data.scope || '');
-    listSh.appendRow([id, String(data.title || ''), review, scope]);
+    listSh.appendRow([id, String(data.title || ''), review, scope, String(data.school || ''), String(data.grade || '')]);
 
     // 문항: 한 번에 기록  (A~H = 보고서ID·번호·영역·형식·난도·내용·세부유형·지문그룹)
     var qs = data.questions || [];
@@ -968,9 +1105,57 @@ function createReport(data) {
       itemSh.getRange(itemSh.getLastRow()+1, 1, rows.length, 9).setValues(rows);
     }
 
+    // 학생 배정: '배정' 탭에 이 분석지(도구=지필고사 분석지, 항목=시험ID)의 대상 저장.
+    // 같은 시험을 다시 등록하면 기존 배정을 지우고 새로 기록(덮어쓰기).
+    var assignType = String(data.assignType || '').trim();
+    if (assignType) {
+      var asSh = ensureAssignSheet_(ss);
+      deleteAssignByToolItem_(asSh, ANALYSIS_TOOL, id);
+      asSh.appendRow([ new Date(), ANALYSIS_TOOL, id, assignType, String(data.assignTarget || '').trim(), '', '' ]);
+    }
+
     return json({ result:'success', id:id, count:qs.length });
   } catch (err) {
     return json({ result:'error', message:String(err) });
+  }
+}
+
+/* ===== (10) 지필고사 분석지 배정 관리 ===== analyses.html
+ *  setAnalysisAssign   : { pw, id, type, target } → '배정' 탭에 (도구=지필고사 분석지, 항목=id)
+ *                        기존 배정을 지우고 새 대상(type/target)으로 저장. type이 비면 배정 해제.
+ *  deleteAnalysisAssign: { pw, id } → 해당 분석지의 배정을 모두 제거(전 학생에게서 내림).
+ */
+function setAnalysisAssign(data) {
+  if (String(data.pw||'') !== TEACHER_PW) return json({ result:'error', message:'unauthorized' });
+  var id = String(data.id||'').trim();
+  if (!id) return json({ result:'error', message:'시험 ID가 없습니다.' });
+  var type = String(data.type||'').trim();
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ensureAssignSheet_(ss);
+  deleteAssignByToolItem_(sh, ANALYSIS_TOOL, id);
+  if (type) {
+    sh.appendRow([ new Date(), ANALYSIS_TOOL, id, type, String(data.target||'').trim(), '', '' ]);
+  }
+  return json({ result:'success', id:id });
+}
+
+function deleteAnalysisAssign(data) {
+  if (String(data.pw||'') !== TEACHER_PW) return json({ result:'error', message:'unauthorized' });
+  var id = String(data.id||'').trim();
+  if (!id) return json({ result:'error', message:'시험 ID가 없습니다.' });
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ss.getSheetByName(TAB_ASSIGN);
+  if (sh) deleteAssignByToolItem_(sh, ANALYSIS_TOOL, id);
+  return json({ result:'success', id:id });
+}
+
+/** '배정' 탭에서 도구(B)+항목(C)이 일치하는 행을 모두 삭제(헤더 제외, 아래에서 위로). */
+function deleteAssignByToolItem_(sheet, tool, item) {
+  var last = sheet.getLastRow();
+  if (last < 2) return;
+  var vals = sheet.getRange(2, 1, last-1, 3).getValues();   // A작성일 B도구 C항목
+  for (var r = vals.length-1; r >= 0; r--) {
+    if (String(vals[r][1]).trim() === tool && String(vals[r][2]).trim() === item) { sheet.deleteRow(r+2); }
   }
 }
 
