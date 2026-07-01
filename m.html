@@ -14,6 +14,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=Noto+Serif+KR:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="student-picker.css">
 <style>
 /* 비밀번호 잠금 화면 (t.html과 동일) */
 #lockScreen{position:fixed; inset:0; background:var(--sage-fog,#EEF2EF); z-index:9999; display:flex; align-items:center; justify-content:center; padding:24px;}
@@ -168,22 +169,11 @@ body{font-family:'Noto Sans KR',sans-serif; background:var(--sage-fog); color:va
       <input type="text" id="f_title" placeholder="예) 26-1-중간-서정고3-화법과 작문" autocomplete="off">
       <p class="hint">이 제목이 시험을 구분하는 기준입니다. 시험마다 겹치지 않게 정해주세요. 같은 제목으로 다시 저장하면 덮어써집니다(수정).</p>
     </div>
-    <div class="row2">
-      <div class="fld">
-        <label>학교 <span class="req">*</span></label>
-        <input type="text" id="f_school" list="schoolList" placeholder="예) 화정고" autocomplete="off">
-        <datalist id="schoolList"></datalist>
-      </div>
-      <div class="fld">
-        <label>학년 <span class="req">*</span></label>
-        <div class="choices" id="gradePick">
-          <button type="button" data-g="고1">고1</button>
-          <button type="button" data-g="고2">고2</button>
-          <button type="button" data-g="고3">고3</button>
-        </div>
-      </div>
+    <div class="fld">
+      <label>학생 배정 <span class="req">*</span></label>
+      <div id="assignPicker"></div>
+      <p class="hint">여기서 고른 학생의 개별 페이지 ‘지필고사 분석지’에만 이 시험이 표시됩니다. <b>전 학년 / 학년 / 개인 / 일부</b> 중에서 고르세요. (특정 학교 학생만 고르려면 <b>일부</b> → 학교로 거른 뒤 ‘보이는 학생 모두 선택’)</p>
     </div>
-    <p class="hint" style="margin:-6px 0 0;">학교·학년이 맞는 학생의 개별 페이지에만 이 분석지(복기 입력)가 표시됩니다. 다른 학교엔 보이지 않아요.</p>
 
     <!-- 2. 시험 범위 -->
     <h2 class="sec-h"><span class="step">2</span>시험 범위</h2>
@@ -241,6 +231,7 @@ body{font-family:'Noto Sans KR',sans-serif; background:var(--sage-fog); color:va
   </div>
 </div>
 
+<script src="student-picker.js"></script>
 <script>
 /* ===== 비밀번호 잠금 (t.html과 동일) ===== */
 var LOCK_KEY = 'shueguk_teacher_unlocked';
@@ -269,41 +260,24 @@ function checkLock(){
 document.addEventListener('DOMContentLoaded',function(){
   var inp=document.getElementById('lockInput');
   if(inp){ inp.addEventListener('keydown',function(e){ if(e.key==='Enter'){ checkLock(); } }); }
-
-  /* 학년 선택(단일) */
-  var gp=document.getElementById('gradePick');
-  if(gp){
-    gp.querySelectorAll('button').forEach(function(b){
-      b.addEventListener('click',function(){
-        gp.querySelectorAll('button').forEach(function(x){ x.classList.remove('on'); });
-        b.classList.add('on');
-      });
-    });
-  }
-
-  /* 학교 목록(학생 명단에서 자동 채우기) */
-  loadSchools();
+  initPicker();   // 학생 배정 위젯 (공지와 동일)
 });
 
-/* 학생 명단에서 학교 목록을 받아 datalist 채우기 */
-function loadSchools(){
-  try{
-    fetch(ENDPOINT+'?action=roster')
-      .then(function(r){ return r.json(); })
-      .then(function(j){
-        var rows=(j&&(j.students||j.roster||j.data))||[];
-        var set={}, list=[];
-        rows.forEach(function(s){
-          var sc=(s&&(s.school||s.학교))||'';
-          sc=String(sc).trim();
-          if(sc && !set[sc]){ set[sc]=1; list.push(sc); }
-        });
-        list.sort();
-        var dl=document.getElementById('schoolList');
-        if(dl){ dl.innerHTML=list.map(function(sc){ return '<option value="'+esc(sc)+'">'; }).join(''); }
-      })
-      .catch(function(){});
-  }catch(e){}
+/* ===== 학생 배정 위젯 (공지·H WORK와 동일한 StudentPicker) ===== */
+var assignPicker=null, assignSel=null, pickerInited=false;
+function initPicker(){
+  if(pickerInited) return; pickerInited=true;
+  var el=document.getElementById('assignPicker');
+  if(!el || !window.StudentPicker){ pickerInited=false; return; }   // 스크립트 로드 전이면 다음 기회에
+  assignPicker = StudentPicker.create(el, {
+    endpoint: ENDPOINT,
+    onChange: function(sel){
+      assignSel = sel;   // {type,target,count,summary} 또는 null
+      // 상태창에 err가 떠 있으면 지워준다
+      var s=document.getElementById('status');
+      if(sel && s && s.classList.contains('err')){ setStatus(''); }
+    }
+  });
 }
 
 /* ===== 설정 ===== */
@@ -437,9 +411,6 @@ function generateSolos(){
 function collect(){
   var title=document.getElementById('f_title').value.trim();
   var id=title;   // 제목을 그대로 시험 ID로 사용
-  var school=document.getElementById('f_school').value.trim();
-  var gp=document.getElementById('gradePick').querySelector('button.on');
-  var grade=gp?gp.getAttribute('data-g'):'';
   var scope=document.getElementById('f_scope').value.trim();
   var review=document.getElementById('f_review').value.trim()
               .split(/\n\s*\n/).map(function(p){return p.replace(/[ \t]+\n/g,'\n').trim();}).filter(Boolean);
@@ -468,14 +439,14 @@ function collect(){
       if(no||txt||area){ questions.push({no:no, group:'', area:area, detail:detail, type:type, lv:lv, txt:txt, multi:multi}); }
     }
   });
-  return {id:id, title:title, school:school, grade:grade, scope:scope, review:review, questions:questions};
+  return {id:id, title:title, scope:scope, review:review, questions:questions};
 }
 
 /* 블록 단위 구조 검증 (정확한 안내용) */
 function validateForm(data){
   if(!data.title){ document.getElementById('f_title').focus(); return '시험 제목을 입력해주세요.'; }
-  if(!data.school){ document.getElementById('f_school').focus(); return '학교를 입력해주세요. (학생 개별 페이지 연결에 필요합니다)'; }
-  if(!data.grade){ return '학년(고1·고2·고3)을 선택해주세요. (학생 개별 페이지 연결에 필요합니다)'; }
+  var sel = assignSel || (assignPicker && assignPicker.getSelection());
+  if(!sel){ return '이 시험을 볼 학생을 배정해주세요. (전 학년 / 학년 / 개인 / 일부 중 선택)'; }
   var blocks=document.querySelectorAll('#blockList > .block');
   if(data.questions.length===0){ return '문항을 1개 이상 입력해주세요.'; }
   for(var b=0;b<blocks.length;b++){
@@ -541,12 +512,13 @@ function saveReport(){
   var btn=document.getElementById('saveBtn');
   btn.disabled=true; setStatus('등록하는 중입니다...', '');
 
+  var sel = assignSel || (assignPicker && assignPicker.getSelection());
   var payload = {
     action: 'createReport',
     id: data.id,
     title: data.title,
-    school: data.school,
-    grade: data.grade,
+    assignType: sel ? sel.type : '',
+    assignTarget: sel ? sel.target : '',
     scope: data.scope,
     review: data.review,
     questions: data.questions
@@ -562,7 +534,7 @@ function saveReport(){
     var ok=true, msg='';
     try{ var j=JSON.parse(t); if(j.result && j.result!=='success'){ ok=false; msg=j.message||''; } }catch(e){}
     if(!ok){ btn.disabled=false; setStatus('등록에 실패했습니다. '+msg, 'err'); return; }
-    setStatus('✓ 등록되었습니다. 아래 링크를 학생들에게 보내세요.', 'ok');
+    setStatus('✓ 등록되었습니다. 배정된 학생의 개별 페이지에 표시됩니다.', 'ok');
     showLinks(data.id);
     btn.textContent='등록됨';
   })
