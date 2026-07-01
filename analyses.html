@@ -48,9 +48,10 @@
   .a-tag.t전체{background:#dceae3;} .a-tag.t학년{background:#e3eadd;color:#5d7a4e;}
   .a-tag.t개인{background:#e8e3f0;color:#7a6e9a;} .a-tag.t일부{background:#f0e7dd;color:#9a7a4e;}
   .a-target{font-size:12.5px;color:var(--ink-soft);flex:1;min-width:0;}
-  .a-actions{display:flex;gap:8px;margin-top:11px;}
-  .a-actions button{border:1.5px solid var(--line);background:#fff;font:inherit;font-size:12.5px;font-weight:700;padding:8px 14px;border-radius:9px;cursor:pointer;color:var(--accent);}
-  .a-actions .edit:hover{border-color:var(--accent);}
+  .a-actions{display:flex;gap:8px;margin-top:11px;flex-wrap:wrap;}
+  .a-actions button,.a-actions .editrep{border:1.5px solid var(--line);background:#fff;font:inherit;font-size:12.5px;font-weight:700;padding:8px 14px;border-radius:9px;cursor:pointer;color:var(--accent);text-decoration:none;display:inline-flex;align-items:center;}
+  .a-actions .edit:hover,.a-actions .editrep:hover{border-color:var(--accent);}
+  .a-actions .editrep{color:var(--ink-soft);}
   .a-actions .clear{color:var(--ink-soft);}
   .a-actions .clear:hover{border-color:var(--bad);color:var(--bad);}
   .mgr-empty{text-align:center;color:#9aa6a0;font-size:13.5px;padding:24px;}
@@ -104,13 +105,13 @@
   </a>
 
   <header>
-    <p class="tagline">지필고사 분석지 배정</p>
-    <p class="intro">이미 만든 지필고사 분석지를 학생에게 배정합니다. 배정된 학생의 개별 페이지 ‘지필고사 분석지’에만 표시돼요.</p>
+    <p class="tagline">리포트 수정 및 학생 배정</p>
+    <p class="intro">이미 만든 지필고사 리포트의 <b>내용을 수정</b>하거나 <b>학생을 배정</b>합니다. 배정된 학생의 개별 페이지 ‘지필고사 분석지’에만 표시돼요.</p>
   </header>
 
   <section class="card">
-    <h2><span class="dot"></span>분석지 목록</h2>
-    <p class="sub">각 분석지의 <b>배정 / 수정</b>을 눌러 대상을 고르세요. (전 학년 / 학년 / 개인 / 일부)</p>
+    <h2><span class="dot"></span>리포트 목록</h2>
+    <p class="sub"><b>학생 배정</b>으로 대상을 고르고(전 학년/학년/개인/일부), <b>리포트 내용 수정</b>으로 제목 외 항목을 고칠 수 있어요.</p>
     <div class="mgr-bar"><button type="button" class="refresh" onclick="loadAll()">새로고침</button></div>
     <div id="list"><div class="mgr-empty">불러오는 중…</div></div>
   </section>
@@ -198,7 +199,8 @@
         '<span class="a-target">'+esc(s.target)+'</span>' +
       '</div>' +
       '<div class="a-actions">' +
-        '<button type="button" class="edit" onclick="openModal(\''+esc(rep.id).replace(/'/g,"\\'")+'\')">'+(hasAssign?'배정 수정':'배정하기')+'</button>' +
+        '<button type="button" class="edit" onclick="openModal(\''+esc(rep.id).replace(/'/g,"\\'")+'\')">'+(hasAssign?'학생 배정 수정':'학생 배정')+'</button>' +
+        '<a class="editrep" href="m.html?id='+encodeURIComponent(rep.id)+'">리포트 내용 수정</a>' +
         (hasAssign ? '<button type="button" class="clear" onclick="clearAssign(\''+esc(rep.id).replace(/'/g,"\\'")+'\',this)">배정 해제</button>' : '') +
       '</div>' +
     '</div>';

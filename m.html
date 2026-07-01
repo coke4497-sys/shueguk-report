@@ -262,6 +262,7 @@ document.addEventListener('DOMContentLoaded',function(){
   var inp=document.getElementById('lockInput');
   if(inp){ inp.addEventListener('keydown',function(e){ if(e.key==='Enter'){ checkLock(); } }); }
   initPicker();   // 학생 배정 위젯 (공지와 동일)
+  maybeLoadEdit();   // ?id= 있으면 기존 리포트 수정 모드로 불러오기
 });
 
 /* ===== 학생 배정 위젯 (공지·H WORK와 동일한 StudentPicker) ===== */
@@ -299,7 +300,8 @@ var LV_OPTS   = ['중','중상','상','최상'];
 function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function setStatus(m, kind){ var el=document.getElementById('status'); el.textContent=m||''; el.className='status'+(kind?' '+kind:''); }
 function opts(arr, sel){ return arr.map(function(o){ return '<option'+(o===sel?' selected':'')+'>'+o+'</option>'; }).join(''); }
-function scrollTo_(el, mode){ if(el && el.scrollIntoView) el.scrollIntoView({behavior:'smooth', block:mode||'center'}); }
+var SUPPRESS_SCROLL=false;   // 수정 모드 프리필 중에는 자동 스크롤을 끈다
+function scrollTo_(el, mode){ if(SUPPRESS_SCROLL) return; if(el && el.scrollIntoView) el.scrollIntoView({behavior:'smooth', block:mode||'center'}); }
 
 function nextNo(){
   var ins=document.querySelectorAll('#blockList .no-in');
@@ -447,7 +449,7 @@ function collect(){
 function validateForm(data){
   if(!data.title){ document.getElementById('f_title').focus(); return '시험 제목을 입력해주세요.'; }
   var sel = assignSel || (assignPicker && assignPicker.getSelection());
-  if(!sel){ return '이 시험을 볼 학생을 배정해주세요. (전 학년 / 학년 / 개인 / 일부 중 선택)'; }
+  if(!sel && !EDIT_MODE){ return '이 시험을 볼 학생을 배정해주세요. (전 학년 / 학년 / 개인 / 일부 중 선택)'; }
   var blocks=document.querySelectorAll('#blockList > .block');
   if(data.questions.length===0){ return '문항을 1개 이상 입력해주세요.'; }
   for(var b=0;b<blocks.length;b++){
@@ -562,6 +564,78 @@ function copyLink(inputId, btnId){
   if(navigator.clipboard && navigator.clipboard.writeText){
     navigator.clipboard.writeText(inp.value).then(done, function(){ document.execCommand('copy'); done(); });
   } else { document.execCommand('copy'); done(); }
+}
+
+/* ===== 수정 모드 (?id=) : 기존 리포트를 불러와 폼에 채운다 ===== */
+var EDIT_MODE=false, EDIT_ID='';
+function maybeLoadEdit(){
+  var qs=new URLSearchParams(location.search);
+  var id=(qs.get('id')||'').trim();
+  if(!id) return;
+  EDIT_MODE=true; EDIT_ID=id;
+  var h1=document.querySelector('.panel h1'); if(h1) h1.textContent='SHUEGUK 시험 수정';
+  var sb=document.getElementById('saveBtn'); if(sb) sb.textContent='수정 저장';
+  setStatus('기존 리포트를 불러오는 중...', '');
+  fetch(ENDPOINT+'?id='+encodeURIComponent(id))
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      if(!d || d.result!=='success'){ setStatus('기존 리포트를 불러오지 못했습니다. '+((d&&d.message)||''), 'err'); return; }
+      prefillForm(d, id);
+      setStatus('불러왔습니다. 내용을 수정한 뒤 ‘수정 저장’을 누르세요.', 'ok');
+    })
+    .catch(function(){ setStatus('불러오기 실패 — 인터넷을 확인해주세요.', 'err'); });
+}
+function prefillForm(d, id){
+  SUPPRESS_SCROLL=true;
+  var t=document.getElementById('f_title');
+  t.value=d.title||id; t.readOnly=true; t.style.background='#EEF2EF';
+  var titleHint=t.parentNode.querySelector('.hint');
+  if(titleHint) titleHint.innerHTML='수정 모드에서는 제목(시험 구분 기준)을 바꿀 수 없습니다. 다른 항목만 수정하세요.';
+  var apHint=document.getElementById('assignPicker').parentNode.querySelector('.hint');
+  if(apHint) apHint.innerHTML='배정을 바꾸려면 아래에서 다시 선택하세요. <b>그대로 두면 기존 배정이 그대로 유지</b>됩니다.';
+  document.getElementById('f_scope').value=d.scope||'';
+  document.getElementById('f_review').value=(d.review||[]).join('\n\n');
+  var listEl=document.getElementById('blockList'); listEl.innerHTML='';
+  var qs=d.questions||[]; var i=0;
+  while(i<qs.length){
+    var q=qs[i];
+    if(q.group){
+      var g=q.group, subs=[];
+      while(i<qs.length && qs[i].group===g){ subs.push(qs[i]); i++; }
+      buildPassageFromData(g, subs);
+    } else {
+      fillSolo_(addSolo(), q); i++;
+    }
+  }
+  renumberAll();
+  SUPPRESS_SCROLL=false;
+}
+function fillSolo_(block, q){
+  block.querySelector('.no-in').value=q.no||'';
+  var area=block.querySelector('.area-in'); area.value=q.area||''; onAreaChange(area);
+  var det=block.querySelector('.detail-in'); if(det && q.detail){ det.value=q.detail; }
+  block.querySelector('.type-in').value=q.type||'객관식';
+  block.querySelector('.lv-in').value=q.lv||'상';
+  block.querySelector('.txt-in').value=q.txt||'';
+  var mi=block.querySelector('.multi-in'); if(mi) mi.checked=!!q.multi;
+}
+function buildPassageFromData(groupName, subs){
+  var blk=addPassage();   // 기본 1문항 포함해 생성
+  blk.querySelector('.pg-in').value=groupName||'';
+  var area=blk.querySelector('.area-in'); area.value=(subs[0]&&subs[0].area)||''; onAreaChange(area);
+  var det=blk.querySelector('.detail-in'); if(det && subs[0] && subs[0].detail){ det.value=subs[0].detail; }
+  var list=blk.querySelector('.subq-list'); list.innerHTML='';   // 기본 문항 비우고 실제 개수만큼 다시
+  var addBtn=blk.querySelector('.add-sub');
+  subs.forEach(function(){ addSubQuestion(addBtn); });
+  var sqs=list.querySelectorAll('.subq');
+  subs.forEach(function(q, idx){
+    var sq=sqs[idx]; if(!sq) return;
+    sq.querySelector('.no-in').value=q.no||'';
+    sq.querySelector('.type-in').value=q.type||'객관식';
+    sq.querySelector('.lv-in').value=q.lv||'상';
+    sq.querySelector('.txt-in').value=q.txt||'';
+    var mi=sq.querySelector('.multi-in'); if(mi) mi.checked=!!q.multi;
+  });
 }
 
 /* 시작: 빈 상태에서 선생님이 직접 문항을 추가합니다 */
