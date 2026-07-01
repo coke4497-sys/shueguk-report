@@ -284,6 +284,7 @@ function initPicker(){
 
 /* ===== 설정 ===== */
 var ENDPOINT = "https://script.google.com/macros/s/AKfycbzhCncBwn-JlqXARC3wfrWUCuNHzlNK2df0bdhx-w78Xr8mzYUcIYZOJdRi9N4bHtsb/exec";
+var SERVER_PW = "sh";   // 현재 배정 조회용(assignList) 백엔드 비밀번호
 
 // 유형: 상위(영역) → 하위(세부유형)
 var SUBTYPES = {
@@ -581,9 +582,33 @@ function maybeLoadEdit(){
     .then(function(d){
       if(!d || d.result!=='success'){ setStatus('기존 리포트를 불러오지 못했습니다. '+((d&&d.message)||''), 'err'); return; }
       prefillForm(d, id);
+      loadCurrentAssign(id);
       setStatus('불러왔습니다. 내용을 수정한 뒤 ‘수정 저장’을 누르세요.', 'ok');
     })
     .catch(function(){ setStatus('불러오기 실패 — 인터넷을 확인해주세요.', 'err'); });
+}
+/* 수정 모드: 이 리포트의 현재 학생 배정을 불러와 배정 위젯 위에 안내로 표시 */
+function loadCurrentAssign(id){
+  fetch(ENDPOINT+'?action=assignList&tool='+encodeURIComponent('지필고사 분석지')+'&item='+encodeURIComponent(id)+'&pw='+encodeURIComponent(SERVER_PW)+'&t='+Date.now())
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      var cur='미배정';
+      if(d && d.result==='success' && d.assignments && d.assignments.length){
+        var a=d.assignments[0]; cur=assignText(a.type, a.target);
+      }
+      var apHint=document.getElementById('assignPicker').parentNode.querySelector('.hint');
+      if(apHint) apHint.innerHTML='<b>현재 배정:</b> '+esc(cur)+' · 바꾸려면 아래에서 다시 선택하세요. <b>그대로 두면 유지</b>됩니다.';
+    })
+    .catch(function(){});
+}
+function assignText(type, target){
+  type=String(type||'').trim(); target=String(target||'').trim();
+  if(!type) return '미배정';
+  if(type==='전체') return '전 학년(모든 재원 학생)';
+  if(type==='학년') return '학년 · '+(target||'—');
+  if(type==='개인') return '개인 · '+(target||'—');
+  if(type==='일부'){ var n=target.split(/\s*,\s*/).filter(Boolean).length; return '일부 · '+(n?n+'명 ':'')+(target?'('+target+')':''); }
+  return type+' · '+(target||'—');
 }
 function prefillForm(d, id){
   SUPPRESS_SCROLL=true;
