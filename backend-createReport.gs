@@ -822,6 +822,9 @@ function doPost(e) {
     if (data && data.action === 'setAnalysisAssign')    { return setAnalysisAssign(data); }
     if (data && data.action === 'deleteAnalysisAssign') { return deleteAnalysisAssign(data); }
 
+    // (11) 리포트 완전 삭제 (analyses.html) — 보고서목록·문항·배정에서 모두 제거
+    if (data && data.action === 'deleteReport')         { return deleteReport(data); }
+
     // (2) 학생 제출 수집
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     var sh = ss.getSheetByName(TAB_RESULT);
@@ -1146,6 +1149,24 @@ function deleteAnalysisAssign(data) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sh = ss.getSheetByName(TAB_ASSIGN);
   if (sh) deleteAssignByToolItem_(sh, ANALYSIS_TOOL, id);
+  return json({ result:'success', id:id });
+}
+
+/* ===== (11) 리포트 완전 삭제 ===== analyses.html
+ *  { pw, id } → '보고서목록'(리포트) + '문항' + '배정'(지필고사 분석지)에서 이 시험을 모두 제거.
+ *  ※ '제출결과'(학생이 이미 낸 복기 기록)는 보존한다 — 실수 삭제 시 학생 기록까지 사라지지 않도록.
+ */
+function deleteReport(data) {
+  if (String(data.pw||'') !== TEACHER_PW) return json({ result:'error', message:'unauthorized' });
+  var id = String(data.id||'').trim();
+  if (!id) return json({ result:'error', message:'시험 ID가 없습니다.' });
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var listSh = ss.getSheetByName(TAB_LIST);
+  var itemSh = ss.getSheetByName(TAB_ITEMS);
+  var asgSh  = ss.getSheetByName(TAB_ASSIGN);
+  if (listSh) deleteRowsById_(listSh, 1, id);   // 보고서목록 A열=ID
+  if (itemSh) deleteRowsById_(itemSh, 1, id);   // 문항 A열=보고서ID
+  if (asgSh)  deleteAssignByToolItem_(asgSh, ANALYSIS_TOOL, id);   // 배정 제거
   return json({ result:'success', id:id });
 }
 
