@@ -414,7 +414,8 @@ function generateSolos(){
 /* ===== 데이터 수집 (블록 → 평면 문항 목록으로 펼치기) ===== */
 function collect(){
   var title=document.getElementById('f_title').value.trim();
-  var id=title;   // 제목을 그대로 시험 ID로 사용
+  // 신규 등록: 제목을 ID로 사용 / 수정 모드: 원래 ID를 그대로 유지(같은 행 덮어쓰기 → 중복 생성 방지)
+  var id = (EDIT_MODE && EDIT_ID) ? EDIT_ID : title;
   var scope=document.getElementById('f_scope').value.trim();
   var review=document.getElementById('f_review').value.trim()
               .split(/\n\s*\n/).map(function(p){return p.replace(/[ \t]+\n/g,'\n').trim();}).filter(Boolean);
