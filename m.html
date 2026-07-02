@@ -92,6 +92,8 @@ body{font-family:'Noto Sans KR',sans-serif; background:var(--sage-fog); color:va
 .cell select:focus, .cell input:focus{outline:none; border-color:var(--sage-deep);}
 .cell.pg-cell{grid-column:1 / -1;}
 .txt-cell label{display:block; font-size:11.5px; color:var(--ink-soft); margin-bottom:4px;}
+.txt-cell select{width:100%; padding:9px 10px; font-size:14px; border:1.5px solid var(--line); border-radius:9px; background:#fff; font-family:'Noto Sans KR'; color:var(--ink-deep); -webkit-appearance:none; appearance:none;}
+.txt-cell select:focus{outline:none; border-color:var(--sage-deep);}
 .txt-in{width:100%; border:1.5px solid var(--line); border-radius:9px; padding:10px 11px; font-size:14px; font-family:'Noto Serif KR',serif; line-height:1.6; background:#fff; resize:vertical; min-height:50px; -webkit-appearance:none;}
 .txt-in:focus{outline:none; border-color:var(--sage-deep);}
 .subq-list-label{font-size:11.5px; color:var(--ink-soft); margin:4px 0 7px; font-weight:500;}
@@ -316,9 +318,78 @@ function areaCellHtml(){
          '<div class="cell"><label>세부유형 (하위)</label>'+
            '<select class="detail-in"><option value="">—</option></select></div>';
 }
+/* ── 문항 내용: 자주 쓰는 패턴 드롭다운 + 기타(직접 입력) ──
+ * 기본 패턴은 TXT_PATTERNS만 고치면 됩니다. '기타'로 새로 입력한 내용은
+ * 등록 시 이 기기(브라우저)에 저장되어 다음부터 드롭다운에 자동으로 나타납니다. */
+var TXT_PATTERNS = [
+  '화자·인물의 정서와 태도 파악',
+  '시어·시구의 의미와 기능',
+  '표현상 특징과 효과',
+  '서술상 특징 파악',
+  '작품의 종합적 감상',
+  '<보기> 연계 감상·적용',
+  '구절의 문맥적 의미 파악',
+  '소재·배경의 기능',
+  '내용 일치·세부 정보 확인',
+  '글의 전개 방식·논지 파악',
+  '숨어 있는 내용 추론',
+  '문법 개념의 사례 적용',
+  '조건에 맞는 표현·서술'
+];
+var TXT_CUSTOM_KEY = 'shueguk_txt_patterns';
+function customPatterns(){
+  try { var a = JSON.parse(localStorage.getItem(TXT_CUSTOM_KEY) || '[]'); return Array.isArray(a) ? a : []; }
+  catch(e){ return []; }
+}
+function addCustomPattern(t){
+  t = String(t||'').trim();
+  if(!t || t.length > 80) return;                      // 너무 긴 문장은 패턴으로 저장하지 않음
+  if(TXT_PATTERNS.indexOf(t) >= 0) return;
+  var a = customPatterns();
+  if(a.indexOf(t) >= 0) return;
+  a.unshift(t); if(a.length > 30) a = a.slice(0, 30);
+  try { localStorage.setItem(TXT_CUSTOM_KEY, JSON.stringify(a)); } catch(e){}
+}
+function txtOptionsHtml(){
+  var h = '<option value="">— 선택 —</option>';
+  var mine = customPatterns();
+  if(mine.length){ h += '<optgroup label="내가 추가한 패턴">' + mine.map(function(p){ return '<option>'+esc(p)+'</option>'; }).join('') + '</optgroup>'; }
+  h += '<optgroup label="자주 쓰는 패턴">' + TXT_PATTERNS.map(function(p){ return '<option>'+esc(p)+'</option>'; }).join('') + '</optgroup>';
+  h += '<option value="__custom__">기타 (직접 입력)</option>';
+  return h;
+}
 function txtCellHtml(){
   return '<div class="txt-cell"><label>문항 내용 · 분석</label>'+
-         '<textarea class="txt-in" rows="2" placeholder="이 문항이 무엇을 묻는지 / 분석"></textarea></div>';
+         '<select class="txt-sel" onchange="onTxtSel(this)">'+txtOptionsHtml()+'</select>'+
+         '<textarea class="txt-in" rows="2" placeholder="직접 입력: 이 문항이 무엇을 묻는지 / 분석" style="display:none; margin-top:6px;"></textarea></div>';
+}
+function onTxtSel(sel){
+  var ta = sel.parentNode.querySelector('.txt-in');
+  if(!ta) return;
+  ta.style.display = (sel.value === '__custom__') ? '' : 'none';
+  if(sel.value === '__custom__') ta.focus();
+}
+/* 문항 한 칸의 내용 읽기 (드롭다운 선택값 또는 기타 직접 입력) */
+function qTxt(scope){
+  var sel = scope.querySelector('.txt-sel');
+  var ta  = scope.querySelector('.txt-in');
+  if(sel){
+    if(sel.value === '__custom__') return ta ? ta.value.trim() : '';
+    return sel.value.trim();
+  }
+  return ta ? ta.value.trim() : '';
+}
+/* 수정 모드 프리필: 기존 내용이 패턴이면 선택, 아니면 '기타'로 채움 */
+function setQTxt(scope, txt){
+  txt = String(txt||'').trim();
+  var sel = scope.querySelector('.txt-sel');
+  var ta  = scope.querySelector('.txt-in');
+  if(!sel){ if(ta) ta.value = txt; return; }
+  var found = false;
+  for(var i=0;i<sel.options.length;i++){ if(sel.options[i].value === txt && txt !== ''){ found = true; break; } }
+  if(found){ sel.value = txt; if(ta) ta.style.display='none'; }
+  else if(txt){ sel.value='__custom__'; if(ta){ ta.value = txt; ta.style.display=''; } }
+  else { sel.value=''; if(ta) ta.style.display='none'; }
 }
 /* 복수 선택 유형 체크 (ㄱ·ㄴ·ㄷ 중 고르는 객관식) */
 function multiRowHtml(){
@@ -429,7 +500,7 @@ function collect(){
         var no=sq.querySelector('.no-in').value.trim();
         var type=sq.querySelector('.type-in').value.trim();
         var lv=sq.querySelector('.lv-in').value.trim();
-        var txt=sq.querySelector('.txt-in').value.trim();
+        var txt=qTxt(sq);
         var mq=sq.querySelector('.multi-in'); var multi=!!(mq&&mq.checked);
         if(no||txt){ questions.push({no:no, group:gname, area:garea, detail:gdetail, type:type, lv:lv, txt:txt, multi:multi}); }
       });
@@ -439,7 +510,7 @@ function collect(){
       var detail=block.querySelector('.detail-in').value.trim();
       var type=block.querySelector('.type-in').value.trim();
       var lv=block.querySelector('.lv-in').value.trim();
-      var txt=block.querySelector('.txt-in').value.trim();
+      var txt=qTxt(block);
       var mq=block.querySelector('.multi-in'); var multi=!!(mq&&mq.checked);
       if(no||txt||area){ questions.push({no:no, group:'', area:area, detail:detail, type:type, lv:lv, txt:txt, multi:multi}); }
     }
@@ -461,18 +532,18 @@ function validateForm(data){
       var garea=block.querySelector('.area-in').value.trim();
       var subs=block.querySelectorAll('.subq');
       var has=false;
-      subs.forEach(function(sq){ if(sq.querySelector('.no-in').value.trim()||sq.querySelector('.txt-in').value.trim()) has=true; });
+      subs.forEach(function(sq){ if(sq.querySelector('.no-in').value.trim()||qTxt(sq)) has=true; });
       if(!has) continue;
       if(!gname) return '지문 묶음의 ‘지문 이름’을 입력해주세요.';
       if(!garea) return '지문 묶음(‘'+gname+'’)의 영역을 선택해주세요.';
       for(var s=0;s<subs.length;s++){
         var no=subs[s].querySelector('.no-in').value.trim();
-        var txt=subs[s].querySelector('.txt-in').value.trim();
-        if(!no||!txt) return '지문 묶음(‘'+gname+'’) 안 문항의 번호와 내용을 채워주세요.';
+        var txt=qTxt(subs[s]);
+        if(!no||!txt) return '지문 묶음(‘'+gname+'’) 안 문항의 번호와 내용을 채워주세요(드롭다운에서 선택하거나 기타로 입력).';
       }
     } else {
       var no2=block.querySelector('.no-in').value.trim();
-      var txt2=block.querySelector('.txt-in').value.trim();
+      var txt2=qTxt(block);
       var area2=block.querySelector('.area-in').value.trim();
       if(!no2 && !txt2 && !area2) continue;
       if(!no2||!txt2) return '단독 문항의 번호와 내용을 채워주세요.';
@@ -539,6 +610,11 @@ function saveReport(){
     var ok=true, msg='';
     try{ var j=JSON.parse(t); if(j.result && j.result!=='success'){ ok=false; msg=j.message||''; } }catch(e){}
     if(!ok){ btn.disabled=false; setStatus('등록에 실패했습니다. '+msg, 'err'); return; }
+    // '기타'로 직접 입력한 문항 내용을 패턴으로 기억 → 다음부터 드롭다운에 표시
+    document.querySelectorAll('#blockList .txt-cell').forEach(function(tc){
+      var sel=tc.querySelector('.txt-sel'), ta=tc.querySelector('.txt-in');
+      if(sel && ta && sel.value==='__custom__') addCustomPattern(ta.value);
+    });
     setStatus('✓ 등록되었습니다. 배정된 학생의 개별 페이지에 표시됩니다.', 'ok');
     showLinks(data.id);
     // 이어서 또 고칠 수 있도록 버튼을 다시 활성화 (수정 모드 연속 저장 대비)
@@ -645,7 +721,7 @@ function fillSolo_(block, q){
   var det=block.querySelector('.detail-in'); if(det && q.detail){ det.value=q.detail; }
   block.querySelector('.type-in').value=q.type||'객관식';
   block.querySelector('.lv-in').value=q.lv||'상';
-  block.querySelector('.txt-in').value=q.txt||'';
+  setQTxt(block, q.txt||'');
   var mi=block.querySelector('.multi-in'); if(mi) mi.checked=!!q.multi;
 }
 function buildPassageFromData(groupName, subs){
@@ -662,7 +738,7 @@ function buildPassageFromData(groupName, subs){
     sq.querySelector('.no-in').value=q.no||'';
     sq.querySelector('.type-in').value=q.type||'객관식';
     sq.querySelector('.lv-in').value=q.lv||'상';
-    sq.querySelector('.txt-in').value=q.txt||'';
+    setQTxt(sq, q.txt||'');
     var mi=sq.querySelector('.multi-in'); if(mi) mi.checked=!!q.multi;
   });
 }
