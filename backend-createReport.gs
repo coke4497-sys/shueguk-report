@@ -46,7 +46,7 @@ var TAB_NOTICE_READ = '공지확인';   // A:일시 B:학생ID C:이름 D:학교
 // 어휘·H WORK 자동 적립용 스프레드시트 ID (비우면 그 항목은 0으로 계산)
 var VOCA_SHEET_ID  = '1AVDyKpBj9kSW5hzSzOieVIZpV6FnIpcFMjsjUyuGAbE';   // 어휘 결과 시트
 var HWORK_SHEET_ID = '1nFZ2HVAnCyCv_NOoAPXhA1VC_T7BBqwUWNWBta4-qFE';   // H WORK 시트
-var HWORK_TAB      = '';   // H WORK 제출 기록 탭 이름 (비우면 첫 시트 사용)
+var HWORK_TAB      = '제출기록';   // H WORK 제출 기록 탭 이름 (H WORK 백엔드의 SHEET_SUB와 동일)
 
 // 설정 탭 — 학생 페이지 기능 켜고/끄기 (A:항목 | B:값). 예: '어휘 테스트' | '중단'
 var TAB_CONFIG = '설정';
