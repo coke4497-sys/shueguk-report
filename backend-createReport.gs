@@ -37,6 +37,16 @@ var ANALYSIS_TOOL = '지필고사 분석지';   // '배정' 탭에서 지필고�
 var CLINIC_SHEET_ID = '1q-D_cGhSpVgX5epGKIVy-HH9P26ygj-TeT9yrMaHAO8';
 var CLINIC_TAB      = '응답';     // 제출시각|이름|학교|전화뒤4|클리닉시간|유형|영역|구체내용|질문개수|메모|토큰(신규)
 
+// ── 슈퍼스타 별(경험치) 시스템 ─────────────────────────────
+// 별 적립 규칙(자동): 지필 평가지 제출 +2 / 클리닉 신청 +1 / 어휘 제출 +1 / 과제 제출 +1
+// 깜짝 보너스(수동): '별' 탭에 로그로 기록 (star.html에서 부여)
+var TAB_STARS  = '별';   // A:일시 B:학생ID C:이름 D:별 E:사유
+var STAR_RULES = { exam: 2, clinic: 1, voca: 1, hwork: 1 };
+// 어휘·H WORK 자동 적립을 켜려면 아래에 해당 스프레드시트 ID를 채우세요. 비우면 그 항목은 0으로 계산.
+var VOCA_SHEET_ID  = '';   // 어휘 결과 스프레드시트 ID (…/d/ 와 /edit 사이 긴 문자열)
+var HWORK_SHEET_ID = '';   // H WORK 스프레드시트 ID
+var HWORK_TAB      = '';   // H WORK 제출 기록 탭 이름 (비우면 첫 시트)
+
 // 설정 탭 — 학생 페이지 기능 켜고/끄기 (A:항목 | B:값). 예: '어휘 테스트' | '중단'
 var TAB_CONFIG = '설정';
 var TEACHER_PW = 'sh';   // 티쳐스 페이지에서 어휘 켜기/끄기 할 때 쓰는 비밀번호 (원하면 변경)
@@ -70,6 +80,11 @@ function doGet(e) {
   if (p.action === 'noticeList') {
     if (String(p.pw || '') !== TEACHER_PW) return json({ result:'error', message:'unauthorized' });
     return getNoticeList();
+  }
+  // 별 보너스 로그(관리용) — 비밀번호 필요
+  if (p.action === 'starLog') {
+    if (String(p.pw || '') !== TEACHER_PW) return json({ result:'error', message:'unauthorized' });
+    return getStarLog();
   }
   // 배정 목록(도구별) — 비밀번호 필요. ?action=assignList&tool=H WORK[&item=...]
   if (p.action === 'assignList') {
@@ -279,6 +294,8 @@ function getStudent(opts) {
   resp.analyses = collectAnalyses_(ss, info, key);
   // 클리닉 신청: 이 학생(토큰)의 최근 신청 내역(없거나 실패 시 null)
   resp.clinic = collectClinic_(key);
+  // 슈퍼스타 별: 총 별 개수 + 출처별 내역 + 최근 깜짝 보너스
+  resp.stars = collectStars_(ss, info, key, siblingShared);
   // 어휘 테스트 켜짐/꺼짐 (설정 탭의 '어휘 테스트' 값. 기본 열림)
   resp.vocaOpen = configOpen_(ss, '어휘 테스트', true);
   // 어휘 주차: 교사가 연 주차(없으면 null → 학생 카드 준비 중)
@@ -698,6 +715,188 @@ function schoolMatch_(a, b) {
   return a.indexOf(b) >= 0 || b.indexOf(a) >= 0;
 }
 
+/* ===== 슈퍼스타 별(경험치) 집계 =====
+ *  총 별 = 지필 제출×2 + 클리닉 신청×1 + 어휘 제출×1 + 과제 제출×1 + 깜짝 보너스 합.
+ *  등급 계산(12단계)은 학생 페이지(s.html)가 총 별 개수로 수행한다.
+ */
+function collectStars_(ss, info, key, siblingShared) {
+  var sid  = String(info.id   || '').trim();
+  var name = String(info.name || '').trim();
+  var exam   = countExams_(ss, sid, name, siblingShared);      // 지필 평가지 제출 수
+  var clinic = countClinicApps_(key, sid);                     // 클리닉 신청 수(신청 단위)
+  var voca   = countVoca_(name);                               // 어휘 제출 수(주차 단위)
+  var hwork  = countHwork_(name, String(info.school || ''));   // 과제 제출 수
+  var bonus  = sumBonus_(ss, sid, name, String(info.school || ''));   // {sum, latest}
+  var total = exam * STAR_RULES.exam + clinic * STAR_RULES.clinic
+            + voca * STAR_RULES.voca + hwork * STAR_RULES.hwork + bonus.sum;
+  return {
+    total: total,
+    breakdown: { exam: exam, clinic: clinic, voca: voca, hwork: hwork, bonus: bonus.sum },
+    latestBonus: bonus.latest   // {stars, reason, date} 또는 null
+  };
+}
+
+/** 클리닉 신청 수 — 토큰 또는 학생ID가 일치하는 행을 '제출시각|시간' 단위로 센다. */
+function countClinicApps_(token, sid) {
+  token = String(token || '').trim(); sid = String(sid || '').trim();
+  if (!token && !sid) return 0;
+  var sh;
+  try { sh = SpreadsheetApp.openById(CLINIC_SHEET_ID).getSheetByName(CLINIC_TAB); }
+  catch (e) { return 0; }
+  if (!sh) return 0;
+  var v = sh.getDataRange().getValues();
+  if (v.length < 2) return 0;
+  var H = v[0];
+  var iTok = H.indexOf('토큰'), iSid = H.indexOf('학생ID'), iDate = H.indexOf('제출시각'), iTime = H.indexOf('클리닉시간');
+  var apps = {};
+  for (var i = 1; i < v.length; i++) {
+    var tk = iTok >= 0 ? String(v[i][iTok] || '').trim() : '';
+    var id = iSid >= 0 ? String(v[i][iSid] || '').replace(/^'/, '').trim() : '';
+    var match = (token && tk === token) || (sid && id === sid);
+    if (!match) continue;
+    apps[String(v[i][iDate] || '') + '|' + String(v[i][iTime] || '')] = true;
+  }
+  return Object.keys(apps).length;
+}
+
+/** 어휘 제출 수 — 어휘 결과 시트에서 이름이 일치하는 행의 주차(round)를 중복 없이 센다. */
+function countVoca_(name) {
+  if (!VOCA_SHEET_ID || !name) return 0;
+  var sh;
+  try { sh = SpreadsheetApp.openById(VOCA_SHEET_ID).getSheets()[0]; }
+  catch (e) { return 0; }
+  if (!sh) return 0;
+  var v = sh.getDataRange().getValues();
+  if (v.length < 2) return 0;
+  var H = v[0].map(function (h) { return String(h || '').trim().toLowerCase(); });
+  var iName = idxOfAny_(H, ['name', '이름']), iRound = idxOfAny_(H, ['round', '주차', '회차']);
+  if (iName < 0) return 0;
+  var rounds = {}, n = 0;
+  for (var i = 1; i < v.length; i++) {
+    if (String(v[i][iName] || '').trim() !== name) continue;
+    if (iRound >= 0) { rounds[String(v[i][iRound] || '').trim()] = true; }
+    else { n++; }
+  }
+  return iRound >= 0 ? Object.keys(rounds).length : n;
+}
+
+/** 과제(H WORK) 제출 수 — 이름(+학교 보조)이 일치하는 행 수. HWORK_SHEET_ID 비면 0. */
+function countHwork_(name, school) {
+  if (!HWORK_SHEET_ID || !name) return 0;
+  var sh;
+  try {
+    var hss = SpreadsheetApp.openById(HWORK_SHEET_ID);
+    sh = HWORK_TAB ? hss.getSheetByName(HWORK_TAB) : hss.getSheets()[0];
+  } catch (e) { return 0; }
+  if (!sh) return 0;
+  var v = sh.getDataRange().getValues();
+  if (v.length < 2) return 0;
+  var H = v[0].map(function (h) { return String(h || '').trim().toLowerCase(); });
+  var iName = idxOfAny_(H, ['name', '이름']), iSchool = idxOfAny_(H, ['school', '학교']);
+  if (iName < 0) return 0;
+  var n = 0;
+  for (var i = 1; i < v.length; i++) {
+    if (String(v[i][iName] || '').trim() !== name) continue;
+    if (school && iSchool >= 0) {
+      var sc = String(v[i][iSchool] || '').replace(/\s+/g, '');
+      if (sc && school.replace(/\s+/g, '') && sc.indexOf(school.replace(/\s+/g, '')) < 0 && school.replace(/\s+/g, '').indexOf(sc) < 0) continue;
+    }
+    n++;
+  }
+  return n;
+}
+
+function idxOfAny_(headerRow, names) {
+  for (var i = 0; i < names.length; i++) {
+    var at = headerRow.indexOf(names[i]);
+    if (at >= 0) return at;
+  }
+  return -1;
+}
+
+/** '별' 탭에서 이 학생의 깜짝 보너스 합계와 최근 1건.
+ *  학생ID가 기록된 행은 ID로, 없으면 이름(+학교가 있으면 학교까지)으로 매칭. */
+function sumBonus_(ss, sid, name, school) {
+  var out = { sum: 0, latest: null };
+  var sh = ss.getSheetByName(TAB_STARS);
+  if (!sh) return out;
+  var v = sh.getDataRange().getValues();
+  for (var i = 1; i < v.length; i++) {
+    var rid = String(v[i][1] || '').replace(/^'/, '').trim();
+    var rnm = String(v[i][2] || '').trim();
+    var rsc = String(v[i][3] || '').trim();
+    var match;
+    if (rid) { match = (sid && rid === sid); }
+    else {
+      match = (rnm === name);
+      if (match && rsc && school) match = schoolMatch_(rsc, school);   // 동명이인 구분
+    }
+    if (!match) continue;
+    var n = parseInt(v[i][4], 10) || 0;
+    out.sum += n;
+    out.latest = { stars: n, reason: String(v[i][5] || '').trim(), date: fmtCellDate_(v[i][0]) };
+  }
+  return out;
+}
+
+/** '별' 탭이 없으면 만든다. */
+function ensureStarsSheet_(ss) {
+  var sh = ss.getSheetByName(TAB_STARS);
+  if (!sh) {
+    sh = ss.insertSheet(TAB_STARS);
+    sh.appendRow(['일시', '학생ID', '이름', '학교', '별', '사유']);
+    sh.getRange(1, 1, 1, 6).setFontWeight('bold').setBackground('#DDE5E1');
+  }
+  return sh;
+}
+
+/** 깜짝 보너스 부여 (star.html). { pw, name, school, stars, reason } */
+function addStarBonus(data) {
+  if (String(data.pw || '') !== TEACHER_PW) return json({ result: 'error', message: 'unauthorized' });
+  var stars = parseInt(data.stars, 10);
+  var name = String(data.name || '').trim();
+  if (!name || !stars || stars < 1 || stars > 50) return json({ result: 'error', message: '학생과 별 개수(1~50)를 확인해주세요.' });
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ensureStarsSheet_(ss);
+  sh.appendRow([new Date(), String(data.id || '').trim() ? "'" + String(data.id).trim() : '', name, String(data.school || '').trim(), stars, String(data.reason || '').trim()]);
+  return json({ result: 'success' });
+}
+
+/** 보너스 로그(관리용, 최근이 위로). pw 필요. */
+function getStarLog() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ss.getSheetByName(TAB_STARS);
+  var out = [];
+  if (sh) {
+    var v = sh.getDataRange().getValues();
+    for (var i = 1; i < v.length; i++) {
+      if (!String(v[i][2] || '').trim()) continue;
+      out.push({
+        rowIndex: i + 1, date: fmtCellDate_(v[i][0]),
+        name: String(v[i][2] || '').trim(), school: String(v[i][3] || '').trim(),
+        stars: parseInt(v[i][4], 10) || 0, reason: String(v[i][5] || '').trim()
+      });
+    }
+  }
+  out.reverse();
+  return json({ result: 'success', log: out.slice(0, 50) });
+}
+
+/** 보너스 한 건 삭제(실수 정정용). { pw, rowIndex, name } */
+function deleteStarBonus(data) {
+  if (String(data.pw || '') !== TEACHER_PW) return json({ result: 'error', message: 'unauthorized' });
+  var rowIndex = parseInt(data.rowIndex, 10);
+  if (!rowIndex || rowIndex < 2) return json({ result: 'error', message: '잘못된 행입니다.' });
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ss.getSheetByName(TAB_STARS);
+  if (!sh || rowIndex > sh.getLastRow()) return json({ result: 'error', message: '존재하지 않는 행입니다.' });
+  if (data.name && String(sh.getRange(rowIndex, 3).getValue()).trim() !== String(data.name).trim()) {
+    return json({ result: 'error', message: '목록이 변경되었습니다. 새로고침 후 다시 시도하세요.' });
+  }
+  sh.deleteRow(rowIndex);
+  return json({ result: 'success' });
+}
+
 /** '설정' 탭에서 label 항목(A열)의 값(B열) 원문을 반환(없으면 dflt). */
 function configVal_(ss, label, dflt) {
   var sh = ss.getSheetByName(TAB_CONFIG);
@@ -824,6 +1023,10 @@ function doPost(e) {
 
     // (11) 리포트 완전 삭제 (analyses.html) — 보고서목록·문항·배정에서 모두 제거
     if (data && data.action === 'deleteReport')         { return deleteReport(data); }
+
+    // (12) 슈퍼스타 별 — 깜짝 보너스 부여/삭제 (star.html)
+    if (data && data.action === 'addStarBonus')    { return addStarBonus(data); }
+    if (data && data.action === 'deleteStarBonus') { return deleteStarBonus(data); }
 
     // (2) 학생 제출 수집
     var ss = SpreadsheetApp.getActiveSpreadsheet();
