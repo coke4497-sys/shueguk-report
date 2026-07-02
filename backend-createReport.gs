@@ -43,10 +43,10 @@ var CLINIC_TAB      = '응답';     // 제출시각|이름|학교|전화뒤4|클
 var TAB_STARS  = '별';   // A:일시 B:학생ID C:이름 D:학교 E:별 F:사유
 var STAR_RULES = { exam: 2, clinic: 1, voca: 1, hwork: 1, notice: 1 };   // notice = 공지 '확인했습니다' 1건당
 var TAB_NOTICE_READ = '공지확인';   // A:일시 B:학생ID C:이름 D:학교 E:공지키(작성일|제목)
-// 어휘·H WORK 자동 적립을 켜려면 아래에 해당 스프레드시트 ID를 채우세요. 비우면 그 항목은 0으로 계산.
-var VOCA_SHEET_ID  = '';   // 어휘 결과 스프레드시트 ID (…/d/ 와 /edit 사이 긴 문자열)
-var HWORK_SHEET_ID = '';   // H WORK 스프레드시트 ID
-var HWORK_TAB      = '';   // H WORK 제출 기록 탭 이름 (비우면 첫 시트)
+// 어휘·H WORK 자동 적립용 스프레드시트 ID (비우면 그 항목은 0으로 계산)
+var VOCA_SHEET_ID  = '1AVDyKpBj9kSW5hzSzOieVIZpV6FnIpcFMjsjUyuGAbE';   // 어휘 결과 시트
+var HWORK_SHEET_ID = '1nFZ2HVAnCyCv_NOoAPXhA1VC_T7BBqwUWNWBta4-qFE';   // H WORK 시트
+var HWORK_TAB      = '';   // H WORK 제출 기록 탭 이름 (비우면 첫 시트 사용)
 
 // 설정 탭 — 학생 페이지 기능 켜고/끄기 (A:항목 | B:값). 예: '어휘 테스트' | '중단'
 var TAB_CONFIG = '설정';
