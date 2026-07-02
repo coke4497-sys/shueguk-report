@@ -266,7 +266,6 @@ document.addEventListener('DOMContentLoaded',function(){
   var inp=document.getElementById('lockInput');
   if(inp){ inp.addEventListener('keydown',function(e){ if(e.key==='Enter'){ checkLock(); } }); }
   initPicker();      // 학생 배정 위젯 (공지와 동일)
-  loadTxtPatterns(); // 문항 내용 패턴 — 지금까지의 분석지 데이터에서 추출
   maybeLoadEdit();   // ?id= 있으면 기존 리포트 수정 모드로 불러오기
 });
 
@@ -322,7 +321,7 @@ function areaCellHtml(){
            '<select class="detail-in"><option value="">—</option></select></div>';
 }
 /* ── 문항 내용: 자주 쓰는 패턴 드롭다운 + 기타(직접 입력) ──
- * 기본 패턴은 TXT_PATTERNS만 고치면 됩니다. '기타'로 새로 입력한 내용은
+ * 유형 목록은 TXT_COMMON(영역 공통)·TXT_LIT(문학)만 고치면 됩니다. 목록에 없는 내용은
  * 등록 시 이 기기(브라우저)에 저장되어 다음부터 드롭다운에 자동으로 나타납니다. */
 /* 기본 문항 유형 (수경쌤 확정 목록 — 여기만 고치면 됩니다) */
 var TXT_COMMON = [   // 영역 공통
@@ -338,56 +337,15 @@ var TXT_LIT = [      // 문학 영역 전용
   '핵심 소재에 대한 이해',
   '인물의 심리와 성격 분석'
 ];
-var TXT_PATTERNS = [];   // 서버에서 로드 — 지금까지 등록한 문항에서 반복 유형을 빈도순으로
-function loadTxtPatterns(){
-  fetch(ENDPOINT+'?action=txtPatterns&t='+Date.now())
-    .then(function(r){ return r.json(); })
-    .then(function(d){
-      if(d && d.result==='success' && Array.isArray(d.patterns)){
-        TXT_PATTERNS = d.patterns;
-        refreshTxtSelects();   // 이미 만들어진 문항 칸의 드롭다운도 갱신
-      }
-    })
-    .catch(function(){});
-}
-function refreshTxtSelects(){
-  document.querySelectorAll('#blockList .txt-cell').forEach(function(tc){
-    var scope=tc, cur=qTxt(scope);           // 현재 값(보기 포함) 보존
-    var sel=tc.querySelector('.txt-sel');
-    if(sel){ sel.innerHTML = txtOptionsHtml(); }
-    setQTxt(scope, cur);
-  });
-}
 var BOGI_RE = /[<〈]\s*보기\s*[>〉]/;   // 패턴에 <보기>가 언급되면 보기 내용 칸 표시
-var TXT_CUSTOM_KEY = 'shueguk_txt_patterns';
-function customPatterns(){
-  try { var a = JSON.parse(localStorage.getItem(TXT_CUSTOM_KEY) || '[]'); return Array.isArray(a) ? a : []; }
-  catch(e){ return []; }
-}
-function addCustomPattern(t){
-  t = String(t||'').trim();
-  if(!t || t.length > 80) return;                      // 너무 긴 문장은 패턴으로 저장하지 않음
-  if(TXT_PATTERNS.indexOf(t) >= 0) return;
-  var a = customPatterns();
-  if(a.indexOf(t) >= 0) return;
-  a.unshift(t); if(a.length > 30) a = a.slice(0, 30);
-  try { localStorage.setItem(TXT_CUSTOM_KEY, JSON.stringify(a)); } catch(e){}
-}
 function txtOptionsHtml(){
-  var base = TXT_COMMON.concat(TXT_LIT);
   function grp(label, arr){
-    if(!arr.length) return '';
     return '<optgroup label="'+esc(label)+'">' + arr.map(function(p){ return '<option>'+esc(p)+'</option>'; }).join('') + '</optgroup>';
   }
-  var h = '<option value="">— 선택 —</option>';
-  h += grp('영역 공통', TXT_COMMON);
-  h += grp('문학', TXT_LIT);
-  var mine = customPatterns().filter(function(p){ return base.indexOf(p) < 0; });
-  h += grp('내가 추가한 패턴', mine);
-  var fromData = TXT_PATTERNS.filter(function(p){ return base.indexOf(p) < 0 && mine.indexOf(p) < 0; });
-  h += grp('기존 데이터에서 자주 쓴 유형', fromData);
-  h += '<option value="__custom__">기타 (직접 입력)</option>';
-  return h;
+  return '<option value="">— 선택 —</option>'
+    + grp('영역 공통', TXT_COMMON)
+    + grp('문학', TXT_LIT)
+    + '<option value="__custom__">기타 (직접 입력)</option>';
 }
 function txtCellHtml(){
   return '<div class="txt-cell"><label>문항 내용 · 분석</label>'+
@@ -655,11 +613,6 @@ function saveReport(){
     var ok=true, msg='';
     try{ var j=JSON.parse(t); if(j.result && j.result!=='success'){ ok=false; msg=j.message||''; } }catch(e){}
     if(!ok){ btn.disabled=false; setStatus('등록에 실패했습니다. '+msg, 'err'); return; }
-    // '기타'로 직접 입력한 문항 내용을 패턴으로 기억 → 다음부터 드롭다운에 표시
-    document.querySelectorAll('#blockList .txt-cell').forEach(function(tc){
-      var sel=tc.querySelector('.txt-sel'), ta=tc.querySelector('.txt-in');
-      if(sel && ta && sel.value==='__custom__') addCustomPattern(ta.value);
-    });
     setStatus('✓ 등록되었습니다. 배정된 학생의 개별 페이지에 표시됩니다.', 'ok');
     showLinks(data.id);
     // 이어서 또 고칠 수 있도록 버튼을 다시 활성화 (수정 모드 연속 저장 대비)
