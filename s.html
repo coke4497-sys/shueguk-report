@@ -652,10 +652,12 @@ function renderHub(){
             '<h3>알려드립니다</h3><p class="desc">'+esc(nDesc)+'</p>' +
             '<span class="go">'+(nTotal>0?'확인 ':'열기 ')+svg(ICON.arrow)+'</span></button>';
 
-  // H WORK — 이 학생에게 배정된 과제만 표시
-  var hCnt = (STATE.homework||[]).length;
+  // H WORK — 이 학생에게 배정된 과제만 표시. 뱃지는 아직 안 푼 과제만 카운트
+  var hs0 = STATE.homework||[];
+  var hCnt = hs0.filter(function(h){ return !h.done; }).length;
+  var hDesc = hs0.length===0 ? '배정된 과제 없음'
+            : (hCnt>0 ? ('풀어야 할 과제 '+hCnt+'건') : '과제 모두 제출 완료');
   var hDot = hCnt>0 ? '<span class="new-dot">'+(hCnt>9?'9+':hCnt)+'</span>' : '';
-  var hDesc = hCnt>0 ? ('배정된 과제 '+hCnt+'건') : '배정된 과제 없음';
   html += '<button class="card" onclick="openHomework()">' +
             '<span class="icon">'+svg(ICON.clip)+hDot+'</span>' +
             '<h3>H-work</h3><p class="desc">'+esc(hDesc)+'</p>' +
@@ -845,17 +847,22 @@ function renderHomework(){
     list.innerHTML = '<div class="empty-state"><p>아직 배정된 H WORK이 없습니다.<br>선생님이 과제를 배정하면 이곳에 표시됩니다.</p></div>';
   } else {
     var base = 'https://coke4497-sys.github.io/shueguk-h-work/hwork.html';
-    list.innerHTML = hs.map(function(h){
+    // 안 푼 과제 먼저, 제출 완료는 아래로
+    var ordered = hs.filter(function(h){ return !h.done; }).concat(hs.filter(function(h){ return h.done; }));
+    list.innerHTML = ordered.map(function(h){
       var title = (h.teacher ? (h.teacher+' · ') : '') + (h.code||'과제');
       var meta = [];
       if(h.due)  meta.push('마감 '+hwFmtDue(h.due));
       if(h.memo) meta.push(h.memo);
+      var action = h.done
+        ? '<span class="nchk-done">✓ 제출 완료 · 별 +1</span>'
+        : '<a class="hw-go" href="'+esc(base)+'" target="_blank" rel="noopener">H WORK 풀러 가기 '+svg(ICON.arrow)+'</a>';
       return '<div class="notice-item">' +
-        '<span class="ntag">배정 과제</span>' +
+        '<span class="ntag">'+(h.done?'제출 완료':'배정 과제')+'</span>' +
         '<div class="nh"><span class="ntitle">'+esc(title)+'</span>' +
         (h.date ? '<span class="ndate">'+esc(h.date)+'</span>' : '') + '</div>' +
         (meta.length ? '<div class="nbody">'+esc(meta.join(' · '))+'</div>' : '') +
-        '<a class="hw-go" href="'+esc(base)+'" target="_blank" rel="noopener">H WORK 풀러 가기 '+svg(ICON.arrow)+'</a>' +
+        action +
         '</div>';
     }).join('');
   }

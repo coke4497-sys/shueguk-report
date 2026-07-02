@@ -291,6 +291,12 @@ function getStudent(opts) {
   resp.notices = collectNotices_(ss, info, key);
   // 배정된 H WORK: 이 학생에게 배정된 과제만 (학생 개인 페이지용)
   resp.homework = collectAssignments_(ss, info, key, 'H WORK');
+  // 제출 여부 표시: H WORK '제출기록'과 대조해 각 과제에 done을 붙인다
+  var hwDone = hworkDoneSet_(info.name, String(info.school || '').trim());
+  resp.homework.forEach(function(h){
+    var t = String(h.teacher || '').trim(), c = String(h.code || '').trim();
+    h.done = !!(hwDone.byKey[t + '|' + c] || (!t && hwDone.byCode[c]));
+  });
   // 지필고사 분석지: 배정(전체/학년/개인/일부) 또는 학교·학년 일치 시험만(최신순). done=복기 제출 여부
   resp.analyses = collectAnalyses_(ss, info, key);
   // 클리닉 신청: 이 학생(토큰)의 최근 신청 내역(없거나 실패 시 null)
@@ -892,6 +898,37 @@ function countHwork_(name, school) {
     n++;
   }
   return n;
+}
+
+/** 이 학생이 제출한 H WORK 집합 — '제출기록'에서 이름(+학교 보조) 매칭.
+ *  byKey: '강사|제목' / byCode: '제목' (배정 항목에 강사가 없을 때 보조) */
+function hworkDoneSet_(name, school) {
+  var out = { byKey: {}, byCode: {} };
+  if (!HWORK_SHEET_ID || !name) return out;
+  var sh;
+  try {
+    var hss = SpreadsheetApp.openById(HWORK_SHEET_ID);
+    sh = HWORK_TAB ? hss.getSheetByName(HWORK_TAB) : hss.getSheets()[0];
+  } catch (e) { return out; }
+  if (!sh) return out;
+  var v = sh.getDataRange().getValues();
+  if (v.length < 2) return out;
+  var H = v[0].map(function (h) { return String(h || '').trim(); });
+  var iT = H.indexOf('강사'), iC = H.indexOf('제목'), iN = H.indexOf('이름'), iS = H.indexOf('학교');
+  if (iC < 0 || iN < 0) return out;
+  var sc = String(school || '').replace(/\s+/g, '');
+  for (var i = 1; i < v.length; i++) {
+    if (String(v[i][iN] || '').trim() !== name) continue;
+    if (sc && iS >= 0) {
+      var rs = String(v[i][iS] || '').replace(/\s+/g, '');
+      if (rs && rs.indexOf(sc) < 0 && sc.indexOf(rs) < 0) continue;
+    }
+    var t = iT >= 0 ? String(v[i][iT] || '').trim() : '';
+    var c = String(v[i][iC] || '').trim();
+    out.byKey[t + '|' + c] = true;
+    out.byCode[c] = true;
+  }
+  return out;
 }
 
 function idxOfAny_(headerRow, names) {
