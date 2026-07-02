@@ -858,13 +858,23 @@ function countVoca_(name) {
   return iRound >= 0 ? Object.keys(rounds).length : n;
 }
 
-/** 과제(H WORK) 제출 수 — 이름(+학교 보조)이 일치하는 행 수. HWORK_SHEET_ID 비면 0. */
+/** 과제(H WORK) 제출 수 — 이름(+학교 보조)이 일치하는 행 수. HWORK_SHEET_ID 비면 0.
+ *  탭 이름(HWORK_TAB)이 비어 있으면 '제출시각'+'이름' 머리글이 있는 제출 기록 탭을 자동으로 찾는다. */
 function countHwork_(name, school) {
   if (!HWORK_SHEET_ID || !name) return 0;
-  var sh;
+  var sh = null;
   try {
     var hss = SpreadsheetApp.openById(HWORK_SHEET_ID);
-    sh = HWORK_TAB ? hss.getSheetByName(HWORK_TAB) : hss.getSheets()[0];
+    if (HWORK_TAB) sh = hss.getSheetByName(HWORK_TAB);
+    if (!sh) {
+      var all = hss.getSheets();
+      for (var t = 0; t < all.length; t++) {
+        if (all[t].getLastRow() < 1) continue;
+        var head = all[t].getRange(1, 1, 1, Math.max(all[t].getLastColumn(), 1)).getValues()[0]
+          .map(function (h) { return String(h || '').trim().toLowerCase(); });
+        if (idxOfAny_(head, ['이름', 'name']) >= 0 && idxOfAny_(head, ['제출시각', '제출일시', 'time']) >= 0) { sh = all[t]; break; }
+      }
+    }
   } catch (e) { return 0; }
   if (!sh) return 0;
   var v = sh.getDataRange().getValues();
