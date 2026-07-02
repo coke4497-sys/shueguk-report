@@ -77,6 +77,8 @@ function doGet(e) {
   }
   // 학생 명단(roster) — 티쳐스 공지·선택 위젯용. 민감정보(학생ID=비밀번호)는 제외.
   if (p.action === 'roster')     { return getRoster(); }
+  // 문항 내용 패턴 — 지금까지 등록된 문항에서 반복 유형을 빈도순으로 (m.html 드롭다운용)
+  if (p.action === 'txtPatterns') { return getTxtPatterns(); }
   // 공지 목록(관리용) — 비밀번호 필요
   if (p.action === 'noticeList') {
     if (String(p.pw || '') !== TEACHER_PW) return json({ result:'error', message:'unauthorized' });
@@ -1525,6 +1527,27 @@ function deleteRowsById_(sheet, col, id) {
   for (var r = vals.length-1; r >= 0; r--) {
     if (String(vals[r][0]).trim() === id) { sheet.deleteRow(r+2); }
   }
+}
+
+/** 문항 내용(F열)에서 반복 유형을 추린다 — 2회 이상 반복분 빈도순(최대 40),
+ *  반복이 하나도 없으면 상위 20개. '<보기>: …' 꼬리표는 떼고 집계. */
+function getTxtPatterns() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ss.getSheetByName(TAB_ITEMS);
+  var cnt = {};
+  if (sh) {
+    var v = sh.getDataRange().getValues();
+    for (var i = 1; i < v.length; i++) {
+      var t = String(v[i][5] || '').split(/\n?\s*[<〈]\s*보기\s*[>〉]\s*:/)[0].trim();
+      if (!t) continue;
+      cnt[t] = (cnt[t] || 0) + 1;
+    }
+  }
+  var out = Object.keys(cnt).map(function (t) { return { t: t, n: cnt[t] }; });
+  out.sort(function (a, b) { return b.n - a.n || a.t.localeCompare(b.t, 'ko'); });
+  var rep = out.filter(function (o) { return o.n >= 2; }).slice(0, 40);
+  if (!rep.length) rep = out.slice(0, 20);
+  return json({ result: 'success', patterns: rep.map(function (o) { return o.t; }) });
 }
 
 /** 복수 선택 유형 여부 판정 (Y/1/복수/○ 등은 true). */

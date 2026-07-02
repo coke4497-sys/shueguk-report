@@ -94,6 +94,8 @@ body{font-family:'Noto Sans KR',sans-serif; background:var(--sage-fog); color:va
 .txt-cell label{display:block; font-size:11.5px; color:var(--ink-soft); margin-bottom:4px;}
 .txt-cell select{width:100%; padding:9px 10px; font-size:14px; border:1.5px solid var(--line); border-radius:9px; background:#fff; font-family:'Noto Sans KR'; color:var(--ink-deep); -webkit-appearance:none; appearance:none;}
 .txt-cell select:focus{outline:none; border-color:var(--sage-deep);}
+.txt-cell .bogi-in{width:100%; padding:9px 10px; font-size:13.5px; border:1.5px solid var(--line); border-radius:9px; background:#FBFCFB; font-family:'Noto Serif KR',serif; color:var(--ink-deep);}
+.txt-cell .bogi-in:focus{outline:none; border-color:var(--sage-deep); background:#fff;}
 .txt-in{width:100%; border:1.5px solid var(--line); border-radius:9px; padding:10px 11px; font-size:14px; font-family:'Noto Serif KR',serif; line-height:1.6; background:#fff; resize:vertical; min-height:50px; -webkit-appearance:none;}
 .txt-in:focus{outline:none; border-color:var(--sage-deep);}
 .subq-list-label{font-size:11.5px; color:var(--ink-soft); margin:4px 0 7px; font-weight:500;}
@@ -263,7 +265,8 @@ function checkLock(){
 document.addEventListener('DOMContentLoaded',function(){
   var inp=document.getElementById('lockInput');
   if(inp){ inp.addEventListener('keydown',function(e){ if(e.key==='Enter'){ checkLock(); } }); }
-  initPicker();   // 학생 배정 위젯 (공지와 동일)
+  initPicker();      // 학생 배정 위젯 (공지와 동일)
+  loadTxtPatterns(); // 문항 내용 패턴 — 지금까지의 분석지 데이터에서 추출
   maybeLoadEdit();   // ?id= 있으면 기존 리포트 수정 모드로 불러오기
 });
 
@@ -321,21 +324,27 @@ function areaCellHtml(){
 /* ── 문항 내용: 자주 쓰는 패턴 드롭다운 + 기타(직접 입력) ──
  * 기본 패턴은 TXT_PATTERNS만 고치면 됩니다. '기타'로 새로 입력한 내용은
  * 등록 시 이 기기(브라우저)에 저장되어 다음부터 드롭다운에 자동으로 나타납니다. */
-var TXT_PATTERNS = [
-  '화자·인물의 정서와 태도 파악',
-  '시어·시구의 의미와 기능',
-  '표현상 특징과 효과',
-  '서술상 특징 파악',
-  '작품의 종합적 감상',
-  '<보기> 연계 감상·적용',
-  '구절의 문맥적 의미 파악',
-  '소재·배경의 기능',
-  '내용 일치·세부 정보 확인',
-  '글의 전개 방식·논지 파악',
-  '숨어 있는 내용 추론',
-  '문법 개념의 사례 적용',
-  '조건에 맞는 표현·서술'
-];
+var TXT_PATTERNS = [];   // 서버에서 로드 — 지금까지 등록한 문항에서 반복 유형을 빈도순으로
+function loadTxtPatterns(){
+  fetch(ENDPOINT+'?action=txtPatterns&t='+Date.now())
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      if(d && d.result==='success' && Array.isArray(d.patterns)){
+        TXT_PATTERNS = d.patterns;
+        refreshTxtSelects();   // 이미 만들어진 문항 칸의 드롭다운도 갱신
+      }
+    })
+    .catch(function(){});
+}
+function refreshTxtSelects(){
+  document.querySelectorAll('#blockList .txt-cell').forEach(function(tc){
+    var scope=tc, cur=qTxt(scope);           // 현재 값(보기 포함) 보존
+    var sel=tc.querySelector('.txt-sel');
+    if(sel){ sel.innerHTML = txtOptionsHtml(); }
+    setQTxt(scope, cur);
+  });
+}
+var BOGI_RE = /[<〈]\s*보기\s*[>〉]/;   // 패턴에 <보기>가 언급되면 보기 내용 칸 표시
 var TXT_CUSTOM_KEY = 'shueguk_txt_patterns';
 function customPatterns(){
   try { var a = JSON.parse(localStorage.getItem(TXT_CUSTOM_KEY) || '[]'); return Array.isArray(a) ? a : []; }
@@ -361,35 +370,49 @@ function txtOptionsHtml(){
 function txtCellHtml(){
   return '<div class="txt-cell"><label>문항 내용 · 분석</label>'+
          '<select class="txt-sel" onchange="onTxtSel(this)">'+txtOptionsHtml()+'</select>'+
-         '<textarea class="txt-in" rows="2" placeholder="직접 입력: 이 문항이 무엇을 묻는지 / 분석" style="display:none; margin-top:6px;"></textarea></div>';
+         '<textarea class="txt-in" rows="2" placeholder="직접 입력: 이 문항이 무엇을 묻는지 / 분석" style="display:none; margin-top:6px;" oninput="updateBogi(this.parentNode)"></textarea>'+
+         '<input type="text" class="bogi-in" placeholder="&lt;보기&gt; 내용을 적어주세요 (예: 작가의 생애 자료)" style="display:none; margin-top:6px;"></div>';
 }
 function onTxtSel(sel){
-  var ta = sel.parentNode.querySelector('.txt-in');
-  if(!ta) return;
-  ta.style.display = (sel.value === '__custom__') ? '' : 'none';
-  if(sel.value === '__custom__') ta.focus();
+  var tc = sel.parentNode;
+  var ta = tc.querySelector('.txt-in');
+  if(ta){ ta.style.display = (sel.value === '__custom__') ? '' : 'none'; if(sel.value==='__custom__') ta.focus(); }
+  updateBogi(tc);
 }
-/* 문항 한 칸의 내용 읽기 (드롭다운 선택값 또는 기타 직접 입력) */
+/* 선택/입력된 패턴에 <보기>가 있으면 보기 내용 칸을 보여준다 */
+function updateBogi(tc){
+  var sel=tc.querySelector('.txt-sel'), ta=tc.querySelector('.txt-in'), bg=tc.querySelector('.bogi-in');
+  if(!bg) return;
+  var base = sel ? (sel.value==='__custom__' ? (ta?ta.value:'') : sel.value) : (ta?ta.value:'');
+  bg.style.display = BOGI_RE.test(base) ? '' : 'none';
+}
+/* 문항 한 칸의 내용 읽기 — 패턴(또는 기타 입력) + <보기> 내용을 합쳐 저장 */
 function qTxt(scope){
   var sel = scope.querySelector('.txt-sel');
   var ta  = scope.querySelector('.txt-in');
-  if(sel){
-    if(sel.value === '__custom__') return ta ? ta.value.trim() : '';
-    return sel.value.trim();
-  }
-  return ta ? ta.value.trim() : '';
+  var bg  = scope.querySelector('.bogi-in');
+  var base = sel ? (sel.value==='__custom__' ? (ta?ta.value.trim():'') : sel.value.trim())
+                 : (ta?ta.value.trim():'');
+  if(!base) return '';
+  var bogi = (bg && bg.style.display!=='none') ? bg.value.trim() : '';
+  return bogi ? (base + '\n<보기>: ' + bogi) : base;
 }
-/* 수정 모드 프리필: 기존 내용이 패턴이면 선택, 아니면 '기타'로 채움 */
+/* 수정 모드 프리필: '<보기>: …' 꼬리표 분리 → 패턴이면 선택, 아니면 '기타' */
 function setQTxt(scope, txt){
   txt = String(txt||'').trim();
+  var parts = txt.split(/\n?\s*[<〈]\s*보기\s*[>〉]\s*:\s*/);
+  var base = (parts[0]||'').trim(), bogi = (parts[1]||'').trim();
   var sel = scope.querySelector('.txt-sel');
   var ta  = scope.querySelector('.txt-in');
-  if(!sel){ if(ta) ta.value = txt; return; }
+  var bg  = scope.querySelector('.bogi-in');
+  if(!sel){ if(ta) ta.value = base; return; }
   var found = false;
-  for(var i=0;i<sel.options.length;i++){ if(sel.options[i].value === txt && txt !== ''){ found = true; break; } }
-  if(found){ sel.value = txt; if(ta) ta.style.display='none'; }
-  else if(txt){ sel.value='__custom__'; if(ta){ ta.value = txt; ta.style.display=''; } }
+  for(var i=0;i<sel.options.length;i++){ if(sel.options[i].value === base && base !== ''){ found = true; break; } }
+  if(found){ sel.value = base; if(ta) ta.style.display='none'; }
+  else if(base){ sel.value='__custom__'; if(ta){ ta.value = base; ta.style.display=''; } }
   else { sel.value=''; if(ta) ta.style.display='none'; }
+  if(bg){ bg.value = bogi; }
+  updateBogi(scope);
 }
 /* 복수 선택 유형 체크 (ㄱ·ㄴ·ㄷ 중 고르는 객관식) */
 function multiRowHtml(){
