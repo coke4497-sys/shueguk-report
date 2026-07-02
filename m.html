@@ -198,7 +198,7 @@ body{font-family:'Noto Sans KR',sans-serif; background:var(--sage-fog); color:va
     </div>
 
     <!-- 8. 시험 총평 -->
-    <h2 class="sec-h"><span class="step">8</span>시험 총평 <span class="n">· 학생 화면 상단에 표시</span></h2>
+    <h2 class="sec-h"><span class="step">4</span>시험 총평 <span class="n">· 학생 화면 상단에 표시</span></h2>
     <div class="fld">
       <textarea id="f_review" placeholder="이번 시험의 출제 경향, 난도 분포, 응원의 한마디 등을 적어주세요.&#10;&#10;빈 줄(엔터 두 번)로 문단을 나누면 학생 화면에서도 문단으로 구분됩니다."></textarea>
       <p class="hint">문단은 <b>빈 줄</b>로 구분됩니다.</p>
@@ -541,7 +541,10 @@ function saveReport(){
     if(!ok){ btn.disabled=false; setStatus('등록에 실패했습니다. '+msg, 'err'); return; }
     setStatus('✓ 등록되었습니다. 배정된 학생의 개별 페이지에 표시됩니다.', 'ok');
     showLinks(data.id);
-    btn.textContent='등록됨';
+    // 이어서 또 고칠 수 있도록 버튼을 다시 활성화 (수정 모드 연속 저장 대비)
+    var doneLabel = EDIT_MODE ? '✓ 저장됨 — 다시 저장 가능' : '✓ 등록됨';
+    btn.textContent=doneLabel;
+    setTimeout(function(){ btn.disabled=false; btn.textContent=EDIT_MODE?'수정 저장':'시트에 등록'; }, 1800);
   })
   .catch(function(){
     btn.disabled=false;

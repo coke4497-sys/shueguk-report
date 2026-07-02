@@ -436,7 +436,15 @@ function submitToSheet(){
     body: JSON.stringify(p)
   })
   .then(function(r){ return r.text(); })
-  .then(function(){
+  .then(function(t){
+    // 백엔드 응답 확인: 저장 실패({result:'error'})면 성공으로 처리하지 않는다
+    var ok=false, msg='';
+    try{ var j=JSON.parse(t); ok=(j && j.result==='success'); msg=(j && j.message)||''; }catch(e){ ok=false; }
+    if(!ok){
+      btn.disabled=false;
+      toast('제출이 저장되지 않았어요. 다시 눌러주세요.'+(msg?' ('+msg+')':''), 'err');
+      return;
+    }
     toast('제출 완료!', 'ok');
     document.getElementById('doneMark').classList.add('show');
     btn.textContent='제출됨';
