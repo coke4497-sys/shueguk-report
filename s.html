@@ -592,7 +592,7 @@ function renderStars(){
     var lev = LEVELS[L];
     var cls = (lev.lv===cur.lv) ? 'now' : (total >= lev.min ? 'done' : '');
     if(lev.lv===LEVELS.length-1) cls += ' last';
-    var mark = (lev.lv===cur.lv) ? '🐹' : (total >= lev.min ? '✓' : '');
+    var mark = (lev.lv===cur.lv) ? '⭐' : (total >= lev.min ? '✓' : '');
     html += '<li class="'+cls+'"><span class="chk">'+mark+'</span>Lv.'+lev.lv+' '+esc(lev.name)+
             '<span class="m">별 '+lev.min+'개</span></li>';
   }
