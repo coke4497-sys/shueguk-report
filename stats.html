@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+<title>지필고사 제출 분석 · 슈국 티쳐스</title>
+<meta name="description" content="지필고사 분석지 제출 현황·점수·많이 틀린 문항 분석 (교사용)" />
+<link href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=Gowun+Dodum&display=swap" rel="stylesheet" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='48' fill='%23DCE9E4'/%3E%3C/svg%3E" />
+<style>
+  :root{
+    --bg:#E4EFEA; --surface:#FFFFFF; --ink:#2A332F; --ink-soft:#65726B;
+    --accent:#3A6B5E; --line:#D7E3DD; --line-soft:#E5EDE8; --radius:18px;
+    --bad:#c0463e;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bg); color:var(--ink);
+    font-family:"Gowun Dodum","Apple SD Gothic Neo","Malgun Gothic",-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+    font-size:16px; line-height:1.7; -webkit-font-smoothing:antialiased; padding:0 0 80px;
+  }
+  .wrap{max-width:640px;margin:0 auto;padding:0 20px;}
+  .back{display:inline-flex;align-items:center;gap:6px;margin:24px 0 0;color:var(--ink-soft);text-decoration:none;font-size:14px;}
+  .back svg{width:16px;height:16px;}
+  .back:hover{color:var(--accent);}
+  header{padding:16px 4px 22px;text-align:center;}
+  .tagline{font-family:"Gowun Batang",serif;font-size:1.5rem;font-weight:700;color:var(--accent);margin:0;}
+  .intro{color:var(--ink-soft);font-size:.92rem;margin:9px auto 0;max-width:27em;}
+
+  .card{background:var(--surface);border:1px solid var(--line-soft);border-radius:var(--radius);padding:22px 20px;margin-bottom:16px;}
+  .card h2{font-family:"Gowun Batang",serif;font-size:1.1rem;font-weight:700;margin:0 0 12px;display:flex;align-items:center;gap:8px;}
+  .card h2 .dot{width:8px;height:8px;border-radius:50%;background:var(--accent);display:inline-block;}
+  select{width:100%;padding:12px 13px;border:1.5px solid var(--line);border-radius:10px;font:inherit;font-size:15px;background:#fafbfa;color:var(--ink);}
+  select:focus{outline:none;border-color:var(--accent);}
+
+  .chips{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;}
+  .chip{border:1.5px solid var(--line);background:#fff;font:inherit;font-size:13.5px;font-weight:700;padding:8px 14px;border-radius:20px;cursor:pointer;color:var(--ink-soft);}
+  .chip.on{background:var(--accent);border-color:var(--accent);color:#fff;}
+
+  .tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px;}
+  .tile{background:#F2F7F4;border-radius:13px;padding:13px 8px;text-align:center;}
+  .tile .v{font-family:"Gowun Batang",serif;font-weight:700;font-size:1.35rem;color:var(--accent);line-height:1.3;}
+  .tile .k{font-size:.74rem;color:var(--ink-soft);margin-top:2px;}
+
+  table.tb{width:100%;border-collapse:collapse;font-size:13.5px;}
+  table.tb th{background:#EBF0ED;color:var(--accent);font-weight:700;padding:9px 6px;text-align:left;}
+  table.tb td{padding:9px 6px;border-bottom:1px solid var(--line-soft);}
+  table.tb td.num{text-align:right;white-space:nowrap;}
+  table.tb th.num{text-align:right;}
+
+  .wq{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line-soft);}
+  .wq:last-child{border-bottom:none;}
+  .wq .rank{flex:0 0 26px;font-family:"Gowun Batang",serif;font-weight:700;color:var(--accent);font-size:1.05rem;text-align:center;}
+  .wq .qno{flex:0 0 auto;font-weight:700;white-space:nowrap;}
+  .wq .area{font-size:12px;color:var(--ink-soft);white-space:nowrap;}
+  .wq .barbox{flex:1;height:14px;background:#EBF0ED;border-radius:7px;overflow:hidden;}
+  .wq .bar{height:100%;background:var(--accent);border-radius:7px;}
+  .wq .cnt{flex:0 0 auto;font-size:12.5px;color:var(--ink-soft);white-space:nowrap;}
+
+  .empty{text-align:center;color:#9aa6a0;font-size:13.5px;padding:26px;}
+
+  /* 잠금 */
+  .lock{position:fixed;inset:0;background:var(--bg);z-index:100;display:flex;align-items:center;justify-content:center;padding:24px;}
+  .lock-card{background:#fff;border:1px solid var(--line-soft);border-radius:18px;padding:34px 28px;text-align:center;max-width:330px;width:100%;}
+  .lock-card .t{font-family:"Gowun Batang",serif;font-weight:700;font-size:20px;color:var(--accent);}
+  .lock-card .d{font-size:13px;color:var(--ink-soft);margin:10px 0 18px;}
+  .lock-card input{width:100%;padding:13px;border:1.5px solid var(--line);border-radius:10px;font:inherit;font-size:16px;text-align:center;}
+  .lock-card button{width:100%;margin-top:11px;padding:13px;border:none;border-radius:11px;background:var(--accent);color:#fff;font-family:"Gowun Batang",serif;font-weight:700;font-size:16px;cursor:pointer;}
+  .lock-err{color:var(--bad);font-size:12.5px;min-height:1.1em;margin-top:10px;}
+  body.locked{overflow:hidden;}
+  body:not(.locked) .lock{display:none;}
+</style>
+</head>
+<body class="locked">
+
+<div class="lock" id="lockScreen">
+  <div class="lock-card">
+    <div class="t">지필고사 제출 분석</div>
+    <div class="d">선생님 전용 페이지입니다.<br>비밀번호를 입력해 주세요.</div>
+    <input type="password" id="lockInput" placeholder="비밀번호" inputmode="numeric" autocomplete="off" />
+    <button type="button" onclick="checkLock()">확인</button>
+    <div class="lock-err" id="lockErr"></div>
+  </div>
+</div>
+
+<main class="wrap">
+  <a class="back" href="https://coke4497-sys.github.io/shueguk-hub/report.html">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M11 18l-6-6 6-6"/></svg>
+    지필고사 리포트로 가기
+  </a>
+
+  <header>
+    <p class="tagline">지필고사 제출 분석</p>
+    <p class="intro">시험을 고르면 제출 학생·점수·평균·많이 틀린 문항을 보여드려요. 학교·학년으로 걸러 볼 수 있습니다.</p>
+  </header>
+
+  <section class="card">
+    <h2><span class="dot"></span>시험 선택</h2>
+    <select id="examSel"><option value="">불러오는 중…</option></select>
+    <div class="chips" id="chips" style="display:none;"></div>
+  </section>
+
+  <div id="result" style="display:none;">
+    <section class="card">
+      <h2><span class="dot"></span>한눈에 보기</h2>
+      <div class="tiles" id="tiles"></div>
+      <div id="wqBox">
+        <h2 style="margin-top:6px;"><span class="dot"></span>많이 틀린 문항 TOP 5</h2>
+        <div id="wqList"></div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2><span class="dot"></span>제출 학생 · 점수</h2>
+      <div id="stuTable"></div>
+    </section>
+  </div>
+  <div class="card empty" id="emptyBox" style="display:none;">아직 이 시험의 제출이 없습니다.</div>
+</main>
+
+<script>
+  var ENDPOINT  = "https://script.google.com/macros/s/AKfycbzhCncBwn-JlqXARC3wfrWUCuNHzlNK2df0bdhx-w78Xr8mzYUcIYZOJdRi9N4bHtsb/exec";
+  var PASS_ENC  = "MTAxMDEx";
+  var LOCK_KEY  = "shueguk_teacher_unlocked";
+
+  function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  function $(id){ return document.getElementById(id); }
+
+  (function(){ try{ if(localStorage.getItem(LOCK_KEY)==='1'){ unlock(); } }catch(e){} })();
+  function unlock(){ document.body.classList.remove('locked'); init(); }
+  function checkLock(){
+    var v=$('lockInput').value, ok=false;
+    try{ ok=(btoa(v)===PASS_ENC); }catch(e){ ok=false; }
+    if(ok){ try{ localStorage.setItem(LOCK_KEY,'1'); }catch(e){} unlock(); }
+    else { $('lockErr').textContent='비밀번호가 올바르지 않습니다.'; $('lockInput').value=''; }
+  }
+  $('lockInput').addEventListener('keydown', function(e){ if(e.key==='Enter') checkLock(); });
+
+  var inited=false, SUBS=[], FILTER='';   // FILTER = '학교|학년' 또는 ''(전체)
+  function init(){
+    if(inited) return; inited=true;
+    fetch(ENDPOINT+'?list=1&t='+Date.now())
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        var sel=$('examSel');
+        if(!d || d.result!=='success' || !d.reports || !d.reports.length){
+          sel.innerHTML='<option value="">등록된 시험이 없습니다</option>'; return;
+        }
+        sel.innerHTML='<option value="">시험을 선택하세요</option>'
+          + d.reports.map(function(r){ return '<option value="'+esc(r.id)+'">'+esc(r.title||r.id)+'</option>'; }).join('');
+      })
+      .catch(function(){ $('examSel').innerHTML='<option value="">목록을 불러오지 못했어요</option>'; });
+    $('examSel').addEventListener('change', function(){ if(this.value) loadResults(this.value); });
+  }
+
+  function loadResults(id){
+    $('result').style.display='none'; $('emptyBox').style.display='none';
+    $('chips').style.display='none';
+    $('examSel').disabled=true;
+    fetch(ENDPOINT+'?results='+encodeURIComponent(id)+'&t='+Date.now())
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        $('examSel').disabled=false;
+        var rows=(d && d.result==='success' && d.students)||[];
+        // 같은 학생(이름+학교)이 여러 번 제출했으면 마지막 제출만 사용
+        var byKey={};
+        rows.forEach(function(s){ byKey[(s.name||'')+'|'+(s.school||'')]=s; });
+        SUBS=Object.keys(byKey).map(function(k){ return byKey[k]; });
+        FILTER='';
+        buildChips();
+        render();
+      })
+      .catch(function(){ $('examSel').disabled=false; $('emptyBox').textContent='제출 결과를 불러오지 못했어요. 인터넷을 확인해 주세요.'; $('emptyBox').style.display='block'; });
+  }
+
+  /* 학교+학년(예: 화정고1) 필터 칩 */
+  function cohortOf(s){
+    var sc=String(s.school||'').trim(), g=String(s.grade||'').replace(/[^0-9]/g,'');
+    return (sc||'미상')+(g?g:'');
+  }
+  function buildChips(){
+    var seen={}, list=[];
+    SUBS.forEach(function(s){ var c=cohortOf(s); if(!seen[c]){ seen[c]=1; list.push(c); } });
+    list.sort(function(a,b){ return a.localeCompare(b,'ko'); });
+    var box=$('chips');
+    if(list.length<=1){ box.style.display='none'; return; }
+    box.innerHTML='<button type="button" class="chip on" data-c="">전체</button>'
+      + list.map(function(c){ return '<button type="button" class="chip" data-c="'+esc(c)+'">'+esc(c)+'</button>'; }).join('');
+    box.style.display='flex';
+    box.onclick=function(e){
+      var b=e.target.closest('.chip'); if(!b) return;
+      FILTER=b.getAttribute('data-c')||'';
+      box.querySelectorAll('.chip').forEach(function(x){ x.classList.toggle('on', x===b); });
+      render();
+    };
+  }
+
+  function render(){
+    var subs = FILTER ? SUBS.filter(function(s){ return cohortOf(s)===FILTER; }) : SUBS;
+    if(!subs.length){ $('result').style.display='none'; $('emptyBox').textContent='아직 이 시험의 제출이 없습니다.'; $('emptyBox').style.display='block'; return; }
+    $('emptyBox').style.display='none';
+
+    // 점수 통계 (예상점수를 숫자로 적은 학생만)
+    var scores=subs.map(function(s){ return parseFloat(s.score); }).filter(function(n){ return !isNaN(n); });
+    var avg = scores.length ? (scores.reduce(function(a,b){return a+b;},0)/scores.length) : null;
+    var max = scores.length ? Math.max.apply(null,scores) : null;
+    function f1(n){ return (Math.round(n*10)/10).toString(); }
+    $('tiles').innerHTML =
+      '<div class="tile"><div class="v">'+subs.length+'명</div><div class="k">제출 인원</div></div>'
+      + '<div class="tile"><div class="v">'+(avg!=null?f1(avg)+'점':'—')+'</div><div class="k">평균 점수'+(scores.length<subs.length?' ('+scores.length+'명 기준)':'')+'</div></div>'
+      + '<div class="tile"><div class="v">'+(max!=null?f1(max)+'점':'—')+'</div><div class="k">최고 점수</div></div>';
+
+    // 많이 틀린 문항 TOP5 — 틀린문항·반성 텍스트의 "[N번 · 영역]" 블록 집계
+    var cnt={}, area={};
+    subs.forEach(function(s){
+      String(s.wrongText||'').split(/\n\s*\n/).forEach(function(bk){
+        var m=bk.trim().match(/^\[\s*([0-9]+[^·\]\s]*)\s*번(?:\s*·\s*([^\]]+))?\]/);
+        if(!m) return;
+        var no=m[1];
+        cnt[no]=(cnt[no]||0)+1;
+        if(m[2] && !area[no]) area[no]=m[2].trim();
+      });
+    });
+    var qs=Object.keys(cnt).map(function(no){ return {no:no, n:cnt[no]}; });
+    qs.sort(function(a,b){ return b.n-a.n || (parseInt(a.no,10)||0)-(parseInt(b.no,10)||0); });
+    var top=qs.slice(0,5);
+    if(!top.length){
+      $('wqList').innerHTML='<div class="empty">틀린 문항 기록이 없어요. (전원 만점이거나 복기 미작성)</div>';
+    } else {
+      var maxN=top[0].n;
+      $('wqList').innerHTML=top.map(function(q,i){
+        var pct=Math.round(q.n/subs.length*100);
+        return '<div class="wq"><span class="rank">'+(i+1)+'</span>'
+          + '<span class="qno">'+esc(q.no)+'번</span>'
+          + (area[q.no]?'<span class="area">'+esc(area[q.no])+'</span>':'')
+          + '<span class="barbox"><span class="bar" style="width:'+Math.max(Math.round(q.n/maxN*100),6)+'%"></span></span>'
+          + '<span class="cnt">'+q.n+'명 · '+pct+'%</span></div>';
+      }).join('');
+    }
+
+    // 학생·점수 표 — 점수 높은 순, 점수 없는 학생은 아래
+    var sorted=subs.slice().sort(function(a,b){
+      var x=parseFloat(a.score), y=parseFloat(b.score);
+      var xv=isNaN(x)?-1:x, yv=isNaN(y)?-1:y;
+      return yv-xv || String(a.name).localeCompare(String(b.name),'ko');
+    });
+    $('stuTable').innerHTML='<table class="tb"><tr><th>이름</th><th>학교·학년</th><th class="num">점수</th><th class="num">틀린 수</th><th class="num">제출일</th></tr>'
+      + sorted.map(function(s){
+          var sc=parseFloat(s.score);
+          return '<tr><td><b>'+esc(s.name)+'</b></td>'
+            + '<td>'+esc([s.school,s.grade].filter(Boolean).join(' '))+'</td>'
+            + '<td class="num">'+(isNaN(sc)?'—':esc(s.score)+'점')+'</td>'
+            + '<td class="num">'+esc(s.wrongCount||0)+'</td>'
+            + '<td class="num">'+esc(String(s.submittedAt||'').slice(5,10))+'</td></tr>';
+        }).join('')
+      + '</table>';
+
+    $('result').style.display='block';
+  }
+</script>
+</body>
+</html>
