@@ -324,6 +324,20 @@ function areaCellHtml(){
 /* ── 문항 내용: 자주 쓰는 패턴 드롭다운 + 기타(직접 입력) ──
  * 기본 패턴은 TXT_PATTERNS만 고치면 됩니다. '기타'로 새로 입력한 내용은
  * 등록 시 이 기기(브라우저)에 저장되어 다음부터 드롭다운에 자동으로 나타납니다. */
+/* 기본 문항 유형 (수경쌤 확정 목록 — 여기만 고치면 됩니다) */
+var TXT_COMMON = [   // 영역 공통
+  '지문에 대한 이해',
+  '<보기>를 바탕으로 지문 이해',
+  '지문과 <보기>의 비교 분석',
+  '맥락을 고려한 어휘의 사용',
+  '말하기 방식의 특징'
+];
+var TXT_LIT = [      // 문학 영역 전용
+  '표현상의 특징과 그 효과',
+  '서술상의 특징과 그 효과',
+  '핵심 소재에 대한 이해',
+  '인물의 심리와 성격 분석'
+];
 var TXT_PATTERNS = [];   // 서버에서 로드 — 지금까지 등록한 문항에서 반복 유형을 빈도순으로
 function loadTxtPatterns(){
   fetch(ENDPOINT+'?action=txtPatterns&t='+Date.now())
@@ -360,10 +374,18 @@ function addCustomPattern(t){
   try { localStorage.setItem(TXT_CUSTOM_KEY, JSON.stringify(a)); } catch(e){}
 }
 function txtOptionsHtml(){
+  var base = TXT_COMMON.concat(TXT_LIT);
+  function grp(label, arr){
+    if(!arr.length) return '';
+    return '<optgroup label="'+esc(label)+'">' + arr.map(function(p){ return '<option>'+esc(p)+'</option>'; }).join('') + '</optgroup>';
+  }
   var h = '<option value="">— 선택 —</option>';
-  var mine = customPatterns();
-  if(mine.length){ h += '<optgroup label="내가 추가한 패턴">' + mine.map(function(p){ return '<option>'+esc(p)+'</option>'; }).join('') + '</optgroup>'; }
-  h += '<optgroup label="자주 쓰는 패턴">' + TXT_PATTERNS.map(function(p){ return '<option>'+esc(p)+'</option>'; }).join('') + '</optgroup>';
+  h += grp('영역 공통', TXT_COMMON);
+  h += grp('문학', TXT_LIT);
+  var mine = customPatterns().filter(function(p){ return base.indexOf(p) < 0; });
+  h += grp('내가 추가한 패턴', mine);
+  var fromData = TXT_PATTERNS.filter(function(p){ return base.indexOf(p) < 0 && mine.indexOf(p) < 0; });
+  h += grp('기존 데이터에서 자주 쓴 유형', fromData);
   h += '<option value="__custom__">기타 (직접 입력)</option>';
   return h;
 }
