@@ -114,6 +114,37 @@
   .hw-go svg{width:15px;height:15px;}
   .hw-go:hover{opacity:.8;}
 
+  /* 슈퍼스타 별 여정 */
+  .star-card{background:var(--surface);border:1px solid var(--line-soft);border-radius:var(--radius);padding:18px;}
+  .star-card.final{border-color:#E3CD8E;background:linear-gradient(160deg,#FFFDF6,#FBF3DC);}
+  .st-top{display:flex;align-items:baseline;gap:9px;flex-wrap:wrap;}
+  .st-lv{font-size:.72rem;font-weight:700;color:var(--accent);background:#DCE6E0;border-radius:20px;padding:2px 10px;white-space:nowrap;}
+  .star-card.final .st-lv{color:#8A6A14;background:#F3E3B3;}
+  .st-name{font-family:var(--serif);font-weight:700;font-size:1.22rem;color:var(--ink);}
+  .star-card.final .st-name{color:#8A6A14;}
+  .st-total{margin-left:auto;font-size:.8rem;color:var(--ink-soft);white-space:nowrap;}
+  .st-total b{color:var(--accent);font-size:1rem;}
+  .star-card.final .st-total b{color:#8A6A14;}
+  .st-stars{display:flex;flex-wrap:wrap;gap:5px;margin:13px 0 4px;}
+  .st-stars svg{width:26px;height:26px;flex:0 0 auto;}
+  .st-stars svg.on{color:#E9B949;} .st-stars svg.off{color:#DCE6E0;}
+  @media (max-width:380px){ .st-stars svg{width:22px;height:22px;} }
+  .st-msg{font-family:var(--serif);font-size:.9rem;color:var(--ink);margin:6px 0 0;line-height:1.7;}
+  .st-msg b{color:var(--accent);}
+  .st-bonus{margin-top:11px;font-family:var(--serif);font-size:.87rem;color:#8A6A14;background:#FBF4DE;border-radius:11px;padding:9px 13px;line-height:1.7;}
+  .st-ladder{margin-top:13px;}
+  .st-ladder summary{cursor:pointer;font-size:.8rem;color:var(--ink-soft);list-style:none;display:inline-flex;align-items:center;gap:5px;}
+  .st-ladder summary::-webkit-details-marker{display:none;}
+  .st-ladder[open] summary .arr{transform:rotate(180deg);}
+  .st-ladder ol{list-style:none;margin:11px 0 0;padding:0;}
+  .st-ladder li{display:flex;align-items:center;gap:9px;padding:7px 10px;border-radius:10px;font-size:.86rem;color:var(--ink-soft);}
+  .st-ladder li .chk{width:17px;flex:0 0 auto;text-align:center;font-size:.8rem;}
+  .st-ladder li.done{color:var(--ink);}
+  .st-ladder li.done .chk{color:var(--accent);font-weight:700;}
+  .st-ladder li.now{background:#DCE6E0;color:var(--accent);font-weight:700;}
+  .st-ladder li.last.done{color:#8A6A14;} .st-ladder li.last.now{background:#F3E3B3;color:#8A6A14;}
+  .st-ladder li .m{margin-left:auto;font-size:.73rem;font-weight:400;white-space:nowrap;}
+
   /* 지필고사 데이터 뷰 */
   #gradeView{display:none;}
   .gwrap{max-width:720px;}
@@ -280,6 +311,9 @@
   </header>
 
   <main class="wrap">
+    <h2 class="sec-h" id="starSecH" style="display:none;">나의 슈퍼스타 여정</h2>
+    <div id="starSec" style="display:none;"></div>
+
     <h2 class="sec-h" id="infoSecH" style="display:none;">내 수업 정보</h2>
     <div class="info-card" id="infoCard" style="display:none;"></div>
 
@@ -464,7 +498,7 @@ function hide(id){ $(id).style.display='none'; }
 
 var KEY = '';        // 접근코드(토큰) — 없으면 테스트용 id
 var IS_ID = false;
-var STATE = { info:null, authed:false, exams:null, examCount:0, notices:null, homework:null, analyses:null, clinic:null, vocaOpen:null, vocaWeek:null, mockGrades:null, clinicGrades:null, vocaTaken:null };
+var STATE = { info:null, authed:false, exams:null, examCount:0, notices:null, homework:null, analyses:null, clinic:null, stars:null, vocaOpen:null, vocaWeek:null, mockGrades:null, clinicGrades:null, vocaTaken:null };
 
 function showError(title, msg){
   hide('loadBox'); hide('hubView'); $('gradeView').style.display='none';
@@ -485,6 +519,82 @@ function schedTable(title, rows){
     '<table class="sched-tb"><tr><th>구분</th><th>시간</th></tr>' +
     trs.map(function(r){ return '<tr><td>'+esc(r[0])+'</td><td><span class="time">'+esc(r[1])+'</span></td></tr>'; }).join('') +
     '</table></div>';
+}
+
+/* ---- 슈퍼스타 별 여정 ----
+ * 총 누적 별(STATE.stars.total)로 12단계 등급을 계산해 카드로 표시.
+ * 임계값·등급명은 아래 LEVELS만 고치면 됩니다. (별 적립 규칙은 백엔드 STAR_RULES)
+ */
+var LEVELS = [
+  { lv:0,  name:'원석',          min:0  },
+  { lv:1,  name:'오디션 합격',   min:2  },
+  { lv:2,  name:'연습생',        min:5  },
+  { lv:3,  name:'월말평가 통과', min:9  },
+  { lv:4,  name:'데뷔조',        min:14 },
+  { lv:5,  name:'데뷔 쇼케이스', min:20 },
+  { lv:6,  name:'데뷔 신인',     min:27 },
+  { lv:7,  name:'첫 음악방송',   min:35 },
+  { lv:8,  name:'음방 1위',      min:44 },
+  { lv:9,  name:'신인상 수상',   min:54 },
+  { lv:10, name:'대상 후보',     min:66 },
+  { lv:11, name:'슈퍼스타',      min:80 }
+];
+var STAR_PATH = '<path d="M12 2l2.9 6.2 6.8.8-5 4.7 1.3 6.7L12 17.1 6 20.4l1.3-6.7-5-4.7 6.8-.8z"/>';
+function starSvg(on){
+  return on
+    ? '<svg class="on" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1" stroke-linejoin="round">'+STAR_PATH+'</svg>'
+    : '<svg class="off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round">'+STAR_PATH+'</svg>';
+}
+function renderStars(){
+  var st = STATE.stars;
+  if(!st || typeof st.total !== 'number'){ return; }   // 구버전 백엔드 → 표시 안 함
+  var total = Math.max(0, st.total);
+  var cur = LEVELS[0];
+  for(var i=0;i<LEVELS.length;i++){ if(total >= LEVELS[i].min) cur = LEVELS[i]; }
+  var next = (cur.lv < LEVELS.length-1) ? LEVELS[cur.lv+1] : null;
+  var isFinal = !next;
+
+  var html = '<div class="star-card'+(isFinal?' final':'')+'">';
+  html += '<div class="st-top"><span class="st-lv">Lv.'+cur.lv+'</span>' +
+          '<span class="st-name">'+esc(cur.name)+(isFinal?' 🏆':'')+'</span>' +
+          '<span class="st-total">모은 별 <b>'+total+'</b>개</span></div>';
+
+  if(isFinal){
+    html += '<p class="st-msg"><b>슈퍼스타 달성!</b> 원석에서 여기까지, 정말 대단한 여정이었어요. 수경쌤이 제일 큰 박수를 보냅니다.</p>';
+  } else {
+    var segTotal = next.min - cur.min;      // 이번 구간 총 별 수
+    var lit = total - cur.min;              // 켜진 별
+    var remain = next.min - total;          // 남은 별
+    var starsHtml = '';
+    for(var s=0;s<segTotal;s++){ starsHtml += starSvg(s < lit); }
+    html += '<div class="st-stars">'+starsHtml+'</div>';
+    html += '<p class="st-msg">다음 레벨 <b>'+esc(next.name)+'</b>까지 별 <b>'+remain+'개</b> 남았어요.</p>';
+  }
+
+  // 최근 깜짝 보너스 (14일 이내만)
+  var b = st.latestBonus;
+  if(b && b.stars > 0 && b.date){
+    var days = (Date.now() - new Date(b.date).getTime()) / 86400000;
+    if(!isNaN(days) && days >= 0 && days <= 14){
+      html += '<div class="st-bonus">💝 수경쌤이 별 '+b.stars+'개를 선물하셨어요'+(b.reason?' · '+esc(b.reason):'')+'</div>';
+    }
+  }
+
+  // 등급 사다리 (12단계) — 접었다 펼치기
+  html += '<details class="st-ladder"><summary>슈퍼스타까지 가는 길 보기 <span class="arr">▾</span></summary><ol>';
+  for(var L=LEVELS.length-1; L>=0; L--){
+    var lev = LEVELS[L];
+    var cls = (lev.lv===cur.lv) ? 'now' : (total >= lev.min ? 'done' : '');
+    if(lev.lv===LEVELS.length-1) cls += ' last';
+    var mark = (lev.lv===cur.lv) ? '🐹' : (total >= lev.min ? '✓' : '');
+    html += '<li class="'+cls+'"><span class="chk">'+mark+'</span>Lv.'+lev.lv+' '+esc(lev.name)+
+            '<span class="m">별 '+lev.min+'개</span></li>';
+  }
+  html += '</ol></details></div>';
+
+  $('starSec').innerHTML = html;
+  $('starSec').style.display='block';
+  $('starSecH').style.display='block';
 }
 
 /* ---- 허브 렌더 ---- */
@@ -615,6 +725,8 @@ function renderHub(){
               '<span class="tag">준비 중</span></div>';
   }
   $('menu').innerHTML = html;
+
+  renderStars();   // 슈퍼스타 별 카드 (백엔드가 stars를 주면 표시)
 
   hide('loadBox'); hide('errBox'); $('gradeView').style.display='none'; $('noticeView').style.display='none'; $('homeworkView').style.display='none'; show('hubView');
 }
@@ -979,6 +1091,7 @@ function boot(){
       STATE.homework=d.homework||[];
       STATE.analyses=d.analyses||[];
       STATE.clinic=d.clinic||null;
+      STATE.stars=d.stars||null;   // 슈퍼스타 별 (구버전 백엔드면 null → 카드 숨김)
       STATE.vocaOpen=d.vocaOpen;   // true/false/undefined(=열림)
       STATE.vocaWeek=d.vocaWeek;   // 교사가 연 주차(없으면 null → 준비 중)
       if(d.exams){ STATE.exams=d.exams; }
