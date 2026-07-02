@@ -107,6 +107,12 @@
   .notice-item .ntitle{font-family:var(--serif);font-weight:700;font-size:1.04rem;color:var(--ink);line-height:1.4;}
   .notice-item .ndate{font-size:.76rem;color:var(--ink-soft);white-space:nowrap;}
   .notice-item .nbody{font-family:var(--serif);font-size:.93rem;color:var(--ink);line-height:1.85;white-space:pre-wrap;}
+  .nchk-btn{display:inline-flex;align-items:center;gap:5px;margin-top:12px;border:none;border-radius:11px;
+    background:var(--accent);color:#fff;font-family:var(--sans);font-size:.86rem;font-weight:700;
+    padding:10px 16px;cursor:pointer;}
+  .nchk-btn:active{opacity:.85;} .nchk-btn:disabled{background:#9fb3aa;cursor:default;}
+  .nchk-done{display:inline-block;margin-top:12px;font-size:.84rem;font-weight:700;color:var(--accent);
+    background:#DCE6E0;border-radius:20px;padding:5px 13px;}
 
   /* H WORK 배정 뷰 */
   #homeworkView{display:none;}
@@ -633,12 +639,14 @@ function renderHub(){
   var html = '';
 
   // 알려드립니다 (공지 + 지필고사 분석지 복기) — 비밀번호 없이 열람
-  var nCnt = (STATE.notices||[]).length;
+  var ns0 = STATE.notices||[];
+  var hasKeys = ns0.some(function(n){ return n.key; });   // 신버전 백엔드 여부
+  var nCnt = hasKeys ? ns0.filter(function(n){ return !n.checked; }).length : ns0.length;   // 미확인 공지만 카운트
   var anTodo = (STATE.analyses||[]).filter(function(a){ return !a.done; }).length;
-  var nTotal = nCnt + anTodo;   // 빨간 뱃지: 새 공지 + 미입력 복기
+  var nTotal = nCnt + anTodo;   // 빨간 뱃지: 미확인 공지 + 미입력 복기
   var nDot = nTotal>0 ? '<span class="new-dot">'+(nTotal>9?'9+':nTotal)+'</span>' : '';
   var nDesc = anTodo>0 ? ('지필고사 복기 '+anTodo+'건 입력 필요')
-            : (nCnt>0 ? (nCnt+'건의 새 소식') : '공지 · 지필고사 분석지 확인');
+            : (nCnt>0 ? ('확인할 공지 '+nCnt+'건') : '공지 · 지필고사 분석지 확인');
   html += '<button class="card" onclick="openNotices()">' +
             '<span class="icon">'+svg(ICON.bell)+nDot+'</span>' +
             '<h3>알려드립니다</h3><p class="desc">'+esc(nDesc)+'</p>' +
@@ -733,7 +741,7 @@ function renderHub(){
 
 /* ---- 알려드립니다(공지) ---- */
 function openNotices(){ renderNotices(); }
-function closeNotices(){ $('noticeView').style.display='none'; show('hubView'); window.scrollTo(0,0); }
+function closeNotices(){ renderHub(); window.scrollTo(0,0); }   // 확인 반영해 뱃지 갱신
 /* 지필고사 분석지(복기)를 공지 항목처럼 렌더 — 미입력은 초록 강조 + 복기 입력 버튼 */
 function analysisNoticeHtml(a){
   var href = 'r.html?id=' + encodeURIComponent(a.id);
@@ -757,12 +765,51 @@ function noticeItemHtml(n){
           : n.type==='전체' ? '전체 공지'
           : n.type==='학년' ? '학년 공지'
           : (n.type ? '안내' : '');
+  // 확인 버튼 — 확인 1건당 별 1개 (구버전 백엔드는 key가 없어 버튼 없이 표시)
+  var chk = '';
+  if (n.key){
+    chk = n.checked
+      ? '<span class="nchk-done">✓ 확인했어요 · 별 +1</span>'
+      : '<button type="button" class="nchk-btn" data-key="'+esc(n.key)+'" onclick="checkNoticeBtn(this)">확인했습니다 ⭐</button>';
+  }
   return '<div class="notice-item">' +
     (tag ? '<span class="ntag">'+esc(tag)+'</span>' : '') +
     '<div class="nh"><span class="ntitle">'+esc(n.title||'공지')+'</span>' +
     (n.date ? '<span class="ndate">'+esc(n.date)+'</span>' : '') + '</div>' +
     (n.body ? '<div class="nbody">'+esc(n.body)+'</div>' : '') +
+    chk +
     '</div>';
+}
+
+/* 공지 '확인했습니다' 클릭 — 서버에 기록되고 별 1개가 쌓인다 */
+function checkNoticeBtn(btn){
+  var k = btn.getAttribute('data-key');
+  btn.disabled = true; btn.textContent = '확인 중...';
+  fetch(ENDPOINT, {
+    method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
+    body: JSON.stringify({ action:'checkNotice', key: IS_ID?'':KEY, student: IS_ID?KEY:'', noticeKey: k })
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(d){
+    if(!d || d.result!=='success'){
+      btn.disabled=false; btn.textContent='확인했습니다 ⭐';
+      alert('확인 처리에 실패했어요. 잠시 후 다시 시도해 주세요.');
+      return;
+    }
+    (STATE.notices||[]).forEach(function(n){ if(n.key===k) n.checked=true; });
+    var done=document.createElement('span');
+    done.className='nchk-done';
+    done.textContent = d.already ? '✓ 확인했어요 · 별 +1' : '✓ 확인 완료! 별 1개를 받았어요 ⭐';
+    btn.parentNode.replaceChild(done, btn);
+    if(!d.already && STATE.stars && typeof STATE.stars.total==='number'){
+      STATE.stars.total += 1;
+      renderStars();   // 등급 카드 즉시 갱신 (승급도 바로 반영)
+    }
+  })
+  .catch(function(){
+    btn.disabled=false; btn.textContent='확인했습니다 ⭐';
+    alert('전송에 실패했어요. 인터넷을 확인해 주세요.');
+  });
 }
 function renderNotices(){
   var ns = STATE.notices || [];

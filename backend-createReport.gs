@@ -40,8 +40,9 @@ var CLINIC_TAB      = '응답';     // 제출시각|이름|학교|전화뒤4|클
 // ── 슈퍼스타 별(경험치) 시스템 ─────────────────────────────
 // 별 적립 규칙(자동): 지필 평가지 제출 +2 / 클리닉 신청 +1 / 어휘 제출 +1 / 과제 제출 +1
 // 깜짝 보너스(수동): '별' 탭에 로그로 기록 (star.html에서 부여)
-var TAB_STARS  = '별';   // A:일시 B:학생ID C:이름 D:별 E:사유
-var STAR_RULES = { exam: 2, clinic: 1, voca: 1, hwork: 1 };
+var TAB_STARS  = '별';   // A:일시 B:학생ID C:이름 D:학교 E:별 F:사유
+var STAR_RULES = { exam: 2, clinic: 1, voca: 1, hwork: 1, notice: 1 };   // notice = 공지 '확인했습니다' 1건당
+var TAB_NOTICE_READ = '공지확인';   // A:일시 B:학생ID C:이름 D:학교 E:공지키(작성일|제목)
 // 어휘·H WORK 자동 적립을 켜려면 아래에 해당 스프레드시트 ID를 채우세요. 비우면 그 항목은 0으로 계산.
 var VOCA_SHEET_ID  = '';   // 어휘 결과 스프레드시트 ID (…/d/ 와 /edit 사이 긴 문자열)
 var HWORK_SHEET_ID = '';   // H WORK 스프레드시트 ID
@@ -459,6 +460,10 @@ function collectNotices_(ss, info, key) {
     return b._row - a._row;
   });
   out.forEach(function(o) { delete o._row; });
+
+  // 확인 여부 표시 — '확인했습니다' 버튼(1건당 별 1개)용
+  var checks = readNoticeChecks_(ss, stu.sid, stu.name, stu.school);
+  out.forEach(function(o) { o.key = noticeKey_(o.date, o.title); o.checked = !!checks[o.key]; });
   return out;
 }
 
@@ -727,13 +732,86 @@ function collectStars_(ss, info, key, siblingShared) {
   var voca   = countVoca_(name);                               // 어휘 제출 수(주차 단위)
   var hwork  = countHwork_(name, String(info.school || ''));   // 과제 제출 수
   var bonus  = sumBonus_(ss, sid, name, String(info.school || ''));   // {sum, latest}
+  var noticeN = Object.keys(readNoticeChecks_(ss, sid, name, String(info.school || '').trim())).length;   // 공지 확인 수
   var total = exam * STAR_RULES.exam + clinic * STAR_RULES.clinic
-            + voca * STAR_RULES.voca + hwork * STAR_RULES.hwork + bonus.sum;
+            + voca * STAR_RULES.voca + hwork * STAR_RULES.hwork
+            + noticeN * STAR_RULES.notice + bonus.sum;
   return {
     total: total,
-    breakdown: { exam: exam, clinic: clinic, voca: voca, hwork: hwork, bonus: bonus.sum },
+    breakdown: { exam: exam, clinic: clinic, voca: voca, hwork: hwork, notice: noticeN, bonus: bonus.sum },
     latestBonus: bonus.latest   // {stars, reason, date} 또는 null
   };
+}
+
+/* ===== 공지 '확인했습니다' — 확인 1건당 별 1개 =====
+ *  '공지확인' 탭에 학생별 확인 로그를 남기고, 별 집계에 반영한다.
+ *  공지키 = 작성일|제목. 공지가 나중에 삭제돼도 이미 받은 별은 유지된다.
+ */
+function noticeKey_(dateStr, title) { return String(dateStr || '') + '|' + String(title || ''); }
+
+/** 이 학생이 확인한 공지키 집합. 학생ID(+이름) 우선, ID 없는 행은 이름+학교로 매칭. */
+function readNoticeChecks_(ss, sid, name, school) {
+  var set = {};
+  var sh = ss.getSheetByName(TAB_NOTICE_READ);
+  if (!sh) return set;
+  var v = sh.getDataRange().getValues();
+  for (var i = 1; i < v.length; i++) {
+    var rid = String(v[i][1] || '').replace(/^'/, '').trim();
+    var rnm = String(v[i][2] || '').trim();
+    var rsc = String(v[i][3] || '').trim();
+    var match;
+    if (rid) { match = (sid && rid === sid) && (!rnm || rnm === name); }   // 형제 공유번호 대비 이름까지
+    else { match = (rnm === name); if (match && rsc && school) match = schoolMatch_(rsc, school); }
+    if (!match) continue;
+    var k = String(v[i][4] || '').trim();
+    if (k) set[k] = true;
+  }
+  return set;
+}
+
+/** 학생이 공지 확인 버튼을 눌렀을 때. { key(토큰) 또는 student(학생ID), noticeKey } */
+function checkNotice(data) {
+  var key  = String(data.key || '').trim();
+  var id   = String(data.student || '').trim();
+  var nKey = String(data.noticeKey || '').trim();
+  if ((!key && !id) || !nKey) return json({ result: 'error', message: '요청 정보가 부족합니다.' });
+
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var stSh = ss.getSheetByName(TAB_STUDENTS);
+  if (!stSh) return json({ result: 'error', message: "'" + TAB_STUDENTS + "' 탭이 없습니다." });
+  var sv = stSh.getDataRange().getValues();
+  var codeCol = findHeaderCol_(sv[0], '접근코드', STU_CODE_COL);
+  var r = null;
+  for (var i = 1; i < sv.length; i++) {
+    var m = key ? (String(sv[i][codeCol] || '').trim() === key) : (String(sv[i][0] || '').trim() === id);
+    if (m) { r = sv[i]; break; }
+  }
+  if (!r) return json({ result: 'error', message: '학생을 확인할 수 없습니다.' });
+  var info = { id: String(r[0] || '').trim(), name: String(r[1] || '').trim(), school: String(r[2] || ''), grade: String(r[3] || '') };
+
+  // 이 학생에게 실제로 보이는 공지인지 확인 (임의 키로 별을 쌓는 것 방지)
+  var notices = collectNotices_(ss, info, key);
+  var target = null;
+  for (var n = 0; n < notices.length; n++) { if (notices[n].key === nKey) { target = notices[n]; break; } }
+  if (!target) return json({ result: 'error', message: '해당 공지를 찾을 수 없습니다.' });
+  if (target.checked) return json({ result: 'success', already: true });
+
+  var lock = LockService.getScriptLock();
+  try { lock.waitLock(10000); } catch (e) {}
+  try {
+    var checks = readNoticeChecks_(ss, info.id, info.name, String(info.school || '').trim());
+    if (checks[nKey]) return json({ result: 'success', already: true });   // 동시 클릭 대비 재확인
+    var sh = ss.getSheetByName(TAB_NOTICE_READ);
+    if (!sh) {
+      sh = ss.insertSheet(TAB_NOTICE_READ);
+      sh.appendRow(['일시', '학생ID', '이름', '학교', '공지키']);
+      sh.getRange(1, 1, 1, 5).setFontWeight('bold').setBackground('#DDE5E1');
+    }
+    sh.appendRow([new Date(), info.id ? "'" + info.id : '', info.name, String(info.school || '').trim(), nKey]);
+    return json({ result: 'success', already: false });
+  } finally {
+    try { lock.releaseLock(); } catch (e) {}
+  }
 }
 
 /** 클리닉 신청 수 — 토큰 또는 학생ID가 일치하는 행을 '제출시각|시간' 단위로 센다. */
@@ -1027,6 +1105,9 @@ function doPost(e) {
     // (12) 슈퍼스타 별 — 깜짝 보너스 부여/삭제 (star.html)
     if (data && data.action === 'addStarBonus')    { return addStarBonus(data); }
     if (data && data.action === 'deleteStarBonus') { return deleteStarBonus(data); }
+
+    // (13) 공지 '확인했습니다' — 확인 1건당 별 1개 (s.html, 토큰으로 학생 확인)
+    if (data && data.action === 'checkNotice')     { return checkNotice(data); }
 
     // (2) 학생 제출 수집
     var ss = SpreadsheetApp.getActiveSpreadsheet();
