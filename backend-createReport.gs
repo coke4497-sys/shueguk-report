@@ -311,7 +311,7 @@ function getStudent(opts) {
   var vwk = configVal_(ss, '어휘 주차', '');
   resp.vocaWeek = vwk ? parseInt(vwk, 10) : null;
   if (authed) {
-    var exams = collectExams_(ss, sid, info.name, siblingShared);
+    var exams = collectExams_(ss, sid, info.name, siblingShared, String(info.school || '').trim());
     // 각 시험에 보고서 상세(시험범위·총평·문항)를 붙여 PDF/HTML 리포트와 동일하게 표시
     var idx = getReportsIndex_(ss);
     exams.forEach(function(x){
@@ -323,7 +323,7 @@ function getStudent(opts) {
     });
     resp.exams = exams;
   } else {
-    resp.examCount = countExams_(ss, sid, info.name, siblingShared);   // 잠금 상태에선 개수만 안내
+    resp.examCount = countExams_(ss, sid, info.name, siblingShared, String(info.school || '').trim());   // 잠금 상태에선 개수만 안내
   }
   return json(resp);
 }
@@ -372,7 +372,7 @@ function getReportsIndex_(ss) {
 /** 제출결과에서 이 학생의 시험 기록을 모은다(최신순).
  *  기본: 부모님번호 매칭(옛 기록은 이름 보조). 단 strictName=true(형제가 같은 번호 공유)면
  *  번호가 같아도 이름까지 일치해야 인정 → 형제 성적이 섞이지 않는다. */
-function collectExams_(ss, sid, name, strictName) {
+function collectExams_(ss, sid, name, strictName, school) {
   var exams = [];
   var rSh = ss.getSheetByName(TAB_RESULT);
   if (rSh) {
@@ -383,12 +383,15 @@ function collectExams_(ss, sid, name, strictName) {
       if (!row[4]) continue;
       var phone = String(row[10] || '').trim();
       var nm    = String(row[4]  || '').trim();
+      var rsc   = String(row[2]  || '').trim();
+      // 이름+학교 일치(학교는 느슨 비교) — 학생이 부모님 번호를 잘못 적어도 연결되도록
+      var nameSchoolOk = (nm === name) && (!rsc || !school || schoolMatch_(rsc, school));
       var match;
       if (strictName) {
-        // 같은 번호를 형제가 공유 → 번호+이름이 모두 같아야(옛 기록처럼 번호 없으면 이름으로) 인정
-        match = phone ? (phone === sid && nm === name) : (nm === name);
+        // 같은 번호를 형제가 공유 → 번호+이름이 모두 같거나, 이름+학교가 일치해야 인정
+        match = phone ? ((phone === sid && nm === name) || nameSchoolOk) : (nm === name);
       } else {
-        match = (phone && phone === sid) || (!phone && nm === name);
+        match = (phone && phone === sid) || nameSchoolOk;
       }
       if (!match) continue;
       exams.push({
@@ -408,8 +411,8 @@ function collectExams_(ss, sid, name, strictName) {
   return exams;
 }
 
-function countExams_(ss, sid, name, strictName) {
-  return collectExams_(ss, sid, name, strictName).length;
+function countExams_(ss, sid, name, strictName, school) {
+  return collectExams_(ss, sid, name, strictName, school).length;
 }
 
 /* ===== 알려드립니다(공지) =====
@@ -735,7 +738,7 @@ function schoolMatch_(a, b) {
 function collectStars_(ss, info, key, siblingShared) {
   var sid  = String(info.id   || '').trim();
   var name = String(info.name || '').trim();
-  var exam   = countExams_(ss, sid, name, siblingShared);      // 지필 평가지 제출 수
+  var exam   = countExams_(ss, sid, name, siblingShared, String(info.school || '').trim());   // 지필 평가지 제출 수
   var clinic = countClinicApps_(key, sid);                     // 클리닉 신청 수(신청 단위)
   var voca   = countVoca_(name);                               // 어휘 제출 수(주차 단위)
   var hwork  = countHwork_(name, String(info.school || ''));   // 과제 제출 수
