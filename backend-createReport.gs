@@ -182,7 +182,7 @@ function getResults(reportId) {
   }
 
   // 학생정보 매핑(접근코드·학생ID 조회용): 부모님번호(A) 우선, 이름(B) 보조
-  var byPhone = {}, byName = {}, byPhoneName = {}, phoneCount = {};
+  var byPhone = {}, byName = {}, byPhoneName = {}, phoneCount = {}, byBase = {};
   var stSh = ss.getSheetByName(TAB_STUDENTS);
   if (stSh) {
     var stv = stSh.getDataRange().getValues();
@@ -197,6 +197,9 @@ function getResults(reportId) {
         if (sNm) byPhoneName[sId + '|' + sNm] = { code: code, id: sId };   // 형제 공유번호 구분용
       }
       if (sNm && !byName[sNm]) byName[sNm] = { code: code, id: sId };   // 동명이인은 첫 행만
+      // 접미사 제거 이름(이수빈A→이수빈)으로도 찾을 수 있게 — 후보가 여럿이면 번호로 구분
+      var bn = baseName_(sNm);
+      if (bn && bn !== sNm) { (byBase[bn] = byBase[bn] || []).push({ code: code, id: sId }); }
     }
   }
 
@@ -216,6 +219,7 @@ function getResults(reportId) {
     // 형제가 같은 번호를 공유해도 이름으로 구분돼 다른 형제의 링크가 잡히지 않는다.
     var roster = (phone && byPhoneName[phone + '|' + nm])
               || byName[nm]
+              || basePick_(byBase[nm], phone)
               || ((phone && phoneCount[phone] === 1) ? byPhone[phone] : null);
     students.push({
       rowIndex: i + 1,
@@ -393,7 +397,7 @@ function collectExams_(ss, sid, name, strictName, school) {
       var nm    = String(row[4]  || '').trim();
       var rsc   = String(row[2]  || '').trim();
       // 이름+학교 일치(학교는 느슨 비교) — 학생이 부모님 번호를 잘못 적어도 연결되도록
-      var nameSchoolOk = (nm === name) && (!rsc || !school || schoolMatch_(rsc, school));
+      var nameSchoolOk = (nm === name || (nm !== '' && nm === baseName_(name))) && (!rsc || !school || schoolMatch_(rsc, school));
       var match;
       if (strictName) {
         // 같은 번호를 형제가 공유 → 번호+이름이 모두 같거나, 이름+학교가 일치해야 인정
@@ -705,7 +709,7 @@ function submittedTitles_(ss, info) {
     if (!row[4]) continue;
     var phone = String(row[10] || '').trim();
     var nm    = String(row[4]  || '').trim();
-    var match = (phone && phone === sid) || (nm && nm === name);
+    var match = (phone && phone === sid) || (nm && (nm === name || nm === baseName_(name)));
     if (!match) continue;
     var t = String(row[1] || '').trim();   // 시험명(=제목 또는 ID)
     if (t) set[t] = true;
@@ -727,6 +731,19 @@ function normGrade_(s) {
 }
 
 /** 학교명 느슨한 일치: 공백 제거 후 완전 일치 또는 한쪽이 다른 쪽을 포함(예: "화정고"↔"화정고등학교"). */
+/** 접미사 이름 후보 중 선택: 1명이면 그 학생, 여럿이면 부모님 번호가 일치하는 학생. */
+function basePick_(cands, phone) {
+  if (!cands || !cands.length) return null;
+  if (cands.length === 1) return cands[0];
+  for (var i = 0; i < cands.length; i++) { if (phone && cands[i].id === phone) return cands[i]; }
+  return null;
+}
+
+/** 동명이인 구분용 접미사(이수빈A → 이수빈) 제거 — 학생이 제출 시 실제 이름만 적는 경우 대비 */
+function baseName_(s) {
+  return String(s == null ? '' : s).trim().replace(/[A-Za-z]$/, '');
+}
+
 function schoolMatch_(a, b) {
   a = String(a || '').replace(/\s+/g, '');
   b = String(b || '').replace(/\s+/g, '');
