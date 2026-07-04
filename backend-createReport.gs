@@ -85,6 +85,11 @@ function doGet(e) {
     return getNoticeList();
   }
   // 별 보너스 로그(관리용) — 비밀번호 필요
+  // 슈퍼스타 TOP 10 순위 — 전 재원생 별 집계 (비밀번호 필요)
+  if (p.action === 'starRank') {
+    if (String(p.pw || '') !== TEACHER_PW) return json({ result:'error', message:'unauthorized' });
+    return getStarRanking();
+  }
   if (p.action === 'starLog') {
     if (String(p.pw || '') !== TEACHER_PW) return json({ result:'error', message:'unauthorized' });
     return getStarLog();
@@ -731,6 +736,129 @@ function normGrade_(s) {
 }
 
 /** 학교명 느슨한 일치: 공백 제거 후 완전 일치 또는 한쪽이 다른 쪽을 포함(예: "화정고"↔"화정고등학교"). */
+/* ===== 슈퍼스타 TOP 10 순위 ===== star.html
+ *  전 재원생의 별을 시트별 1회 읽기로 집계해 상위 10명을 반환.
+ *  매칭 규칙은 학생 개인 페이지와 동일(번호+이름 → 이름+학교 → 접미사 이름 → 고유 번호).
+ */
+function getStarRanking() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var stSh = ss.getSheetByName(TAB_STUDENTS);
+  if (!stSh) return json({ result:'error', message:"'" + TAB_STUDENTS + "' 탭이 없습니다." });
+  var sv = stSh.getDataRange().getValues();
+  var codeCol = findHeaderCol_(sv[0], '접근코드', STU_CODE_COL);
+  var stus = [], byIdName = {}, byName = {}, byBase = {}, byId = {}, idCount = {}, byToken = {};
+  for (var i = 1; i < sv.length; i++) {
+    var nm = String(sv[i][1] || '').trim();
+    if (!nm) continue;
+    if (/^(퇴원|n|no|off|x|중단|비재원)$/i.test(String(sv[i][10] || '').trim())) continue;
+    var id = String(sv[i][0] || '').trim();
+    var k = stus.length;
+    stus.push({ id: id, name: nm, school: String(sv[i][2] || '').trim(), grade: String(sv[i][3] || '').trim(),
+                exam: 0, clinic: {}, voca: {}, hwork: 0, notice: 0, bonus: 0 });
+    if (id) { idCount[id] = (idCount[id] || 0) + 1; byId[id] = k; byIdName[id + '|' + nm] = k; }
+    if (byName[nm] == null) byName[nm] = k;
+    var bn = baseName_(nm);
+    if (bn && bn !== nm) { (byBase[bn] = byBase[bn] || []).push(k); }
+    var tk = String(sv[i][codeCol] || '').trim();
+    if (tk) byToken[tk] = k;
+  }
+  function resolve(id, nm, school) {
+    id = String(id || '').replace(/^'/, '').trim(); nm = String(nm || '').trim(); school = String(school || '').trim();
+    if (id && nm && byIdName[id + '|' + nm] != null) return byIdName[id + '|' + nm];
+    if (nm && byName[nm] != null) {
+      var k1 = byName[nm];
+      if (!school || !stus[k1].school || schoolMatch_(stus[k1].school, school)) return k1;
+    }
+    if (nm && byBase[nm]) {
+      var c = byBase[nm];
+      if (c.length === 1) return c[0];
+      for (var j = 0; j < c.length; j++) {
+        if (id && stus[c[j]].id === id) return c[j];
+        if (school && schoolMatch_(stus[c[j]].school, school)) return c[j];
+      }
+    }
+    if (id && byId[id] != null && idCount[id] === 1) return byId[id];
+    return -1;
+  }
+  // 지필 제출
+  var rSh = ss.getSheetByName(TAB_RESULT);
+  if (rSh) {
+    var rv = rSh.getDataRange().getValues();
+    for (var r = 1; r < rv.length; r++) {
+      if (!rv[r][4]) continue;
+      var kr = resolve(rv[r][10], rv[r][4], rv[r][2]);
+      if (kr >= 0) stus[kr].exam++;
+    }
+  }
+  // 클리닉 신청 (신청 단위)
+  try {
+    var csh = SpreadsheetApp.openById(CLINIC_SHEET_ID).getSheetByName(CLINIC_TAB);
+    if (csh) {
+      var cv = csh.getDataRange().getValues(), CH = cv[0];
+      var cT = CH.indexOf('토큰'), cS = CH.indexOf('학생ID'), cD = CH.indexOf('제출시각'), cTm = CH.indexOf('클리닉시간'), cN = CH.indexOf('이름');
+      for (var c2 = 1; c2 < cv.length; c2++) {
+        var kc = -1, tk2 = cT >= 0 ? String(cv[c2][cT] || '').trim() : '';
+        if (tk2 && byToken[tk2] != null) kc = byToken[tk2];
+        if (kc < 0) kc = resolve(cS >= 0 ? cv[c2][cS] : '', cN >= 0 ? cv[c2][cN] : '', '');
+        if (kc < 0) continue;
+        stus[kc].clinic[String(cv[c2][cD] || '') + '|' + String(cv[c2][cTm] || '')] = true;
+      }
+    }
+  } catch (e) {}
+  // 어휘 제출 (주차 단위)
+  if (VOCA_SHEET_ID) { try {
+    var vsh = SpreadsheetApp.openById(VOCA_SHEET_ID).getSheets()[0];
+    var vv = vsh.getDataRange().getValues();
+    var VH = vv[0].map(function (h) { return String(h || '').trim().toLowerCase(); });
+    var vN = idxOfAny_(VH, ['name', '이름']), vR = idxOfAny_(VH, ['round', '주차', '회차']), vS = idxOfAny_(VH, ['school', '학교']);
+    if (vN >= 0) for (var v2 = 1; v2 < vv.length; v2++) {
+      var kv = resolve('', vv[v2][vN], vS >= 0 ? vv[v2][vS] : '');
+      if (kv < 0) continue;
+      stus[kv].voca[vR >= 0 ? String(vv[v2][vR] || '').trim() : String(v2)] = true;
+    }
+  } catch (e) {} }
+  // 과제 제출
+  if (HWORK_SHEET_ID) { try {
+    var hss = SpreadsheetApp.openById(HWORK_SHEET_ID);
+    var hsh = HWORK_TAB ? hss.getSheetByName(HWORK_TAB) : hss.getSheets()[0];
+    if (hsh) {
+      var hv = hsh.getDataRange().getValues();
+      var HH = hv[0].map(function (h) { return String(h || '').trim().toLowerCase(); });
+      var hN = idxOfAny_(HH, ['name', '이름']), hS = idxOfAny_(HH, ['school', '학교']);
+      if (hN >= 0) for (var h2 = 1; h2 < hv.length; h2++) {
+        var kh = resolve('', hv[h2][hN], hS >= 0 ? hv[h2][hS] : '');
+        if (kh >= 0) stus[kh].hwork++;
+      }
+    }
+  } catch (e) {} }
+  // 깜짝 보너스
+  var bsh = ss.getSheetByName(TAB_STARS);
+  if (bsh) {
+    var bv = bsh.getDataRange().getValues();
+    for (var b2 = 1; b2 < bv.length; b2++) {
+      var kb = resolve(bv[b2][1], bv[b2][2], bv[b2][3]);
+      if (kb >= 0) stus[kb].bonus += (parseInt(bv[b2][4], 10) || 0);
+    }
+  }
+  // 공지 확인
+  var nsh2 = ss.getSheetByName(TAB_NOTICE_READ);
+  if (nsh2) {
+    var nv = nsh2.getDataRange().getValues();
+    for (var n2 = 1; n2 < nv.length; n2++) {
+      var kn = resolve(nv[n2][1], nv[n2][2], nv[n2][3]);
+      if (kn >= 0) stus[kn].notice++;
+    }
+  }
+  var out = stus.map(function (s) {
+    return { name: s.name, school: s.school, grade: s.grade,
+      total: s.exam * STAR_RULES.exam + Object.keys(s.clinic).length * STAR_RULES.clinic
+           + Object.keys(s.voca).length * STAR_RULES.voca + s.hwork * STAR_RULES.hwork
+           + s.notice * STAR_RULES.notice + s.bonus };
+  });
+  out.sort(function (a, b) { return b.total - a.total || a.name.localeCompare(b.name, 'ko'); });
+  return json({ result: 'success', top: out.slice(0, 10) });
+}
+
 /** 접미사 이름 후보 중 선택: 1명이면 그 학생, 여럿이면 부모님 번호가 일치하는 학생. */
 function basePick_(cands, phone) {
   if (!cands || !cands.length) return null;
