@@ -182,7 +182,7 @@ function getResults(reportId) {
   }
 
   // 학생정보 매핑(접근코드·학생ID 조회용): 부모님번호(A) 우선, 이름(B) 보조
-  var byPhone = {}, byName = {};
+  var byPhone = {}, byName = {}, byPhoneName = {}, phoneCount = {};
   var stSh = ss.getSheetByName(TAB_STUDENTS);
   if (stSh) {
     var stv = stSh.getDataRange().getValues();
@@ -191,7 +191,11 @@ function getResults(reportId) {
       var sId = String(stv[s][0] || '').trim();
       var sNm = String(stv[s][1] || '').trim();
       var code = String(stv[s][codeColR] || '').trim();
-      if (sId) byPhone[sId] = { code: code, id: sId };
+      if (sId) {
+        phoneCount[sId] = (phoneCount[sId] || 0) + 1;
+        byPhone[sId] = { code: code, id: sId };
+        if (sNm) byPhoneName[sId + '|' + sNm] = { code: code, id: sId };   // 형제 공유번호 구분용
+      }
       if (sNm && !byName[sNm]) byName[sNm] = { code: code, id: sId };   // 동명이인은 첫 행만
     }
   }
@@ -208,7 +212,11 @@ function getResults(reportId) {
     }
     var phone = String(row[10] || '').trim();
     var nm = String(row[4] || '').trim();
-    var roster = (phone && byPhone[phone]) ? byPhone[phone] : (byName[nm] || null);
+    // 번호+이름 → 이름 → 번호(그 번호의 학생이 1명일 때만) 순으로 매칭.
+    // 형제가 같은 번호를 공유해도 이름으로 구분돼 다른 형제의 링크가 잡히지 않는다.
+    var roster = (phone && byPhoneName[phone + '|' + nm])
+              || byName[nm]
+              || ((phone && phoneCount[phone] === 1) ? byPhone[phone] : null);
     students.push({
       rowIndex: i + 1,
       submittedAt: row[0] ? Utilities.formatDate(new Date(row[0]), 'GMT+9', 'yyyy-MM-dd HH:mm') : '',
