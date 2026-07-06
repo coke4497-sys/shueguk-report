@@ -393,8 +393,9 @@
 var ENDPOINT = "https://script.google.com/macros/s/AKfycbzhCncBwn-JlqXARC3wfrWUCuNHzlNK2df0bdhx-w78Xr8mzYUcIYZOJdRi9N4bHtsb/exec";
 
 /* 주말 실전 모의고사 채점 백엔드(.../exec). 비우면 '모의고사 성적' 카드가 '준비 중'으로 표시됩니다.
-   실제 연결 시 학생ID(부모님 8자리)로 '그 학생 성적표만' 돌려주는 액션을 쓰세요:
-   <WEEKEND_API>?action=studentReports&id=<8자리>&name=<이름>&school=<학교>&callback=<함수> (JSONP) */
+   조회: <WEEKEND_API>?action=studentReports&id=<8자리>&name=<이름>&school=<학교>&callback=<함수> (JSONP)
+   매칭: 이름+학교 1차, 학생ID(부모님 8자리)는 동명이인 구분 보조(쌍둥이는 번호가 같아 1차 키로 안 씀).
+   8자리는 조회 전에 리포트 백엔드(&pw=)로 본인 검증을 먼저 통과해야 함(submitPw의 mock 분기). */
 var WEEKEND_API = "https://script.google.com/macros/s/AKfycbyUHMdCH_u35Oeu6lEmx3yOYscoKLwEB8TC0QHGBOaCXZ4rbAnkMpP9_Na4l3QLOajGPA/exec";
 // 신청 가능 학년 게이팅용 백엔드 (모의고사 신청 / 클리닉)
 var SIGNUP_API = "https://script.google.com/macros/s/AKfycbzdqac0xTnCaOo_t_2swJQqdfxjiA14sTo-ThTV8VvwcwaTucM1MQGeJfMfV4lNLM75/exec";
@@ -1018,7 +1019,19 @@ function closePw(){ $('pwModal').classList.remove('show'); }
 function submitPw(){
   var pw = $('pwInput').value.replace(/\D/g,'');
   if(!/^\d{8}$/.test(pw)){ $('pwErr').textContent='8자리 숫자를 입력해주세요.'; return; }
-  if(PW_MODE==='mock'){ fetchMock(pw); return; }
+  if(PW_MODE==='mock'){
+    // 지필고사와 동일하게 리포트 백엔드(학생정보)로 8자리를 먼저 검증한 뒤 성적 조회
+    var mbtn=$('pwOk'); mbtn.disabled=true; mbtn.textContent='확인 중...'; $('pwErr').textContent='';
+    api('&pw='+encodeURIComponent(pw))
+      .then(function(d){
+        if(d.result!=='success'){ mbtn.disabled=false; mbtn.textContent='확인'; $('pwErr').textContent=d.message||'오류가 발생했습니다.'; return; }
+        if(!d.authed){ mbtn.disabled=false; mbtn.textContent='확인'; $('pwErr').textContent='비밀번호가 일치하지 않습니다.'; return; }
+        STATE.authed=true; STATE.exams=d.exams||[];
+        fetchMock(pw);
+      })
+      .catch(function(){ mbtn.disabled=false; mbtn.textContent='확인'; $('pwErr').textContent='연결 실패 — 다시 시도해주세요.'; });
+    return;
+  }
   var btn=$('pwOk'); btn.disabled=true; btn.textContent='확인 중...'; $('pwErr').textContent='';
   api('&pw='+encodeURIComponent(pw))
     .then(function(d){
