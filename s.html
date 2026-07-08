@@ -401,6 +401,8 @@ var WEEKEND_API = "https://script.google.com/macros/s/AKfycbyUHMdCH_u35Oeu6lEmx3
 var SIGNUP_API = "https://script.google.com/macros/s/AKfycbzdqac0xTnCaOo_t_2swJQqdfxjiA14sTo-ThTV8VvwcwaTucM1MQGeJfMfV4lNLM75/exec";
 var CLINIC_API = "https://script.google.com/macros/s/AKfycbw8e-054e4VUfRRx-PadyuoXRb-jxsKRcdOaq04SJH1oJyFVS_VOh9GUN_pL5cHPPzKVA/exec";
 var VOCA_API   = "https://script.google.com/macros/s/AKfycbxW4aXPUq9Iu3VtnjHuInUxhG6dPaNIYawDRWTYEjvEIsv4kjEceXDb_y9OX5Lx3-9e/exec";  // 어휘 결과 백엔드 (응시 여부 조회)
+// 주말 모의고사 OMR 작성 페이지 (허브의 iframe 래퍼 — nm·sc·gr·sid 파라미터로 학생 정보 자동 입력)
+var OMR_URL = "https://coke4497-sys.github.io/shueguk-hub/omr.html";
 var MOCK_DEMO = [
   { examName:'상상3-5회차', examDate:'6월 21일', subject:'언어와매체', school:'행신고', grade:'3',
     got:92, level:'1', cuts:[88,80,72,64],
@@ -723,6 +725,17 @@ function renderHub(){
             '<span class="icon">'+svg(ICON.chart)+'</span>' +
             '<h3>지필고사 데이터</h3><p class="desc">'+esc(cntTxt)+'</p>' +
             '<span class="go">'+svg(ICON.lock)+' 비밀번호 필요</span></button>';
+  // 주말 모의고사 OMR 작성 — 학생 정보(이름·학교·학년·학부모8자리)를 실어 보내 자동 입력
+  var oi = STATE.info||{};
+  var omrHref = OMR_URL
+    + '?nm='  + encodeURIComponent(oi.name||'')
+    + '&sc='  + encodeURIComponent(oi.school||'')
+    + '&gr='  + encodeURIComponent(hsGradeNum(oi.grade)||'')
+    + '&sid=' + encodeURIComponent(oi.id||'');
+  html += '<a class="card" href="'+esc(omrHref)+'">' +
+            '<span class="icon">'+svg(ICON.pencil)+'</span>' +
+            '<h3>모의고사 OMR</h3><p class="desc">주말 모의고사 답안 작성·제출</p>' +
+            '<span class="go">열기 '+svg(ICON.arrow)+'</span></a>';
   var mockReady = (typeof WEEKEND_API==='string' && WEEKEND_API.indexOf('http')===0);
   if(mockReady){
     html += '<button class="card lock" onclick="openMock()">' +
