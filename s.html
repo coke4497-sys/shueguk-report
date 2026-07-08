@@ -1133,6 +1133,16 @@ function renderMock(){
   }
   hide('hubView'); $('gradeView').style.display='none'; $('mockHubView').style.display='none'; $('mockView').style.display='block'; window.scrollTo(0,0);
 }
+// 응시일 표시 정리: 시트가 '6월 3일'을 날짜 값으로 바꿔 장황한 문자열로 와도 'M월 D일'로 되돌린다.
+// 날짜 계산은 한국 시간 기준 (다른 시간대 브라우저에서도 하루 밀리지 않게).
+function mockDateLabel(v){
+  var s=String(v==null?'':v).trim();
+  if(!s || /^\d{1,2}월\s*\d{1,2}일$/.test(s)) return s;   // 이미 깔끔한 형태
+  var d=/^\d{4}-\d{2}-\d{2} /.test(s) ? new Date(s.replace(' ','T')) : new Date(s);
+  if(isNaN(d)) return s;
+  var k=new Date(d.getTime() + 9*60*60*1000);   // KST
+  return (k.getUTCMonth()+1)+'월 '+k.getUTCDate()+'일';
+}
 function mockCardHtml(x){
   var info=STATE.info||{};
   var name=x.name||info.name||'';
@@ -1167,7 +1177,7 @@ function mockCardHtml(x){
     '<div class="tbar">2026 주간 모의고사 성적표 · '+esc(x.code||x.examName||'')+'</div>'+
     '<section><h2>1. 학생정보</h2>'+
       '<table class="info"><tr><th>성명</th><th>학교</th><th>학년</th><th>선택과목</th><th>응시일</th></tr>'+
-      '<tr><td>'+esc(name)+'</td><td>'+esc(x.school)+'</td><td>'+esc(x.grade)+'</td><td>'+esc(x.subject)+'</td><td>'+esc(x.examDate)+'</td></tr></table></section>'+
+      '<tr><td>'+esc(name)+'</td><td>'+esc(x.school)+'</td><td>'+esc(x.grade)+'</td><td>'+esc(x.subject)+'</td><td>'+esc(mockDateLabel(x.examDate))+'</td></tr></table></section>'+
     '<section><h2>2. 성적</h2>'+
       '<table class="score"><tr><th>점수(100점 만점)</th><th>등급</th><th>등급컷</th></tr>'+
       '<tr><td class="big">'+esc(got)+'</td><td class="big">'+esc(x.level)+'</td><td>'+esc(cuts)+'</td></tr></table></section>'+
