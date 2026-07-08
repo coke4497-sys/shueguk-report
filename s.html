@@ -238,6 +238,9 @@
   }
   @media (prefers-reduced-motion:reduce){*{transition:none !important;}}
 
+  /* 실전 모의고사 하위 메뉴 뷰 */
+  #mockHubView{display:none;}
+
   /* 모의고사 성적 뷰 */
   #mockView{display:none;}
   .mock-report{background:var(--surface);border:1px solid var(--line-soft);border-radius:var(--radius);overflow:hidden;margin-bottom:16px;}
@@ -363,6 +366,16 @@
   <footer><p>이수경국어 Shueguk · 학생용</p></footer>
 </main></div>
 
+<!-- 실전 모의고사 하위 메뉴 (신청 · OMR · 성적) -->
+<div id="mockHubView"><main class="wrap gwrap">
+  <div class="gv-bar">
+    <button class="gv-back" onclick="closeMockHub()" id="mhBack"></button>
+    <span class="gv-ttl">주말 실전 모의고사</span>
+  </div>
+  <div class="grid" id="mockHubMenu"></div>
+  <footer><p>이수경국어 Shueguk · 학생용</p></footer>
+</main></div>
+
 <!-- 모의고사 성적 -->
 <div id="mockView"><main class="wrap gwrap">
   <div class="gv-bar">
@@ -403,6 +416,8 @@ var CLINIC_API = "https://script.google.com/macros/s/AKfycbw8e-054e4VUfRRx-Padyu
 var VOCA_API   = "https://script.google.com/macros/s/AKfycbxW4aXPUq9Iu3VtnjHuInUxhG6dPaNIYawDRWTYEjvEIsv4kjEceXDb_y9OX5Lx3-9e/exec";  // 어휘 결과 백엔드 (응시 여부 조회)
 // 주말 모의고사 OMR 작성 페이지 (허브의 iframe 래퍼 — nm·sc·gr·sid 파라미터로 학생 정보 자동 입력)
 var OMR_URL = "https://coke4497-sys.github.io/shueguk-hub/omr.html";
+// 주말 모의고사 신청 페이지 (실전 모의고사 하위 메뉴에서 사용)
+var SIGNUP_PAGE = "https://coke4497-sys.github.io/shuegukweekendtest/signup.html";
 var MOCK_DEMO = [
   { examName:'상상3-5회차', examDate:'6월 21일', subject:'언어와매체', school:'행신고', grade:'3',
     got:92, level:'1', cuts:[88,80,72,64],
@@ -510,7 +525,7 @@ var IS_ID = false;
 var STATE = { info:null, authed:false, exams:null, examCount:0, notices:null, homework:null, analyses:null, clinic:null, stars:null, vocaOpen:null, vocaWeek:null, mockGrades:null, clinicGrades:null, vocaTaken:null };
 
 function showError(title, msg){
-  hide('loadBox'); hide('hubView'); $('gradeView').style.display='none';
+  hide('loadBox'); hide('hubView'); $('gradeView').style.display='none'; $('mockHubView').style.display='none'; $('mockView').style.display='none';
   $('errTitle').textContent = title || '불러올 수 없습니다';
   $('errMsg').textContent = msg || '';
   show('errBox');
@@ -689,13 +704,17 @@ function renderHub(){
       // 그 외(주차 미설정 등)는 기본 설명 + '준비 중'
     }
     var ic = '<span class="icon">'+svg(ICON[f.icon]||ICON.book)+(vocaBadge?'<span class="new-dot">1</span>':'')+'</span>';
-    // 모의고사·클리닉: 이번 주 해당 학년이 아니면 비활성 + 안내
-    if(f.id==='mock' || f.id==='clinic'){
-      var og = (f.id==='mock') ? STATE.mockGrades : STATE.clinicGrades;
-      if(!gradeEligible(og)){
-        var gmsg = (f.id==='mock') ? '이번 주는 해당 학년 실전 모의고사를 운영하지 않아요.'
-                                   : '이번 주는 해당 학년 클리닉을 운영하지 않아요.';
-        html += '<div class="card pending">'+ic+'<h3>'+esc(f.title)+'</h3><p class="desc">'+esc(gmsg)+'</p><span class="tag">이번 주 운영 안 함</span></div>';
+    // 실전 모의고사: 신청·OMR·성적을 하위 메뉴 하나로 묶음 (학년 게이팅은 하위 메뉴 안에서)
+    if(f.id==='mock'){
+      html += '<button class="card" onclick="openMockHub()">'+ic+
+              '<h3>실전 모의고사</h3><p class="desc">신청 · OMR 작성 · 성적 확인</p>'+
+              '<span class="go">열기 '+svg(ICON.arrow)+'</span></button>';
+      return;
+    }
+    // 클리닉: 이번 주 해당 학년이 아니면 비활성 + 안내
+    if(f.id==='clinic'){
+      if(!gradeEligible(STATE.clinicGrades)){
+        html += '<div class="card pending">'+ic+'<h3>'+esc(f.title)+'</h3><p class="desc">이번 주는 해당 학년 클리닉을 운영하지 않아요.</p><span class="tag">이번 주 운영 안 함</span></div>';
         return;
       }
     }
@@ -725,34 +744,11 @@ function renderHub(){
             '<span class="icon">'+svg(ICON.chart)+'</span>' +
             '<h3>지필고사 데이터</h3><p class="desc">'+esc(cntTxt)+'</p>' +
             '<span class="go">'+svg(ICON.lock)+' 비밀번호 필요</span></button>';
-  // 주말 모의고사 OMR 작성 — 학생 정보(이름·학교·학년·학부모8자리)를 실어 보내 자동 입력
-  var oi = STATE.info||{};
-  var omrHref = OMR_URL
-    + '?nm='  + encodeURIComponent(oi.name||'')
-    + '&sc='  + encodeURIComponent(oi.school||'')
-    + '&gr='  + encodeURIComponent(hsGradeNum(oi.grade)||'')
-    + '&sid=' + encodeURIComponent(oi.id||'');
-  html += '<a class="card" href="'+esc(omrHref)+'">' +
-            '<span class="icon">'+svg(ICON.pencil)+'</span>' +
-            '<h3>모의고사 OMR</h3><p class="desc">주말 모의고사 답안 작성·제출</p>' +
-            '<span class="go">열기 '+svg(ICON.arrow)+'</span></a>';
-  var mockReady = (typeof WEEKEND_API==='string' && WEEKEND_API.indexOf('http')===0);
-  if(mockReady){
-    html += '<button class="card lock" onclick="openMock()">' +
-              '<span class="icon">'+svg(ICON.paper)+'</span>' +
-              '<h3>모의고사 성적</h3><p class="desc">주말 실전 모의고사 성적표</p>' +
-              '<span class="go">'+svg(ICON.lock)+' 비밀번호 필요</span></button>';
-  } else {
-    html += '<div class="card pending">' +
-              '<span class="icon">'+svg(ICON.paper)+'</span>' +
-              '<h3>모의고사 성적</h3><p class="desc">주말 실전 모의고사 성적표</p>' +
-              '<span class="tag">준비 중</span></div>';
-  }
   $('menu').innerHTML = html;
 
   renderStars();   // 슈퍼스타 별 카드 (백엔드가 stars를 주면 표시)
 
-  hide('loadBox'); hide('errBox'); $('gradeView').style.display='none'; $('noticeView').style.display='none'; $('homeworkView').style.display='none'; show('hubView');
+  hide('loadBox'); hide('errBox'); $('gradeView').style.display='none'; $('noticeView').style.display='none'; $('homeworkView').style.display='none'; $('mockHubView').style.display='none'; $('mockView').style.display='none'; show('hubView');
 }
 
 /* ---- 알려드립니다(공지) ---- */
@@ -1079,8 +1075,48 @@ function fetchMockData(id){
     return { ok:true, reports:d.reports||d.list||[] };
   });
 }
+/* ---- 실전 모의고사 하위 메뉴 (신청 · OMR 작성 · 성적) ---- */
+function renderMockHub(){
+  var html='';
+  var oi=STATE.info||{};
+  // ① 모의고사 신청 — 학년 게이팅 유지
+  if(!gradeEligible(STATE.mockGrades)){
+    html += '<div class="card pending"><span class="icon">'+svg(ICON.paper)+'</span>'+
+            '<h3>모의고사 신청</h3><p class="desc">이번 주는 해당 학년 실전 모의고사를 운영하지 않아요.</p>'+
+            '<span class="tag">이번 주 운영 안 함</span></div>';
+  } else {
+    var su = SIGNUP_PAGE + '?key=' + encodeURIComponent(KEY);
+    html += '<a class="card" href="'+esc(su)+'"><span class="icon">'+svg(ICON.paper)+'</span>'+
+            '<h3>모의고사 신청</h3><p class="desc">모의고사 응시 신청</p>'+
+            '<span class="go">열기 '+svg(ICON.arrow)+'</span></a>';
+  }
+  // ② OMR 작성 — 학생 정보(이름·학교·학년·학부모8자리) 자동 입력
+  var omrHref = OMR_URL
+    + '?nm='  + encodeURIComponent(oi.name||'')
+    + '&sc='  + encodeURIComponent(oi.school||'')
+    + '&gr='  + encodeURIComponent(hsGradeNum(oi.grade)||'')
+    + '&sid=' + encodeURIComponent(oi.id||'');
+  html += '<a class="card" href="'+esc(omrHref)+'"><span class="icon">'+svg(ICON.pencil)+'</span>'+
+          '<h3>모의고사 OMR</h3><p class="desc">답안 작성·제출</p>'+
+          '<span class="go">열기 '+svg(ICON.arrow)+'</span></a>';
+  // ③ 성적 확인 — 잠금(본인확인)
+  var mockReady = (typeof WEEKEND_API==='string' && WEEKEND_API.indexOf('http')===0);
+  if(mockReady){
+    html += '<button class="card lock" onclick="openMock()"><span class="icon">'+svg(ICON.chart)+'</span>'+
+            '<h3>모의고사 성적</h3><p class="desc">주말 실전 모의고사 성적표</p>'+
+            '<span class="go">'+svg(ICON.lock)+' 비밀번호 필요</span></button>';
+  } else {
+    html += '<div class="card pending"><span class="icon">'+svg(ICON.chart)+'</span>'+
+            '<h3>모의고사 성적</h3><p class="desc">주말 실전 모의고사 성적표</p>'+
+            '<span class="tag">준비 중</span></div>';
+  }
+  $('mockHubMenu').innerHTML = html;
+}
+function openMockHub(){ renderMockHub(); hide('hubView'); $('mockHubView').style.display='block'; window.scrollTo(0,0); }
+function closeMockHub(){ $('mockHubView').style.display='none'; show('hubView'); window.scrollTo(0,0); }
+
 var MOCK_SEL=0;
-function closeMock(){ $('mockView').style.display='none'; show('hubView'); window.scrollTo(0,0); }
+function closeMock(){ $('mockView').style.display='none'; $('mockHubView').style.display='block'; window.scrollTo(0,0); }
 function pickMock(i){ var reps=STATE.mock||[]; MOCK_SEL=i; var t=$('mockTabs').children;
   for(var k=0;k<t.length;k++){ t[k].className='exam-tab'+(k===i?' active':''); }
   $('mockList').innerHTML=mockCardHtml(reps[i]); window.scrollTo(0,0); }
@@ -1095,7 +1131,7 @@ function renderMock(){
     else { tabs.style.display='none'; }
     list.innerHTML=mockCardHtml(reps[MOCK_SEL]);
   }
-  hide('hubView'); $('gradeView').style.display='none'; $('mockView').style.display='block'; window.scrollTo(0,0);
+  hide('hubView'); $('gradeView').style.display='none'; $('mockHubView').style.display='none'; $('mockView').style.display='block'; window.scrollTo(0,0);
 }
 function mockCardHtml(x){
   var info=STATE.info||{};
@@ -1148,7 +1184,8 @@ function mockCardHtml(x){
 /* ---- 시작 ---- */
 function boot(){
   $('gvBack').innerHTML = svg(ICON.back) + ' 메뉴';
-  $('mockBack').innerHTML = svg(ICON.back) + ' 메뉴';
+  $('mockBack').innerHTML = svg(ICON.back) + ' 모의고사 메뉴';
+  $('mhBack').innerHTML = svg(ICON.back) + ' 메뉴';
   $('nvBack').innerHTML = svg(ICON.back) + ' 메뉴';
   $('hwBack').innerHTML = svg(ICON.back) + ' 메뉴';
   $('pwIcon').innerHTML = svg(ICON.lock);
