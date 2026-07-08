@@ -41,12 +41,14 @@ var CLINIC_TAB      = '응답';     // 제출시각|이름|학교|전화뒤4|클
 // 별 적립 규칙(자동): 지필 평가지 제출 +2 / 클리닉 신청 +1 / 어휘 제출 +1 / 과제 제출 +1
 // 깜짝 보너스(수동): '별' 탭에 로그로 기록 (star.html에서 부여)
 var TAB_STARS  = '별';   // A:일시 B:학생ID C:이름 D:학교 E:별 F:사유
-var STAR_RULES = { exam: 2, clinic: 1, voca: 1, hwork: 1, notice: 1 };   // notice = 공지 '확인했습니다' 1건당
+var STAR_RULES = { exam: 2, clinic: 1, voca: 1, hwork: 1, notice: 1, mock: 1 };   // notice = 공지 확인 1건당, mock = 모의고사 응시 회차당
 var TAB_NOTICE_READ = '공지확인';   // A:일시 B:학생ID C:이름 D:학교 E:공지키(작성일|제목)
-// 어휘·H WORK 자동 적립용 스프레드시트 ID (비우면 그 항목은 0으로 계산)
+// 어휘·H WORK·주말 모의고사 자동 적립용 스프레드시트 ID (비우면 그 항목은 0으로 계산)
 var VOCA_SHEET_ID  = '1AVDyKpBj9kSW5hzSzOieVIZpV6FnIpcFMjsjUyuGAbE';   // 어휘 결과 시트
 var HWORK_SHEET_ID = '1nFZ2HVAnCyCv_NOoAPXhA1VC_T7BBqwUWNWBta4-qFE';   // H WORK 시트
 var HWORK_TAB      = '제출기록';   // H WORK 제출 기록 탭 이름 (H WORK 백엔드의 SHEET_SUB와 동일)
+var OMR_SHEET_ID   = '1hd1huZpppBue5rlBVMZc2-wAbZ91PitFiBGT12Cq7YQ';   // 주말 모의고사 점수입력(OMR) 시트
+var OMR_TAB        = '응답';       // OMR 제출 기록 탭 (omr_code.gs의 응답 시트)
 
 // 설정 탭 — 학생 페이지 기능 켜고/끄기 (A:항목 | B:값). 예: '어휘 테스트' | '중단'
 var TAB_CONFIG = '설정';
@@ -754,7 +756,7 @@ function getStarRanking() {
     var id = String(sv[i][0] || '').trim();
     var k = stus.length;
     stus.push({ id: id, name: nm, school: String(sv[i][2] || '').trim(), grade: String(sv[i][3] || '').trim(),
-                exam: 0, clinic: {}, voca: {}, hwork: 0, notice: 0, bonus: 0 });
+                exam: 0, clinic: {}, voca: {}, hwork: 0, mock: {}, notice: 0, bonus: 0 });
     if (id) { idCount[id] = (idCount[id] || 0) + 1; byId[id] = k; byIdName[id + '|' + nm] = k; }
     if (byName[nm] == null) byName[nm] = k;
     var bn = baseName_(nm);
@@ -831,6 +833,19 @@ function getStarRanking() {
       }
     }
   } catch (e) {} }
+  // 주말 모의고사 응시 (회차 단위)
+  if (OMR_SHEET_ID) { try {
+    var osh = SpreadsheetApp.openById(OMR_SHEET_ID).getSheetByName(OMR_TAB);
+    if (osh && osh.getLastRow() > 1) {
+      var ov = osh.getDataRange().getValues(), OH = ov[0];
+      var oId = OH.indexOf('학생ID'), oN = OH.indexOf('이름'), oS = OH.indexOf('학교'), oE = OH.indexOf('회차');
+      if (oN >= 0) for (var o2 = 1; o2 < ov.length; o2++) {
+        var ko = resolve(oId >= 0 ? ov[o2][oId] : '', ov[o2][oN], oS >= 0 ? ov[o2][oS] : '');
+        if (ko < 0) continue;
+        stus[ko].mock[(oE >= 0 && String(ov[o2][oE] || '').trim()) || String(o2)] = true;
+      }
+    }
+  } catch (e) {} }
   // 깜짝 보너스
   var bsh = ss.getSheetByName(TAB_STARS);
   if (bsh) {
@@ -853,6 +868,7 @@ function getStarRanking() {
     return { name: s.name, school: s.school, grade: s.grade,
       total: s.exam * STAR_RULES.exam + Object.keys(s.clinic).length * STAR_RULES.clinic
            + Object.keys(s.voca).length * STAR_RULES.voca + s.hwork * STAR_RULES.hwork
+           + Object.keys(s.mock).length * STAR_RULES.mock
            + s.notice * STAR_RULES.notice + s.bonus };
   });
   out.sort(function (a, b) { return b.total - a.total || a.name.localeCompare(b.name, 'ko'); });
@@ -885,7 +901,7 @@ function schoolMatch_(a, b) {
 }
 
 /* ===== 슈퍼스타 별(경험치) 집계 =====
- *  총 별 = 지필 제출×2 + 클리닉 신청×1 + 어휘 제출×1 + 과제 제출×1 + 깜짝 보너스 합.
+ *  총 별 = 지필 제출×2 + 클리닉 신청×1 + 어휘 제출×1 + 과제 제출×1 + 모의고사 응시×1 + 깜짝 보너스 합.
  *  등급 계산(12단계)은 학생 페이지(s.html)가 총 별 개수로 수행한다.
  */
 function collectStars_(ss, info, key, siblingShared) {
@@ -895,16 +911,43 @@ function collectStars_(ss, info, key, siblingShared) {
   var clinic = countClinicApps_(key, sid);                     // 클리닉 신청 수(신청 단위)
   var voca   = countVoca_(name);                               // 어휘 제출 수(주차 단위)
   var hwork  = countHwork_(name, String(info.school || ''));   // 과제 제출 수
+  var mock   = countMock_(name, String(info.school || ''), sid);   // 모의고사 응시 수(회차 단위)
   var bonus  = sumBonus_(ss, sid, name, String(info.school || ''));   // {sum, latest}
   var noticeN = Object.keys(readNoticeChecks_(ss, sid, name, String(info.school || '').trim())).length;   // 공지 확인 수
   var total = exam * STAR_RULES.exam + clinic * STAR_RULES.clinic
             + voca * STAR_RULES.voca + hwork * STAR_RULES.hwork
+            + mock * STAR_RULES.mock
             + noticeN * STAR_RULES.notice + bonus.sum;
   return {
     total: total,
-    breakdown: { exam: exam, clinic: clinic, voca: voca, hwork: hwork, notice: noticeN, bonus: bonus.sum },
+    breakdown: { exam: exam, clinic: clinic, voca: voca, hwork: hwork, mock: mock, notice: noticeN, bonus: bonus.sum },
     latestBonus: bonus.latest   // {stars, reason, date} 또는 null
   };
+}
+
+/** 주말 모의고사 응시 수(회차 단위 — 같은 회차 중복 제출은 1개).
+ *  이름+학교 1차(느슨 비교), 학생ID(부모님 8자리)는 동명이인 구분 보조 (studentReports와 동일 규칙). */
+function countMock_(name, school, sid) {
+  if (!OMR_SHEET_ID || !name) return 0;
+  var set = {};
+  try {
+    var sh = SpreadsheetApp.openById(OMR_SHEET_ID).getSheetByName(OMR_TAB);
+    if (!sh || sh.getLastRow() < 2) return 0;
+    var v = sh.getDataRange().getValues();
+    var H = v[0];
+    var iId = H.indexOf('학생ID'), iN = H.indexOf('이름'), iS = H.indexOf('학교'), iE = H.indexOf('회차');
+    if (iN < 0) return 0;
+    for (var i = 1; i < v.length; i++) {
+      var rn = String(v[i][iN] || '').trim();
+      if (!rn || (rn !== name && rn !== baseName_(name))) continue;   // 접미사 이름(이수빈A) 대비
+      var rs = iS >= 0 ? String(v[i][iS] || '').trim() : '';
+      if (school && rs && !schoolMatch_(rs, school)) continue;
+      var rid = iId >= 0 ? String(v[i][iId] || '').replace(/^'/, '').trim() : '';
+      if (rid && sid && rid !== sid) continue;   // 동명이인 구분(양쪽에 ID 있을 때만)
+      set[(iE >= 0 && String(v[i][iE] || '').trim()) || String(i)] = true;
+    }
+  } catch (e) {}
+  return Object.keys(set).length;
 }
 
 /* ===== 공지 '확인했습니다' — 확인 1건당 별 1개 =====
