@@ -47,10 +47,26 @@
     var grades   = [];            // 정렬된 학년 목록
     var mode     = allowAll ? '전체' : '학년';
     var gradeSel = {};            // 학년 모드: { '고1':true }
-    var one      = null;          // 개인 모드: 이름 한 명
-    var many     = {};            // 일부 모드: { '박보검':true }
+    var one      = null;          // 개인 모드: 선택 키(skey) 한 명
+    var many     = {};            // 일부 모드: { skey:true }
     var fGrade   = '';            // 개인/일부 목록 필터: 학년
     var fSchool  = '';            // 개인/일부 목록 필터: 학교
+    var nameCount = {};           // 동명이인 감지용: { '이서윤': 2 }
+    var byKey    = {};            // skey → 학생
+
+    // 학생 고유 키 (동명이인 구분: 이름+학교+학년)
+    function skey(s){ return s.name + '|' + (s.school||'') + '|' + (s.grade||''); }
+    // 시트에 저장하는 대상 토큰 — 이름이 유일하면 이름만(기존 방식과 호환),
+    // 동명이인이면 '이름|학교|학년' (백엔드가 학교·학년까지 대조해 구분)
+    function token(s){
+      if ((nameCount[s.name]||0) <= 1) return s.name;
+      return [s.name, String(s.school||'').replace(/\s+/g,''), String(s.grade||'').replace(/\s+/g,'')].join('|');
+    }
+    // 사람이 읽는 표시용 이름
+    function label(s){
+      if ((nameCount[s.name]||0) <= 1) return s.name;
+      return s.name + '(' + [s.school, s.grade].filter(Boolean).join(' ') + ')';
+    }
 
     // ── 스켈레톤 ──
     var root = document.createElement('div');
@@ -136,7 +152,7 @@
           many = {}; renderList(listEl, searchEl.value, true); updateCount(); fire();
         });
         bodyEl.querySelector('.sp-all').addEventListener('click', function(){
-          filteredRows(searchEl.value).forEach(function(s){ many[s.name] = true; });
+          filteredRows(searchEl.value).forEach(function(s){ many[skey(s)] = true; });
           renderList(listEl, searchEl.value, true); updateCount(); fire();
         });
       }
@@ -157,9 +173,10 @@
       var rows = filteredRows(q);
       if (!rows.length){ listEl.innerHTML = '<div class="sp-empty">검색 결과가 없어요.</div>'; return; }
       listEl.innerHTML = rows.map(function(s){
-        var sel = multi ? !!many[s.name] : (one===s.name);
+        var k = skey(s);
+        var sel = multi ? !!many[k] : (one===k);
         var meta = [s.school, s.grade].filter(Boolean).join(' · ');
-        return '<div class="sp-item'+(multi?'':' sp-radio')+(sel?' on':'')+'" data-name="'+esc(s.name)+'">' +
+        return '<div class="sp-item'+(multi?'':' sp-radio')+(sel?' on':'')+'" data-key="'+esc(k)+'">' +
                  '<span class="sp-box">'+(sel?'✓':'')+'</span>' +
                  '<span class="sp-name">'+esc(s.name)+'</span>' +
                  '<span class="sp-meta">'+esc(meta)+'</span>' +
@@ -167,12 +184,12 @@
       }).join('');
       listEl.onclick = function(e){
         var it = e.target.closest('.sp-item'); if(!it) return;
-        var name = it.getAttribute('data-name');
+        var k = it.getAttribute('data-key');
         if (multi){
-          if (many[name]) delete many[name]; else many[name] = true;
+          if (many[k]) delete many[k]; else many[k] = true;
           updateCount();
         } else {
-          one = (one===name) ? null : name;
+          one = (one===k) ? null : k;
         }
         renderList(listEl, q, multi);
         fire();
@@ -197,13 +214,15 @@
         return { type:'학년', target:gs.join(', '), count:n, summary:gs.join(', ')+' — '+n+'명' };
       }
       if (mode === '개인'){
-        if (!one) return null;
-        return { type:'개인', target:one, count:1, summary:'개인 — '+one };
+        if (!one || !byKey[one]) return null;
+        var st1 = byKey[one];
+        return { type:'개인', target:token(st1), count:1, summary:'개인 — '+label(st1) };
       }
       if (mode === '일부'){
-        var names = Object.keys(many);
-        if (!names.length) return null;
-        return { type:'일부', target:names.join(', '), count:names.length, summary:'일부 — '+names.length+'명 ('+names.join(', ')+')' };
+        var sel2 = Object.keys(many).map(function(k){ return byKey[k]; }).filter(Boolean);
+        if (!sel2.length) return null;
+        var toks = sel2.map(token), labs = sel2.map(label);
+        return { type:'일부', target:toks.join(', '), count:sel2.length, summary:'일부 — '+sel2.length+'명 ('+labs.join(', ')+')' };
       }
       return null;
     }
@@ -231,6 +250,12 @@
             return;
           }
           students = d.students;
+          // 동명이인 감지 + 키 맵 (동명이인은 저장 시 이름|학교|학년 으로 구분)
+          nameCount = {}; byKey = {};
+          students.forEach(function(s){
+            nameCount[s.name] = (nameCount[s.name]||0) + 1;
+            byKey[skey(s)] = s;
+          });
           // 학년 목록(중복 제거 + 정렬)
           var seen = {};
           students.forEach(function(s){ if (s.grade) seen[s.grade] = true; });
