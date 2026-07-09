@@ -148,12 +148,20 @@
     }).catch(function(){ box.innerHTML='<div class="mgr-empty">불러오지 못했어요. 인터넷을 확인해 주세요.</div>'; });
   }
 
+  // 동명이인 토큰 '이름|학교|학년' → '이름(학교 학년)' 로 읽기 좋게
+  function prettyTarget(t){
+    return String(t||'').split(/\s*,\s*/).map(function(x){
+      var p=x.split('|');
+      return p.length>=3 ? p[0]+'('+[p[1],p[2]].filter(Boolean).join(' ')+')' : x;
+    }).join(', ');
+  }
+
   function assignSummary(a){
     if(!a || !a.type) return { cls:'none', tag:'미배정', target:'아직 아무에게도 보이지 않아요' };
     if(a.type==='전체') return { cls:'t전체', tag:'전 학년', target:'모든 재원 학생' };
     if(a.type==='학년') return { cls:'t학년', tag:'학년', target:a.target||'—' };
-    if(a.type==='개인') return { cls:'t개인', tag:'개인', target:a.target||'—' };
-    if(a.type==='일부'){ var n=(a.target||'').split(/\s*,\s*/).filter(Boolean).length; return { cls:'t일부', tag:'일부', target:(n?n+'명 · ':'')+(a.target||'—') }; }
+    if(a.type==='개인') return { cls:'t개인', tag:'개인', target:prettyTarget(a.target)||'—' };
+    if(a.type==='일부'){ var n=(a.target||'').split(/\s*,\s*/).filter(Boolean).length; return { cls:'t일부', tag:'일부', target:(n?n+'명 · ':'')+(prettyTarget(a.target)||'—') }; }
     return { cls:'t'+a.type, tag:a.type, target:a.target||'—' };
   }
 

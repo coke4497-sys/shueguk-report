@@ -579,8 +579,18 @@ function noticeMatches_(type, target, stu) {
     });
   }
 
-  // 개인 · 일부 (그 외 유형 포함): 이름·ID·접근코드 중 하나라도 일치하면 노출
+  // 개인 · 일부 (그 외 유형 포함): 이름·ID·접근코드 중 하나라도 일치하면 노출.
+  // 동명이인 구분 토큰 '이름|학교|학년' (student-picker가 이름이 겹칠 때 저장)은
+  // 이름 + 학교(느슨 비교) + 학년까지 모두 맞아야 노출된다.
   return tokens.some(function(t){
+    if (t.indexOf('|') >= 0) {
+      var p = t.split('|');
+      var tn = (p[0] || '').trim(), ts = (p[1] || '').trim(), tg = (p[2] || '').trim();
+      if (!tn || tn !== stu.name) return false;
+      if (ts && stu.school && !schoolMatch_(ts, stu.school)) return false;
+      if (tg && stu.grade && tg.replace(/\s+/g, '') !== stu.grade.replace(/\s+/g, '')) return false;
+      return true;
+    }
     return t === stu.name || t === stu.sid || t === stu.code;
   });
 }
