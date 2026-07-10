@@ -504,11 +504,14 @@ function loadGradeGates(){
     vocaJob = Promise.resolve(null);
   }
   // 이번 주 모의고사 신청 내역 (본인 것만 — 이름+학교, 동명이인은 8자리 구분)
+  // uniq=1: 이 이름의 재원 학생이 1명뿐 → 신청서에 8자리를 잘못 적었어도 이름+학교로 매칭
   var si = STATE.info || {};
+  var uniqFlag = (si.nameDup === false) ? '1' : '';
   var signupJob = jsonp(SIGNUP_API + '?action=mySignups'
     + '&name='   + encodeURIComponent(si.name || '')
     + '&school=' + encodeURIComponent(si.school || '')
-    + '&id='     + encodeURIComponent(si.id || ''));
+    + '&id='     + encodeURIComponent(si.id || '')
+    + '&uniq='   + uniqFlag);
   Promise.all([
     jsonp(SIGNUP_API + '?action=days'),
     jsonp(CLINIC_API + '?action=slots'),
@@ -1076,10 +1079,12 @@ function submitPw(){
 function fetchMockData(id){
   if(!WEEKEND_API || WEEKEND_API.indexOf('http')!==0) return Promise.resolve({ ok:true, reports:[] });
   var info=STATE.info||{};
+  // uniq=1: 동명이인이 아니면 OMR 제출 시 8자리를 잘못 적었어도 이름+학교로 매칭
   var url=WEEKEND_API + (WEEKEND_API.indexOf('?')>=0?'&':'?') +
     'action=studentReports&id='+encodeURIComponent(id)+
     '&name='+encodeURIComponent(info.name||'')+
-    '&school='+encodeURIComponent(info.school||'');
+    '&school='+encodeURIComponent(info.school||'')+
+    '&uniq='+((info.nameDup===false)?'1':'');
   return jsonp(url, 15000).then(function(d){
     if(!d) return { ok:false, msg:'연결 시간이 초과됐어요. 다시 시도해주세요.' };
     var ok=d&&(d.result==='success'||d.ok);
