@@ -303,6 +303,17 @@ function getStudent(opts) {
   }
   var siblingShared = shareCount > 1;
 
+  // 동명이인 여부: 같은 이름의 재원 학생이 2명 이상이면 true.
+  // 모의고사 신청·성적 조회에서 '이름이 유일하면 8자리 오타가 있어도 매칭'하기 위한 신호
+  // (신청서·OMR에 번호를 잘못 적는 경우가 있어, 동명이인일 때만 ID를 엄격 대조).
+  var nameDupCount = 0;
+  for (var n3 = 1; n3 < sv.length; n3++) {
+    if (String(sv[n3][1] || '').trim() !== info.name) continue;
+    if (/^(퇴원|n|no|off|x|중단|비재원)$/i.test(String(sv[n3][10] || '').trim())) continue;
+    nameDupCount++;
+  }
+  info.nameDup = nameDupCount > 1;
+
   // 비밀번호 검증: 입력값이 학생ID(부모님 8자리)와 일치해야 성적 공개
   var pwTried = pw !== '';
   var authed  = pwTried && pw === sid;
