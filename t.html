@@ -266,7 +266,7 @@ body{font-family:'Noto Sans KR',sans-serif; background:var(--sage-fog); color:va
 <script>
 /* ===== 비밀번호 잠금 ===== */
 var LOCK_KEY = 'shueguk_teacher_unlocked';
-var PASS_ENC = 'MTAxMDEx'; // 비밀번호를 base64로 보관 (가벼운 잠금)
+var PASS_ENC = 'c2g='; // 비밀번호를 base64로 보관 (가벼운 잠금)
 (function(){
   // 이미 이 기기에서 해제했으면 통과
   try { if(localStorage.getItem(LOCK_KEY)==='1'){ unlock(); return; } } catch(e){}
