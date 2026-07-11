@@ -86,6 +86,11 @@ function doGet(e) {
     if (String(p.pw || '') !== TEACHER_PW) return json({ result:'error', message:'unauthorized' });
     return getNoticeList();
   }
+  // 학생 개인 페이지 링크 목록(관리용, links.html) — 비밀번호 필요 (접근코드 포함이므로 공개 금지)
+  if (p.action === 'studentLinks') {
+    if (String(p.pw || '') !== TEACHER_PW) return json({ result:'error', message:'unauthorized' });
+    return getStudentLinks();
+  }
   // 별 보너스 로그(관리용) — 비밀번호 필요
   // 슈퍼스타 TOP 10 순위 — 전 재원생 별 집계 (비밀번호 필요)
   if (p.action === 'starRank') {
@@ -1452,6 +1457,30 @@ function getRoster() {
       school: String(v[i][2] || '').trim(),
       grade:  String(v[i][3] || '').trim(),
       teacher:String(v[i][4] || '').trim()
+    });
+  }
+  return json({ result:'success', students: out });
+}
+
+/** 학생 개인 페이지 링크 목록 (재원생의 이름·학교·학년·담당·접근코드).
+ *  교사용 links.html 전용 — 접근코드가 포함되므로 반드시 pw 확인 뒤에만 호출된다. */
+function getStudentLinks() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ss.getSheetByName(TAB_STUDENTS);
+  if (!sh) return json({ result:'error', message:"'" + TAB_STUDENTS + "' 탭이 없습니다." });
+  var v = sh.getDataRange().getValues();
+  var codeCol = findHeaderCol_(v[0], '접근코드', STU_CODE_COL);
+  var out = [];
+  for (var i = 1; i < v.length; i++) {
+    var name = String(v[i][1] || '').trim();
+    if (!name) continue;
+    if (/^(퇴원|n|no|off|x|중단|비재원)$/i.test(String(v[i][10] || '').trim())) continue;
+    out.push({
+      name:   name,
+      school: String(v[i][2] || '').trim(),
+      grade:  String(v[i][3] || '').trim(),
+      teacher:String(v[i][4] || '').trim(),
+      code:   String(v[i][codeCol] || '').trim()   // 빈칸이면 assignAccessCodes() 미실행 학생
     });
   }
   return json({ result:'success', students: out });
