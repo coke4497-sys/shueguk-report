@@ -1276,15 +1276,21 @@ function configOpen_(ss, label, dflt) {
   return dflt;
 }
 
-/** '설정' 탭에 label(A열) 항목의 값(B열)을 기록(없으면 행 추가). */
+/** '설정' 탭에 label(A열) 항목의 값(B열)을 기록(없으면 행 추가).
+ *  ⚠️ 1행부터 훑고, 일치하는 행을 '전부' 갱신한다 — 예전 버전은 2행부터만 찾아서
+ *  머리글이 없거나 항목이 1행에 있으면 아래에 중복 행을 만들고, 읽기(configVal_)는
+ *  여전히 첫 행의 옛 값을 돌려주는 버그가 있었다 (2026-07 어휘 주차가 1로 되돌아가던 원인). */
 function setConfig_(ss, label, value) {
   var sh = ss.getSheetByName(TAB_CONFIG);
   if (!sh) { sh = ss.insertSheet(TAB_CONFIG); sh.appendRow(['항목', '값']); sh.getRange(1,1,1,2).setFontWeight('bold'); }
   var v = sh.getDataRange().getValues();
-  for (var i = 1; i < v.length; i++) {
-    if (String(v[i][0] || '').trim() === label) { sh.getRange(i+1, 2).setValue(value); return; }
+  var found = false;
+  for (var i = 0; i < v.length; i++) {
+    if (String(v[i][0] || '').trim() !== label) continue;
+    sh.getRange(i + 1, 2).setValue(value);   // 중복 행이 있어도 전부 같은 값으로 (읽기와 어긋나지 않게)
+    found = true;
   }
-  sh.appendRow([label, value]);
+  if (!found) sh.appendRow([label, value]);
 }
 
 /** 머리글 행에서 label과 일치하는 열 인덱스를 찾고, 없으면 fallback 인덱스를 반환. */
