@@ -66,7 +66,9 @@ function doGet(e) {
   if (p.action === 'setVoca') {
     if (String(p.pw || '') !== TEACHER_PW) return json({ result:'error', message:'unauthorized' });
     var vopen = (p.open === '1' || p.open === 'true');
-    setConfig_(SpreadsheetApp.getActiveSpreadsheet(), '어휘 테스트', vopen ? '열림' : '중단');
+    var ssv2 = SpreadsheetApp.getActiveSpreadsheet();
+    setConfig_(ssv2, '어휘 테스트', vopen ? '열림' : '중단');
+    logConfig_(ssv2, '어휘 테스트', vopen ? '열림' : '중단');
     return json({ result:'success', open: vopen });
   }
   // 열린 어휘 주차 지정 (비밀번호 필요) — '설정' 탭에 주차 번호 기록
@@ -74,7 +76,9 @@ function doGet(e) {
     if (String(p.pw || '') !== TEACHER_PW) return json({ result:'error', message:'unauthorized' });
     var wset = parseInt(p.w, 10);
     if (!(wset >= 1)) return json({ result:'error', message:'bad week' });
-    setConfig_(SpreadsheetApp.getActiveSpreadsheet(), '어휘 주차', String(wset));
+    var ssw = SpreadsheetApp.getActiveSpreadsheet();
+    setConfig_(ssw, '어휘 주차', String(wset));
+    logConfig_(ssw, '어휘 주차', String(wset));
     return json({ result:'success', week: wset });
   }
   // 학생 명단(roster) — 티쳐스 공지·선택 위젯용. 민감정보(학생ID=비밀번호)는 제외.
@@ -1291,6 +1295,17 @@ function setConfig_(ss, label, value) {
     found = true;
   }
   if (!found) sh.appendRow([label, value]);
+}
+
+/** 설정 변경 로그 — '설정로그' 탭에 일시·항목·값을 남긴다.
+ *  설정이 저절로 되돌아가는 문제(2026-07 어휘 주차 2→1) 추적용:
+ *  값이 바뀌었는데 여기에 기록이 없으면 페이지 저장이 아니라 시트에서 직접 바뀐 것(실행취소 등). */
+function logConfig_(ss, label, value) {
+  try {
+    var sh = ss.getSheetByName('설정로그');
+    if (!sh) { sh = ss.insertSheet('설정로그'); sh.appendRow(['일시', '항목', '값']); sh.getRange(1,1,1,3).setFontWeight('bold'); }
+    sh.appendRow([new Date(), label, value]);
+  } catch (e) {}
 }
 
 /** 머리글 행에서 label과 일치하는 열 인덱스를 찾고, 없으면 fallback 인덱스를 반환. */
