@@ -38,7 +38,8 @@ var CLINIC_SHEET_ID = '1q-D_cGhSpVgX5epGKIVy-HH9P26ygj-TeT9yrMaHAO8';
 var CLINIC_TAB      = '응답';     // 제출시각|이름|학교|전화뒤4|클리닉시간|유형|영역|구체내용|질문개수|메모|토큰(신규)
 
 // ── 슈퍼스타 별(경험치) 시스템 ─────────────────────────────
-// 별 적립 규칙(자동): 지필 평가지 제출 +2 / 클리닉 신청 +1 / 어휘 제출 +1 / 과제 제출 +1
+// 별 적립 규칙(자동): 지필 평가지 시험당 +2 / 클리닉 주·시간대당 +1 / 어휘 주차당 +1 / 과제 항목당 +1
+// (모든 항목이 '단위' 기준 — 같은 것을 여러 번 제출·신청해도 별은 1회분만)
 // 깜짝 보너스(수동): '별' 탭에 로그로 기록 (star.html에서 부여)
 var TAB_STARS  = '별';   // A:일시 B:학생ID C:이름 D:학교 E:별 F:사유
 var STAR_RULES = { exam: 2, clinic: 1, voca: 1, hwork: 1, notice: 1, mock: 1 };   // notice = 공지 확인 1건당, mock = 모의고사 응시 회차당
@@ -451,7 +452,14 @@ function collectExams_(ss, sid, name, strictName, school) {
 }
 
 function countExams_(ss, sid, name, strictName, school) {
-  return collectExams_(ss, sid, name, strictName, school).length;
+  // 시험명 단위 중복 제거 — 같은 리포트를 여러 번 제출해도 별은 시험당 1회분(×2)만.
+  var list = collectExams_(ss, sid, name, strictName, school);
+  var set = {};
+  for (var i = 0; i < list.length; i++) {
+    var t = String(list[i].title || '').replace(/\s+/g, '');
+    set[t || ('r' + i)] = true;
+  }
+  return Object.keys(set).length;
 }
 
 /* ===== 알려드립니다(공지) =====
@@ -786,7 +794,7 @@ function getStarRanking() {
     var id = String(sv[i][0] || '').trim();
     var k = stus.length;
     stus.push({ id: id, name: nm, school: String(sv[i][2] || '').trim(), grade: String(sv[i][3] || '').trim(),
-                exam: 0, clinic: {}, voca: {}, hwork: 0, mock: {}, notice: 0, bonus: 0 });
+                exam: {}, clinic: {}, voca: {}, hwork: {}, mock: {}, notice: {}, bonus: 0 });
     if (id) { idCount[id] = (idCount[id] || 0) + 1; byId[id] = k; byIdName[id + '|' + nm] = k; }
     if (byName[nm] == null) byName[nm] = k;
     var bn = baseName_(nm);
@@ -812,14 +820,14 @@ function getStarRanking() {
     if (id && byId[id] != null && idCount[id] === 1) return byId[id];
     return -1;
   }
-  // 지필 제출
+  // 지필 제출 (시험명 단위 — 같은 리포트 중복 제출은 1개)
   var rSh = ss.getSheetByName(TAB_RESULT);
   if (rSh) {
     var rv = rSh.getDataRange().getValues();
     for (var r = 1; r < rv.length; r++) {
       if (!rv[r][4]) continue;
       var kr = resolve(rv[r][10], rv[r][4], rv[r][2]);
-      if (kr >= 0) stus[kr].exam++;
+      if (kr >= 0) stus[kr].exam[String(rv[r][1] || '').replace(/\s+/g, '') || ('r' + r)] = true;
     }
   }
   // 클리닉 신청 (신청 단위)
@@ -833,7 +841,7 @@ function getStarRanking() {
         if (tk2 && byToken[tk2] != null) kc = byToken[tk2];
         if (kc < 0) kc = resolve(cS >= 0 ? cv[c2][cS] : '', cN >= 0 ? cv[c2][cN] : '', '');
         if (kc < 0) continue;
-        stus[kc].clinic[String(cv[c2][cD] || '') + '|' + String(cv[c2][cTm] || '')] = true;
+        stus[kc].clinic[clinicWeekKey_(cD >= 0 ? cv[c2][cD] : '') + '|' + String(cv[c2][cTm] || '')] = true;
       }
     }
   } catch (e) {}
@@ -857,9 +865,12 @@ function getStarRanking() {
       var hv = hsh.getDataRange().getValues();
       var HH = hv[0].map(function (h) { return String(h || '').trim().toLowerCase(); });
       var hN = idxOfAny_(HH, ['name', '이름']), hS = idxOfAny_(HH, ['school', '학교']);
+      var hC = idxOfAny_(HH, ['제목', 'title']), hT = idxOfAny_(HH, ['강사']);
       if (hN >= 0) for (var h2 = 1; h2 < hv.length; h2++) {
         var kh = resolve('', hv[h2][hN], hS >= 0 ? hv[h2][hS] : '');
-        if (kh >= 0) stus[kh].hwork++;
+        if (kh < 0) continue;
+        var ht = hC >= 0 ? String(hv[h2][hC] || '').trim() : '';
+        stus[kh].hwork[ht ? ((hT >= 0 ? String(hv[h2][hT] || '').trim() : '') + '|' + ht) : ('r' + h2)] = true;
       }
     }
   } catch (e) {} }
@@ -885,21 +896,21 @@ function getStarRanking() {
       if (kb >= 0) stus[kb].bonus += (parseInt(bv[b2][4], 10) || 0);
     }
   }
-  // 공지 확인
+  // 공지 확인 (공지키 단위 — 같은 공지 중복 확인 행은 1개)
   var nsh2 = ss.getSheetByName(TAB_NOTICE_READ);
   if (nsh2) {
     var nv = nsh2.getDataRange().getValues();
     for (var n2 = 1; n2 < nv.length; n2++) {
       var kn = resolve(nv[n2][1], nv[n2][2], nv[n2][3]);
-      if (kn >= 0) stus[kn].notice++;
+      if (kn >= 0) stus[kn].notice[String(nv[n2][4] || '').trim() || ('r' + n2)] = true;
     }
   }
   var out = stus.map(function (s) {
     return { name: s.name, school: s.school, grade: s.grade,
-      total: s.exam * STAR_RULES.exam + Object.keys(s.clinic).length * STAR_RULES.clinic
-           + Object.keys(s.voca).length * STAR_RULES.voca + s.hwork * STAR_RULES.hwork
+      total: Object.keys(s.exam).length * STAR_RULES.exam + Object.keys(s.clinic).length * STAR_RULES.clinic
+           + Object.keys(s.voca).length * STAR_RULES.voca + Object.keys(s.hwork).length * STAR_RULES.hwork
            + Object.keys(s.mock).length * STAR_RULES.mock
-           + s.notice * STAR_RULES.notice + s.bonus };
+           + Object.keys(s.notice).length * STAR_RULES.notice + s.bonus };
   });
   out.sort(function (a, b) { return b.total - a.total || a.name.localeCompare(b.name, 'ko'); });
   return json({ result: 'success', top: out.slice(0, 10) });
@@ -931,7 +942,8 @@ function schoolMatch_(a, b) {
 }
 
 /* ===== 슈퍼스타 별(경험치) 집계 =====
- *  총 별 = 지필 제출×2 + 클리닉 신청×1 + 어휘 제출×1 + 과제 제출×1 + 모의고사 응시×1 + 깜짝 보너스 합.
+ *  총 별 = 지필 시험당×2 + 클리닉 주·시간대당×1 + 어휘 주차당×1 + 과제 항목당×1 + 모의고사 회차당×1 + 깜짝 보너스 합.
+ *  모두 '단위' 기준 중복 제거 — 같은 것을 여러 번 제출해도 별은 1회분만.
  *  등급 계산(12단계)은 학생 페이지(s.html)가 총 별 개수로 수행한다.
  */
 function collectStars_(ss, info, key, siblingShared) {
@@ -1051,7 +1063,16 @@ function checkNotice(data) {
   }
 }
 
-/** 클리닉 신청 수 — 토큰 또는 학생ID가 일치하는 행을 '제출시각|시간' 단위로 센다. */
+/** 신청 주(월요일 시작) 키 — 같은 주에 같은 시간대를 중복 신청해도 별은 1개만. */
+function clinicWeekKey_(d) {
+  var dt = (d instanceof Date) ? new Date(d.getTime()) : new Date(String(d || ''));
+  if (isNaN(dt.getTime())) return String(d || '');
+  dt.setHours(0, 0, 0, 0);
+  dt.setDate(dt.getDate() - ((dt.getDay() + 6) % 7));   // 그 주 월요일로
+  return Utilities.formatDate(dt, 'GMT+9', 'yyyy-MM-dd');
+}
+
+/** 클리닉 신청 수 — 토큰 또는 학생ID가 일치하는 행을 '신청 주|시간대' 단위로 센다(중복 신청 1개). */
 function countClinicApps_(token, sid) {
   token = String(token || '').trim(); sid = String(sid || '').trim();
   if (!token && !sid) return 0;
@@ -1067,9 +1088,10 @@ function countClinicApps_(token, sid) {
   for (var i = 1; i < v.length; i++) {
     var tk = iTok >= 0 ? String(v[i][iTok] || '').trim() : '';
     var id = iSid >= 0 ? String(v[i][iSid] || '').replace(/^'/, '').trim() : '';
-    var match = (token && tk === token) || (sid && id === sid);
+    // 토큰이 기록된 행은 토큰으로만(쌍둥이는 학생ID가 같아 ID로는 형제 신청까지 잡힘), 옛 행만 ID로.
+    var match = tk ? (token && tk === token) : (sid && id === sid);
     if (!match) continue;
-    apps[String(v[i][iDate] || '') + '|' + String(v[i][iTime] || '')] = true;
+    apps[clinicWeekKey_(v[i][iDate]) + '|' + String(v[i][iTime] || '')] = true;
   }
   return Object.keys(apps).length;
 }
@@ -1095,7 +1117,7 @@ function countVoca_(name) {
   return iRound >= 0 ? Object.keys(rounds).length : n;
 }
 
-/** 과제(H WORK) 제출 수 — 이름(+학교 보조)이 일치하는 행 수. HWORK_SHEET_ID 비면 0.
+/** 과제(H WORK) 제출 수 — '강사|제목' 단위 중복 제거(같은 과제 재제출은 1개). HWORK_SHEET_ID 비면 0.
  *  탭 이름(HWORK_TAB)이 비어 있으면 '제출시각'+'이름' 머리글이 있는 제출 기록 탭을 자동으로 찾는다. */
 function countHwork_(name, school) {
   if (!HWORK_SHEET_ID || !name) return 0;
@@ -1118,17 +1140,19 @@ function countHwork_(name, school) {
   if (v.length < 2) return 0;
   var H = v[0].map(function (h) { return String(h || '').trim().toLowerCase(); });
   var iName = idxOfAny_(H, ['name', '이름']), iSchool = idxOfAny_(H, ['school', '학교']);
+  var iTitle = idxOfAny_(H, ['제목', 'title']), iTeach = idxOfAny_(H, ['강사']);
   if (iName < 0) return 0;
-  var n = 0;
+  var set = {};
   for (var i = 1; i < v.length; i++) {
     if (String(v[i][iName] || '').trim() !== name) continue;
     if (school && iSchool >= 0) {
       var sc = String(v[i][iSchool] || '').replace(/\s+/g, '');
       if (sc && school.replace(/\s+/g, '') && sc.indexOf(school.replace(/\s+/g, '')) < 0 && school.replace(/\s+/g, '').indexOf(sc) < 0) continue;
     }
-    n++;
+    var t = iTitle >= 0 ? String(v[i][iTitle] || '').trim() : '';
+    set[t ? ((iTeach >= 0 ? String(v[i][iTeach] || '').trim() : '') + '|' + t) : ('r' + i)] = true;
   }
-  return n;
+  return Object.keys(set).length;
 }
 
 /** 이 학생이 제출한 H WORK 집합 — '제출기록'에서 이름(+학교 보조) 매칭.
