@@ -778,7 +778,8 @@ function normGrade_(s) {
 /** 학교명 느슨한 일치: 공백 제거 후 완전 일치 또는 한쪽이 다른 쪽을 포함(예: "화정고"↔"화정고등학교"). */
 /* ===== 슈퍼스타 TOP 10 순위 ===== star.html
  *  전 재원생의 별을 시트별 1회 읽기로 집계해 상위 10명을 반환.
- *  매칭 규칙은 학생 개인 페이지와 동일(번호+이름 → 이름+학교 → 접미사 이름 → 고유 번호).
+ *  매칭 규칙은 학생 개인 페이지와 동일: 번호+이름 → 이름(명단에서 유일하면 학교 오타 무관 인정,
+ *  동명이인은 학생ID→학교로 구분) → 접미사 이름 → 고유 번호.
  */
 function getStarRanking() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -796,7 +797,7 @@ function getStarRanking() {
     stus.push({ id: id, name: nm, school: String(sv[i][2] || '').trim(), grade: String(sv[i][3] || '').trim(),
                 exam: {}, clinic: {}, voca: {}, hwork: {}, mock: {}, notice: {}, bonus: 0 });
     if (id) { idCount[id] = (idCount[id] || 0) + 1; byId[id] = k; byIdName[id + '|' + nm] = k; }
-    if (byName[nm] == null) byName[nm] = k;
+    (byName[nm] = byName[nm] || []).push(k);
     var bn = baseName_(nm);
     if (bn && bn !== nm) { (byBase[bn] = byBase[bn] || []).push(k); }
     var tk = String(sv[i][codeCol] || '').trim();
@@ -805,9 +806,11 @@ function getStarRanking() {
   function resolve(id, nm, school) {
     id = String(id || '').replace(/^'/, '').trim(); nm = String(nm || '').trim(); school = String(school || '').trim();
     if (id && nm && byIdName[id + '|' + nm] != null) return byIdName[id + '|' + nm];
-    if (nm && byName[nm] != null) {
-      var k1 = byName[nm];
-      if (!school || !stus[k1].school || schoolMatch_(stus[k1].school, school)) return k1;
+    var list = nm ? byName[nm] : null;
+    if (list && list.length === 1) return list[0];   // 이름이 명단에서 유일 → 학교 표기 차이(오타 등)가 있어도 인정 (개인 페이지와 동일 완화)
+    if (list && list.length > 1) {                   // 동명이인 → 학생ID 우선, 다음 학교로 구분
+      for (var j1 = 0; j1 < list.length; j1++) { if (id && stus[list[j1]].id === id) return list[j1]; }
+      for (var j2 = 0; j2 < list.length; j2++) { if (school && stus[list[j2]].school && schoolMatch_(stus[list[j2]].school, school)) return list[j2]; }
     }
     if (nm && byBase[nm]) {
       var c = byBase[nm];
