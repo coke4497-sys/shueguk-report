@@ -512,15 +512,20 @@ function loadGradeGates(){
     + '&school=' + encodeURIComponent(si.school || '')
     + '&id='     + encodeURIComponent(si.id || '')
     + '&uniq='   + uniqFlag);
+  // 클리닉: 이 학생이 신청 대상인지 백엔드가 직접 판단 (전체/학년/개인/일부 모두 동일 규칙)
+  var clinicJob = jsonp(CLINIC_API + '?action=amITarget'
+    + '&name='   + encodeURIComponent(si.name || '')
+    + '&school=' + encodeURIComponent(si.school || '')
+    + '&grade='  + encodeURIComponent(hsGradeNum(si.grade) || ''));
   Promise.all([
     jsonp(SIGNUP_API + '?action=days'),
-    jsonp(CLINIC_API + '?action=slots'),
+    clinicJob,
     vocaJob,
     signupJob
   ]).then(function(g){
     STATE.mockGrades   = (g[0] && g[0].grades) ? g[0].grades : null;
-    STATE.clinicGrades = (g[1] && g[1].grades) ? g[1].grades : null;
-    STATE.clinicTargetType = (g[1] && g[1].targetType) || null;   // 신청 대상 유형(전체/학년/개인/일부)
+    // eligible: true/false — 옛 백엔드(액션 없음)면 null → 기존처럼 카드 표시(안전)
+    STATE.clinicEligible = (g[1] && g[1].result==='success' && typeof g[1].eligible !== 'undefined') ? !!g[1].eligible : null;
     STATE.vocaTaken    = (wantVoca && g[2] && typeof g[2].taken !== 'undefined') ? !!g[2].taken : null;
     STATE.mockSignups  = (g[3] && g[3].result==='success' && g[3].signups) ? g[3].signups : null;
     if ($('hubView').style.display !== 'none') renderHub();       // 허브 화면일 때만 새로고침
@@ -535,7 +540,7 @@ function hide(id){ $(id).style.display='none'; }
 
 var KEY = '';        // 접근코드(토큰) — 없으면 테스트용 id
 var IS_ID = false;
-var STATE = { info:null, authed:false, exams:null, examCount:0, notices:null, homework:null, analyses:null, clinic:null, stars:null, vocaOpen:null, vocaWeek:null, mockGrades:null, clinicGrades:null, vocaTaken:null, mockSignups:null };
+var STATE = { info:null, authed:false, exams:null, examCount:0, notices:null, homework:null, analyses:null, clinic:null, stars:null, vocaOpen:null, vocaWeek:null, mockGrades:null, clinicEligible:null, vocaTaken:null, mockSignups:null };
 
 function showError(title, msg){
   hide('loadBox'); hide('hubView'); $('gradeView').style.display='none'; $('mockHubView').style.display='none'; $('mockView').style.display='none';
@@ -727,13 +732,11 @@ function renderHub(){
               '<span class="go">열기 '+svg(ICON.arrow)+'</span></button>';
       return;
     }
-    // 클리닉: 이번 주 해당 학년이 아니면 비활성 + 안내
-    // (단, 선생님이 개인·일부로 콕 집어 대상을 지정한 주에는 학년으로 막지 않음 — 대상 여부는 제출 시 서버가 확인)
+    // 클리닉: 이 학생이 이번 신청 대상이 아니면 비활성 + 안내
+    // (백엔드 amITarget이 전체/학년/개인/일부 대상 여부를 직접 판단 — 선택된 학생에게만 카드가 열림)
     if(f.id==='clinic'){
-      var ctt = STATE.clinicTargetType || '';
-      var clinicPicked = ctt.indexOf('개인')>=0 || ctt.indexOf('일부')>=0;
-      if(!clinicPicked && !gradeEligible(STATE.clinicGrades)){
-        html += '<div class="card pending">'+ic+'<h3>'+esc(f.title)+'</h3><p class="desc">이번 주는 해당 학년 클리닉을 운영하지 않아요.</p><span class="tag">이번 주 운영 안 함</span></div>';
+      if(STATE.clinicEligible === false){
+        html += '<div class="card pending">'+ic+'<h3>'+esc(f.title)+'</h3><p class="desc">이번 주는 클리닉 신청 대상이 아니에요.</p><span class="tag">이번 주 운영 안 함</span></div>';
         return;
       }
     }
