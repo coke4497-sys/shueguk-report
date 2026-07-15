@@ -795,7 +795,7 @@ function getStarRanking() {
     var id = String(sv[i][0] || '').trim();
     var k = stus.length;
     stus.push({ id: id, name: nm, school: String(sv[i][2] || '').trim(), grade: String(sv[i][3] || '').trim(),
-                exam: {}, clinic: {}, voca: {}, hwork: {}, mock: {}, notice: {}, bonus: 0 });
+                exam: {}, clinic: {}, voca: {}, hwork: {}, mock: {}, notice: {}, bonus: 0, bonusTs: 0 });
     if (id) { idCount[id] = (idCount[id] || 0) + 1; byId[id] = k; byIdName[id + '|' + nm] = k; }
     (byName[nm] = byName[nm] || []).push(k);
     var bn = baseName_(nm);
@@ -823,6 +823,14 @@ function getStarRanking() {
     if (id && byId[id] != null && idCount[id] === 1) return byId[id];
     return -1;
   }
+  // 각 단위(시험·주차 등)의 '획득 시각' = 그 단위의 첫 제출 시각. 중복 제출해도 처음 시각 유지.
+  function tsOf_(v) {
+    if (v instanceof Date) return v.getTime();
+    if (!v) return 0;
+    var t = new Date(String(v)).getTime();
+    return isNaN(t) ? 0 : t;
+  }
+  function mark_(set, key, ts) { if (set[key] == null || ts < set[key]) set[key] = ts; }
   // 지필 제출 (시험명 단위 — 같은 리포트 중복 제출은 1개)
   var rSh = ss.getSheetByName(TAB_RESULT);
   if (rSh) {
@@ -830,7 +838,7 @@ function getStarRanking() {
     for (var r = 1; r < rv.length; r++) {
       if (!rv[r][4]) continue;
       var kr = resolve(rv[r][10], rv[r][4], rv[r][2]);
-      if (kr >= 0) stus[kr].exam[String(rv[r][1] || '').replace(/\s+/g, '') || ('r' + r)] = true;
+      if (kr >= 0) mark_(stus[kr].exam, String(rv[r][1] || '').replace(/\s+/g, '') || ('r' + r), tsOf_(rv[r][0]));
     }
   }
   // 클리닉 신청 (신청 단위)
@@ -844,7 +852,7 @@ function getStarRanking() {
         if (tk2 && byToken[tk2] != null) kc = byToken[tk2];
         if (kc < 0) kc = resolve(cS >= 0 ? cv[c2][cS] : '', cN >= 0 ? cv[c2][cN] : '', '');
         if (kc < 0) continue;
-        stus[kc].clinic[clinicWeekKey_(cD >= 0 ? cv[c2][cD] : '') + '|' + String(cv[c2][cTm] || '')] = true;
+        mark_(stus[kc].clinic, clinicWeekKey_(cD >= 0 ? cv[c2][cD] : '') + '|' + String(cv[c2][cTm] || ''), tsOf_(cD >= 0 ? cv[c2][cD] : ''));
       }
     }
   } catch (e) {}
@@ -853,11 +861,11 @@ function getStarRanking() {
     var vsh = SpreadsheetApp.openById(VOCA_SHEET_ID).getSheets()[0];
     var vv = vsh.getDataRange().getValues();
     var VH = vv[0].map(function (h) { return String(h || '').trim().toLowerCase(); });
-    var vN = idxOfAny_(VH, ['name', '이름']), vR = idxOfAny_(VH, ['round', '주차', '회차']), vS = idxOfAny_(VH, ['school', '학교']);
+    var vN = idxOfAny_(VH, ['name', '이름']), vR = idxOfAny_(VH, ['round', '주차', '회차']), vS = idxOfAny_(VH, ['school', '학교']), vT = idxOfAny_(VH, ['time', '제출시각', '일시']);
     if (vN >= 0) for (var v2 = 1; v2 < vv.length; v2++) {
       var kv = resolve('', vv[v2][vN], vS >= 0 ? vv[v2][vS] : '');
       if (kv < 0) continue;
-      stus[kv].voca[vR >= 0 ? String(vv[v2][vR] || '').trim() : String(v2)] = true;
+      mark_(stus[kv].voca, vR >= 0 ? String(vv[v2][vR] || '').trim() : String(v2), tsOf_(vT >= 0 ? vv[v2][vT] : ''));
     }
   } catch (e) {} }
   // 과제 제출
@@ -868,12 +876,12 @@ function getStarRanking() {
       var hv = hsh.getDataRange().getValues();
       var HH = hv[0].map(function (h) { return String(h || '').trim().toLowerCase(); });
       var hN = idxOfAny_(HH, ['name', '이름']), hS = idxOfAny_(HH, ['school', '학교']);
-      var hC = idxOfAny_(HH, ['제목', 'title']), hT = idxOfAny_(HH, ['강사']);
+      var hC = idxOfAny_(HH, ['제목', 'title']), hT = idxOfAny_(HH, ['강사']), hTs = idxOfAny_(HH, ['제출시각', '제출일시', 'time', '일시']);
       if (hN >= 0) for (var h2 = 1; h2 < hv.length; h2++) {
         var kh = resolve('', hv[h2][hN], hS >= 0 ? hv[h2][hS] : '');
         if (kh < 0) continue;
         var ht = hC >= 0 ? String(hv[h2][hC] || '').trim() : '';
-        stus[kh].hwork[ht ? ((hT >= 0 ? String(hv[h2][hT] || '').trim() : '') + '|' + ht) : ('r' + h2)] = true;
+        mark_(stus[kh].hwork, ht ? ((hT >= 0 ? String(hv[h2][hT] || '').trim() : '') + '|' + ht) : ('r' + h2), tsOf_(hTs >= 0 ? hv[h2][hTs] : ''));
       }
     }
   } catch (e) {} }
@@ -882,11 +890,11 @@ function getStarRanking() {
     var osh = SpreadsheetApp.openById(OMR_SHEET_ID).getSheetByName(OMR_TAB);
     if (osh && osh.getLastRow() > 1) {
       var ov = osh.getDataRange().getValues(), OH = ov[0];
-      var oId = OH.indexOf('학생ID'), oN = OH.indexOf('이름'), oS = OH.indexOf('학교'), oE = OH.indexOf('회차');
+      var oId = OH.indexOf('학생ID'), oN = OH.indexOf('이름'), oS = OH.indexOf('학교'), oE = OH.indexOf('회차'), oT = OH.indexOf('제출시각');
       if (oN >= 0) for (var o2 = 1; o2 < ov.length; o2++) {
         var ko = resolve(oId >= 0 ? ov[o2][oId] : '', ov[o2][oN], oS >= 0 ? ov[o2][oS] : '');
         if (ko < 0) continue;
-        stus[ko].mock[(oE >= 0 && String(ov[o2][oE] || '').trim()) || String(o2)] = true;
+        mark_(stus[ko].mock, (oE >= 0 && String(ov[o2][oE] || '').trim()) || String(o2), tsOf_(oT >= 0 ? ov[o2][oT] : ''));
       }
     }
   } catch (e) {} }
@@ -896,7 +904,10 @@ function getStarRanking() {
     var bv = bsh.getDataRange().getValues();
     for (var b2 = 1; b2 < bv.length; b2++) {
       var kb = resolve(bv[b2][1], bv[b2][2], bv[b2][3]);
-      if (kb >= 0) stus[kb].bonus += (parseInt(bv[b2][4], 10) || 0);
+      if (kb < 0) continue;
+      stus[kb].bonus += (parseInt(bv[b2][4], 10) || 0);
+      var bt = tsOf_(bv[b2][0]);
+      if (bt > stus[kb].bonusTs) stus[kb].bonusTs = bt;
     }
   }
   // 공지 확인 (공지키 단위 — 같은 공지 중복 확인 행은 1개)
@@ -905,17 +916,23 @@ function getStarRanking() {
     var nv = nsh2.getDataRange().getValues();
     for (var n2 = 1; n2 < nv.length; n2++) {
       var kn = resolve(nv[n2][1], nv[n2][2], nv[n2][3]);
-      if (kn >= 0) stus[kn].notice[String(nv[n2][4] || '').trim() || ('r' + n2)] = true;
+      if (kn >= 0) mark_(stus[kn].notice, String(nv[n2][4] || '').trim() || ('r' + n2), tsOf_(nv[n2][0]));
     }
   }
+  // 동점 처리: '지금의 별 수에 먼저 도달한' 학생이 위 — 마지막 별의 획득 시각(earnedAt)이 이른 순.
+  function setMax_(set, m) { for (var k in set) { if (set[k] > m) m = set[k]; } return m; }
   var out = stus.map(function (s) {
-    return { name: s.name, school: s.school, grade: s.grade,
+    var earnedAt = s.bonusTs;
+    earnedAt = setMax_(s.exam, earnedAt); earnedAt = setMax_(s.clinic, earnedAt);
+    earnedAt = setMax_(s.voca, earnedAt); earnedAt = setMax_(s.hwork, earnedAt);
+    earnedAt = setMax_(s.mock, earnedAt); earnedAt = setMax_(s.notice, earnedAt);
+    return { name: s.name, school: s.school, grade: s.grade, earnedAt: earnedAt,
       total: Object.keys(s.exam).length * STAR_RULES.exam + Object.keys(s.clinic).length * STAR_RULES.clinic
            + Object.keys(s.voca).length * STAR_RULES.voca + Object.keys(s.hwork).length * STAR_RULES.hwork
            + Object.keys(s.mock).length * STAR_RULES.mock
            + Object.keys(s.notice).length * STAR_RULES.notice + s.bonus };
   });
-  out.sort(function (a, b) { return b.total - a.total || a.name.localeCompare(b.name, 'ko'); });
+  out.sort(function (a, b) { return b.total - a.total || a.earnedAt - b.earnedAt || a.name.localeCompare(b.name, 'ko'); });
   return json({ result: 'success', top: out.slice(0, 10) });
 }
 
