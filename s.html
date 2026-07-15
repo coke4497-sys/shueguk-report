@@ -520,6 +520,7 @@ function loadGradeGates(){
   ]).then(function(g){
     STATE.mockGrades   = (g[0] && g[0].grades) ? g[0].grades : null;
     STATE.clinicGrades = (g[1] && g[1].grades) ? g[1].grades : null;
+    STATE.clinicTargetType = (g[1] && g[1].targetType) || null;   // 신청 대상 유형(전체/학년/개인/일부)
     STATE.vocaTaken    = (wantVoca && g[2] && typeof g[2].taken !== 'undefined') ? !!g[2].taken : null;
     STATE.mockSignups  = (g[3] && g[3].result==='success' && g[3].signups) ? g[3].signups : null;
     if ($('hubView').style.display !== 'none') renderHub();       // 허브 화면일 때만 새로고침
@@ -727,8 +728,11 @@ function renderHub(){
       return;
     }
     // 클리닉: 이번 주 해당 학년이 아니면 비활성 + 안내
+    // (단, 선생님이 개인·일부로 콕 집어 대상을 지정한 주에는 학년으로 막지 않음 — 대상 여부는 제출 시 서버가 확인)
     if(f.id==='clinic'){
-      if(!gradeEligible(STATE.clinicGrades)){
+      var ctt = STATE.clinicTargetType || '';
+      var clinicPicked = ctt.indexOf('개인')>=0 || ctt.indexOf('일부')>=0;
+      if(!clinicPicked && !gradeEligible(STATE.clinicGrades)){
         html += '<div class="card pending">'+ic+'<h3>'+esc(f.title)+'</h3><p class="desc">이번 주는 해당 학년 클리닉을 운영하지 않아요.</p><span class="tag">이번 주 운영 안 함</span></div>';
         return;
       }
