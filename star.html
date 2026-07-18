@@ -78,8 +78,15 @@
   .mgr-empty{text-align:center;color:#9aa6a0;font-size:13.5px;padding:20px;}
 
   /* TOP 10 순위 */
-  .rk{display:flex;align-items:center;gap:11px;padding:10px 12px;border-bottom:1px solid var(--line-soft);font-size:14.5px;}
-  .rk:last-child{border-bottom:none;}
+  .rk{display:flex;align-items:center;gap:11px;padding:10px 12px;border-bottom:1px solid var(--line-soft);font-size:14.5px;cursor:pointer;}
+  .rk-item:last-child .rk{border-bottom:none;}
+  .rk-detail{display:none;background:#F4F8F5;border-radius:11px;margin:2px 6px 9px;padding:10px 14px;}
+  .rk-item.open .rk-detail{display:block;}
+  .rk-detail ul{list-style:none;margin:0;padding:0;}
+  .rk-detail li{display:flex;align-items:baseline;gap:8px;font-size:13.5px;padding:2.5px 0;}
+  .rk-detail li .lb{flex:1;min-width:0;word-break:keep-all;}
+  .rk-detail li .pt{white-space:nowrap;font-weight:700;color:var(--gold);font-size:13px;}
+  .rk-detail .none{font-size:12.5px;color:#9aa6a0;}
   .rk .no{flex:0 0 34px;text-align:center;font-family:"Gowun Batang",serif;font-weight:700;font-size:1.05rem;color:var(--ink-soft);}
   .rk.top3{background:#FBF6E7;border-radius:11px;border-bottom:none;margin-bottom:2px;}
   .rk .who{font-weight:700;}
@@ -197,6 +204,24 @@
     if(sc && gr) return esc(sc)+' · <span class="nb">'+esc(gr)+'</span>';
     return esc(sc || gr);
   }
+  // 별 획득 내역 (학생 페이지 '내 별은 이렇게 모았어요'와 동일 구성, 0개 항목 숨김)
+  function srcRows(bd){
+    if(!bd) return '<p class="none">내역은 리포트 백엔드 재배포 후 표시돼요.</p>';
+    var srcs = [
+      ['📝','지필 평가지 리포트', bd.exam,   '회', (bd.exam||0)*2],
+      ['🔤','어휘 테스트',        bd.voca,   '회', bd.voca],
+      ['🧪','실전 모의고사 응시', bd.mock,   '회', bd.mock],
+      ['🩺','클리닉 신청',        bd.clinic, '회', bd.clinic],
+      ['📚','H-work 과제',        bd.hwork,  '개', bd.hwork],
+      ['📣','공지 확인',          bd.notice, '건', bd.notice],
+      ['💝','깜짝 보너스',        bd.bonus ? 1 : 0, '', bd.bonus]
+    ].filter(function(s){ return s[2] > 0; });
+    if(!srcs.length) return '<p class="none">아직 획득 내역이 없어요.</p>';
+    return '<ul>'+srcs.map(function(s){
+      var cnt = s[3] ? ' <b>'+s[2]+s[3]+'</b>' : '';
+      return '<li><span class="lb">'+s[0]+' '+s[1]+cnt+'</span><span class="pt">⭐ '+s[4]+'</span></li>';
+    }).join('')+'</ul>';
+  }
   function loadRank(){
     var box=$('rankList');
     box.innerHTML='<div class="mgr-empty">불러오는 중…</div>';
@@ -207,17 +232,25 @@
         if(!d.top.length){ box.innerHTML='<div class="mgr-empty">아직 별을 모은 학생이 없어요.</div>'; return; }
         var medals=['🥇','🥈','🥉'];
         box.innerHTML = d.top.map(function(s,i){
-          return '<div class="rk'+(i<3?' top3':'')+'">'+
+          return '<div class="rk-item">'+
+            '<div class="rk'+(i<3?' top3':'')+'">'+
             '<span class="no">'+(i<3?medals[i]:(i+1))+'</span>'+
             '<span class="who">'+esc(s.name)+'</span>'+
             '<span class="meta">'+metaHtml(s)+'</span>'+
             '<span class="lvl">'+esc(levelName(s.total))+'</span>'+
             '<span class="st2">⭐ '+s.total+'</span>'+
+            '</div>'+
+            '<div class="rk-detail">'+srcRows(s.breakdown)+'</div>'+
             '</div>';
         }).join('');
       })
       .catch(function(){ box.innerHTML='<div class="mgr-empty">순위를 불러오지 못했어요. 인터넷을 확인해 주세요.</div>'; });
   }
+  $('rankList').addEventListener('click', function(e){
+    var row = e.target.closest('.rk'); if(!row) return;
+    var item = row.parentNode;
+    item.classList.toggle('open');
+  });
 
   function loadRoster(){
     fetch(ENDPOINT+'?action=roster&t='+Date.now())

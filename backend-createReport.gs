@@ -932,11 +932,14 @@ function getStarRanking() {
     earnedAt = setMax_(s.exam, earnedAt); earnedAt = setMax_(s.clinic, earnedAt);
     earnedAt = setMax_(s.voca, earnedAt); earnedAt = setMax_(s.hwork, earnedAt);
     earnedAt = setMax_(s.mock, earnedAt); earnedAt = setMax_(s.notice, earnedAt);
-    return { name: s.name, school: s.school, grade: s.grade, earnedAt: earnedAt,
-      total: Object.keys(s.exam).length * STAR_RULES.exam + Object.keys(s.clinic).length * STAR_RULES.clinic
-           + Object.keys(s.voca).length * STAR_RULES.voca + Object.keys(s.hwork).length * STAR_RULES.hwork
-           + Object.keys(s.mock).length * STAR_RULES.mock
-           + Object.keys(s.notice).length * STAR_RULES.notice + s.bonus };
+    var bd = { exam: Object.keys(s.exam).length, clinic: Object.keys(s.clinic).length,
+               voca: Object.keys(s.voca).length, hwork: Object.keys(s.hwork).length,
+               mock: Object.keys(s.mock).length, notice: Object.keys(s.notice).length, bonus: s.bonus };
+    return { name: s.name, school: s.school, grade: s.grade, earnedAt: earnedAt, breakdown: bd,
+      total: bd.exam * STAR_RULES.exam + bd.clinic * STAR_RULES.clinic
+           + bd.voca * STAR_RULES.voca + bd.hwork * STAR_RULES.hwork
+           + bd.mock * STAR_RULES.mock
+           + bd.notice * STAR_RULES.notice + bd.bonus };
   });
   out.sort(function (a, b) { return b.total - a.total || a.earnedAt - b.earnedAt || a.name.localeCompare(b.name, 'ko'); });
   return json({ result: 'success', top: out.slice(0, 10) });
