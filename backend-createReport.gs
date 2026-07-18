@@ -612,13 +612,24 @@ function noticeMatches_(type, target, stu) {
   var tokens = target.split(/[,\n;\/·\s]+/).map(function(s){ return s.trim(); }).filter(Boolean);
   if (!tokens.length) return false;
 
-  // 학년: 학생의 학년 또는 '학교+학년'이 대상 토큰과 일치/포함
+  // 학년: 학생의 학년이 대상 토큰과 일치.
+  // ⚠️ 공백을 구분자로 쓰면 '2026 고등 2학년'이 ['2026','고등','2학년']으로 쪼개져
+  //    '2026'·'고등'이 전 학년에 부분일치 → 전 학년 노출 버그 (2026-07 수정).
+  //    학년 토큰은 쉼표류로만 나누고, 학년 숫자·중/고가 모순되는 토큰은 제외한다.
   if (type.indexOf('학년') >= 0) {
     var g  = stu.grade.replace(/\s+/g, '');
     var sg = (stu.school + stu.grade).replace(/\s+/g, '');
-    return tokens.some(function(t){
+    var gd = gradeDigit_(stu.grade);
+    var lvS = /중/.test(g) ? '중' : (/고/.test(g) ? '고' : '');
+    var gTokens = target.split(/[,\n;\/·]+/).map(function(s){ return s.trim(); }).filter(Boolean);
+    return gTokens.some(function(t){
       var tt = t.replace(/\s+/g, '');
-      return !!tt && (tt === g || sg.indexOf(tt) >= 0 || g.indexOf(tt) >= 0);
+      if (!tt) return false;
+      var td = gradeDigit_(tt);
+      if (td && gd && td !== gd) return false;                    // 학년 숫자 모순 → 제외
+      var lvT = /중/.test(tt) ? '중' : (/고/.test(tt) ? '고' : '');
+      if (lvT && lvS && lvT !== lvS) return false;                // 중·고 모순 → 제외
+      return tt === g || sg.indexOf(tt) >= 0 || g.indexOf(tt) >= 0;
     });
   }
 
