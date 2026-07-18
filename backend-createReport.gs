@@ -803,13 +803,17 @@ function getStarRanking() {
     var tk = String(sv[i][codeCol] || '').trim();
     if (tk) byToken[tk] = k;
   }
-  function resolve(id, nm, school) {
+  function resolve(id, nm, school, grade) {
     id = String(id || '').replace(/^'/, '').trim(); nm = String(nm || '').trim(); school = String(school || '').trim();
     if (id && nm && byIdName[id + '|' + nm] != null) return byIdName[id + '|' + nm];
     var list = nm ? byName[nm] : null;
     if (list && list.length === 1) return list[0];   // 이름이 명단에서 유일 → 학교 표기 차이(오타 등)가 있어도 인정 (개인 페이지와 동일 완화)
-    if (list && list.length > 1) {                   // 동명이인 → 학생ID 우선, 다음 학교로 구분
+    if (list && list.length > 1) {                   // 동명이인 → 학생ID → 학교+학년 → 학교 순으로 구분
       for (var j1 = 0; j1 < list.length; j1++) { if (id && stus[list[j1]].id === id) return list[j1]; }
+      var gd = gradeDigit_(grade);
+      if (gd) { for (var j3 = 0; j3 < list.length; j3++) {
+        if (school && stus[list[j3]].school && schoolMatch_(stus[list[j3]].school, school) && gradeDigit_(stus[list[j3]].grade) === gd) return list[j3];
+      } }
       for (var j2 = 0; j2 < list.length; j2++) { if (school && stus[list[j2]].school && schoolMatch_(stus[list[j2]].school, school)) return list[j2]; }
     }
     if (nm && byBase[nm]) {
@@ -903,7 +907,7 @@ function getStarRanking() {
   if (bsh) {
     var bv = bsh.getDataRange().getValues();
     for (var b2 = 1; b2 < bv.length; b2++) {
-      var kb = resolve(bv[b2][1], bv[b2][2], bv[b2][3]);
+      var kb = resolve(bv[b2][1], bv[b2][2], bv[b2][3], bv[b2].length > 6 ? bv[b2][6] : '');
       if (kb < 0) continue;
       stus[kb].bonus += (parseInt(bv[b2][4], 10) || 0);
       var bt = tsOf_(bv[b2][0]);
@@ -974,7 +978,7 @@ function collectStars_(ss, info, key, siblingShared) {
   var voca   = countVoca_(name);                               // 어휘 제출 수(주차 단위)
   var hwork  = countHwork_(name, String(info.school || ''));   // 과제 제출 수
   var mock   = countMock_(name, String(info.school || ''), sid);   // 모의고사 응시 수(회차 단위)
-  var bonus  = sumBonus_(ss, sid, name, String(info.school || ''));   // {sum, latest}
+  var bonus  = sumBonus_(ss, sid, name, String(info.school || ''), String(info.grade || ''));   // {sum, latest}
   var noticeN = Object.keys(readNoticeChecks_(ss, sid, name, String(info.school || '').trim())).length;   // 공지 확인 수
   var total = exam * STAR_RULES.exam + clinic * STAR_RULES.clinic
             + voca * STAR_RULES.voca + hwork * STAR_RULES.hwork
@@ -1214,9 +1218,18 @@ function idxOfAny_(headerRow, names) {
   return -1;
 }
 
+/** 학년에서 1~3 숫자 추출 — '2026 고등 2학년'·'고3' 등 표기 차이 흡수 (마지막 학년 숫자). */
+function gradeDigit_(s) {
+  s = String(s || '').replace(/\s+/g, '');
+  var m = s.match(/([1-3])학년/) || s.match(/고([1-3])/);
+  if (m) return m[1];
+  var a = s.match(/[1-3]/g);
+  return a ? a[a.length - 1] : '';
+}
+
 /** '별' 탭에서 이 학생의 깜짝 보너스 합계와 최근 1건.
- *  학생ID가 기록된 행은 ID로, 없으면 이름(+학교가 있으면 학교까지)으로 매칭. */
-function sumBonus_(ss, sid, name, school) {
+ *  학생ID가 기록된 행은 ID+이름(쌍둥이는 번호가 같아 이름까지 대조), 없으면 이름+학교(+학년)로 매칭. */
+function sumBonus_(ss, sid, name, school, grade) {
   var out = { sum: 0, latest: null };
   var sh = ss.getSheetByName(TAB_STARS);
   if (!sh) return out;
@@ -1226,10 +1239,14 @@ function sumBonus_(ss, sid, name, school) {
     var rnm = String(v[i][2] || '').trim();
     var rsc = String(v[i][3] || '').trim();
     var match;
-    if (rid) { match = (sid && rid === sid); }
+    if (rid) { match = (sid && rid === sid) && (!rnm || rnm === name); }
     else {
       match = (rnm === name);
       if (match && rsc && school) match = schoolMatch_(rsc, school);   // 동명이인 구분
+      if (match) {                                                     // 같은 학교 동명이인은 학년으로 구분
+        var rg = gradeDigit_(v[i].length > 6 ? v[i][6] : ''), mg = gradeDigit_(grade);
+        if (rg && mg && rg !== mg) match = false;
+      }
     }
     if (!match) continue;
     var n = parseInt(v[i][4], 10) || 0;
@@ -1239,18 +1256,20 @@ function sumBonus_(ss, sid, name, school) {
   return out;
 }
 
-/** '별' 탭이 없으면 만든다. */
+/** '별' 탭이 없으면 만든다. 옛 시트에 '학년'(G열) 머리글이 없으면 추가. */
 function ensureStarsSheet_(ss) {
   var sh = ss.getSheetByName(TAB_STARS);
   if (!sh) {
     sh = ss.insertSheet(TAB_STARS);
-    sh.appendRow(['일시', '학생ID', '이름', '학교', '별', '사유']);
-    sh.getRange(1, 1, 1, 6).setFontWeight('bold').setBackground('#DDE5E1');
+    sh.appendRow(['일시', '학생ID', '이름', '학교', '별', '사유', '학년']);
+    sh.getRange(1, 1, 1, 7).setFontWeight('bold').setBackground('#DDE5E1');
+  } else if (String(sh.getRange(1, 7).getValue() || '').trim() !== '학년') {
+    sh.getRange(1, 7).setValue('학년').setFontWeight('bold').setBackground('#DDE5E1');
   }
   return sh;
 }
 
-/** 깜짝 보너스 부여 (star.html). { pw, name, school, stars, reason } */
+/** 깜짝 보너스 부여 (star.html). { pw, name, school, grade, stars, reason } */
 function addStarBonus(data) {
   if (String(data.pw || '') !== TEACHER_PW) return json({ result: 'error', message: 'unauthorized' });
   var stars = parseInt(data.stars, 10);
@@ -1258,7 +1277,7 @@ function addStarBonus(data) {
   if (!name || !stars || stars < 1 || stars > 50) return json({ result: 'error', message: '학생과 별 개수(1~50)를 확인해주세요.' });
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sh = ensureStarsSheet_(ss);
-  sh.appendRow([new Date(), String(data.id || '').trim() ? "'" + String(data.id).trim() : '', name, String(data.school || '').trim(), stars, String(data.reason || '').trim()]);
+  sh.appendRow([new Date(), String(data.id || '').trim() ? "'" + String(data.id).trim() : '', name, String(data.school || '').trim(), stars, String(data.reason || '').trim(), String(data.grade || '').trim()]);
   return json({ result: 'success' });
 }
 
@@ -1274,6 +1293,7 @@ function getStarLog() {
       out.push({
         rowIndex: i + 1, date: fmtCellDate_(v[i][0]),
         name: String(v[i][2] || '').trim(), school: String(v[i][3] || '').trim(),
+        grade: String(v[i].length > 6 ? v[i][6] : '').trim(),
         stars: parseInt(v[i][4], 10) || 0, reason: String(v[i][5] || '').trim()
       });
     }
@@ -1282,7 +1302,8 @@ function getStarLog() {
   return json({ result: 'success', log: out.slice(0, 50) });
 }
 
-/** 보너스 한 건 삭제(실수 정정용). { pw, rowIndex, name } */
+/** 보너스 한 건 삭제(실수 정정용). { pw, rowIndex, name[, school, stars] }
+ *  이름 + (보내온 경우) 학교·별 개수까지 대조 — 목록이 낡았으면 삭제 대신 안내. */
 function deleteStarBonus(data) {
   if (String(data.pw || '') !== TEACHER_PW) return json({ result: 'error', message: 'unauthorized' });
   var rowIndex = parseInt(data.rowIndex, 10);
@@ -1290,9 +1311,12 @@ function deleteStarBonus(data) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sh = ss.getSheetByName(TAB_STARS);
   if (!sh || rowIndex > sh.getLastRow()) return json({ result: 'error', message: '존재하지 않는 행입니다.' });
-  if (data.name && String(sh.getRange(rowIndex, 3).getValue()).trim() !== String(data.name).trim()) {
-    return json({ result: 'error', message: '목록이 변경되었습니다. 새로고침 후 다시 시도하세요.' });
-  }
+  var stale = false;
+  if (data.name && String(sh.getRange(rowIndex, 3).getValue()).trim() !== String(data.name).trim()) stale = true;
+  if (!stale && data.school != null && String(data.school).trim() &&
+      String(sh.getRange(rowIndex, 4).getValue()).trim() !== String(data.school).trim()) stale = true;
+  if (!stale && data.stars && (parseInt(sh.getRange(rowIndex, 5).getValue(), 10) || 0) !== parseInt(data.stars, 10)) stale = true;
+  if (stale) return json({ result: 'error', message: '목록이 변경되었습니다. 새로고침 후 다시 시도하세요.' });
   sh.deleteRow(rowIndex);
   return json({ result: 'success' });
 }
