@@ -430,6 +430,9 @@ function collectExams_(ss, sid, name, strictName, school, uniq, grade) {
       var phone = String(row[10] || '').trim();
       var nm    = String(row[4]  || '').trim();
       var rsc   = String(row[2]  || '').trim();
+      // 동명이인(uniq=false): 기록의 번호가 본인 번호와 다르면 다른 학생의 것으로 보고 제외.
+      // (번호 오타 허용은 이름이 유일할 때만 — 같은 학교·학년 동명이인은 번호로만 구분 가능)
+      if (!uniq && phone && sid && phone !== sid) continue;
       // 이름+학교 일치(학교는 느슨 비교) — 학생이 부모님 번호를 잘못 적어도 연결되도록.
       // 이름이 유일(uniq)하면 학교 오타까지 허용.
       var nameSchoolOk = (nm === name || (nm !== '' && nm === baseName_(name))) && (uniq || !rsc || !school || schoolMatch_(rsc, school));
@@ -829,10 +832,14 @@ function getStarRanking() {
     }
     if (cands.length > 1) {                          // 동명이인 → 학생ID → 학교+학년 → 학교 순으로 구분
       for (var j1 = 0; j1 < cands.length; j1++) { if (id && stus[cands[j1]].id === id) return cands[j1]; }
+      // 기록의 번호가 후보의 번호와 다르면 그 후보 제외 (같은 학교·학년 동명이인은 번호로만 구분)
+      function idClash(k) { return id && stus[k].id && stus[k].id !== id; }
       if (gd) { for (var j3 = 0; j3 < cands.length; j3++) {
+        if (idClash(cands[j3])) continue;
         if (school && stus[cands[j3]].school && schoolMatch_(stus[cands[j3]].school, school) && gradeDigit_(stus[cands[j3]].grade) === gd) return cands[j3];
       } }
       for (var j2 = 0; j2 < cands.length; j2++) {
+        if (idClash(cands[j2])) continue;
         if (school && stus[cands[j2]].school && schoolMatch_(stus[cands[j2]].school, school)) {
           var kg2 = gradeDigit_(stus[cands[j2]].grade);
           if (!(gd && kg2 && gd !== kg2)) return cands[j2];   // 학년 모순이면 다음 후보로
