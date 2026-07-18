@@ -234,17 +234,17 @@
     var rows = STUDENTS.filter(function(s){ return !q || (s.name&&s.name.indexOf(q)>=0) || (s.school&&s.school.indexOf(q)>=0); });
     if(!rows.length){ $('stuList').innerHTML='<div class="stu-empty">검색 결과가 없어요.</div>'; return; }
     $('stuList').innerHTML = rows.map(function(s){
-      var on = SEL && SEL.name===s.name && SEL.school===s.school;
-      return '<div class="stu-item'+(on?' on':'')+'" data-name="'+esc(s.name)+'" data-school="'+esc(s.school||'')+'">'+
+      var on = SEL && SEL.name===s.name && SEL.school===s.school && SEL.grade===(s.grade||'');
+      return '<div class="stu-item'+(on?' on':'')+'" data-name="'+esc(s.name)+'" data-school="'+esc(s.school||'')+'" data-grade="'+esc(s.grade||'')+'">'+
              esc(s.name)+'<span class="meta">'+metaHtml(s)+'</span></div>';
     }).join('');
   }
   $('search').addEventListener('input', function(){ renderList(this.value); });
   $('stuList').addEventListener('click', function(e){
     var it=e.target.closest('.stu-item'); if(!it) return;
-    var nm=it.getAttribute('data-name'), sc=it.getAttribute('data-school');
-    SEL = (SEL && SEL.name===nm && SEL.school===sc) ? null : { name:nm, school:sc };
-    $('picked').textContent = SEL ? ('✓ '+SEL.name+(SEL.school?' ('+SEL.school+')':'')) : '';
+    var nm=it.getAttribute('data-name'), sc=it.getAttribute('data-school'), gr=it.getAttribute('data-grade');
+    SEL = (SEL && SEL.name===nm && SEL.school===sc && SEL.grade===gr) ? null : { name:nm, school:sc, grade:gr };
+    $('picked').textContent = SEL ? ('✓ '+SEL.name+(SEL.school||SEL.grade?' ('+[SEL.school,SEL.grade].filter(Boolean).join(' · ')+')':'')) : '';
     renderList($('search').value);
   });
 
@@ -268,7 +268,7 @@
     var btn=$('giveBtn'); btn.disabled=true; var label=btn.textContent; btn.textContent='선물하는 중…';
     fetch(ENDPOINT, {
       method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
-      body: JSON.stringify({ action:'addStarBonus', pw:SERVER_PW, name:SEL.name, school:SEL.school, stars:n, reason:$('reason').value.trim() })
+      body: JSON.stringify({ action:'addStarBonus', pw:SERVER_PW, name:SEL.name, school:SEL.school, grade:SEL.grade||'', stars:n, reason:$('reason').value.trim() })
     })
     .then(function(r){ return r.json(); })
     .then(function(res){
@@ -277,7 +277,7 @@
         setStatus('✓ '+SEL.name+' 슈퍼스타에게 별 '+n+'개를 선물했어요!','ok');
         $('reason').value=''; $('amt').value='';
         document.querySelectorAll('#amtRow button').forEach(function(x){ x.classList.remove('on'); });
-        loadLog();
+        loadLog(); loadRank();
       } else {
         setStatus('실패: '+(res.message==='unauthorized'?'권한이 없습니다.':(res.message||'오류')),'err');
       }
@@ -286,6 +286,7 @@
   }
 
   /* 최근 로그 */
+  var LOGS=[];
   function loadLog(){
     var box=$('logList');
     box.innerHTML='<div class="mgr-empty">불러오는 중…</div>';
@@ -294,27 +295,29 @@
       .then(function(d){
         if(!d || d.result!=='success'){ box.innerHTML='<div class="mgr-empty">목록을 불러오지 못했어요.</div>'; return; }
         if(!d.log || !d.log.length){ box.innerHTML='<div class="mgr-empty">아직 선물한 별이 없어요.</div>'; return; }
-        box.innerHTML = d.log.map(function(g){
+        LOGS = d.log;
+        box.innerHTML = d.log.map(function(g,i){
           return '<div class="log-item">'+
             '<span class="st">⭐ '+g.stars+'</span>'+
             '<span class="who">'+esc(g.name)+'</span>'+
             '<span class="rsn">'+esc(g.reason||'')+'</span>'+
             '<span class="dt">'+esc(g.date||'')+'</span>'+
-            '<button type="button" class="del" onclick="delBonus('+g.rowIndex+',\''+esc(g.name).replace(/'/g,"\\'")+'\',this)">삭제</button>'+
+            '<button type="button" class="del" onclick="delBonus('+i+',this)">삭제</button>'+
             '</div>';
         }).join('');
       })
       .catch(function(){ box.innerHTML='<div class="mgr-empty">목록을 불러오지 못했어요.</div>'; });
   }
-  function delBonus(rowIndex, name, btn){
-    if(!confirm(name+' 학생에게 준 이 별을 삭제할까요?')) return;
+  function delBonus(i, btn){
+    var g=LOGS[i]; if(!g) return;
+    if(!confirm(g.name+' 학생에게 준 별 '+g.stars+'개를 삭제할까요?')) return;
     btn.disabled=true;
     fetch(ENDPOINT, {
       method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
-      body: JSON.stringify({ action:'deleteStarBonus', pw:SERVER_PW, rowIndex:rowIndex, name:name })
+      body: JSON.stringify({ action:'deleteStarBonus', pw:SERVER_PW, rowIndex:g.rowIndex, name:g.name, school:g.school||'', stars:g.stars })
     })
     .then(function(r){ return r.json(); })
-    .then(function(res){ if(res.result==='success'){ loadLog(); } else { btn.disabled=false; alert('삭제 실패: '+(res.message||'오류')); } })
+    .then(function(res){ if(res.result==='success'){ loadLog(); loadRank(); } else { btn.disabled=false; alert('삭제 실패: '+(res.message||'오류')); } })
     .catch(function(){ btn.disabled=false; alert('삭제 실패 — 인터넷을 확인해 주세요.'); });
   }
 </script>
