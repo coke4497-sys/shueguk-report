@@ -313,12 +313,14 @@ function getStudent(opts) {
   }
   var siblingShared = shareCount > 1;
 
-  // 동명이인 여부: 같은 이름의 재원 학생이 2명 이상이면 true.
+  // 동명이인 여부: 접미사를 뗀 이름(이승준A→이승준)이 같은 재원 학생이 2명 이상이면 true.
   // 모의고사 신청·성적 조회에서 '이름이 유일하면 8자리 오타가 있어도 매칭'하기 위한 신호
   // (신청서·OMR에 번호를 잘못 적는 경우가 있어, 동명이인일 때만 ID를 엄격 대조).
-  var nameDupCount = 0;
+  // 접미사 등록(이승준A/B/C)도 실명 제출 기록은 '이승준'으로 오므로 같은 가족으로 센다.
+  var myBase = baseName_(info.name), nameDupCount = 0;
   for (var n3 = 1; n3 < sv.length; n3++) {
-    if (String(sv[n3][1] || '').trim() !== info.name) continue;
+    var rn3 = String(sv[n3][1] || '').trim();
+    if (!rn3 || baseName_(rn3) !== myBase) continue;
     if (/^(퇴원|n|no|off|x|중단|비재원)$/i.test(String(sv[n3][10] || '').trim())) continue;
     nameDupCount++;
   }
@@ -334,7 +336,7 @@ function getStudent(opts) {
   // 배정된 H WORK: 이 학생에게 배정된 과제만 (학생 개인 페이지용)
   resp.homework = collectAssignments_(ss, info, key, 'H WORK');
   // 제출 여부 표시: H WORK '제출기록'과 대조해 각 과제에 done을 붙인다
-  var hwDone = hworkDoneSet_(info.name, String(info.school || '').trim());
+  var hwDone = hworkDoneSet_(info.name, String(info.school || '').trim(), String(info.grade || ''));
   resp.homework.forEach(function(h){
     var t = String(h.teacher || '').trim(), c = String(h.code || '').trim();
     h.done = !!(hwDone.byKey[t + '|' + c] || (!t && hwDone.byCode[c]));
@@ -817,31 +819,24 @@ function getStarRanking() {
     id = String(id || '').replace(/^'/, '').trim(); nm = String(nm || '').trim(); school = String(school || '').trim();
     if (id && nm && byIdName[id + '|' + nm] != null) return byIdName[id + '|' + nm];
     var gd = gradeDigit_(grade);
-    var list = nm ? byName[nm] : null;
-    if (list && list.length === 1) {
+    // 후보 = 정확 이름 일치 + 접미사 이름(이승준A/B/C ← 실명 '이승준' 기록) — 한 목록으로 합쳐 같은 규칙 적용
+    var cands = nm ? (byName[nm] || []).concat(byBase[nm] || []) : [];
+    if (cands.length === 1) {
       // 이름이 명단에서 유일 → 학교 표기 차이(오타 등)가 있어도 인정 (개인 페이지와 동일 완화).
       // 단 기록의 학년이 그 학생의 학년과 모순되면 명단 밖 동명이인으로 보고 불인정.
-      var kg = gradeDigit_(stus[list[0]].grade);
-      if (!(gd && kg && gd !== kg)) return list[0];
+      var kg = gradeDigit_(stus[cands[0]].grade);
+      if (!(gd && kg && gd !== kg)) return cands[0];
     }
-    if (list && list.length > 1) {                   // 동명이인 → 학생ID → 학교+학년 → 학교 순으로 구분
-      for (var j1 = 0; j1 < list.length; j1++) { if (id && stus[list[j1]].id === id) return list[j1]; }
-      if (gd) { for (var j3 = 0; j3 < list.length; j3++) {
-        if (school && stus[list[j3]].school && schoolMatch_(stus[list[j3]].school, school) && gradeDigit_(stus[list[j3]].grade) === gd) return list[j3];
+    if (cands.length > 1) {                          // 동명이인 → 학생ID → 학교+학년 → 학교 순으로 구분
+      for (var j1 = 0; j1 < cands.length; j1++) { if (id && stus[cands[j1]].id === id) return cands[j1]; }
+      if (gd) { for (var j3 = 0; j3 < cands.length; j3++) {
+        if (school && stus[cands[j3]].school && schoolMatch_(stus[cands[j3]].school, school) && gradeDigit_(stus[cands[j3]].grade) === gd) return cands[j3];
       } }
-      for (var j2 = 0; j2 < list.length; j2++) {
-        if (school && stus[list[j2]].school && schoolMatch_(stus[list[j2]].school, school)) {
-          var kg2 = gradeDigit_(stus[list[j2]].grade);
-          if (!(gd && kg2 && gd !== kg2)) return list[j2];   // 학년 모순이면 다음 후보로
+      for (var j2 = 0; j2 < cands.length; j2++) {
+        if (school && stus[cands[j2]].school && schoolMatch_(stus[cands[j2]].school, school)) {
+          var kg2 = gradeDigit_(stus[cands[j2]].grade);
+          if (!(gd && kg2 && gd !== kg2)) return cands[j2];   // 학년 모순이면 다음 후보로
         }
-      }
-    }
-    if (nm && byBase[nm]) {
-      var c = byBase[nm];
-      if (c.length === 1) return c[0];
-      for (var j = 0; j < c.length; j++) {
-        if (id && stus[c[j]].id === id) return c[j];
-        if (school && schoolMatch_(stus[c[j]].school, school)) return c[j];
       }
     }
     if (id && byId[id] != null && idCount[id] === 1) return byId[id];
@@ -1000,7 +995,7 @@ function collectStars_(ss, info, key, siblingShared) {
   var grade = String(info.grade || '');
   var exam   = countExams_(ss, sid, name, siblingShared, String(info.school || '').trim(), uniq, grade);   // 지필 평가지 제출 수
   var clinic = countClinicApps_(key, sid);                     // 클리닉 신청 수(신청 단위)
-  var voca   = countVoca_(name, grade);                        // 어휘 제출 수(주차 단위)
+  var voca   = countVoca_(name, grade, String(info.school || ''), uniq);   // 어휘 제출 수(주차 단위)
   var hwork  = countHwork_(name, String(info.school || ''), uniq, grade);   // 과제 제출 수
   var mock   = countMock_(name, String(info.school || ''), sid, uniq, grade);   // 모의고사 응시 수(회차 단위)
   var bonus  = sumBonus_(ss, sid, name, String(info.school || ''), String(info.grade || ''), uniq);   // {sum, latest}
@@ -1152,10 +1147,11 @@ function countClinicApps_(token, sid) {
 }
 
 /** 어휘 제출 수 — 어휘 결과 시트에서 이름이 일치하는 행의 주차(round)를 중복 없이 센다.
+ *  접미사 이름(이승준A)은 실명(이승준) 기록도 인정. 동명이인(uniq=false)은 학교까지 대조.
  *  학년 모순 기록은 명단 밖 동명이인으로 보고 불인정. */
-function countVoca_(name, grade) {
+function countVoca_(name, grade, school, uniq) {
   if (!VOCA_SHEET_ID || !name) return 0;
-  var myGd = gradeDigit_(grade);
+  var myGd = gradeDigit_(grade), base = baseName_(name);
   var sh;
   try { sh = SpreadsheetApp.openById(VOCA_SHEET_ID).getSheets()[0]; }
   catch (e) { return 0; }
@@ -1163,11 +1159,16 @@ function countVoca_(name, grade) {
   var v = sh.getDataRange().getValues();
   if (v.length < 2) return 0;
   var H = v[0].map(function (h) { return String(h || '').trim().toLowerCase(); });
-  var iName = idxOfAny_(H, ['name', '이름']), iRound = idxOfAny_(H, ['round', '주차', '회차']), iGrade = idxOfAny_(H, ['grade', '학년']);
+  var iName = idxOfAny_(H, ['name', '이름']), iRound = idxOfAny_(H, ['round', '주차', '회차']), iGrade = idxOfAny_(H, ['grade', '학년']), iSchool = idxOfAny_(H, ['school', '학교']);
   if (iName < 0) return 0;
   var rounds = {}, n = 0;
   for (var i = 1; i < v.length; i++) {
-    if (String(v[i][iName] || '').trim() !== name) continue;
+    var rn = String(v[i][iName] || '').trim();
+    if (rn !== name && rn !== base) continue;
+    if (!uniq && school && iSchool >= 0) {
+      var rs = String(v[i][iSchool] || '').trim();
+      if (rs && !schoolMatch_(rs, school)) continue;
+    }
     if (myGd && iGrade >= 0) {
       var rGd = gradeDigit_(v[i][iGrade]);
       if (rGd && rGd !== myGd) continue;
@@ -1180,7 +1181,7 @@ function countVoca_(name, grade) {
 
 /** 과제(H WORK) 제출 수 — '강사|제목' 단위 중복 제거(같은 과제 재제출은 1개). HWORK_SHEET_ID 비면 0.
  *  탭 이름(HWORK_TAB)이 비어 있으면 '제출시각'+'이름' 머리글이 있는 제출 기록 탭을 자동으로 찾는다.
- *  uniq=true(이름 유일)면 학교 표기 차이 허용. 학년 모순 기록은 불인정. */
+ *  uniq=true(이름 유일)면 학교 표기 차이 허용. 접미사 이름은 실명 기록도 인정. 학년 모순 기록은 불인정. */
 function countHwork_(name, school, uniq, grade) {
   if (!HWORK_SHEET_ID || !name) return 0;
   var sh = null;
@@ -1204,9 +1205,10 @@ function countHwork_(name, school, uniq, grade) {
   var iName = idxOfAny_(H, ['name', '이름']), iSchool = idxOfAny_(H, ['school', '학교']);
   var iTitle = idxOfAny_(H, ['제목', 'title']), iTeach = idxOfAny_(H, ['강사']), iGrade = idxOfAny_(H, ['학년', 'grade']);
   if (iName < 0) return 0;
-  var set = {}, myGd = gradeDigit_(grade);
+  var set = {}, myGd = gradeDigit_(grade), base = baseName_(name);
   for (var i = 1; i < v.length; i++) {
-    if (String(v[i][iName] || '').trim() !== name) continue;
+    var rn = String(v[i][iName] || '').trim();
+    if (rn !== name && rn !== base) continue;
     if (myGd && iGrade >= 0) {
       var rGd = gradeDigit_(v[i][iGrade]);
       if (rGd && rGd !== myGd) continue;
@@ -1222,8 +1224,9 @@ function countHwork_(name, school, uniq, grade) {
 }
 
 /** 이 학생이 제출한 H WORK 집합 — '제출기록'에서 이름(+학교 보조) 매칭.
+ *  접미사 이름은 실명 기록도 인정, 학년 모순 기록은 제외.
  *  byKey: '강사|제목' / byCode: '제목' (배정 항목에 강사가 없을 때 보조) */
-function hworkDoneSet_(name, school) {
+function hworkDoneSet_(name, school, grade) {
   var out = { byKey: {}, byCode: {} };
   if (!HWORK_SHEET_ID || !name) return out;
   var sh;
@@ -1235,11 +1238,17 @@ function hworkDoneSet_(name, school) {
   var v = sh.getDataRange().getValues();
   if (v.length < 2) return out;
   var H = v[0].map(function (h) { return String(h || '').trim(); });
-  var iT = H.indexOf('강사'), iC = H.indexOf('제목'), iN = H.indexOf('이름'), iS = H.indexOf('학교');
+  var iT = H.indexOf('강사'), iC = H.indexOf('제목'), iN = H.indexOf('이름'), iS = H.indexOf('학교'), iG = H.indexOf('학년');
   if (iC < 0 || iN < 0) return out;
   var sc = String(school || '').replace(/\s+/g, '');
+  var base = baseName_(name), myGd = gradeDigit_(grade);
   for (var i = 1; i < v.length; i++) {
-    if (String(v[i][iN] || '').trim() !== name) continue;
+    var rn = String(v[i][iN] || '').trim();
+    if (rn !== name && rn !== base) continue;
+    if (myGd && iG >= 0) {
+      var rGd = gradeDigit_(v[i][iG]);
+      if (rGd && rGd !== myGd) continue;
+    }
     if (sc && iS >= 0) {
       var rs = String(v[i][iS] || '').replace(/\s+/g, '');
       if (rs && rs.indexOf(sc) < 0 && sc.indexOf(rs) < 0) continue;
