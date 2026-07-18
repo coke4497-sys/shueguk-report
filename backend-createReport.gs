@@ -351,7 +351,7 @@ function getStudent(opts) {
   var vwk = configVal_(ss, '어휘 주차', '');
   resp.vocaWeek = vwk ? parseInt(vwk, 10) : null;
   if (authed) {
-    var exams = collectExams_(ss, sid, info.name, siblingShared, String(info.school || '').trim(), !info.nameDup);
+    var exams = collectExams_(ss, sid, info.name, siblingShared, String(info.school || '').trim(), !info.nameDup, String(info.grade || ''));
     // 각 시험에 보고서 상세(시험범위·총평·문항)를 붙여 PDF/HTML 리포트와 동일하게 표시
     var idx = getReportsIndex_(ss);
     exams.forEach(function(x){
@@ -412,8 +412,11 @@ function getReportsIndex_(ss) {
 /** 제출결과에서 이 학생의 시험 기록을 모은다(최신순).
  *  기본: 부모님번호 매칭(옛 기록은 이름 보조). 단 strictName=true(형제가 같은 번호 공유)면
  *  번호가 같아도 이름까지 일치해야 인정 → 형제 성적이 섞이지 않는다.
- *  uniq=true(이름이 명단에서 유일)면 학교 표기 차이(오타 등)가 있어도 인정 — TOP10 순위와 동일 규칙. */
-function collectExams_(ss, sid, name, strictName, school, uniq) {
+ *  uniq=true(이름이 명단에서 유일)면 학교 표기 차이(오타 등)가 있어도 인정 — TOP10 순위와 동일 규칙.
+ *  단, 기록의 학년이 학생의 학년(grade)과 모순되면 명단 밖 동명이인으로 보고 불인정
+ *  (번호가 정확히 일치하는 기록은 본인 확실 → 예외). */
+function collectExams_(ss, sid, name, strictName, school, uniq, grade) {
+  var myGd = gradeDigit_(grade);
   var exams = [];
   var rSh = ss.getSheetByName(TAB_RESULT);
   if (rSh) {
@@ -436,6 +439,11 @@ function collectExams_(ss, sid, name, strictName, school, uniq) {
         match = (phone && phone === sid) || nameSchoolOk;
       }
       if (!match) continue;
+      // 학년 모순 차단: 번호가 정확히 일치하지 않는 기록이 학년까지 다르면 다른 동명이인의 것
+      if (!(phone && sid && phone === sid) && myGd) {
+        var rGd = gradeDigit_(row[3]);
+        if (rGd && rGd !== myGd) continue;
+      }
       exams.push({
         submittedAt: row[0] ? Utilities.formatDate(new Date(row[0]), 'GMT+9', 'yyyy-MM-dd HH:mm') : '',
         title:       String(row[1] || ''),
@@ -453,9 +461,9 @@ function collectExams_(ss, sid, name, strictName, school, uniq) {
   return exams;
 }
 
-function countExams_(ss, sid, name, strictName, school, uniq) {
+function countExams_(ss, sid, name, strictName, school, uniq, grade) {
   // 시험명 단위 중복 제거 — 같은 리포트를 여러 번 제출해도 별은 시험당 1회분(×2)만.
-  var list = collectExams_(ss, sid, name, strictName, school, uniq);
+  var list = collectExams_(ss, sid, name, strictName, school, uniq, grade);
   var set = {};
   for (var i = 0; i < list.length; i++) {
     var t = String(list[i].title || '').replace(/\s+/g, '');
@@ -808,15 +816,25 @@ function getStarRanking() {
   function resolve(id, nm, school, grade) {
     id = String(id || '').replace(/^'/, '').trim(); nm = String(nm || '').trim(); school = String(school || '').trim();
     if (id && nm && byIdName[id + '|' + nm] != null) return byIdName[id + '|' + nm];
+    var gd = gradeDigit_(grade);
     var list = nm ? byName[nm] : null;
-    if (list && list.length === 1) return list[0];   // 이름이 명단에서 유일 → 학교 표기 차이(오타 등)가 있어도 인정 (개인 페이지와 동일 완화)
+    if (list && list.length === 1) {
+      // 이름이 명단에서 유일 → 학교 표기 차이(오타 등)가 있어도 인정 (개인 페이지와 동일 완화).
+      // 단 기록의 학년이 그 학생의 학년과 모순되면 명단 밖 동명이인으로 보고 불인정.
+      var kg = gradeDigit_(stus[list[0]].grade);
+      if (!(gd && kg && gd !== kg)) return list[0];
+    }
     if (list && list.length > 1) {                   // 동명이인 → 학생ID → 학교+학년 → 학교 순으로 구분
       for (var j1 = 0; j1 < list.length; j1++) { if (id && stus[list[j1]].id === id) return list[j1]; }
-      var gd = gradeDigit_(grade);
       if (gd) { for (var j3 = 0; j3 < list.length; j3++) {
         if (school && stus[list[j3]].school && schoolMatch_(stus[list[j3]].school, school) && gradeDigit_(stus[list[j3]].grade) === gd) return list[j3];
       } }
-      for (var j2 = 0; j2 < list.length; j2++) { if (school && stus[list[j2]].school && schoolMatch_(stus[list[j2]].school, school)) return list[j2]; }
+      for (var j2 = 0; j2 < list.length; j2++) {
+        if (school && stus[list[j2]].school && schoolMatch_(stus[list[j2]].school, school)) {
+          var kg2 = gradeDigit_(stus[list[j2]].grade);
+          if (!(gd && kg2 && gd !== kg2)) return list[j2];   // 학년 모순이면 다음 후보로
+        }
+      }
     }
     if (nm && byBase[nm]) {
       var c = byBase[nm];
@@ -843,7 +861,7 @@ function getStarRanking() {
     var rv = rSh.getDataRange().getValues();
     for (var r = 1; r < rv.length; r++) {
       if (!rv[r][4]) continue;
-      var kr = resolve(rv[r][10], rv[r][4], rv[r][2]);
+      var kr = resolve(rv[r][10], rv[r][4], rv[r][2], rv[r][3]);
       if (kr >= 0) mark_(stus[kr].exam, String(rv[r][1] || '').replace(/\s+/g, '') || ('r' + r), tsOf_(rv[r][0]));
     }
   }
@@ -867,9 +885,9 @@ function getStarRanking() {
     var vsh = SpreadsheetApp.openById(VOCA_SHEET_ID).getSheets()[0];
     var vv = vsh.getDataRange().getValues();
     var VH = vv[0].map(function (h) { return String(h || '').trim().toLowerCase(); });
-    var vN = idxOfAny_(VH, ['name', '이름']), vR = idxOfAny_(VH, ['round', '주차', '회차']), vS = idxOfAny_(VH, ['school', '학교']), vT = idxOfAny_(VH, ['time', '제출시각', '일시']);
+    var vN = idxOfAny_(VH, ['name', '이름']), vR = idxOfAny_(VH, ['round', '주차', '회차']), vS = idxOfAny_(VH, ['school', '학교']), vT = idxOfAny_(VH, ['time', '제출시각', '일시']), vG = idxOfAny_(VH, ['grade', '학년']);
     if (vN >= 0) for (var v2 = 1; v2 < vv.length; v2++) {
-      var kv = resolve('', vv[v2][vN], vS >= 0 ? vv[v2][vS] : '');
+      var kv = resolve('', vv[v2][vN], vS >= 0 ? vv[v2][vS] : '', vG >= 0 ? vv[v2][vG] : '');
       if (kv < 0) continue;
       mark_(stus[kv].voca, vR >= 0 ? String(vv[v2][vR] || '').trim() : String(v2), tsOf_(vT >= 0 ? vv[v2][vT] : ''));
     }
@@ -882,9 +900,9 @@ function getStarRanking() {
       var hv = hsh.getDataRange().getValues();
       var HH = hv[0].map(function (h) { return String(h || '').trim().toLowerCase(); });
       var hN = idxOfAny_(HH, ['name', '이름']), hS = idxOfAny_(HH, ['school', '학교']);
-      var hC = idxOfAny_(HH, ['제목', 'title']), hT = idxOfAny_(HH, ['강사']), hTs = idxOfAny_(HH, ['제출시각', '제출일시', 'time', '일시']);
+      var hC = idxOfAny_(HH, ['제목', 'title']), hT = idxOfAny_(HH, ['강사']), hTs = idxOfAny_(HH, ['제출시각', '제출일시', 'time', '일시']), hG = idxOfAny_(HH, ['학년', 'grade']);
       if (hN >= 0) for (var h2 = 1; h2 < hv.length; h2++) {
-        var kh = resolve('', hv[h2][hN], hS >= 0 ? hv[h2][hS] : '');
+        var kh = resolve('', hv[h2][hN], hS >= 0 ? hv[h2][hS] : '', hG >= 0 ? hv[h2][hG] : '');
         if (kh < 0) continue;
         var ht = hC >= 0 ? String(hv[h2][hC] || '').trim() : '';
         mark_(stus[kh].hwork, ht ? ((hT >= 0 ? String(hv[h2][hT] || '').trim() : '') + '|' + ht) : ('r' + h2), tsOf_(hTs >= 0 ? hv[h2][hTs] : ''));
@@ -896,9 +914,9 @@ function getStarRanking() {
     var osh = SpreadsheetApp.openById(OMR_SHEET_ID).getSheetByName(OMR_TAB);
     if (osh && osh.getLastRow() > 1) {
       var ov = osh.getDataRange().getValues(), OH = ov[0];
-      var oId = OH.indexOf('학생ID'), oN = OH.indexOf('이름'), oS = OH.indexOf('학교'), oE = OH.indexOf('회차'), oT = OH.indexOf('제출시각');
+      var oId = OH.indexOf('학생ID'), oN = OH.indexOf('이름'), oS = OH.indexOf('학교'), oE = OH.indexOf('회차'), oT = OH.indexOf('제출시각'), oG = OH.indexOf('학년');
       if (oN >= 0) for (var o2 = 1; o2 < ov.length; o2++) {
-        var ko = resolve(oId >= 0 ? ov[o2][oId] : '', ov[o2][oN], oS >= 0 ? ov[o2][oS] : '');
+        var ko = resolve(oId >= 0 ? ov[o2][oId] : '', ov[o2][oN], oS >= 0 ? ov[o2][oS] : '', oG >= 0 ? ov[o2][oG] : '');
         if (ko < 0) continue;
         mark_(stus[ko].mock, (oE >= 0 && String(ov[o2][oE] || '').trim()) || String(o2), tsOf_(oT >= 0 ? ov[o2][oT] : ''));
       }
@@ -979,11 +997,12 @@ function collectStars_(ss, info, key, siblingShared) {
   var sid  = String(info.id   || '').trim();
   var name = String(info.name || '').trim();
   var uniq = !info.nameDup;   // 이름이 명단에서 유일 → 학교 표기 차이 허용 (TOP10 순위와 동일 규칙)
-  var exam   = countExams_(ss, sid, name, siblingShared, String(info.school || '').trim(), uniq);   // 지필 평가지 제출 수
+  var grade = String(info.grade || '');
+  var exam   = countExams_(ss, sid, name, siblingShared, String(info.school || '').trim(), uniq, grade);   // 지필 평가지 제출 수
   var clinic = countClinicApps_(key, sid);                     // 클리닉 신청 수(신청 단위)
-  var voca   = countVoca_(name);                               // 어휘 제출 수(주차 단위)
-  var hwork  = countHwork_(name, String(info.school || ''), uniq);   // 과제 제출 수
-  var mock   = countMock_(name, String(info.school || ''), sid, uniq);   // 모의고사 응시 수(회차 단위)
+  var voca   = countVoca_(name, grade);                        // 어휘 제출 수(주차 단위)
+  var hwork  = countHwork_(name, String(info.school || ''), uniq, grade);   // 과제 제출 수
+  var mock   = countMock_(name, String(info.school || ''), sid, uniq, grade);   // 모의고사 응시 수(회차 단위)
   var bonus  = sumBonus_(ss, sid, name, String(info.school || ''), String(info.grade || ''), uniq);   // {sum, latest}
   var noticeN = Object.keys(readNoticeChecks_(ss, sid, name, String(info.school || '').trim(), uniq)).length;   // 공지 확인 수
   var total = exam * STAR_RULES.exam + clinic * STAR_RULES.clinic
@@ -999,16 +1018,16 @@ function collectStars_(ss, info, key, siblingShared) {
 
 /** 주말 모의고사 응시 수(회차 단위 — 같은 회차 중복 제출은 1개).
  *  이름+학교 1차(느슨 비교), 학생ID(부모님 8자리)는 동명이인 구분 보조 (studentReports와 동일 규칙).
- *  uniq=true(이름 유일)면 학교·ID 오타가 있어도 인정. */
-function countMock_(name, school, sid, uniq) {
+ *  uniq=true(이름 유일)면 학교·ID 오타가 있어도 인정. 단 학년 모순 기록은 불인정(ID 정확 일치는 예외). */
+function countMock_(name, school, sid, uniq, grade) {
   if (!OMR_SHEET_ID || !name) return 0;
-  var set = {};
+  var set = {}, myGd = gradeDigit_(grade);
   try {
     var sh = SpreadsheetApp.openById(OMR_SHEET_ID).getSheetByName(OMR_TAB);
     if (!sh || sh.getLastRow() < 2) return 0;
     var v = sh.getDataRange().getValues();
     var H = v[0];
-    var iId = H.indexOf('학생ID'), iN = H.indexOf('이름'), iS = H.indexOf('학교'), iE = H.indexOf('회차');
+    var iId = H.indexOf('학생ID'), iN = H.indexOf('이름'), iS = H.indexOf('학교'), iE = H.indexOf('회차'), iG = H.indexOf('학년');
     if (iN < 0) return 0;
     for (var i = 1; i < v.length; i++) {
       var rn = String(v[i][iN] || '').trim();
@@ -1017,6 +1036,10 @@ function countMock_(name, school, sid, uniq) {
       if (!uniq && school && rs && !schoolMatch_(rs, school)) continue;
       var rid = iId >= 0 ? String(v[i][iId] || '').replace(/^'/, '').trim() : '';
       if (!uniq && rid && sid && rid !== sid) continue;   // 동명이인 구분(양쪽에 ID 있을 때만)
+      if (!(rid && sid && rid === sid) && myGd && iG >= 0) {   // 학년 모순 차단 (명단 밖 동명이인)
+        var rGd = gradeDigit_(v[i][iG]);
+        if (rGd && rGd !== myGd) continue;
+      }
       set[(iE >= 0 && String(v[i][iE] || '').trim()) || String(i)] = true;
     }
   } catch (e) {}
@@ -1128,9 +1151,11 @@ function countClinicApps_(token, sid) {
   return Object.keys(apps).length;
 }
 
-/** 어휘 제출 수 — 어휘 결과 시트에서 이름이 일치하는 행의 주차(round)를 중복 없이 센다. */
-function countVoca_(name) {
+/** 어휘 제출 수 — 어휘 결과 시트에서 이름이 일치하는 행의 주차(round)를 중복 없이 센다.
+ *  학년 모순 기록은 명단 밖 동명이인으로 보고 불인정. */
+function countVoca_(name, grade) {
   if (!VOCA_SHEET_ID || !name) return 0;
+  var myGd = gradeDigit_(grade);
   var sh;
   try { sh = SpreadsheetApp.openById(VOCA_SHEET_ID).getSheets()[0]; }
   catch (e) { return 0; }
@@ -1138,11 +1163,15 @@ function countVoca_(name) {
   var v = sh.getDataRange().getValues();
   if (v.length < 2) return 0;
   var H = v[0].map(function (h) { return String(h || '').trim().toLowerCase(); });
-  var iName = idxOfAny_(H, ['name', '이름']), iRound = idxOfAny_(H, ['round', '주차', '회차']);
+  var iName = idxOfAny_(H, ['name', '이름']), iRound = idxOfAny_(H, ['round', '주차', '회차']), iGrade = idxOfAny_(H, ['grade', '학년']);
   if (iName < 0) return 0;
   var rounds = {}, n = 0;
   for (var i = 1; i < v.length; i++) {
     if (String(v[i][iName] || '').trim() !== name) continue;
+    if (myGd && iGrade >= 0) {
+      var rGd = gradeDigit_(v[i][iGrade]);
+      if (rGd && rGd !== myGd) continue;
+    }
     if (iRound >= 0) { rounds[String(v[i][iRound] || '').trim()] = true; }
     else { n++; }
   }
@@ -1151,8 +1180,8 @@ function countVoca_(name) {
 
 /** 과제(H WORK) 제출 수 — '강사|제목' 단위 중복 제거(같은 과제 재제출은 1개). HWORK_SHEET_ID 비면 0.
  *  탭 이름(HWORK_TAB)이 비어 있으면 '제출시각'+'이름' 머리글이 있는 제출 기록 탭을 자동으로 찾는다.
- *  uniq=true(이름 유일)면 학교 표기 차이 허용. */
-function countHwork_(name, school, uniq) {
+ *  uniq=true(이름 유일)면 학교 표기 차이 허용. 학년 모순 기록은 불인정. */
+function countHwork_(name, school, uniq, grade) {
   if (!HWORK_SHEET_ID || !name) return 0;
   var sh = null;
   try {
@@ -1173,11 +1202,15 @@ function countHwork_(name, school, uniq) {
   if (v.length < 2) return 0;
   var H = v[0].map(function (h) { return String(h || '').trim().toLowerCase(); });
   var iName = idxOfAny_(H, ['name', '이름']), iSchool = idxOfAny_(H, ['school', '학교']);
-  var iTitle = idxOfAny_(H, ['제목', 'title']), iTeach = idxOfAny_(H, ['강사']);
+  var iTitle = idxOfAny_(H, ['제목', 'title']), iTeach = idxOfAny_(H, ['강사']), iGrade = idxOfAny_(H, ['학년', 'grade']);
   if (iName < 0) return 0;
-  var set = {};
+  var set = {}, myGd = gradeDigit_(grade);
   for (var i = 1; i < v.length; i++) {
     if (String(v[i][iName] || '').trim() !== name) continue;
+    if (myGd && iGrade >= 0) {
+      var rGd = gradeDigit_(v[i][iGrade]);
+      if (rGd && rGd !== myGd) continue;
+    }
     if (!uniq && school && iSchool >= 0) {
       var sc = String(v[i][iSchool] || '').replace(/\s+/g, '');
       if (sc && school.replace(/\s+/g, '') && sc.indexOf(school.replace(/\s+/g, '')) < 0 && school.replace(/\s+/g, '').indexOf(sc) < 0) continue;
