@@ -351,7 +351,7 @@ function getStudent(opts) {
   var vwk = configVal_(ss, '어휘 주차', '');
   resp.vocaWeek = vwk ? parseInt(vwk, 10) : null;
   if (authed) {
-    var exams = collectExams_(ss, sid, info.name, siblingShared, String(info.school || '').trim());
+    var exams = collectExams_(ss, sid, info.name, siblingShared, String(info.school || '').trim(), !info.nameDup);
     // 각 시험에 보고서 상세(시험범위·총평·문항)를 붙여 PDF/HTML 리포트와 동일하게 표시
     var idx = getReportsIndex_(ss);
     exams.forEach(function(x){
@@ -411,8 +411,9 @@ function getReportsIndex_(ss) {
 
 /** 제출결과에서 이 학생의 시험 기록을 모은다(최신순).
  *  기본: 부모님번호 매칭(옛 기록은 이름 보조). 단 strictName=true(형제가 같은 번호 공유)면
- *  번호가 같아도 이름까지 일치해야 인정 → 형제 성적이 섞이지 않는다. */
-function collectExams_(ss, sid, name, strictName, school) {
+ *  번호가 같아도 이름까지 일치해야 인정 → 형제 성적이 섞이지 않는다.
+ *  uniq=true(이름이 명단에서 유일)면 학교 표기 차이(오타 등)가 있어도 인정 — TOP10 순위와 동일 규칙. */
+function collectExams_(ss, sid, name, strictName, school, uniq) {
   var exams = [];
   var rSh = ss.getSheetByName(TAB_RESULT);
   if (rSh) {
@@ -424,8 +425,9 @@ function collectExams_(ss, sid, name, strictName, school) {
       var phone = String(row[10] || '').trim();
       var nm    = String(row[4]  || '').trim();
       var rsc   = String(row[2]  || '').trim();
-      // 이름+학교 일치(학교는 느슨 비교) — 학생이 부모님 번호를 잘못 적어도 연결되도록
-      var nameSchoolOk = (nm === name || (nm !== '' && nm === baseName_(name))) && (!rsc || !school || schoolMatch_(rsc, school));
+      // 이름+학교 일치(학교는 느슨 비교) — 학생이 부모님 번호를 잘못 적어도 연결되도록.
+      // 이름이 유일(uniq)하면 학교 오타까지 허용.
+      var nameSchoolOk = (nm === name || (nm !== '' && nm === baseName_(name))) && (uniq || !rsc || !school || schoolMatch_(rsc, school));
       var match;
       if (strictName) {
         // 같은 번호를 형제가 공유 → 번호+이름이 모두 같거나, 이름+학교가 일치해야 인정
@@ -451,9 +453,9 @@ function collectExams_(ss, sid, name, strictName, school) {
   return exams;
 }
 
-function countExams_(ss, sid, name, strictName, school) {
+function countExams_(ss, sid, name, strictName, school, uniq) {
   // 시험명 단위 중복 제거 — 같은 리포트를 여러 번 제출해도 별은 시험당 1회분(×2)만.
-  var list = collectExams_(ss, sid, name, strictName, school);
+  var list = collectExams_(ss, sid, name, strictName, school, uniq);
   var set = {};
   for (var i = 0; i < list.length; i++) {
     var t = String(list[i].title || '').replace(/\s+/g, '');
@@ -520,7 +522,7 @@ function collectNotices_(ss, info, key) {
   out.forEach(function(o) { delete o._row; });
 
   // 확인 여부 표시 — '확인했습니다' 버튼(1건당 별 1개)용
-  var checks = readNoticeChecks_(ss, stu.sid, stu.name, stu.school);
+  var checks = readNoticeChecks_(ss, stu.sid, stu.name, stu.school, info.nameDup === false);   // 유일 이름일 때만 완화
   out.forEach(function(o) { o.key = noticeKey_(o.date, o.title); o.checked = !!checks[o.key]; });
   return out;
 }
@@ -973,13 +975,14 @@ function schoolMatch_(a, b) {
 function collectStars_(ss, info, key, siblingShared) {
   var sid  = String(info.id   || '').trim();
   var name = String(info.name || '').trim();
-  var exam   = countExams_(ss, sid, name, siblingShared, String(info.school || '').trim());   // 지필 평가지 제출 수
+  var uniq = !info.nameDup;   // 이름이 명단에서 유일 → 학교 표기 차이 허용 (TOP10 순위와 동일 규칙)
+  var exam   = countExams_(ss, sid, name, siblingShared, String(info.school || '').trim(), uniq);   // 지필 평가지 제출 수
   var clinic = countClinicApps_(key, sid);                     // 클리닉 신청 수(신청 단위)
   var voca   = countVoca_(name);                               // 어휘 제출 수(주차 단위)
-  var hwork  = countHwork_(name, String(info.school || ''));   // 과제 제출 수
-  var mock   = countMock_(name, String(info.school || ''), sid);   // 모의고사 응시 수(회차 단위)
-  var bonus  = sumBonus_(ss, sid, name, String(info.school || ''), String(info.grade || ''));   // {sum, latest}
-  var noticeN = Object.keys(readNoticeChecks_(ss, sid, name, String(info.school || '').trim())).length;   // 공지 확인 수
+  var hwork  = countHwork_(name, String(info.school || ''), uniq);   // 과제 제출 수
+  var mock   = countMock_(name, String(info.school || ''), sid, uniq);   // 모의고사 응시 수(회차 단위)
+  var bonus  = sumBonus_(ss, sid, name, String(info.school || ''), String(info.grade || ''), uniq);   // {sum, latest}
+  var noticeN = Object.keys(readNoticeChecks_(ss, sid, name, String(info.school || '').trim(), uniq)).length;   // 공지 확인 수
   var total = exam * STAR_RULES.exam + clinic * STAR_RULES.clinic
             + voca * STAR_RULES.voca + hwork * STAR_RULES.hwork
             + mock * STAR_RULES.mock
@@ -992,8 +995,9 @@ function collectStars_(ss, info, key, siblingShared) {
 }
 
 /** 주말 모의고사 응시 수(회차 단위 — 같은 회차 중복 제출은 1개).
- *  이름+학교 1차(느슨 비교), 학생ID(부모님 8자리)는 동명이인 구분 보조 (studentReports와 동일 규칙). */
-function countMock_(name, school, sid) {
+ *  이름+학교 1차(느슨 비교), 학생ID(부모님 8자리)는 동명이인 구분 보조 (studentReports와 동일 규칙).
+ *  uniq=true(이름 유일)면 학교·ID 오타가 있어도 인정. */
+function countMock_(name, school, sid, uniq) {
   if (!OMR_SHEET_ID || !name) return 0;
   var set = {};
   try {
@@ -1007,9 +1011,9 @@ function countMock_(name, school, sid) {
       var rn = String(v[i][iN] || '').trim();
       if (!rn || (rn !== name && rn !== baseName_(name))) continue;   // 접미사 이름(이수빈A) 대비
       var rs = iS >= 0 ? String(v[i][iS] || '').trim() : '';
-      if (school && rs && !schoolMatch_(rs, school)) continue;
+      if (!uniq && school && rs && !schoolMatch_(rs, school)) continue;
       var rid = iId >= 0 ? String(v[i][iId] || '').replace(/^'/, '').trim() : '';
-      if (rid && sid && rid !== sid) continue;   // 동명이인 구분(양쪽에 ID 있을 때만)
+      if (!uniq && rid && sid && rid !== sid) continue;   // 동명이인 구분(양쪽에 ID 있을 때만)
       set[(iE >= 0 && String(v[i][iE] || '').trim()) || String(i)] = true;
     }
   } catch (e) {}
@@ -1022,8 +1026,9 @@ function countMock_(name, school, sid) {
  */
 function noticeKey_(dateStr, title) { return String(dateStr || '') + '|' + String(title || ''); }
 
-/** 이 학생이 확인한 공지키 집합. 학생ID(+이름) 우선, ID 없는 행은 이름+학교로 매칭. */
-function readNoticeChecks_(ss, sid, name, school) {
+/** 이 학생이 확인한 공지키 집합. 학생ID(+이름) 우선, ID 없는 행은 이름+학교로 매칭.
+ *  uniq=true(이름 유일)면 학교 표기 차이 허용. */
+function readNoticeChecks_(ss, sid, name, school, uniq) {
   var set = {};
   var sh = ss.getSheetByName(TAB_NOTICE_READ);
   if (!sh) return set;
@@ -1034,7 +1039,7 @@ function readNoticeChecks_(ss, sid, name, school) {
     var rsc = String(v[i][3] || '').trim();
     var match;
     if (rid) { match = (sid && rid === sid) && (!rnm || rnm === name); }   // 형제 공유번호 대비 이름까지
-    else { match = (rnm === name); if (match && rsc && school) match = schoolMatch_(rsc, school); }
+    else { match = (rnm === name); if (match && !uniq && rsc && school) match = schoolMatch_(rsc, school); }
     if (!match) continue;
     var k = String(v[i][4] || '').trim();
     if (k) set[k] = true;
@@ -1142,8 +1147,9 @@ function countVoca_(name) {
 }
 
 /** 과제(H WORK) 제출 수 — '강사|제목' 단위 중복 제거(같은 과제 재제출은 1개). HWORK_SHEET_ID 비면 0.
- *  탭 이름(HWORK_TAB)이 비어 있으면 '제출시각'+'이름' 머리글이 있는 제출 기록 탭을 자동으로 찾는다. */
-function countHwork_(name, school) {
+ *  탭 이름(HWORK_TAB)이 비어 있으면 '제출시각'+'이름' 머리글이 있는 제출 기록 탭을 자동으로 찾는다.
+ *  uniq=true(이름 유일)면 학교 표기 차이 허용. */
+function countHwork_(name, school, uniq) {
   if (!HWORK_SHEET_ID || !name) return 0;
   var sh = null;
   try {
@@ -1169,7 +1175,7 @@ function countHwork_(name, school) {
   var set = {};
   for (var i = 1; i < v.length; i++) {
     if (String(v[i][iName] || '').trim() !== name) continue;
-    if (school && iSchool >= 0) {
+    if (!uniq && school && iSchool >= 0) {
       var sc = String(v[i][iSchool] || '').replace(/\s+/g, '');
       if (sc && school.replace(/\s+/g, '') && sc.indexOf(school.replace(/\s+/g, '')) < 0 && school.replace(/\s+/g, '').indexOf(sc) < 0) continue;
     }
@@ -1228,8 +1234,9 @@ function gradeDigit_(s) {
 }
 
 /** '별' 탭에서 이 학생의 깜짝 보너스 합계와 최근 1건.
- *  학생ID가 기록된 행은 ID+이름(쌍둥이는 번호가 같아 이름까지 대조), 없으면 이름+학교(+학년)로 매칭. */
-function sumBonus_(ss, sid, name, school, grade) {
+ *  학생ID가 기록된 행은 ID+이름(쌍둥이는 번호가 같아 이름까지 대조), 없으면 이름+학교(+학년)로 매칭.
+ *  uniq=true(이름 유일)면 학교·학년 표기 차이 허용. */
+function sumBonus_(ss, sid, name, school, grade, uniq) {
   var out = { sum: 0, latest: null };
   var sh = ss.getSheetByName(TAB_STARS);
   if (!sh) return out;
@@ -1242,8 +1249,8 @@ function sumBonus_(ss, sid, name, school, grade) {
     if (rid) { match = (sid && rid === sid) && (!rnm || rnm === name); }
     else {
       match = (rnm === name);
-      if (match && rsc && school) match = schoolMatch_(rsc, school);   // 동명이인 구분
-      if (match) {                                                     // 같은 학교 동명이인은 학년으로 구분
+      if (match && !uniq && rsc && school) match = schoolMatch_(rsc, school);   // 동명이인 구분
+      if (match && !uniq) {                                                     // 같은 학교 동명이인은 학년으로 구분
         var rg = gradeDigit_(v[i].length > 6 ? v[i][6] : ''), mg = gradeDigit_(grade);
         if (rg && mg && rg !== mg) match = false;
       }
