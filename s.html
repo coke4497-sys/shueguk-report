@@ -142,7 +142,9 @@
   .st-src{margin:13px 0 0;padding:11px 13px;background:#F4F8F5;border-radius:11px;}
   .st-src .t{font-size:.76rem;font-weight:700;color:var(--ink-soft);margin:0 0 7px;}
   .st-src ul{list-style:none;margin:0;padding:0;}
-  .st-src li{display:flex;align-items:baseline;gap:7px;font-size:.85rem;color:var(--ink);padding:3px 0;}
+  .st-src li{display:flex;align-items:center;gap:8px;font-size:.85rem;color:var(--ink);padding:3.5px 0;}
+  .st-src li .ic{flex:0 0 auto;width:16px;height:16px;color:var(--accent);display:inline-flex;}
+  .st-src li .ic svg{width:100%;height:100%;}
   .st-src li .lb{flex:1;min-width:0;word-break:keep-all;}
   .st-src li .lb b{color:var(--accent);}
   .st-src li .pt{white-space:nowrap;font-weight:700;color:#B98F1F;font-size:.83rem;}
@@ -621,23 +623,35 @@ function renderStars(){
     html += '<p class="st-msg">다음 레벨 <b>'+esc(next.name)+'</b>까지 별 <b>'+remain+'개</b> 남았어요.</p>';
   }
 
-  // 별 획득 내역 — 내 별이 어디서 왔는지 (0개인 항목은 숨김)
+  // 별 획득 내역 — 내 별이 어디서 왔는지 (0개인 항목은 숨김, 아이콘은 티쳐스 허브와 동일한 라인 아이콘)
   var bd = st.breakdown;
   if(bd){
+    var SRC_ICON = {
+      exam:  '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M9 13h6M9 17h6"/>',
+      voca:  '<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>',
+      mock:  '<path d="M9 3h6a1 1 0 0 1 1 1v1a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M16 5h2a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2"/><path d="M9 14l2 2 4-4"/>',
+      clinic:'<path d="M22 12h-4l-3 8L9 4l-3 8H2"/>',
+      hwork: '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/>',
+      notice:'<path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>',
+      bonus: '<path d="M12 2l2.9 6.2 6.8.8-5 4.7 1.3 6.7L12 17.1 6 20.4l1.3-6.7-5-4.7 6.8-.8z"/>'
+    };
+    function srcIcon(k){
+      return '<span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">'+SRC_ICON[k]+'</svg></span>';
+    }
     var srcs = [
-      ['📝', '지필 평가지 리포트', bd.exam,   '회', (bd.exam||0)*2],
-      ['🔤', '어휘 테스트',        bd.voca,   '회', bd.voca],
-      ['🧪', '실전 모의고사 응시', bd.mock,   '회', bd.mock],
-      ['🩺', '클리닉 신청',        bd.clinic, '회', bd.clinic],
-      ['📚', 'H-work 과제',        bd.hwork,  '개', bd.hwork],
-      ['📣', '공지 확인',          bd.notice, '건', bd.notice],
-      ['💝', '수경쌤 깜짝 보너스', bd.bonus ? 1 : 0, '', bd.bonus]
+      ['exam',   '지필 평가지 리포트', bd.exam,   '회', (bd.exam||0)*2],
+      ['voca',   '어휘 테스트',        bd.voca,   '회', bd.voca],
+      ['mock',   '실전 모의고사 응시', bd.mock,   '회', bd.mock],
+      ['clinic', '클리닉 신청',        bd.clinic, '회', bd.clinic],
+      ['hwork',  'H-work 과제',        bd.hwork,  '개', bd.hwork],
+      ['notice', '공지 확인',          bd.notice, '건', bd.notice],
+      ['bonus',  '수경쌤 깜짝 보너스', bd.bonus ? 1 : 0, '', bd.bonus]
     ].filter(function(s){ return s[2] > 0; });
     if(srcs.length){
       html += '<div class="st-src"><p class="t">내 별은 이렇게 모았어요</p><ul>';
       srcs.forEach(function(s){
         var cnt = s[3] ? ' <b>'+s[2]+s[3]+'</b>' : '';
-        html += '<li><span class="lb">'+s[0]+' '+s[1]+cnt+'</span><span class="pt">⭐ '+s[4]+'</span></li>';
+        html += '<li>'+srcIcon(s[0])+'<span class="lb">'+s[1]+cnt+'</span><span class="pt">⭐ '+s[4]+'</span></li>';
       });
       html += '</ul></div>';
     }

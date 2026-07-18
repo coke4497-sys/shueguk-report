@@ -83,7 +83,9 @@
   .rk-detail{display:none;background:#F4F8F5;border-radius:11px;margin:2px 6px 9px;padding:10px 14px;}
   .rk-item.open .rk-detail{display:block;}
   .rk-detail ul{list-style:none;margin:0;padding:0;}
-  .rk-detail li{display:flex;align-items:baseline;gap:8px;font-size:13.5px;padding:2.5px 0;}
+  .rk-detail li{display:flex;align-items:center;gap:8px;font-size:13.5px;padding:3px 0;}
+  .rk-detail li .ic{flex:0 0 auto;width:15px;height:15px;color:var(--accent);display:inline-flex;}
+  .rk-detail li .ic svg{width:100%;height:100%;}
   .rk-detail li .lb{flex:1;min-width:0;word-break:keep-all;}
   .rk-detail li .pt{white-space:nowrap;font-weight:700;color:var(--gold);font-size:13px;}
   .rk-detail .none{font-size:12.5px;color:#9aa6a0;}
@@ -205,21 +207,34 @@
     return esc(sc || gr);
   }
   // 별 획득 내역 (학생 페이지 '내 별은 이렇게 모았어요'와 동일 구성, 0개 항목 숨김)
+  // 아이콘: 티쳐스 허브 메뉴와 동일한 라인 아이콘 (지필=문서, 어휘=책, 모의고사=체크보드, 클리닉=맥박, 과제=연필, 공지=종, 보너스=별)
+  var SRC_ICON = {
+    exam:  '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M9 13h6M9 17h6"/>',
+    voca:  '<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>',
+    mock:  '<path d="M9 3h6a1 1 0 0 1 1 1v1a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M16 5h2a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2"/><path d="M9 14l2 2 4-4"/>',
+    clinic:'<path d="M22 12h-4l-3 8L9 4l-3 8H2"/>',
+    hwork: '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/>',
+    notice:'<path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>',
+    bonus: '<path d="M12 2l2.9 6.2 6.8.8-5 4.7 1.3 6.7L12 17.1 6 20.4l1.3-6.7-5-4.7 6.8-.8z"/>'
+  };
+  function srcIcon(k){
+    return '<span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">'+SRC_ICON[k]+'</svg></span>';
+  }
   function srcRows(bd){
     if(!bd) return '<p class="none">내역은 리포트 백엔드 재배포 후 표시돼요.</p>';
     var srcs = [
-      ['📝','지필 평가지 리포트', bd.exam,   '회', (bd.exam||0)*2],
-      ['🔤','어휘 테스트',        bd.voca,   '회', bd.voca],
-      ['🧪','실전 모의고사 응시', bd.mock,   '회', bd.mock],
-      ['🩺','클리닉 신청',        bd.clinic, '회', bd.clinic],
-      ['📚','H-work 과제',        bd.hwork,  '개', bd.hwork],
-      ['📣','공지 확인',          bd.notice, '건', bd.notice],
-      ['💝','깜짝 보너스',        bd.bonus ? 1 : 0, '', bd.bonus]
+      ['exam',  '지필 평가지 리포트', bd.exam,   '회', (bd.exam||0)*2],
+      ['voca',  '어휘 테스트',        bd.voca,   '회', bd.voca],
+      ['mock',  '실전 모의고사 응시', bd.mock,   '회', bd.mock],
+      ['clinic','클리닉 신청',        bd.clinic, '회', bd.clinic],
+      ['hwork', 'H-work 과제',        bd.hwork,  '개', bd.hwork],
+      ['notice','공지 확인',          bd.notice, '건', bd.notice],
+      ['bonus', '깜짝 보너스',        bd.bonus ? 1 : 0, '', bd.bonus]
     ].filter(function(s){ return s[2] > 0; });
     if(!srcs.length) return '<p class="none">아직 획득 내역이 없어요.</p>';
     return '<ul>'+srcs.map(function(s){
       var cnt = s[3] ? ' <b>'+s[2]+s[3]+'</b>' : '';
-      return '<li><span class="lb">'+s[0]+' '+s[1]+cnt+'</span><span class="pt">⭐ '+s[4]+'</span></li>';
+      return '<li>'+srcIcon(s[0])+'<span class="lb">'+s[1]+cnt+'</span><span class="pt">⭐ '+s[4]+'</span></li>';
     }).join('')+'</ul>';
   }
   function loadRank(){
