@@ -34,13 +34,16 @@
   .stat-head .t{font-family:"Gowun Batang",serif;font-size:1rem;font-weight:700;color:var(--ink);}
   .stat-head .n{margin-left:auto;font-size:.82rem;color:var(--ink-soft);}
   .stat-head .n b{color:var(--accent);font-size:1rem;}
-  .gb{display:flex;align-items:center;gap:9px;margin:5px 0;}
-  .gb .gl{flex:0 0 40px;font-size:13px;font-weight:700;color:var(--ink-soft);text-align:right;}
-  .gb .track{flex:1;height:17px;background:#EFF4F1;border-radius:9px;overflow:hidden;}
-  .gb .fill{height:100%;background:linear-gradient(90deg,#8FB3A2,var(--accent));border-radius:9px;min-width:5px;}
-  .gb .gc{flex:0 0 42px;font-size:13px;font-weight:700;color:var(--accent);}
+  .vchart{display:flex;align-items:flex-end;gap:10px;height:132px;padding:4px 2px 0;}
+  .vcol{flex:1;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:4px;cursor:pointer;-webkit-tap-highlight-color:transparent;}
+  .vcol .vc{font-size:12px;font-weight:700;color:var(--ink-soft);}
+  .vcol .vbar{width:68%;max-width:46px;background:#C7D8CF;border-radius:8px 8px 3px 3px;min-height:6px;transition:background .15s;}
+  .vcol .vgl{font-size:12.5px;font-weight:700;color:var(--ink-soft);}
+  .vcol.on .vbar{background:linear-gradient(180deg,#7FA895,var(--accent));}
+  .vcol.on .vc,.vcol.on .vgl{color:var(--accent);}
   .sch-list{margin-top:13px;border-top:1px solid var(--line-soft);padding-top:11px;}
   .sch-list .sl-t{font-size:.76rem;font-weight:700;color:var(--ink-soft);margin:0 0 6px;}
+  .sch-list .sl-t b{color:var(--accent);}
   .srow{display:flex;align-items:center;gap:8px;padding:3.5px 0;font-size:13.5px;}
   .srow .sn{flex:0 0 auto;min-width:0;word-break:keep-all;}
   .srow .sbar{flex:1;height:5px;background:#EFF4F1;border-radius:3px;overflow:hidden;}
@@ -237,8 +240,8 @@
   <!-- 재원 현황: 학년별 인원 막대 + 학교별 인원(많은 순) -->
   <section class="card stat-card" id="statCard" style="display:none;">
     <div class="stat-head"><span class="t">우리 슈퍼스타 현황</span><span class="n">재원 <b id="statTotal">0</b>명</span></div>
-    <div id="gradeBars"></div>
-    <div class="sch-list"><p class="sl-t">학교별 인원</p><div id="schList"></div></div>
+    <div class="vchart" id="gradeBars"></div>
+    <div class="sch-list"><p class="sl-t" id="slTitle"></p><div id="schList"></div></div>
   </section>
 
   <div class="tabs">
@@ -467,25 +470,40 @@
     var i = ['중1','중2','중3','고1','고2','고3'].indexOf(k);
     return i >= 0 ? i : 99;
   }
+  var STAT = { gmap:{}, gsmap:{}, gkeys:[], sel:null };
   function renderStats(list){
     if(!list.length){ $('statCard').style.display='none'; return; }
-    var gmap = {}, smap = {};
+    STAT.gmap = {}; STAT.gsmap = {};
     list.forEach(function(s){
-      var g = shortGrade(s.grade); gmap[g] = (gmap[g]||0) + 1;
-      var sc = String(s.school||'').trim() || '학교 미입력'; smap[sc] = (smap[sc]||0) + 1;
+      var g = shortGrade(s.grade);
+      STAT.gmap[g] = (STAT.gmap[g]||0) + 1;
+      var sc = String(s.school||'').trim() || '학교 미입력';
+      (STAT.gsmap[g] = STAT.gsmap[g] || {})[sc] = (STAT.gsmap[g][sc]||0) + 1;
     });
+    STAT.gkeys = Object.keys(STAT.gmap).sort(function(a,b){ return gradeOrder(a)-gradeOrder(b) || a.localeCompare(b,'ko'); });
+    // 처음엔 인원이 가장 많은 학년을 선택
+    if(!STAT.sel || STAT.gkeys.indexOf(STAT.sel) < 0){
+      STAT.sel = STAT.gkeys.slice().sort(function(a,b){ return STAT.gmap[b]-STAT.gmap[a]; })[0];
+    }
     $('statTotal').textContent = list.length;
-    // 학년별 막대 (중1→고3 순)
-    var gkeys = Object.keys(gmap).sort(function(a,b){ return gradeOrder(a)-gradeOrder(b) || a.localeCompare(b,'ko'); });
-    var gmax = Math.max.apply(null, gkeys.map(function(k){ return gmap[k]; }));
-    $('gradeBars').innerHTML = gkeys.map(function(k){
-      var w = Math.round(gmap[k] / gmax * 100);
-      return '<div class="gb"><span class="gl">'+esc(k)+'</span>'+
-        '<span class="track"><span class="fill" style="width:'+w+'%"></span></span>'+
-        '<span class="gc">'+gmap[k]+'명</span></div>';
+    drawStatBars(); drawStatSchools();
+    $('statCard').style.display='block';
+  }
+  function drawStatBars(){
+    var gmax = Math.max.apply(null, STAT.gkeys.map(function(k){ return STAT.gmap[k]; }));
+    $('gradeBars').innerHTML = STAT.gkeys.map(function(k){
+      var h = Math.max(6, Math.round(STAT.gmap[k] / gmax * 72));   // 막대 영역 최대 72%
+      return '<div class="vcol'+(k===STAT.sel?' on':'')+'" data-g="'+esc(k)+'">'+
+        '<span class="vc">'+STAT.gmap[k]+'명</span>'+
+        '<span class="vbar" style="height:'+h+'%"></span>'+
+        '<span class="vgl">'+esc(k)+'</span></div>';
     }).join('');
-    // 학교별 인원 — 많은 순 (동수는 가나다순)
+  }
+  function drawStatSchools(){
+    var smap = STAT.gsmap[STAT.sel] || {};
     var skeys = Object.keys(smap).sort(function(a,b){ return smap[b]-smap[a] || a.localeCompare(b,'ko'); });
+    $('slTitle').innerHTML = '<b>'+esc(STAT.sel||'')+'</b> 학교별 인원 <span style="font-weight:400;color:#9aa6a0">(막대를 눌러 학년 변경)</span>';
+    if(!skeys.length){ $('schList').innerHTML='<div class="empty" style="padding:8px;">학생이 없어요.</div>'; return; }
     var smax = smap[skeys[0]];
     $('schList').innerHTML = skeys.map(function(k){
       var w = Math.round(smap[k] / smax * 100);
@@ -493,8 +511,12 @@
         '<span class="sbar"><i style="width:'+w+'%"></i></span>'+
         '<span class="sc2">'+smap[k]+'명</span></div>';
     }).join('');
-    $('statCard').style.display='block';
   }
+  $('gradeBars').addEventListener('click', function(e){
+    var col = e.target.closest('.vcol'); if(!col) return;
+    STAT.sel = col.getAttribute('data-g');
+    drawStatBars(); drawStatSchools();
+  });
   function setReg(m,k){ var s=$('regStatus'); s.textContent=m||''; s.className='status'+(k?' '+k:''); }
   function hideWarn(){ $('warnBox').style.display='none'; }
 
