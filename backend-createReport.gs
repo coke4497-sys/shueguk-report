@@ -1503,6 +1503,71 @@ function exitDelete(data) {
   }
 }
 
+/* ===== 신입생 등록 (register.html) =====
+ *  학생정보 탭에 새 행 추가 + 접근코드 자동 생성 → 개인 페이지 링크 즉시 발급.
+ *  동명이인·번호 중복은 경고로 돌려주고, force='1'이면 그대로 등록(쌍둥이·접미사 등록용).
+ */
+function addStudent(data) {
+  if (String(data.pw || '') !== TEACHER_PW) return json({ result: 'error', message: 'unauthorized' });
+  var name    = String(data.name    || '').trim();
+  var school  = String(data.school  || '').trim();
+  var grade   = String(data.grade   || '').trim();
+  var sid     = String(data.sid     || '').trim();
+  var teacher = String(data.teacher || '').trim();
+  var memo    = String(data.memo    || '').trim();
+  var classA  = String(data.classA  || '').trim();
+  var classB  = String(data.classB  || '').trim();
+  var progress= String(data.progress|| '').trim();
+  var checkup = String(data.checkup || '').trim();
+  if (!name) return json({ result: 'error', message: '이름을 입력하세요.' });
+  if (!/^\d{8}$/.test(sid)) return json({ result: 'error', message: '부모님 연락처 8자리(숫자)를 입력하세요. 성적 확인 비밀번호로 쓰여요.' });
+  if (!school || !grade) return json({ result: 'error', message: '학교와 학년을 입력하세요.' });
+
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ss.getSheetByName(TAB_STUDENTS);
+  if (!sh) return json({ result: 'error', message: "'" + TAB_STUDENTS + "' 탭이 없습니다." });
+  var lock = LockService.getScriptLock();
+  try { lock.waitLock(10000); } catch (e) { return json({ result: 'error', message: '잠시 후 다시 시도해 주세요.' }); }
+  try {
+    var v = sh.getDataRange().getValues();
+    var codeCol = findHeaderCol_(v[0], '접근코드', STU_CODE_COL);
+    // 중복 검사 (재원생만) — 동명이인은 접미사 등록 안내, 같은 번호는 형제 확인
+    var warns = [], base = baseName_(name), used = {};
+    for (var i = 1; i < v.length; i++) {
+      var tk = String(v[i][codeCol] || '').trim();
+      if (tk) used[tk] = true;
+      var rn = String(v[i][1] || '').trim();
+      if (!rn) continue;
+      if (/^(퇴원|n|no|off|x|중단|비재원)$/i.test(String(v[i][10] || '').trim())) continue;
+      var rid = String(v[i][0] || '').replace(/^'/, '').trim();
+      var who = rn + ' (' + String(v[i][2] || '') + ' ' + String(v[i][3] || '') + ')';
+      if (rn === name) warns.push('같은 이름의 재원생이 이미 있어요: ' + who + ' — 동명이인이면 이름 뒤에 A·B 접미사를 붙여 등록하세요 (예: ' + name + 'B).');
+      else if (baseName_(rn) === base) warns.push('접미사 동명이인이 있어요: ' + who + ' — 이 학생도 접미사를 붙여 등록하는 것을 권장해요.');
+      if (rid && rid === sid) warns.push('같은 번호(8자리)의 재원생이 있어요: ' + who + ' — 형제(쌍둥이)라면 그대로 등록하세요.');
+    }
+    if (warns.length && String(data.force || '') !== '1') return json({ result: 'warn', warns: warns });
+
+    // 접근코드 생성 (기존 코드와 충돌 없게)
+    var token = '';
+    do { token = randTok_(); } while (used[token]);
+    var row = [];
+    for (var c = 0; c <= Math.max(codeCol, 11); c++) row.push('');
+    row[0] = "'" + sid; row[1] = name; row[2] = school; row[3] = grade;
+    row[4] = teacher; row[5] = memo;
+    row[6] = classA; row[7] = classB; row[8] = progress; row[9] = checkup;
+    row[codeCol] = token;
+    sh.appendRow(row);
+    return json({ result: 'success', name: name, token: token });
+  } finally {
+    try { lock.releaseLock(); } catch (e) {}
+  }
+}
+function randTok_() {
+  var chars = 'abcdefghijklmnopqrstuvwxyz0123456789', s = '';
+  for (var i = 0; i < 10; i++) s += chars.charAt(Math.floor(Math.random() * chars.length));
+  return s;
+}
+
 /** '설정' 탭에서 label 항목(A열)의 값(B열) 원문을 반환(없으면 dflt). */
 function configVal_(ss, label, dflt) {
   var sh = ss.getSheetByName(TAB_CONFIG);
@@ -1651,6 +1716,7 @@ function doPost(e) {
     if (data && data.action === 'addStarBonus')    { return addStarBonus(data); }
     if (data && data.action === 'deleteStarBonus') { return deleteStarBonus(data); }
     if (data && data.action === 'exitDelete')      { return exitDelete(data); }
+    if (data && data.action === 'addStudent')      { return addStudent(data); }
 
     // (13) 공지 '확인했습니다' — 확인 1건당 별 1개 (s.html, 토큰으로 학생 확인)
     if (data && data.action === 'checkNotice')     { return checkNotice(data); }
