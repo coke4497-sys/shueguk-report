@@ -28,11 +28,14 @@
   .tagline{font-family:"Gowun Batang",serif;font-size:1.5rem;font-weight:700;color:var(--accent);margin:0;}
   .intro{color:var(--ink-soft);font-size:.92rem;margin:9px auto 0;max-width:27em;}
 
-  /* 하위 메뉴 탭 */
+  /* 하위 메뉴 탭 — 아이콘은 티쳐스 허브 카드와 동일한 라인 아이콘 */
   .tabs{display:flex;gap:8px;margin:6px 0 18px;}
-  .tabs button{flex:1;padding:13px 0;border-radius:13px;border:1.5px solid var(--line);
-    background:#fff;color:var(--ink-soft);font-family:"Gowun Batang",serif;font-size:15.5px;font-weight:700;cursor:pointer;}
+  .tabs button{flex:1;display:inline-flex;align-items:center;justify-content:center;gap:7px;
+    padding:13px 0;border-radius:13px;border:1.5px solid var(--line);
+    background:#fff;color:var(--ink-soft);font-family:"Gowun Batang",serif;font-size:15px;font-weight:700;cursor:pointer;word-break:keep-all;}
+  .tabs button svg{width:16px;height:16px;flex:0 0 auto;}
   .tabs button.on{background:var(--accent);border-color:var(--accent);color:#fff;}
+  @media (max-width:380px){ .tabs button{font-size:13.5px;gap:5px;} .tabs button svg{width:14px;height:14px;} }
 
   .card{background:var(--surface);border:1px solid var(--line-soft);border-radius:var(--radius);padding:22px 20px;margin-bottom:16px;}
   .card h2{font-family:"Gowun Batang",serif;font-size:1.12rem;font-weight:700;margin:0 0 4px;display:flex;align-items:center;gap:8px;}
@@ -164,9 +167,15 @@
   </header>
 
   <div class="tabs">
-    <button type="button" id="tabNewBtn" class="on" onclick="showTab('new')">🌱 신입 슈스</button>
-    <button type="button" id="tabOutBtn" onclick="showTab('out')">👋 아웃 슈스</button>
-    <button type="button" id="tabLinkBtn" onclick="showTab('link')">🔗 슈스 링크</button>
+    <button type="button" id="tabNewBtn" class="on" onclick="showTab('new')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="16" y1="11" x2="22" y2="11"/></svg>
+      신입 슈스</button>
+    <button type="button" id="tabOutBtn" onclick="showTab('out')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="17" y1="8" x2="22" y2="13"/><line x1="22" y1="8" x2="17" y2="13"/></svg>
+      아웃 슈스</button>
+    <button type="button" id="tabLinkBtn" onclick="showTab('link')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+      슈스 링크</button>
   </div>
 
   <!-- ════════ 신입 슈스 ════════ -->
