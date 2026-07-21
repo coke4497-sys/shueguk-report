@@ -50,6 +50,8 @@ var HWORK_SHEET_ID = '1nFZ2HVAnCyCv_NOoAPXhA1VC_T7BBqwUWNWBta4-qFE';   // H WORK
 var HWORK_TAB      = '제출기록';   // H WORK 제출 기록 탭 이름 (H WORK 백엔드의 SHEET_SUB와 동일)
 var OMR_SHEET_ID   = '1hd1huZpppBue5rlBVMZc2-wAbZ91PitFiBGT12Cq7YQ';   // 주말 모의고사 점수입력(OMR) 시트
 var OMR_TAB        = '응답';       // OMR 제출 기록 탭 (omr_code.gs의 응답 시트)
+var SIGNUP_SHEET_ID = '1pB05VXT__-kJHoNpQxQSxbm4PhlB6XuJ7EvVG79pW14'; // 주말 모의고사 신청 시트 (퇴원 정리 검색용)
+var SIGNUP_TAB      = '신청';
 
 // 설정 탭 — 학생 페이지 기능 켜고/끄기 (A:항목 | B:값). 예: '어휘 테스트' | '중단'
 var TAB_CONFIG = '설정';
@@ -105,6 +107,11 @@ function doGet(e) {
   if (p.action === 'starLog') {
     if (String(p.pw || '') !== TEACHER_PW) return json({ result:'error', message:'unauthorized' });
     return getStarLog();
+  }
+  // 퇴원 정리 — 전 시트에서 학생 기록 검색 (개인정보 포함이므로 비밀번호 필요)
+  if (p.action === 'exitScan') {
+    if (String(p.pw || '') !== TEACHER_PW) return json({ result:'error', message:'unauthorized' });
+    return exitScan(p.name, p.sid);
   }
   // 배정 목록(도구별) — 비밀번호 필요. ?action=assignList&tool=H WORK[&item=...]
   if (p.action === 'assignList') {
@@ -1391,6 +1398,111 @@ function deleteStarBonus(data) {
   return json({ result: 'success' });
 }
 
+/* ===== 퇴원 정리 도구 (exit.html) =====
+ *  이름(+선택 8자리)으로 전 시트에서 그 학생의 기록을 찾아 목록으로 반환하고,
+ *  선택한 행들을 한 번에 삭제한다. 학생정보 행이 지워지면 개인 페이지 링크도 즉시 무효화된다.
+ */
+function exitSheets_() {
+  return [
+    { src: 'report', tab: TAB_STUDENTS,    label: '학생정보(명단)' },
+    { src: 'report', tab: TAB_RESULT,      label: '지필 제출결과' },
+    { src: 'report', tab: TAB_STARS,       label: '별(보너스)' },
+    { src: 'report', tab: TAB_NOTICE_READ, label: '공지확인' },
+    { src: 'omr',    tab: OMR_TAB,         label: '모의고사 OMR 응답' },
+    { src: 'signup', tab: SIGNUP_TAB,      label: '모의고사 신청' },
+    { src: 'clinic', tab: CLINIC_TAB,      label: '클리닉 신청' },
+    { src: 'voca',   tab: '',              label: '어휘 결과' },
+    { src: 'hwork',  tab: HWORK_TAB,       label: 'H WORK 제출기록' }
+  ];
+}
+function exitOpen_(src, tab) {
+  var ss;
+  if (src === 'report')      ss = SpreadsheetApp.getActiveSpreadsheet();
+  else if (src === 'omr')    ss = SpreadsheetApp.openById(OMR_SHEET_ID);
+  else if (src === 'signup') ss = SpreadsheetApp.openById(SIGNUP_SHEET_ID);
+  else if (src === 'clinic') ss = SpreadsheetApp.openById(CLINIC_SHEET_ID);
+  else if (src === 'voca')   { ss = SpreadsheetApp.openById(VOCA_SHEET_ID); return ss.getSheets()[0] || null; }
+  else if (src === 'hwork')  ss = SpreadsheetApp.openById(HWORK_SHEET_ID);
+  else return null;
+  return tab ? ss.getSheetByName(tab) : null;
+}
+function exitNameIdCols_(H) {
+  var HL = H.map(function (h) { return String(h || '').trim().toLowerCase(); });
+  return {
+    n: idxOfAny_(HL, ['이름', 'name']),
+    id: idxOfAny_(HL, ['학생id', '부모님연락처', '전화', 'phone4', '전화뒤4', '연락처'])
+  };
+}
+function exitScan(name, sid) {
+  name = String(name || '').trim(); sid = String(sid || '').trim();
+  if (!name) return json({ result: 'error', message: '이름을 입력하세요.' });
+  var base = baseName_(name), sid4 = sid.slice(-4);
+  var items = [];
+  exitSheets_().forEach(function (cfg) {
+    var sh; try { sh = exitOpen_(cfg.src, cfg.tab); } catch (e) { sh = null; }
+    if (!sh) return;
+    var v = sh.getDataRange().getValues();
+    if (v.length < 2) return;
+    var cols = exitNameIdCols_(v[0]);
+    if (cols.n < 0) return;
+    for (var i = 1; i < v.length; i++) {
+      var rn = String(v[i][cols.n] || '').trim();
+      if (!rn) continue;
+      // 실명·접미사 양방향 인정 (이승준 검색 → '이승준A' 행도, 이승준A 검색 → '이승준' 행도)
+      if (rn !== name && rn !== base && baseName_(rn) !== name && baseName_(rn) !== base) continue;
+      var rid = cols.id >= 0 ? String(v[i][cols.id] || '').replace(/^'/, '').trim() : '';
+      var idMatch = null;   // null = 판단 불가(번호 없음), true/false = 8자리 대조 결과
+      if (sid && rid) idMatch = (rid === sid || (rid.length === 4 && sid4 && rid === sid4));
+      var parts = [];
+      for (var c = 0; c < Math.min(v[i].length, 8) && parts.length < 4; c++) {
+        if (c === cols.n || c === cols.id) continue;
+        var cell = v[i][c];
+        if (cell === '' || cell == null) continue;
+        var s = (cell instanceof Date) ? Utilities.formatDate(cell, 'GMT+9', 'yyyy-MM-dd') : String(cell);
+        s = s.replace(/\s+/g, ' ').trim();
+        if (!s) continue;
+        if (s.length > 22) s = s.slice(0, 22) + '…';
+        parts.push(s);
+      }
+      items.push({ src: cfg.src, tab: sh.getName(), label: cfg.label, row: i + 1,
+                   name: rn, id: rid, idMatch: idMatch, desc: parts.join(' · ') });
+    }
+  });
+  return json({ result: 'success', items: items });
+}
+/** 선택한 행들을 삭제. { pw, items:[{src,tab,row,name}] } — 이름 재대조 후 큰 행부터 삭제(행 밀림 안전). */
+function exitDelete(data) {
+  if (String(data.pw || '') !== TEACHER_PW) return json({ result: 'error', message: 'unauthorized' });
+  var items = (data.items || []).filter(function (it) { return it && it.src && it.tab && it.row; });
+  if (!items.length) return json({ result: 'error', message: '삭제할 항목이 없습니다.' });
+  if (items.length > 300) return json({ result: 'error', message: '한 번에 300건까지만 삭제할 수 있어요.' });
+  var lock = LockService.getScriptLock();
+  try { lock.waitLock(20000); } catch (e) { return json({ result: 'error', message: '다른 작업이 진행 중이에요. 잠시 후 다시 시도해 주세요.' }); }
+  try {
+    var groups = {};
+    items.forEach(function (it) { var k = String(it.src) + '::' + String(it.tab); (groups[k] = groups[k] || []).push(it); });
+    var deleted = 0, skipped = 0;
+    Object.keys(groups).forEach(function (k) {
+      var p = k.split('::'), group = groups[k];
+      var sh; try { sh = exitOpen_(p[0], p[1]); } catch (e) { sh = null; }
+      if (!sh || sh.getName() !== p[1]) { skipped += group.length; return; }
+      var cols = exitNameIdCols_(sh.getRange(1, 1, 1, Math.max(sh.getLastColumn(), 1)).getValues()[0]);
+      if (cols.n < 0) { skipped += group.length; return; }
+      group.sort(function (a, b) { return b.row - a.row; });   // 큰 행부터 — 삭제로 행이 밀려도 안전
+      group.forEach(function (it) {
+        var r = parseInt(it.row, 10);
+        if (!r || r < 2 || r > sh.getLastRow()) { skipped++; return; }
+        var cellName = String(sh.getRange(r, cols.n + 1).getValue() || '').trim();
+        if (cellName !== String(it.name || '').trim()) { skipped++; return; }   // 목록이 낡았으면 건너뜀
+        sh.deleteRow(r); deleted++;
+      });
+    });
+    return json({ result: 'success', deleted: deleted, skipped: skipped });
+  } finally {
+    try { lock.releaseLock(); } catch (e) {}
+  }
+}
+
 /** '설정' 탭에서 label 항목(A열)의 값(B열) 원문을 반환(없으면 dflt). */
 function configVal_(ss, label, dflt) {
   var sh = ss.getSheetByName(TAB_CONFIG);
@@ -1538,6 +1650,7 @@ function doPost(e) {
     // (12) 슈퍼스타 별 — 깜짝 보너스 부여/삭제 (star.html)
     if (data && data.action === 'addStarBonus')    { return addStarBonus(data); }
     if (data && data.action === 'deleteStarBonus') { return deleteStarBonus(data); }
+    if (data && data.action === 'exitDelete')      { return exitDelete(data); }
 
     // (13) 공지 '확인했습니다' — 확인 1건당 별 1개 (s.html, 토큰으로 학생 확인)
     if (data && data.action === 'checkNotice')     { return checkNotice(data); }
