@@ -35,7 +35,11 @@
     background:#fff;color:var(--ink-soft);font-family:"Gowun Batang",serif;font-size:15px;font-weight:700;cursor:pointer;word-break:keep-all;}
   .tabs button svg{width:16px;height:16px;flex:0 0 auto;}
   .tabs button.on{background:var(--accent);border-color:var(--accent);color:#fff;}
-  @media (max-width:380px){ .tabs button{font-size:13.5px;gap:5px;} .tabs button svg{width:14px;height:14px;} }
+  @media (max-width:480px){
+    .tabs{flex-wrap:wrap;}
+    .tabs button{flex:1 1 calc(50% - 4px);font-size:14px;gap:5px;padding:12px 0;}
+    .tabs button svg{width:15px;height:15px;}
+  }
 
   .card{background:var(--surface);border:1px solid var(--line-soft);border-radius:var(--radius);padding:22px 20px;margin-bottom:16px;}
   .card h2{font-family:"Gowun Batang",serif;font-size:1.12rem;font-weight:700;margin:0 0 4px;display:flex;align-items:center;gap:8px;}
@@ -131,6 +135,51 @@
   .ledit .estat{font-size:12px;margin-top:8px;min-height:1.1em;text-align:center;color:var(--ink-soft);}
   .ledit .estat.ok{color:var(--ok);} .ledit .estat.err{color:var(--bad);}
 
+  /* 별 더하기 탭 */
+  :root{ --gold:#8A6A14; }
+  input[type=number]{width:100%;padding:12px 13px;border:1.5px solid var(--line);border-radius:10px;
+    font:inherit;font-size:15px;background:#fafbfa;color:var(--ink);}
+  .stu-list{max-height:230px;overflow-y:auto;border:1.5px solid var(--line);border-radius:11px;margin-top:8px;background:#fff;}
+  .stu-item{display:flex;align-items:center;gap:9px;padding:10px 13px;border-bottom:1px solid var(--line-soft);cursor:pointer;font-size:14.5px;}
+  .stu-item:last-child{border-bottom:none;}
+  .stu-item:hover{background:#F2F7F4;}
+  .stu-item.on{background:#DCE6E0;font-weight:700;color:var(--accent);}
+  .stu-item .meta{margin-left:auto;font-size:12px;color:var(--ink-soft);font-weight:400;word-break:keep-all;}
+  .stu-empty{padding:18px;text-align:center;color:#9aa6a0;font-size:13.5px;}
+  .picked{margin-top:9px;font-size:13.5px;color:var(--accent);font-weight:700;min-height:1.2em;}
+  .amt-row{display:flex;gap:8px;margin-top:8px;}
+  .amt-row button{flex:1;border:1.5px solid var(--line);background:#fff;font:inherit;font-size:14.5px;font-weight:700;padding:11px 0;border-radius:10px;cursor:pointer;color:var(--ink-soft);}
+  .amt-row button.on{background:var(--accent);border-color:var(--accent);color:#fff;}
+  .mgr-bar{display:flex;justify-content:flex-end;margin-bottom:10px;}
+  .refresh{border:1.5px solid var(--line);background:#fff;color:var(--accent);font:inherit;font-size:13px;font-weight:700;padding:8px 14px;border-radius:9px;cursor:pointer;}
+  .log-item{display:flex;align-items:center;gap:10px;border:1px solid var(--line-soft);border-radius:11px;padding:11px 14px;margin-bottom:9px;background:#fcfdfc;font-size:14px;}
+  .log-item .st{color:var(--gold);font-weight:700;white-space:nowrap;}
+  .log-item .who{font-weight:700;}
+  .log-item .rsn{color:var(--ink-soft);font-size:12.5px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .log-item .dt{color:#9aa6a0;font-size:11.5px;white-space:nowrap;}
+  .log-item .del{border:none;background:none;color:var(--ink-soft);font-size:12px;cursor:pointer;text-decoration:underline;padding:2px 4px;}
+  .log-item .del:hover{color:var(--bad);}
+  .mgr-empty{text-align:center;color:#9aa6a0;font-size:13.5px;padding:20px;}
+  .rk{display:flex;align-items:center;gap:11px;padding:10px 12px;border-bottom:1px solid var(--line-soft);font-size:14.5px;cursor:pointer;}
+  .rk-item:last-child .rk{border-bottom:none;}
+  .rk-detail{display:none;background:#F4F8F5;border-radius:11px;margin:2px 6px 9px;padding:10px 14px;}
+  .rk-item.open .rk-detail{display:block;}
+  .rk-detail ul{list-style:none;margin:0;padding:0;}
+  .rk-detail li{display:flex;align-items:center;gap:8px;font-size:13.5px;padding:3px 0;}
+  .rk-detail li .ic{flex:0 0 auto;width:15px;height:15px;color:var(--accent);display:inline-flex;}
+  .rk-detail li .ic svg{width:100%;height:100%;}
+  .rk-detail li .lb{flex:1;min-width:0;word-break:keep-all;}
+  .rk-detail li .pt{white-space:nowrap;font-weight:700;color:var(--gold);font-size:13px;}
+  .rk-detail .none{font-size:12.5px;color:#9aa6a0;}
+  .rk .no{flex:0 0 34px;text-align:center;font-family:"Gowun Batang",serif;font-weight:700;font-size:1.05rem;color:var(--ink-soft);}
+  .rk.top3{background:#FBF6E7;border-radius:11px;border-bottom:none;margin-bottom:2px;}
+  .rk .who{font-weight:700;}
+  .rk .meta{font-size:12px;color:var(--ink-soft);flex:1;min-width:0;word-break:keep-all;line-height:1.45;}
+  .meta .nb{white-space:nowrap;}   /* 학년은 한 덩어리 — 좁으면 학교 다음 줄로 통째로 내려감 */
+  .rk .lvl{font-size:11.5px;font-weight:700;color:var(--accent);background:#DCE6E0;border-radius:20px;padding:2px 9px;white-space:nowrap;}
+  .rk.top3 .lvl{color:var(--gold);background:#F3E3B3;}
+  .rk .st2{font-weight:700;color:var(--gold);white-space:nowrap;}
+
   /* 잠금 */
   .lock{position:fixed;inset:0;background:var(--bg);z-index:100;display:flex;align-items:center;justify-content:center;padding:24px;}
   .lock-card{background:#fff;border:1px solid var(--line-soft);border-radius:18px;padding:34px 28px;text-align:center;max-width:330px;width:100%;}
@@ -176,6 +225,9 @@
     <button type="button" id="tabLinkBtn" onclick="showTab('link')">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
       슈스 링크</button>
+    <button type="button" id="tabStarBtn" onclick="showTab('star')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l2.9 6.2 6.8.8-5 4.7 1.3 6.7L12 17.1 6 20.4l1.3-6.7-5-4.7 6.8-.8z"/></svg>
+      별 더하기</button>
   </div>
 
   <!-- ════════ 신입 슈스 ════════ -->
@@ -281,6 +333,48 @@
       <div id="lk-list"><div class="empty">불러오는 중…</div></div>
     </section>
   </div>
+
+  <!-- ════════ 별 더하기 ════════ -->
+  <div id="tab-star" style="display:none;">
+    <section class="card">
+      <h2><span class="dot"></span>별 선물하기</h2>
+      <p class="sub">어휘·지필·클리닉·과제 별은 자동으로 쌓여요. 여기서는 <b>깜짝 보너스</b>만 주면 됩니다. 별은 학생 개인 페이지에 바로 반영돼요.</p>
+
+      <label>학생 찾기</label>
+      <input type="text" id="st-q" placeholder="이름으로 검색" autocomplete="off" />
+      <div class="stu-list" id="stuList"><div class="stu-empty">학생 명단을 불러오는 중…</div></div>
+      <p class="picked" id="picked"></p>
+
+      <label>별 개수</label>
+      <div class="amt-row" id="amtRow">
+        <button type="button" data-n="1">⭐ 1</button>
+        <button type="button" data-n="2">⭐ 2</button>
+        <button type="button" data-n="3">⭐ 3</button>
+        <button type="button" data-n="5">⭐ 5</button>
+      </div>
+      <input type="number" id="amt" min="1" max="50" placeholder="직접 입력 (1~50)" style="margin-top:8px;" />
+
+      <label>사유 <span class="opt">(선택 · 학생에게 함께 보여요)</span></label>
+      <input type="text" id="reason" maxlength="60" placeholder="예) 수업 태도가 최고였어요" />
+
+      <button type="button" class="submit" id="giveBtn" onclick="giveStars()">별 선물하기</button>
+      <div class="status" id="giftStatus"></div>
+    </section>
+
+    <section class="card">
+      <h2><span class="dot"></span>슈퍼스타 TOP 10</h2>
+      <p class="sub">지금까지 모은 별 기준 상위 10명이에요. 이름을 누르면 획득 내역이 펼쳐집니다.</p>
+      <div class="mgr-bar"><button type="button" class="refresh" onclick="loadRank()">새로고침</button></div>
+      <div id="rankList"><div class="mgr-empty">불러오는 중…</div></div>
+    </section>
+
+    <section class="card">
+      <h2><span class="dot"></span>최근 선물한 별</h2>
+      <p class="sub">실수로 잘못 준 별은 여기서 지울 수 있어요.</p>
+      <div class="mgr-bar"><button type="button" class="refresh" onclick="loadLog()">새로고침</button></div>
+      <div id="logList"><div class="mgr-empty">불러오는 중…</div></div>
+    </section>
+  </div>
 </main>
 
 <script>
@@ -308,10 +402,13 @@
     $('tab-new').style.display  = which==='new'  ? 'block' : 'none';
     $('tab-out').style.display  = which==='out'  ? 'block' : 'none';
     $('tab-link').style.display = which==='link' ? 'block' : 'none';
+    $('tab-star').style.display = which==='star' ? 'block' : 'none';
     $('tabNewBtn').classList.toggle('on',  which==='new');
     $('tabOutBtn').classList.toggle('on',  which==='out');
     $('tabLinkBtn').classList.toggle('on', which==='link');
+    $('tabStarBtn').classList.toggle('on', which==='star');
     if (which==='link') loadLinks();   // 처음 열 때만 명단 로딩
+    if (which==='star') starInit();
     window.scrollTo(0,0);
   }
 
@@ -552,6 +649,177 @@
   }
   function setE(wrap,m,k){ var e=wrap.querySelector('.estat'); e.textContent=m||''; e.className='estat'+(k?' '+k:''); }
   ['lk-q','lk-grade','lk-school'].forEach(function(id){ $(id).addEventListener('input', renderLinks); });
+
+  /* ══════════ 별 더하기 ══════════ */
+  var STAR_INITED=false, ST_PICK=[], SEL=null, LOGS=[];
+  function starInit(){ if(STAR_INITED) return; STAR_INITED=true; loadPickList(); loadLog(); loadRank(); }
+
+  // 등급 임계값은 s.html의 LEVELS와 동일하게 유지
+  var LEVELS=[[0,'원석'],[2,'오디션 합격'],[5,'연습생'],[9,'월말평가 통과'],[14,'데뷔조'],[20,'데뷔 쇼케이스'],[27,'데뷔 신인'],[35,'첫 음악방송'],[44,'음방 1위'],[54,'신인상 수상'],[66,'대상 후보'],[80,'슈퍼스타']];
+  function levelName(total){ var nm=LEVELS[0][1]; for(var i=0;i<LEVELS.length;i++){ if(total>=LEVELS[i][0]) nm=LEVELS[i][1]; } return nm; }
+  // 학교 · 학년 — 학년(nb)은 통째로 줄바꿈되어 좁은 화면에서 '학교 /줄바꿈/ 학년' 두 줄이 됨
+  function metaHtml(s){
+    var sc = String(s.school||'').trim(), gr = String(s.grade||'').trim();
+    if(sc && gr) return esc(sc)+' · <span class="nb">'+esc(gr)+'</span>';
+    return esc(sc || gr);
+  }
+  // 별 획득 내역 (학생 페이지 '내 별은 이렇게 모았어요'와 동일 구성, 0개 항목 숨김)
+  var SRC_ICON = {
+    exam:  '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M9 13h6M9 17h6"/>',
+    voca:  '<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>',
+    mock:  '<path d="M9 3h6a1 1 0 0 1 1 1v1a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M16 5h2a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2"/><path d="M9 14l2 2 4-4"/>',
+    clinic:'<path d="M22 12h-4l-3 8L9 4l-3 8H2"/>',
+    hwork: '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/>',
+    notice:'<path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>',
+    bonus: '<path d="M12 2l2.9 6.2 6.8.8-5 4.7 1.3 6.7L12 17.1 6 20.4l1.3-6.7-5-4.7 6.8-.8z"/>'
+  };
+  function srcIcon(k){
+    return '<span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">'+SRC_ICON[k]+'</svg></span>';
+  }
+  function srcRows(bd){
+    if(!bd) return '<p class="none">내역은 리포트 백엔드 재배포 후 표시돼요.</p>';
+    var srcs = [
+      ['exam',  '지필 평가지 리포트', bd.exam,   '회', (bd.exam||0)*2],
+      ['voca',  '어휘 테스트',        bd.voca,   '회', bd.voca],
+      ['mock',  '실전 모의고사 응시', bd.mock,   '회', bd.mock],
+      ['clinic','클리닉 신청',        bd.clinic, '회', bd.clinic],
+      ['hwork', 'H-work 과제',        bd.hwork,  '개', bd.hwork],
+      ['notice','공지 확인',          bd.notice, '건', bd.notice],
+      ['bonus', '깜짝 보너스',        bd.bonus ? 1 : 0, '', bd.bonus]
+    ].filter(function(s){ return s[2] > 0; });
+    if(!srcs.length) return '<p class="none">아직 획득 내역이 없어요.</p>';
+    return '<ul>'+srcs.map(function(s){
+      var cnt = s[3] ? ' <b>'+s[2]+s[3]+'</b>' : '';
+      return '<li>'+srcIcon(s[0])+'<span class="lb">'+s[1]+cnt+'</span><span class="pt">⭐ '+s[4]+'</span></li>';
+    }).join('')+'</ul>';
+  }
+  function loadRank(){
+    var box=$('rankList');
+    box.innerHTML='<div class="mgr-empty">불러오는 중…</div>';
+    fetch(ENDPOINT+'?action=starRank&pw='+encodeURIComponent(SERVER_PW)+'&t='+Date.now())
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        if(!d || d.result!=='success' || !d.top){ box.innerHTML='<div class="mgr-empty">순위를 불러오지 못했어요.</div>'; return; }
+        if(!d.top.length){ box.innerHTML='<div class="mgr-empty">아직 별을 모은 학생이 없어요.</div>'; return; }
+        var medals=['🥇','🥈','🥉'];
+        box.innerHTML = d.top.map(function(s,i){
+          return '<div class="rk-item">'+
+            '<div class="rk'+(i<3?' top3':'')+'">'+
+            '<span class="no">'+(i<3?medals[i]:(i+1))+'</span>'+
+            '<span class="who">'+esc(s.name)+'</span>'+
+            '<span class="meta">'+metaHtml(s)+'</span>'+
+            '<span class="lvl">'+esc(levelName(s.total))+'</span>'+
+            '<span class="st2">⭐ '+s.total+'</span>'+
+            '</div>'+
+            '<div class="rk-detail">'+srcRows(s.breakdown)+'</div>'+
+            '</div>';
+        }).join('');
+      })
+      .catch(function(){ box.innerHTML='<div class="mgr-empty">순위를 불러오지 못했어요. 인터넷을 확인해 주세요.</div>'; });
+  }
+  $('rankList').addEventListener('click', function(e){
+    var row = e.target.closest('.rk'); if(!row) return;
+    row.parentNode.classList.toggle('open');
+  });
+
+  function loadPickList(){
+    fetch(ENDPOINT+'?action=roster&t='+Date.now())
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        if(!d || d.result!=='success'){ $('stuList').innerHTML='<div class="stu-empty">명단을 불러오지 못했어요.</div>'; return; }
+        ST_PICK = d.students||[];
+        renderPick('');
+      })
+      .catch(function(){ $('stuList').innerHTML='<div class="stu-empty">명단을 불러오지 못했어요. 인터넷을 확인해 주세요.</div>'; });
+  }
+  function renderPick(q){
+    q=(q||'').trim();
+    var rows = ST_PICK.filter(function(s){ return !q || (s.name&&s.name.indexOf(q)>=0) || (s.school&&s.school.indexOf(q)>=0); });
+    if(!rows.length){ $('stuList').innerHTML='<div class="stu-empty">검색 결과가 없어요.</div>'; return; }
+    $('stuList').innerHTML = rows.map(function(s){
+      var on = SEL && SEL.name===s.name && SEL.school===s.school && SEL.grade===(s.grade||'');
+      return '<div class="stu-item'+(on?' on':'')+'" data-name="'+esc(s.name)+'" data-school="'+esc(s.school||'')+'" data-grade="'+esc(s.grade||'')+'">'+
+             esc(s.name)+'<span class="meta">'+metaHtml(s)+'</span></div>';
+    }).join('');
+  }
+  $('st-q').addEventListener('input', function(){ renderPick(this.value); });
+  $('stuList').addEventListener('click', function(e){
+    var it=e.target.closest('.stu-item'); if(!it) return;
+    var nm=it.getAttribute('data-name'), sc=it.getAttribute('data-school'), gr=it.getAttribute('data-grade');
+    SEL = (SEL && SEL.name===nm && SEL.school===sc && SEL.grade===gr) ? null : { name:nm, school:sc, grade:gr };
+    $('picked').textContent = SEL ? ('✓ '+SEL.name+(SEL.school||SEL.grade?' ('+[SEL.school,SEL.grade].filter(Boolean).join(' · ')+')':'')) : '';
+    renderPick($('st-q').value);
+  });
+
+  $('amtRow').addEventListener('click', function(e){
+    var b=e.target.closest('button'); if(!b) return;
+    this.querySelectorAll('button').forEach(function(x){ x.classList.remove('on'); });
+    b.classList.add('on');
+    $('amt').value = b.getAttribute('data-n');
+  });
+  $('amt').addEventListener('input', function(){
+    document.querySelectorAll('#amtRow button').forEach(function(x){ x.classList.toggle('on', x.getAttribute('data-n')===String($('amt').value)); });
+  });
+
+  function setGift(m,k){ var s=$('giftStatus'); s.textContent=m||''; s.className='status'+(k?' '+k:''); }
+
+  function giveStars(){
+    if(!SEL){ setGift('학생을 먼저 선택해 주세요.','err'); return; }
+    var n = parseInt($('amt').value,10);
+    if(!n || n<1 || n>50){ setGift('별 개수를 1~50 사이로 입력해 주세요.','err'); return; }
+    var btn=$('giveBtn'); btn.disabled=true; var label=btn.textContent; btn.textContent='선물하는 중…';
+    fetch(ENDPOINT, {
+      method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body: JSON.stringify({ action:'addStarBonus', pw:SERVER_PW, name:SEL.name, school:SEL.school, grade:SEL.grade||'', stars:n, reason:$('reason').value.trim() })
+    })
+    .then(function(r){ return r.json(); })
+    .then(function(res){
+      btn.disabled=false; btn.textContent=label;
+      if(res.result==='success'){
+        setGift('✓ '+SEL.name+' 슈퍼스타에게 별 '+n+'개를 선물했어요!','ok');
+        $('reason').value=''; $('amt').value='';
+        document.querySelectorAll('#amtRow button').forEach(function(x){ x.classList.remove('on'); });
+        loadLog(); loadRank();
+      } else {
+        setGift('실패: '+(res.message==='unauthorized'?'권한이 없습니다.':(res.message||'오류')),'err');
+      }
+    })
+    .catch(function(){ btn.disabled=false; btn.textContent=label; setGift('전송 실패 — 인터넷을 확인해 주세요.','err'); });
+  }
+
+  function loadLog(){
+    var box=$('logList');
+    box.innerHTML='<div class="mgr-empty">불러오는 중…</div>';
+    fetch(ENDPOINT+'?action=starLog&pw='+encodeURIComponent(SERVER_PW)+'&t='+Date.now())
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        if(!d || d.result!=='success'){ box.innerHTML='<div class="mgr-empty">목록을 불러오지 못했어요.</div>'; return; }
+        if(!d.log || !d.log.length){ box.innerHTML='<div class="mgr-empty">아직 선물한 별이 없어요.</div>'; return; }
+        LOGS = d.log;
+        box.innerHTML = d.log.map(function(g,i){
+          return '<div class="log-item">'+
+            '<span class="st">⭐ '+g.stars+'</span>'+
+            '<span class="who">'+esc(g.name)+'</span>'+
+            '<span class="rsn">'+esc(g.reason||'')+'</span>'+
+            '<span class="dt">'+esc(g.date||'')+'</span>'+
+            '<button type="button" class="del" onclick="delBonus('+i+',this)">삭제</button>'+
+            '</div>';
+        }).join('');
+      })
+      .catch(function(){ box.innerHTML='<div class="mgr-empty">목록을 불러오지 못했어요.</div>'; });
+  }
+  function delBonus(i, btn){
+    var g=LOGS[i]; if(!g) return;
+    if(!confirm(g.name+' 학생에게 준 별 '+g.stars+'개를 삭제할까요?')) return;
+    btn.disabled=true;
+    fetch(ENDPOINT, {
+      method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body: JSON.stringify({ action:'deleteStarBonus', pw:SERVER_PW, rowIndex:g.rowIndex, name:g.name, school:g.school||'', stars:g.stars })
+    })
+    .then(function(r){ return r.json(); })
+    .then(function(res){ if(res.result==='success'){ loadLog(); loadRank(); } else { btn.disabled=false; alert('삭제 실패: '+(res.message||'오류')); } })
+    .catch(function(){ btn.disabled=false; alert('삭제 실패 — 인터넷을 확인해 주세요.'); });
+  }
   $('lk-list').addEventListener('click', function(e){
     // 링크 복사
     var btn=e.target.closest('button.copy');
