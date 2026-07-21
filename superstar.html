@@ -94,6 +94,25 @@
   .del:disabled{background:#d9a09b;cursor:default;}
   .empty{text-align:center;color:#9aa6a0;font-size:13.5px;padding:16px;}
 
+  /* 슈스 링크 탭 */
+  .lk-controls{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;}
+  .lk-controls input[type=text]{flex:2;min-width:140px;}
+  .lk-controls select{flex:1;min-width:110px;padding:11px 10px;border:1.5px solid var(--line);border-radius:10px;
+    font:inherit;font-size:13.5px;background:#fafbfa;color:var(--ink);}
+  .lk-count{font-size:12.5px;color:var(--ink-soft);margin:2px 0 10px;}
+  .lrow{display:flex;align-items:center;gap:10px;border:1px solid var(--line-soft);border-radius:11px;
+    padding:11px 13px;margin-bottom:8px;background:#fcfdfc;}
+  .lrow .who{flex:1;min-width:0;}
+  .lrow .nm{font-weight:700;font-size:14.5px;}
+  .lrow .meta{font-size:12px;color:var(--ink-soft);word-break:keep-all;}
+  .lrow .acts{display:flex;gap:6px;flex:0 0 auto;}
+  .lrow .copy{border:none;background:var(--accent);color:#fff;font:inherit;font-size:12.5px;font-weight:700;
+    padding:8px 12px;border-radius:9px;cursor:pointer;white-space:nowrap;}
+  .lrow .copy.done{background:#1b8a3a;}
+  .lrow .open{display:inline-flex;align-items:center;border:1.5px solid var(--line);color:var(--ink-soft);
+    font-size:12.5px;font-weight:700;padding:7px 12px;border-radius:9px;text-decoration:none;white-space:nowrap;}
+  .lrow .nocode{font-size:12px;color:var(--bad);}
+
   /* 잠금 */
   .lock{position:fixed;inset:0;background:var(--bg);z-index:100;display:flex;align-items:center;justify-content:center;padding:24px;}
   .lock-card{background:#fff;border:1px solid var(--line-soft);border-radius:18px;padding:34px 28px;text-align:center;max-width:330px;width:100%;}
@@ -132,6 +151,7 @@
   <div class="tabs">
     <button type="button" id="tabNewBtn" class="on" onclick="showTab('new')">🌱 신입 슈스</button>
     <button type="button" id="tabOutBtn" onclick="showTab('out')">👋 아웃 슈스</button>
+    <button type="button" id="tabLinkBtn" onclick="showTab('link')">🔗 슈스 링크</button>
   </div>
 
   <!-- ════════ 신입 슈스 ════════ -->
@@ -222,6 +242,21 @@
       <div class="status" id="delStatus"></div>
     </section>
   </div>
+
+  <!-- ════════ 슈스 링크 ════════ -->
+  <div id="tab-link" style="display:none;">
+    <section class="card">
+      <h2><span class="dot"></span>학생 개인 페이지 링크</h2>
+      <p class="sub">링크는 학생·학부모에게만 전달하세요. 성적 확인은 부모님 8자리로 잠겨 있어요.</p>
+      <div class="lk-controls">
+        <input type="text" id="lk-q" placeholder="이름 · 학교 검색" autocomplete="off" />
+        <select id="lk-grade"><option value="">전체 학년</option></select>
+        <select id="lk-school"><option value="">전체 학교</option></select>
+      </div>
+      <div class="lk-count" id="lk-count"></div>
+      <div id="lk-list"><div class="empty">불러오는 중…</div></div>
+    </section>
+  </div>
 </main>
 
 <script>
@@ -246,10 +281,13 @@
 
   /* ── 하위 메뉴 탭 ── */
   function showTab(which){
-    $('tab-new').style.display = which==='new' ? 'block' : 'none';
-    $('tab-out').style.display = which==='out' ? 'block' : 'none';
-    $('tabNewBtn').classList.toggle('on', which==='new');
-    $('tabOutBtn').classList.toggle('on', which==='out');
+    $('tab-new').style.display  = which==='new'  ? 'block' : 'none';
+    $('tab-out').style.display  = which==='out'  ? 'block' : 'none';
+    $('tab-link').style.display = which==='link' ? 'block' : 'none';
+    $('tabNewBtn').classList.toggle('on',  which==='new');
+    $('tabOutBtn').classList.toggle('on',  which==='out');
+    $('tabLinkBtn').classList.toggle('on', which==='link');
+    if (which==='link') loadLinks();   // 처음 열 때만 명단 로딩
     window.scrollTo(0,0);
   }
 
@@ -302,6 +340,7 @@
       }
       if(!d || d.result!=='success'){ setReg('등록 실패: '+((d&&d.message)||'오류'),'err'); return; }
       setReg('');
+      LINKS = null;   // 슈스 링크 탭이 새 학생을 반영하도록 캐시 비움
       $('formCard').style.display='none';
       $('doneCard').style.display='block';
       $('doneName').textContent = d.name + ' 슈퍼스타, 환영해요! 🌱';
@@ -413,6 +452,56 @@
   }
   $('x-name').addEventListener('keydown', function(e){ if(e.key==='Enter') scan(); });
   $('x-sid').addEventListener('keydown', function(e){ if(e.key==='Enter') scan(); });
+
+  /* ══════════ 슈스 링크 ══════════ */
+  var LINKS = null;   // null = 아직 안 불러옴
+  function loadLinks(force){
+    if (LINKS !== null && !force) return;
+    $('lk-list').innerHTML = '<div class="empty">명단을 불러오는 중…</div>';
+    fetch(ENDPOINT+'?action=studentLinks&pw='+encodeURIComponent(SERVER_PW)+'&t='+Date.now())
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        if(!d || d.result!=='success'){ $('lk-list').innerHTML='<div class="empty">명단을 불러오지 못했어요.</div>'; return; }
+        LINKS = (d.students||[]).sort(function(a,b){ return a.name.localeCompare(b.name,'ko'); });
+        var gs={}, sc={};
+        LINKS.forEach(function(s){ if(s.grade) gs[s.grade]=1; if(s.school) sc[s.school]=1; });
+        $('lk-grade').innerHTML  = '<option value="">전체 학년</option>'+Object.keys(gs).sort().map(function(g){return '<option>'+esc(g)+'</option>';}).join('');
+        $('lk-school').innerHTML = '<option value="">전체 학교</option>'+Object.keys(sc).sort().map(function(s){return '<option>'+esc(s)+'</option>';}).join('');
+        renderLinks();
+      })
+      .catch(function(){ $('lk-list').innerHTML='<div class="empty">연결 실패 — 인터넷을 확인해 주세요.</div>'; });
+  }
+  function linkOf(s){ return S_BASE + encodeURIComponent(s.code); }
+  var LK_ROWS = [];
+  function renderLinks(){
+    if (LINKS === null) return;
+    var q=$('lk-q').value.trim(), fg=$('lk-grade').value, fs=$('lk-school').value;
+    LK_ROWS = LINKS.filter(function(s){
+      return (!q || s.name.indexOf(q)>=0 || (s.school||'').indexOf(q)>=0) &&
+             (!fg || s.grade===fg) && (!fs || s.school===fs);
+    });
+    $('lk-count').textContent = '재원 학생 '+LINKS.length+'명 중 '+LK_ROWS.length+'명 표시';
+    if(!LK_ROWS.length){ $('lk-list').innerHTML='<div class="empty">검색 결과가 없어요.</div>'; return; }
+    $('lk-list').innerHTML = LK_ROWS.map(function(s,i){
+      var meta=[s.school, s.grade, s.teacher?('담당 '+s.teacher):''].filter(Boolean).join(' · ');
+      var acts = s.code
+        ? '<button type="button" class="copy" data-i="'+i+'">링크 복사</button>'+
+          '<a class="open" href="'+esc(linkOf(s))+'" target="_blank" rel="noopener">열기</a>'
+        : '<span class="nocode">접근코드 없음</span>';
+      return '<div class="lrow"><div class="who"><div class="nm">'+esc(s.name)+'</div>'+
+        '<div class="meta">'+esc(meta)+'</div></div><div class="acts">'+acts+'</div></div>';
+    }).join('');
+  }
+  ['lk-q','lk-grade','lk-school'].forEach(function(id){ $(id).addEventListener('input', renderLinks); });
+  $('lk-list').addEventListener('click', function(e){
+    var btn=e.target.closest('button.copy'); if(!btn) return;
+    var s=LK_ROWS[+btn.getAttribute('data-i')]; if(!s) return;
+    var url=linkOf(s);
+    var ok=function(){ btn.classList.add('done'); btn.textContent='복사됐어요!'; setTimeout(function(){ btn.classList.remove('done'); btn.textContent='링크 복사'; },1600); };
+    if(navigator.clipboard && navigator.clipboard.writeText){ navigator.clipboard.writeText(url).then(ok); }
+    else { var ta=document.createElement('textarea'); ta.value=url; document.body.appendChild(ta); ta.select();
+      try{ document.execCommand('copy'); ok(); }catch(err){} document.body.removeChild(ta); }
+  });
 </script>
 </body>
 </html>
