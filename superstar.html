@@ -112,6 +112,21 @@
   .lrow .open{display:inline-flex;align-items:center;border:1.5px solid var(--line);color:var(--ink-soft);
     font-size:12.5px;font-weight:700;padding:7px 12px;border-radius:9px;text-decoration:none;white-space:nowrap;}
   .lrow .nocode{font-size:12px;color:var(--bad);}
+  .lrow .edit{display:inline-flex;align-items:center;border:1.5px solid var(--line);color:var(--ink-soft);
+    font-size:12.5px;font-weight:700;padding:7px 12px;border-radius:9px;background:#fff;cursor:pointer;white-space:nowrap;}
+  .lwrap{margin-bottom:8px;}
+  .lwrap .lrow{margin-bottom:0;}
+  .ledit{display:none;background:#F4F8F5;border:1px solid var(--line-soft);border-top:none;
+    border-radius:0 0 11px 11px;padding:6px 13px 14px;}
+  .lwrap.editing .lrow{border-radius:11px 11px 0 0;}
+  .lwrap.editing .ledit{display:block;}
+  .ledit label{margin:10px 0 5px;font-size:12px;}
+  .ledit input{padding:10px 11px;font-size:14px;background:#fff;}
+  .ledit .esave{width:100%;margin-top:12px;padding:12px;border:none;border-radius:10px;background:var(--accent);
+    color:#fff;font-family:"Gowun Batang",serif;font-size:14.5px;font-weight:700;cursor:pointer;}
+  .ledit .esave:disabled{background:#9fb3aa;}
+  .ledit .estat{font-size:12px;margin-top:8px;min-height:1.1em;text-align:center;color:var(--ink-soft);}
+  .ledit .estat.ok{color:var(--ok);} .ledit .estat.err{color:var(--bad);}
 
   /* 잠금 */
   .lock{position:fixed;inset:0;background:var(--bg);z-index:100;display:flex;align-items:center;justify-content:center;padding:24px;}
@@ -246,8 +261,8 @@
   <!-- ════════ 슈스 링크 ════════ -->
   <div id="tab-link" style="display:none;">
     <section class="card">
-      <h2><span class="dot"></span>학생 개인 페이지 링크</h2>
-      <p class="sub">링크는 학생·학부모에게만 전달하세요. 성적 확인은 부모님 8자리로 잠겨 있어요.</p>
+      <h2><span class="dot"></span>학생 개인 페이지 링크 · 정보</h2>
+      <p class="sub">링크 복사와 함께 <b>[수정]</b>으로 시간표·담당 교사도 바로 고칠 수 있어요. 링크는 학생·학부모에게만 전달하세요.</p>
       <div class="lk-controls">
         <input type="text" id="lk-q" placeholder="이름 · 학교 검색" autocomplete="off" />
         <select id="lk-grade"><option value="">전체 학년</option></select>
@@ -483,24 +498,81 @@
     $('lk-count').textContent = '재원 학생 '+LINKS.length+'명 중 '+LK_ROWS.length+'명 표시';
     if(!LK_ROWS.length){ $('lk-list').innerHTML='<div class="empty">검색 결과가 없어요.</div>'; return; }
     $('lk-list').innerHTML = LK_ROWS.map(function(s,i){
-      var meta=[s.school, s.grade, s.teacher?('담당 '+s.teacher):''].filter(Boolean).join(' · ');
-      var acts = s.code
+      var tt=[s.classA&&('가 '+s.classA), s.classB&&('나 '+s.classB), s.progress&&('진도 '+s.progress), s.checkup&&('확인 '+s.checkup)].filter(Boolean).join(' · ');
+      var meta = esc([s.school, s.grade, s.teacher?('담당 '+s.teacher):''].filter(Boolean).join(' · '))
+               + (tt ? '<br>'+esc(tt) : '');
+      var acts = (s.code
         ? '<button type="button" class="copy" data-i="'+i+'">링크 복사</button>'+
           '<a class="open" href="'+esc(linkOf(s))+'" target="_blank" rel="noopener">열기</a>'
-        : '<span class="nocode">접근코드 없음</span>';
-      return '<div class="lrow"><div class="who"><div class="nm">'+esc(s.name)+'</div>'+
-        '<div class="meta">'+esc(meta)+'</div></div><div class="acts">'+acts+'</div></div>';
+        : '<span class="nocode">접근코드 없음</span>')
+        + (s.code ? '<button type="button" class="edit" data-i="'+i+'">수정</button>' : '');
+      return '<div class="lwrap" data-i="'+i+'"><div class="lrow"><div class="who"><div class="nm">'+esc(s.name)+'</div>'+
+        '<div class="meta">'+meta+'</div></div><div class="acts">'+acts+'</div></div>'+
+        '<div class="ledit"></div></div>';
     }).join('');
   }
+  function editFormHtml(s){
+    return '<div class="row2"><div><label>학교</label><input type="text" class="e-school" value="'+esc(s.school||'')+'" /></div>'+
+      '<div><label>학년</label><input type="text" class="e-grade" value="'+esc(s.grade||'')+'" /></div></div>'+
+      '<label>담당 교사</label><input type="text" class="e-teacher" value="'+esc(s.teacher||'')+'" />'+
+      '<div class="row2"><div><label>정규 가 수업</label><input type="text" class="e-classA" value="'+esc(s.classA||'')+'" /></div>'+
+      '<div><label>정규 나 수업</label><input type="text" class="e-classB" value="'+esc(s.classB||'')+'" /></div></div>'+
+      '<div class="row2"><div><label>내신 진도</label><input type="text" class="e-progress" value="'+esc(s.progress||'')+'" /></div>'+
+      '<div><label>내신 확인</label><input type="text" class="e-checkup" value="'+esc(s.checkup||'')+'" /></div></div>'+
+      '<label>메모</label><input type="text" class="e-memo" maxlength="80" value="'+esc(s.memo||'')+'" />'+
+      '<button type="button" class="esave">저장</button><div class="estat"></div>';
+  }
+  function saveEdit(wrap, s){
+    var g=function(cls){ return wrap.querySelector('.'+cls).value.trim(); };
+    var payload={ action:'updateStudent', pw:SERVER_PW, code:s.code,
+      school:g('e-school'), grade:g('e-grade'), teacher:g('e-teacher'), memo:g('e-memo'),
+      classA:g('e-classA'), classB:g('e-classB'), progress:g('e-progress'), checkup:g('e-checkup') };
+    if(!payload.school || !payload.grade){ setE(wrap,'학교와 학년은 비울 수 없어요.','err'); return; }
+    var btn=wrap.querySelector('.esave'); btn.disabled=true; setE(wrap,'저장하는 중…');
+    fetch(ENDPOINT, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify(payload) })
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        btn.disabled=false;
+        if(!d || d.result!=='success'){ setE(wrap,'저장 실패: '+((d&&d.message)||'오류'),'err'); return; }
+        s.school=payload.school; s.grade=payload.grade; s.teacher=payload.teacher; s.memo=payload.memo;
+        s.classA=payload.classA; s.classB=payload.classB; s.progress=payload.progress; s.checkup=payload.checkup;
+        setE(wrap,'✓ 저장되었어요','ok');
+        setTimeout(function(){ renderLinks(); }, 700);
+      })
+      .catch(function(){ btn.disabled=false; setE(wrap,'연결 실패 — 다시 시도해 주세요.','err'); });
+  }
+  function setE(wrap,m,k){ var e=wrap.querySelector('.estat'); e.textContent=m||''; e.className='estat'+(k?' '+k:''); }
   ['lk-q','lk-grade','lk-school'].forEach(function(id){ $(id).addEventListener('input', renderLinks); });
   $('lk-list').addEventListener('click', function(e){
-    var btn=e.target.closest('button.copy'); if(!btn) return;
-    var s=LK_ROWS[+btn.getAttribute('data-i')]; if(!s) return;
-    var url=linkOf(s);
-    var ok=function(){ btn.classList.add('done'); btn.textContent='복사됐어요!'; setTimeout(function(){ btn.classList.remove('done'); btn.textContent='링크 복사'; },1600); };
-    if(navigator.clipboard && navigator.clipboard.writeText){ navigator.clipboard.writeText(url).then(ok); }
-    else { var ta=document.createElement('textarea'); ta.value=url; document.body.appendChild(ta); ta.select();
-      try{ document.execCommand('copy'); ok(); }catch(err){} document.body.removeChild(ta); }
+    // 링크 복사
+    var btn=e.target.closest('button.copy');
+    if(btn){
+      var s=LK_ROWS[+btn.getAttribute('data-i')]; if(!s) return;
+      var url=linkOf(s);
+      var ok=function(){ btn.classList.add('done'); btn.textContent='복사됐어요!'; setTimeout(function(){ btn.classList.remove('done'); btn.textContent='링크 복사'; },1600); };
+      if(navigator.clipboard && navigator.clipboard.writeText){ navigator.clipboard.writeText(url).then(ok); }
+      else { var ta=document.createElement('textarea'); ta.value=url; document.body.appendChild(ta); ta.select();
+        try{ document.execCommand('copy'); ok(); }catch(err){} document.body.removeChild(ta); }
+      return;
+    }
+    // 수정 열기/닫기
+    var eb=e.target.closest('button.edit');
+    if(eb){
+      var wrap=eb.closest('.lwrap'); var st=LK_ROWS[+eb.getAttribute('data-i')]; if(!wrap||!st) return;
+      if(wrap.classList.contains('editing')){ wrap.classList.remove('editing'); eb.textContent='수정'; return; }
+      document.querySelectorAll('#lk-list .lwrap.editing').forEach(function(w){
+        w.classList.remove('editing'); var b=w.querySelector('button.edit'); if(b) b.textContent='수정';
+      });
+      wrap.querySelector('.ledit').innerHTML = editFormHtml(st);
+      wrap.classList.add('editing'); eb.textContent='닫기';
+      return;
+    }
+    // 저장
+    var sv=e.target.closest('button.esave');
+    if(sv){
+      var w2=sv.closest('.lwrap'); var s2=LK_ROWS[+w2.getAttribute('data-i')]; if(!w2||!s2) return;
+      saveEdit(w2.querySelector('.ledit'), s2);
+    }
   });
 </script>
 </body>

@@ -1717,6 +1717,7 @@ function doPost(e) {
     if (data && data.action === 'deleteStarBonus') { return deleteStarBonus(data); }
     if (data && data.action === 'exitDelete')      { return exitDelete(data); }
     if (data && data.action === 'addStudent')      { return addStudent(data); }
+    if (data && data.action === 'updateStudent')   { return updateStudent(data); }
 
     // (13) 공지 '확인했습니다' — 확인 1건당 별 1개 (s.html, 토큰으로 학생 확인)
     if (data && data.action === 'checkNotice')     { return checkNotice(data); }
@@ -1818,10 +1819,49 @@ function getStudentLinks() {
       school: String(v[i][2] || '').trim(),
       grade:  String(v[i][3] || '').trim(),
       teacher:String(v[i][4] || '').trim(),
+      memo:    String(v[i][5] || '').trim(),
+      classA:  String(v[i][6] || '').trim(),
+      classB:  String(v[i][7] || '').trim(),
+      progress:String(v[i][8] || '').trim(),
+      checkup: String(v[i][9] || '').trim(),
       code:   String(v[i][codeCol] || '').trim()   // 빈칸이면 assignAccessCodes() 미실행 학생
     });
   }
   return json({ result:'success', students: out });
+}
+
+/** 재원생 정보 수정 (superstar.html 슈스 링크 탭). 접근코드로 행을 찾아
+ *  학교·학년·담당교사·메모·시간표(정규가/나·내신진도/확인)만 갱신 — 이름·8자리·재원여부는 건드리지 않음. */
+function updateStudent(data) {
+  if (String(data.pw || '') !== TEACHER_PW) return json({ result: 'error', message: 'unauthorized' });
+  var code = String(data.code || '').trim();
+  if (!code) return json({ result: 'error', message: '학생 식별 정보(접근코드)가 없습니다.' });
+  var school = String(data.school || '').trim(), grade = String(data.grade || '').trim();
+  if (!school || !grade) return json({ result: 'error', message: '학교와 학년은 비울 수 없어요.' });
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ss.getSheetByName(TAB_STUDENTS);
+  if (!sh) return json({ result: 'error', message: "'" + TAB_STUDENTS + "' 탭이 없습니다." });
+  var lock = LockService.getScriptLock();
+  try { lock.waitLock(10000); } catch (e) { return json({ result: 'error', message: '잠시 후 다시 시도해 주세요.' }); }
+  try {
+    var v = sh.getDataRange().getValues();
+    var codeCol = findHeaderCol_(v[0], '접근코드', STU_CODE_COL);
+    var row = -1;
+    for (var i = 1; i < v.length; i++) {
+      if (String(v[i][codeCol] || '').trim() === code) { row = i + 1; break; }
+    }
+    if (row < 0) return json({ result: 'error', message: '학생을 찾을 수 없어요. 새로고침 후 다시 시도해 주세요.' });
+    // C학교 D학년 E담당교사 F메모 G정규가 H정규나 I내신진도 J내신확인 (이름·8자리·재원여부·접근코드는 유지)
+    sh.getRange(row, 3, 1, 8).setValues([[
+      school, grade,
+      String(data.teacher || '').trim(), String(data.memo || '').trim(),
+      String(data.classA || '').trim(), String(data.classB || '').trim(),
+      String(data.progress || '').trim(), String(data.checkup || '').trim()
+    ]]);
+    return json({ result: 'success' });
+  } finally {
+    try { lock.releaseLock(); } catch (e) {}
+  }
 }
 
 function ensureNoticeSheet_(ss) {
