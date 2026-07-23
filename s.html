@@ -766,8 +766,16 @@ function renderHub(){
       // 그 외(주차 미설정 등)는 기본 설명 + '준비 중'
     }
     var ic = '<span class="icon">'+svg(ICON[f.icon]||ICON.book)+(vocaBadge?'<span class="new-dot">1</span>':'')+'</span>';
-    // 실전 모의고사: 신청·OMR·성적을 하위 메뉴 하나로 묶음 (학년 게이팅은 하위 메뉴 안에서)
+    // 실전 모의고사: 신청·OMR·성적을 하위 메뉴 하나로 묶음
     if(f.id==='mock'){
+      // 진행 대상 학년이 아니면 카드 자체를 비활성 (클리닉과 동일 패턴).
+      // 이미 이번 주 신청 내역이 있는 학생은 OMR·성적 확인을 위해 그대로 열어 둔다.
+      if(!gradeEligible(STATE.mockGrades) && !(STATE.mockSignups && STATE.mockSignups.length)){
+        html += '<div class="card pending">'+ic+
+                '<h3>실전 모의고사</h3><p class="desc">이번 주는 해당 학년 실전 모의고사를 운영하지 않아요.</p>'+
+                '<span class="tag">이번 주 운영 안 함</span></div>';
+        return;
+      }
       var mockDesc = (STATE.mockSignups && STATE.mockSignups.length)
         ? '이번 주 신청 완료 ✓ · OMR · 성적'
         : '신청 · OMR 작성 · 성적 확인';
