@@ -10,8 +10,8 @@
 <link rel="stylesheet" href="student-picker.css" />
 <style>
   :root{
-    --bg:#E4EFEA; --surface:#FFFFFF; --ink:#2A332F; --ink-soft:#65726B;
-    --accent:#3A6B5E; --line:#D7E3DD; --line-soft:#E5EDE8; --radius:18px;
+    --bg:#C6D5D2; --surface:#FFFFFF; --ink:#2A332F; --ink-soft:#65726B;
+    --accent:#4C6E66; --btn:#628C83; --line:#D7E3DD; --line-soft:#E5EDE8; --radius:18px;
     --bad:#c0463e; --ok:#1b8a3a;
   }
   *{box-sizing:border-box;}
@@ -41,14 +41,14 @@
     width:100%;padding:12px 13px;border:1.5px solid var(--line);border-radius:10px;
     font:inherit;font-size:15px;background:#fafbfa;color:var(--ink);
   }
-  input[type=text]:focus,textarea:focus{outline:none;border-color:var(--accent);background:#fff;}
+  input[type=text]:focus,textarea:focus{outline:none;border-color:var(--btn);background:#fff;}
   textarea{min-height:96px;resize:vertical;line-height:1.6;}
 
   .pub{display:flex;align-items:center;gap:9px;margin-top:16px;font-size:14px;color:var(--ink);cursor:pointer;}
-  .pub input{width:18px;height:18px;accent-color:var(--accent);}
+  .pub input{width:18px;height:18px;accent-color:var(--btn);}
 
   .submit{
-    width:100%;margin-top:18px;padding:15px;border:none;border-radius:12px;background:var(--accent);color:#fff;
+    width:100%;margin-top:18px;padding:15px;border:none;border-radius:12px;background:var(--btn);color:#fff;
     font-family:"Gowun Batang",serif;font-size:16px;font-weight:700;letter-spacing:1px;cursor:pointer;transition:opacity .15s;
   }
   .submit:active{opacity:.85;}
@@ -63,7 +63,7 @@
   .n-item{border:1px solid var(--line-soft);border-radius:12px;padding:13px 15px;margin-bottom:10px;background:#fcfdfc;}
   .n-item.hidden{opacity:.55;}
   .n-top{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:5px;}
-  .n-tag{font-size:11.5px;font-weight:700;padding:2px 9px;border-radius:20px;background:#E1EDE7;color:var(--accent);}
+  .n-tag{font-size:11.5px;font-weight:700;padding:2px 9px;border-radius:20px;background:#E0EAE7;color:var(--accent);}
   .n-tag.t전체{background:#dceae3;} .n-tag.t학년{background:#e3eadd;color:#5d7a4e;}
   .n-tag.t개인{background:#e8e3f0;color:#7a6e9a;} .n-tag.t일부{background:#f0e7dd;color:#9a7a4e;}
   .n-date{font-size:12px;color:#9aa6a0;margin-left:auto;}
@@ -83,7 +83,7 @@
   .lock-card .d{font-size:13px;color:var(--ink-soft);margin:10px 0 18px;}
   .lock-card input{width:100%;padding:13px;border:1.5px solid var(--line);border-radius:10px;font:inherit;font-size:16px;text-align:center;}
   .lock-card input:focus{outline:none;border-color:var(--accent);}
-  .lock-card button{width:100%;margin-top:11px;padding:13px;border:none;border-radius:11px;background:var(--accent);color:#fff;font-family:"Gowun Batang",serif;font-weight:700;font-size:16px;cursor:pointer;}
+  .lock-card button{width:100%;margin-top:11px;padding:13px;border:none;border-radius:11px;background:var(--btn);color:#fff;font-family:"Gowun Batang",serif;font-weight:700;font-size:16px;cursor:pointer;}
   .lock-err{color:var(--bad);font-size:12.5px;min-height:1.1em;margin-top:10px;}
   body.locked{overflow:hidden;}
   body:not(.locked) .lock{display:none;}
