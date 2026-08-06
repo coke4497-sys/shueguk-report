@@ -57,6 +57,156 @@ var SIGNUP_TAB      = '신청';
 var TAB_CONFIG = '설정';
 var TEACHER_PW = 'sh';   // 티쳐스 페이지에서 어휘 켜기/끄기 할 때 쓰는 비밀번호 (원하면 변경)
 
+/* ── 접속 폭주 대비 (성능) ─────────────────────────────────────
+ * 학생 개인 페이지 요청 1건이 시트를 10번 넘게(외부 스프레드시트 4개 포함) 읽어
+ * 접속이 몰리면 서버가 밀리던 문제를 줄인다.
+ *  ① tabValues_ : 한 요청 안에서 같은 탭을 여러 번 읽지 않는 실행 단위 메모.
+ *     (Apps Script는 요청마다 전역이 초기화되므로 요청 사이에는 남지 않는다)
+ *  ② extSnap_ : 외부 스프레드시트(클리닉·어휘·H WORK·OMR)를 필요한 문자열만
+ *     압축해 짧게 캐시 — 전 학생이 같은 스냅샷을 공유한다. 캐시 실패(용량 초과 등)
+ *     시에는 그냥 매번 읽으므로 동작은 같고 속도만 떨어진다.
+ *     ※ 새 제출은 캐시 수명(어휘·H WORK·OMR 60초, 클리닉 30초) 안에만 늦게 보인다. */
+var MEMO_ = {};
+function tabValues_(ss, tab) {
+  var k = 'tab:' + tab;
+  if (!(k in MEMO_)) {
+    var sh = ss.getSheetByName(tab);
+    MEMO_[k] = sh ? sh.getDataRange().getValues() : null;
+  }
+  return MEMO_[k];
+}
+function extSnap_(key, ttlSec, build) {
+  var mk = 'snap:' + key;
+  if (MEMO_[mk]) return MEMO_[mk];
+  try {
+    var hit = CacheService.getScriptCache().get(key);
+    if (hit) return (MEMO_[mk] = JSON.parse(hit));
+  } catch (e) {}
+  var snap = build();
+  try { CacheService.getScriptCache().put(key, JSON.stringify(snap), ttlSec); } catch (e) {}
+  return (MEMO_[mk] = snap);
+}
+
+/* H WORK '제출기록' 스냅샷 — 행: [강사, 제목, 이름, 학교, 학년] (모두 문자열) */
+function hworkSnap_() {
+  return extSnap_('hworkSnap', 60, function () {
+    var snap = { ok: false, has: {}, rows: [] };
+    if (!HWORK_SHEET_ID) return snap;
+    var sh = null;
+    try {
+      var hss = SpreadsheetApp.openById(HWORK_SHEET_ID);
+      if (HWORK_TAB) sh = hss.getSheetByName(HWORK_TAB);
+      if (!sh) {   // 탭 이름이 비어 있으면 '제출시각'+'이름' 머리글이 있는 탭을 자동 탐색
+        var all = hss.getSheets();
+        for (var t = 0; t < all.length; t++) {
+          if (all[t].getLastRow() < 1) continue;
+          var head = all[t].getRange(1, 1, 1, Math.max(all[t].getLastColumn(), 1)).getValues()[0]
+            .map(function (h) { return String(h || '').trim().toLowerCase(); });
+          if (idxOfAny_(head, ['이름', 'name']) >= 0 && idxOfAny_(head, ['제출시각', '제출일시', 'time']) >= 0) { sh = all[t]; break; }
+        }
+      }
+    } catch (e) { return snap; }
+    if (!sh) return snap;
+    var v = sh.getDataRange().getValues();
+    snap.ok = true;
+    if (v.length < 2) return snap;
+    var H = v[0].map(function (h) { return String(h || '').trim().toLowerCase(); });
+    var iName = idxOfAny_(H, ['name', '이름']), iSchool = idxOfAny_(H, ['school', '학교']);
+    var iTitle = idxOfAny_(H, ['제목', 'title']), iTeach = idxOfAny_(H, ['강사']), iGrade = idxOfAny_(H, ['학년', 'grade']);
+    snap.has = { name: iName >= 0, school: iSchool >= 0, title: iTitle >= 0, teacher: iTeach >= 0, grade: iGrade >= 0 };
+    for (var i = 1; i < v.length; i++) {
+      snap.rows.push([
+        iTeach  >= 0 ? String(v[i][iTeach]  || '') : '',
+        iTitle  >= 0 ? String(v[i][iTitle]  || '') : '',
+        iName   >= 0 ? String(v[i][iName]   || '') : '',
+        iSchool >= 0 ? String(v[i][iSchool] || '') : '',
+        iGrade  >= 0 ? String(v[i][iGrade]  || '') : ''
+      ]);
+    }
+    return snap;
+  });
+}
+
+/* 어휘 결과 시트 스냅샷 — 행: [이름, 주차, 학년, 학교] */
+function vocaSnap_() {
+  return extSnap_('vocaSnap', 60, function () {
+    var snap = { ok: false, has: {}, rows: [] };
+    if (!VOCA_SHEET_ID) return snap;
+    var sh;
+    try { sh = SpreadsheetApp.openById(VOCA_SHEET_ID).getSheets()[0]; } catch (e) { return snap; }
+    if (!sh) return snap;
+    var v = sh.getDataRange().getValues();
+    snap.ok = true;
+    if (v.length < 2) return snap;
+    var H = v[0].map(function (h) { return String(h || '').trim().toLowerCase(); });
+    var iName = idxOfAny_(H, ['name', '이름']), iRound = idxOfAny_(H, ['round', '주차', '회차']), iGrade = idxOfAny_(H, ['grade', '학년']), iSchool = idxOfAny_(H, ['school', '학교']);
+    snap.has = { name: iName >= 0, round: iRound >= 0, grade: iGrade >= 0, school: iSchool >= 0 };
+    for (var i = 1; i < v.length; i++) {
+      snap.rows.push([
+        iName   >= 0 ? String(v[i][iName]   || '') : '',
+        iRound  >= 0 ? String(v[i][iRound]  || '') : '',
+        iGrade  >= 0 ? String(v[i][iGrade]  || '') : '',
+        iSchool >= 0 ? String(v[i][iSchool] || '') : ''
+      ]);
+    }
+    return snap;
+  });
+}
+
+/* 주말 모의고사(OMR) 응답 스냅샷 — 행: [학생ID, 이름, 학교, 회차, 학년] */
+function omrSnap_() {
+  return extSnap_('omrSnap', 60, function () {
+    var snap = { ok: false, has: {}, rows: [] };
+    if (!OMR_SHEET_ID) return snap;
+    var sh;
+    try { sh = SpreadsheetApp.openById(OMR_SHEET_ID).getSheetByName(OMR_TAB); } catch (e) { return snap; }
+    if (!sh) return snap;
+    snap.ok = true;
+    if (sh.getLastRow() < 2) return snap;
+    var v = sh.getDataRange().getValues();
+    var H = v[0];
+    var iId = H.indexOf('학생ID'), iN = H.indexOf('이름'), iS = H.indexOf('학교'), iE = H.indexOf('회차'), iG = H.indexOf('학년');
+    snap.has = { id: iId >= 0, name: iN >= 0, school: iS >= 0, round: iE >= 0, grade: iG >= 0 };
+    for (var i = 1; i < v.length; i++) {
+      snap.rows.push([
+        iId >= 0 ? String(v[i][iId] || '') : '',
+        iN  >= 0 ? String(v[i][iN]  || '') : '',
+        iS  >= 0 ? String(v[i][iS]  || '') : '',
+        iE  >= 0 ? String(v[i][iE]  || '') : '',
+        iG  >= 0 ? String(v[i][iG]  || '') : ''
+      ]);
+    }
+    return snap;
+  });
+}
+
+/* 클리닉 '응답' 스냅샷 — 행: [토큰, 학생ID, 클리닉시간, 신청주키, 제출시각문자열]
+ * (신청주키·제출시각은 원본 셀 값으로 미리 계산해 두어 기존 표시·집계와 동일) */
+function clinicSnap_() {
+  return extSnap_('clinicSnap', 30, function () {
+    var snap = { ok: false, has: {}, rows: [] };
+    var sh;
+    try { sh = SpreadsheetApp.openById(CLINIC_SHEET_ID).getSheetByName(CLINIC_TAB); } catch (e) { return snap; }
+    if (!sh) return snap;
+    var v = sh.getDataRange().getValues();
+    snap.ok = true;
+    if (v.length < 2) return snap;
+    var H = v[0];
+    var iTok = H.indexOf('토큰'), iSid = H.indexOf('학생ID'), iDate = H.indexOf('제출시각'), iTime = H.indexOf('클리닉시간');
+    snap.has = { tok: iTok >= 0, sid: iSid >= 0, date: iDate >= 0, time: iTime >= 0 };
+    for (var i = 1; i < v.length; i++) {
+      snap.rows.push([
+        iTok  >= 0 ? String(v[i][iTok]  || '') : '',
+        iSid  >= 0 ? String(v[i][iSid]  || '') : '',
+        iTime >= 0 ? String(v[i][iTime] || '') : '',
+        clinicWeekKey_(iDate >= 0 ? v[i][iDate] : ''),
+        iDate >= 0 ? String(v[i][iDate] || '').trim() : ''
+      ]);
+    }
+    return snap;
+  });
+}
+
 function doGet(e) {
   var p = (e && e.parameter) ? e.parameter : {};
   // 어휘 테스트 켜짐 상태 + 열린 주차 조회 (티쳐스 페이지 토글·주차 드롭다운용)
@@ -283,9 +433,8 @@ function getStudent(opts) {
   if (!key && !id) return json({ result:'error', message:'학생 식별 정보가 없습니다.' });
 
   var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var stSh = ss.getSheetByName(TAB_STUDENTS);
-  if (!stSh) return json({ result:'error', message:"'" + TAB_STUDENTS + "' 탭이 없습니다." });
-  var sv = stSh.getDataRange().getValues();
+  var sv = tabValues_(ss, TAB_STUDENTS);
+  if (!sv) return json({ result:'error', message:"'" + TAB_STUDENTS + "' 탭이 없습니다." });
   var codeCol = findHeaderCol_(sv[0], '접근코드', STU_CODE_COL);
 
   // 학생 행 찾기 (토큰 우선, 없으면 학생ID)
@@ -380,9 +529,8 @@ function getStudent(opts) {
 /** '보고서목록'+'문항'을 한 번에 읽어 제목/ID로 조회 가능한 인덱스 생성. */
 function getReportsIndex_(ss) {
   var byId = {}, byTitle = {};
-  var listSh = ss.getSheetByName(TAB_LIST);
-  if (listSh) {
-    var lv = listSh.getDataRange().getValues();
+  var lv = tabValues_(ss, TAB_LIST);
+  if (lv) {
     for (var i = 1; i < lv.length; i++) {
       var id = String(lv[i][0] || '').trim();
       if (!id) continue;
@@ -397,9 +545,8 @@ function getReportsIndex_(ss) {
       if (rec.title) byTitle[rec.title] = rec;
     }
   }
-  var itemSh = ss.getSheetByName(TAB_ITEMS);
-  if (itemSh) {
-    var iv = itemSh.getDataRange().getValues();
+  var iv = tabValues_(ss, TAB_ITEMS);
+  if (iv) {
     for (var j = 1; j < iv.length; j++) {
       var rid = String(iv[j][0] || '').trim();
       if (!byId[rid]) continue;
@@ -427,9 +574,8 @@ function getReportsIndex_(ss) {
 function collectExams_(ss, sid, name, strictName, school, uniq, grade) {
   var myGd = gradeDigit_(grade);
   var exams = [];
-  var rSh = ss.getSheetByName(TAB_RESULT);
-  if (rSh) {
-    var rv = rSh.getDataRange().getValues();
+  var rv = tabValues_(ss, TAB_RESULT);
+  if (rv) {
     // 0제출일시 1시험 2학교 3학년 4이름 5틀린문항수 6틀린문항·반성 7다짐 8선생님의한마디 9예상점수 10부모님연락처
     for (var j = 1; j < rv.length; j++) {
       var row = rv[j];
@@ -491,10 +637,8 @@ function countExams_(ss, sid, name, strictName, school, uniq, grade) {
  *  게시: 'N'·'숨김'·'off'·'x'면 숨김, 그 외(빈칸 포함)는 노출
  */
 function collectNotices_(ss, info, key) {
-  var sh = ss.getSheetByName(TAB_NOTICE);
-  if (!sh) return [];
-  var v = sh.getDataRange().getValues();
-  if (v.length < 2) return [];
+  var v = tabValues_(ss, TAB_NOTICE);
+  if (!v || v.length < 2) return [];
 
   var H = v[0];
   var cDate  = findHeaderCol_(H, '작성일',   0);
@@ -552,10 +696,8 @@ function collectNotices_(ss, info, key) {
  *  열: A작성일 B도구 C항목 D대상유형 E대상 F마감 G비고.  항목 "강사 / 제목" → teacher·code로 분리.
  */
 function collectAssignments_(ss, info, key, tool) {
-  var sh = ss.getSheetByName(TAB_ASSIGN);
-  if (!sh) return [];
-  var v = sh.getDataRange().getValues();
-  if (v.length < 2) return [];
+  var v = tabValues_(ss, TAB_ASSIGN);
+  if (!v || v.length < 2) return [];
 
   var H = v[0];
   var cDate  = findHeaderCol_(H, '작성일',   0);
@@ -664,24 +806,15 @@ function noticeMatches_(type, target, stu) {
 function collectClinic_(token) {
   token = String(token || '').trim();
   if (!token) return null;
-  var sh;
-  try { sh = SpreadsheetApp.openById(CLINIC_SHEET_ID).getSheetByName(CLINIC_TAB); }
-  catch (e) { return null; }     // 권한·접근 실패 시 조용히 건너뜀(학생 페이지는 정상 동작)
-  if (!sh) return null;
-
-  var v = sh.getDataRange().getValues();
-  if (v.length < 2) return null;
-  var H = v[0];
-  var iTok  = H.indexOf('토큰');
-  if (iTok < 0) return null;     // 클리닉에 토큰 열이 아직 없음 → 표시 안 함
-  var iDate = H.indexOf('제출시각');
-  var iTime = H.indexOf('클리닉시간');
+  var snap = clinicSnap_();
+  if (!snap.ok || !snap.rows.length) return null;   // 권한·접근 실패 시 조용히 건너뜀(학생 페이지는 정상 동작)
+  if (!snap.has.tok) return null;   // 클리닉에 토큰 열이 아직 없음 → 표시 안 함
 
   var apps = {};   // key: 제출시각|시간 → { date, time, count }
-  for (var i = 1; i < v.length; i++) {
-    if (String(v[i][iTok] || '').trim() !== token) continue;
-    var date = String(v[i][iDate] || '').trim();
-    var time = String(v[i][iTime] || '').trim();
+  for (var i = 0; i < snap.rows.length; i++) {
+    if (snap.rows[i][0].trim() !== token) continue;
+    var date = snap.rows[i][4];
+    var time = snap.rows[i][2].trim();
     var k = date + '|' + time;
     if (!apps[k]) apps[k] = { date: date, time: time, count: 0 };
     apps[k].count++;
@@ -701,10 +834,8 @@ function collectClinic_(token) {
  *  각 시험에 done(이 학생이 이미 복기를 제출했는지)을 표시 → '복기 입력하기'/'입력 완료' 구분.
  */
 function collectAnalyses_(ss, info, key) {
-  var aSh = ss.getSheetByName(TAB_ASSIGN);
-  if (!aSh) return [];
-  var av = aSh.getDataRange().getValues();
-  if (av.length < 2) return [];
+  var av = tabValues_(ss, TAB_ASSIGN);
+  if (!av || av.length < 2) return [];
 
   var stu = {
     sid:    String(info.id     || '').trim(),
@@ -732,9 +863,8 @@ function collectAnalyses_(ss, info, key) {
 
   // 보고서목록에서 제목 조회
   var titleById = {};
-  var listSh = ss.getSheetByName(TAB_LIST);
-  if (listSh) {
-    var lv = listSh.getDataRange().getValues();
+  var lv = tabValues_(ss, TAB_LIST);
+  if (lv) {
     for (var i = 1; i < lv.length; i++) {
       var lid = String(lv[i][0] || '').trim();
       if (lid) titleById[lid] = String(lv[i][1] || '').trim();
@@ -763,9 +893,8 @@ function collectAnalyses_(ss, info, key) {
 /** 보고서목록에서 각 ID의 행 위치(등록 순서)를 반환 { id: rowIndex }. 최신순 정렬용. */
 function getListOrder_(ss) {
   var order = {};
-  var listSh = ss.getSheetByName(TAB_LIST);
-  if (!listSh) return order;
-  var lv = listSh.getDataRange().getValues();
+  var lv = tabValues_(ss, TAB_LIST);
+  if (!lv) return order;
   for (var i = 1; i < lv.length; i++) {
     var id = String(lv[i][0] || '').trim();
     if (id) order[id] = i;
@@ -777,11 +906,10 @@ function getListOrder_(ss) {
  *  매칭: 부모님번호(K)=학생ID 또는 이름(E)=학생 이름. 값은 시험명(제출결과 B열). */
 function submittedTitles_(ss, info) {
   var set = {};
-  var sh = ss.getSheetByName(TAB_RESULT);
-  if (!sh) return set;
+  var v = tabValues_(ss, TAB_RESULT);
+  if (!v) return set;
   var sid  = String(info.id   || '').trim();
   var name = String(info.name || '').trim();
-  var v = sh.getDataRange().getValues();
   for (var i = 1; i < v.length; i++) {
     var row = v[i];
     if (!row[4]) continue;
@@ -1042,27 +1170,22 @@ function collectStars_(ss, info, key, siblingShared) {
 function countMock_(name, school, sid, uniq, grade) {
   if (!OMR_SHEET_ID || !name) return 0;
   var set = {}, myGd = gradeDigit_(grade);
-  try {
-    var sh = SpreadsheetApp.openById(OMR_SHEET_ID).getSheetByName(OMR_TAB);
-    if (!sh || sh.getLastRow() < 2) return 0;
-    var v = sh.getDataRange().getValues();
-    var H = v[0];
-    var iId = H.indexOf('학생ID'), iN = H.indexOf('이름'), iS = H.indexOf('학교'), iE = H.indexOf('회차'), iG = H.indexOf('학년');
-    if (iN < 0) return 0;
-    for (var i = 1; i < v.length; i++) {
-      var rn = String(v[i][iN] || '').trim();
-      if (!rn || (rn !== name && rn !== baseName_(name))) continue;   // 접미사 이름(이수빈A) 대비
-      var rs = iS >= 0 ? String(v[i][iS] || '').trim() : '';
-      if (!uniq && school && rs && !schoolMatch_(rs, school)) continue;
-      var rid = iId >= 0 ? String(v[i][iId] || '').replace(/^'/, '').trim() : '';
-      if (!uniq && rid && sid && rid !== sid) continue;   // 동명이인 구분(양쪽에 ID 있을 때만)
-      if (!(rid && sid && rid === sid) && myGd && iG >= 0) {   // 학년 모순 차단 (명단 밖 동명이인)
-        var rGd = gradeDigit_(v[i][iG]);
-        if (rGd && rGd !== myGd) continue;
-      }
-      set[(iE >= 0 && String(v[i][iE] || '').trim()) || String(i)] = true;
+  var snap = omrSnap_();
+  if (!snap.ok || !snap.rows.length || !snap.has.name) return 0;
+  for (var i = 0; i < snap.rows.length; i++) {
+    var r = snap.rows[i];
+    var rn = r[1].trim();
+    if (!rn || (rn !== name && rn !== baseName_(name))) continue;   // 접미사 이름(이수빈A) 대비
+    var rs = r[2].trim();
+    if (!uniq && school && rs && !schoolMatch_(rs, school)) continue;
+    var rid = r[0].replace(/^'/, '').trim();
+    if (!uniq && rid && sid && rid !== sid) continue;   // 동명이인 구분(양쪽에 ID 있을 때만)
+    if (!(rid && sid && rid === sid) && myGd && snap.has.grade) {   // 학년 모순 차단 (명단 밖 동명이인)
+      var rGd = gradeDigit_(r[4]);
+      if (rGd && rGd !== myGd) continue;
     }
-  } catch (e) {}
+    set[r[3].trim() || String(i + 1)] = true;
+  }
   return Object.keys(set).length;
 }
 
@@ -1076,9 +1199,8 @@ function noticeKey_(dateStr, title) { return String(dateStr || '') + '|' + Strin
  *  uniq=true(이름 유일)면 학교 표기 차이 허용. */
 function readNoticeChecks_(ss, sid, name, school, uniq) {
   var set = {};
-  var sh = ss.getSheetByName(TAB_NOTICE_READ);
-  if (!sh) return set;
-  var v = sh.getDataRange().getValues();
+  var v = tabValues_(ss, TAB_NOTICE_READ);
+  if (!v) return set;
   for (var i = 1; i < v.length; i++) {
     var rid = String(v[i][1] || '').replace(/^'/, '').trim();
     var rnm = String(v[i][2] || '').trim();
@@ -1123,6 +1245,7 @@ function checkNotice(data) {
   var lock = LockService.getScriptLock();
   try { lock.waitLock(10000); } catch (e) {}
   try {
+    delete MEMO_['tab:' + TAB_NOTICE_READ];   // 잠금 안에서는 메모를 버리고 반드시 새로 읽는다
     var checks = readNoticeChecks_(ss, info.id, info.name, String(info.school || '').trim());
     if (checks[nKey]) return json({ result: 'success', already: true });   // 동시 클릭 대비 재확인
     var sh = ss.getSheetByName(TAB_NOTICE_READ);
@@ -1151,22 +1274,17 @@ function clinicWeekKey_(d) {
 function countClinicApps_(token, sid) {
   token = String(token || '').trim(); sid = String(sid || '').trim();
   if (!token && !sid) return 0;
-  var sh;
-  try { sh = SpreadsheetApp.openById(CLINIC_SHEET_ID).getSheetByName(CLINIC_TAB); }
-  catch (e) { return 0; }
-  if (!sh) return 0;
-  var v = sh.getDataRange().getValues();
-  if (v.length < 2) return 0;
-  var H = v[0];
-  var iTok = H.indexOf('토큰'), iSid = H.indexOf('학생ID'), iDate = H.indexOf('제출시각'), iTime = H.indexOf('클리닉시간');
+  var snap = clinicSnap_();
+  if (!snap.ok) return 0;
   var apps = {};
-  for (var i = 1; i < v.length; i++) {
-    var tk = iTok >= 0 ? String(v[i][iTok] || '').trim() : '';
-    var id = iSid >= 0 ? String(v[i][iSid] || '').replace(/^'/, '').trim() : '';
+  for (var i = 0; i < snap.rows.length; i++) {
+    var r = snap.rows[i];
+    var tk = r[0].trim();
+    var id = r[1].replace(/^'/, '').trim();
     // 토큰이 기록된 행은 토큰으로만(쌍둥이는 학생ID가 같아 ID로는 형제 신청까지 잡힘), 옛 행만 ID로.
     var match = tk ? (token && tk === token) : (sid && id === sid);
     if (!match) continue;
-    apps[clinicWeekKey_(v[i][iDate]) + '|' + String(v[i][iTime] || '')] = true;
+    apps[r[3] + '|' + r[2]] = true;
   }
   return Object.keys(apps).length;
 }
@@ -1177,31 +1295,25 @@ function countClinicApps_(token, sid) {
 function countVoca_(name, grade, school, uniq) {
   if (!VOCA_SHEET_ID || !name) return 0;
   var myGd = gradeDigit_(grade), base = baseName_(name);
-  var sh;
-  try { sh = SpreadsheetApp.openById(VOCA_SHEET_ID).getSheets()[0]; }
-  catch (e) { return 0; }
-  if (!sh) return 0;
-  var v = sh.getDataRange().getValues();
-  if (v.length < 2) return 0;
-  var H = v[0].map(function (h) { return String(h || '').trim().toLowerCase(); });
-  var iName = idxOfAny_(H, ['name', '이름']), iRound = idxOfAny_(H, ['round', '주차', '회차']), iGrade = idxOfAny_(H, ['grade', '학년']), iSchool = idxOfAny_(H, ['school', '학교']);
-  if (iName < 0) return 0;
+  var snap = vocaSnap_();
+  if (!snap.ok || !snap.rows.length || !snap.has.name) return 0;
   var rounds = {}, n = 0;
-  for (var i = 1; i < v.length; i++) {
-    var rn = String(v[i][iName] || '').trim();
+  for (var i = 0; i < snap.rows.length; i++) {
+    var r = snap.rows[i];
+    var rn = r[0].trim();
     if (rn !== name && rn !== base) continue;
-    if (!uniq && school && iSchool >= 0) {
-      var rs = String(v[i][iSchool] || '').trim();
+    if (!uniq && school && snap.has.school) {
+      var rs = r[3].trim();
       if (rs && !schoolMatch_(rs, school)) continue;
     }
-    if (myGd && iGrade >= 0) {
-      var rGd = gradeDigit_(v[i][iGrade]);
+    if (myGd && snap.has.grade) {
+      var rGd = gradeDigit_(r[2]);
       if (rGd && rGd !== myGd) continue;
     }
-    if (iRound >= 0) { rounds[String(v[i][iRound] || '').trim()] = true; }
+    if (snap.has.round) { rounds[r[1].trim()] = true; }
     else { n++; }
   }
-  return iRound >= 0 ? Object.keys(rounds).length : n;
+  return snap.has.round ? Object.keys(rounds).length : n;
 }
 
 /** 과제(H WORK) 제출 수 — '강사|제목' 단위 중복 제거(같은 과제 재제출은 1개). HWORK_SHEET_ID 비면 0.
@@ -1209,41 +1321,23 @@ function countVoca_(name, grade, school, uniq) {
  *  uniq=true(이름 유일)면 학교 표기 차이 허용. 접미사 이름은 실명 기록도 인정. 학년 모순 기록은 불인정. */
 function countHwork_(name, school, uniq, grade) {
   if (!HWORK_SHEET_ID || !name) return 0;
-  var sh = null;
-  try {
-    var hss = SpreadsheetApp.openById(HWORK_SHEET_ID);
-    if (HWORK_TAB) sh = hss.getSheetByName(HWORK_TAB);
-    if (!sh) {
-      var all = hss.getSheets();
-      for (var t = 0; t < all.length; t++) {
-        if (all[t].getLastRow() < 1) continue;
-        var head = all[t].getRange(1, 1, 1, Math.max(all[t].getLastColumn(), 1)).getValues()[0]
-          .map(function (h) { return String(h || '').trim().toLowerCase(); });
-        if (idxOfAny_(head, ['이름', 'name']) >= 0 && idxOfAny_(head, ['제출시각', '제출일시', 'time']) >= 0) { sh = all[t]; break; }
-      }
-    }
-  } catch (e) { return 0; }
-  if (!sh) return 0;
-  var v = sh.getDataRange().getValues();
-  if (v.length < 2) return 0;
-  var H = v[0].map(function (h) { return String(h || '').trim().toLowerCase(); });
-  var iName = idxOfAny_(H, ['name', '이름']), iSchool = idxOfAny_(H, ['school', '학교']);
-  var iTitle = idxOfAny_(H, ['제목', 'title']), iTeach = idxOfAny_(H, ['강사']), iGrade = idxOfAny_(H, ['학년', 'grade']);
-  if (iName < 0) return 0;
+  var snap = hworkSnap_();
+  if (!snap.ok || !snap.rows.length || !snap.has.name) return 0;
   var set = {}, myGd = gradeDigit_(grade), base = baseName_(name);
-  for (var i = 1; i < v.length; i++) {
-    var rn = String(v[i][iName] || '').trim();
+  for (var i = 0; i < snap.rows.length; i++) {
+    var r = snap.rows[i];
+    var rn = r[2].trim();
     if (rn !== name && rn !== base) continue;
-    if (myGd && iGrade >= 0) {
-      var rGd = gradeDigit_(v[i][iGrade]);
+    if (myGd && snap.has.grade) {
+      var rGd = gradeDigit_(r[4]);
       if (rGd && rGd !== myGd) continue;
     }
-    if (!uniq && school && iSchool >= 0) {
-      var sc = String(v[i][iSchool] || '').replace(/\s+/g, '');
+    if (!uniq && school && snap.has.school) {
+      var sc = r[3].replace(/\s+/g, '');
       if (sc && school.replace(/\s+/g, '') && sc.indexOf(school.replace(/\s+/g, '')) < 0 && school.replace(/\s+/g, '').indexOf(sc) < 0) continue;
     }
-    var t = iTitle >= 0 ? String(v[i][iTitle] || '').trim() : '';
-    set[t ? ((iTeach >= 0 ? String(v[i][iTeach] || '').trim() : '') + '|' + t) : ('r' + i)] = true;
+    var t = snap.has.title ? r[1].trim() : '';
+    set[t ? ((snap.has.teacher ? r[0].trim() : '') + '|' + t) : ('r' + (i + 1))] = true;
   }
   return Object.keys(set).length;
 }
@@ -1254,32 +1348,24 @@ function countHwork_(name, school, uniq, grade) {
 function hworkDoneSet_(name, school, grade) {
   var out = { byKey: {}, byCode: {} };
   if (!HWORK_SHEET_ID || !name) return out;
-  var sh;
-  try {
-    var hss = SpreadsheetApp.openById(HWORK_SHEET_ID);
-    sh = HWORK_TAB ? hss.getSheetByName(HWORK_TAB) : hss.getSheets()[0];
-  } catch (e) { return out; }
-  if (!sh) return out;
-  var v = sh.getDataRange().getValues();
-  if (v.length < 2) return out;
-  var H = v[0].map(function (h) { return String(h || '').trim(); });
-  var iT = H.indexOf('강사'), iC = H.indexOf('제목'), iN = H.indexOf('이름'), iS = H.indexOf('학교'), iG = H.indexOf('학년');
-  if (iC < 0 || iN < 0) return out;
+  var snap = hworkSnap_();
+  if (!snap.ok || !snap.rows.length || !snap.has.title || !snap.has.name) return out;
   var sc = String(school || '').replace(/\s+/g, '');
   var base = baseName_(name), myGd = gradeDigit_(grade);
-  for (var i = 1; i < v.length; i++) {
-    var rn = String(v[i][iN] || '').trim();
+  for (var i = 0; i < snap.rows.length; i++) {
+    var r = snap.rows[i];
+    var rn = r[2].trim();
     if (rn !== name && rn !== base) continue;
-    if (myGd && iG >= 0) {
-      var rGd = gradeDigit_(v[i][iG]);
+    if (myGd && snap.has.grade) {
+      var rGd = gradeDigit_(r[4]);
       if (rGd && rGd !== myGd) continue;
     }
-    if (sc && iS >= 0) {
-      var rs = String(v[i][iS] || '').replace(/\s+/g, '');
+    if (sc && snap.has.school) {
+      var rs = r[3].replace(/\s+/g, '');
       if (rs && rs.indexOf(sc) < 0 && sc.indexOf(rs) < 0) continue;
     }
-    var t = iT >= 0 ? String(v[i][iT] || '').trim() : '';
-    var c = String(v[i][iC] || '').trim();
+    var t = snap.has.teacher ? r[0].trim() : '';
+    var c = r[1].trim();
     out.byKey[t + '|' + c] = true;
     out.byCode[c] = true;
   }
@@ -1308,9 +1394,8 @@ function gradeDigit_(s) {
  *  uniq=true(이름 유일)면 학교·학년 표기 차이 허용. */
 function sumBonus_(ss, sid, name, school, grade, uniq) {
   var out = { sum: 0, latest: null };
-  var sh = ss.getSheetByName(TAB_STARS);
-  if (!sh) return out;
-  var v = sh.getDataRange().getValues();
+  var v = tabValues_(ss, TAB_STARS);
+  if (!v) return out;
   for (var i = 1; i < v.length; i++) {
     var rid = String(v[i][1] || '').replace(/^'/, '').trim();
     var rnm = String(v[i][2] || '').trim();
@@ -1570,9 +1655,8 @@ function randTok_() {
 
 /** '설정' 탭에서 label 항목(A열)의 값(B열) 원문을 반환(없으면 dflt). */
 function configVal_(ss, label, dflt) {
-  var sh = ss.getSheetByName(TAB_CONFIG);
-  if (!sh) return dflt;
-  var v = sh.getDataRange().getValues();
+  var v = tabValues_(ss, TAB_CONFIG);
+  if (!v) return dflt;
   for (var i = 0; i < v.length; i++) {
     if (String(v[i][0] || '').trim() === label) return String(v[i][1] || '').trim();
   }
@@ -1582,9 +1666,8 @@ function configVal_(ss, label, dflt) {
 /** '설정' 탭에서 label 항목(A열)의 값(B열)을 보고 켜짐/꺼짐 판단.
  *  값이 중단·off·n·no·x·0·닫힘·꺼짐이면 false(끄기), 그 외/빈칸/항목없음은 dflt. */
 function configOpen_(ss, label, dflt) {
-  var sh = ss.getSheetByName(TAB_CONFIG);
-  if (!sh) return dflt;
-  var v = sh.getDataRange().getValues();
+  var v = tabValues_(ss, TAB_CONFIG);
+  if (!v) return dflt;
   for (var i = 0; i < v.length; i++) {
     if (String(v[i][0] || '').trim() === label) {
       var s = String(v[i][1] || '').trim().toLowerCase();
