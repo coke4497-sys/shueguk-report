@@ -554,6 +554,12 @@ function loadGradeGates(){
     STATE.clinicEligible = (g[1] && g[1].result==='success' && typeof g[1].eligible !== 'undefined') ? !!g[1].eligible : null;
     STATE.vocaTaken    = (wantVoca && g[2] && typeof g[2].taken !== 'undefined') ? !!g[2].taken : null;
     STATE.mockSignups  = (g[3] && g[3].result==='success' && g[3].signups) ? g[3].signups : null;
+    dbg('보낸값', { name: si.name, school: si.school, id: si.id, uniq: uniqFlag, nameDup: si.nameDup });
+    dbg('days 응답', g[0]);
+    dbg('클리닉 대상 응답', g[1]);
+    dbg('어휘 응답', g[2]);
+    dbg('모의고사 신청 응답', g[3]);
+    dbg('mockSignups 반영값', STATE.mockSignups);
     if ($('hubView').style.display !== 'none') renderHub();       // 허브 화면일 때만 새로고침
     if ($('mockHubView').style.display === 'block') renderMockHub();   // 모의고사 메뉴가 열려 있으면 갱신
     if ($('clinicView').style.display === 'block') renderClinic();     // 클리닉 화면이 열려 있으면 갱신
@@ -588,6 +594,31 @@ function refreshOnReturn(){
 }
 document.addEventListener('visibilitychange', function(){ if(!document.hidden) refreshOnReturn(); });
 window.addEventListener('pageshow', function(e){ if(e.persisted) refreshOnReturn(); });
+
+/* ── 진단 모드 (?debug=1) ─────────────────────────────────────
+ * 주소 뒤에 &debug=1 을 붙여 열면 화면 아래에 검은 박스가 떠서
+ * 신청 현황 조회(모의고사·클리닉·어휘)의 실제 응답과 오류를 보여준다.
+ * 학생에게는 안내하지 않는 관리용 — 평소에는 아무 동작도 하지 않는다. */
+var DEBUG = /[?&]debug=1/.test(location.search);
+var dbgLog = [];
+function dbg(label, v){
+  if(!DEBUG) return;
+  var txt; try{ txt = JSON.stringify(v); }catch(e){ txt = '(표시 불가)'; }
+  dbgLog.push(label + ': ' + txt);
+  var el = document.getElementById('dbgBox');
+  if(!el){
+    el = document.createElement('pre'); el.id = 'dbgBox';
+    el.style.cssText = 'position:fixed;left:8px;right:8px;bottom:8px;max-height:45vh;overflow:auto;'
+      + 'background:#202623;color:#b7e4c7;font-size:11px;line-height:1.5;padding:10px 12px;'
+      + 'border-radius:10px;z-index:999;white-space:pre-wrap;word-break:break-all;margin:0;';
+    document.body.appendChild(el);
+  }
+  el.textContent = dbgLog.join('\n');
+}
+if (DEBUG){
+  window.addEventListener('error', function(e){ dbg('스크립트 오류', String((e && (e.message || e.error)) || '')); });
+  window.addEventListener('unhandledrejection', function(e){ dbg('약속 오류', String((e && e.reason) || '')); });
+}
 
 function $(id){ return document.getElementById(id); }
 function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
