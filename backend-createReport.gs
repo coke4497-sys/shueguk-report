@@ -1117,6 +1117,11 @@ function hwcheckItems_(ss) {
   var items = raw.split(',').map(function (s) { return s.trim(); }).filter(Boolean);
   return items.length ? items : HWCHECK_DEFAULT_ITEMS.slice();
 }
+/** 주차 셀 값 정규화 — 시트가 'yyyy-MM-dd'를 날짜 값으로 바꿔둔 경우도 문자열로 통일 */
+function hwcheckWeekStr_(v) {
+  if (v instanceof Date && !isNaN(v.getTime())) return Utilities.formatDate(v, 'GMT+9', 'yyyy-MM-dd');
+  return String(v == null ? '' : v).trim();
+}
 /** 정규 수업 주차 키 — 수요일 시작(수목토일 단위 주), 그 주 수요일 yyyy-MM-dd */
 function hwcheckWeekKey_(d) {
   var dt = (d instanceof Date) ? new Date(d.getTime()) : new Date();
@@ -1132,7 +1137,7 @@ function getHwcheckData(weekParam) {
   var records = {};
   var v = tabValues_(ss, TAB_HWCHECK);
   if (v) for (var i = 1; i < v.length; i++) {
-    if (String(v[i][1] || '').trim() !== week) continue;
+    if (hwcheckWeekStr_(v[i][1]) !== week) continue;
     var tok = String(v[i][2] || '').trim();
     if (!tok) continue;
     var scores = {}; try { scores = JSON.parse(v[i][6] || '{}'); } catch (e) {}
@@ -1162,7 +1167,8 @@ function hwcheckSave(data) {
   var missing = (data.missing === true || data.missing === '1');
   var full = n * HWCHECK_STARS_MAX;
   var pct = missing ? 0 : Math.round(sum / full * 100);   // 미제출은 0%
-  var row = [new Date(), week, token, String(data.name || '').trim(), String(data.school || '').trim(),
+  // 주차는 "'" 접두로 텍스트 저장 — 시트가 날짜 값으로 바꿔 조회가 어긋나는 것 방지
+  var row = [new Date(), "'" + week, token, String(data.name || '').trim(), String(data.school || '').trim(),
              String(data.grade || '').trim(), JSON.stringify(scores), full, pct,
              String(data.pub || ''), String(data.priv || ''),
              missing ? '미제출' : '', String(data.plan || '')];
@@ -1170,12 +1176,14 @@ function hwcheckSave(data) {
   try { lock.waitLock(8000); } catch (e) { return json({ result: 'error', message: '잠시 후 다시 시도해 주세요.' }); }
   try {
     var sh = hwcheckSheet_(SpreadsheetApp.getActiveSpreadsheet());
-    var v = sh.getDataRange().getValues();
-    var at = -1;
-    for (var i = 1; i < v.length; i++) {
-      if (String(v[i][1] || '').trim() === week && String(v[i][2] || '').trim() === token) { at = i + 1; break; }
+    var at = -1, last = sh.getLastRow();
+    if (last > 1) {
+      var keys = sh.getRange(2, 2, last - 1, 2).getValues();   // B주차·C접근코드만 읽어 가볍게 탐색
+      for (var i = 0; i < keys.length; i++) {
+        if (hwcheckWeekStr_(keys[i][0]) === week && String(keys[i][1] || '').trim() === token) { at = i + 2; break; }
+      }
     }
-    row.push(at > 0 ? String(v[at - 1][13] || '') : '');   // N대책완료는 저장 시 유지 (완료 표시는 별도 API)
+    row.push(at > 0 ? String(sh.getRange(at, 14).getValue() || '') : '');   // N대책완료는 저장 시 유지 (완료 표시는 별도 API)
     if (at > 0) sh.getRange(at, 1, 1, 14).setValues([row]);
     else sh.appendRow(row);
     dropTab_(TAB_HWCHECK);
@@ -1205,7 +1213,7 @@ function getHwcheckPlans() {
     var missing = String(v[i][11] || '').trim() === '미제출';
     var plan = String(v[i][12] || '').trim();
     if (!missing && !plan) continue;
-    out.push({ week: String(v[i][1] || '').trim(), token: String(v[i][2] || '').trim(),
+    out.push({ week: hwcheckWeekStr_(v[i][1]), token: String(v[i][2] || '').trim(),
                name: String(v[i][3] || '').trim(), school: String(v[i][4] || '').trim(),
                grade: String(v[i][5] || '').trim(), plan: plan, missing: missing,
                done: String(v[i][13] || '').trim() === '완료' });
@@ -1220,10 +1228,11 @@ function hwcheckPlanDone(data) {
   if (!week || !token) return json({ result: 'error', message: '기록 식별 정보가 없습니다.' });
   var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(TAB_HWCHECK);
   if (!sh) return json({ result: 'error', message: '기록이 없습니다.' });
-  var v = sh.getDataRange().getValues();
-  for (var i = 1; i < v.length; i++) {
-    if (String(v[i][1] || '').trim() === week && String(v[i][2] || '').trim() === token) {
-      sh.getRange(i + 1, 14).setValue(String(data.done || '') === '1' ? '완료' : '');
+  var last = sh.getLastRow();
+  var keys = last > 1 ? sh.getRange(2, 2, last - 1, 2).getValues() : [];
+  for (var i = 0; i < keys.length; i++) {
+    if (hwcheckWeekStr_(keys[i][0]) === week && String(keys[i][1] || '').trim() === token) {
+      sh.getRange(i + 2, 14).setValue(String(data.done || '') === '1' ? '완료' : '');
       dropTab_(TAB_HWCHECK);
       return json({ result: 'success' });
     }
@@ -1239,7 +1248,7 @@ function collectHwchecks_(ss, key) {
   var byWeek = {};
   for (var i = 1; i < v.length; i++) {
     if (String(v[i][2] || '').trim() !== key) continue;
-    var wk = String(v[i][1] || '').trim();
+    var wk = hwcheckWeekStr_(v[i][1]);
     if (!wk) continue;
     var scores = {}; try { scores = JSON.parse(v[i][6] || '{}'); } catch (e) {}
     byWeek[wk] = { week: wk, pct: Number(v[i][8]) || 0, scores: scores, pub: String(v[i][9] || '').trim(),
@@ -1418,7 +1427,7 @@ function getStarRanking() {
       if (!(Number(hcv[hc][8]) >= 100)) continue;
       var htk = String(hcv[hc][2] || '').trim();
       if (!htk || byToken[htk] == null) continue;
-      mark_(stus[byToken[htk]].hwcheck, String(hcv[hc][1] || '').trim() || ('r' + hc), tsOf_(hcv[hc][0]));
+      mark_(stus[byToken[htk]].hwcheck, hwcheckWeekStr_(hcv[hc][1]) || ('r' + hc), tsOf_(hcv[hc][0]));
     }
   }
   // 동점 처리: '지금의 별 수에 먼저 도달한' 학생이 위 — 마지막 별의 획득 시각(earnedAt)이 이른 순.
@@ -2213,9 +2222,8 @@ function saveTeacherNote(data) {
  */
 function getRoster() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sh = ss.getSheetByName(TAB_STUDENTS);
-  if (!sh) return json({ result:'error', message:"'" + TAB_STUDENTS + "' 탭이 없습니다." });
-  var v = sh.getDataRange().getValues();
+  var v = tabValues_(ss, TAB_STUDENTS);   // 60초 캐시 — 학생 등록·수정 시 즉시 갱신
+  if (!v) return json({ result:'error', message:"'" + TAB_STUDENTS + "' 탭이 없습니다." });
   // 0학생ID(=비밀번호, 제외) 1이름 2학교 3학년 4담당교사 ... 10재원여부(K)
   var out = [];
   for (var i = 1; i < v.length; i++) {
@@ -2237,9 +2245,8 @@ function getRoster() {
  *  교사용 links.html 전용 — 접근코드가 포함되므로 반드시 pw 확인 뒤에만 호출된다. */
 function getStudentLinks() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sh = ss.getSheetByName(TAB_STUDENTS);
-  if (!sh) return json({ result:'error', message:"'" + TAB_STUDENTS + "' 탭이 없습니다." });
-  var v = sh.getDataRange().getValues();
+  var v = tabValues_(ss, TAB_STUDENTS);   // 60초 캐시 — 숙제 검사 등에서 자주 불려 캐시 사용
+  if (!v) return json({ result:'error', message:"'" + TAB_STUDENTS + "' 탭이 없습니다." });
   var codeCol = findHeaderCol_(v[0], '접근코드', STU_CODE_COL);
   var out = [];
   for (var i = 1; i < v.length; i++) {

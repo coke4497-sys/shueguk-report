@@ -163,12 +163,8 @@
       <select id="f-school" onchange="filterChanged()"></select>
     </div>
     <div class="filters">
-      <select id="f-aday" onchange="filterChanged()"></select>
-      <select id="f-atime" onchange="filterChanged()"></select>
-    </div>
-    <div class="filters">
-      <select id="f-bday" onchange="filterChanged()"></select>
-      <select id="f-btime" onchange="filterChanged()"></select>
+      <select id="f-teacher" onchange="filterChanged()"></select>
+      <select id="f-slot" onchange="filterChanged()"></select>
     </div>
     <div class="addstu">
       <input id="stu-search" placeholder="🔍 이동해 온 학생 추가 — 이름 검색" oninput="searchStu()" autocomplete="off" />
@@ -293,30 +289,24 @@ function loadWeek(){
     .catch(function(){ setStatus('서버 연결에 실패했어요. 잠시 후 다시 시도해 주세요.', true); });
 }
 
-/* ── 그룹 필터 — 학년 → 학교 → 정규 가 수업(요일)·시간 → 정규 나 수업(요일)·시간.
- * 학년마다 반 구성이 달라, 앞 단계 선택에 맞는 값만 다음 선택지에 나온다.
- * 정규가/나 값("토6:00")은 요일(토)과 시간(6:00)으로 나눠 고른다. ── */
+/* ── 그룹 필터 — 학년 → 학교 → 담당 강사 → 시간대.
+ * 앞 단계 선택에 맞는 값만 다음 선택지에 나온다.
+ * 시간대는 정규 가/나 어느 쪽이든 그 시간("토6:00")에 수업이 있는 학생을 찾는다.
+ * (가·나 구분이 없는 중2·중3·고3도, 가/나로 나뉜 학년도 같은 방식으로 동작) ── */
 function uniq(a){ return Array.from(new Set(a.filter(Boolean))); }
-function dayOf(v){ var m = String(v||'').trim().match(/^([^0-9]*)/); return m ? m[1].trim() : ''; }
-function timeOf(v){ var m = String(v||'').trim().match(/([0-9].*)$/); return m ? m[1].trim() : ''; }
+function slotNorm(v){ return String(v||'').replace(/\s+/g,''); }   // '토 6:00' ↔ '토6:00' 표기 차이 흡수
 var extras = [];   // 그룹에 수동으로 추가한 학생(접근코드) — 이동해 온 친구 검사용
 function pickVal(id){ return $(id) ? $(id).value : ''; }
 function matchBase_(s, upTo){
   // upTo 단계 '직전'까지의 선택으로 학생을 거른다 (선택지 목록 생성을 위해)
-  var g = pickVal('f-grade'), sc = pickVal('f-school');
-  var ad = pickVal('f-aday'), at = pickVal('f-atime');
-  var bd = pickVal('f-bday'), bt = pickVal('f-btime');
-  if (upTo !== 'grade'  && g  && s.grade  !== g)  return false;
+  var g = pickVal('f-grade'), sc = pickVal('f-school'), tc = pickVal('f-teacher'), sl = pickVal('f-slot');
+  if (upTo !== 'grade'   && g  && s.grade !== g) return false;
   if (upTo === 'grade') return true;
-  if (upTo !== 'school' && sc && s.school !== sc) return false;
+  if (upTo !== 'school'  && sc && s.school !== sc) return false;
   if (upTo === 'school') return true;
-  if (upTo !== 'aday'  && ad && dayOf(s.classA)  !== ad) return false;
-  if (upTo === 'aday') return true;
-  if (upTo !== 'atime' && at && timeOf(s.classA) !== at) return false;
-  if (upTo === 'atime') return true;
-  if (upTo !== 'bday'  && bd && dayOf(s.classB)  !== bd) return false;
-  if (upTo === 'bday') return true;
-  if (upTo !== 'btime' && bt && timeOf(s.classB) !== bt) return false;
+  if (upTo !== 'teacher' && tc && String(s.teacher||'').trim() !== tc) return false;
+  if (upTo === 'teacher') return true;
+  if (upTo !== 'slot' && sl && slotNorm(s.classA) !== sl && slotNorm(s.classB) !== sl) return false;
   return true;
 }
 function fillSelect_(id, label, vals){
@@ -326,12 +316,12 @@ function fillSelect_(id, label, vals){
   if (cur && vals.indexOf(cur) >= 0) sel.value = cur;   // 가능한 선택은 유지
 }
 function rebuildFilters(){
-  fillSelect_('f-grade',  '학년 전체',   uniq(roster.map(function(s){ return s.grade; })).sort());
-  fillSelect_('f-school', '학교 전체',   uniq(roster.filter(function(s){ return matchBase_(s, 'school'); }).map(function(s){ return s.school; })).sort());
-  fillSelect_('f-aday',   '가 수업 전체', uniq(roster.filter(function(s){ return matchBase_(s, 'aday'); }).map(function(s){ return dayOf(s.classA); })).sort());
-  fillSelect_('f-atime',  '가 시간 전체', uniq(roster.filter(function(s){ return matchBase_(s, 'atime'); }).map(function(s){ return timeOf(s.classA); })).sort());
-  fillSelect_('f-bday',   '나 수업 전체', uniq(roster.filter(function(s){ return matchBase_(s, 'bday'); }).map(function(s){ return dayOf(s.classB); })).sort());
-  fillSelect_('f-btime',  '나 시간 전체', uniq(roster.filter(function(s){ return matchBase_(s, 'btime'); }).map(function(s){ return timeOf(s.classB); })).sort());
+  fillSelect_('f-grade',   '학년 전체',      uniq(roster.map(function(s){ return s.grade; })).sort());
+  fillSelect_('f-school',  '학교 전체',      uniq(roster.filter(function(s){ return matchBase_(s, 'school'); }).map(function(s){ return s.school; })).sort());
+  fillSelect_('f-teacher', '담당 강사 전체', uniq(roster.filter(function(s){ return matchBase_(s, 'teacher'); }).map(function(s){ return String(s.teacher||'').trim(); })).sort());
+  var slotStus = roster.filter(function(s){ return matchBase_(s, 'slot'); });
+  fillSelect_('f-slot', '시간대 전체',
+    uniq(slotStus.map(function(s){ return slotNorm(s.classA); }).concat(slotStus.map(function(s){ return slotNorm(s.classB); }))).sort());
 }
 function buildTypeValues(){ rebuildFilters(); }
 function filterChanged(){
