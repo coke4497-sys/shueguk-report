@@ -67,13 +67,38 @@ var TEACHER_PW = 'sh';   // 티쳐스 페이지에서 어휘 켜기/끄기 할 �
  *     시에는 그냥 매번 읽으므로 동작은 같고 속도만 떨어진다.
  *     ※ 새 제출은 캐시 수명(어휘·H WORK·OMR 60초, 클리닉 30초) 안에만 늦게 보인다. */
 var MEMO_ = {};
+/* 학생 페이지가 매번 읽는 탭은 짧게 캐시해 전 학생이 공유한다.
+ * (제출결과는 크기·최신성 때문에 캐시하지 않고 요청 내 메모만 사용)
+ * 관리 기능이 해당 탭을 고치면 dropTab_ 으로 즉시 비워 반영이 늦지 않게 한다.
+ * ※ 캐시를 거친 값은 날짜가 ISO 문자열로 돌아오는데, 이 탭들의 소비처는 모두
+ *   String()/new Date() 변환을 거치므로 표시·판정이 달라지지 않는다. */
+var TAB_CACHE_TTL_ = {};
+TAB_CACHE_TTL_[TAB_STUDENTS] = 60;
+TAB_CACHE_TTL_[TAB_NOTICE] = 60;
+TAB_CACHE_TTL_[TAB_NOTICE_READ] = 60;
+TAB_CACHE_TTL_[TAB_ASSIGN] = 60;
+TAB_CACHE_TTL_[TAB_CONFIG] = 60;
+TAB_CACHE_TTL_[TAB_STARS] = 60;
+TAB_CACHE_TTL_[TAB_LIST] = 120;
+TAB_CACHE_TTL_[TAB_ITEMS] = 120;
 function tabValues_(ss, tab) {
   var k = 'tab:' + tab;
-  if (!(k in MEMO_)) {
-    var sh = ss.getSheetByName(tab);
-    MEMO_[k] = sh ? sh.getDataRange().getValues() : null;
+  if (k in MEMO_) return MEMO_[k];
+  var ttl = TAB_CACHE_TTL_[tab];
+  if (ttl) {
+    try {
+      var hit = CacheService.getScriptCache().get(k);
+      if (hit) return (MEMO_[k] = JSON.parse(hit));
+    } catch (e) {}
   }
-  return MEMO_[k];
+  var sh = ss.getSheetByName(tab);
+  var v = sh ? sh.getDataRange().getValues() : null;
+  if (ttl && v) { try { CacheService.getScriptCache().put(k, JSON.stringify(v), ttl); } catch (e) {} }  // 100KB 초과 등이면 캐시 없이 진행
+  return (MEMO_[k] = v);
+}
+function dropTab_(tab) {
+  delete MEMO_['tab:' + tab];
+  try { CacheService.getScriptCache().remove('tab:' + tab); } catch (e) {}
 }
 function extSnap_(key, ttlSec, build) {
   var mk = 'snap:' + key;
@@ -1245,7 +1270,7 @@ function checkNotice(data) {
   var lock = LockService.getScriptLock();
   try { lock.waitLock(10000); } catch (e) {}
   try {
-    delete MEMO_['tab:' + TAB_NOTICE_READ];   // 잠금 안에서는 메모를 버리고 반드시 새로 읽는다
+    dropTab_(TAB_NOTICE_READ);   // 잠금 안에서는 메모·캐시를 버리고 반드시 새로 읽는다
     var checks = readNoticeChecks_(ss, info.id, info.name, String(info.school || '').trim());
     if (checks[nKey]) return json({ result: 'success', already: true });   // 동시 클릭 대비 재확인
     var sh = ss.getSheetByName(TAB_NOTICE_READ);
@@ -1255,6 +1280,7 @@ function checkNotice(data) {
       sh.getRange(1, 1, 1, 5).setFontWeight('bold').setBackground('#DDE5E1');
     }
     sh.appendRow([new Date(), info.id ? "'" + info.id : '', info.name, String(info.school || '').trim(), nKey]);
+    dropTab_(TAB_NOTICE_READ);
     return json({ result: 'success', already: false });
   } finally {
     try { lock.releaseLock(); } catch (e) {}
@@ -1440,6 +1466,7 @@ function addStarBonus(data) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sh = ensureStarsSheet_(ss);
   sh.appendRow([new Date(), String(data.id || '').trim() ? "'" + String(data.id).trim() : '', name, String(data.school || '').trim(), stars, String(data.reason || '').trim(), String(data.grade || '').trim()]);
+  dropTab_(TAB_STARS);
   return json({ result: 'success' });
 }
 
@@ -1480,6 +1507,7 @@ function deleteStarBonus(data) {
   if (!stale && data.stars && (parseInt(sh.getRange(rowIndex, 5).getValue(), 10) || 0) !== parseInt(data.stars, 10)) stale = true;
   if (stale) return json({ result: 'error', message: '목록이 변경되었습니다. 새로고침 후 다시 시도하세요.' });
   sh.deleteRow(rowIndex);
+  dropTab_(TAB_STARS);
   return json({ result: 'success' });
 }
 
@@ -1582,6 +1610,12 @@ function exitDelete(data) {
         sh.deleteRow(r); deleted++;
       });
     });
+    // 삭제된 기록이 캐시에 남지 않게 관련 캐시를 전부 비운다
+    [TAB_STUDENTS, TAB_STARS, TAB_NOTICE_READ].forEach(dropTab_);
+    ['hworkSnap', 'vocaSnap', 'omrSnap', 'clinicSnap'].forEach(function (k) {
+      delete MEMO_['snap:' + k];
+      try { CacheService.getScriptCache().remove(k); } catch (e) {}
+    });
     return json({ result: 'success', deleted: deleted, skipped: skipped });
   } finally {
     try { lock.releaseLock(); } catch (e) {}
@@ -1642,6 +1676,7 @@ function addStudent(data) {
     row[6] = classA; row[7] = classB; row[8] = progress; row[9] = checkup;
     row[codeCol] = token;
     sh.appendRow(row);
+    dropTab_(TAB_STUDENTS);
     return json({ result: 'success', name: name, token: token });
   } finally {
     try { lock.releaseLock(); } catch (e) {}
@@ -1693,6 +1728,7 @@ function setConfig_(ss, label, value) {
     found = true;
   }
   if (!found) sh.appendRow([label, value]);
+  dropTab_(TAB_CONFIG);
 }
 
 /** 설정 변경 로그 — '설정로그' 탭에 일시·항목·값을 남긴다.
@@ -1941,6 +1977,7 @@ function updateStudent(data) {
       String(data.classA || '').trim(), String(data.classB || '').trim(),
       String(data.progress || '').trim(), String(data.checkup || '').trim()
     ]]);
+    dropTab_(TAB_STUDENTS);
     return json({ result: 'success' });
   } finally {
     try { lock.releaseLock(); } catch (e) {}
@@ -2004,6 +2041,7 @@ function addNotice(data) {
   var sh = ensureNoticeSheet_(ss);
   var show = (data.hidden===true || data.hidden==='1') ? 'N' : '노출';
   sh.appendRow([ new Date(), type, String(data.target||'').trim(), title, String(data.body||''), show ]);
+  dropTab_(TAB_NOTICE);
   return json({ result:'success' });
 }
 
@@ -2017,6 +2055,7 @@ function setNoticeShow(data) {
   var H = sh.getRange(1,1,1,sh.getLastColumn()).getValues()[0];
   var cShow = findHeaderCol_(H, '게시', 5);
   sh.getRange(rowIndex, cShow + 1).setValue((data.hidden===true || data.hidden==='1') ? 'N' : '노출');
+  dropTab_(TAB_NOTICE);
   return json({ result:'success' });
 }
 
@@ -2035,6 +2074,7 @@ function deleteNotice(data) {
     if (cur !== String(data.title).trim()) return json({ result:'error', message:'목록이 변경되었습니다. 새로고침 후 다시 시도하세요.' });
   }
   sh.deleteRow(rowIndex);
+  dropTab_(TAB_NOTICE);
   return json({ result:'success' });
 }
 
@@ -2089,6 +2129,7 @@ function addAssignment(data) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sh = ensureAssignSheet_(ss);
   sh.appendRow([ new Date(), tool, String(data.item||'').trim(), type, String(data.target||'').trim(), String(data.due||'').trim(), String(data.memo||'').trim() ]);
+  dropTab_(TAB_ASSIGN);
   return json({ result:'success' });
 }
 
@@ -2100,6 +2141,7 @@ function deleteAssignment(data) {
   var sh = ss.getSheetByName(TAB_ASSIGN);
   if (!sh || rowIndex > sh.getLastRow()) return json({ result:'error', message:'존재하지 않는 행입니다.' });
   sh.deleteRow(rowIndex);
+  dropTab_(TAB_ASSIGN);
   return json({ result:'success' });
 }
 
@@ -2158,7 +2200,9 @@ function createReport(data) {
       var asSh = ensureAssignSheet_(ss);
       deleteAssignByToolItem_(asSh, ANALYSIS_TOOL, id);
       asSh.appendRow([ new Date(), ANALYSIS_TOOL, id, assignType, String(data.assignTarget || '').trim(), '', '' ]);
+      dropTab_(TAB_ASSIGN);
     }
+    dropTab_(TAB_LIST); dropTab_(TAB_ITEMS);
 
     return json({ result:'success', id:id, count:qs.length });
   } catch (err) {
@@ -2182,6 +2226,7 @@ function setAnalysisAssign(data) {
   if (type) {
     sh.appendRow([ new Date(), ANALYSIS_TOOL, id, type, String(data.target||'').trim(), '', '' ]);
   }
+  dropTab_(TAB_ASSIGN);
   return json({ result:'success', id:id });
 }
 
@@ -2192,6 +2237,7 @@ function deleteAnalysisAssign(data) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sh = ss.getSheetByName(TAB_ASSIGN);
   if (sh) deleteAssignByToolItem_(sh, ANALYSIS_TOOL, id);
+  dropTab_(TAB_ASSIGN);
   return json({ result:'success', id:id });
 }
 
@@ -2210,6 +2256,7 @@ function deleteReport(data) {
   if (listSh) deleteRowsById_(listSh, 1, id);   // 보고서목록 A열=ID
   if (itemSh) deleteRowsById_(itemSh, 1, id);   // 문항 A열=보고서ID
   if (asgSh)  deleteAssignByToolItem_(asgSh, ANALYSIS_TOOL, id);   // 배정 제거
+  dropTab_(TAB_LIST); dropTab_(TAB_ITEMS); dropTab_(TAB_ASSIGN);
   return json({ result:'success', id:id });
 }
 
