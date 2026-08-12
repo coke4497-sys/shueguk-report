@@ -795,8 +795,9 @@ function renderHub(){
                 '<span class="tag">이번 주 운영 안 함</span></div>';
         return;
       }
+      // 신청했으면 응시 날짜·요일을 표시 (클리닉 카드와 동일한 형식)
       var mockDesc = (STATE.mockSignups && STATE.mockSignups.length)
-        ? '이번 주 신청 완료 ✓ · OMR · 성적'
+        ? '신청함 · ' + STATE.mockSignups.map(mockDayLabel).join(' · ')
         : '신청 · OMR 작성 · 성적 확인';
       html += '<button class="card" onclick="openMockHub()">'+ic+
               '<h3>실전 모의고사</h3><p class="desc">'+esc(mockDesc)+'</p>'+
@@ -1275,6 +1276,13 @@ function fetchMockData(id){
   });
 }
 /* ---- 실전 모의고사 하위 메뉴 (신청 · OMR 작성 · 성적) ---- */
+// 모의고사 신청 1건을 '8/16 (토)' 형식으로 (백엔드 형식: date '8월 16일', day '토요일')
+function mockDayLabel(x){
+  var m = String((x && x.date)||'').match(/(\d+)월\s*(\d+)일/);
+  var d = String((x && x.day)||'').charAt(0);
+  if(m) return m[1]+'/'+m[2]+(d?' ('+d+')':'');
+  return d ? d+'요일' : '신청 완료';
+}
 function renderMockHub(){
   var html='';
   var oi=STATE.info||{};
