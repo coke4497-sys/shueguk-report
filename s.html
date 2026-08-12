@@ -517,6 +517,14 @@ function jsonp(url, ms){
 }
 
 // 모의고사·클리닉 신청 가능 학년 + 어휘 응시 여부를 읽어와 카드에 반영
+// 구글 서버가 느릴 때(콜드 스타트·접속 몰림) 8초 안에 응답이 안 와 조회가
+// 실패하는 일이 있어, 신청 현황 조회는 15초 대기 + 실패 시 1회 자동 재시도한다.
+function jsonpRetry(url){
+  return jsonp(url, 15000).then(function(d){
+    return d !== null ? d : jsonp(url, 15000);
+  });
+}
+
 function loadGradeGates(){
   GATE_LAST = Date.now();   // 복귀 자동 갱신(refreshOnReturn)의 20초 간격 기준점
   var vg = vocaGradeCode(STATE.info && STATE.info.grade);
@@ -525,7 +533,7 @@ function loadGradeGates(){
   if (wantVoca){
     var nm = encodeURIComponent(STATE.info.name || '');
     var ph = encodeURIComponent(String(STATE.info.id || '').slice(-4));
-    vocaJob = jsonp(VOCA_API + '?action=taken&name=' + nm + '&phone4=' + ph + '&round=' + encodeURIComponent(STATE.vocaWeek));
+    vocaJob = jsonpRetry(VOCA_API + '?action=taken&name=' + nm + '&phone4=' + ph + '&round=' + encodeURIComponent(STATE.vocaWeek));
   } else {
     vocaJob = Promise.resolve(null);
   }
@@ -533,18 +541,18 @@ function loadGradeGates(){
   // uniq=1: 이 이름의 재원 학생이 1명뿐 → 신청서에 8자리를 잘못 적었어도 이름+학교로 매칭
   var si = STATE.info || {};
   var uniqFlag = (si.nameDup === false) ? '1' : '';
-  var signupJob = jsonp(SIGNUP_API + '?action=mySignups'
+  var signupJob = jsonpRetry(SIGNUP_API + '?action=mySignups'
     + '&name='   + encodeURIComponent(si.name || '')
     + '&school=' + encodeURIComponent(si.school || '')
     + '&id='     + encodeURIComponent(si.id || '')
     + '&uniq='   + uniqFlag);
   // 클리닉: 이 학생이 신청 대상인지 백엔드가 직접 판단 (전체/학년/개인/일부 모두 동일 규칙)
-  var clinicJob = jsonp(CLINIC_API + '?action=amITarget'
+  var clinicJob = jsonpRetry(CLINIC_API + '?action=amITarget'
     + '&name='   + encodeURIComponent(si.name || '')
     + '&school=' + encodeURIComponent(si.school || '')
     + '&grade='  + encodeURIComponent(hsGradeNum(si.grade) || ''));
   Promise.all([
-    jsonp(SIGNUP_API + '?action=days'),
+    jsonpRetry(SIGNUP_API + '?action=days'),
     clinicJob,
     vocaJob,
     signupJob
