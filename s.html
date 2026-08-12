@@ -965,18 +965,13 @@ function renderHub(){
 function openNotices(){ renderNotices(); }
 function closeNotices(){ renderHub(); window.scrollTo(0,0); }   // 확인 반영해 뱃지 갱신
 
-/* ── 숙제 검사 (정규 수업 기간 검사 기록) ── */
+/* ── 숙제 검사 (정규 수업 기간 검사 기록) — 주는 수~일 단위, 키는 그 주 수요일 ── */
 function hwcWeekLabel(wk){
   var p = String(wk||'').split('-');
   if(p.length !== 3) return String(wk||'');
-  return (+p[1]) + '월 ' + Math.ceil((+p[2])/7) + '주차';
-}
-function hwcWeekRange(wk){
-  var p = String(wk||'').split('-');
-  if(p.length !== 3) return '';
-  var mon = new Date(+p[0], +p[1]-1, +p[2]);
-  var sun = new Date(+p[0], +p[1]-1, +p[2]+6);
-  return (mon.getMonth()+1)+'/'+mon.getDate()+' ~ '+(sun.getMonth()+1)+'/'+sun.getDate();
+  var wed = new Date(+p[0], +p[1]-1, +p[2]);
+  var sun = new Date(+p[0], +p[1]-1, +p[2]+4);
+  return (wed.getMonth()+1)+'/'+wed.getDate()+'~'+(sun.getMonth()+1)+'/'+sun.getDate()+' 주차';
 }
 function renderHwcheck(){
   var list = STATE.hwcheck || [];
@@ -991,8 +986,7 @@ function renderHwcheck(){
       return esc(name)+' <b>'+stars+'</b>';
     }).join('<br>');
     return '<div class="hwc-week">' +
-      '<div class="wk-top"><span class="wk-name">'+esc(hwcWeekLabel(r.week))+
-        ' <small style="color:#65726B;font-weight:400;">'+esc(hwcWeekRange(r.week))+'</small></span>'+pctHtml+'</div>' +
+      '<div class="wk-top"><span class="wk-name">'+esc(hwcWeekLabel(r.week))+'</span>'+pctHtml+'</div>' +
       (itemsHtml && !r.missing ? '<p class="wk-items">'+itemsHtml+'</p>' : '') +
       (r.pub ? '<p class="wk-memo">💬 '+esc(r.pub)+'</p>' : '') +
     '</div>';

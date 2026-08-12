@@ -191,16 +191,17 @@ var pw = sessionStorage.getItem('hwcheck_pw') || '';
 var roster = [];         // studentLinks: {name, school, grade, teacher, classA, classB, code}
 var items = [];          // 검사 항목 이름들
 var records = {};        // token -> {scores, pct, pub, priv}
-var week = mondayOf(new Date());
+var week = weekStartOf(new Date());
 var saveTimers = {};     // token -> debounce timer
 
 function $(id){ return document.getElementById(id); }
 function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
 
-/* ── 주차 계산 (그 주 월요일 yyyy-MM-dd, 서버 clinicWeekKey_와 동일 기준) ── */
-function mondayOf(d){
+/* ── 주차 계산 — 정규 수업 주는 수요일 시작(수목금토일 단위).
+ * 주차 키 = 그 주 수요일 yyyy-MM-dd. 월·화에는 직전 수~일 주가 '이번 주'로 보인다. ── */
+function weekStartOf(d){
   var x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-  x.setDate(x.getDate() - ((x.getDay() + 6) % 7));
+  x.setDate(x.getDate() - ((x.getDay() + 4) % 7));   // 수요일(3)로부터 지난 날 수
   return ymd(x);
 }
 function ymd(d){ return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'); }
@@ -211,9 +212,9 @@ function moveWeek(dir){
   loadWeek();
 }
 function weekLabel(){
-  var mon = parseYmd(week), sun = parseYmd(week); sun.setDate(sun.getDate()+6);
-  $('wk-label').textContent = (mon.getMonth()+1) + '월 ' + Math.ceil(mon.getDate()/7) + '주차';
-  $('wk-range').textContent = (mon.getMonth()+1)+'/'+mon.getDate()+' ~ '+(sun.getMonth()+1)+'/'+sun.getDate();
+  var wed = parseYmd(week), sun = parseYmd(week); sun.setDate(sun.getDate()+4);   // 수 + 4일 = 일
+  $('wk-label').textContent = (wed.getMonth()+1)+'/'+wed.getDate()+' ~ '+(sun.getMonth()+1)+'/'+sun.getDate()+' 주차';
+  $('wk-range').textContent = '수 ~ 일';
 }
 
 /* ── 서버 통신 (리포트 서버는 s.html과 같은 fetch 방식) ── */
@@ -254,7 +255,7 @@ function boot(){
       roster = (r.students || []).filter(function(s){ return s.code; });
       roster.sort(function(a,b){ return a.name.localeCompare(b.name, 'ko'); });
       $('gate').style.display = 'none';
-      $('bar').style.display = '';
+      $('bar').style.display = 'block';   // CSS 기본값이 display:none이라 ''로는 안 보임
       buildTypeValues();
       loadWeek();
       refreshPlansBadge();
@@ -579,9 +580,8 @@ function loadPlans(){
 }
 function weekLabelOf(wk){
   var p = wk.split('-'); if (p.length !== 3) return wk;
-  var mon = new Date(+p[0], +p[1]-1, +p[2]), sun = new Date(+p[0], +p[1]-1, +p[2]+6);
-  return (mon.getMonth()+1) + '월 ' + Math.ceil(mon.getDate()/7) + '주차 <small>' +
-    (mon.getMonth()+1)+'/'+mon.getDate()+' ~ '+(sun.getMonth()+1)+'/'+sun.getDate() + '</small>';
+  var wed = new Date(+p[0], +p[1]-1, +p[2]), sun = new Date(+p[0], +p[1]-1, +p[2]+4);   // 수~일
+  return (wed.getMonth()+1)+'/'+wed.getDate()+' ~ '+(sun.getMonth()+1)+'/'+sun.getDate()+' 주차';
 }
 function renderPlans(){
   var pending = plans.filter(function(p){ return !p.done; }).length;

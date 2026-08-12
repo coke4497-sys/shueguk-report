@@ -58,7 +58,7 @@ var TAB_CONFIG = '설정';
 var TEACHER_PW = 'sh';   // 티쳐스 페이지에서 어휘 켜기/끄기 할 때 쓰는 비밀번호 (원하면 변경)
 
 // ── 숙제 검사 (정규 수업 기간, hwcheck.html) ─────────────────
-// '숙제검사' 탭: A일시 B주차(그 주 월요일 yyyy-MM-dd) C접근코드 D이름 E학교 F학년
+// '숙제검사' 탭: A일시 B주차(수~일 단위 주의 수요일 yyyy-MM-dd) C접근코드 D이름 E학교 F학년
 //               G항목점수(JSON) H만점 I점수% J공개메모 K비공개메모 L상태('미제출'/빈칸) M대책 N대책완료('완료'/빈칸)
 // 항목 목록은 '설정' 탭의 '숙제검사 항목'(쉼표 구분). 주차·학생당 1행(덮어쓰기).
 // 미제출이면 점수 0% + 이후 대책(재검사 약속 등)을 기록. 대책은 교사 화면에만 보이고,
@@ -1117,11 +1117,18 @@ function hwcheckItems_(ss) {
   var items = raw.split(',').map(function (s) { return s.trim(); }).filter(Boolean);
   return items.length ? items : HWCHECK_DEFAULT_ITEMS.slice();
 }
+/** 정규 수업 주차 키 — 수요일 시작(수목토일 단위 주), 그 주 수요일 yyyy-MM-dd */
+function hwcheckWeekKey_(d) {
+  var dt = (d instanceof Date) ? new Date(d.getTime()) : new Date();
+  dt.setHours(0, 0, 0, 0);
+  dt.setDate(dt.getDate() - ((dt.getDay() + 4) % 7));   // 수요일(3)로부터 지난 날 수
+  return Utilities.formatDate(dt, 'GMT+9', 'yyyy-MM-dd');
+}
 /** 주차별 기록·항목 조회 (교사 화면). 비공개 메모 포함 — pw 확인 뒤에만 호출된다. */
 function getHwcheckData(weekParam) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var week = String(weekParam || '').trim();
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(week)) week = clinicWeekKey_(new Date());
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(week)) week = hwcheckWeekKey_(new Date());
   var records = {};
   var v = tabValues_(ss, TAB_HWCHECK);
   if (v) for (var i = 1; i < v.length; i++) {
