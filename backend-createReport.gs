@@ -208,7 +208,8 @@ function omrSnap_() {
 /* 클리닉 '응답' 스냅샷 — 행: [토큰, 학생ID, 클리닉시간, 신청주키, 제출시각문자열]
  * (신청주키·제출시각은 원본 셀 값으로 미리 계산해 두어 기존 표시·집계와 동일) */
 function clinicSnap_() {
-  return extSnap_('clinicSnap', 30, function () {
+  // 캐시 키 clinicSnap2: 행 형식이 바뀌어(요청 상세 추가) 옛 캐시와 충돌하지 않게 함
+  return extSnap_('clinicSnap2', 30, function () {
     var snap = { ok: false, has: {}, rows: [] };
     var sh;
     try { sh = SpreadsheetApp.openById(CLINIC_SHEET_ID).getSheetByName(CLINIC_TAB); } catch (e) { return snap; }
@@ -218,18 +219,116 @@ function clinicSnap_() {
     if (v.length < 2) return snap;
     var H = v[0];
     var iTok = H.indexOf('토큰'), iSid = H.indexOf('학생ID'), iDate = H.indexOf('제출시각'), iTime = H.indexOf('클리닉시간');
+    var iType = H.indexOf('유형'), iArea = H.indexOf('영역'), iCont = H.indexOf('구체내용'),
+        iCnt = H.indexOf('질문개수'), iMemo = H.indexOf('메모');
     snap.has = { tok: iTok >= 0, sid: iSid >= 0, date: iDate >= 0, time: iTime >= 0 };
+    // 시트가 제출시각을 날짜 값으로 바꿔둔 경우도 "yyyy-MM-dd HH:mm" 문자열로 통일
+    function ts(x) {
+      if (x instanceof Date && !isNaN(x.getTime())) return Utilities.formatDate(x, 'Asia/Seoul', 'yyyy-MM-dd HH:mm');
+      return String(x || '').trim();
+    }
+    function cell(idx, i) { return idx >= 0 ? String(v[i][idx] || '').trim() : ''; }
     for (var i = 1; i < v.length; i++) {
       snap.rows.push([
         iTok  >= 0 ? String(v[i][iTok]  || '') : '',
         iSid  >= 0 ? String(v[i][iSid]  || '') : '',
         iTime >= 0 ? String(v[i][iTime] || '') : '',
         clinicWeekKey_(iDate >= 0 ? v[i][iDate] : ''),
-        iDate >= 0 ? String(v[i][iDate] || '').trim() : ''
+        ts(iDate >= 0 ? v[i][iDate] : ''),
+        cell(iType, i), cell(iArea, i), cell(iCont, i), cell(iCnt, i), cell(iMemo, i)
       ]);
     }
     return snap;
   });
+}
+
+/* ── 주말 모의고사 신청 조회 (학생 개별 페이지용) ─────────────────
+ * 학생 페이지가 신청 서버(JSONP)를 따로 부를 때 시간 초과로 '신청함' 표시가
+ * 오락가락하던 문제를 없애기 위해, 리포트 응답에 이번 주 신청 내역을 함께 담는다.
+ * 매칭·주차 규칙은 신청 백엔드(signup_code.gs mySignups)와 동일. */
+var SIGNUP_SHEET_ID = '1pB05VXT__-kJHoNpQxQSxbm4PhlB6XuJ7EvVG79pW14';
+var SIGNUP_TAB = '신청';
+
+// 화요일 시작 주 키 (신청 백엔드 weekKey_와 동일 규칙 · Asia/Seoul)
+function signupWeekKey_(v) {
+  var d;
+  if (v instanceof Date) d = v;
+  else {
+    var s = String(v || '').trim();
+    if (!s) return '';
+    d = new Date(s.indexOf('T') > -1 ? s : s.replace(' ', 'T'));
+  }
+  if (!d || isNaN(d.getTime())) return '';
+  var ymd = Utilities.formatDate(d, 'Asia/Seoul', 'yyyy-MM-dd').split('-');
+  var dow = new Date(Date.UTC(+ymd[0], +ymd[1] - 1, +ymd[2], 12)).getUTCDay(); // 0=일..6=토
+  var since = (dow - 2 + 7) % 7;                                               // 화요일(2)로부터 지난 날 수
+  var tue = new Date(Date.UTC(+ymd[0], +ymd[1] - 1, +ymd[2] - since, 12));
+  return Utilities.formatDate(tue, 'Asia/Seoul', 'yyyy-MM-dd');
+}
+// 주 키(화요일)와 요일로 실제 응시 날짜 라벨 (토=화+4, 일=화+5 — 신청 백엔드와 동일)
+function signupDateLabel_(weekKey, day) {
+  var p = String(weekKey || '').split('-');
+  if (p.length !== 3) return '';
+  var offset = (day === '토요일') ? 4 : (day === '일요일') ? 5 : 0;
+  var d = new Date(Date.UTC(+p[0], +p[1] - 1, +p[2] + offset, 12));
+  return (d.getUTCMonth() + 1) + '월 ' + d.getUTCDate() + '일';
+}
+
+/* 신청 시트 스냅샷 — 행: [이름, 학교, 학생ID, 응시요일, 신청주키] */
+function signupSnap_() {
+  return extSnap_('signupSnap', 30, function () {
+    var snap = { ok: false, rows: [] };
+    var sh;
+    try { sh = SpreadsheetApp.openById(SIGNUP_SHEET_ID).getSheetByName(SIGNUP_TAB); } catch (e) { return snap; }
+    if (!sh) return snap;
+    var v = sh.getDataRange().getValues();
+    snap.ok = true;
+    if (v.length < 2) return snap;
+    var H = v[0];
+    var iN = H.indexOf('이름'), iS = H.indexOf('학교'), iId = H.indexOf('학생ID'),
+        iDay = H.indexOf('응시요일'), iT = H.indexOf('제출시각');
+    for (var i = 1; i < v.length; i++) {
+      snap.rows.push([
+        iN   >= 0 ? String(v[i][iN]   || '') : '',
+        iS   >= 0 ? String(v[i][iS]   || '') : '',
+        iId  >= 0 ? String(v[i][iId]  || '') : '',
+        iDay >= 0 ? String(v[i][iDay] || '') : '',
+        signupWeekKey_(iT >= 0 ? v[i][iT] : '')
+      ]);
+    }
+    return snap;
+  });
+}
+
+/* 이번 주 모의고사 신청 내역 [{day, date}] — 없으면 [], 시트 접근 실패 시 null */
+function collectMockSignups_(info) {
+  try {
+    var name = String((info && info.name) || '').trim();
+    if (!name) return [];
+    var school = String((info && info.school) || '').trim();
+    var sid = String((info && info.id) || '').trim();
+    var uniq = info && info.nameDup === false;   // 이름이 유일하면 학생ID 불일치는 무시
+    var snap = signupSnap_();
+    if (!snap.ok) return null;
+    var week = signupWeekKey_(new Date());
+    var days = ['토요일', '일요일'];
+    var seen = {}, out = [];
+    for (var i = 0; i < snap.rows.length; i++) {
+      var r = snap.rows[i];
+      var rn = r[0].trim();
+      if (rn !== name && rn !== baseName_(name)) continue;   // 접미사 동명이인(김은수A) 대비
+      var rs = r[1].trim();
+      if (school && rs && !schoolMatch_(rs, school)) continue;
+      var rid = r[2].replace(/^'/, '').trim();
+      if (!uniq && rid && sid && rid !== sid) continue;      // 동명이인 구분(양쪽에 ID 있을 때만)
+      if (r[4] !== week) continue;                           // 이번 주만
+      var day = r[3].trim();
+      if (days.indexOf(day) === -1 || seen[day]) continue;
+      seen[day] = true;                                      // 같은 요일 중복 신청은 1건으로
+      out.push({ day: day, date: signupDateLabel_(week, day) });
+    }
+    return out;
+  } catch (e) { return null; }
 }
 
 function doGet(e) {
@@ -524,8 +623,11 @@ function getStudent(opts) {
   });
   // 지필고사 분석지: 배정(전체/학년/개인/일부) 또는 학교·학년 일치 시험만(최신순). done=복기 제출 여부
   resp.analyses = collectAnalyses_(ss, info, key);
-  // 클리닉 신청: 이 학생(토큰)의 최근 신청 내역(없거나 실패 시 null)
-  resp.clinic = collectClinic_(key);
+  // 클리닉 신청: 이 학생의 신청 내역 목록(토큰, 토큰 없는 옛 행은 학생ID로 매칭. 없거나 실패 시 null)
+  resp.clinic = collectClinic_(key, info.id);
+  // 주말 모의고사: 이번 주 신청 내역 — 학생 페이지가 신청 서버를 따로 부르지 않아도 되도록
+  // 리포트 응답에 함께 담는다 (실패 시 null → 학생 페이지가 기존 직접 조회로 폴백)
+  resp.mockSignups = collectMockSignups_(info);
   // 슈퍼스타 별: 총 별 개수 + 출처별 내역 + 최근 깜짝 보너스
   resp.stars = collectStars_(ss, info, key, siblingShared);
   // 어휘 테스트 켜짐/꺼짐 (설정 탭의 '어휘 테스트' 값. 기본 열림)
@@ -828,27 +930,36 @@ function noticeMatches_(type, target, stu) {
  *  최근 신청 1건과 총 신청 수를 반환. '토큰' 열이 아직 없으면(클리닉 미배포) null.
  *  같은 제출시각+시간대는 한 '신청'으로 묶고, 요청 줄 수를 센다.
  */
-function collectClinic_(token) {
+function collectClinic_(token, sid) {
   token = String(token || '').trim();
-  if (!token) return null;
+  sid   = String(sid   || '').trim();
+  if (!token && !sid) return null;
   var snap = clinicSnap_();
   if (!snap.ok || !snap.rows.length) return null;   // 권한·접근 실패 시 조용히 건너뜀(학생 페이지는 정상 동작)
-  if (!snap.has.tok) return null;   // 클리닉에 토큰 열이 아직 없음 → 표시 안 함
 
-  var apps = {};   // key: 제출시각|시간 → { date, time, count }
+  var apps = {};   // key: 제출시각|시간 → { date, time, count, requests, memo }
   for (var i = 0; i < snap.rows.length; i++) {
-    if (snap.rows[i][0].trim() !== token) continue;
-    var date = snap.rows[i][4];
-    var time = snap.rows[i][2].trim();
+    var r = snap.rows[i];
+    var tk = r[0].trim();
+    var id = r[1].replace(/^'/, '').trim();
+    // 토큰이 기록된 행은 토큰으로만, 토큰 없는 행(직접 링크·옛 신청)은 학생ID로 매칭
+    // (countClinicApps_와 동일 규칙 — 쌍둥이는 학생ID가 같아 토큰 행을 ID로 잡으면 형제 신청까지 섞임)
+    var match = tk ? (token && tk === token) : (sid && id === sid);
+    if (!match) continue;
+    var date = r[4];
+    var time = r[2].trim();
     var k = date + '|' + time;
-    if (!apps[k]) apps[k] = { date: date, time: time, count: 0 };
+    if (!apps[k]) apps[k] = { date: date, time: time, count: 0, requests: [], memo: '' };
     apps[k].count++;
+    var req = { type: r[5] || '', area: r[6] || '', content: r[7] || '', qcount: r[8] || '' };
+    if (req.type || req.area || req.content) apps[k].requests.push(req);
+    if (!apps[k].memo && r[9]) apps[k].memo = r[9];
   }
   var list = Object.keys(apps).map(function (k) { return apps[k]; });
   if (!list.length) return null;
   list.sort(function (a, b) { return a.date < b.date ? 1 : (a.date > b.date ? -1 : 0); });
 
-  return { latest: list[0], total: list.length };
+  return { latest: list[0], total: list.length, list: list.slice(0, 20) };
 }
 
 /* ===== 지필고사 분석지(학생 개별 페이지) =====
@@ -1612,7 +1723,7 @@ function exitDelete(data) {
     });
     // 삭제된 기록이 캐시에 남지 않게 관련 캐시를 전부 비운다
     [TAB_STUDENTS, TAB_STARS, TAB_NOTICE_READ].forEach(dropTab_);
-    ['hworkSnap', 'vocaSnap', 'omrSnap', 'clinicSnap'].forEach(function (k) {
+    ['hworkSnap', 'vocaSnap', 'omrSnap', 'clinicSnap2', 'signupSnap'].forEach(function (k) {
       delete MEMO_['snap:' + k];
       try { CacheService.getScriptCache().remove(k); } catch (e) {}
     });
