@@ -101,6 +101,16 @@
 
   /* 알려드립니다 뷰 */
   #noticeView{display:none;}
+  #hwcheckView{display:none;}
+  .hwc-week{background:var(--surface,#fff);border:1px solid #E5EDE8;border-radius:16px;padding:14px 16px;margin-bottom:10px;}
+  .hwc-week .wk-top{display:flex;justify-content:space-between;align-items:baseline;gap:8px;}
+  .hwc-week .wk-name{font-family:"Gowun Batang",serif;font-weight:700;}
+  .hwc-week .wk-pct{font-family:"Gowun Batang",serif;font-weight:700;color:#4C6E66;}
+  .hwc-week .wk-pct.full{color:#E8B93E;}
+  .hwc-week .wk-pct.miss{color:#B4574E;font-size:.9rem;}
+  .hwc-week .wk-items{margin:6px 0 0;color:#65726B;font-size:.86rem;line-height:1.7;}
+  .hwc-week .wk-items b{color:#E8B93E;font-weight:400;letter-spacing:.05em;}
+  .hwc-week .wk-memo{margin:8px 0 0;background:#F4F8F5;border-radius:10px;padding:8px 12px;font-size:.88rem;}
   .notice-item{background:var(--surface);border:1px solid var(--line-soft);border-radius:var(--radius);padding:16px 18px;margin-bottom:12px;}
   .notice-item .ntag{display:inline-block;font-size:.7rem;color:var(--accent);background:#DCE6E0;border-radius:20px;padding:2px 11px;margin-bottom:9px;}
   .notice-item .nh{display:flex;justify-content:space-between;align-items:baseline;gap:12px;margin-bottom:8px;}
@@ -347,6 +357,16 @@
     </footer>
   </main>
 </div>
+
+<!-- 숙제 검사 -->
+<div id="hwcheckView"><main class="wrap gwrap">
+  <div class="gv-bar">
+    <button class="gv-back" onclick="closeHwcheck()" id="hwcBack"></button>
+    <span class="gv-ttl">숙제 검사 · 주차별 기록</span>
+  </div>
+  <div id="hwcheckList"></div>
+  <footer><p>이수경국어 Shueguk · 학생용</p></footer>
+</main></div>
 
 <!-- 알려드립니다 -->
 <div id="noticeView"><main class="wrap gwrap">
@@ -602,6 +622,7 @@ function refreshOnReturn(){
     STATE.stars    = d.stars    || null;
     STATE.vocaOpen = d.vocaOpen;
     STATE.vocaWeek = d.vocaWeek;
+    STATE.hwcheck  = d.hwcheck  || null;
     // 잠금 상태(authed·exams)는 건드리지 않는다 — 비밀번호 재입력 방지
     if ($('hubView').style.display !== 'none') renderHub();
     if ($('clinicView').style.display === 'block') renderClinic();
@@ -642,10 +663,10 @@ function hide(id){ $(id).style.display='none'; }
 
 var KEY = '';        // 접근코드(토큰) — 없으면 테스트용 id
 var IS_ID = false;
-var STATE = { info:null, authed:false, exams:null, examCount:0, notices:null, homework:null, analyses:null, clinic:null, stars:null, vocaOpen:null, vocaWeek:null, mockGrades:null, clinicEligible:null, vocaTaken:null, mockSignups:null, mockFromServer:false };
+var STATE = { info:null, authed:false, exams:null, examCount:0, notices:null, homework:null, analyses:null, clinic:null, stars:null, vocaOpen:null, vocaWeek:null, mockGrades:null, clinicEligible:null, vocaTaken:null, mockSignups:null, mockFromServer:false, hwcheck:null };
 
 function showError(title, msg){
-  hide('loadBox'); hide('hubView'); $('gradeView').style.display='none'; $('mockHubView').style.display='none'; $('mockView').style.display='none'; $('clinicView').style.display='none';
+  hide('loadBox'); hide('hubView'); $('gradeView').style.display='none'; $('mockHubView').style.display='none'; $('mockView').style.display='none'; $('clinicView').style.display='none'; $('hwcheckView').style.display='none';
   $('errTitle').textContent = title || '불러올 수 없습니다';
   $('errMsg').textContent = msg || '';
   show('errBox');
@@ -725,6 +746,7 @@ function renderStars(){
       clinic:'<path d="M22 12h-4l-3 8L9 4l-3 8H2"/>',
       hwork: '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/>',
       notice:'<path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>',
+      hwcheck:'<path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>',
       bonus: '<path d="M12 2l2.9 6.2 6.8.8-5 4.7 1.3 6.7L12 17.1 6 20.4l1.3-6.7-5-4.7 6.8-.8z"/>'
     };
     function srcIcon(k){
@@ -736,6 +758,7 @@ function renderStars(){
       ['mock',   '실전 모의고사 응시', bd.mock,   '회', bd.mock],
       ['clinic', '클리닉 신청',        bd.clinic, '회', bd.clinic],
       ['hwork',  'H-work 과제',        bd.hwork,  '개', bd.hwork],
+      ['hwcheck','숙제 검사 만점',     bd.hwcheck,'주', bd.hwcheck],
       ['notice', '공지 확인',          bd.notice, '건', bd.notice],
       ['bonus',  '수경쌤 깜짝 보너스', bd.bonus ? 1 : 0, '', bd.bonus]
     ].filter(function(s){ return s[2] > 0; });
@@ -835,6 +858,17 @@ function renderHub(){
             '<h3>H-work</h3><p class="desc">'+esc(hDesc)+'</p>' +
             '<span class="go">'+(hCnt>0?'확인 ':'열기 ')+svg(ICON.arrow)+'</span></button>';
 
+  // 숙제 검사 — 정규 수업 검사 기록이 있는 학생에게만 카드 표시
+  var hwc = STATE.hwcheck || [];
+  if(hwc.length){
+    var latest = hwc[0];
+    var hwcDesc = hwcWeekLabel(latest.week) + ' · ' + (latest.missing ? '미제출' : latest.pct + '%');
+    html += '<button class="card" onclick="openHwcheck()">' +
+              '<span class="icon">'+svg(ICON.check)+'</span>' +
+              '<h3>숙제 검사</h3><p class="desc">'+esc(hwcDesc)+'</p>' +
+              '<span class="go">열기 '+svg(ICON.arrow)+'</span></button>';
+  }
+
   FEATURES.forEach(function(f){
     var desc = f.desc;
     var url = f.url;
@@ -924,12 +958,49 @@ function renderHub(){
 
   renderStars();   // 슈퍼스타 별 카드 (백엔드가 stars를 주면 표시)
 
-  hide('loadBox'); hide('errBox'); $('gradeView').style.display='none'; $('noticeView').style.display='none'; $('homeworkView').style.display='none'; $('mockHubView').style.display='none'; $('mockView').style.display='none'; $('clinicView').style.display='none'; show('hubView');
+  hide('loadBox'); hide('errBox'); $('gradeView').style.display='none'; $('noticeView').style.display='none'; $('homeworkView').style.display='none'; $('mockHubView').style.display='none'; $('mockView').style.display='none'; $('clinicView').style.display='none'; $('hwcheckView').style.display='none'; show('hubView');
 }
 
 /* ---- 알려드립니다(공지) ---- */
 function openNotices(){ renderNotices(); }
 function closeNotices(){ renderHub(); window.scrollTo(0,0); }   // 확인 반영해 뱃지 갱신
+
+/* ── 숙제 검사 (정규 수업 기간 검사 기록) ── */
+function hwcWeekLabel(wk){
+  var p = String(wk||'').split('-');
+  if(p.length !== 3) return String(wk||'');
+  return (+p[1]) + '월 ' + Math.ceil((+p[2])/7) + '주차';
+}
+function hwcWeekRange(wk){
+  var p = String(wk||'').split('-');
+  if(p.length !== 3) return '';
+  var mon = new Date(+p[0], +p[1]-1, +p[2]);
+  var sun = new Date(+p[0], +p[1]-1, +p[2]+6);
+  return (mon.getMonth()+1)+'/'+mon.getDate()+' ~ '+(sun.getMonth()+1)+'/'+sun.getDate();
+}
+function renderHwcheck(){
+  var list = STATE.hwcheck || [];
+  var html = list.map(function(r){
+    var pctHtml = r.missing
+      ? '<span class="wk-pct miss">미제출</span>'
+      : '<span class="wk-pct'+(r.pct>=100?' full':'')+'">'+r.pct+'%'+(r.pct>=100?' 🏆':'')+'</span>';
+    var itemsHtml = Object.keys(r.scores||{}).map(function(name){
+      var sc = parseInt(r.scores[name],10)||0;
+      var stars = '';
+      for(var k=0;k<6;k++){ stars += (k<sc ? '★' : '☆'); }
+      return esc(name)+' <b>'+stars+'</b>';
+    }).join('<br>');
+    return '<div class="hwc-week">' +
+      '<div class="wk-top"><span class="wk-name">'+esc(hwcWeekLabel(r.week))+
+        ' <small style="color:#65726B;font-weight:400;">'+esc(hwcWeekRange(r.week))+'</small></span>'+pctHtml+'</div>' +
+      (itemsHtml && !r.missing ? '<p class="wk-items">'+itemsHtml+'</p>' : '') +
+      (r.pub ? '<p class="wk-memo">💬 '+esc(r.pub)+'</p>' : '') +
+    '</div>';
+  }).join('');
+  $('hwcheckList').innerHTML = html || '<p style="text-align:center;color:#65726B;padding:30px 0;">아직 검사 기록이 없어요.</p>';
+}
+function openHwcheck(){ renderHwcheck(); hide('hubView'); $('hwcheckView').style.display='block'; window.scrollTo(0,0); }
+function closeHwcheck(){ $('hwcheckView').style.display='none'; show('hubView'); window.scrollTo(0,0); }
 /* 지필고사 분석지(복기)를 공지 항목처럼 렌더 — 미입력은 초록 강조 + 복기 입력 버튼 */
 function analysisNoticeHtml(a){
   var href = 'r.html?id=' + encodeURIComponent(a.id);
@@ -1517,6 +1588,7 @@ function boot(){
       STATE.stars=d.stars||null;   // 슈퍼스타 별 (구버전 백엔드면 null → 카드 숨김)
       STATE.vocaOpen=d.vocaOpen;   // true/false/undefined(=열림)
       STATE.vocaWeek=d.vocaWeek;   // 교사가 연 주차(없으면 null → 준비 중)
+      STATE.hwcheck=d.hwcheck||null;   // 숙제 검사 주차별 기록 (기록 없으면 카드 숨김)
       if(d.exams){ STATE.exams=d.exams; }
       renderHub();
       loadGradeGates();

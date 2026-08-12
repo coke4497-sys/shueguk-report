@@ -42,7 +42,7 @@ var CLINIC_TAB      = '응답';     // 제출시각|이름|학교|전화뒤4|클
 // (모든 항목이 '단위' 기준 — 같은 것을 여러 번 제출·신청해도 별은 1회분만)
 // 깜짝 보너스(수동): '별' 탭에 로그로 기록 (star.html에서 부여)
 var TAB_STARS  = '별';   // A:일시 B:학생ID C:이름 D:학교 E:별 F:사유
-var STAR_RULES = { exam: 2, clinic: 1, voca: 1, hwork: 1, notice: 1, mock: 1 };   // notice = 공지 확인 1건당, mock = 모의고사 응시 회차당
+var STAR_RULES = { exam: 2, clinic: 1, voca: 1, hwork: 1, notice: 1, mock: 1, hwcheck: 1 };   // notice = 공지 확인 1건당, mock = 모의고사 응시 회차당, hwcheck = 숙제 검사 만점(100%) 주차당
 var TAB_NOTICE_READ = '공지확인';   // A:일시 B:학생ID C:이름 D:학교 E:공지키(작성일|제목)
 // 어휘·H WORK·주말 모의고사 자동 적립용 스프레드시트 ID (비우면 그 항목은 0으로 계산)
 var VOCA_SHEET_ID  = '1AVDyKpBj9kSW5hzSzOieVIZpV6FnIpcFMjsjUyuGAbE';   // 어휘 결과 시트
@@ -57,6 +57,18 @@ var SIGNUP_TAB      = '신청';
 var TAB_CONFIG = '설정';
 var TEACHER_PW = 'sh';   // 티쳐스 페이지에서 어휘 켜기/끄기 할 때 쓰는 비밀번호 (원하면 변경)
 
+// ── 숙제 검사 (정규 수업 기간, hwcheck.html) ─────────────────
+// '숙제검사' 탭: A일시 B주차(그 주 월요일 yyyy-MM-dd) C접근코드 D이름 E학교 F학년
+//               G항목점수(JSON) H만점 I점수% J공개메모 K비공개메모 L상태('미제출'/빈칸) M대책 N대책완료('완료'/빈칸)
+// 항목 목록은 '설정' 탭의 '숙제검사 항목'(쉼표 구분). 주차·학생당 1행(덮어쓰기).
+// 미제출이면 점수 0% + 이후 대책(재검사 약속 등)을 기록. 대책은 교사 화면에만 보이고,
+// 교사 화면의 '미제출 대책' 목록에서 확인(완료) 표시로 처리 여부를 관리한다.
+// 만점(100%) 주차는 슈퍼스타 별 1개로 집계(STAR_RULES.hwcheck).
+var TAB_HWCHECK = '숙제검사';
+var HWCHECK_ITEMS_KEY = '숙제검사 항목';
+var HWCHECK_DEFAULT_ITEMS = ['숙제 수행', '오답 처리'];
+var HWCHECK_STARS_MAX = 6;   // 항목당 별 0~6개
+
 /* ── 접속 폭주 대비 (성능) ─────────────────────────────────────
  * 학생 개인 페이지 요청 1건이 시트를 10번 넘게(외부 스프레드시트 4개 포함) 읽어
  * 접속이 몰리면 서버가 밀리던 문제를 줄인다.
@@ -67,13 +79,39 @@ var TEACHER_PW = 'sh';   // 티쳐스 페이지에서 어휘 켜기/끄기 할 �
  *     시에는 그냥 매번 읽으므로 동작은 같고 속도만 떨어진다.
  *     ※ 새 제출은 캐시 수명(어휘·H WORK·OMR 60초, 클리닉 30초) 안에만 늦게 보인다. */
 var MEMO_ = {};
+/* 학생 페이지가 매번 읽는 탭은 짧게 캐시해 전 학생이 공유한다.
+ * (제출결과는 크기·최신성 때문에 캐시하지 않고 요청 내 메모만 사용)
+ * 관리 기능이 해당 탭을 고치면 dropTab_ 으로 즉시 비워 반영이 늦지 않게 한다.
+ * ※ 캐시를 거친 값은 날짜가 ISO 문자열로 돌아오는데, 이 탭들의 소비처는 모두
+ *   String()/new Date() 변환을 거치므로 표시·판정이 달라지지 않는다. */
+var TAB_CACHE_TTL_ = {};
+TAB_CACHE_TTL_[TAB_STUDENTS] = 60;
+TAB_CACHE_TTL_[TAB_NOTICE] = 60;
+TAB_CACHE_TTL_[TAB_NOTICE_READ] = 60;
+TAB_CACHE_TTL_[TAB_ASSIGN] = 60;
+TAB_CACHE_TTL_[TAB_CONFIG] = 60;
+TAB_CACHE_TTL_[TAB_STARS] = 60;
+TAB_CACHE_TTL_[TAB_LIST] = 120;
+TAB_CACHE_TTL_[TAB_ITEMS] = 120;
+TAB_CACHE_TTL_[TAB_HWCHECK] = 60;
 function tabValues_(ss, tab) {
   var k = 'tab:' + tab;
-  if (!(k in MEMO_)) {
-    var sh = ss.getSheetByName(tab);
-    MEMO_[k] = sh ? sh.getDataRange().getValues() : null;
+  if (k in MEMO_) return MEMO_[k];
+  var ttl = TAB_CACHE_TTL_[tab];
+  if (ttl) {
+    try {
+      var hit = CacheService.getScriptCache().get(k);
+      if (hit) return (MEMO_[k] = JSON.parse(hit));
+    } catch (e) {}
   }
-  return MEMO_[k];
+  var sh = ss.getSheetByName(tab);
+  var v = sh ? sh.getDataRange().getValues() : null;
+  if (ttl && v) { try { CacheService.getScriptCache().put(k, JSON.stringify(v), ttl); } catch (e) {} }  // 100KB 초과 등이면 캐시 없이 진행
+  return (MEMO_[k] = v);
+}
+function dropTab_(tab) {
+  delete MEMO_['tab:' + tab];
+  try { CacheService.getScriptCache().remove('tab:' + tab); } catch (e) {}
 }
 function extSnap_(key, ttlSec, build) {
   var mk = 'snap:' + key;
@@ -367,6 +405,16 @@ function doGet(e) {
     if (String(p.pw || '') !== TEACHER_PW) return json({ result:'error', message:'unauthorized' });
     return getAssignList(p.tool ? String(p.tool).trim() : '', p.item ? String(p.item).trim() : '');
   }
+  // 숙제 검사 — 주차별 기록·항목 조회 (hwcheck.html) — 비밀번호 필요. ?action=hwcheckData[&week=yyyy-MM-dd]
+  if (p.action === 'hwcheckData') {
+    if (String(p.pw || '') !== TEACHER_PW) return json({ result:'error', message:'unauthorized' });
+    return getHwcheckData(p.week);
+  }
+  // 숙제 검사 — 미제출 대책 목록(전 주차) — 비밀번호 필요
+  if (p.action === 'hwcheckPlans') {
+    if (String(p.pw || '') !== TEACHER_PW) return json({ result:'error', message:'unauthorized' });
+    return getHwcheckPlans();
+  }
   if (p.list)    { return getList(); }
   if (p.results) { return getResults(String(p.results).trim()); }
   if (p.key)     { return getStudent({ key: p.key, pw: p.pw }); }     // ?key=토큰[&pw=번호] → 학생 허브
@@ -603,6 +651,8 @@ function getStudent(opts) {
   // 주말 모의고사: 이번 주 신청 내역 — 학생 페이지가 신청 서버를 따로 부르지 않아도 되도록
   // 리포트 응답에 함께 담는다 (실패 시 null → 학생 페이지가 기존 직접 조회로 폴백)
   resp.mockSignups = collectMockSignups_(info);
+  // 숙제 검사: 주차별 점수 %와 공개 메모 (비공개 메모는 절대 포함하지 않음)
+  resp.hwcheck = collectHwchecks_(ss, key);
   // 슈퍼스타 별: 총 별 개수 + 출처별 내역 + 최근 깜짝 보너스
   resp.stars = collectStars_(ss, info, key, siblingShared);
   // 어휘 테스트 켜짐/꺼짐 (설정 탭의 '어휘 테스트' 값. 기본 열림)
@@ -1047,6 +1097,157 @@ function normGrade_(s) {
   return '';
 }
 
+/* ===== 숙제 검사 (정규 수업 기간) ===== hwcheck.html
+ *  조교·교사가 수업 중 학생별로 항목(기본: 숙제 수행·오답 처리)마다 별 0~6개를 매기면
+ *  %로 환산한 주차 점수가 기록된다. 공개 메모는 학생 개별 페이지에 보이고,
+ *  비공개 메모는 교사 화면에만 보인다. 주차 키 = 그 주 월요일(yyyy-MM-dd).
+ */
+function hwcheckSheet_(ss) {
+  var sh = ss.getSheetByName(TAB_HWCHECK);
+  if (!sh) {
+    sh = ss.insertSheet(TAB_HWCHECK);
+    sh.appendRow(['일시', '주차', '접근코드', '이름', '학교', '학년', '항목점수(JSON)', '만점', '점수%', '공개메모', '비공개메모', '상태', '대책', '대책완료']);
+    sh.getRange(1, 1, 1, 14).setFontWeight('bold').setBackground('#DDE5E1');
+  }
+  return sh;
+}
+/** 검사 항목 목록 — '설정' 탭 '숙제검사 항목'(쉼표 구분), 없으면 기본 2개 */
+function hwcheckItems_(ss) {
+  var raw = configVal_(ss, HWCHECK_ITEMS_KEY, '');
+  var items = raw.split(',').map(function (s) { return s.trim(); }).filter(Boolean);
+  return items.length ? items : HWCHECK_DEFAULT_ITEMS.slice();
+}
+/** 주차별 기록·항목 조회 (교사 화면). 비공개 메모 포함 — pw 확인 뒤에만 호출된다. */
+function getHwcheckData(weekParam) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var week = String(weekParam || '').trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(week)) week = clinicWeekKey_(new Date());
+  var records = {};
+  var v = tabValues_(ss, TAB_HWCHECK);
+  if (v) for (var i = 1; i < v.length; i++) {
+    if (String(v[i][1] || '').trim() !== week) continue;
+    var tok = String(v[i][2] || '').trim();
+    if (!tok) continue;
+    var scores = {}; try { scores = JSON.parse(v[i][6] || '{}'); } catch (e) {}
+    records[tok] = { scores: scores, pct: Number(v[i][8]) || 0,
+                     pub: String(v[i][9] || ''), priv: String(v[i][10] || ''),
+                     missing: String(v[i][11] || '').trim() === '미제출',
+                     plan: String(v[i][12] || '') };   // 뒤 행이 최신(같은 키 중복 대비)
+  }
+  return json({ result: 'success', week: week, items: hwcheckItems_(ss), records: records });
+}
+/** 한 학생의 주차 기록 저장(덮어쓰기). { pw, week, token, name, school, grade, scores:{항목:0~6}, pub, priv } */
+function hwcheckSave(data) {
+  if (String(data.pw || '') !== TEACHER_PW) return json({ result: 'error', message: 'unauthorized' });
+  var week = String(data.week || '').trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(week)) return json({ result: 'error', message: '주차가 올바르지 않습니다.' });
+  var token = String(data.token || '').trim();
+  if (!token) return json({ result: 'error', message: '학생 식별 정보(접근코드)가 없습니다.' });
+  var scores = {}, sum = 0, n = 0;
+  var raw = (data.scores && typeof data.scores === 'object') ? data.scores : {};
+  Object.keys(raw).forEach(function (k) {
+    var name = String(k).trim(); if (!name) return;
+    var s = parseInt(raw[k], 10); if (isNaN(s)) s = 0;
+    s = Math.max(0, Math.min(HWCHECK_STARS_MAX, s));
+    scores[name] = s; sum += s; n++;
+  });
+  if (!n) return json({ result: 'error', message: '검사 항목 점수가 없습니다.' });
+  var missing = (data.missing === true || data.missing === '1');
+  var full = n * HWCHECK_STARS_MAX;
+  var pct = missing ? 0 : Math.round(sum / full * 100);   // 미제출은 0%
+  var row = [new Date(), week, token, String(data.name || '').trim(), String(data.school || '').trim(),
+             String(data.grade || '').trim(), JSON.stringify(scores), full, pct,
+             String(data.pub || ''), String(data.priv || ''),
+             missing ? '미제출' : '', String(data.plan || '')];
+  var lock = LockService.getScriptLock();
+  try { lock.waitLock(8000); } catch (e) { return json({ result: 'error', message: '잠시 후 다시 시도해 주세요.' }); }
+  try {
+    var sh = hwcheckSheet_(SpreadsheetApp.getActiveSpreadsheet());
+    var v = sh.getDataRange().getValues();
+    var at = -1;
+    for (var i = 1; i < v.length; i++) {
+      if (String(v[i][1] || '').trim() === week && String(v[i][2] || '').trim() === token) { at = i + 1; break; }
+    }
+    row.push(at > 0 ? String(v[at - 1][13] || '') : '');   // N대책완료는 저장 시 유지 (완료 표시는 별도 API)
+    if (at > 0) sh.getRange(at, 1, 1, 14).setValues([row]);
+    else sh.appendRow(row);
+    dropTab_(TAB_HWCHECK);
+    return json({ result: 'success', week: week, pct: pct });
+  } finally {
+    try { lock.releaseLock(); } catch (e) {}
+  }
+}
+/** 검사 항목 목록 변경. { pw, items: ['숙제 수행', ...] } (항목 이름에 쉼표는 쓸 수 없음) */
+function hwcheckSetItems(data) {
+  if (String(data.pw || '') !== TEACHER_PW) return json({ result: 'error', message: 'unauthorized' });
+  var items = (Array.isArray(data.items) ? data.items : []).map(function (s) {
+    return String(s || '').replace(/,/g, ' ').trim();
+  }).filter(Boolean);
+  if (!items.length) return json({ result: 'error', message: '항목이 비어 있습니다.' });
+  if (items.length > 8) return json({ result: 'error', message: '항목은 8개까지만 둘 수 있어요.' });
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  setConfig_(ss, HWCHECK_ITEMS_KEY, items.join(', '));
+  return json({ result: 'success', items: items });
+}
+/** 미제출 대책 목록(전 주차) — 미제출이거나 대책이 적힌 기록을 최신 주차부터 반환. */
+function getHwcheckPlans() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var v = tabValues_(ss, TAB_HWCHECK);
+  var out = [];
+  if (v) for (var i = 1; i < v.length; i++) {
+    var missing = String(v[i][11] || '').trim() === '미제출';
+    var plan = String(v[i][12] || '').trim();
+    if (!missing && !plan) continue;
+    out.push({ week: String(v[i][1] || '').trim(), token: String(v[i][2] || '').trim(),
+               name: String(v[i][3] || '').trim(), school: String(v[i][4] || '').trim(),
+               grade: String(v[i][5] || '').trim(), plan: plan, missing: missing,
+               done: String(v[i][13] || '').trim() === '완료' });
+  }
+  out.sort(function (a, b) { return a.week < b.week ? 1 : (a.week > b.week ? -1 : a.name.localeCompare(b.name, 'ko')); });
+  return json({ result: 'success', plans: out });
+}
+/** 대책 완료/취소 표시. { pw, week, token, done: '1'|'0' } */
+function hwcheckPlanDone(data) {
+  if (String(data.pw || '') !== TEACHER_PW) return json({ result: 'error', message: 'unauthorized' });
+  var week = String(data.week || '').trim(), token = String(data.token || '').trim();
+  if (!week || !token) return json({ result: 'error', message: '기록 식별 정보가 없습니다.' });
+  var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(TAB_HWCHECK);
+  if (!sh) return json({ result: 'error', message: '기록이 없습니다.' });
+  var v = sh.getDataRange().getValues();
+  for (var i = 1; i < v.length; i++) {
+    if (String(v[i][1] || '').trim() === week && String(v[i][2] || '').trim() === token) {
+      sh.getRange(i + 1, 14).setValue(String(data.done || '') === '1' ? '완료' : '');
+      dropTab_(TAB_HWCHECK);
+      return json({ result: 'success' });
+    }
+  }
+  return json({ result: 'error', message: '기록을 찾을 수 없습니다. 새로고침 후 다시 시도해 주세요.' });
+}
+/** 학생 개별 페이지용 — 주차별 점수 %·항목 점수·공개 메모(최신순 20주). 비공개 메모 제외. */
+function collectHwchecks_(ss, key) {
+  key = String(key || '').trim();
+  if (!key) return [];
+  var v = tabValues_(ss, TAB_HWCHECK);
+  if (!v) return [];
+  var byWeek = {};
+  for (var i = 1; i < v.length; i++) {
+    if (String(v[i][2] || '').trim() !== key) continue;
+    var wk = String(v[i][1] || '').trim();
+    if (!wk) continue;
+    var scores = {}; try { scores = JSON.parse(v[i][6] || '{}'); } catch (e) {}
+    byWeek[wk] = { week: wk, pct: Number(v[i][8]) || 0, scores: scores, pub: String(v[i][9] || '').trim(),
+                   missing: String(v[i][11] || '').trim() === '미제출' };   // 대책(M열)은 교사용 — 학생에겐 보내지 않음
+  }
+  return Object.keys(byWeek).sort().reverse().slice(0, 20).map(function (k) { return byWeek[k]; });
+}
+/** 만점(100%) 주차 수 — 슈퍼스타 별 집계용 */
+function countHwcheckPerfect_(ss, key) {
+  var list = collectHwchecks_(ss, key);
+  var n = 0;
+  for (var i = 0; i < list.length; i++) { if (list[i].pct >= 100) n++; }
+  return n;
+}
+
 /** 학교명 느슨한 일치: 공백 제거 후 완전 일치 또는 한쪽이 다른 쪽을 포함(예: "화정고"↔"화정고등학교"). */
 /* ===== 슈퍼스타 TOP 10 순위 ===== star.html
  *  전 재원생의 별을 시트별 1회 읽기로 집계해 상위 10명을 반환.
@@ -1067,7 +1268,7 @@ function getStarRanking() {
     var id = String(sv[i][0] || '').trim();
     var k = stus.length;
     stus.push({ id: id, name: nm, school: String(sv[i][2] || '').trim(), grade: String(sv[i][3] || '').trim(),
-                exam: {}, clinic: {}, voca: {}, hwork: {}, mock: {}, notice: {}, bonus: 0, bonusTs: 0 });
+                exam: {}, clinic: {}, voca: {}, hwork: {}, mock: {}, notice: {}, hwcheck: {}, bonus: 0, bonusTs: 0 });
     if (id) { idCount[id] = (idCount[id] || 0) + 1; byId[id] = k; byIdName[id + '|' + nm] = k; }
     (byName[nm] = byName[nm] || []).push(k);
     var bn = baseName_(nm);
@@ -1202,6 +1403,17 @@ function getStarRanking() {
       if (kn >= 0) mark_(stus[kn].notice, String(nv[n2][4] || '').trim() || ('r' + n2), tsOf_(nv[n2][0]));
     }
   }
+  // 숙제 검사 만점(100%) 주차 — 접근코드(토큰)로 매칭
+  var hcSh = ss.getSheetByName(TAB_HWCHECK);
+  if (hcSh && hcSh.getLastRow() > 1) {
+    var hcv = hcSh.getDataRange().getValues();
+    for (var hc = 1; hc < hcv.length; hc++) {
+      if (!(Number(hcv[hc][8]) >= 100)) continue;
+      var htk = String(hcv[hc][2] || '').trim();
+      if (!htk || byToken[htk] == null) continue;
+      mark_(stus[byToken[htk]].hwcheck, String(hcv[hc][1] || '').trim() || ('r' + hc), tsOf_(hcv[hc][0]));
+    }
+  }
   // 동점 처리: '지금의 별 수에 먼저 도달한' 학생이 위 — 마지막 별의 획득 시각(earnedAt)이 이른 순.
   function setMax_(set, m) { for (var k in set) { if (set[k] > m) m = set[k]; } return m; }
   var out = stus.map(function (s) {
@@ -1209,13 +1421,15 @@ function getStarRanking() {
     earnedAt = setMax_(s.exam, earnedAt); earnedAt = setMax_(s.clinic, earnedAt);
     earnedAt = setMax_(s.voca, earnedAt); earnedAt = setMax_(s.hwork, earnedAt);
     earnedAt = setMax_(s.mock, earnedAt); earnedAt = setMax_(s.notice, earnedAt);
+    earnedAt = setMax_(s.hwcheck, earnedAt);
     var bd = { exam: Object.keys(s.exam).length, clinic: Object.keys(s.clinic).length,
                voca: Object.keys(s.voca).length, hwork: Object.keys(s.hwork).length,
-               mock: Object.keys(s.mock).length, notice: Object.keys(s.notice).length, bonus: s.bonus };
+               mock: Object.keys(s.mock).length, notice: Object.keys(s.notice).length,
+               hwcheck: Object.keys(s.hwcheck).length, bonus: s.bonus };
     return { name: s.name, school: s.school, grade: s.grade, earnedAt: earnedAt, breakdown: bd,
       total: bd.exam * STAR_RULES.exam + bd.clinic * STAR_RULES.clinic
            + bd.voca * STAR_RULES.voca + bd.hwork * STAR_RULES.hwork
-           + bd.mock * STAR_RULES.mock
+           + bd.mock * STAR_RULES.mock + bd.hwcheck * STAR_RULES.hwcheck
            + bd.notice * STAR_RULES.notice + bd.bonus };
   });
   out.sort(function (a, b) { return b.total - a.total || a.earnedAt - b.earnedAt || a.name.localeCompare(b.name, 'ko'); });
@@ -1262,15 +1476,16 @@ function collectStars_(ss, info, key, siblingShared) {
   var voca   = countVoca_(name, grade, String(info.school || ''), uniq);   // 어휘 제출 수(주차 단위)
   var hwork  = countHwork_(name, String(info.school || ''), uniq, grade);   // 과제 제출 수
   var mock   = countMock_(name, String(info.school || ''), sid, uniq, grade);   // 모의고사 응시 수(회차 단위)
+  var hwcheck = countHwcheckPerfect_(ss, key);                 // 숙제 검사 만점(100%) 주차 수
   var bonus  = sumBonus_(ss, sid, name, String(info.school || ''), String(info.grade || ''), uniq);   // {sum, latest}
   var noticeN = Object.keys(readNoticeChecks_(ss, sid, name, String(info.school || '').trim(), uniq)).length;   // 공지 확인 수
   var total = exam * STAR_RULES.exam + clinic * STAR_RULES.clinic
             + voca * STAR_RULES.voca + hwork * STAR_RULES.hwork
-            + mock * STAR_RULES.mock
+            + mock * STAR_RULES.mock + hwcheck * STAR_RULES.hwcheck
             + noticeN * STAR_RULES.notice + bonus.sum;
   return {
     total: total,
-    breakdown: { exam: exam, clinic: clinic, voca: voca, hwork: hwork, mock: mock, notice: noticeN, bonus: bonus.sum },
+    breakdown: { exam: exam, clinic: clinic, voca: voca, hwork: hwork, mock: mock, hwcheck: hwcheck, notice: noticeN, bonus: bonus.sum },
     latestBonus: bonus.latest   // {stars, reason, date} 또는 null
   };
 }
@@ -1356,7 +1571,7 @@ function checkNotice(data) {
   var lock = LockService.getScriptLock();
   try { lock.waitLock(10000); } catch (e) {}
   try {
-    delete MEMO_['tab:' + TAB_NOTICE_READ];   // 잠금 안에서는 메모를 버리고 반드시 새로 읽는다
+    dropTab_(TAB_NOTICE_READ);   // 잠금 안에서는 메모·캐시를 버리고 반드시 새로 읽는다
     var checks = readNoticeChecks_(ss, info.id, info.name, String(info.school || '').trim());
     if (checks[nKey]) return json({ result: 'success', already: true });   // 동시 클릭 대비 재확인
     var sh = ss.getSheetByName(TAB_NOTICE_READ);
@@ -1366,6 +1581,7 @@ function checkNotice(data) {
       sh.getRange(1, 1, 1, 5).setFontWeight('bold').setBackground('#DDE5E1');
     }
     sh.appendRow([new Date(), info.id ? "'" + info.id : '', info.name, String(info.school || '').trim(), nKey]);
+    dropTab_(TAB_NOTICE_READ);
     return json({ result: 'success', already: false });
   } finally {
     try { lock.releaseLock(); } catch (e) {}
@@ -1551,6 +1767,7 @@ function addStarBonus(data) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sh = ensureStarsSheet_(ss);
   sh.appendRow([new Date(), String(data.id || '').trim() ? "'" + String(data.id).trim() : '', name, String(data.school || '').trim(), stars, String(data.reason || '').trim(), String(data.grade || '').trim()]);
+  dropTab_(TAB_STARS);
   return json({ result: 'success' });
 }
 
@@ -1591,6 +1808,7 @@ function deleteStarBonus(data) {
   if (!stale && data.stars && (parseInt(sh.getRange(rowIndex, 5).getValue(), 10) || 0) !== parseInt(data.stars, 10)) stale = true;
   if (stale) return json({ result: 'error', message: '목록이 변경되었습니다. 새로고침 후 다시 시도하세요.' });
   sh.deleteRow(rowIndex);
+  dropTab_(TAB_STARS);
   return json({ result: 'success' });
 }
 
@@ -1693,6 +1911,12 @@ function exitDelete(data) {
         sh.deleteRow(r); deleted++;
       });
     });
+    // 삭제된 기록이 캐시에 남지 않게 관련 캐시를 전부 비운다
+    [TAB_STUDENTS, TAB_STARS, TAB_NOTICE_READ].forEach(dropTab_);
+    ['hworkSnap', 'vocaSnap', 'omrSnap', 'clinicSnap2', 'signupSnap'].forEach(function (k) {
+      delete MEMO_['snap:' + k];
+      try { CacheService.getScriptCache().remove(k); } catch (e) {}
+    });
     return json({ result: 'success', deleted: deleted, skipped: skipped });
   } finally {
     try { lock.releaseLock(); } catch (e) {}
@@ -1753,6 +1977,7 @@ function addStudent(data) {
     row[6] = classA; row[7] = classB; row[8] = progress; row[9] = checkup;
     row[codeCol] = token;
     sh.appendRow(row);
+    dropTab_(TAB_STUDENTS);
     return json({ result: 'success', name: name, token: token });
   } finally {
     try { lock.releaseLock(); } catch (e) {}
@@ -1804,6 +2029,7 @@ function setConfig_(ss, label, value) {
     found = true;
   }
   if (!found) sh.appendRow([label, value]);
+  dropTab_(TAB_CONFIG);
 }
 
 /** 설정 변경 로그 — '설정로그' 탭에 일시·항목·값을 남긴다.
@@ -1915,6 +2141,11 @@ function doPost(e) {
 
     // (13) 공지 '확인했습니다' — 확인 1건당 별 1개 (s.html, 토큰으로 학생 확인)
     if (data && data.action === 'checkNotice')     { return checkNotice(data); }
+
+    // (14) 숙제 검사 (hwcheck.html) — 한 학생의 주차 기록 저장 / 검사 항목 목록 변경 / 대책 완료 표시
+    if (data && data.action === 'hwcheckSave')     { return hwcheckSave(data); }
+    if (data && data.action === 'hwcheckItems')    { return hwcheckSetItems(data); }
+    if (data && data.action === 'hwcheckPlanDone') { return hwcheckPlanDone(data); }
 
     // (2) 학생 제출 수집
     var ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -2052,6 +2283,7 @@ function updateStudent(data) {
       String(data.classA || '').trim(), String(data.classB || '').trim(),
       String(data.progress || '').trim(), String(data.checkup || '').trim()
     ]]);
+    dropTab_(TAB_STUDENTS);
     return json({ result: 'success' });
   } finally {
     try { lock.releaseLock(); } catch (e) {}
@@ -2115,6 +2347,7 @@ function addNotice(data) {
   var sh = ensureNoticeSheet_(ss);
   var show = (data.hidden===true || data.hidden==='1') ? 'N' : '노출';
   sh.appendRow([ new Date(), type, String(data.target||'').trim(), title, String(data.body||''), show ]);
+  dropTab_(TAB_NOTICE);
   return json({ result:'success' });
 }
 
@@ -2128,6 +2361,7 @@ function setNoticeShow(data) {
   var H = sh.getRange(1,1,1,sh.getLastColumn()).getValues()[0];
   var cShow = findHeaderCol_(H, '게시', 5);
   sh.getRange(rowIndex, cShow + 1).setValue((data.hidden===true || data.hidden==='1') ? 'N' : '노출');
+  dropTab_(TAB_NOTICE);
   return json({ result:'success' });
 }
 
@@ -2146,6 +2380,7 @@ function deleteNotice(data) {
     if (cur !== String(data.title).trim()) return json({ result:'error', message:'목록이 변경되었습니다. 새로고침 후 다시 시도하세요.' });
   }
   sh.deleteRow(rowIndex);
+  dropTab_(TAB_NOTICE);
   return json({ result:'success' });
 }
 
@@ -2200,6 +2435,7 @@ function addAssignment(data) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sh = ensureAssignSheet_(ss);
   sh.appendRow([ new Date(), tool, String(data.item||'').trim(), type, String(data.target||'').trim(), String(data.due||'').trim(), String(data.memo||'').trim() ]);
+  dropTab_(TAB_ASSIGN);
   return json({ result:'success' });
 }
 
@@ -2211,6 +2447,7 @@ function deleteAssignment(data) {
   var sh = ss.getSheetByName(TAB_ASSIGN);
   if (!sh || rowIndex > sh.getLastRow()) return json({ result:'error', message:'존재하지 않는 행입니다.' });
   sh.deleteRow(rowIndex);
+  dropTab_(TAB_ASSIGN);
   return json({ result:'success' });
 }
 
@@ -2269,7 +2506,9 @@ function createReport(data) {
       var asSh = ensureAssignSheet_(ss);
       deleteAssignByToolItem_(asSh, ANALYSIS_TOOL, id);
       asSh.appendRow([ new Date(), ANALYSIS_TOOL, id, assignType, String(data.assignTarget || '').trim(), '', '' ]);
+      dropTab_(TAB_ASSIGN);
     }
+    dropTab_(TAB_LIST); dropTab_(TAB_ITEMS);
 
     return json({ result:'success', id:id, count:qs.length });
   } catch (err) {
@@ -2293,6 +2532,7 @@ function setAnalysisAssign(data) {
   if (type) {
     sh.appendRow([ new Date(), ANALYSIS_TOOL, id, type, String(data.target||'').trim(), '', '' ]);
   }
+  dropTab_(TAB_ASSIGN);
   return json({ result:'success', id:id });
 }
 
@@ -2303,6 +2543,7 @@ function deleteAnalysisAssign(data) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sh = ss.getSheetByName(TAB_ASSIGN);
   if (sh) deleteAssignByToolItem_(sh, ANALYSIS_TOOL, id);
+  dropTab_(TAB_ASSIGN);
   return json({ result:'success', id:id });
 }
 
@@ -2321,6 +2562,7 @@ function deleteReport(data) {
   if (listSh) deleteRowsById_(listSh, 1, id);   // 보고서목록 A열=ID
   if (itemSh) deleteRowsById_(itemSh, 1, id);   // 문항 A열=보고서ID
   if (asgSh)  deleteAssignByToolItem_(asgSh, ANALYSIS_TOOL, id);   // 배정 제거
+  dropTab_(TAB_LIST); dropTab_(TAB_ITEMS); dropTab_(TAB_ASSIGN);
   return json({ result:'success', id:id });
 }
 
