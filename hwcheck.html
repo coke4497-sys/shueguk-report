@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+<title>숙제 검사 · 이수경국어</title>
+<meta name="description" content="이수경국어 정규 수업 숙제 검사 — 항목별 별점 · 주차별 점수 기록" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=Gowun+Dodum&display=swap" rel="stylesheet" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='48' fill='%23DCE9E4'/%3E%3C/svg%3E" />
+<style>
+  :root{
+    --bg:#C6D5D2; --surface:#FFFFFF;
+    --ink:#2A332F; --ink-soft:#65726B;
+    --accent:#4C6E66; --btn:#628C83; --icon-bg:#EBF0ED;
+    --line:#D7E3DD; --line-soft:#E5EDE8; --radius:16px;
+    --star:#E8B93E; --star-empty:#D8E2DD;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{background:var(--bg);color:var(--ink);
+    font-family:"Gowun Dodum","Apple SD Gothic Neo","Malgun Gothic",-apple-system,system-ui,sans-serif;
+    font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased;padding:0 0 60px;}
+  .wrap{max-width:640px;margin:0 auto;padding:0 14px;}
+
+  header{padding:22px 4px 8px;text-align:center;}
+  .brand{font-family:"Gowun Batang",serif;font-size:1.35rem;font-weight:700;color:var(--accent);margin:0;}
+  .sub{color:var(--ink-soft);font-size:.85rem;margin:4px 0 0;}
+
+  /* 비밀번호 게이트 */
+  .gate{background:var(--surface);border:1px solid var(--line-soft);border-radius:var(--radius);
+    padding:26px 22px;margin:26px auto;max-width:380px;text-align:center;}
+  .gate input{width:100%;font:inherit;font-size:1.05rem;text-align:center;letter-spacing:.2em;
+    padding:12px;border:1.5px solid var(--line);border-radius:12px;margin:14px 0 10px;}
+  .gate button{width:100%;font:inherit;font-size:1rem;color:#fff;background:var(--btn);
+    border:none;border-radius:12px;padding:13px;cursor:pointer;}
+  .gate .err{color:#B4574E;font-size:.85rem;min-height:1.2em;margin:8px 0 0;}
+
+  /* 상단 컨트롤 */
+  .bar{background:var(--surface);border:1px solid var(--line-soft);border-radius:var(--radius);
+    padding:12px 14px;margin:10px 0;display:none;}
+  .weeknav{display:flex;align-items:center;justify-content:space-between;gap:8px;}
+  .weeknav button{font:inherit;font-size:.9rem;background:var(--icon-bg);color:var(--ink);
+    border:1px solid var(--line-soft);border-radius:10px;padding:7px 12px;cursor:pointer;}
+  .weeknav .wk{font-family:"Gowun Batang",serif;font-weight:700;font-size:1.02rem;color:var(--accent);text-align:center;}
+  .weeknav .wk small{display:block;font-family:"Gowun Dodum",sans-serif;font-weight:400;color:var(--ink-soft);font-size:.75rem;}
+  .filters{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;}
+  .filters select{flex:1;min-width:120px;font:inherit;font-size:.92rem;padding:8px 10px;
+    border:1.5px solid var(--line);border-radius:10px;background:#fff;color:var(--ink);}
+  .meta-row{display:flex;justify-content:space-between;align-items:center;margin-top:10px;font-size:.82rem;color:var(--ink-soft);}
+  .meta-row .items-btn{font:inherit;font-size:.8rem;background:none;border:1px solid var(--line);
+    border-radius:9px;padding:4px 10px;color:var(--ink-soft);cursor:pointer;}
+  .status{font-size:.8rem;color:var(--ink-soft);min-height:1.2em;text-align:center;margin:6px 0 0;}
+
+  /* 항목 관리 */
+  .items-panel{display:none;background:#F4F8F5;border:1px solid var(--line-soft);border-radius:12px;padding:12px;margin-top:10px;}
+  .chip{display:inline-flex;align-items:center;gap:6px;background:#fff;border:1px solid var(--line);
+    border-radius:999px;padding:4px 12px;margin:0 6px 6px 0;font-size:.88rem;}
+  .chip b{font-weight:400;}
+  .chip button{border:none;background:none;color:#B4574E;font-size:1rem;cursor:pointer;padding:0;line-height:1;}
+  .items-panel .addrow{display:flex;gap:8px;margin-top:8px;}
+  .items-panel input{flex:1;font:inherit;font-size:.9rem;padding:7px 10px;border:1.5px solid var(--line);border-radius:9px;}
+  .items-panel .addrow button{font:inherit;font-size:.85rem;background:var(--btn);color:#fff;border:none;border-radius:9px;padding:7px 14px;cursor:pointer;}
+  .items-panel .hint{font-size:.75rem;color:var(--ink-soft);margin:8px 0 0;}
+
+  /* 학생 카드 */
+  .list{display:flex;flex-direction:column;gap:10px;margin-top:8px;}
+  .stu{background:var(--surface);border:1px solid var(--line-soft);border-radius:var(--radius);padding:14px 16px;}
+  .stu .top{display:flex;align-items:baseline;justify-content:space-between;gap:10px;}
+  .stu .nm{font-family:"Gowun Batang",serif;font-weight:700;font-size:1.05rem;}
+  .stu .nm small{font-family:"Gowun Dodum",sans-serif;font-weight:400;color:var(--ink-soft);font-size:.78rem;margin-left:6px;}
+  .stu .pct{font-size:.95rem;color:var(--ink-soft);white-space:nowrap;}
+  .stu .pct b{font-family:"Gowun Batang",serif;font-size:1.1rem;color:var(--accent);}
+  .stu .pct .full{color:var(--star);}
+  .itemrow{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:8px;}
+  .itemrow .lb{font-size:.88rem;color:var(--ink-soft);flex:none;min-width:4.4em;}
+  .stars{display:flex;gap:2px;}
+  .stars button{border:none;background:none;font-size:1.55rem;line-height:1;padding:2px;cursor:pointer;color:var(--star-empty);}
+  .stars button.on{color:var(--star);}
+  .memo-btns{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;}
+  .memo-btns button{font:inherit;font-size:.78rem;background:var(--icon-bg);border:1px solid var(--line-soft);
+    border-radius:9px;padding:5px 10px;color:var(--ink-soft);cursor:pointer;}
+  .memo-btns button.has{color:var(--accent);border-color:var(--line);font-weight:700;}
+  .memo-btns button.missbtn.on{color:#fff;background:#B4574E;border-color:#B4574E;font-weight:700;}
+  .stu.missing .stars button{opacity:.35;pointer-events:none;}
+  .miss-lb{color:#B4574E;font-weight:700;font-size:.9rem;}
+  .plan-area{display:none;margin-top:8px;}
+  .plan-area label{display:block;font-size:.75rem;color:#B4574E;margin-bottom:4px;}
+  .plan-area input{width:100%;font:inherit;font-size:.9rem;border:1.5px solid #E3C2BE;border-radius:10px;padding:8px 10px;}
+  .memo-area{display:none;margin-top:8px;}
+  .memo-area label{display:block;font-size:.75rem;color:var(--ink-soft);margin-bottom:4px;}
+  .memo-area textarea{width:100%;font:inherit;font-size:.9rem;border:1.5px solid var(--line);border-radius:10px;
+    padding:8px 10px;min-height:56px;resize:vertical;}
+  .save-dot{font-size:.72rem;color:var(--ink-soft);margin-left:8px;}
+  .save-dot.ok{color:#4C8A5C;}
+  .save-dot.err{color:#B4574E;}
+  .empty{text-align:center;color:var(--ink-soft);font-size:.9rem;padding:30px 0;}
+
+  /* 미제출 대책 목록 */
+  .plans-btn{font:inherit;font-size:.8rem;background:none;border:1px solid var(--line);
+    border-radius:9px;padding:4px 10px;color:var(--ink-soft);cursor:pointer;}
+  .plans-btn .cnt{display:inline-block;min-width:18px;text-align:center;background:#B4574E;color:#fff;
+    border-radius:999px;font-size:.72rem;padding:1px 5px;margin-left:4px;}
+  .plans-wrap{display:none;flex-direction:column;gap:10px;margin-top:8px;}
+  .pw-week{font-family:"Gowun Batang",serif;font-weight:700;color:var(--accent);margin:10px 4px 0;font-size:.95rem;}
+  .pw-week small{font-family:"Gowun Dodum",sans-serif;font-weight:400;color:var(--ink-soft);}
+  .plan-card{background:var(--surface);border:1px solid var(--line-soft);border-radius:14px;padding:12px 14px;
+    display:flex;align-items:center;gap:12px;}
+  .plan-card.done{opacity:.55;}
+  .plan-card .pb{flex:1;min-width:0;}
+  .plan-card .pn{font-family:"Gowun Batang",serif;font-weight:700;}
+  .plan-card .pn small{font-family:"Gowun Dodum",sans-serif;font-weight:400;color:var(--ink-soft);font-size:.76rem;margin-left:6px;}
+  .plan-card .pt{font-size:.86rem;color:var(--ink);margin:3px 0 0;}
+  .plan-card .pt.none{color:#B4574E;}
+  .plan-card .okbtn{font:inherit;font-size:.8rem;border:1px solid var(--line);border-radius:9px;
+    padding:6px 12px;background:var(--icon-bg);color:var(--ink-soft);cursor:pointer;flex:none;}
+  .plan-card .okbtn.on{background:#4C8A5C;border-color:#4C8A5C;color:#fff;}
+  footer{text-align:center;margin-top:34px;color:var(--ink-soft);font-size:.8rem;}
+  @media (prefers-reduced-motion:reduce){*{transition:none !important;}}
+</style>
+</head>
+<body>
+<main class="wrap">
+  <header>
+    <p class="brand">숙제 검사</p>
+    <p class="sub">Shueguk · 정규 수업 과제 검사 (교사·조교용)</p>
+  </header>
+
+  <!-- 비밀번호 게이트 -->
+  <div class="gate" id="gate">
+    <div style="font-family:'Gowun Batang',serif;font-weight:700;">교사 확인</div>
+    <input id="pw" type="password" inputmode="text" placeholder="비밀번호" autocomplete="off" />
+    <button onclick="tryLogin()">확인</button>
+    <p class="err" id="gate-err"></p>
+  </div>
+
+  <!-- 상단 컨트롤 -->
+  <div class="bar" id="bar">
+    <div class="weeknav">
+      <button onclick="moveWeek(-1)">◀ 지난주</button>
+      <div class="wk"><span id="wk-label">…</span><small id="wk-range"></small></div>
+      <button onclick="moveWeek(1)">다음주 ▶</button>
+    </div>
+    <div class="filters">
+      <select id="f-type" onchange="onTypeChange()">
+        <option value="all">전체</option>
+        <option value="grade">학년</option>
+        <option value="school">학교</option>
+        <option value="class">정규 수업반</option>
+      </select>
+      <select id="f-value" onchange="render()" style="display:none;"></select>
+    </div>
+    <div class="meta-row">
+      <span id="count-note"></span>
+      <span>
+        <button class="plans-btn" id="plans-btn" onclick="togglePlans()">미제출 대책<span class="cnt" id="plans-cnt" style="display:none;">0</span></button>
+        <button class="items-btn" onclick="toggleItems()">검사 항목 관리</button>
+      </span>
+    </div>
+    <div class="items-panel" id="items-panel">
+      <div id="chips"></div>
+      <div class="addrow">
+        <input id="new-item" placeholder="새 항목 이름 (예: 단어 암기)" maxlength="20" />
+        <button onclick="addItem()">추가</button>
+      </div>
+      <p class="hint">항목마다 별 0~6개로 검사해요. 항목을 바꿔도 이미 저장된 주차 기록은 그대로 남아요.</p>
+    </div>
+  </div>
+  <p class="status" id="status"></p>
+
+  <div class="list" id="list"></div>
+  <div class="plans-wrap" id="plans"></div>
+
+  <footer>이수경국어 Shueguk · 숙제 검사</footer>
+</main>
+
+<script>
+var ENDPOINT = "https://script.google.com/macros/s/AKfycbzhCncBwn-JlqXARC3wfrWUCuNHzlNK2df0bdhx-w78Xr8mzYUcIYZOJdRi9N4bHtsb/exec";
+var STARS_MAX = 6;
+
+var pw = sessionStorage.getItem('hwcheck_pw') || '';
+var roster = [];         // studentLinks: {name, school, grade, teacher, classA, classB, code}
+var items = [];          // 검사 항목 이름들
+var records = {};        // token -> {scores, pct, pub, priv}
+var week = mondayOf(new Date());
+var saveTimers = {};     // token -> debounce timer
+
+function $(id){ return document.getElementById(id); }
+function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+
+/* ── 주차 계산 (그 주 월요일 yyyy-MM-dd, 서버 clinicWeekKey_와 동일 기준) ── */
+function mondayOf(d){
+  var x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  x.setDate(x.getDate() - ((x.getDay() + 6) % 7));
+  return ymd(x);
+}
+function ymd(d){ return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'); }
+function parseYmd(s){ var p = s.split('-'); return new Date(+p[0], +p[1]-1, +p[2]); }
+function moveWeek(dir){
+  var d = parseYmd(week); d.setDate(d.getDate() + dir*7);
+  week = ymd(d);
+  loadWeek();
+}
+function weekLabel(){
+  var mon = parseYmd(week), sun = parseYmd(week); sun.setDate(sun.getDate()+6);
+  $('wk-label').textContent = (mon.getMonth()+1) + '월 ' + Math.ceil(mon.getDate()/7) + '주차';
+  $('wk-range').textContent = (mon.getMonth()+1)+'/'+mon.getDate()+' ~ '+(sun.getMonth()+1)+'/'+sun.getDate();
+}
+
+/* ── 서버 통신 (리포트 서버는 s.html과 같은 fetch 방식) ── */
+function getJSON(url){
+  return fetch(url, { cache:'no-store' }).then(function(r){ return r.json(); });
+}
+function postJSON(payload){
+  return fetch(ENDPOINT, { method:'POST', body: JSON.stringify(payload) }).then(function(r){ return r.json(); });
+}
+
+/* ── 로그인 ── */
+function tryLogin(){
+  var v = $('pw').value.trim();
+  if (!v){ $('gate-err').textContent = '비밀번호를 입력하세요.'; return; }
+  pw = v;
+  $('gate-err').textContent = '';
+  boot();
+}
+$('pw').addEventListener('keydown', function(e){ if (e.key === 'Enter') tryLogin(); });
+
+function setStatus(msg, isErr){
+  var el = $('status'); el.textContent = msg || '';
+  el.style.color = isErr ? '#B4574E' : '';
+}
+
+function boot(){
+  setStatus('명단을 불러오는 중…');
+  getJSON(ENDPOINT + '?action=studentLinks&pw=' + encodeURIComponent(pw))
+    .then(function(r){
+      if (!r || r.result !== 'success'){
+        pw = ''; sessionStorage.removeItem('hwcheck_pw');
+        $('gate').style.display = ''; $('bar').style.display = 'none';
+        $('gate-err').textContent = (r && /unauthor/i.test(r.message||'')) ? '비밀번호가 올바르지 않습니다.' : '명단을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.';
+        setStatus('');
+        return;
+      }
+      sessionStorage.setItem('hwcheck_pw', pw);
+      roster = (r.students || []).filter(function(s){ return s.code; });
+      roster.sort(function(a,b){ return a.name.localeCompare(b.name, 'ko'); });
+      $('gate').style.display = 'none';
+      $('bar').style.display = '';
+      buildTypeValues();
+      loadWeek();
+      refreshPlansBadge();
+    })
+    .catch(function(){ setStatus('서버 연결에 실패했어요. 잠시 후 다시 시도해 주세요.', true); });
+}
+
+function loadWeek(){
+  weekLabel();
+  setStatus('검사 기록을 불러오는 중…');
+  getJSON(ENDPOINT + '?action=hwcheckData&pw=' + encodeURIComponent(pw) + '&week=' + encodeURIComponent(week))
+    .then(function(r){
+      if (!r || r.result !== 'success'){ setStatus('기록을 불러오지 못했어요. 새로고침 해주세요.', true); return; }
+      items = r.items || [];
+      records = r.records || {};
+      setStatus('');
+      renderChips();
+      render();
+    })
+    .catch(function(){ setStatus('서버 연결에 실패했어요. 잠시 후 다시 시도해 주세요.', true); });
+}
+
+/* ── 그룹 필터 ── */
+function uniq(a){ return Array.from(new Set(a.filter(Boolean))); }
+function buildTypeValues(){ onTypeChange(); }
+function onTypeChange(){
+  var type = $('f-type').value;
+  var sel = $('f-value');
+  if (type === 'all'){ sel.style.display = 'none'; render(); return; }
+  var vals = [];
+  if (type === 'grade')  vals = uniq(roster.map(function(s){ return s.grade; })).sort();
+  if (type === 'school') vals = uniq(roster.map(function(s){ return s.school; })).sort();
+  if (type === 'class')  vals = uniq(roster.map(function(s){ return s.classA; }).concat(roster.map(function(s){ return s.classB; }))).sort();
+  sel.innerHTML = vals.map(function(v){ return '<option value="' + esc(v) + '">' + esc(v) + '</option>'; }).join('');
+  sel.style.display = vals.length ? '' : 'none';
+  render();
+}
+function currentStudents(){
+  var type = $('f-type').value, val = $('f-value').value;
+  if (type === 'all') return roster;
+  return roster.filter(function(s){
+    if (type === 'grade')  return s.grade === val;
+    if (type === 'school') return s.school === val;
+    if (type === 'class')  return s.classA === val || s.classB === val;
+    return true;
+  });
+}
+
+/* ── 항목 관리 ── */
+function toggleItems(){
+  var p = $('items-panel');
+  p.style.display = (p.style.display === 'block') ? 'none' : 'block';
+}
+function renderChips(){
+  $('chips').innerHTML = items.map(function(it, i){
+    return '<span class="chip"><b>' + esc(it) + '</b>' +
+      (items.length > 1 ? '<button onclick="removeItem(' + i + ')" title="삭제">×</button>' : '') + '</span>';
+  }).join('');
+}
+function saveItems(next){
+  postJSON({ action:'hwcheckItems', pw: pw, items: next })
+    .then(function(r){
+      if (r && r.result === 'success'){ items = r.items; renderChips(); render(); }
+      else alert('항목을 저장하지 못했어요: ' + ((r && r.message) || '알 수 없음'));
+    })
+    .catch(function(){ alert('항목 저장 중 연결에 실패했어요.'); });
+}
+function addItem(){
+  var v = $('new-item').value.replace(/,/g, ' ').trim();
+  if (!v) return;
+  if (items.indexOf(v) >= 0){ alert('이미 있는 항목이에요.'); return; }
+  $('new-item').value = '';
+  saveItems(items.concat([v]));
+}
+function removeItem(i){
+  var it = items[i];
+  if (!confirm('"' + it + '" 항목을 뺄까요?\n(이미 저장된 주차 기록은 그대로 남아요)')) return;
+  saveItems(items.filter(function(_, j){ return j !== i; }));
+}
+
+/* ── 학생 목록 렌더 ── */
+function recOf(token){
+  if (!records[token]) records[token] = { scores: {}, pct: 0, pub: '', priv: '', missing: false, plan: '' };
+  return records[token];
+}
+function isChecked(rec){ return !!(rec && (hasAnyScore(rec) || rec.missing)); }
+function pctOf(rec){
+  var sum = 0;
+  items.forEach(function(it){ sum += (parseInt(rec.scores[it], 10) || 0); });
+  var full = items.length * STARS_MAX;
+  return full ? Math.round(sum / full * 100) : 0;
+}
+function hasAnyScore(rec){
+  return items.some(function(it){ return rec.scores[it] != null; });
+}
+function render(){
+  var stus = currentStudents();
+  var checked = 0;
+  var html = stus.map(function(s){
+    var rec = records[s.code];
+    if (isChecked(rec)) checked++;
+    var pct = rec ? pctOf(rec) : null;
+    var starsHtml = items.map(function(it, ii){
+      var sc = rec ? (parseInt(rec.scores[it], 10) || 0) : 0;
+      var btns = '';
+      for (var k = 1; k <= STARS_MAX; k++){
+        btns += '<button class="' + (k <= sc ? 'on' : '') + '" onclick="tapStar(\'' + esc(s.code) + '\',' + ii + ',' + k + ')">★</button>';
+      }
+      return '<div class="itemrow"><span class="lb">' + esc(it) + '</span><span class="stars" id="stars-' + esc(s.code) + '-' + ii + '">' + btns + '</span></div>';
+    }).join('');
+    var showPct = (rec && hasAnyScore(rec)) ? pct : null;
+    var pctHtml = (rec && rec.missing) ? '<span class="miss-lb">미제출</span>'
+      : (showPct == null ? '<span style="font-size:.8rem;">미검사</span>'
+        : '<b class="' + (showPct >= 100 ? 'full' : '') + '">' + showPct + '%</b>' + (showPct >= 100 ? ' 🏆' : ''));
+    return '<div class="stu' + (rec && rec.missing ? ' missing' : '') + '" id="stu-' + esc(s.code) + '">' +
+      '<div class="top"><span class="nm">' + esc(s.name) + '<small>' + esc(s.school) + ' · ' + esc(s.grade) + '</small></span>' +
+      '<span class="pct"><span id="pct-' + esc(s.code) + '">' + pctHtml + '</span>' +
+      '<span class="save-dot" id="dot-' + esc(s.code) + '"></span></span></div>' +
+      starsHtml +
+      '<div class="memo-btns">' +
+        '<button class="missbtn ' + (rec && rec.missing ? 'on' : '') + '" onclick="toggleMissing(\'' + esc(s.code) + '\')">미제출</button>' +
+        '<button id="pubbtn-' + esc(s.code) + '" class="' + (rec && rec.pub ? 'has' : '') + '" onclick="toggleMemo(\'' + esc(s.code) + '\',\'pub\')">공개 메모</button>' +
+        '<button id="privbtn-' + esc(s.code) + '" class="' + (rec && rec.priv ? 'has' : '') + '" onclick="toggleMemo(\'' + esc(s.code) + '\',\'priv\')">비공개 메모</button>' +
+      '</div>' +
+      '<div class="plan-area" id="plan-' + esc(s.code) + '" style="' + (rec && rec.missing ? 'display:block;' : '') + '">' +
+        '<label>이후 대책 — 예: 8/13 목 5:30에 재검사 약속</label>' +
+        '<input onblur="planChanged(\'' + esc(s.code) + '\')" id="ta-plan-' + esc(s.code) + '" value="' + esc(rec ? rec.plan : '') + '" /></div>' +
+      '<div class="memo-area" id="memo-pub-' + esc(s.code) + '"><label>공개 메모 — 학생 개별 페이지에 보여요</label>' +
+        '<textarea onblur="memoChanged(\'' + esc(s.code) + '\')" id="ta-pub-' + esc(s.code) + '">' + esc(rec ? rec.pub : '') + '</textarea></div>' +
+      '<div class="memo-area" id="memo-priv-' + esc(s.code) + '"><label>비공개 메모 — 교사·조교만 봐요</label>' +
+        '<textarea onblur="memoChanged(\'' + esc(s.code) + '\')" id="ta-priv-' + esc(s.code) + '">' + esc(rec ? rec.priv : '') + '</textarea></div>' +
+    '</div>';
+  }).join('');
+  $('list').innerHTML = html || '<p class="empty">해당하는 학생이 없어요.</p>';
+  $('count-note').textContent = '검사 ' + checked + '명 / 전체 ' + stus.length + '명';
+}
+
+/* ── 입력 → 자동 저장 ── */
+function tapStar(token, itemIdx, k){
+  var it = items[itemIdx];
+  var rec = recOf(token);
+  var cur = parseInt(rec.scores[it], 10) || 0;
+  rec.scores[it] = (cur === k) ? k - 1 : k;   // 같은 별을 다시 누르면 1개 줄이기 (1→0 포함)
+  items.forEach(function(name){ if (rec.scores[name] == null) rec.scores[name] = 0; });
+  updateCard(token);
+  queueSave(token);
+}
+/* 그 학생 카드의 별·%만 갱신 — 화면 전체를 다시 그리지 않아 열린 메모창이 닫히지 않는다 */
+function updateCard(token){
+  var rec = recOf(token);
+  items.forEach(function(it, ii){
+    var box = $('stars-' + token + '-' + ii);
+    if (!box) return;
+    var sc = parseInt(rec.scores[it], 10) || 0;
+    var btns = box.querySelectorAll('button');
+    for (var k = 0; k < btns.length; k++) btns[k].classList.toggle('on', k < sc);
+  });
+  var pctEl = $('pct-' + token);
+  if (pctEl){
+    var pct = pctOf(rec);
+    pctEl.innerHTML = rec.missing ? '<span class="miss-lb">미제출</span>'
+      : '<b class="' + (pct >= 100 ? 'full' : '') + '">' + pct + '%</b>' + (pct >= 100 ? ' 🏆' : '');
+  }
+  var card = $('stu-' + token);
+  if (card) card.classList.toggle('missing', !!rec.missing);
+  var plan = $('plan-' + token);
+  if (plan) plan.style.display = rec.missing ? 'block' : 'none';
+  var stus = currentStudents(), checked = 0;
+  stus.forEach(function(s){ if (isChecked(records[s.code])) checked++; });
+  $('count-note').textContent = '검사 ' + checked + '명 / 전체 ' + stus.length + '명';
+}
+function toggleMissing(token){
+  var rec = recOf(token);
+  rec.missing = !rec.missing;
+  items.forEach(function(name){ if (rec.scores[name] == null) rec.scores[name] = 0; });
+  var btn = document.querySelector('#stu-' + CSS.escape(token) + ' .missbtn');
+  if (btn) btn.classList.toggle('on', rec.missing);
+  updateCard(token);
+  queueSave(token);
+}
+function planChanged(token){
+  var rec = recOf(token);
+  rec.plan = $('ta-plan-' + token).value;
+  items.forEach(function(name){ if (rec.scores[name] == null) rec.scores[name] = 0; });
+  queueSave(token);
+}
+function toggleMemo(token, kind){
+  var el = $('memo-' + kind + '-' + token);
+  el.style.display = (el.style.display === 'block') ? 'none' : 'block';
+  if (el.style.display === 'block') $('ta-' + kind + '-' + token).focus();
+}
+function memoChanged(token){
+  var rec = recOf(token);
+  rec.pub = $('ta-pub-' + token).value;
+  rec.priv = $('ta-priv-' + token).value;
+  $('pubbtn-' + token).classList.toggle('has', !!rec.pub.trim());
+  $('privbtn-' + token).classList.toggle('has', !!rec.priv.trim());
+  if (!isChecked(rec) && !rec.pub.trim() && !rec.priv.trim() && !(rec.plan||'').trim()) return;   // 아무것도 없으면 저장 안 함
+  items.forEach(function(name){ if (rec.scores[name] == null) rec.scores[name] = 0; });
+  queueSave(token);
+}
+function queueSave(token){
+  var dot = $('dot-' + token);
+  if (dot){ dot.textContent = '저장 중…'; dot.className = 'save-dot'; }
+  clearTimeout(saveTimers[token]);
+  saveTimers[token] = setTimeout(function(){ doSave(token); }, 900);
+}
+function doSave(token){
+  var s = roster.find(function(x){ return x.code === token; });
+  var rec = recOf(token);
+  var scores = {};
+  items.forEach(function(it){ scores[it] = parseInt(rec.scores[it], 10) || 0; });
+  postJSON({ action:'hwcheckSave', pw: pw, week: week, token: token,
+             name: s ? s.name : '', school: s ? s.school : '', grade: s ? s.grade : '',
+             scores: scores, pub: rec.pub || '', priv: rec.priv || '',
+             missing: rec.missing ? '1' : '', plan: rec.plan || '' })
+    .then(function(r){
+      var dot = $('dot-' + token);
+      if (r && r.result === 'success'){ rec.pct = r.pct; if (dot){ dot.textContent = '저장됨 ✓'; dot.className = 'save-dot ok'; setTimeout(function(){ if (dot.textContent === '저장됨 ✓') dot.textContent = ''; }, 2500); } }
+      else if (dot){ dot.textContent = '저장 실패 — 다시 눌러주세요'; dot.className = 'save-dot err'; }
+    })
+    .catch(function(){
+      var dot = $('dot-' + token);
+      if (dot){ dot.textContent = '저장 실패 — 다시 눌러주세요'; dot.className = 'save-dot err'; }
+    });
+}
+
+/* ── 미제출 대책 목록 (전 주차) ── */
+var plans = [];          // {week, token, name, school, grade, plan, missing, done}
+var plansOpen = false;
+function refreshPlansBadge(){
+  getJSON(ENDPOINT + '?action=hwcheckPlans&pw=' + encodeURIComponent(pw))
+    .then(function(r){
+      if (!r || r.result !== 'success') return;
+      plans = r.plans || [];
+      var pending = plans.filter(function(p){ return !p.done; }).length;
+      var cnt = $('plans-cnt');
+      cnt.textContent = pending;
+      cnt.style.display = pending ? '' : 'none';
+    })
+    .catch(function(){});
+}
+function togglePlans(){
+  plansOpen = !plansOpen;
+  $('list').style.display = plansOpen ? 'none' : '';
+  $('plans').style.display = plansOpen ? 'flex' : 'none';
+  if (plansOpen) loadPlans();
+}
+function loadPlans(){
+  $('plans').innerHTML = '<p class="empty">대책 목록을 불러오는 중…</p>';
+  getJSON(ENDPOINT + '?action=hwcheckPlans&pw=' + encodeURIComponent(pw))
+    .then(function(r){
+      if (!r || r.result !== 'success'){ $('plans').innerHTML = '<p class="empty">목록을 불러오지 못했어요.</p>'; return; }
+      plans = r.plans || [];
+      renderPlans();
+    })
+    .catch(function(){ $('plans').innerHTML = '<p class="empty">서버 연결에 실패했어요.</p>'; });
+}
+function weekLabelOf(wk){
+  var p = wk.split('-'); if (p.length !== 3) return wk;
+  var mon = new Date(+p[0], +p[1]-1, +p[2]), sun = new Date(+p[0], +p[1]-1, +p[2]+6);
+  return (mon.getMonth()+1) + '월 ' + Math.ceil(mon.getDate()/7) + '주차 <small>' +
+    (mon.getMonth()+1)+'/'+mon.getDate()+' ~ '+(sun.getMonth()+1)+'/'+sun.getDate() + '</small>';
+}
+function renderPlans(){
+  var pending = plans.filter(function(p){ return !p.done; }).length;
+  var cnt = $('plans-cnt');
+  cnt.textContent = pending;
+  cnt.style.display = pending ? '' : 'none';
+  if (!plans.length){ $('plans').innerHTML = '<p class="empty">미제출·대책 기록이 없어요.</p>'; return; }
+  var html = '', curWeek = null;
+  plans.forEach(function(p, i){
+    if (p.week !== curWeek){ curWeek = p.week; html += '<p class="pw-week">' + weekLabelOf(p.week) + '</p>'; }
+    html += '<div class="plan-card' + (p.done ? ' done' : '') + '">' +
+      '<div class="pb"><div class="pn">' + esc(p.name) + '<small>' + esc(p.school) + ' · ' + esc(p.grade) + (p.missing ? ' · 미제출' : '') + '</small></div>' +
+      '<p class="pt' + (p.plan ? '' : ' none') + '">' + (p.plan ? esc(p.plan) : '대책 미기록 — 검사 화면에서 적어주세요') + '</p></div>' +
+      '<button class="okbtn' + (p.done ? ' on' : '') + '" onclick="togglePlanDone(' + i + ')">' + (p.done ? '완료 ✓' : '확인') + '</button>' +
+    '</div>';
+  });
+  $('plans').innerHTML = html;
+}
+function togglePlanDone(i){
+  var p = plans[i];
+  var next = !p.done;
+  p.done = next;   // 화면 먼저 반영
+  renderPlans();
+  postJSON({ action:'hwcheckPlanDone', pw: pw, week: p.week, token: p.token, done: next ? '1' : '0' })
+    .then(function(r){
+      if (!r || r.result !== 'success'){ p.done = !next; renderPlans(); alert('표시를 저장하지 못했어요: ' + ((r && r.message) || '연결 오류')); }
+    })
+    .catch(function(){ p.done = !next; renderPlans(); alert('표시를 저장하지 못했어요. 연결을 확인해 주세요.'); });
+}
+
+/* ── 시작 ── */
+if (pw){ boot(); } else { $('gate').style.display = ''; }
+</script>
+</body>
+</html>
