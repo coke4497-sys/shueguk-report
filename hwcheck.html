@@ -295,6 +295,16 @@ function loadWeek(){
  * (가·나 구분이 없는 중2·중3·고3도, 가/나로 나뉜 학년도 같은 방식으로 동작) ── */
 function uniq(a){ return Array.from(new Set(a.filter(Boolean))); }
 function slotNorm(v){ return String(v||'').replace(/\s+/g,''); }   // '토 6:00' ↔ '토6:00' 표기 차이 흡수
+// 시간대 정렬 — 요일 순서(수목금토일, 정규 수업 주 기준) 먼저, 같은 요일은 이른 시간부터
+// (1~8시는 오후 수업으로 보고 13~20시로 계산)
+function slotSortKey(v){
+  var d = '수목금토일월화'.indexOf(String(v||'').charAt(0));
+  if (d < 0) d = 9;
+  var m = String(v||'').match(/(\d{1,2}):?(\d{2})?/);
+  var h = m ? +m[1] : 0, mm = (m && m[2]) ? +m[2] : 0;
+  if (h >= 1 && h <= 8) h += 12;
+  return d * 10000 + h * 100 + mm;
+}
 var extras = [];   // 그룹에 수동으로 추가한 학생(접근코드) — 이동해 온 친구 검사용
 function pickVal(id){ return $(id) ? $(id).value : ''; }
 function matchBase_(s, upTo){
@@ -321,7 +331,8 @@ function rebuildFilters(){
   fillSelect_('f-teacher', '담당 강사 전체', uniq(roster.filter(function(s){ return matchBase_(s, 'teacher'); }).map(function(s){ return String(s.teacher||'').trim(); })).sort());
   var slotStus = roster.filter(function(s){ return matchBase_(s, 'slot'); });
   fillSelect_('f-slot', '시간대 전체',
-    uniq(slotStus.map(function(s){ return slotNorm(s.classA); }).concat(slotStus.map(function(s){ return slotNorm(s.classB); }))).sort());
+    uniq(slotStus.map(function(s){ return slotNorm(s.classA); }).concat(slotStus.map(function(s){ return slotNorm(s.classB); })))
+      .sort(function(a, b){ return slotSortKey(a) - slotSortKey(b); }));
 }
 function buildTypeValues(){ rebuildFilters(); }
 function filterChanged(){
