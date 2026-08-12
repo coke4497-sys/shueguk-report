@@ -217,6 +217,95 @@ function clinicSnap_() {
   });
 }
 
+/* ── 주말 모의고사 신청 조회 (학생 개별 페이지용) ─────────────────
+ * 학생 페이지가 신청 서버(JSONP)를 따로 부를 때 시간 초과로 '신청함' 표시가
+ * 오락가락하던 문제를 없애기 위해, 리포트 응답에 이번 주 신청 내역을 함께 담는다.
+ * 매칭·주차 규칙은 신청 백엔드(signup_code.gs mySignups)와 동일. */
+var SIGNUP_SHEET_ID = '1pB05VXT__-kJHoNpQxQSxbm4PhlB6XuJ7EvVG79pW14';
+var SIGNUP_TAB = '신청';
+
+// 화요일 시작 주 키 (신청 백엔드 weekKey_와 동일 규칙 · Asia/Seoul)
+function signupWeekKey_(v) {
+  var d;
+  if (v instanceof Date) d = v;
+  else {
+    var s = String(v || '').trim();
+    if (!s) return '';
+    d = new Date(s.indexOf('T') > -1 ? s : s.replace(' ', 'T'));
+  }
+  if (!d || isNaN(d.getTime())) return '';
+  var ymd = Utilities.formatDate(d, 'Asia/Seoul', 'yyyy-MM-dd').split('-');
+  var dow = new Date(Date.UTC(+ymd[0], +ymd[1] - 1, +ymd[2], 12)).getUTCDay(); // 0=일..6=토
+  var since = (dow - 2 + 7) % 7;                                               // 화요일(2)로부터 지난 날 수
+  var tue = new Date(Date.UTC(+ymd[0], +ymd[1] - 1, +ymd[2] - since, 12));
+  return Utilities.formatDate(tue, 'Asia/Seoul', 'yyyy-MM-dd');
+}
+// 주 키(화요일)와 요일로 실제 응시 날짜 라벨 (토=화+4, 일=화+5 — 신청 백엔드와 동일)
+function signupDateLabel_(weekKey, day) {
+  var p = String(weekKey || '').split('-');
+  if (p.length !== 3) return '';
+  var offset = (day === '토요일') ? 4 : (day === '일요일') ? 5 : 0;
+  var d = new Date(Date.UTC(+p[0], +p[1] - 1, +p[2] + offset, 12));
+  return (d.getUTCMonth() + 1) + '월 ' + d.getUTCDate() + '일';
+}
+
+/* 신청 시트 스냅샷 — 행: [이름, 학교, 학생ID, 응시요일, 신청주키] */
+function signupSnap_() {
+  return extSnap_('signupSnap', 30, function () {
+    var snap = { ok: false, rows: [] };
+    var sh;
+    try { sh = SpreadsheetApp.openById(SIGNUP_SHEET_ID).getSheetByName(SIGNUP_TAB); } catch (e) { return snap; }
+    if (!sh) return snap;
+    var v = sh.getDataRange().getValues();
+    snap.ok = true;
+    if (v.length < 2) return snap;
+    var H = v[0];
+    var iN = H.indexOf('이름'), iS = H.indexOf('학교'), iId = H.indexOf('학생ID'),
+        iDay = H.indexOf('응시요일'), iT = H.indexOf('제출시각');
+    for (var i = 1; i < v.length; i++) {
+      snap.rows.push([
+        iN   >= 0 ? String(v[i][iN]   || '') : '',
+        iS   >= 0 ? String(v[i][iS]   || '') : '',
+        iId  >= 0 ? String(v[i][iId]  || '') : '',
+        iDay >= 0 ? String(v[i][iDay] || '') : '',
+        signupWeekKey_(iT >= 0 ? v[i][iT] : '')
+      ]);
+    }
+    return snap;
+  });
+}
+
+/* 이번 주 모의고사 신청 내역 [{day, date}] — 없으면 [], 시트 접근 실패 시 null */
+function collectMockSignups_(info) {
+  try {
+    var name = String((info && info.name) || '').trim();
+    if (!name) return [];
+    var school = String((info && info.school) || '').trim();
+    var sid = String((info && info.id) || '').trim();
+    var uniq = info && info.nameDup === false;   // 이름이 유일하면 학생ID 불일치는 무시
+    var snap = signupSnap_();
+    if (!snap.ok) return null;
+    var week = signupWeekKey_(new Date());
+    var days = ['토요일', '일요일'];
+    var seen = {}, out = [];
+    for (var i = 0; i < snap.rows.length; i++) {
+      var r = snap.rows[i];
+      var rn = r[0].trim();
+      if (rn !== name && rn !== baseName_(name)) continue;   // 접미사 동명이인(김은수A) 대비
+      var rs = r[1].trim();
+      if (school && rs && !schoolMatch_(rs, school)) continue;
+      var rid = r[2].replace(/^'/, '').trim();
+      if (!uniq && rid && sid && rid !== sid) continue;      // 동명이인 구분(양쪽에 ID 있을 때만)
+      if (r[4] !== week) continue;                           // 이번 주만
+      var day = r[3].trim();
+      if (days.indexOf(day) === -1 || seen[day]) continue;
+      seen[day] = true;                                      // 같은 요일 중복 신청은 1건으로
+      out.push({ day: day, date: signupDateLabel_(week, day) });
+    }
+    return out;
+  } catch (e) { return null; }
+}
+
 function doGet(e) {
   var p = (e && e.parameter) ? e.parameter : {};
   // 어휘 테스트 켜짐 상태 + 열린 주차 조회 (티쳐스 페이지 토글·주차 드롭다운용)
@@ -511,6 +600,9 @@ function getStudent(opts) {
   resp.analyses = collectAnalyses_(ss, info, key);
   // 클리닉 신청: 이 학생의 신청 내역 목록(토큰, 토큰 없는 옛 행은 학생ID로 매칭. 없거나 실패 시 null)
   resp.clinic = collectClinic_(key, info.id);
+  // 주말 모의고사: 이번 주 신청 내역 — 학생 페이지가 신청 서버를 따로 부르지 않아도 되도록
+  // 리포트 응답에 함께 담는다 (실패 시 null → 학생 페이지가 기존 직접 조회로 폴백)
+  resp.mockSignups = collectMockSignups_(info);
   // 슈퍼스타 별: 총 별 개수 + 출처별 내역 + 최근 깜짝 보너스
   resp.stars = collectStars_(ss, info, key, siblingShared);
   // 어휘 테스트 켜짐/꺼짐 (설정 탭의 '어휘 테스트' 값. 기본 열림)

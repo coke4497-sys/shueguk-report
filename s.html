@@ -539,9 +539,11 @@ function loadGradeGates(){
   }
   // 이번 주 모의고사 신청 내역 (본인 것만 — 이름+학교, 동명이인은 8자리 구분)
   // uniq=1: 이 이름의 재원 학생이 1명뿐 → 신청서에 8자리를 잘못 적었어도 이름+학교로 매칭
+  // ※ 리포트 서버가 첫 응답에 신청 내역(mockSignups)을 담아줬으면 이 직접 조회는 생략
   var si = STATE.info || {};
   var uniqFlag = (si.nameDup === false) ? '1' : '';
-  var signupJob = jsonpRetry(SIGNUP_API + '?action=mySignups'
+  var signupJob = STATE.mockFromServer ? Promise.resolve(null)
+    : jsonpRetry(SIGNUP_API + '?action=mySignups'
     + '&name='   + encodeURIComponent(si.name || '')
     + '&school=' + encodeURIComponent(si.school || '')
     + '&id='     + encodeURIComponent(si.id || '')
@@ -557,17 +559,19 @@ function loadGradeGates(){
     vocaJob,
     signupJob
   ]).then(function(g){
-    STATE.mockGrades   = (g[0] && g[0].grades) ? g[0].grades : null;
-    // eligible: true/false — 옛 백엔드(액션 없음)면 null → 기존처럼 카드 표시(안전)
-    STATE.clinicEligible = (g[1] && g[1].result==='success' && typeof g[1].eligible !== 'undefined') ? !!g[1].eligible : null;
-    STATE.vocaTaken    = (wantVoca && g[2] && typeof g[2].taken !== 'undefined') ? !!g[2].taken : null;
-    STATE.mockSignups  = (g[3] && g[3].result==='success' && g[3].signups) ? g[3].signups : null;
+    // 조회 실패(null)는 이전 값을 지우지 않는다 — 성공했던 표시가 실패한 재조회에 덮여
+    // '신청함'이 사라지던 문제 방지. 유효한 응답을 받은 항목만 갱신.
+    if (g[0] && g[0].grades) STATE.mockGrades = g[0].grades;
+    if (g[1] && g[1].result==='success' && typeof g[1].eligible !== 'undefined') STATE.clinicEligible = !!g[1].eligible;
+    if (wantVoca && g[2] && typeof g[2].taken !== 'undefined') STATE.vocaTaken = !!g[2].taken;
+    if (g[3] && g[3].result==='success' && g[3].signups) STATE.mockSignups = g[3].signups;
     dbg('보낸값', { name: si.name, school: si.school, id: si.id, uniq: uniqFlag, nameDup: si.nameDup });
     dbg('days 응답', g[0]);
     dbg('클리닉 대상 응답', g[1]);
     dbg('어휘 응답', g[2]);
     dbg('모의고사 신청 응답', g[3]);
     dbg('mockSignups 반영값', STATE.mockSignups);
+    dbg('mockSignups 출처', STATE.mockFromServer ? '리포트 서버(안정)' : '직접 조회');
     if ($('hubView').style.display !== 'none') renderHub();       // 허브 화면일 때만 새로고침
     if ($('mockHubView').style.display === 'block') renderMockHub();   // 모의고사 메뉴가 열려 있으면 갱신
     if ($('clinicView').style.display === 'block') renderClinic();     // 클리닉 화면이 열려 있으면 갱신
@@ -592,6 +596,9 @@ function refreshOnReturn(){
     STATE.homework = d.homework || [];
     STATE.analyses = d.analyses || [];
     STATE.clinic   = d.clinic   || null;
+    if (d.mockSignups !== undefined && d.mockSignups !== null){
+      STATE.mockSignups = d.mockSignups; STATE.mockFromServer = true;
+    }
     STATE.stars    = d.stars    || null;
     STATE.vocaOpen = d.vocaOpen;
     STATE.vocaWeek = d.vocaWeek;
@@ -635,7 +642,7 @@ function hide(id){ $(id).style.display='none'; }
 
 var KEY = '';        // 접근코드(토큰) — 없으면 테스트용 id
 var IS_ID = false;
-var STATE = { info:null, authed:false, exams:null, examCount:0, notices:null, homework:null, analyses:null, clinic:null, stars:null, vocaOpen:null, vocaWeek:null, mockGrades:null, clinicEligible:null, vocaTaken:null, mockSignups:null };
+var STATE = { info:null, authed:false, exams:null, examCount:0, notices:null, homework:null, analyses:null, clinic:null, stars:null, vocaOpen:null, vocaWeek:null, mockGrades:null, clinicEligible:null, vocaTaken:null, mockSignups:null, mockFromServer:false };
 
 function showError(title, msg){
   hide('loadBox'); hide('hubView'); $('gradeView').style.display='none'; $('mockHubView').style.display='none'; $('mockView').style.display='none'; $('clinicView').style.display='none';
@@ -1503,6 +1510,10 @@ function boot(){
       STATE.homework=d.homework||[];
       STATE.analyses=d.analyses||[];
       STATE.clinic=d.clinic||null;
+      // 모의고사 신청 내역: 리포트 서버가 담아준 값이 있으면 그걸 사용 (별도 조회 생략 — 안정적)
+      if (d.mockSignups !== undefined && d.mockSignups !== null){
+        STATE.mockSignups = d.mockSignups; STATE.mockFromServer = true;
+      }
       STATE.stars=d.stars||null;   // 슈퍼스타 별 (구버전 백엔드면 null → 카드 숨김)
       STATE.vocaOpen=d.vocaOpen;   // true/false/undefined(=열림)
       STATE.vocaWeek=d.vocaWeek;   // 교사가 연 주차(없으면 null → 준비 중)
