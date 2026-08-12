@@ -116,6 +116,9 @@
 
   /* H WORK 배정 뷰 */
   #homeworkView{display:none;}
+
+  /* 클리닉 신청·확인 뷰 */
+  #clinicView{display:none;}
   .hw-go{display:inline-flex;align-items:center;gap:5px;margin-top:12px;color:var(--accent);font-size:.84rem;font-weight:700;text-decoration:none;}
   .hw-go svg{width:15px;height:15px;}
   .hw-go:hover{opacity:.8;}
@@ -365,6 +368,18 @@
   <footer><p>이수경국어 Shueguk · 학생용</p></footer>
 </main></div>
 
+<!-- 클리닉 신청·확인 -->
+<div id="clinicView"><main class="wrap gwrap">
+  <div class="gv-bar">
+    <button class="gv-back" onclick="closeClinic()" id="clBack"></button>
+    <span class="gv-ttl">클리닉 · 신청·확인</span>
+  </div>
+  <div class="grid" id="clinicMenu"></div>
+  <h2 class="sec-h">내 클리닉 신청 내역</h2>
+  <div id="clinicList"></div>
+  <footer><p>이수경국어 Shueguk · 학생용</p></footer>
+</main></div>
+
 <!-- 지필고사 데이터 -->
 <div id="gradeView"><main class="wrap gwrap">
   <div class="gv-bar">
@@ -540,6 +555,7 @@ function loadGradeGates(){
     STATE.mockSignups  = (g[3] && g[3].result==='success' && g[3].signups) ? g[3].signups : null;
     if ($('hubView').style.display !== 'none') renderHub();       // 허브 화면일 때만 새로고침
     if ($('mockHubView').style.display === 'block') renderMockHub();   // 모의고사 메뉴가 열려 있으면 갱신
+    if ($('clinicView').style.display === 'block') renderClinic();     // 클리닉 화면이 열려 있으면 갱신
   });
 }
 
@@ -553,7 +569,7 @@ var IS_ID = false;
 var STATE = { info:null, authed:false, exams:null, examCount:0, notices:null, homework:null, analyses:null, clinic:null, stars:null, vocaOpen:null, vocaWeek:null, mockGrades:null, clinicEligible:null, vocaTaken:null, mockSignups:null };
 
 function showError(title, msg){
-  hide('loadBox'); hide('hubView'); $('gradeView').style.display='none'; $('mockHubView').style.display='none'; $('mockView').style.display='none';
+  hide('loadBox'); hide('hubView'); $('gradeView').style.display='none'; $('mockHubView').style.display='none'; $('mockView').style.display='none'; $('clinicView').style.display='none';
   $('errTitle').textContent = title || '불러올 수 없습니다';
   $('errMsg').textContent = msg || '';
   show('errBox');
@@ -784,13 +800,19 @@ function renderHub(){
               '<span class="go">열기 '+svg(ICON.arrow)+'</span></button>';
       return;
     }
-    // 클리닉: 이 학생이 이번 신청 대상이 아니면 비활성 + 안내
+    // 클리닉: 신청·내역 확인을 하위 화면 하나로 묶음 (실전 모의고사와 동일 패턴)
+    // 대상이 아니어도 신청 내역이 있는 학생은 확인을 위해 열어 둔다.
     // (백엔드 amITarget이 전체/학년/개인/일부 대상 여부를 직접 판단 — 선택된 학생에게만 카드가 열림)
     if(f.id==='clinic'){
-      if(STATE.clinicEligible === false){
+      var hasClinicApps = !!(STATE.clinic && STATE.clinic.total);
+      if(STATE.clinicEligible === false && !hasClinicApps){
         html += '<div class="card pending">'+ic+'<h3>'+esc(f.title)+'</h3><p class="desc">이번 주는 클리닉 신청 대상이 아니에요.</p><span class="tag">이번 주 운영 안 함</span></div>';
         return;
       }
+      html += '<button class="card" onclick="openClinic()">'+ic+
+              '<h3>'+esc(f.title)+'</h3><p class="desc">'+esc(desc)+'</p>'+
+              '<span class="go">열기 '+svg(ICON.arrow)+'</span></button>';
+      return;
     }
     var body = ic + '<h3>'+esc(f.title)+'</h3><p class="desc">'+esc(desc)+'</p>';
     var ready = url && url.indexOf('http')===0;
@@ -822,7 +844,7 @@ function renderHub(){
 
   renderStars();   // 슈퍼스타 별 카드 (백엔드가 stars를 주면 표시)
 
-  hide('loadBox'); hide('errBox'); $('gradeView').style.display='none'; $('noticeView').style.display='none'; $('homeworkView').style.display='none'; $('mockHubView').style.display='none'; $('mockView').style.display='none'; show('hubView');
+  hide('loadBox'); hide('errBox'); $('gradeView').style.display='none'; $('noticeView').style.display='none'; $('homeworkView').style.display='none'; $('mockHubView').style.display='none'; $('mockView').style.display='none'; $('clinicView').style.display='none'; show('hubView');
 }
 
 /* ---- 알려드립니다(공지) ---- */
@@ -951,6 +973,83 @@ function renderHomework(){
     }).join('');
   }
   hide('hubView'); $('homeworkView').style.display='block'; window.scrollTo(0,0);
+}
+
+/* ---- 클리닉 (신청 + 내 신청 내역) ---- */
+function openClinic(){ renderClinic(); hide('hubView'); $('clinicView').style.display='block'; window.scrollTo(0,0); }
+function closeClinic(){ $('clinicView').style.display='none'; show('hubView'); window.scrollTo(0,0); }
+
+// 클리닉 신청 페이지 링크 — 토큰과 이름·학생ID·담당강사를 실어 자동 식별
+function clinicApplyHref(){
+  var f = FEATURES.filter(function(x){ return x.id==='clinic'; })[0];
+  var url = (f && f.url) || 'https://coke4497-sys.github.io/shueguk-clinic/';
+  var href = url + (url.indexOf('?')>=0?'&':'?') + 'key=' + encodeURIComponent(KEY);
+  if(STATE.info){
+    href += '&nm='  + encodeURIComponent(STATE.info.name    || '')
+          + '&sid=' + encodeURIComponent(STATE.info.id      || '')
+          + '&tc='  + encodeURIComponent(STATE.info.teacher || '');
+  }
+  return href;
+}
+
+// 수요일 시작 주(수~화) 키 — 클리닉 백엔드 weekKey_와 동일 규칙 (KST 기준)
+function clinicWeekKey(dateStr){
+  var m = String(dateStr||'').match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if(!m) return '';
+  var d = new Date(Date.UTC(+m[1], +m[2]-1, +m[3], 12));
+  var since = (d.getUTCDay() - 3 + 7) % 7;
+  d.setUTCDate(d.getUTCDate() - since);
+  return d.toISOString().slice(0,10);
+}
+function clinicThisWeekKey(){
+  var k = new Date(Date.now() + 9*3600*1000);   // KST
+  return clinicWeekKey(k.toISOString().slice(0,10));
+}
+
+function renderClinic(){
+  // ① 신청하기 카드 — 이번 주 대상이 아니면 비활성 안내
+  var menu;
+  if(STATE.clinicEligible === false){
+    menu = '<div class="card pending"><span class="icon">'+svg(ICON.pulse)+'</span>'+
+           '<h3>클리닉 신청하기</h3><p class="desc">이번 주는 클리닉 신청 대상이 아니에요.</p>'+
+           '<span class="tag">이번 주 운영 안 함</span></div>';
+  } else {
+    menu = '<a class="card" href="'+esc(clinicApplyHref())+'"><span class="icon">'+svg(ICON.pulse)+'</span>'+
+           '<h3>클리닉 신청하기</h3><p class="desc">새 클리닉 수업 신청</p>'+
+           '<span class="go">열기 '+svg(ICON.arrow)+'</span></a>';
+  }
+  $('clinicMenu').innerHTML = menu;
+
+  // ② 내 신청 내역 — 백엔드가 준 목록(최신순). 구버전 백엔드면 최근 1건만이라도 표시.
+  var c = STATE.clinic;
+  var list = (c && c.list) || (c && c.latest ? [c.latest] : []);
+  var el = $('clinicList');
+  if(!list.length){
+    el.innerHTML = '<div class="empty-state"><p>아직 신청한 클리닉이 없습니다.<br>클리닉을 신청하면 이곳에 내역이 표시됩니다.</p></div>';
+  } else {
+    var nowWk = clinicThisWeekKey();
+    el.innerHTML = list.map(function(a){
+      var thisWeek = a.date && clinicWeekKey(a.date) === nowWk;
+      var tag = thisWeek
+        ? '<span class="ntag" style="background:#CFE0D8;">이번 주 신청 ✓</span>'
+        : '<span class="ntag">지난 신청</span>';
+      var dateTxt = String(a.date||'').slice(0,16);
+      var lines = (a.requests||[]).map(function(r){
+        var head = [r.type, r.area].filter(Boolean).join(' · ');
+        var line = head + (r.content ? (head?' — ':'')+r.content : '');
+        if(r.qcount) line += ' ('+r.qcount+')';
+        return line ? '· '+line : '';
+      }).filter(Boolean);
+      // 구버전 백엔드(요청 상세 없음)면 요청 건수만 표시
+      if(!lines.length && a.count) lines.push('요청 '+a.count+'건');
+      if(a.memo) lines.push('📝 '+a.memo);
+      return '<div class="notice-item">'+tag+
+        '<div class="nh"><span class="ntitle">'+esc(a.time||'클리닉')+'</span>'+
+        (dateTxt?'<span class="ndate">'+esc(dateTxt)+'</span>':'')+'</div>'+
+        (lines.length?'<div class="nbody">'+esc(lines.join('\n'))+'</div>':'')+
+        '</div>';
+    }).join('');
+  }
 }
 
 /* ---- 성적 ---- */
@@ -1282,6 +1381,7 @@ function boot(){
   $('mhBack').innerHTML = svg(ICON.back) + ' 메뉴';
   $('nvBack').innerHTML = svg(ICON.back) + ' 메뉴';
   $('hwBack').innerHTML = svg(ICON.back) + ' 메뉴';
+  $('clBack').innerHTML = svg(ICON.back) + ' 메뉴';
   $('pwIcon').innerHTML = svg(ICON.lock);
   $('pwInput').addEventListener('keydown', function(e){ if(e.key==='Enter') submitPw(); });
 

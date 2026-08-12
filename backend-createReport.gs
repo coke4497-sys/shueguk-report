@@ -658,8 +658,10 @@ function noticeMatches_(type, target, stu) {
 
 /* ===== 클리닉 신청 조회 =====
  *  별도 스프레드시트(CLINIC_SHEET_ID)의 '응답' 탭에서 이 학생(토큰)의 신청을 찾아
- *  최근 신청 1건과 총 신청 수를 반환. '토큰' 열이 아직 없으면(클리닉 미배포) null.
- *  같은 제출시각+시간대는 한 '신청'으로 묶고, 요청 줄 수를 센다.
+ *  신청 내역 목록(최신순, 최대 20건)과 총 신청 수를 반환.
+ *  '토큰' 열이 아직 없으면(클리닉 미배포) null.
+ *  같은 제출시각+시간대는 한 '신청'으로 묶고, 요청(유형·영역·내용)을 함께 담는다.
+ *  → 학생 개별 페이지(s.html)의 '내 클리닉 신청' 화면이 이 목록을 표시한다.
  */
 function collectClinic_(token) {
   token = String(token || '').trim();
@@ -676,21 +678,40 @@ function collectClinic_(token) {
   if (iTok < 0) return null;     // 클리닉에 토큰 열이 아직 없음 → 표시 안 함
   var iDate = H.indexOf('제출시각');
   var iTime = H.indexOf('클리닉시간');
+  var iType = H.indexOf('유형');
+  var iArea = H.indexOf('영역');
+  var iCont = H.indexOf('구체내용');
+  var iCnt  = H.indexOf('질문개수');
+  var iMemo = H.indexOf('메모');
 
-  var apps = {};   // key: 제출시각|시간 → { date, time, count }
+  // 시트가 제출시각을 날짜 값으로 바꿔둔 경우도 "yyyy-MM-dd HH:mm" 문자열로 통일
+  function fmtTs(x) {
+    if (x instanceof Date && !isNaN(x.getTime())) return Utilities.formatDate(x, 'Asia/Seoul', 'yyyy-MM-dd HH:mm');
+    return String(x || '').trim();
+  }
+
+  var apps = {};   // key: 제출시각|시간 → { date, time, count, requests, memo }
   for (var i = 1; i < v.length; i++) {
     if (String(v[i][iTok] || '').trim() !== token) continue;
-    var date = String(v[i][iDate] || '').trim();
+    var date = fmtTs(v[i][iDate]);
     var time = String(v[i][iTime] || '').trim();
     var k = date + '|' + time;
-    if (!apps[k]) apps[k] = { date: date, time: time, count: 0 };
+    if (!apps[k]) apps[k] = { date: date, time: time, count: 0, requests: [], memo: '' };
     apps[k].count++;
+    var req = {
+      type:    iType >= 0 ? String(v[i][iType] || '').trim() : '',
+      area:    iArea >= 0 ? String(v[i][iArea] || '').trim() : '',
+      content: iCont >= 0 ? String(v[i][iCont] || '').trim() : '',
+      qcount:  iCnt  >= 0 ? String(v[i][iCnt]  || '').trim() : ''
+    };
+    if (req.type || req.area || req.content) apps[k].requests.push(req);
+    if (!apps[k].memo && iMemo >= 0) apps[k].memo = String(v[i][iMemo] || '').trim();
   }
   var list = Object.keys(apps).map(function (k) { return apps[k]; });
   if (!list.length) return null;
   list.sort(function (a, b) { return a.date < b.date ? 1 : (a.date > b.date ? -1 : 0); });
 
-  return { latest: list[0], total: list.length };
+  return { latest: list[0], total: list.length, list: list.slice(0, 20) };
 }
 
 /* ===== 지필고사 분석지(학생 개별 페이지) =====
