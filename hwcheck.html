@@ -88,6 +88,14 @@
   .plan-area{display:none;margin-top:8px;}
   .plan-area label{display:block;font-size:.75rem;color:#B4574E;margin-bottom:4px;}
   .plan-area input{width:100%;font:inherit;font-size:.9rem;border:1.5px solid #E3C2BE;border-radius:10px;padding:8px 10px;}
+  .qp-row{display:flex;align-items:center;gap:6px;margin:0 0 6px;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:2px;}
+  .qp-row .qp-lb{flex:none;font-size:.72rem;color:var(--ink-soft);min-width:3.2em;}
+  .qp-row button{flex:none;font:inherit;font-size:.8rem;background:#fff;border:1px solid var(--line);
+    border-radius:999px;padding:4px 11px;color:var(--ink);cursor:pointer;white-space:nowrap;}
+  .qp-row button.on{background:var(--btn);border-color:var(--btn);color:#fff;}
+  .qp-hint{font-size:.72rem;color:var(--ink-soft);margin:-2px 0 6px 3.9em;}
+  .qp-same{font:inherit;font-size:.78rem;background:var(--icon-bg);border:1px solid var(--line-soft);
+    border-radius:9px;padding:4px 10px;color:var(--accent);cursor:pointer;margin-bottom:6px;}
   .memo-area{display:none;margin-top:8px;}
   .memo-area label{display:block;font-size:.75rem;color:var(--ink-soft);margin-bottom:4px;}
   .memo-area textarea{width:100%;font:inherit;font-size:.9rem;border:1.5px solid var(--line);border-radius:10px;
@@ -372,8 +380,9 @@ function render(){
         '<button id="privbtn-' + esc(s.code) + '" class="' + (rec && rec.priv ? 'has' : '') + '" onclick="toggleMemo(\'' + esc(s.code) + '\',\'priv\')">비공개 메모</button>' +
       '</div>' +
       '<div class="plan-area" id="plan-' + esc(s.code) + '" style="' + (rec && rec.missing ? 'display:block;' : '') + '">' +
-        '<label>이후 대책 — 예: 8/13 목 5:30에 재검사 약속</label>' +
-        '<input onblur="planChanged(\'' + esc(s.code) + '\')" id="ta-plan-' + esc(s.code) + '" value="' + esc(rec ? rec.plan : '') + '" /></div>' +
+        '<label>이후 대책 — 버튼을 누르면 문장이 자동으로 만들어져요</label>' +
+        planPickerHtml(s.code) +
+        '<input onblur="planChanged(\'' + esc(s.code) + '\')" id="ta-plan-' + esc(s.code) + '" placeholder="예: 8/13 목 5:30에 재검사 약속" value="' + esc(rec ? rec.plan : '') + '" /></div>' +
       '<div class="memo-area" id="memo-pub-' + esc(s.code) + '"><label>공개 메모 — 학생 개별 페이지에 보여요</label>' +
         '<textarea onblur="memoChanged(\'' + esc(s.code) + '\')" id="ta-pub-' + esc(s.code) + '">' + esc(rec ? rec.pub : '') + '</textarea></div>' +
       '<div class="memo-area" id="memo-priv-' + esc(s.code) + '"><label>비공개 메모 — 교사·조교만 봐요</label>' +
@@ -430,6 +439,69 @@ function toggleMissing(token){
 function planChanged(token){
   var rec = recOf(token);
   rec.plan = $('ta-plan-' + token).value;
+  if (rec.plan.trim()) lastPlan = rec.plan.trim();
+  items.forEach(function(name){ if (rec.scores[name] == null) rec.scores[name] = 0; });
+  queueSave(token);
+}
+
+/* ── 대책 간편 입력: 무엇을 → 언제 → 몇 시, 세 번 탭이면 문장 완성 ── */
+var PLAN_TYPES = [['재검사', '재검사 약속'], ['남아서 검사', '남아서 검사'], ['보충', '보충 수업'], ['전화 상담', '전화 상담']];
+var PLAN_TIMES = ['11:00', '12:30', '2:00', '3:30', '5:30', '7:00', '8:30'];
+var DOW_KO = '일월화수목금토';
+var planPick = {};   // token -> {type(문구), date, time}
+var lastPlan = '';   // 직전에 기록한 대책 — '이전과 동일' 버튼용
+function planDates(){
+  var out = [];
+  for (var i = 0; i < 7; i++){
+    var d = new Date(); d.setDate(d.getDate() + i);
+    out.push((d.getMonth()+1) + '/' + d.getDate() + ' ' + DOW_KO.charAt(d.getDay()));
+  }
+  return out;
+}
+function planPickerHtml(token){
+  function chips(kind, list){
+    return list.map(function(v){
+      var label = Array.isArray(v) ? v[0] : v, val = Array.isArray(v) ? v[1] : v;
+      return '<button onclick="pickPlan(\'' + esc(token) + '\',\'' + kind + '\',\'' + esc(val) + '\',this)">' + esc(label) + '</button>';
+    }).join('');
+  }
+  return (lastPlan ? '<button class="qp-same" onclick="samePlan(\'' + esc(token) + '\')">이전과 동일: ' + esc(lastPlan.length > 18 ? lastPlan.slice(0,18) + '…' : lastPlan) + '</button>' : '') +
+    '<div class="qp-row"><span class="qp-lb">무엇을</span>' + chips('type', PLAN_TYPES) + '</div>' +
+    '<div class="qp-row"><span class="qp-lb">언제</span>' + chips('date', planDates()) + '</div>' +
+    '<div class="qp-row"><span class="qp-lb">몇 시</span>' + chips('time', PLAN_TIMES) + '</div>' +
+    '<p class="qp-hint">가까운 시간대를 선택해주세요.</p>';
+}
+function pickPlan(token, kind, val, btn){
+  var p = planPick[token] = planPick[token] || {};
+  var wasOn = p[kind] === val;
+  p[kind] = wasOn ? '' : val;
+  // 같은 줄의 버튼 표시 갱신 (누른 것만 켜기, 다시 누르면 끄기)
+  var sib = btn.parentNode.querySelectorAll('button');
+  for (var i = 0; i < sib.length; i++) sib[i].classList.remove('on');
+  if (!wasOn) btn.classList.add('on');
+  composePlan(token);
+}
+function composePlan(token){
+  var p = planPick[token] || {};
+  if (!p.type && !p.date && !p.time) return;
+  var when = [p.date, p.time].filter(Boolean).join(' ');
+  var text = when
+    ? when + (p.type ? '에 ' + p.type : '')
+    : (p.type || '');
+  var input = $('ta-plan-' + token);
+  input.value = text;
+  var rec = recOf(token);
+  rec.plan = text;
+  if (text.trim()) lastPlan = text.trim();
+  items.forEach(function(name){ if (rec.scores[name] == null) rec.scores[name] = 0; });
+  queueSave(token);
+}
+function samePlan(token){
+  if (!lastPlan) return;
+  var input = $('ta-plan-' + token);
+  input.value = lastPlan;
+  var rec = recOf(token);
+  rec.plan = lastPlan;
   items.forEach(function(name){ if (rec.scores[name] == null) rec.scores[name] = 0; });
   queueSave(token);
 }
