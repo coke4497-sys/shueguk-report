@@ -48,6 +48,14 @@
   .filters{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;}
   .filters select{flex:1;min-width:120px;font:inherit;font-size:.92rem;padding:8px 10px;
     border:1.5px solid var(--line);border-radius:10px;background:#fff;color:var(--ink);}
+  .addstu{margin-top:8px;}
+  .addstu input{width:100%;font:inherit;font-size:.9rem;padding:8px 10px;border:1.5px solid var(--line);border-radius:10px;}
+  #stu-results{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;}
+  #stu-results button{font:inherit;font-size:.85rem;background:#fff;border:1px solid var(--line);
+    border-radius:999px;padding:5px 12px;cursor:pointer;}
+  #stu-results button small{color:var(--ink-soft);font-size:.74rem;}
+  .extra-badge{display:inline-block;font-size:.68rem;color:#fff;background:var(--btn);border-radius:6px;padding:1px 6px;margin-left:6px;vertical-align:middle;}
+  .extra-rm{border:none;background:none;color:#B4574E;font-size:.95rem;cursor:pointer;padding:0 0 0 6px;vertical-align:middle;}
   .meta-row{display:flex;justify-content:space-between;align-items:center;margin-top:10px;font-size:.82rem;color:var(--ink-soft);}
   .meta-row .items-btn{font:inherit;font-size:.8rem;background:none;border:1px solid var(--line);
     border-radius:9px;padding:4px 10px;color:var(--ink-soft);cursor:pointer;}
@@ -157,7 +165,11 @@
         <option value="school">학교</option>
         <option value="class">정규 수업반</option>
       </select>
-      <select id="f-value" onchange="render()" style="display:none;"></select>
+      <select id="f-value" onchange="onValueChange()" style="display:none;"></select>
+    </div>
+    <div class="addstu">
+      <input id="stu-search" placeholder="🔍 이동해 온 학생 추가 — 이름 검색" oninput="searchStu()" autocomplete="off" />
+      <div id="stu-results"></div>
     </div>
     <div class="meta-row">
       <span id="count-note"></span>
@@ -191,16 +203,17 @@ var pw = sessionStorage.getItem('hwcheck_pw') || '';
 var roster = [];         // studentLinks: {name, school, grade, teacher, classA, classB, code}
 var items = [];          // 검사 항목 이름들
 var records = {};        // token -> {scores, pct, pub, priv}
-var week = mondayOf(new Date());
+var week = weekStartOf(new Date());
 var saveTimers = {};     // token -> debounce timer
 
 function $(id){ return document.getElementById(id); }
 function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
 
-/* ── 주차 계산 (그 주 월요일 yyyy-MM-dd, 서버 clinicWeekKey_와 동일 기준) ── */
-function mondayOf(d){
+/* ── 주차 계산 — 정규 수업 주는 수요일 시작(수목금토일 단위).
+ * 주차 키 = 그 주 수요일 yyyy-MM-dd. 월·화에는 직전 수~일 주가 '이번 주'로 보인다. ── */
+function weekStartOf(d){
   var x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-  x.setDate(x.getDate() - ((x.getDay() + 6) % 7));
+  x.setDate(x.getDate() - ((x.getDay() + 4) % 7));   // 수요일(3)로부터 지난 날 수
   return ymd(x);
 }
 function ymd(d){ return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'); }
@@ -211,9 +224,9 @@ function moveWeek(dir){
   loadWeek();
 }
 function weekLabel(){
-  var mon = parseYmd(week), sun = parseYmd(week); sun.setDate(sun.getDate()+6);
-  $('wk-label').textContent = (mon.getMonth()+1) + '월 ' + Math.ceil(mon.getDate()/7) + '주차';
-  $('wk-range').textContent = (mon.getMonth()+1)+'/'+mon.getDate()+' ~ '+(sun.getMonth()+1)+'/'+sun.getDate();
+  var wed = parseYmd(week), sun = parseYmd(week); sun.setDate(sun.getDate()+4);   // 수 + 4일 = 일
+  $('wk-label').textContent = (wed.getMonth()+1)+'/'+wed.getDate()+' ~ '+(sun.getMonth()+1)+'/'+sun.getDate()+' 주차';
+  $('wk-range').textContent = '수 ~ 일';
 }
 
 /* ── 서버 통신 (리포트 서버는 s.html과 같은 fetch 방식) ── */
@@ -254,7 +267,7 @@ function boot(){
       roster = (r.students || []).filter(function(s){ return s.code; });
       roster.sort(function(a,b){ return a.name.localeCompare(b.name, 'ko'); });
       $('gate').style.display = 'none';
-      $('bar').style.display = '';
+      $('bar').style.display = 'block';   // CSS 기본값이 display:none이라 ''로는 안 보임
       buildTypeValues();
       loadWeek();
       refreshPlansBadge();
@@ -281,6 +294,7 @@ function loadWeek(){
 function uniq(a){ return Array.from(new Set(a.filter(Boolean))); }
 function buildTypeValues(){ onTypeChange(); }
 function onTypeChange(){
+  extras = [];
   var type = $('f-type').value;
   var sel = $('f-value');
   if (type === 'all'){ sel.style.display = 'none'; render(); return; }
@@ -292,7 +306,9 @@ function onTypeChange(){
   sel.style.display = vals.length ? '' : 'none';
   render();
 }
-function currentStudents(){
+var extras = [];   // 그룹에 수동으로 추가한 학생(접근코드) — 이동해 온 친구 검사용
+function onValueChange(){ extras = []; render(); }
+function baseStudents(){
   var type = $('f-type').value, val = $('f-value').value;
   if (type === 'all') return roster;
   return roster.filter(function(s){
@@ -301,6 +317,43 @@ function currentStudents(){
     if (type === 'class')  return s.classA === val || s.classB === val;
     return true;
   });
+}
+function currentStudents(){
+  var base = baseStudents();
+  var have = {};
+  base.forEach(function(s){ have[s.code] = true; });
+  var added = [];
+  extras.forEach(function(tok){
+    if (have[tok]) return;
+    var s = roster.find(function(x){ return x.code === tok; });
+    if (s){ added.push(s); have[tok] = true; }
+  });
+  return added.concat(base);   // 추가한 학생을 맨 위에
+}
+function isExtra(token){
+  return extras.indexOf(token) >= 0 && !baseStudents().some(function(s){ return s.code === token; });
+}
+/* 이동해 온 학생 검색·추가 */
+function searchStu(){
+  var q = $('stu-search').value.trim();
+  var box = $('stu-results');
+  if (q.length < 1){ box.innerHTML = ''; return; }
+  var shown = {};
+  currentStudents().forEach(function(s){ shown[s.code] = true; });
+  var found = roster.filter(function(s){ return !shown[s.code] && s.name.indexOf(q) >= 0; }).slice(0, 8);
+  box.innerHTML = found.map(function(s){
+    return '<button onclick="addExtra(\'' + esc(s.code) + '\')">' + esc(s.name) + ' <small>' + esc(s.school) + ' · ' + esc(s.grade) + '</small></button>';
+  }).join('') || '<span style="font-size:.8rem;color:var(--ink-soft);">일치하는 학생이 없어요</span>';
+}
+function addExtra(token){
+  if (extras.indexOf(token) < 0) extras.push(token);
+  $('stu-search').value = '';
+  $('stu-results').innerHTML = '';
+  render();
+}
+function removeExtra(token){
+  extras = extras.filter(function(t){ return t !== token; });
+  render();
 }
 
 /* ── 항목 관리 ── */
@@ -352,9 +405,12 @@ function hasAnyScore(rec){
 }
 function render(){
   var stus = currentStudents();
+  var baseSet = {};
+  baseStudents().forEach(function(s){ baseSet[s.code] = true; });
   var checked = 0;
   var html = stus.map(function(s){
     var rec = records[s.code];
+    var extra = !baseSet[s.code];
     if (isChecked(rec)) checked++;
     var pct = rec ? pctOf(rec) : null;
     var starsHtml = items.map(function(it, ii){
@@ -370,7 +426,8 @@ function render(){
       : (showPct == null ? '<span style="font-size:.8rem;">미검사</span>'
         : '<b class="' + (showPct >= 100 ? 'full' : '') + '">' + showPct + '%</b>' + (showPct >= 100 ? ' 🏆' : ''));
     return '<div class="stu' + (rec && rec.missing ? ' missing' : '') + '" id="stu-' + esc(s.code) + '">' +
-      '<div class="top"><span class="nm">' + esc(s.name) + '<small>' + esc(s.school) + ' · ' + esc(s.grade) + '</small></span>' +
+      '<div class="top"><span class="nm">' + esc(s.name) + '<small>' + esc(s.school) + ' · ' + esc(s.grade) + '</small>' +
+      (extra ? '<span class="extra-badge">추가됨</span><button class="extra-rm" onclick="removeExtra(\'' + esc(s.code) + '\')" title="목록에서 빼기">×</button>' : '') + '</span>' +
       '<span class="pct"><span id="pct-' + esc(s.code) + '">' + pctHtml + '</span>' +
       '<span class="save-dot" id="dot-' + esc(s.code) + '"></span></span></div>' +
       starsHtml +
@@ -579,9 +636,8 @@ function loadPlans(){
 }
 function weekLabelOf(wk){
   var p = wk.split('-'); if (p.length !== 3) return wk;
-  var mon = new Date(+p[0], +p[1]-1, +p[2]), sun = new Date(+p[0], +p[1]-1, +p[2]+6);
-  return (mon.getMonth()+1) + '월 ' + Math.ceil(mon.getDate()/7) + '주차 <small>' +
-    (mon.getMonth()+1)+'/'+mon.getDate()+' ~ '+(sun.getMonth()+1)+'/'+sun.getDate() + '</small>';
+  var wed = new Date(+p[0], +p[1]-1, +p[2]), sun = new Date(+p[0], +p[1]-1, +p[2]+4);   // 수~일
+  return (wed.getMonth()+1)+'/'+wed.getDate()+' ~ '+(sun.getMonth()+1)+'/'+sun.getDate()+' 주차';
 }
 function renderPlans(){
   var pending = plans.filter(function(p){ return !p.done; }).length;
