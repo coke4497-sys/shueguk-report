@@ -228,9 +228,19 @@ function weekLabel(){
   $('wk-range').textContent = '수 ~ 일';
 }
 
-/* ── 서버 통신 (리포트 서버는 s.html과 같은 fetch 방식) ── */
-function getJSON(url){
-  return fetch(url, { cache:'no-store' }).then(function(r){ return r.json(); });
+/* ── 서버 통신 (리포트 서버는 s.html과 같은 fetch 방식) ──
+ * 접속이 몰리는 시간대의 일시 지연에 대비해 15초 제한 + 자동 2회 재시도 */
+function getJSON(url, tries){
+  tries = tries == null ? 3 : tries;
+  var ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+  var timer = ctrl ? setTimeout(function(){ ctrl.abort(); }, 15000) : null;
+  return fetch(url, { cache:'no-store', signal: ctrl ? ctrl.signal : undefined })
+    .then(function(r){ if (timer) clearTimeout(timer); return r.json(); })
+    .catch(function(err){
+      if (timer) clearTimeout(timer);
+      if (tries > 1) return new Promise(function(res){ setTimeout(res, 1200); }).then(function(){ return getJSON(url, tries - 1); });
+      throw err;
+    });
 }
 function postJSON(payload){
   return fetch(ENDPOINT, { method:'POST', body: JSON.stringify(payload) }).then(function(r){ return r.json(); });
@@ -269,7 +279,7 @@ function boot(){
       $('bar').style.display = 'block';   // CSS 기본값이 display:none이라 ''로는 안 보임
       buildTypeValues();
       loadWeek();
-      refreshPlansBadge();
+      setTimeout(refreshPlansBadge, 4000);   // 대책 뱃지는 잠시 뒤에 — 첫 화면 요청과 겹치지 않게
     })
     .catch(function(){ setStatus('서버 연결에 실패했어요. 잠시 후 다시 시도해 주세요.', true); });
 }

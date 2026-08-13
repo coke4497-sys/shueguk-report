@@ -717,6 +717,52 @@ function getReportsIndex_(ss) {
   return { byId: byId, byTitle: byTitle };
 }
 
+/** 제출결과 행 매칭 규칙 — collectExams_와 압축 색인(countExams_)이 완전히 같은 판정을 쓴다. */
+function examRowMatch_(phone, nm, rsc, rgdRaw, sid, name, strictName, school, uniq, myGd) {
+  // 동명이인(uniq=false): 기록의 번호가 본인 번호와 다르면 다른 학생의 것으로 보고 제외.
+  if (!uniq && phone && sid && phone !== sid) return false;
+  var nameSchoolOk = (nm === name || (nm !== '' && nm === baseName_(name))) && (uniq || !rsc || !school || schoolMatch_(rsc, school));
+  var match;
+  if (strictName) {
+    match = phone ? ((phone === sid && nm === name) || nameSchoolOk) : (nm === name);
+  } else {
+    match = (phone && phone === sid) || nameSchoolOk;
+  }
+  if (!match) return false;
+  // 학년 모순 차단: 번호가 정확히 일치하지 않는 기록이 학년까지 다르면 다른 동명이인의 것
+  if (!(phone && sid && phone === sid) && myGd) {
+    var rGd = gradeDigit_(rgdRaw);
+    if (rGd && rGd !== myGd) return false;
+  }
+  return true;
+}
+
+/** 제출결과 압축 색인 — [시험명, 학교, 학년, 이름, 번호]만 뽑아 60초 캐시.
+ *  잠금 전 화면(별 집계·기록 개수)은 이 색인만 쓰므로 큰 제출결과 탭을 매번 읽지 않는다.
+ *  (비밀번호 입력 후 상세 조회는 기존대로 전체를 읽는다 — 새 제출 즉시 반영) */
+function examIndex_(ss) {
+  var mk = 'snap:examIdx';
+  if (MEMO_[mk]) return MEMO_[mk];
+  try {
+    var hit = CacheService.getScriptCache().get('examIdx');
+    if (hit) return (MEMO_[mk] = JSON.parse(hit));
+  } catch (e) {}
+  var rows = [];
+  var v = tabValues_(ss, TAB_RESULT);
+  if (v) for (var i = 1; i < v.length; i++) {
+    if (!v[i][4]) continue;
+    rows.push([String(v[i][1] || ''), String(v[i][2] || '').trim(),
+               String(v[i][3] == null ? '' : v[i][3]), String(v[i][4] || '').trim(),
+               String(v[i][10] || '').trim()]);
+  }
+  try { CacheService.getScriptCache().put('examIdx', JSON.stringify(rows), 60); } catch (e) {}
+  return (MEMO_[mk] = rows);
+}
+function dropExamIdx_() {
+  delete MEMO_['snap:examIdx'];
+  try { CacheService.getScriptCache().remove('examIdx'); } catch (e) {}
+}
+
 /** 제출결과에서 이 학생의 시험 기록을 모은다(최신순).
  *  기본: 부모님번호 매칭(옛 기록은 이름 보조). 단 strictName=true(형제가 같은 번호 공유)면
  *  번호가 같아도 이름까지 일치해야 인정 → 형제 성적이 섞이지 않는다.
@@ -735,25 +781,7 @@ function collectExams_(ss, sid, name, strictName, school, uniq, grade) {
       var phone = String(row[10] || '').trim();
       var nm    = String(row[4]  || '').trim();
       var rsc   = String(row[2]  || '').trim();
-      // 동명이인(uniq=false): 기록의 번호가 본인 번호와 다르면 다른 학생의 것으로 보고 제외.
-      // (번호 오타 허용은 이름이 유일할 때만 — 같은 학교·학년 동명이인은 번호로만 구분 가능)
-      if (!uniq && phone && sid && phone !== sid) continue;
-      // 이름+학교 일치(학교는 느슨 비교) — 학생이 부모님 번호를 잘못 적어도 연결되도록.
-      // 이름이 유일(uniq)하면 학교 오타까지 허용.
-      var nameSchoolOk = (nm === name || (nm !== '' && nm === baseName_(name))) && (uniq || !rsc || !school || schoolMatch_(rsc, school));
-      var match;
-      if (strictName) {
-        // 같은 번호를 형제가 공유 → 번호+이름이 모두 같거나, 이름+학교가 일치해야 인정
-        match = phone ? ((phone === sid && nm === name) || nameSchoolOk) : (nm === name);
-      } else {
-        match = (phone && phone === sid) || nameSchoolOk;
-      }
-      if (!match) continue;
-      // 학년 모순 차단: 번호가 정확히 일치하지 않는 기록이 학년까지 다르면 다른 동명이인의 것
-      if (!(phone && sid && phone === sid) && myGd) {
-        var rGd = gradeDigit_(row[3]);
-        if (rGd && rGd !== myGd) continue;
-      }
+      if (!examRowMatch_(phone, nm, rsc, row[3], sid, name, strictName, school, uniq, myGd)) continue;
       exams.push({
         submittedAt: row[0] ? Utilities.formatDate(new Date(row[0]), 'GMT+9', 'yyyy-MM-dd HH:mm') : '',
         title:       String(row[1] || ''),
@@ -773,10 +801,14 @@ function collectExams_(ss, sid, name, strictName, school, uniq, grade) {
 
 function countExams_(ss, sid, name, strictName, school, uniq, grade) {
   // 시험명 단위 중복 제거 — 같은 리포트를 여러 번 제출해도 별은 시험당 1회분(×2)만.
-  var list = collectExams_(ss, sid, name, strictName, school, uniq, grade);
+  // 압축 색인 사용(60초 캐시) — 잠금 전 화면에서 큰 제출결과 탭을 매번 읽지 않는다.
+  var myGd = gradeDigit_(grade);
+  var idx = examIndex_(ss);
   var set = {};
-  for (var i = 0; i < list.length; i++) {
-    var t = String(list[i].title || '').replace(/\s+/g, '');
+  for (var i = 0; i < idx.length; i++) {
+    var r = idx[i];   // [시험명, 학교, 학년, 이름, 번호]
+    if (!examRowMatch_(r[4], r[3], r[1], r[2], sid, name, strictName, school, uniq, myGd)) continue;
+    var t = r[0].replace(/\s+/g, '');
     set[t || ('r' + i)] = true;
   }
   return Object.keys(set).length;
@@ -1067,18 +1099,14 @@ function getListOrder_(ss) {
  *  매칭: 부모님번호(K)=학생ID 또는 이름(E)=학생 이름. 값은 시험명(제출결과 B열). */
 function submittedTitles_(ss, info) {
   var set = {};
-  var v = tabValues_(ss, TAB_RESULT);
-  if (!v) return set;
   var sid  = String(info.id   || '').trim();
   var name = String(info.name || '').trim();
-  for (var i = 1; i < v.length; i++) {
-    var row = v[i];
-    if (!row[4]) continue;
-    var phone = String(row[10] || '').trim();
-    var nm    = String(row[4]  || '').trim();
+  var idx = examIndex_(ss);   // 압축 색인(60초 캐시)
+  for (var i = 0; i < idx.length; i++) {
+    var phone = idx[i][4], nm = idx[i][3];
     var match = (phone && phone === sid) || (nm && (nm === name || nm === baseName_(name)));
     if (!match) continue;
-    var t = String(row[1] || '').trim();   // 시험명(=제목 또는 ID)
+    var t = idx[i][0].trim();   // 시험명(=제목 또는 ID)
     if (t) set[t] = true;
   }
   return set;
@@ -1929,6 +1957,7 @@ function exitDelete(data) {
     });
     // 삭제된 기록이 캐시에 남지 않게 관련 캐시를 전부 비운다
     [TAB_STUDENTS, TAB_STARS, TAB_NOTICE_READ].forEach(dropTab_);
+    dropExamIdx_();
     ['hworkSnap', 'vocaSnap', 'omrSnap', 'clinicSnap2', 'signupSnap'].forEach(function (k) {
       delete MEMO_['snap:' + k];
       try { CacheService.getScriptCache().remove(k); } catch (e) {}
@@ -2177,6 +2206,7 @@ function doPost(e) {
       data.name||'', data.wrongCount||0, data.wrongText||'', data.vow||'', '', data.score||'',
       String(data.parentPhone||'')   // K: 부모님 연락처(010 제외 8자리) — 학생 매칭 키
     ]);
+    dropExamIdx_();   // 새 제출이 별 집계·복기 표시에 바로 반영되게 색인 갱신
     return json({ result: 'success' });
   } catch (err) {
     return json({ result: 'error', message: String(err) });
