@@ -89,6 +89,12 @@
   .sheet{background:var(--surface);border:1px solid var(--line-soft);border-radius:var(--radius);
     padding:14px;margin:8px 0;overflow-x:auto;display:none;}
   .grid{display:grid;gap:3px;min-width:900px;}
+  .grid.fitgrid{min-width:0;}
+  .grid.fitgrid .blk{padding:4px 5px;}
+  .grid.fitgrid .blk .stus{gap:2px;}
+  .grid.fitgrid .blk .stus button{font:inherit;font-size:.65rem;padding:0 4px;letter-spacing:-.02em;line-height:1.6;}
+  .grid.fitgrid .blk .bt small{font-size:.64rem;white-space:normal;}
+  .grid.fitgrid .blk .bt .nm{font-size:.74rem;}
   .thead{font-size:.8rem;text-align:center;color:var(--ink-soft);padding:2px 0 4px;}
   .thead b{display:block;font-family:"Gowun Batang",serif;font-size:.9rem;color:var(--accent);}
   .tlab{font-size:.7rem;color:var(--ink-soft);text-align:right;padding:2px 6px 0 0;white-space:nowrap;}
@@ -102,7 +108,7 @@
     border-radius:999px;padding:1px 8px;cursor:pointer;color:var(--ink);line-height:1.5;}
   .blk .stus button:hover{border-color:var(--accent);}
   .blk .stus button.sel{background:var(--accent);border-color:var(--accent);color:#fff;}
-  .blk .stus button.once{background:#fff;border-style:dashed;border-color:var(--accent);color:var(--accent);}
+  .blk .stus button.once{background:#EFE9F7;border:1px dashed #8A6FA8;color:#5E4A78;font-weight:700;}
   .blk .stus button.away{opacity:.5;}
   .blk .stus button.away em{font-style:normal;font-size:.66rem;color:var(--accent);margin-left:3px;}
   .blk .empty-note{color:var(--ink-soft);font-size:.72rem;}
@@ -381,11 +387,12 @@ function fmtT(t){
 /* 반 블록 요소 (내용·클릭 공통) — 위치는 호출한 쪽에서 지정 */
 function blockEl(c){
   var b = document.createElement('div');
-  b.className = 'blk ' + (mode==='today' ? '' : 'droppable ') + colorOf(c.cls) + (classMoving && classMoving.id===c.id ? ' moving-src' : '');
-  var awayOf = {};   // 이 반에서 1회 이동으로 빠진 학생 → 도착 반 라벨
+  var todayDrop = (mode==='today' && moving && moving.once) ? 'droppable ' : '';
+  b.className = 'blk ' + (mode==='today' ? todayDrop : 'droppable ') + colorOf(c.cls) + (classMoving && classMoving.id===c.id ? ' moving-src' : '');
+  var awayOf = {};   // 이 반에서 1회 이동으로 빠진 학생 → {label, row}
   var temps = [];    // 이 반으로 1회 이동해 온 학생
   onceMoves.forEach(function(o){
-    if (o.fromId === c.id){ var t = classes.find(function(x){ return x.id===o.toId; }); awayOf[o.student.replace(/\(.*\)$/,'')] = t ? labelOf(t) : ''; }
+    if (o.fromId === c.id){ var t = classes.find(function(x){ return x.id===o.toId; }); awayOf[o.student.replace(/\(.*\)$/,'')] = { label: t ? labelOf(t) : '', row: o.row }; }
     if (o.toId === c.id) temps.push(o);
   });
   var chips = '';
@@ -397,24 +404,25 @@ function blockEl(c){
       var cls2 = a ? (a.status==='출석'?'at-ok':a.status==='지각'?'at-late':'at-abs') : '';
       var tail = a && a.status==='지각' ? ' · 지각' : '';
       return '<button data-att-cid="'+esc(c.id)+'" data-nm="'+esc(nm)+'" class="'+cls2+(away?' away':'')+'"'+
-             ((a && a.memo) ? ' title="'+esc(a.memo)+'"' : (away ? ' title="이번 주 1회 이동: '+esc(awayOf[plain])+'"' : ''))+'>'+
+             (away ? ' data-away-row="'+awayOf[plain].row+'"' : '')+
+             ((a && a.memo) ? ' title="'+esc(a.memo)+'"' : (away ? ' title="오늘 1회 이동: '+esc(awayOf[plain].label)+'"' : ''))+'>'+
              esc(nm)+tail+(away?'<em>1회↗</em>':'')+'</button>';
     }).join('');
     chips += temps.map(function(o){
       var a = attend[c.id + '|' + o.student];
       var cls2 = a ? (a.status==='출석'?'at-ok':a.status==='지각'?'at-late':'at-abs') : 'once';
-      return '<button data-att-cid="'+esc(c.id)+'" data-nm="'+esc(o.student)+'" class="'+cls2+'" title="1회 이동 · 사유: '+esc(o.reason)+((a&&a.memo)?' / '+esc(a.memo):'')+'">'+esc(o.student)+' · 1회</button>';
+      return '<button data-att-cid="'+esc(c.id)+'" data-nm="'+esc(o.student)+'" data-once-row="'+o.row+'" class="'+cls2+'" title="1회 이동 · 사유: '+esc(o.reason)+((a&&a.memo)?' / '+esc(a.memo):'')+'">'+esc(o.student)+' · 1회</button>';
     }).join('');
   } else {
     chips = c.students.map(function(nm){
       var plain = nm.replace(/\(.*\)$/,'');
       var away = Object.prototype.hasOwnProperty.call(awayOf, plain);
       return '<button data-cid="'+esc(c.id)+'" data-nm="'+esc(nm)+'"'+
-             (away ? ' class="away" title="이번 주 1회 이동: '+esc(awayOf[plain])+'"' : '')+'>'+
+             (away ? ' class="away" title="이번 주 1회 이동: '+esc(awayOf[plain].label)+'"' : '')+'>'+
              esc(nm)+(away?'<em>1회↗</em>':'')+'</button>';
     }).join('');
     chips += temps.map(function(o){
-      return '<button class="once" data-once-row="'+o.row+'" data-nm="'+esc(o.student)+'" title="사유: '+esc(o.reason)+' ('+esc(o.date)+')">'+esc(o.student)+' · 1회</button>';
+      return '<button class="once" data-once-row="'+o.row+'" data-nm="'+esc(o.student)+'" title="사유: '+esc(o.reason)+' ('+esc(o.date)+') — 수정은 오늘의 시간표에서">'+esc(o.student)+' · 1회</button>';
     }).join('');
   }
   if (!chips) chips = '<span class="empty-note">비어 있음</span>';
@@ -470,8 +478,10 @@ function buildDayGrid(list){
   var nrows = Math.max(1, Math.round((hi - lo) / 30));
 
   var g = document.createElement('div');
-  g.className = 'grid';
-  g.style.gridTemplateColumns = '52px repeat(' + cols.length + ', minmax(118px, 1fr))';
+  g.className = 'grid' + (mode==='today' ? ' fitgrid' : '');
+  g.style.gridTemplateColumns = (mode==='today')
+    ? '42px repeat(' + cols.length + ', minmax(0, 1fr))'      // 오늘 보기: 스크롤 없이 전체 폭에 맞춤
+    : '52px repeat(' + cols.length + ', minmax(118px, 1fr))';
   g.style.gridTemplateRows = 'auto repeat(' + nrows + ', 46px)';   // 30분 = 46px 균일 간격
 
   var corner = document.createElement('div'); corner.className='thead'; g.appendChild(corner);
@@ -507,24 +517,20 @@ function buildDayGrid(list){
   return wrap;
 }
 
-/* 전체 보기: 월~일이 가로축 — 요일 아래에 그 요일의 담당T 열 */
+/* 전체 보기: 월~일이 가로축 — 모든 요일에 전체 담당T 열(본원 포함)을 항상 표시 */
 function buildFullGrid(){
-  // 요일별 열 구성 (반이 있는 담당T만, 없으면 빈 열 1개)
-  var dayCols = {};
-  DAYS.forEach(function(dname){
-    var cols = [], seen = {};
-    classes.forEach(function(c){
-      if (c.day !== dname) return;
-      var key = c.loc + '|' + c.teacher;
-      if (!seen[key]){ seen[key] = true; cols.push({ key:key, loc:c.loc, teacher:c.teacher }); }
-    });
-    cols.sort(function(a,b){
-      var ia = TEACHER_ORDER.indexOf(a.teacher), ib = TEACHER_ORDER.indexOf(b.teacher);
-      return (ia<0?99:ia) - (ib<0?99:ib);
-    });
-    if (!cols.length) cols = [{ key:'-', loc:'', teacher:'' }];   // 빈 요일도 열 유지 (반 이동·추가용)
-    dayCols[dname] = cols;
+  var baseCols = [], seenB = {};
+  classes.forEach(function(c){
+    var key = c.loc + '|' + c.teacher;
+    if (!seenB[key]){ seenB[key] = true; baseCols.push({ key:key, loc:c.loc, teacher:c.teacher }); }
   });
+  baseCols.sort(function(a,b){
+    var ia = TEACHER_ORDER.indexOf(a.teacher), ib = TEACHER_ORDER.indexOf(b.teacher);
+    return (ia<0?99:ia) - (ib<0?99:ib);
+  });
+  if (!baseCols.length) baseCols = [{ key:'-', loc:'', teacher:'' }];
+  var dayCols = {};
+  DAYS.forEach(function(dname){ dayCols[dname] = baseCols; });
 
   // 통합 시간축: 10:00 ~ 10:00(22시), 수업이 벗어나면 확장
   var lo = 10*60, hi = 22*60;
@@ -539,7 +545,7 @@ function buildFullGrid(){
   var colDefs = ['46px'], colMeta = [];   // colMeta[i] = {day, cinfo} (1-based 제외한 데이터열)
   DAYS.forEach(function(dname, di){
     dayCols[dname].forEach(function(cinfo){
-      colDefs.push('minmax(104px, 1fr)');
+      colDefs.push('minmax(96px, 1fr)');
       colMeta.push({ day: dname, cinfo: cinfo });
     });
     if (di < DAYS.length-1){ colDefs.push('7px'); colMeta.push(null); }   // 요일 구분 공백
@@ -635,9 +641,22 @@ $('modal').addEventListener('click', function(e){ if (e.target === this) closeMo
 /* ── 이동 ── */
 function labelOf(c){ return c.cls + ' (' + c.day + c.start + ' ' + c.teacher + 'T)'; }
 function onBlockClick(e, c){
-  var att = e.target.closest('button[data-att-cid]');
-  if (att){ openAttend(c, att.getAttribute('data-nm')); return; }
-  if (mode === 'today') return;
+  if (mode === 'today'){
+    var chip0 = e.target.closest('button[data-nm]');
+    if (moving && moving.once){
+      // 1회 이동 대상 반 선택 중
+      if (chip0 && chip0.classList.contains('sel')){ cancelMove(); return; }
+      if (c.id === moving.fromId) return;
+      openOnceModal(c);
+      return;
+    }
+    if (!chip0) return;
+    var nm0 = chip0.getAttribute('data-nm');
+    if (chip0.hasAttribute('data-once-row')){ openOnceManage(c, nm0, parseInt(chip0.getAttribute('data-once-row'),10), 'in'); return; }
+    if (chip0.hasAttribute('data-away-row')){ openOnceManage(c, nm0, parseInt(chip0.getAttribute('data-away-row'),10), 'out'); return; }
+    openAttend(c, nm0);
+    return;
+  }
   var mv = e.target.closest('.clsmove');
   if (mv && !moving && !classMoving){ startClassMove(c); return; }
   var ab = e.target.closest('.stuadd');
@@ -654,13 +673,7 @@ function onBlockClick(e, c){
   }
   var onceChip = e.target.closest('button[data-once-row]');
   if (onceChip && !moving){
-    var row = onceChip.getAttribute('data-once-row'), nm = onceChip.getAttribute('data-nm');
-    if (confirm(nm + '의 1회 이동을 취소할까요?\n(' + (onceChip.title||'') + ')')){
-      post({ action:'timetableOnceCancel', row:row, student:nm }, '취소하는 중…', function(res){
-        if (res && res.result==='success'){ setStatus('1회 이동을 취소했어요.', 'ok'); load(true); }
-        else setStatus('취소 실패: ' + ((res&&res.message)||'오류'), 'err');
-      });
-    }
+    setStatus('1회 이동 학생이에요. 사유 확인·수정·취소는 오늘의 시간표에서 이름을 눌러 해주세요.', 'err');
     return;
   }
   var chip = e.target.closest('button[data-nm]');
@@ -681,13 +694,15 @@ function onBlockClick(e, c){
 }
 function cancelMove(){
   var wasClass = !!classMoving;
+  var wasOnce = !!(moving && moving.once);
   moving = null; classMoving = null;
+  $('mv-remove').style.display = '';
   document.body.classList.remove('moving');
   document.body.classList.remove('classmoving');
   $('movebar').classList.remove('on');
   document.querySelectorAll('.stus button.sel').forEach(function(b){ b.classList.remove('sel'); });
   setStatus('');
-  if (wasClass) render();
+  if (wasClass || wasOnce) render();
 }
 
 /* ── 반 통째 이동 ── */
@@ -741,8 +756,13 @@ function openAttend(c, nm){
     '<p class="merr" id="att-err"></p>'+
     '<div class="mbtns">'+
     (cur ? '<button onclick="submitAttend(\''+esc(c.id)+'\',\''+esc(nm)+'\',\'\')">기록 지우기</button>' : '')+
+    '<button onclick="startOnceMoveById(\''+esc(c.id)+'\',\''+esc(nm)+'\')">다른 반으로 1회 이동</button>'+
     '<button onclick="closeModal()">닫기</button></div>'
   );
+}
+function startOnceMoveById(cid, nm){
+  var c = classes.find(function(x){ return x.id===cid; });
+  if (c) startOnceMove(c, nm);
 }
 function submitAttend(cid, nm, status){
   var memo = ($('att-memo') ? $('att-memo').value : '').trim();
@@ -759,46 +779,124 @@ function submitAttend(cid, nm, status){
     });
 }
 
-/* 이동 확인 모달: 영구/1회 + 사유 */
+/* 이동 확인 모달 (전체/요일별 = 영구 이동 전용, 1회 이동은 오늘의 시간표에서) */
 function openMoveModal(target){
   var m = moving; if (!m) return;
   openModal(
-    '<h3>학생 이동</h3>'+
+    '<h3>학생 이동 (영구)</h3>'+
     '<p class="mdesc"><b>'+esc(m.name)+'</b><br>'+esc(m.fromLabel)+'<br>→ '+esc(labelOf(target))+'</p>'+
-    '<label class="radio on" id="r-perm"><input type="radio" name="mvtype" value="perm" checked style="margin-right:6px;">영구 이동'+
-    '<small>반이 완전히 바뀌어요. 리포트·학생 페이지의 정규 수업도 변경됩니다.</small></label>'+
-    '<label class="radio" id="r-once"><input type="radio" name="mvtype" value="once" style="margin-right:6px;">1회 이동 (이번 주만)'+
-    '<small>원래 반은 그대로 두고, 시간표에 일주일간 표시만 돼요. 사유 필수.</small></label>'+
-    '<textarea id="mv-reason" placeholder="사유 메모 — 1회 이동은 꼭 적어주세요 (예: 학교 행사로 보강)"></textarea>'+
-    '<p class="merr" id="mv-err"></p>'+
+    '<p class="mdesc">반이 완전히 바뀌고, 리포트·학생 페이지의 정규 수업도 변경됩니다.<br>이번 주만 옮기는 <b>1회 이동은 오늘의 시간표</b>에서 학생 이름을 눌러 해주세요.</p>'+
+    '<textarea id="mv-reason" placeholder="사유 메모 (선택)"></textarea>'+
     '<div class="mbtns"><button onclick="closeModal()">취소</button>'+
-    '<button class="primary" onclick="submitMove(\''+esc(target.id)+'\')">이동</button></div>'
+    '<button class="primary" onclick="submitMove(\''+esc(target.id)+'\')">영구 이동</button></div>'
   );
-  ['r-perm','r-once'].forEach(function(id){
-    $(id).addEventListener('click', function(){
-      $('r-perm').classList.toggle('on', id==='r-perm');
-      $('r-once').classList.toggle('on', id==='r-once');
-    });
-  });
 }
 function submitMove(toId){
   var m = moving; if (!m) return;
-  var type = document.querySelector('input[name=mvtype]:checked').value;
   var reason = $('mv-reason').value.trim();
-  if (type === 'once' && !reason){ $('mv-err').textContent = '1회 이동은 사유를 적어주세요.'; return; }
   closeModal();
-  post({ action:'timetableMove', book:book, student:m.name, fromId:m.fromId, toId:toId, moveType:type, reason:reason },
+  post({ action:'timetableMove', book:book, student:m.name, fromId:m.fromId, toId:toId, moveType:'perm', reason:reason },
     '이동하는 중…', function(res){
       if (res && res.result === 'success'){
         cancelMove();
-        setStatus((res.once ? '1회 이동을 기록했어요. 시간표에 일주일간 표시됩니다.'
-                            : (res.moved||'') + ' 이동 완료.' + rosterNote(res)), 'ok');
+        setStatus((res.moved||'') + ' 이동 완료.' + rosterNote(res), 'ok');
         load(true);
       } else {
         setStatus('이동 실패: ' + ((res && res.message) || '오류'), 'err');
         cancelMove(); load(true);
       }
     });
+}
+
+/* ── 1회 이동 (오늘의 시간표 전용) ── */
+function startOnceMove(c, nm){
+  closeModal();
+  moving = { name: nm, fromId: c.id, fromLabel: labelOf(c), once: true };
+  document.body.classList.add('moving');
+  $('movebar').classList.add('on');
+  $('mv-remove').style.display = 'none';
+  $('mv-name').textContent = nm;
+  $('mv-from').textContent = moving.fromLabel + ' 에서 1회 이동 — 옮길 반을 누르세요';
+  render();
+  setStatus('오늘 수업 중 옮겨 갈 반을 누르세요.');
+}
+function openOnceModal(target){
+  var m = moving; if (!m) return;
+  openModal(
+    '<h3>1회 이동 (오늘만)</h3>'+
+    '<p class="mdesc"><b>'+esc(m.name)+'</b><br>'+esc(m.fromLabel)+'<br>→ '+esc(labelOf(target))+'</p>'+
+    '<p class="mdesc">원래 반과 리포트는 그대로 두고, 시간표에 일주일간 표시돼요.</p>'+
+    '<textarea id="once-reason" placeholder="사유 메모 (필수) — 예: 학교 행사, 병원 진료로 보강"></textarea>'+
+    '<p class="merr" id="once-err"></p>'+
+    '<div class="mbtns"><button onclick="closeModal()">취소</button>'+
+    '<button class="primary" onclick="submitOnce(\''+esc(target.id)+'\')">1회 이동</button></div>'
+  );
+}
+function submitOnce(toId){
+  var m = moving; if (!m) return;
+  var reason = $('once-reason').value.trim();
+  if (!reason){ $('once-err').textContent = '1회 이동은 사유를 적어주세요.'; return; }
+  closeModal();
+  post({ action:'timetableMove', book:book, student:m.name, fromId:m.fromId, toId:toId, moveType:'once', reason:reason },
+    '기록하는 중…', function(res){
+      if (res && res.result === 'success'){
+        cancelMove();
+        setStatus(m.name + ' 1회 이동 완료. 이동한 반에서 보라색 이름으로 표시돼요.', 'ok');
+        load(true);
+      } else { setStatus('1회 이동 실패: ' + ((res && res.message) || '오류'), 'err'); cancelMove(); }
+    });
+}
+/* 1회 이동 확인·사유 수정·취소 (+이동해 온 학생은 출석 체크 포함) */
+function openOnceManage(c, nm, row, dir){
+  var o = onceMoves.find(function(x){ return x.row === row; });
+  if (!o){ load(true); return; }
+  var from = classes.find(function(x){ return x.id===o.fromId; });
+  var to = classes.find(function(x){ return x.id===o.toId; });
+  var cur = attend[c.id + '|' + nm];
+  var attSec = (dir === 'in')
+    ? '<div class="att-btns">'+
+      '<button class="pick-ok'+(cur&&cur.status==='출석'?' on':'')+'" onclick="submitAttend(\''+esc(c.id)+'\',\''+esc(nm)+'\',\'출석\')">출석</button>'+
+      '<button class="pick-late'+(cur&&cur.status==='지각'?' on':'')+'" onclick="submitAttend(\''+esc(c.id)+'\',\''+esc(nm)+'\',\'지각\')">지각</button>'+
+      '<button class="pick-abs'+(cur&&cur.status==='결석'?' on':'')+'" onclick="submitAttend(\''+esc(c.id)+'\',\''+esc(nm)+'\',\'결석\')">결석</button>'+
+      '</div>'+
+      '<textarea id="att-memo" placeholder="출석 메모 — 지각은 꼭 적어주세요">'+esc(cur ? cur.memo : '')+'</textarea>'+
+      '<p class="merr" id="att-err"></p>'
+    : '';
+  openModal(
+    '<h3>1회 이동 학생</h3>'+
+    '<p class="mdesc"><b>'+esc(nm)+'</b> ('+esc(o.date)+')<br>'+
+    esc(from ? labelOf(from) : '') + ' → ' + esc(to ? labelOf(to) : '') +
+    (dir==='out' ? '<br>오늘은 이동한 반에서 수업해요. 출석 체크도 그 반에서 해주세요.' : '')+'</p>'+
+    attSec +
+    '<label style="font-size:.8rem;color:var(--ink-soft);display:block;margin-top:8px;">이동 사유 메모</label>'+
+    '<textarea id="om-reason">'+esc(o.reason)+'</textarea>'+
+    '<p class="merr" id="om-err"></p>'+
+    '<div class="mbtns">'+
+    '<button onclick="onceCancel('+row+',\''+esc(nm)+'\')">1회 이동 취소</button>'+
+    '<button onclick="onceEditReason('+row+',\''+esc(nm)+'\')">사유 저장</button>'+
+    '<button onclick="closeModal()">닫기</button></div>'
+  );
+}
+function onceEditReason(row, nm){
+  var reason = $('om-reason').value.trim();
+  if (!reason){ $('om-err').textContent = '사유를 적어주세요.'; return; }
+  closeModal();
+  post({ action:'timetableOnceEdit', row:row, student:nm, reason:reason }, '저장하는 중…', function(res){
+    if (res && res.result === 'success'){
+      var o = onceMoves.find(function(x){ return x.row === row; });
+      if (o) o.reason = reason;
+      render();
+      setStatus('사유 메모를 저장했어요.', 'ok');
+    } else setStatus('저장 실패: ' + ((res && res.message) || '오류'), 'err');
+  });
+}
+function onceCancel(row, nm){
+  if (!confirm(nm + '의 1회 이동을 취소할까요?\n원래 반으로 되돌아갑니다.')) return;
+  closeModal();
+  post({ action:'timetableOnceCancel', row:row, student:nm }, '취소하는 중…', function(res){
+    if (res && res.result==='success'){ setStatus('1회 이동을 취소했어요.', 'ok'); load(true); }
+    else setStatus('취소 실패: ' + ((res&&res.message)||'오류'), 'err');
+  });
 }
 
 /* 반에서 빼기 */

@@ -2214,6 +2214,7 @@ function doPost(e) {
     if (data && data.action === 'timetableAdd')     { return timetableAdd(data); }
     if (data && data.action === 'timetableRemove')  { return timetableRemove(data); }
     if (data && data.action === 'timetableOnceCancel') { return timetableOnceCancel(data); }
+    if (data && data.action === 'timetableOnceEdit')   { return timetableOnceEdit(data); }
     if (data && data.action === 'attendSet')        { return attendSet(data); }
     if (data && data.action === 'timetableMoveClass') { return timetableMoveClass(data); }
     if (data && data.action === 'timetableAddClass')  { return timetableAddClass(data); }
@@ -2682,6 +2683,22 @@ function timetableMoveClass(data) {
   }
 }
 
+/** 1회 이동 사유 수정. { pw, row, student, reason } */
+function timetableOnceEdit(data) {
+  if (String(data.pw || '') !== TEACHER_PW) return json({ result:'error', message:'unauthorized' });
+  var row = parseInt(data.row, 10);
+  var reason = String(data.reason || '').trim();
+  if (!reason) return json({ result:'error', message:'사유를 적어주세요.' });
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ss.getSheetByName(TAB_TT_LOG);
+  if (!sh || !row || row < 2 || row > sh.getLastRow()) return json({ result:'error', message:'기록을 찾을 수 없어요.' });
+  var v = sh.getRange(row, 1, 1, 8).getValues()[0];
+  if (String(v[1]).trim() !== '1회' || String(v[2]).trim() !== String(data.student || '').trim()) {
+    return json({ result:'error', message:'기록이 달라졌어요. 새로고침 후 다시 시도해 주세요.' });
+  }
+  sh.getRange(row, 8).setValue(reason);
+  return json({ result:'success', reason: reason });
+}
 /** 반 추가. { pw, book, day, start, end, loc, teacher, cls } */
 function timetableAddClass(data) {
   if (String(data.pw || '') !== TEACHER_PW) return json({ result:'error', message:'unauthorized' });
