@@ -984,7 +984,8 @@ function onBlockClick(e, c){
     $('mv-name').textContent = moving.name;
     $('mv-from').textContent = moving.fromLabel + ' 에서';
     chip.classList.add('sel');
-    setStatus('옮길 반을 누르세요. 요일별 보기에서는 위 탭으로 요일을 바꿔도 이동 모드가 유지돼요.');
+    setStatus('아래 목록에서 옮길 반을 고르거나, 시간표에서 반을 직접 누르세요.');
+    openMovePicker(c);
     return;
   }
   if (chip && moving && chip.classList.contains('sel')){ cancelMove(); return; }
@@ -1085,6 +1086,47 @@ function submitAttend(cid, nm, status){
         setStatus(nm + (status ? ' — ' + status + ' 기록 완료.' : ' 기록을 지웠어요.') + (d !== todayStr() ? ' (' + d + ')' : ''), 'ok');
       } else setStatus('기록 실패: ' + ((res && res.message) || '오류'), 'err');
     });
+}
+
+/* 반 종류 그룹: 고1 가 / 고1 나 / 고3파이널 / 정리정독 중N / 논술 */
+function classGroupKey(cls){
+  var c = String(cls || '').trim();
+  var m = c.match(/^(고[123])\s*(가|나)$/);
+  if (m) return m[1] + ' ' + m[2];
+  if (/^고3\s*파이널/.test(c)) return '고3파이널';
+  m = c.match(/^정리정독\s*중(\d)/);
+  if (m) return '정리정독 중' + m[1];
+  if (/^논술/.test(c)) return '논술';
+  return c;
+}
+var DAY_IDX = { '월':0, '화':1, '수':2, '목':3, '금':4, '토':5, '일':6 };
+/* 학생 클릭 시: 같은 종류 반 목록에서 바로 골라 이동 */
+function openMovePicker(fromC){
+  var m = moving; if (!m) return;
+  var g = classGroupKey(fromC.cls);
+  var cands = classes.filter(function(x){ return x.id !== fromC.id && classGroupKey(x.cls) === g; })
+    .sort(function(a, b){ return (DAY_IDX[a.day] - DAY_IDX[b.day]) || (mins(a.start) - mins(b.start)); });
+  openModal(
+    '<h3>학생 이동 — ' + esc(m.name) + '</h3>'+
+    '<p class="mdesc">' + esc(m.fromLabel) + ' 에서 이동. 같은 종류(<b>' + esc(g) + '</b>) 반:</p>'+
+    (cands.length
+      ? '<div class="pick-list" style="flex-direction:column;align-items:stretch;">'+
+        cands.map(function(x){
+          return '<button data-mv-to="' + esc(x.id) + '" style="text-align:left;border-radius:10px;padding:8px 12px;">'+
+            '<b>' + esc(x.cls) + '</b> · ' + esc(x.day) + esc(x.start) + '~' + esc(x.end) +
+            ' · ' + esc(x.teacher) + 'T (' + esc(x.loc) + ') · ' + x.students.length + '명</button>';
+        }).join('') + '</div>'
+      : '<p class="subnote">같은 종류의 다른 반이 없어요.</p>')+
+    '<p class="subnote">다른 종류의 반으로 옮기려면 아래 버튼으로 창을 닫고, 시간표에서 옮길 반을 직접 누르세요.</p>'+
+    '<div class="mbtns"><button onclick="cancelMove(); closeModal();">이동 취소</button>'+
+    '<button onclick="closeModal()">시간표에서 직접 선택</button></div>'
+  );
+  $('modal-box').querySelectorAll('button[data-mv-to]').forEach(function(b){
+    b.addEventListener('click', function(){
+      var t = classes.find(function(x){ return x.id === b.getAttribute('data-mv-to'); });
+      if (t) openMoveModal(t);
+    });
+  });
 }
 
 /* 이동 확인 모달 (전체/요일별 = 영구 이동 전용, 1회 이동은 오늘의 시간표에서) */
