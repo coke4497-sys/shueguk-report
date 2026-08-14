@@ -282,11 +282,27 @@ function setStatus(msg, isErr){
   el.style.color = isErr ? '#B4574E' : '';
 }
 
+/* ── 브라우저 캐시: 이전 데이터를 즉시 띄우고, 뒤에서 최신으로 조용히 갱신 ── */
+function cacheGet(k){ try { var v = JSON.parse(localStorage.getItem('hwc:' + k) || 'null'); return v && v.d; } catch(e){ return null; } }
+function cacheSet(k, d){ try { localStorage.setItem('hwc:' + k, JSON.stringify({ t: Date.now(), d: d })); } catch(e){} }
+
 function boot(){
-  setStatus('명단을 불러오는 중…');
+  // 캐시된 명단이 있으면 즉시 화면부터
+  var cr = cacheGet('roster');
+  var painted = false;
+  if (cr && cr.length){
+    roster = cr;
+    $('gate').style.display = 'none';
+    $('bar').style.display = 'block';
+    buildTypeValues();
+    loadWeek();
+    painted = true;
+  }
+  setStatus(painted ? '최신 명단 확인 중…' : '명단을 불러오는 중…');
   getJSON(ENDPOINT + '?action=studentLinks&pw=' + encodeURIComponent(pw))
     .then(function(r){
       if (!r || r.result !== 'success'){
+        if (painted){ setStatus(''); return; }   // 캐시 화면 유지
         pw = ''; sessionStorage.removeItem('hwcheck_pw');
         $('gate').style.display = ''; $('bar').style.display = 'none';
         $('gate-err').textContent = (r && /unauthor/i.test(r.message||'')) ? '비밀번호가 올바르지 않습니다.' : '명단을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.';
@@ -296,57 +312,84 @@ function boot(){
       sessionStorage.setItem('hwcheck_pw', pw);
       roster = (r.students || []).filter(function(s){ return s.code; });
       roster.sort(function(a,b){ return a.name.localeCompare(b.name, 'ko'); });
+      cacheSet('roster', roster);
       $('gate').style.display = 'none';
       $('bar').style.display = 'block';   // CSS 기본값이 display:none이라 ''로는 안 보임
       buildTypeValues();
-      loadWeek();
+      if (painted) render(); else loadWeek();   // 이미 주차 로딩을 시작했으면 목록만 갱신
       setTimeout(refreshPlansBadge, 4000);   // 대책 뱃지는 잠시 뒤에 — 첫 화면 요청과 겹치지 않게
     })
-    .catch(function(){ setStatus('서버 연결에 실패했어요. 잠시 후 다시 시도해 주세요.', true); });
+    .catch(function(){ if (painted) setStatus(''); else setStatus('서버 연결에 실패했어요. 잠시 후 다시 시도해 주세요.', true); });
 }
 
 function loadWeek(){
   weekLabel();
-  setStatus('검사 기록을 불러오는 중…');
+  // 캐시된 주차 기록이 있으면 즉시 표시
+  var chw = cacheGet('hw:' + week);
+  var painted = false;
+  if (chw){
+    items = chw.items || [];
+    records = chw.records || {};
+    if (ttClasses === null){ var ctm = cacheGet('ttmap'); if (ctm){ ttClasses = ctm; ttStale = true; } }
+    var cwk = cacheGet('hwwk:' + week);
+    if (cwk){ wkAtt = cwk.a || []; wkOnce = cwk.o || []; }
+    renderChips();
+    render();
+    painted = true;
+  }
+  setStatus(painted ? '최신 기록 확인 중…' : '검사 기록을 불러오는 중…');
   var pData = getJSON(ENDPOINT + '?action=hwcheckData&pw=' + encodeURIComponent(pw) + '&week=' + encodeURIComponent(week));
-  var pTT = (ttClasses === null) ? loadTimetableMap() : Promise.resolve();
+  var pTT = (ttClasses === null || ttStale) ? loadTimetableMap() : Promise.resolve();
   var pWk = loadWeekTT();
   Promise.all([pData, pTT, pWk])
     .then(function(rs){
       var r = rs[0];
-      if (!r || r.result !== 'success'){ setStatus('기록을 불러오지 못했어요. 새로고침 해주세요.', true); return; }
+      if (!r || r.result !== 'success'){
+        if (painted) setStatus('');
+        else setStatus('기록을 불러오지 못했어요. 새로고침 해주세요.', true);
+        return;
+      }
       items = r.items || [];
       records = r.records || {};
+      cacheSet('hw:' + week, { items: items, records: records });
       setStatus('');
       renderChips();
       render();
     })
-    .catch(function(){ setStatus('서버 연결에 실패했어요. 잠시 후 다시 시도해 주세요.', true); });
+    .catch(function(){ if (painted) setStatus(''); else setStatus('서버 연결에 실패했어요. 잠시 후 다시 시도해 주세요.', true); });
 }
 
 /* ── 시간표 연동: 그 주의 출석·1회 이동을 학생 카드에 표시 ── */
 var ttClasses = null;   // 반ID -> {slot('금5:30'), label}
+var ttStale = false;    // 캐시로 채워졌으면 한 번 최신으로 갱신
 var wkAtt = [], wkOnce = [];
 function plainNm(n){ return String(n || '').replace(/\(.*\)$/, '').trim(); }
 function loadTimetableMap(){
   return getJSON(ENDPOINT + '?action=timetableList&pw=' + encodeURIComponent(pw) + '&book=' + encodeURIComponent('정규'))
     .then(function(r){
-      ttClasses = {};
-      if (r && r.result === 'success') (r.classes || []).forEach(function(c){
-        ttClasses[c.id] = { slot: slotNorm(c.day + c.start), label: c.cls };
-      });
+      if (r && r.result === 'success'){
+        ttClasses = {};
+        (r.classes || []).forEach(function(c){
+          ttClasses[c.id] = { slot: slotNorm(c.day + c.start), label: c.cls };
+        });
+        cacheSet('ttmap', ttClasses);
+        ttStale = false;
+      } else if (ttClasses === null) ttClasses = {};
     })
-    .catch(function(){ ttClasses = {}; });
+    .catch(function(){ if (ttClasses === null) ttClasses = {}; });
 }
 function loadWeekTT(){
   var to = ymd(new Date(parseYmd(week).getTime() + 4*86400000));   // 수~일
   return getJSON(ENDPOINT + '?action=timetableWeek&pw=' + encodeURIComponent(pw) +
                  '&book=' + encodeURIComponent('정규') + '&from=' + week + '&to=' + to)
     .then(function(r){
-      wkAtt = (r && r.attend) || [];
-      wkOnce = (r && r.onceMoves) || [];
+      if (r && r.result === 'success'){
+        wkAtt = r.attend || [];
+        wkOnce = r.onceMoves || [];
+        cacheSet('hwwk:' + week, { a: wkAtt, o: wkOnce });
+      }
     })
-    .catch(function(){ wkAtt = []; wkOnce = []; });
+    .catch(function(){});
 }
 function ttInfoHtml(s){
   if (!ttClasses) return '';
