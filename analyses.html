@@ -114,7 +114,7 @@
   function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
   /* ===== 잠금 ===== */
-  (function(){ try{ if(localStorage.getItem(LOCK_KEY)==='1'){ unlock(); } }catch(e){} })();
+  (function(){ unlock(); })();   // 티쳐스 페이지 비밀번호 제거(접속 간소화, 2026-08-14)
   function unlock(){ document.body.classList.remove('locked'); init(); }
   function checkLock(){
     var v=document.getElementById('lockInput').value, ok=false;

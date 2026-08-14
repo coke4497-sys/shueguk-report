@@ -66,6 +66,14 @@
   .viewtabs .sp{flex:1;}
   .viewtabs .reload{font-size:.82rem;background:var(--icon-bg);border:1px solid var(--line-soft);
     border-radius:9px;padding:6px 12px;color:var(--ink-soft);cursor:pointer;}
+  .editbar{display:none;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:6px;}
+  .editbar.show{display:flex;}
+  .editbar .elabel{font-size:.78rem;color:var(--ink-soft);margin-right:2px;}
+  .editbar button{font:inherit;font-size:.84rem;background:var(--icon-bg);border:1px solid var(--line-soft);
+    border-radius:9px;padding:5px 12px;color:var(--ink);cursor:pointer;}
+  .editbar button.on{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:700;}
+  body.editpick .blk{cursor:pointer;}
+  body.editpick .blk:hover{outline:2px solid var(--btn);}
   .daytabs{display:none;gap:6px;flex-wrap:wrap;align-items:center;}
   .daytabs.show{display:flex;}
   .daytabs button{font:inherit;font-size:.95rem;background:#fff;border:1px solid var(--line);
@@ -203,9 +211,15 @@
       <button id="v-all" onclick="setMode('all')">전체 시간표</button>
       <button id="v-week" onclick="setMode('week')">주차별</button>
       <span class="sp"></span>
-      <button class="reload" onclick="openAddClass()">반 추가</button>
-      <button class="reload" onclick="openLog()">이동 기록</button>
       <button class="reload" onclick="load(true)">다시 불러오기</button>
+    </div>
+    <div class="editbar" id="editbar">
+      <span class="elabel">편집</span>
+      <button id="e-move" onclick="setEdit('move')">반 이동</button>
+      <button id="e-add" onclick="setEdit('add')">학생 추가</button>
+      <button id="e-del" onclick="setEdit('del')">반 삭제</button>
+      <button onclick="openAddClass()">반 추가</button>
+      <button onclick="openLog()">이동 기록</button>
     </div>
     <p class="hint">학생 이름을 누르면 이동 모드가 켜져요. 옮길 반(다른 요일 포함)을 누르면 이동됩니다.</p>
     <div class="legend">
@@ -237,7 +251,7 @@ var ENDPOINT = "https://script.google.com/macros/s/AKfycbzhCncBwn-JlqXARC3wfrWUC
 var DAYS = ['월', '화', '수', '목', '금', '토', '일'];
 var TEACHER_ORDER = ['슈', '선주', '승연', '주혜', '현정', '연주', '현지', '지원', '덕기', '은지'];
 
-var pw = sessionStorage.getItem('tt_pw') || '';
+var pw = 'sh';   // 티쳐스 페이지 비밀번호 제거(접속 간소화, 2026-08-14) — 백엔드 TEACHER_PW 내장
 var classes = [];      // {id, day, start, end, loc, teacher, cls, students[]}
 var onceMoves = [];    // {row, date, student, fromId, toId, reason}
 var roster = null;     // 재원생 명단 캐시 (추가용)
@@ -250,6 +264,7 @@ var WEEK_VIEW_ORDER = ['월','화','수','목','금','토','일'];   // 주차�
 var weekAttend = {};   // 주차 출석: 날짜|반ID|학생 -> {status, memo}
 var weekOnce = [];     // 주차 1회 이동
 var attDate = null;    // 출석 모달이 다루는 날짜
+var editMode = null;        // 'move' | 'add' | 'del' — 편집 도구줄에서 선택
 var pendingScroll = null;   // 재렌더 후 복원할 스크롤 위치
 var keepScroll = true;      // 보기 전환 시에는 복원하지 않음
 var book = sessionStorage.getItem('tt_book') || '정규';  // '정규' | '내신'
@@ -383,10 +398,42 @@ function loadAttend(done){
 }
 
 /* ── 렌더 ── */
+function setEdit(m){
+  if (editMode === m){ clearEdit(); return; }
+  if (moving || classMoving) cancelMove();
+  editMode = m;
+  document.body.classList.add('editpick');
+  ['e-move','e-add','e-del'].forEach(function(id){ $(id).classList.remove('on'); });
+  $('e-' + m).classList.add('on');
+  setStatus(m === 'move' ? '이동할 반을 누르세요. 누른 뒤 옮길 빈 자리를 누르면 반 전체가 이동해요.'
+          : m === 'add'  ? '학생을 추가할 반을 누르세요.'
+                         : '삭제할 반을 누르세요. (빈 반만 삭제할 수 있어요)');
+}
+function clearEdit(){
+  editMode = null;
+  document.body.classList.remove('editpick');
+  ['e-move','e-add','e-del'].forEach(function(id){ var b=$(id); if(b) b.classList.remove('on'); });
+  setStatus('');
+}
+function applyEdit(c){
+  var m = editMode;
+  clearEdit();
+  if (m === 'move'){ startClassMove(c); return; }
+  if (m === 'add'){ openAdd(c); return; }
+  if (m === 'del'){
+    if (c.students.length){ alert('학생이 남아 있는 반은 삭제할 수 없어요.\n먼저 학생을 다른 반으로 이동하거나 빼주세요. (' + c.students.length + '명)'); return; }
+    if (!confirm(labelOf(c) + '\n\n이 빈 반을 삭제할까요?')) return;
+    post({ action:'timetableDeleteClass', book:book, classId:c.id }, '삭제하는 중…', function(res){
+      if (res && res.result === 'success'){ setStatus('반을 삭제했어요.', 'ok'); load(true); }
+      else setStatus('삭제 실패: ' + ((res && res.message) || '오류'), 'err');
+    });
+  }
+}
 function setMode(m){
   mode = m;
   sessionStorage.setItem('tt_mode', m);
   keepScroll = false;
+  clearEdit();
   cancelMove();
   renderTabs();
   if (m === 'week') loadWeek(); else render();
@@ -408,6 +455,7 @@ function renderTabs(){
     (mode === 'today') ? '학생 이름을 누르면 출석·지각·결석을 기록할 수 있어요. 1회 이동은 출석 모달의 버튼으로.'
     : (mode === 'week') ? '그 주의 출석·1회 이동 기록이 함께 보여요. 학생 이름을 누르면 해당 날짜의 출석 기록·수정. 월·화 직전보강은 위 반 추가 버튼으로 만드세요.'
     : '학생 이름을 누르면 이동 모드가 켜져요. 옮길 반(다른 요일 포함)을 누르면 영구 이동됩니다.';
+  $('editbar').classList.toggle('show', mode !== 'today');
 }
 function render(){
   var host = $('sheet');
@@ -504,12 +552,7 @@ function blockEl(c){
     }).join('');
   }
   if (!chips) chips = '<span class="empty-note">비어 있음</span>';
-  var btnRow = (mode === 'today') ? '' :
-    '<div class="btns">'+
-    '<button class="bbtn clsmove" title="이 반 전체를 빈 자리로 이동">반 이동</button>'+
-    '<button class="bbtn stuadd" title="이 반에 학생 추가">추가</button>'+
-    (c.students.length ? '' : '<button class="bbtn clsdel" title="빈 반 삭제">삭제</button>')+
-    '</div>';
+  var btnRow = '';   // 편집 기능은 상단 편집 도구줄에서
   b.innerHTML = '<div class="bt"><span class="nm">'+esc(c.cls)+'</span>'+
                 '<small>'+esc(c.start)+'~'+esc(c.end)+' · '+c.students.length+'명</small></div>'+
                 btnRow +
@@ -861,11 +904,7 @@ function buildWeekGrid(){
     if (!chips) chips = '<span class="empty-note">비어 있음</span>';
     b.innerHTML = '<div class="bt"><span class="nm">'+esc(c.cls)+'</span>'+
                   '<small>'+esc(c.start)+'~'+esc(c.end)+' · '+c.students.length+'명</small></div>'+
-                  '<div class="btns">'+
-                  '<button class="bbtn clsmove" title="이 반 전체를 빈 자리로 이동">반 이동</button>'+
-                  '<button class="bbtn stuadd" title="이 반에 학생 추가">추가</button>'+
-                  (c.students.length ? '' : '<button class="bbtn clsdel" title="빈 반 삭제">삭제</button>')+
-                  '</div>'+
+
                   '<div class="stus">'+chips+'</div>';
     b.addEventListener('click', function(e){ onWeekClick(e, c, dstr); });
     g.appendChild(b);
@@ -882,20 +921,7 @@ function buildWeekGrid(){
   return wrap;
 }
 function onWeekClick(e, c, dstr){
-  var mv = e.target.closest('.clsmove');
-  if (mv && !moving && !classMoving){ startClassMove(c); return; }
-  var ab = e.target.closest('.stuadd');
-  if (ab && !classMoving){ openAdd(c); return; }
-  var del = e.target.closest('.clsdel');
-  if (del){
-    if (c.students.length){ alert('학생이 남아 있는 반은 삭제할 수 없어요.\n먼저 학생을 빼주세요. (' + c.students.length + '명)'); return; }
-    if (!confirm(labelOf(c) + '\n\n이 빈 반을 삭제할까요?')) return;
-    post({ action:'timetableDeleteClass', book:book, classId:c.id }, '삭제하는 중…', function(res){
-      if (res && res.result === 'success'){ setStatus('반을 삭제했어요.', 'ok'); load(true); }
-      else setStatus('삭제 실패: ' + ((res && res.message) || '오류'), 'err');
-    });
-    return;
-  }
+  if (editMode && !moving && !classMoving){ applyEdit(c); return; }
   var chip = e.target.closest('button[data-nm]');
   if (!chip) return;
   var nm = chip.getAttribute('data-nm');
@@ -944,20 +970,7 @@ function onBlockClick(e, c){
     openAttend(c, nm0);
     return;
   }
-  var mv = e.target.closest('.clsmove');
-  if (mv && !moving && !classMoving){ startClassMove(c); return; }
-  var ab = e.target.closest('.stuadd');
-  if (ab && !moving && !classMoving){ openAdd(c); return; }
-  var del = e.target.closest('.clsdel');
-  if (del && !moving && !classMoving){
-    if (c.students.length){ alert('학생이 남아 있는 반은 삭제할 수 없어요.\n먼저 학생을 다른 반으로 이동하거나 빼주세요. (' + c.students.length + '명)'); return; }
-    if (!confirm(labelOf(c) + '\n\n이 빈 반을 삭제할까요?')) return;
-    post({ action:'timetableDeleteClass', book:book, classId:c.id }, '삭제하는 중…', function(res){
-      if (res && res.result === 'success'){ setStatus('반을 삭제했어요.', 'ok'); load(true); }
-      else setStatus('삭제 실패: ' + ((res && res.message) || '오류'), 'err');
-    });
-    return;
-  }
+  if (editMode && !moving && !classMoving){ applyEdit(c); return; }
   var onceChip = e.target.closest('button[data-once-row]');
   if (onceChip && !moving){
     setStatus('1회 이동 학생이에요. 사유 확인·수정·취소는 오늘의 시간표에서 이름을 눌러 해주세요.', 'err');
@@ -1329,12 +1342,11 @@ function openLog(){
 }
 
 /* ── 시작 ── */
-if (pw){
-  load(false, function(ok){
-    if (ok){ $('gate').style.display='none'; $('bar').style.display='block'; $('sheet').style.display='block'; }
-    else { sessionStorage.removeItem('tt_pw'); pw=''; }
-  });
-}
+$('gate').style.display = 'none';
+$('bar').style.display = 'block';
+$('sheet').style.display = 'block';
+renderTabs();
+load(false);
 </script>
 </body>
 </html>
