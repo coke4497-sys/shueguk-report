@@ -66,6 +66,14 @@
   .viewtabs .sp{flex:1;}
   .viewtabs .reload{font-size:.82rem;background:var(--icon-bg);border:1px solid var(--line-soft);
     border-radius:9px;padding:6px 12px;color:var(--ink-soft);cursor:pointer;}
+  .searchbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:6px;}
+  .searchbar input{font:inherit;font-size:.9rem;padding:6px 12px;border:1.5px solid var(--line);border-radius:10px;width:150px;}
+  #searchResults{display:flex;gap:6px;flex-wrap:wrap;font-size:.8rem;align-items:center;color:var(--ink-soft);}
+  #searchResults button{font:inherit;font-size:.8rem;background:#fff;border:1px solid var(--line);
+    border-radius:999px;padding:3px 11px;cursor:pointer;color:var(--ink);}
+  #searchResults button b{color:var(--accent);}
+  .blk.search-blk{outline:2px solid #B08A3E;}
+  .stus button.search-hit{background:#B08A3E;border-color:#B08A3E;color:#fff;font-weight:700;}
   .editbar{display:none;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:6px;}
   .editbar.show{display:flex;}
   .editbar .elabel{font-size:.78rem;color:var(--ink-soft);margin-right:2px;}
@@ -220,6 +228,10 @@
       <button id="e-del" onclick="setEdit('del')">반 삭제</button>
       <button onclick="openAddClass()">반 추가</button>
       <button onclick="openLog()">이동 기록</button>
+    </div>
+    <div class="searchbar">
+      <input id="stu-q" placeholder="학생 검색" autocomplete="off" />
+      <span id="searchResults"></span>
     </div>
     <p class="hint">학생 이름을 누르면 이동 모드가 켜져요. 옮길 반(다른 요일 포함)을 누르면 이동됩니다.</p>
     <div class="legend">
@@ -514,6 +526,7 @@ function blockEl(c){
   var b = document.createElement('div');
   var todayDrop = (mode==='today' && moving && moving.once) ? 'droppable ' : '';
   b.className = 'blk ' + (mode==='today' ? todayDrop : 'droppable ') + colorOf(c.cls) + (classMoving && classMoving.id===c.id ? ' moving-src' : '');
+  b.setAttribute('data-cid', c.id);
   var awayOf = {};   // 이 반에서 1회 이동으로 빠진 학생 → {label, row}
   var temps = [];    // 이 반으로 1회 이동해 온 학생
   onceMoves.forEach(function(o){
@@ -575,6 +588,7 @@ function tuneRowHeight(g, headerAuto, nrows){
     if (maxPer > 46) g.style.gridTemplateRows = (headerAuto ? headerAuto + ' ' : '') + 'repeat(' + nrows + ', ' + maxPer + 'px)';
     var sw = g.closest ? g.closest('.scrollwrap') : null;
     if (sw && pendingScroll){ sw.scrollTop = pendingScroll.top; sw.scrollLeft = pendingScroll.left; pendingScroll = null; }
+    applySearchHits();
   });
 }
 function addCell(g, ci, r, dname, cinfo, lo, rowOffset){
@@ -878,6 +892,7 @@ function buildWeekGrid(){
     if (r1 <= r0) r1 = r0+1;
     var b = document.createElement('div');
     b.className = 'blk ' + colorOf(c.cls);
+    b.setAttribute('data-cid', c.id);
     b.style.gridColumn = String(col);
     b.style.gridRow = (r0+1) + ' / ' + (r1+1);
     var awayOf = {}, temps = [];
@@ -946,10 +961,56 @@ function rosterNote(res){
   return res.rosterUpdated ? ' 리포트·학생 페이지에도 반영됐어요.' : (res.rosterMsg ? ' (' + res.rosterMsg + ')' : '');
 }
 
+/* ── 학생 검색 ── */
+function plainName(nm){ return String(nm || '').replace(/\(.*\)$/, ''); }
+function searchStudent(){
+  var q = $('stu-q').value.trim();
+  var box = $('searchResults');
+  if (!q){ box.innerHTML = ''; applySearchHits(); return; }
+  var out = [];
+  classes.forEach(function(c){
+    c.students.forEach(function(nm){
+      if (plainName(nm).indexOf(q) >= 0) out.push({ c: c, nm: nm });
+    });
+  });
+  out.sort(function(a, b){ return plainName(a.nm).localeCompare(plainName(b.nm), 'ko') || (DAY_IDX[a.c.day] - DAY_IDX[b.c.day]); });
+  box.innerHTML = out.length
+    ? out.slice(0, 12).map(function(h){
+        return '<button onclick="gotoSearchHit(\'' + esc(h.c.id) + '\')"><b>' + esc(h.nm) + '</b> ' +
+               esc(h.c.cls) + ' · ' + esc(h.c.day) + esc(h.c.start) + ' ' + esc(h.c.teacher) + 'T</button>';
+      }).join('') + (out.length > 12 ? '<span>외 ' + (out.length - 12) + '건</span>' : '')
+    : '<span>검색 결과가 없어요.</span>';
+  applySearchHits();
+}
+function applySearchHits(){
+  var q = $('stu-q') ? $('stu-q').value.trim() : '';
+  document.querySelectorAll('.stus button.search-hit').forEach(function(b){ b.classList.remove('search-hit'); });
+  document.querySelectorAll('.blk.search-blk').forEach(function(b){ b.classList.remove('search-blk'); });
+  if (!q) return;
+  document.querySelectorAll('.stus button[data-nm]').forEach(function(b){
+    if (plainName(b.getAttribute('data-nm')).indexOf(q) >= 0){
+      b.classList.add('search-hit');
+      var blk = b.closest('.blk');
+      if (blk) blk.classList.add('search-blk');
+    }
+  });
+}
+function gotoSearchHit(cid){
+  var el = document.querySelector('.blk[data-cid="' + cid + '"]');
+  if (!el && mode === 'today'){
+    setMode('all');
+    requestAnimationFrame(function(){ requestAnimationFrame(function(){ gotoSearchHit(cid); }); });
+    return;
+  }
+  if (!el) return;
+  el.scrollIntoView({ block: 'center', inline: 'center', behavior: 'smooth' });
+}
+
 /* ── 모달 ── */
 function openModal(html){ $('modal-box').innerHTML = html; $('modal').classList.add('on'); }
 function closeModal(){ $('modal').classList.remove('on'); }
 $('modal').addEventListener('click', function(e){ if (e.target === this) closeModal(); });
+$('stu-q').addEventListener('input', searchStudent);
 
 /* ── 이동 ── */
 function labelOf(c){ return c.cls + ' (' + c.day + c.start + ' ' + c.teacher + 'T)'; }
@@ -984,7 +1045,8 @@ function onBlockClick(e, c){
     $('mv-name').textContent = moving.name;
     $('mv-from').textContent = moving.fromLabel + ' 에서';
     chip.classList.add('sel');
-    setStatus('옮길 반을 누르세요. 요일별 보기에서는 위 탭으로 요일을 바꿔도 이동 모드가 유지돼요.');
+    setStatus('아래 목록에서 옮길 반을 고르거나, 시간표에서 반을 직접 누르세요.');
+    openMovePicker(c);
     return;
   }
   if (chip && moving && chip.classList.contains('sel')){ cancelMove(); return; }
@@ -1085,6 +1147,47 @@ function submitAttend(cid, nm, status){
         setStatus(nm + (status ? ' — ' + status + ' 기록 완료.' : ' 기록을 지웠어요.') + (d !== todayStr() ? ' (' + d + ')' : ''), 'ok');
       } else setStatus('기록 실패: ' + ((res && res.message) || '오류'), 'err');
     });
+}
+
+/* 반 종류 그룹: 고1 가 / 고1 나 / 고3파이널 / 정리정독 중N / 논술 */
+function classGroupKey(cls){
+  var c = String(cls || '').trim();
+  var m = c.match(/^(고[123])\s*(가|나)$/);
+  if (m) return m[1] + ' ' + m[2];
+  if (/^고3\s*파이널/.test(c)) return '고3파이널';
+  m = c.match(/^정리정독\s*중(\d)/);
+  if (m) return '정리정독 중' + m[1];
+  if (/^논술/.test(c)) return '논술';
+  return c;
+}
+var DAY_IDX = { '월':0, '화':1, '수':2, '목':3, '금':4, '토':5, '일':6 };
+/* 학생 클릭 시: 같은 종류 반 목록에서 바로 골라 이동 */
+function openMovePicker(fromC){
+  var m = moving; if (!m) return;
+  var g = classGroupKey(fromC.cls);
+  var cands = classes.filter(function(x){ return x.id !== fromC.id && classGroupKey(x.cls) === g; })
+    .sort(function(a, b){ return (DAY_IDX[a.day] - DAY_IDX[b.day]) || (mins(a.start) - mins(b.start)); });
+  openModal(
+    '<h3>학생 이동 — ' + esc(m.name) + '</h3>'+
+    '<p class="mdesc">' + esc(m.fromLabel) + ' 에서 이동. 같은 종류(<b>' + esc(g) + '</b>) 반:</p>'+
+    (cands.length
+      ? '<div class="pick-list" style="flex-direction:column;align-items:stretch;">'+
+        cands.map(function(x){
+          return '<button data-mv-to="' + esc(x.id) + '" style="text-align:left;border-radius:10px;padding:8px 12px;">'+
+            '<b>' + esc(x.cls) + '</b> · ' + esc(x.day) + esc(x.start) + '~' + esc(x.end) +
+            ' · ' + esc(x.teacher) + 'T (' + esc(x.loc) + ') · ' + x.students.length + '명</button>';
+        }).join('') + '</div>'
+      : '<p class="subnote">같은 종류의 다른 반이 없어요.</p>')+
+    '<p class="subnote">다른 종류의 반으로 옮기려면 아래 버튼으로 창을 닫고, 시간표에서 옮길 반을 직접 누르세요.</p>'+
+    '<div class="mbtns"><button onclick="cancelMove(); closeModal();">이동 취소</button>'+
+    '<button onclick="closeModal()">시간표에서 직접 선택</button></div>'
+  );
+  $('modal-box').querySelectorAll('button[data-mv-to]').forEach(function(b){
+    b.addEventListener('click', function(){
+      var t = classes.find(function(x){ return x.id === b.getAttribute('data-mv-to'); });
+      if (t) openMoveModal(t);
+    });
+  });
 }
 
 /* 이동 확인 모달 (전체/요일별 = 영구 이동 전용, 1회 이동은 오늘의 시간표에서) */
