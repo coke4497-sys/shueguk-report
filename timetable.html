@@ -23,7 +23,9 @@
     font-family:"Gowun Dodum","Apple SD Gothic Neo","Malgun Gothic",-apple-system,system-ui,sans-serif;
     font-size:16px;line-height:1.5;-webkit-font-smoothing:antialiased;padding:0 0 70px;}
   .wrap{max-width:1180px;margin:0 auto;padding:0 14px;}
-  header{padding:22px 4px 8px;text-align:center;}
+  header{padding:6px 4px 8px;text-align:center;}
+  .backlink{display:inline-flex;align-items:center;gap:6px;margin:18px 0 0;color:var(--ink-soft);text-decoration:none;font-size:.86rem;}
+  .backlink:hover{color:var(--accent);}
   .brand{font-family:"Gowun Batang",serif;font-size:1.35rem;font-weight:700;color:var(--accent);margin:0;}
   .sub{color:var(--ink-soft);font-size:.85rem;margin:4px 0 0;}
 
@@ -118,9 +120,9 @@
   .blk .stus button.away{opacity:.5;}
   .blk .stus button.away em{font-style:normal;font-size:.66rem;color:var(--accent);margin-left:3px;}
   .blk .empty-note{color:var(--ink-soft);font-size:.72rem;}
-  .blk .btns{display:flex;gap:3px;margin:0 0 4px;flex-wrap:nowrap;}
-  .blk .bbtn{font:inherit;font-size:.64rem;background:rgba(255,255,255,.7);border:1px solid rgba(0,0,0,.12);
-    border-radius:7px;padding:1px 6px;cursor:pointer;color:var(--ink-soft);white-space:nowrap;flex:none;}
+  .blk .btns{display:flex;gap:2px;margin:0 0 4px;flex-wrap:wrap;}
+  .blk .bbtn{font:inherit;font-size:.62rem;background:rgba(255,255,255,.7);border:1px solid rgba(0,0,0,.12);
+    border-radius:7px;padding:1px 5px;cursor:pointer;color:var(--ink-soft);white-space:nowrap;flex:none;}
   .blk .bbtn:hover{border-color:var(--accent);color:var(--accent);}
   body.moving .blk .btns{visibility:hidden;}
   .cell{border-top:1px dotted #BFCFC9;}
@@ -176,6 +178,10 @@
 </head>
 <body>
 <main class="wrap">
+  <a class="backlink" href="https://coke4497-sys.github.io/shueguk-hub/index.html">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;"><path d="M19 12H5M11 18l-6-6 6-6"/></svg>
+    티쳐스 메인 페이지로 가기
+  </a>
   <header>
     <p class="brand">정규 시간표</p>
     <p class="sub">Shueguk · 반 편성 확인과 학생 이동 (교사용) — 이동은 저장 즉시 리포트·학생 페이지에 반영</p>
@@ -244,6 +250,8 @@ var WEEK_VIEW_ORDER = ['월','화','수','목','금','토','일'];   // 주차�
 var weekAttend = {};   // 주차 출석: 날짜|반ID|학생 -> {status, memo}
 var weekOnce = [];     // 주차 1회 이동
 var attDate = null;    // 출석 모달이 다루는 날짜
+var pendingScroll = null;   // 재렌더 후 복원할 스크롤 위치
+var keepScroll = true;      // 보기 전환 시에는 복원하지 않음
 var book = sessionStorage.getItem('tt_book') || '정규';  // '정규' | '내신'
 var moving = null;      // 학생 이동 중 {name, fromId, fromLabel}
 var classMoving = null; // 반 통째 이동 중 {id}
@@ -378,6 +386,7 @@ function loadAttend(done){
 function setMode(m){
   mode = m;
   sessionStorage.setItem('tt_mode', m);
+  keepScroll = false;
   cancelMove();
   renderTabs();
   if (m === 'week') loadWeek(); else render();
@@ -402,6 +411,9 @@ function renderTabs(){
 }
 function render(){
   var host = $('sheet');
+  var prevSw = host.querySelector('.scrollwrap');
+  pendingScroll = (keepScroll && prevSw) ? { top: prevSw.scrollTop, left: prevSw.scrollLeft } : null;
+  keepScroll = true;
   host.innerHTML = '';
   if (mode === 'today'){
     var td = todayDay();
@@ -494,9 +506,9 @@ function blockEl(c){
   if (!chips) chips = '<span class="empty-note">비어 있음</span>';
   var btnRow = (mode === 'today') ? '' :
     '<div class="btns">'+
-    '<button class="bbtn clsmove" title="이 반을 빈 자리로 통째 이동">이동</button>'+
+    '<button class="bbtn clsmove" title="이 반 전체를 빈 자리로 이동">반 이동</button>'+
     '<button class="bbtn stuadd" title="이 반에 학생 추가">추가</button>'+
-    '<button class="bbtn clsdel" title="이 반 삭제 (빈 반만)">삭제</button>'+
+    (c.students.length ? '' : '<button class="bbtn clsdel" title="빈 반 삭제">삭제</button>')+
     '</div>';
   b.innerHTML = '<div class="bt"><span class="nm">'+esc(c.cls)+'</span>'+
                 '<small>'+esc(c.start)+'~'+esc(c.end)+' · '+c.students.length+'명</small></div>'+
@@ -518,6 +530,8 @@ function tuneRowHeight(g, headerAuto, nrows){
     });
     maxPer = Math.min(maxPer, 140);
     if (maxPer > 46) g.style.gridTemplateRows = (headerAuto ? headerAuto + ' ' : '') + 'repeat(' + nrows + ', ' + maxPer + 'px)';
+    var sw = g.closest ? g.closest('.scrollwrap') : null;
+    if (sw && pendingScroll){ sw.scrollTop = pendingScroll.top; sw.scrollLeft = pendingScroll.left; pendingScroll = null; }
   });
 }
 function addCell(g, ci, r, dname, cinfo, lo, rowOffset){
@@ -807,6 +821,12 @@ function buildWeekGrid(){
     lab.style.gridRow = String(r+1);
     g.appendChild(lab);
   }
+  WEEK_VIEW_ORDER.forEach(function(dname){
+    dayColsOf[dname].forEach(function(cinfo){
+      var col = colOfKey[dname + '|' + cinfo.key];
+      for (var r = 0; r < nrows; r++) addCell(g, col, r, dname, cinfo, lo, 1);
+    });
+  });
   classes.forEach(function(c){
     var col = colOfKey[c.day + '|' + c.loc + '|' + c.teacher];
     if (!col) return;
@@ -842,8 +862,9 @@ function buildWeekGrid(){
     b.innerHTML = '<div class="bt"><span class="nm">'+esc(c.cls)+'</span>'+
                   '<small>'+esc(c.start)+'~'+esc(c.end)+' · '+c.students.length+'명</small></div>'+
                   '<div class="btns">'+
+                  '<button class="bbtn clsmove" title="이 반 전체를 빈 자리로 이동">반 이동</button>'+
                   '<button class="bbtn stuadd" title="이 반에 학생 추가">추가</button>'+
-                  '<button class="bbtn clsdel" title="이 반 삭제 (빈 반만)">삭제</button>'+
+                  (c.students.length ? '' : '<button class="bbtn clsdel" title="빈 반 삭제">삭제</button>')+
                   '</div>'+
                   '<div class="stus">'+chips+'</div>';
     b.addEventListener('click', function(e){ onWeekClick(e, c, dstr); });
@@ -861,8 +882,10 @@ function buildWeekGrid(){
   return wrap;
 }
 function onWeekClick(e, c, dstr){
+  var mv = e.target.closest('.clsmove');
+  if (mv && !moving && !classMoving){ startClassMove(c); return; }
   var ab = e.target.closest('.stuadd');
-  if (ab){ openAdd(c); return; }
+  if (ab && !classMoving){ openAdd(c); return; }
   var del = e.target.closest('.clsdel');
   if (del){
     if (c.students.length){ alert('학생이 남아 있는 반은 삭제할 수 없어요.\n먼저 학생을 빼주세요. (' + c.students.length + '명)'); return; }
