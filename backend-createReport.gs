@@ -990,6 +990,7 @@ function noticeMatches_(type, target, stu) {
     var g  = stu.grade.replace(/\s+/g, '');
     var sg = (stu.school + stu.grade).replace(/\s+/g, '');
     var gd = gradeDigit_(stu.grade);
+    var ng = normGrade_(stu.grade);                               // '고1' 등 줄임 표기
     var lvS = /중/.test(g) ? '중' : (/고/.test(g) ? '고' : '');
     var gTokens = target.split(/[,\n;\/·]+/).map(function(s){ return s.trim(); }).filter(Boolean);
     return gTokens.some(function(t){
@@ -999,6 +1000,7 @@ function noticeMatches_(type, target, stu) {
       if (td && gd && td !== gd) return false;                    // 학년 숫자 모순 → 제외
       var lvT = /중/.test(tt) ? '중' : (/고/.test(tt) ? '고' : '');
       if (lvT && lvS && lvT !== lvS) return false;                // 중·고 모순 → 제외
+      if (ng && normGrade_(tt) === ng) return true;               // '고1' ↔ '2026 고등 1학년'
       return tt === g || sg.indexOf(tt) >= 0 || g.indexOf(tt) >= 0;
     });
   }
@@ -1154,12 +1156,11 @@ function submittedTitles_(ss, info) {
 function normGrade_(s) {
   s = String(s == null ? '' : s).trim();
   if (!s) return '';
-  var m = s.match(/(고|중|초)\s*([1-6])/);   // "고3","중2" 등
-  if (m) return m[1] + m[2];
-  // "고등학교 1학년" / "고등 1학년"
-  if (/고/.test(s)) { var g = s.match(/([1-3])\s*학?년?/); if (g) return '고' + g[1]; }
-  if (/중/.test(s)) { var g2 = s.match(/([1-3])\s*학?년?/); if (g2) return '중' + g2[1]; }
-  return '';
+  var lv = /고/.test(s) ? '고' : (/중/.test(s) ? '중' : (/초/.test(s) ? '초' : ''));
+  if (!lv) return '';
+  // "1학년"을 우선 매칭 — "2026 고등 1학년"의 연도 숫자(2)를 학년으로 오인하지 않게 (2026-08-14 수정)
+  var m = s.match(/([1-6])\s*학년/) || s.match(/(?:고|중|초)\s*([1-6])/);
+  return m ? lv + m[1] : '';
 }
 
 /* ===== 숙제 검사 (정규 수업 기간) ===== hwcheck.html
