@@ -169,6 +169,7 @@
   .modal-bg{position:fixed;inset:0;background:rgba(42,51,47,.45);display:none;z-index:50;align-items:center;justify-content:center;padding:16px;}
   .modal-bg.on{display:flex;}
   .modal{background:#fff;border-radius:16px;max-width:430px;width:100%;padding:20px;max-height:82vh;overflow:auto;}
+  .modal.wide{max-width:520px;}
   .modal h3{font-family:"Gowun Batang",serif;color:var(--accent);margin:0 0 4px;font-size:1.05rem;}
   .modal .mdesc{font-size:.85rem;color:var(--ink-soft);margin:0 0 10px;}
   .modal label.radio{display:block;border:1.5px solid var(--line);border-radius:10px;padding:9px 12px;margin:6px 0;cursor:pointer;font-size:.92rem;}
@@ -196,6 +197,7 @@
   .mk-item .mk-row button.done-btn{background:var(--btn);border-color:var(--btn);color:#fff;}
   .mk-sec{font-size:.8rem;color:var(--ink-soft);margin:12px 0 2px;font-weight:700;}
   .mk-item .mk-alt{font-size:.76rem;color:var(--ink-soft);white-space:nowrap;}
+  .mk-item .mk-plan{font-size:.82rem;color:var(--accent);margin-top:5px;}
   .log-list{display:flex;flex-direction:column;gap:8px;margin-top:10px;}
   .log-item{border:1px solid var(--line-soft);border-radius:10px;padding:8px 10px;font-size:.84rem;}
   .log-item .lk{display:inline-block;font-size:.7rem;border-radius:6px;padding:0 6px;margin-right:6px;color:#fff;background:var(--btn);}
@@ -1042,7 +1044,11 @@ function gotoSearchHit(cid){
 }
 
 /* ── 모달 ── */
-function openModal(html){ $('modal-box').innerHTML = html; $('modal').classList.add('on'); }
+function openModal(html, wide){
+  $('modal-box').innerHTML = html;
+  $('modal-box').classList.toggle('wide', !!wide);
+  $('modal').classList.add('on');
+}
 function closeModal(){ $('modal').classList.remove('on'); }
 $('modal').addEventListener('click', function(e){ if (e.target === this) closeModal(); });
 $('stu-q').addEventListener('input', searchStudent);
@@ -1575,7 +1581,7 @@ function openMakeup(){
   openModal('<h3>결석자 관리</h3>'+
     '<p class="mdesc">결석 기록마다 보충 일정(날짜·요일·시간)을 적고, 확인 후 완료 처리하세요.</p>'+
     '<div id="mk-list"><p class="subnote">불러오는 중…</p></div>'+
-    '<div class="mbtns"><button onclick="closeModal()">닫기</button></div>');
+    '<div class="mbtns"><button onclick="closeModal()">닫기</button></div>', true);
   fetch(ENDPOINT + '?action=attendAbsentList&pw=' + encodeURIComponent(pw) + '&book=' + encodeURIComponent(book) + '&t=' + Date.now())
     .then(function(r){ return r.json(); })
     .then(function(d){
@@ -1599,31 +1605,34 @@ function renderMakeup(){
     var s = m.done ? 'done' : 'todo';
     if (s !== sec){ sec = s; html += '<p class="mk-sec">' + (m.done ? '완료' : '미완료') + '</p>'; }
     var i = makeupList.indexOf(m);
+    var planLine = m.plan
+      ? '<div class="mk-plan">보충: <b>' + esc(m.plan) + '</b></div>'
+      : '';
+    var btnLine = m.done
+      ? '<div class="mk-row"><button onclick="saveMakeup(' + i + ', false)">미완료로</button></div>'
+      : '<div class="mk-row"><span class="mk-alt">처리 방법 —</span>' +
+        '<button onclick="openMakeupMove(' + i + ')">반이동</button>' +
+        '<button onclick="openMakeupVideo(' + i + ')">영상보충</button>' +
+        '<button onclick="noRemedy(' + i + ', \'무단 결석\')">무단 결석</button>' +
+        '<button onclick="noRemedy(' + i + ', \'당일 결석\')">당일 결석</button>' +
+        '</div>' +
+        (m.plan ? '<div class="mk-row" style="justify-content:flex-end;border-top:1px dotted var(--line);padding-top:6px;">' +
+          '<button class="done-btn" onclick="saveMakeup(' + i + ', true)">처리 완료</button></div>' : '');
     html += '<div class="mk-item' + (m.done ? ' done' : '') + '">' +
       '<div class="mk-top"><b>' + esc(m.student) + '</b>' +
       '<small>' + esc(m.date) + ' (' + mkDayOf(m.date) + ') 결석 · ' + esc(classLabelOf(m.classId)) + (m.memo ? ' · ' + esc(m.memo) : '') + '</small></div>' +
-      '<div class="mk-row">' +
-      '<button onclick="openMakeupMove(' + i + ')" title="같은 종류의 다른 반에서 1회 보충 — 시간표에 반영">반 이동 보충</button>' +
-      '<input id="mk-plan-' + i + '" placeholder="영상보충 — 예) 8/17(월) 6:00" value="' + esc(m.plan) + '" />' +
-      '<button onclick="saveMakeup(' + i + ', null)">저장</button>' +
-      (m.done
-        ? '<button onclick="saveMakeup(' + i + ', false)">미완료로</button>'
-        : '<button class="done-btn" onclick="saveMakeup(' + i + ', true)">완료</button>') +
-      '</div>' +
-      (m.done ? '' :
-        '<div class="mk-row"><span class="mk-alt">보충 없음 —</span>' +
-        '<button onclick="noRemedy(' + i + ', \'무단 결석\')">무단 결석</button>' +
-        '<button onclick="noRemedy(' + i + ', \'당일 결석 통보\')">당일 결석 통보</button></div>') +
+      planLine + btnLine +
       '</div>';
   });
   box.innerHTML = html;
 }
 function saveMakeup(i, doneVal){
   var m = makeupList[i]; if (!m) return;
-  var plan = ($('mk-plan-' + i) ? $('mk-plan-' + i).value : m.plan).trim();
+  var el = $('mk-plan-' + i);
+  var plan = (el ? el.value : m.plan || '').trim();
   var done = (doneVal === null) ? m.done : doneVal;
   if (done && !plan){
-    alert('완료 처리 전에 보충 일정을 적어주세요.');
+    alert('완료 처리 전에 보충 방법(반이동·영상보충 등)을 먼저 기록해 주세요.');
     return;
   }
   post({ action:'attendMakeupSet', book:book, date:m.date, classId:m.classId, student:m.student,
@@ -1632,6 +1641,32 @@ function saveMakeup(i, doneVal){
       m.plan = plan; m.done = done;
       renderMakeup();
       setStatus(m.student + ' — 보충 ' + (doneVal === null ? '일정 저장' : (done ? '완료 처리' : '미완료로 변경')) + ' 완료.', 'ok');
+    } else setStatus('저장 실패: ' + ((res && res.message) || '오류'), 'err');
+  });
+}
+
+/* 영상보충 기능창 — 날짜·요일·시간 메모 */
+function openMakeupVideo(i){
+  var m = makeupList[i]; if (!m) return;
+  openModal(
+    '<h3>영상보충 — ' + esc(m.student) + '</h3>'+
+    '<p class="mdesc">' + esc(m.date) + ' (' + mkDayOf(m.date) + ') ' + esc(classLabelOf(m.classId)) + ' 결석.<br>영상보충하러 오는 날짜·요일·시간을 적어주세요.</p>'+
+    '<input type="text" id="mk-plan-' + i + '" placeholder="예) 8/17(월) 6:00" value="' + esc(m.plan.indexOf('영상보충') === 0 ? m.plan.replace(/^영상보충:\s*/, '') : '') + '" />'+
+    '<p class="merr" id="mkv-err"></p>'+
+    '<div class="mbtns"><button onclick="openMakeup()">뒤로</button>'+
+    '<button class="primary" onclick="saveMakeupVideo(' + i + ')">저장</button></div>', true
+  );
+}
+function saveMakeupVideo(i){
+  var m = makeupList[i]; if (!m) return;
+  var v = $('mk-plan-' + i).value.trim();
+  if (!v){ $('mkv-err').textContent = '날짜·요일·시간을 적어주세요.'; return; }
+  post({ action:'attendMakeupSet', book:book, date:m.date, classId:m.classId, student:m.student,
+         plan:'영상보충: ' + v, done:'' }, '저장하는 중…', function(res){
+    if (res && res.result === 'success'){
+      m.plan = '영상보충: ' + v;
+      setStatus(m.student + ' — 영상보충 일정 저장 완료.', 'ok');
+      openMakeup();
     } else setStatus('저장 실패: ' + ((res && res.message) || '오류'), 'err');
   });
 }
@@ -1670,7 +1705,7 @@ function openMakeupMove(i){
             ' · ' + esc(x.teacher) + 'T (' + esc(x.loc) + ') · ' + x.students.length + '명</button>';
         }).join('') + '</div>'
       : '<p class="subnote">같은 종류의 다른 반이 없어요. 영상보충 메모를 이용해 주세요.</p>')+
-    '<div class="mbtns"><button onclick="openMakeup()">뒤로</button></div>'
+    '<div class="mbtns"><button onclick="openMakeup()">뒤로</button></div>', true
   );
   $('modal-box').querySelectorAll('button[data-mk-to]').forEach(function(b){
     b.addEventListener('click', function(){
