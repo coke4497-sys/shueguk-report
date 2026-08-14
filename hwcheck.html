@@ -173,7 +173,7 @@
       <select id="f-slot" onchange="filterChanged()"></select>
     </div>
     <div class="addstu">
-      <input id="stu-search" placeholder="🔍 이동해 온 학생 추가 — 이름 검색" oninput="searchStu()" autocomplete="off" />
+      <input id="stu-search" placeholder="이동해 온 학생 추가 — 이름 검색" oninput="searchStu()" autocomplete="off" />
       <div id="stu-results"></div>
     </div>
     <div class="meta-row">
@@ -660,7 +660,7 @@ function refreshPlansBadge(){
 /* 상단 버튼: 목록 화면에선 "미제출 확인", 미제출 화면에선 "검사하러 가기"로 바뀐다 */
 function updatePlansBtn(){
   var pending = plans.filter(function(p){ return !p.done; }).length;
-  $('plans-lb').textContent = plansOpen ? '✏️ 검사하러 가기' : '미제출 확인';
+  $('plans-lb').textContent = plansOpen ? '검사하러 가기' : '미제출 확인';
   $('plans-btn').classList.toggle('back', plansOpen);
   var cnt = $('plans-cnt');
   cnt.textContent = pending;
@@ -690,7 +690,7 @@ function weekLabelOf(wk){
 }
 function renderPlans(){
   updatePlansBtn();
-  var backBtn = '<button class="plans-back" onclick="togglePlans()">✏️ 검사하러 가기</button>';
+  var backBtn = '<button class="plans-back" onclick="togglePlans()">검사하러 가기</button>';
   if (!plans.length){ $('plans').innerHTML = '<p class="empty">미제출·대책 기록이 없어요.</p>' + backBtn; return; }
   var html = '', curWeek = null;
   plans.forEach(function(p, i){
