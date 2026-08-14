@@ -497,7 +497,7 @@ function renderTabs(){
   $('v-all').classList.toggle('on', mode==='all');
   $('v-week').classList.toggle('on', mode==='week');
   document.querySelector('.hint').textContent =
-    (mode === 'today') ? '학생 이름을 누르면 출석·지각·결석을 기록할 수 있어요. 1회 이동은 출석 모달의 버튼으로.'
+    (mode === 'today') ? '학생 이름을 누르면 출석·지각·결석 기록 창이 떠요. 그 창 아래 [다른 반으로 1회 이동] 버튼으로 1회 이동도 할 수 있어요.'
     : (mode === 'week') ? '그 주의 출석·1회 이동 기록이 함께 보여요. 학생 이름을 누르면 해당 날짜의 출석 기록·수정. 월·화 직전보강은 위 반 추가 버튼으로 만드세요.'
     : '학생 이름을 누르면 이동 모드가 켜져요. 옮길 반(다른 요일 포함)을 누르면 영구 이동됩니다.';
   $('editbar').classList.toggle('show', mode !== 'today');
