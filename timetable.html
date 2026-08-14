@@ -1602,7 +1602,8 @@ function renderMakeup(){
       '<div class="mk-top"><b>' + esc(m.student) + '</b>' +
       '<small>' + esc(m.date) + ' (' + mkDayOf(m.date) + ') 결석 · ' + esc(classLabelOf(m.classId)) + (m.memo ? ' · ' + esc(m.memo) : '') + '</small></div>' +
       '<div class="mk-row">' +
-      '<input id="mk-plan-' + i + '" placeholder="영상보충 일정 — 예) 8/17(월) 6:00" value="' + esc(m.plan) + '" />' +
+      '<button onclick="openMakeupMove(' + i + ')" title="같은 종류의 다른 반에서 1회 보충 — 시간표에 반영">반 이동 보충</button>' +
+      '<input id="mk-plan-' + i + '" placeholder="영상보충 — 예) 8/17(월) 6:00" value="' + esc(m.plan) + '" />' +
       '<button onclick="saveMakeup(' + i + ', null)">저장</button>' +
       (m.done
         ? '<button onclick="saveMakeup(' + i + ', false)">미완료로</button>'
@@ -1626,6 +1627,51 @@ function saveMakeup(i, doneVal){
       renderMakeup();
       setStatus(m.student + ' — 보충 ' + (doneVal === null ? '일정 저장' : (done ? '완료 처리' : '미완료로 변경')) + ' 완료.', 'ok');
     } else setStatus('저장 실패: ' + ((res && res.message) || '오류'), 'err');
+  });
+}
+
+/* 결석 보충 — 다른 동일 시간표(같은 종류 반)로 1회 이동 */
+function openMakeupMove(i){
+  var m = makeupList[i]; if (!m) return;
+  var fromC = classes.find(function(x){ return x.id === m.classId; });
+  if (!fromC){ alert('결석했던 반을 시간표에서 찾을 수 없어요.'); return; }
+  var g = classGroupKey(fromC.cls);
+  var cands = classes.filter(function(x){ return x.id !== fromC.id && classGroupKey(x.cls) === g; })
+    .sort(function(a, b){ return (DAY_IDX[a.day] - DAY_IDX[b.day]) || (mins(a.start) - mins(b.start)); });
+  openModal(
+    '<h3>반 이동 보충 — ' + esc(m.student) + '</h3>'+
+    '<p class="mdesc">' + esc(m.date) + ' (' + mkDayOf(m.date) + ') ' + esc(fromC.cls) + ' 결석.<br>같은 종류(<b>' + esc(g) + '</b>) 반에서 1회 보충할 반을 고르세요. 시간표에 보라색으로 표시돼요.</p>'+
+    (cands.length
+      ? '<div class="pick-list" style="flex-direction:column;align-items:stretch;">'+
+        cands.map(function(x){
+          return '<button data-mk-to="' + esc(x.id) + '" style="text-align:left;border-radius:10px;padding:8px 12px;">'+
+            '<b>' + esc(x.cls) + '</b> · ' + esc(x.day) + esc(x.start) + '~' + esc(x.end) +
+            ' · ' + esc(x.teacher) + 'T (' + esc(x.loc) + ') · ' + x.students.length + '명</button>';
+        }).join('') + '</div>'
+      : '<p class="subnote">같은 종류의 다른 반이 없어요. 영상보충 메모를 이용해 주세요.</p>')+
+    '<div class="mbtns"><button onclick="openMakeup()">뒤로</button></div>'
+  );
+  $('modal-box').querySelectorAll('button[data-mk-to]').forEach(function(b){
+    b.addEventListener('click', function(){
+      var t = classes.find(function(x){ return x.id === b.getAttribute('data-mk-to'); });
+      if (!t) return;
+      if (!confirm(m.student + '\n' + fromC.cls + ' (' + m.date + ' 결석)\n→ ' + labelOf(t) + ' 에서 1회 보충\n\n기록할까요?')) return;
+      var reason = m.date.slice(5).replace('-', '/') + ' 결석 보충';
+      post({ action:'timetableMove', book:book, student:m.student, fromId:fromC.id, toId:t.id,
+             moveType:'once', reason:reason }, '보충 이동 기록 중…', function(res){
+        if (!(res && res.result === 'success')){
+          setStatus('보충 이동 실패: ' + ((res && res.message) || '오류'), 'err');
+          openMakeup(); return;
+        }
+        var plan = '반 이동 보충: ' + t.cls + ' ' + t.day + t.start + ' (' + t.teacher + 'T)';
+        post({ action:'attendMakeupSet', book:book, date:m.date, classId:m.classId, student:m.student,
+               plan:plan, done:'' }, '보충 일정 저장 중…', function(res2){
+          setStatus(m.student + ' — ' + plan + ' 기록 완료. 시간표에 표시됩니다.', 'ok');
+          load(true);        // 1회 이동을 오늘·주차별 시간표에 반영
+          openMakeup();      // 목록 새로고침
+        });
+      });
+    });
   });
 }
 
