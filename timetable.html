@@ -195,6 +195,7 @@
     border-radius:8px;padding:5px 10px;cursor:pointer;color:var(--ink);white-space:nowrap;}
   .mk-item .mk-row button.done-btn{background:var(--btn);border-color:var(--btn);color:#fff;}
   .mk-sec{font-size:.8rem;color:var(--ink-soft);margin:12px 0 2px;font-weight:700;}
+  .mk-item .mk-alt{font-size:.76rem;color:var(--ink-soft);white-space:nowrap;}
   .log-list{display:flex;flex-direction:column;gap:8px;margin-top:10px;}
   .log-item{border:1px solid var(--line-soft);border-radius:10px;padding:8px 10px;font-size:.84rem;}
   .log-item .lk{display:inline-block;font-size:.7rem;border-radius:6px;padding:0 6px;margin-right:6px;color:#fff;background:var(--btn);}
@@ -1608,7 +1609,12 @@ function renderMakeup(){
       (m.done
         ? '<button onclick="saveMakeup(' + i + ', false)">미완료로</button>'
         : '<button class="done-btn" onclick="saveMakeup(' + i + ', true)">완료</button>') +
-      '</div></div>';
+      '</div>' +
+      (m.done ? '' :
+        '<div class="mk-row"><span class="mk-alt">보충 없음 —</span>' +
+        '<button onclick="noRemedy(' + i + ', \'무단 결석\')">무단 결석</button>' +
+        '<button onclick="noRemedy(' + i + ', \'당일 결석 통보\')">당일 결석 통보</button></div>') +
+      '</div>';
   });
   box.innerHTML = html;
 }
@@ -1627,6 +1633,21 @@ function saveMakeup(i, doneVal){
       renderMakeup();
       setStatus(m.student + ' — 보충 ' + (doneVal === null ? '일정 저장' : (done ? '완료 처리' : '미완료로 변경')) + ' 완료.', 'ok');
     } else setStatus('저장 실패: ' + ((res && res.message) || '오류'), 'err');
+  });
+}
+
+/* 무단 결석·당일 통보 — 보충 없이 완료 처리 */
+function noRemedy(i, type){
+  var m = makeupList[i]; if (!m) return;
+  if (!confirm(m.student + ' (' + m.date + ' 결석)\n"' + type + '"로 기록하고 보충 없이 완료 처리할까요?')) return;
+  var plan = type + ' (보충 없음)';
+  post({ action:'attendMakeupSet', book:book, date:m.date, classId:m.classId, student:m.student,
+         plan:plan, done:'1' }, '처리 중…', function(res){
+    if (res && res.result === 'success'){
+      m.plan = plan; m.done = true;
+      renderMakeup();
+      setStatus(m.student + ' — ' + type + '로 완료 처리했어요.', 'ok');
+    } else setStatus('처리 실패: ' + ((res && res.message) || '오류'), 'err');
   });
 }
 
