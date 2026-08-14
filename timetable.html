@@ -68,6 +68,7 @@
   .wm-day{flex:none;width:78px;font-size:.85rem;font-weight:700;color:var(--ink-soft);}
   .wm-text{font-size:.88rem;line-height:1.6;white-space:pre-wrap;word-break:break-word;min-width:0;}
   .wm-none{font-size:.85rem;color:var(--ink-soft);opacity:.55;}
+  .blk .stus button.note{background:#E7EEF8;border-color:#8FA8C8;color:#3E5A7E;}
   .blk .stus button.at-ok{background:var(--btn);border-color:var(--btn);color:#fff;}
   .blk .stus button.at-late{background:#F5E7C6;border-color:#B08A3E;color:#6B5423;}
   .blk .stus button.at-abs{background:#F0DBD8;border-color:#C99B94;color:#8A3B33;text-decoration:line-through;}
@@ -168,8 +169,8 @@
   .dhead{font-family:"Gowun Batang",serif;font-weight:700;text-align:center;color:#fff;background:var(--btn);
     border-radius:8px;padding:3px 0;font-size:.9rem;}
   .scrollwrap{max-height:calc(100vh - 150px);overflow:auto;}
-  /* 시간축 가로 고정 — 행 전체를 그리드 영역으로 쓰고 라벨(46px)만 왼쪽에 붙임 */
-  .tlab.stick{position:sticky;left:0;width:46px;box-sizing:border-box;z-index:3;background:var(--surface);}
+  /* 시간축 가로 고정 — 스크롤량만큼 transform으로 라벨을 왼쪽에 붙임 (sticky는 브라우저별 편차가 있어 미사용) */
+  .tlab.stick{width:46px;box-sizing:border-box;z-index:3;background:var(--surface);will-change:transform;}
   .stickhead{position:sticky;top:0;z-index:10;background:var(--surface);width:max-content;min-width:100%;
     padding-bottom:3px;box-shadow:0 3px 6px -3px rgba(42,51,47,.18);}
   .stickhead .grid{min-width:0;}
@@ -680,14 +681,18 @@ function blockEl(c){
   if (mode === 'today'){
     chips = sorted.map(function(nm){
       var plain = nm.replace(/\(.*\)$/,'');
+      var note = nameNote(nm);
       var away = Object.prototype.hasOwnProperty.call(awayOf, plain);
       var a = attend[c.id + '|' + nm];
-      var cls2 = a ? (a.status==='출석'?'at-ok':a.status==='지각'?'at-late':'at-abs') : '';
+      var cls2 = a ? (a.status==='출석'?'at-ok':a.status==='지각'?'at-late':'at-abs') : (note ? 'note' : '');
       var tail = a && a.status==='지각' ? ' · 지각' : '';
+      var tp = [];
+      if (note) tp.push(note);
+      if (a && a.memo) tp.push(a.memo); else if (away) tp.push('오늘 1회 이동: ' + awayOf[plain].label);
       return '<button data-att-cid="'+esc(c.id)+'" data-nm="'+esc(nm)+'" class="'+cls2+(away?' away':'')+'"'+
              (away ? ' data-away-row="'+awayOf[plain].row+'"' : '')+
-             ((a && a.memo) ? ' title="'+esc(a.memo)+'"' : (away ? ' title="오늘 1회 이동: '+esc(awayOf[plain].label)+'"' : ''))+'>'+
-             esc(nm)+tail+(away?'<em>1회↗</em>':'')+'</button>';
+             (tp.length ? ' title="'+esc(tp.join(' · '))+'"' : '')+'>'+
+             esc(plain)+tail+(away?'<em>1회↗</em>':'')+'</button>';
     }).join('');
     chips += temps.sort(function(a,b){ return a.student.localeCompare(b.student,'ko'); }).map(function(o){
       var a = attend[c.id + '|' + o.student];
@@ -697,10 +702,16 @@ function blockEl(c){
   } else {
     chips = sorted.map(function(nm){
       var plain = nm.replace(/\(.*\)$/,'');
+      var note = nameNote(nm);
       var away = Object.prototype.hasOwnProperty.call(awayOf, plain);
+      var tp = [];
+      if (note) tp.push(note);
+      if (away) tp.push('이번 주 1회 이동: ' + awayOf[plain].label);
+      var cls2 = (away ? 'away' : '') + (note ? (away ? ' ' : '') + 'note' : '');
       return '<button data-cid="'+esc(c.id)+'" data-nm="'+esc(nm)+'"'+
-             (away ? ' class="away" title="이번 주 1회 이동: '+esc(awayOf[plain].label)+'"' : '')+'>'+
-             esc(nm)+(away?'<em>1회↗</em>':'')+'</button>';
+             (cls2 ? ' class="'+cls2+'"' : '')+
+             (tp.length ? ' title="'+esc(tp.join(' · '))+'"' : '')+'>'+
+             esc(plain)+(away?'<em>1회↗</em>':'')+'</button>';
     }).join('');
     chips += temps.map(function(o){
       return '<button class="once" data-once-row="'+o.row+'" data-nm="'+esc(o.student)+'" title="사유: '+esc(o.reason)+' ('+esc(o.date)+') — 수정은 오늘의 시간표에서">'+esc(o.student)+' · 1회</button>';
@@ -716,6 +727,17 @@ function blockEl(c){
                 '<div class="stus">'+chips+'</div>';
   b.addEventListener('click', function(e){ onBlockClick(e, c); });
   return b;
+}
+
+/* 가로 스크롤 시 시간 라벨을 화면 왼쪽에 고정 (스크롤량만큼 이동) */
+function attachTimeSync(wrap, g){
+  var labs = g.querySelectorAll('.tlab');
+  var apply = function(){
+    var t = wrap.scrollLeft ? 'translateX(' + wrap.scrollLeft + 'px)' : '';
+    for (var i = 0; i < labs.length; i++) labs[i].style.transform = t;
+  };
+  wrap.addEventListener('scroll', apply, { passive: true });
+  apply();
 }
 
 /* 렌더 후 블록이 잘리지 않도록 30분 행 높이를 일괄 상향(균일 간격 유지) */
@@ -932,6 +954,7 @@ function buildFullGrid(){
   sh2.appendChild(hg);
   wrap.appendChild(sh2);
   wrap.appendChild(g);
+  attachTimeSync(wrap, g);
   return wrap;
 }
 
@@ -1047,14 +1070,18 @@ function buildWeekGrid(){
     });
     var chips = sortNames(c.students).map(function(nm){
       var plain = nm.replace(/\(.*\)$/,'');
+      var note = nameNote(nm);
       var away = Object.prototype.hasOwnProperty.call(awayOf, plain);
       var a = weekAttend[dstr + '|' + c.id + '|' + nm];
-      var cls2 = a ? (a.status==='출석'?'at-ok':a.status==='지각'?'at-late':'at-abs') : '';
+      var cls2 = a ? (a.status==='출석'?'at-ok':a.status==='지각'?'at-late':'at-abs') : (note ? 'note' : '');
       var tail = a && a.status==='지각' ? ' · 지각' : '';
+      var tp = [];
+      if (note) tp.push(note);
+      if (a && a.memo) tp.push(a.memo); else if (away) tp.push('이 주 1회 이동: ' + awayOf[plain].label);
       return '<button data-nm="'+esc(nm)+'" class="'+cls2+(away?' away':'')+'"'+
              (away ? ' data-away-row="'+awayOf[plain].row+'"' : '')+
-             ((a && a.memo) ? ' title="'+esc(a.memo)+'"' : (away ? ' title="이 주 1회 이동: '+esc(awayOf[plain].label)+'"' : ''))+'>'+
-             esc(nm)+tail+(away?'<em>1회↗</em>':'')+'</button>';
+             (tp.length ? ' title="'+esc(tp.join(' · '))+'"' : '')+'>'+
+             esc(plain)+tail+(away?'<em>1회↗</em>':'')+'</button>';
     }).join('');
     chips += temps.sort(function(a,b){ return a.student.localeCompare(b.student,'ko'); }).map(function(o){
       var a = weekAttend[dstr + '|' + c.id + '|' + o.student];
@@ -1078,6 +1105,7 @@ function buildWeekGrid(){
   sh2.appendChild(hg);
   wrap.appendChild(sh2);
   wrap.appendChild(g);
+  attachTimeSync(wrap, g);
   return wrap;
 }
 function onWeekClick(e, c, dstr){
@@ -1108,6 +1136,8 @@ function rosterNote(res){
 
 /* ── 학생 검색 ── */
 function plainName(nm){ return String(nm || '').replace(/\(.*\)$/, ''); }
+/* 이름 뒤 괄호 특이사항(신입 시작일·입테 등) — "김현우(8/23부터)" → "8/23부터" */
+function nameNote(nm){ var m = String(nm || '').match(/\((.+)\)\s*$/); return m ? m[1] : ''; }
 function searchStudent(){
   var q = $('stu-q').value.trim();
   var box = $('searchResults');
