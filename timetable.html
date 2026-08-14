@@ -45,6 +45,12 @@
   .bookwrap button{border:none;border-radius:0;}
   .bookwrap button.on{background:var(--btn);color:#fff;font-weight:700;}
   .today-head{font-family:"Gowun Batang",serif;font-weight:700;font-size:1.1rem;color:var(--accent);margin:14px 4px 2px;}
+  .weeknav-tt{display:flex;align-items:center;gap:10px;margin:14px 4px 8px;}
+  .weeknav-tt button{font:inherit;font-size:.88rem;background:var(--icon-bg);color:var(--ink);
+    border:1px solid var(--line-soft);border-radius:10px;padding:6px 12px;cursor:pointer;}
+  .weeknav-tt b{font-family:"Gowun Batang",serif;font-size:1.05rem;color:var(--accent);}
+  .weeknav-tt small{color:var(--ink-soft);}
+  .dhead small{font-weight:400;font-size:.72rem;opacity:.9;margin-left:4px;}
   .today-sum{font-size:.82rem;color:var(--ink-soft);margin:0 4px 10px;}
   .today-sum b{color:var(--accent);}
   .blk .stus button.at-ok{background:var(--btn);border-color:var(--btn);color:#fff;}
@@ -184,13 +190,12 @@
       <span class="bookwrap"><button id="b-reg" onclick="setBook('정규')">정규</button><button id="b-exam" onclick="setBook('내신')">내신</button></span>
       <button id="v-today" onclick="setMode('today')">오늘의 시간표</button>
       <button id="v-all" onclick="setMode('all')">전체 시간표</button>
-      <button id="v-day" onclick="setMode('day')">요일별</button>
+      <button id="v-week" onclick="setMode('week')">주차별</button>
       <span class="sp"></span>
       <button class="reload" onclick="openAddClass()">반 추가</button>
       <button class="reload" onclick="openLog()">이동 기록</button>
       <button class="reload" onclick="load(true)">다시 불러오기</button>
     </div>
-    <div class="daytabs" id="daytabs"></div>
     <p class="hint">학생 이름을 누르면 이동 모드가 켜져요. 옮길 반(다른 요일 포함)을 누르면 이동됩니다.</p>
     <div class="legend">
       <span><i style="background:var(--g1)"></i>고1</span>
@@ -226,8 +231,13 @@ var classes = [];      // {id, day, start, end, loc, teacher, cls, students[]}
 var onceMoves = [];    // {row, date, student, fromId, toId, reason}
 var roster = null;     // 재원생 명단 캐시 (추가용)
 var attend = {};       // 오늘 출석: (반ID + '|' + 학생) -> {status, memo}
-var day = sessionStorage.getItem('tt_day') || '수';
-var mode = sessionStorage.getItem('tt_mode') || 'today'; // 'today'(오늘) | 'all'(전체) | 'day'(요일별)
+var day = '수';
+var mode = sessionStorage.getItem('tt_mode') || 'today'; // 'today'(오늘) | 'all'(전체) | 'week'(주차별)
+if (mode === 'day') mode = 'week';
+var WEEK_DAYS = ['수','목','금','토','일','월','화'];   // 주차 = 수요일 시작 (숙제 검사와 동일)
+var weekAttend = {};   // 주차 출석: 날짜|반ID|학생 -> {status, memo}
+var weekOnce = [];     // 주차 1회 이동
+var attDate = null;    // 출석 모달이 다루는 날짜
 var book = sessionStorage.getItem('tt_book') || '정규';  // '정규' | '내신'
 var moving = null;      // 학생 이동 중 {name, fromId, fromLabel}
 var classMoving = null; // 반 통째 이동 중 {id}
@@ -237,6 +247,46 @@ function todayStr(){
   return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
 }
 function todayDay(){ return ['일','월','화','수','목','금','토'][new Date().getDay()]; }
+function weekStartOf(d){
+  var x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  x.setDate(x.getDate() - ((x.getDay() + 4) % 7));   // 수요일로
+  return x;
+}
+var weekStart = weekStartOf(new Date());
+function ymdOf(d){ return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'); }
+function mdOf(d){ return (d.getMonth()+1) + '/' + d.getDate(); }
+function weekDates(){
+  var out = {};
+  for (var i = 0; i < 7; i++){
+    var d = new Date(weekStart); d.setDate(d.getDate() + i);
+    out[WEEK_DAYS[i]] = d;
+  }
+  return out;
+}
+function moveWeek(n){
+  weekStart.setDate(weekStart.getDate() + 7*n);
+  loadWeek();
+}
+function loadWeek(){
+  var to = new Date(weekStart); to.setDate(to.getDate() + 6);
+  setStatus('주차 기록을 불러오는 중…');
+  fetch(ENDPOINT + '?action=timetableWeek&pw=' + encodeURIComponent(pw) + '&book=' + encodeURIComponent(book) +
+        '&from=' + ymdOf(weekStart) + '&to=' + ymdOf(to) + '&t=' + Date.now())
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      weekAttend = {}; weekOnce = [];
+      if (d && d.result === 'success'){
+        (d.attend || []).forEach(function(a){ weekAttend[a.date + '|' + a.classId + '|' + a.student] = { status:a.status, memo:a.memo }; });
+        weekOnce = d.onceMoves || [];
+      }
+      setStatus('');
+      render();
+    })
+    .catch(function(){ setStatus('주차 기록을 불러오지 못했어요.', 'err'); render(); });
+}
+function attendAt(dateStr, cid, nm){
+  return (mode === 'week') ? weekAttend[dateStr + '|' + cid + '|' + nm] : attend[cid + '|' + nm];
+}
 
 function $(id){ return document.getElementById(id); }
 function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
@@ -288,7 +338,11 @@ function load(isReload, cb){
       classes = d.classes || [];
       onceMoves = d.onceMoves || [];
       setStatus(isReload ? '최신 시간표로 다시 불러왔어요.' : '', isReload ? 'ok' : '');
-      loadAttend(function(){ renderTabs(); render(); if (cb) cb(true); });
+      loadAttend(function(){
+        renderTabs();
+        if (mode === 'week') loadWeek(); else render();
+        if (cb) cb(true);
+      });
     })
     .catch(function(){ if (cb) cb(false); else setStatus('서버 연결에 실패했어요.', 'err'); });
 }
@@ -311,7 +365,8 @@ function setMode(m){
   mode = m;
   sessionStorage.setItem('tt_mode', m);
   cancelMove();
-  renderTabs(); render();
+  renderTabs();
+  if (m === 'week') loadWeek(); else render();
 }
 function setBook(b){
   if (b === book) return;
@@ -325,22 +380,11 @@ function renderTabs(){
   $('b-exam').classList.toggle('on', book==='내신');
   $('v-today').classList.toggle('on', mode==='today');
   $('v-all').classList.toggle('on', mode==='all');
-  $('v-day').classList.toggle('on', mode==='day');
-  document.querySelector('.hint').textContent = (mode === 'today')
-    ? '학생 이름을 누르면 출석·지각·결석을 기록할 수 있어요. 1회 이동한 학생은 이동한 반에 표시됩니다.'
-    : '학생 이름을 누르면 이동 모드가 켜져요. 옮길 반(다른 요일 포함)을 누르면 이동됩니다.';
-  var host = $('daytabs');
-  host.classList.toggle('show', mode==='day');
-  host.innerHTML = '';
-  if (mode !== 'day') return;
-  DAYS.forEach(function(dname){
-    var n = classes.filter(function(c){ return c.day===dname; }).length;
-    var b = document.createElement('button');
-    b.className = 'dbtn' + (dname===day ? ' on' : '');
-    b.textContent = dname + ' ' + n;
-    b.onclick = function(){ day = dname; sessionStorage.setItem('tt_day', dname); renderTabs(); render(); };
-    host.appendChild(b);
-  });
+  $('v-week').classList.toggle('on', mode==='week');
+  document.querySelector('.hint').textContent =
+    (mode === 'today') ? '학생 이름을 누르면 출석·지각·결석을 기록할 수 있어요. 1회 이동은 출석 모달의 버튼으로.'
+    : (mode === 'week') ? '그 주의 출석·1회 이동 기록이 함께 보여요. 학생 이름을 누르면 해당 날짜의 출석을 기록·수정할 수 있어요.'
+    : '학생 이름을 누르면 이동 모드가 켜져요. 옮길 반(다른 요일 포함)을 누르면 영구 이동됩니다.';
 }
 function render(){
   var host = $('sheet');
@@ -373,9 +417,16 @@ function render(){
     host.appendChild(buildFullGrid());
     return;
   }
-  var list = classes.filter(function(c){ return c.day===day; });
-  if (!list.length){ host.innerHTML = '<p class="empty-day">이 요일에는 등록된 반이 없어요.</p>'; return; }
-  host.appendChild(buildDayGrid(list));
+  // 주차별
+  var to = new Date(weekStart); to.setDate(to.getDate() + 6);
+  var isThis = ymdOf(weekStart) === ymdOf(weekStartOf(new Date()));
+  var nav = document.createElement('div');
+  nav.className = 'weeknav-tt';
+  nav.innerHTML = '<button onclick="moveWeek(-1)">지난주</button>'+
+    '<b>' + mdOf(weekStart) + ' ~ ' + mdOf(to) + ' 주차</b>' + (isThis ? '<small>(이번 주)</small>' : '')+
+    '<button onclick="moveWeek(1)">다음주</button>';
+  host.appendChild(nav);
+  host.appendChild(buildWeekGrid());
 }
 
 function fmtT(t){
@@ -617,6 +668,121 @@ function buildFullGrid(){
   return wrap;
 }
 
+/* 주차별 보기: 그 주의 날짜·출석·1회 이동이 반영된 주간 그리드 */
+function buildWeekGrid(){
+  var dates = weekDates();
+  var baseCols = [], seenB = {};
+  classes.forEach(function(c){
+    var key = c.loc + '|' + c.teacher;
+    if (!seenB[key]){ seenB[key] = true; baseCols.push({ key:key, loc:c.loc, teacher:c.teacher }); }
+  });
+  baseCols.sort(function(a,b){
+    var ia = TEACHER_ORDER.indexOf(a.teacher), ib = TEACHER_ORDER.indexOf(b.teacher);
+    return (ia<0?99:ia) - (ib<0?99:ib);
+  });
+  if (!baseCols.length) baseCols = [{ key:'-', loc:'', teacher:'' }];
+
+  var lo = 10*60, hi = 22*60;
+  classes.forEach(function(c){
+    lo = Math.min(lo, mins(c.start));
+    hi = Math.max(hi, mins(c.end || c.start));
+  });
+  lo = Math.floor(lo/30)*30; hi = Math.ceil(hi/30)*30;
+  var nrows = Math.round((hi - lo) / 30);
+
+  var colDefs = ['46px'];
+  WEEK_DAYS.forEach(function(dname, di){
+    baseCols.forEach(function(){ colDefs.push('minmax(96px, 1fr)'); });
+    if (di < WEEK_DAYS.length-1) colDefs.push('7px');
+  });
+
+  var g = document.createElement('div');
+  g.className = 'grid fullgrid';
+  g.style.gridTemplateColumns = colDefs.join(' ');
+  g.style.gridTemplateRows = 'auto auto repeat(' + nrows + ', 46px)';
+
+  var corner = document.createElement('div'); corner.style.gridRow='1 / 3'; g.appendChild(corner);
+  var colPos = 2;
+  var colOfKey = {};
+  WEEK_DAYS.forEach(function(dname, di){
+    var dh = document.createElement('div');
+    dh.className = 'dhead';
+    dh.innerHTML = esc(dname) + '<small>' + mdOf(dates[dname]) + '</small>';
+    dh.style.gridColumn = colPos + ' / ' + (colPos + baseCols.length);
+    dh.style.gridRow = '1';
+    g.appendChild(dh);
+    baseCols.forEach(function(cinfo, i){
+      var h = document.createElement('div');
+      h.className = 'thead';
+      h.innerHTML = cinfo.teacher ? '<b>' + esc(cinfo.teacher) + '</b>' + esc(cinfo.loc) : '<b>—</b>';
+      h.style.gridColumn = String(colPos + i);
+      h.style.gridRow = '2';
+      g.appendChild(h);
+      colOfKey[dname + '|' + cinfo.key] = colPos + i;
+    });
+    colPos += baseCols.length + (di < WEEK_DAYS.length-1 ? 1 : 0);
+  });
+  for (var r = 0; r < nrows; r++){
+    var lab = document.createElement('div');
+    lab.className = 'tlab';
+    lab.textContent = fmtT(lo + r*30);
+    lab.style.gridColumn = '1';
+    lab.style.gridRow = String(r+3);
+    g.appendChild(lab);
+  }
+  classes.forEach(function(c){
+    var col = colOfKey[c.day + '|' + c.loc + '|' + c.teacher];
+    if (!col) return;
+    var dstr = ymdOf(dates[c.day]);
+    var r0 = Math.floor((mins(c.start)-lo)/30), r1 = Math.ceil(((mins(c.end||c.start))-lo)/30);
+    if (r1 <= r0) r1 = r0+1;
+    var b = document.createElement('div');
+    b.className = 'blk ' + colorOf(c.cls);
+    b.style.gridColumn = String(col);
+    b.style.gridRow = (r0+3) + ' / ' + (r1+3);
+    var awayOf = {}, temps = [];
+    weekOnce.forEach(function(o){
+      if (o.fromId === c.id){ var t = classes.find(function(x){ return x.id===o.toId; }); awayOf[o.student.replace(/\(.*\)$/,'')] = { label: t ? labelOf(t) : '', row: o.row }; }
+      if (o.toId === c.id) temps.push(o);
+    });
+    var chips = c.students.map(function(nm){
+      var plain = nm.replace(/\(.*\)$/,'');
+      var away = Object.prototype.hasOwnProperty.call(awayOf, plain);
+      var a = weekAttend[dstr + '|' + c.id + '|' + nm];
+      var cls2 = a ? (a.status==='출석'?'at-ok':a.status==='지각'?'at-late':'at-abs') : '';
+      var tail = a && a.status==='지각' ? ' · 지각' : '';
+      return '<button data-nm="'+esc(nm)+'" class="'+cls2+(away?' away':'')+'"'+
+             (away ? ' data-away-row="'+awayOf[plain].row+'"' : '')+
+             ((a && a.memo) ? ' title="'+esc(a.memo)+'"' : (away ? ' title="이 주 1회 이동: '+esc(awayOf[plain].label)+'"' : ''))+'>'+
+             esc(nm)+tail+(away?'<em>1회↗</em>':'')+'</button>';
+    }).join('');
+    chips += temps.map(function(o){
+      var a = weekAttend[dstr + '|' + c.id + '|' + o.student];
+      var cls2 = a ? (a.status==='출석'?'at-ok':a.status==='지각'?'at-late':'at-abs') : 'once';
+      return '<button data-nm="'+esc(o.student)+'" data-once-row="'+o.row+'" class="'+cls2+'" title="1회 이동 · 사유: '+esc(o.reason)+((a&&a.memo)?' / '+esc(a.memo):'')+'">'+esc(o.student)+' · 1회</button>';
+    }).join('');
+    if (!chips) chips = '<span class="empty-note">비어 있음</span>';
+    b.innerHTML = '<div class="bt"><span class="nm">'+esc(c.cls)+'</span>'+
+                  '<small>'+esc(c.start)+'~'+esc(c.end)+' · '+c.students.length+'명</small></div>'+
+                  '<div class="stus">'+chips+'</div>';
+    b.addEventListener('click', function(e){ onWeekClick(e, c, dstr); });
+    g.appendChild(b);
+  });
+
+  var wrap = document.createElement('div');
+  wrap.style.overflowX = 'auto';
+  wrap.appendChild(g);
+  return wrap;
+}
+function onWeekClick(e, c, dstr){
+  var chip = e.target.closest('button[data-nm]');
+  if (!chip) return;
+  var nm = chip.getAttribute('data-nm');
+  if (chip.hasAttribute('data-once-row')){ openOnceManage(c, nm, parseInt(chip.getAttribute('data-once-row'),10), 'in', dstr); return; }
+  if (chip.hasAttribute('data-away-row')){ openOnceManage(c, nm, parseInt(chip.getAttribute('data-away-row'),10), 'out', dstr); return; }
+  openAttend(c, nm, dstr);
+}
+
 /* ── 서버 요청 공통 ── */
 function post(body, busyMsg, done){
   setStatus(busyMsg || '저장하는 중…');
@@ -741,12 +907,12 @@ function dropClass(dname, cinfo, startMin){
 }
 
 /* ── 출석 체크 ── */
-function openAttend(c, nm){
-  var key = c.id + '|' + nm;
-  var cur = attend[key];
+function openAttend(c, nm, dateStr){
+  attDate = dateStr || todayStr();
+  var cur = attendAt(attDate, c.id, nm);
   openModal(
     '<h3>출석 체크</h3>'+
-    '<p class="mdesc"><b>'+esc(nm)+'</b> — '+esc(labelOf(c))+'<br>'+esc(todayStr())+'</p>'+
+    '<p class="mdesc"><b>'+esc(nm)+'</b> — '+esc(labelOf(c))+'<br>'+esc(attDate)+'</p>'+
     '<div class="att-btns">'+
     '<button class="pick-ok'+(cur&&cur.status==='출석'?' on':'')+'" onclick="submitAttend(\''+esc(c.id)+'\',\''+esc(nm)+'\',\'출석\')">출석</button>'+
     '<button class="pick-late'+(cur&&cur.status==='지각'?' on':'')+'" onclick="submitAttend(\''+esc(c.id)+'\',\''+esc(nm)+'\',\'지각\')">지각</button>'+
@@ -756,7 +922,7 @@ function openAttend(c, nm){
     '<p class="merr" id="att-err"></p>'+
     '<div class="mbtns">'+
     (cur ? '<button onclick="submitAttend(\''+esc(c.id)+'\',\''+esc(nm)+'\',\'\')">기록 지우기</button>' : '')+
-    '<button onclick="startOnceMoveById(\''+esc(c.id)+'\',\''+esc(nm)+'\')">다른 반으로 1회 이동</button>'+
+    (mode === 'today' ? '<button onclick="startOnceMoveById(\''+esc(c.id)+'\',\''+esc(nm)+'\')">다른 반으로 1회 이동</button>' : '')+
     '<button onclick="closeModal()">닫기</button></div>'
   );
 }
@@ -767,14 +933,21 @@ function startOnceMoveById(cid, nm){
 function submitAttend(cid, nm, status){
   var memo = ($('att-memo') ? $('att-memo').value : '').trim();
   if (status === '지각' && !memo){ $('att-err').textContent = '지각은 메모를 적어주세요. (미리 연락 여부, 몇 분 지각 등)'; return; }
+  var d = attDate || todayStr();
   closeModal();
-  post({ action:'attendSet', book:book, date:todayStr(), classId:cid, student:nm, status:status, memo:memo },
+  post({ action:'attendSet', book:book, date:d, classId:cid, student:nm, status:status, memo:memo },
     '기록하는 중…', function(res){
       if (res && res.result === 'success'){
-        var key = cid + '|' + nm;
-        if (status) attend[key] = { status: status, memo: memo }; else delete attend[key];
+        if (mode === 'week'){
+          var wkey = d + '|' + cid + '|' + nm;
+          if (status) weekAttend[wkey] = { status: status, memo: memo }; else delete weekAttend[wkey];
+        }
+        if (d === todayStr()){
+          var key = cid + '|' + nm;
+          if (status) attend[key] = { status: status, memo: memo }; else delete attend[key];
+        }
         render();
-        setStatus(nm + (status ? ' — ' + status + ' 기록 완료.' : ' 기록을 지웠어요.'), 'ok');
+        setStatus(nm + (status ? ' — ' + status + ' 기록 완료.' : ' 기록을 지웠어요.') + (d !== todayStr() ? ' (' + d + ')' : ''), 'ok');
       } else setStatus('기록 실패: ' + ((res && res.message) || '오류'), 'err');
     });
 }
@@ -847,12 +1020,13 @@ function submitOnce(toId){
     });
 }
 /* 1회 이동 확인·사유 수정·취소 (+이동해 온 학생은 출석 체크 포함) */
-function openOnceManage(c, nm, row, dir){
-  var o = onceMoves.find(function(x){ return x.row === row; });
+function openOnceManage(c, nm, row, dir, dateStr){
+  attDate = dateStr || todayStr();
+  var o = onceMoves.find(function(x){ return x.row === row; }) || weekOnce.find(function(x){ return x.row === row; });
   if (!o){ load(true); return; }
   var from = classes.find(function(x){ return x.id===o.fromId; });
   var to = classes.find(function(x){ return x.id===o.toId; });
-  var cur = attend[c.id + '|' + nm];
+  var cur = attendAt(attDate, c.id, nm);
   var attSec = (dir === 'in')
     ? '<div class="att-btns">'+
       '<button class="pick-ok'+(cur&&cur.status==='출석'?' on':'')+'" onclick="submitAttend(\''+esc(c.id)+'\',\''+esc(nm)+'\',\'출석\')">출석</button>'+
@@ -883,8 +1057,7 @@ function onceEditReason(row, nm){
   closeModal();
   post({ action:'timetableOnceEdit', row:row, student:nm, reason:reason }, '저장하는 중…', function(res){
     if (res && res.result === 'success'){
-      var o = onceMoves.find(function(x){ return x.row === row; });
-      if (o) o.reason = reason;
+      onceMoves.concat(weekOnce).forEach(function(o){ if (o.row === row) o.reason = reason; });
       render();
       setStatus('사유 메모를 저장했어요.', 'ok');
     } else setStatus('저장 실패: ' + ((res && res.message) || '오류'), 'err');
@@ -894,7 +1067,7 @@ function onceCancel(row, nm){
   if (!confirm(nm + '의 1회 이동을 취소할까요?\n원래 반으로 되돌아갑니다.')) return;
   closeModal();
   post({ action:'timetableOnceCancel', row:row, student:nm }, '취소하는 중…', function(res){
-    if (res && res.result==='success'){ setStatus('1회 이동을 취소했어요.', 'ok'); load(true); }
+    if (res && res.result==='success'){ setStatus('1회 이동을 취소했어요.', 'ok'); if (mode==='week') loadWeek(); load(true); }
     else setStatus('취소 실패: ' + ((res&&res.message)||'오류'), 'err');
   });
 }
