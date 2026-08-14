@@ -179,6 +179,7 @@
   body.classmoving .cell:hover{background:var(--icon-bg);outline-color:var(--btn);}
   body.classmoving .blk{opacity:.55;pointer-events:none;}
   body.classmoving #mv-remove{display:none;}
+  body.classmoving #mv-note{display:none;}
   body.classmoving .blk.moving-src{opacity:1;outline:2px solid var(--accent);}
 
   /* 모달 */
@@ -293,6 +294,7 @@
   <div class="movebar" id="movebar">
     <span>이동 중 — <b id="mv-name"></b> <span id="mv-from" style="font-size:.82rem;opacity:.85;"></span></span>
     <span class="sp"></span>
+    <button id="mv-note" onclick="openNoteFromMove()">특이사항</button>
     <button id="mv-remove" onclick="openRemove()">반에서 빼기</button>
     <button onclick="cancelMove()">취소</button>
   </div>
@@ -1246,6 +1248,7 @@ function cancelMove(){
   var wasOnce = !!(moving && moving.once);
   moving = null; classMoving = null;
   $('mv-remove').style.display = '';
+  $('mv-note').style.display = '';
   document.body.classList.remove('moving');
   document.body.classList.remove('classmoving');
   $('movebar').classList.remove('on');
@@ -1404,6 +1407,7 @@ function openAttend(c, nm, dateStr){
     '<p class="merr" id="att-err"></p>'+
     '<div class="mbtns">'+
     (cur ? '<button onclick="submitAttend(\''+esc(c.id)+'\',\''+esc(nm)+'\',\'\')">기록 지우기</button>' : '')+
+    '<button onclick="openNoteEdit(\''+esc(nm)+'\')">특이사항</button>'+
     (mode === 'today' ? '<button onclick="startOnceMoveById(\''+esc(c.id)+'\',\''+esc(nm)+'\')">다른 반으로 1회 이동</button>' : '')+
     '<button onclick="closeModal()">닫기</button></div>'
   );
@@ -1465,6 +1469,7 @@ function openMovePicker(fromC){
       : '<p class="subnote">같은 종류의 다른 반이 없어요.</p>')+
     '<p class="subnote">다른 종류의 반으로 옮기려면 아래 버튼으로 창을 닫고, 시간표에서 옮길 반을 직접 누르세요.</p>'+
     '<div class="mbtns"><button onclick="cancelMove(); closeModal();">이동 취소</button>'+
+    '<button onclick="closeModal(); openNoteEdit(\''+esc(m.name)+'\')">특이사항</button>'+
     '<button onclick="closeModal()">시간표에서 직접 선택</button></div>'
   );
   $('modal-box').querySelectorAll('button[data-mv-to]').forEach(function(b){
@@ -1504,6 +1509,35 @@ function submitMove(toId){
     });
 }
 
+/* ── 특이사항(이름 옆 괄호 표기) 편집 ── */
+function openNoteEdit(nm){
+  var plain = plainName(nm), note = nameNote(nm);
+  openModal(
+    '<h3>특이사항 표기</h3>'+
+    '<p class="mdesc"><b>'+esc(plain)+'</b> — 이름에 마우스를 대면 보이는 내용이에요. 파란 칩으로 구분됩니다.<br>예: 8/23부터 · 입테 · 9월 퇴원 예정</p>'+
+    '<textarea id="note-in" placeholder="비워두고 저장하면 표기가 사라져요">'+esc(note)+'</textarea>'+
+    '<div class="mbtns"><button onclick="closeModal()">취소</button>'+
+    '<button class="primary" onclick="submitNoteEdit(\''+esc(nm)+'\')">저장</button></div>'
+  );
+}
+function submitNoteEdit(nm){
+  var v = ($('note-in') ? $('note-in').value : '').trim().replace(/[()]/g, '').replace(/\s+/g, '');
+  var to = plainName(nm) + (v ? '(' + v + ')' : '');
+  closeModal();
+  if (to === nm){ if (moving) cancelMove(); return; }
+  if (moving) cancelMove();
+  post({ action:'timetableRenameStudent', book:book, from:nm, to:to }, '특이사항을 저장하는 중…', function(res){
+    if (res && res.result === 'success'){
+      setStatus(plainName(nm) + (v ? ' — 특이사항을 저장했어요.' : ' — 특이사항 표기를 지웠어요.'), 'ok');
+      load(true);
+    } else setStatus('저장 실패: ' + ((res && res.message) || '오류'), 'err');
+  });
+}
+function openNoteFromMove(){
+  if (!moving || moving.once) return;
+  openNoteEdit(moving.name);
+}
+
 /* ── 1회 이동 (오늘의 시간표 전용) ── */
 function startOnceMove(c, nm){
   closeModal();
@@ -1511,6 +1545,7 @@ function startOnceMove(c, nm){
   document.body.classList.add('moving');
   $('movebar').classList.add('on');
   $('mv-remove').style.display = 'none';
+  $('mv-note').style.display = 'none';
   $('mv-name').textContent = nm;
   $('mv-from').textContent = moving.fromLabel + ' 에서 1회 이동 — 옮길 반을 누르세요';
   render();
