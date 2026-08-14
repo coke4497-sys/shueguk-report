@@ -106,10 +106,16 @@
   .blk .stus button.away{opacity:.5;}
   .blk .stus button.away em{font-style:normal;font-size:.66rem;color:var(--accent);margin-left:3px;}
   .blk .empty-note{color:var(--ink-soft);font-size:.72rem;}
-  .blk .addbtn{float:right;font:inherit;font-size:.68rem;background:rgba(255,255,255,.7);border:1px solid rgba(0,0,0,.12);
-    border-radius:7px;padding:1px 7px;cursor:pointer;color:var(--ink-soft);margin-left:4px;}
-  body.moving .blk .addbtn{visibility:hidden;}
-  .cell{border-radius:8px;}
+  .blk .btns{display:flex;gap:3px;margin:0 0 4px;flex-wrap:nowrap;}
+  .blk .bbtn{font:inherit;font-size:.64rem;background:rgba(255,255,255,.7);border:1px solid rgba(0,0,0,.12);
+    border-radius:7px;padding:1px 6px;cursor:pointer;color:var(--ink-soft);white-space:nowrap;flex:none;}
+  .blk .bbtn:hover{border-color:var(--accent);color:var(--accent);}
+  body.moving .blk .btns{visibility:hidden;}
+  .cell{border-top:1px dotted #BFCFC9;}
+  .tlab{border-top:1px dotted #BFCFC9;}
+  .thead{border-top:none;}
+  .dhead{font-family:"Gowun Batang",serif;font-weight:700;text-align:center;color:#fff;background:var(--btn);
+    border-radius:8px;padding:3px 0;font-size:.9rem;}
   body.classmoving .cell{outline:1.5px dashed var(--line);outline-offset:-2px;cursor:pointer;}
   body.classmoving .cell:hover{background:var(--icon-bg);outline-color:var(--btn);}
   body.classmoving .blk{opacity:.55;pointer-events:none;}
@@ -174,6 +180,7 @@
       <button id="v-all" onclick="setMode('all')">전체 시간표</button>
       <button id="v-day" onclick="setMode('day')">요일별</button>
       <span class="sp"></span>
+      <button class="reload" onclick="openAddClass()">반 추가</button>
       <button class="reload" onclick="openLog()">이동 기록</button>
       <button class="reload" onclick="load(true)">다시 불러오기</button>
     </div>
@@ -357,31 +364,88 @@ function render(){
     return;
   }
   if (mode === 'all'){
-    DAYS.forEach(function(dname){
-      var list = classes.filter(function(c){ return c.day===dname; });
-      var h = document.createElement('div');
-      h.className = 'dayhead';
-      h.innerHTML = esc(dname) + '요일 <small>' + list.length + '개 반</small>';
-      host.appendChild(h);
-      if (!list.length){
-        var em = document.createElement('p');
-        em.className = 'day-empty';
-        em.textContent = '등록된 반이 없어요.';
-        host.appendChild(em);
-        return;
-      }
-      host.appendChild(buildDayGrid(list));
-    });
+    host.appendChild(buildFullGrid());
     return;
   }
   var list = classes.filter(function(c){ return c.day===day; });
   if (!list.length){ host.innerHTML = '<p class="empty-day">이 요일에는 등록된 반이 없어요.</p>'; return; }
   host.appendChild(buildDayGrid(list));
 }
+
+function fmtT(t){
+  var h24 = Math.floor(t/60), mm = t%60;
+  var h12 = h24 > 12 ? h24-12 : h24;
+  return h12 + ':' + (mm<10?'0':'')+mm;
+}
+
+/* 반 블록 요소 (내용·클릭 공통) — 위치는 호출한 쪽에서 지정 */
+function blockEl(c){
+  var b = document.createElement('div');
+  b.className = 'blk ' + (mode==='today' ? '' : 'droppable ') + colorOf(c.cls) + (classMoving && classMoving.id===c.id ? ' moving-src' : '');
+  var awayOf = {};   // 이 반에서 1회 이동으로 빠진 학생 → 도착 반 라벨
+  var temps = [];    // 이 반으로 1회 이동해 온 학생
+  onceMoves.forEach(function(o){
+    if (o.fromId === c.id){ var t = classes.find(function(x){ return x.id===o.toId; }); awayOf[o.student.replace(/\(.*\)$/,'')] = t ? labelOf(t) : ''; }
+    if (o.toId === c.id) temps.push(o);
+  });
+  var chips = '';
+  if (mode === 'today'){
+    chips = c.students.map(function(nm){
+      var plain = nm.replace(/\(.*\)$/,'');
+      var away = Object.prototype.hasOwnProperty.call(awayOf, plain);
+      var a = attend[c.id + '|' + nm];
+      var cls2 = a ? (a.status==='출석'?'at-ok':a.status==='지각'?'at-late':'at-abs') : '';
+      var tail = a && a.status==='지각' ? ' · 지각' : '';
+      return '<button data-att-cid="'+esc(c.id)+'" data-nm="'+esc(nm)+'" class="'+cls2+(away?' away':'')+'"'+
+             ((a && a.memo) ? ' title="'+esc(a.memo)+'"' : (away ? ' title="이번 주 1회 이동: '+esc(awayOf[plain])+'"' : ''))+'>'+
+             esc(nm)+tail+(away?'<em>1회↗</em>':'')+'</button>';
+    }).join('');
+    chips += temps.map(function(o){
+      var a = attend[c.id + '|' + o.student];
+      var cls2 = a ? (a.status==='출석'?'at-ok':a.status==='지각'?'at-late':'at-abs') : 'once';
+      return '<button data-att-cid="'+esc(c.id)+'" data-nm="'+esc(o.student)+'" class="'+cls2+'" title="1회 이동 · 사유: '+esc(o.reason)+((a&&a.memo)?' / '+esc(a.memo):'')+'">'+esc(o.student)+' · 1회</button>';
+    }).join('');
+  } else {
+    chips = c.students.map(function(nm){
+      var plain = nm.replace(/\(.*\)$/,'');
+      var away = Object.prototype.hasOwnProperty.call(awayOf, plain);
+      return '<button data-cid="'+esc(c.id)+'" data-nm="'+esc(nm)+'"'+
+             (away ? ' class="away" title="이번 주 1회 이동: '+esc(awayOf[plain])+'"' : '')+'>'+
+             esc(nm)+(away?'<em>1회↗</em>':'')+'</button>';
+    }).join('');
+    chips += temps.map(function(o){
+      return '<button class="once" data-once-row="'+o.row+'" data-nm="'+esc(o.student)+'" title="사유: '+esc(o.reason)+' ('+esc(o.date)+')">'+esc(o.student)+' · 1회</button>';
+    }).join('');
+  }
+  if (!chips) chips = '<span class="empty-note">비어 있음</span>';
+  var btnRow = (mode === 'today') ? '' :
+    '<div class="btns">'+
+    '<button class="bbtn clsmove" title="이 반을 빈 자리로 통째 이동">이동</button>'+
+    '<button class="bbtn stuadd" title="이 반에 학생 추가">추가</button>'+
+    '<button class="bbtn clsdel" title="이 반 삭제 (빈 반만)">삭제</button>'+
+    '</div>';
+  b.innerHTML = '<div class="bt"><span class="nm">'+esc(c.cls)+'</span>'+
+                '<small>'+esc(c.start)+'~'+esc(c.end)+' · '+c.students.length+'명</small></div>'+
+                btnRow +
+                '<div class="stus">'+chips+'</div>';
+  b.addEventListener('click', function(e){ onBlockClick(e, c); });
+  return b;
+}
+
+function addCell(g, ci, r, dname, cinfo, lo, rowOffset){
+  var cell = document.createElement('div');
+  cell.className = 'cell';
+  cell.style.gridColumn = String(ci);
+  cell.style.gridRow = String(r + rowOffset);
+  cell.addEventListener('click', function(){
+    if (classMoving) dropClass(dname, cinfo, lo + r*30);
+  });
+  g.appendChild(cell);
+}
+
+/* 요일별·오늘 보기: 담당T × 시간 그리드 */
 function buildDayGrid(list){
   var dname = list.length ? list[0].day : day;
-
-  // 열: 전체 시간표 기준(반이 없어도 항상 표시) — 빈 자리로의 반 이동을 위해
   var cols = [], seen = {};
   classes.forEach(function(c){
     var key = c.loc + '|' + c.teacher;
@@ -417,12 +481,6 @@ function buildDayGrid(list){
     h.innerHTML = '<b>' + esc(c.teacher) + '</b>' + esc(c.loc);
     g.appendChild(h);
   });
-
-  function fmtT(t){
-    var h24 = Math.floor(t/60), mm = t%60;
-    var h12 = h24 > 12 ? h24-12 : h24;
-    return h12 + ':' + (mm<10?'0':'')+mm;
-  }
   for (var r = 0; r < nrows; r++){
     var lab = document.createElement('div');
     lab.className = 'tlab';
@@ -431,74 +489,119 @@ function buildDayGrid(list){
     lab.style.gridRow = String(r+2);
     g.appendChild(lab);
   }
-
-  // 빈 칸 — 반 통째 이동의 도착 지점
   cols.forEach(function(cinfo, ci){
-    for (var r = 0; r < nrows; r++){
-      var cell = document.createElement('div');
-      cell.className = 'cell';
-      cell.style.gridColumn = String(ci+2);
-      cell.style.gridRow = String(r+2);
-      (function(cinfo, r){
-        cell.addEventListener('click', function(){
-          if (classMoving) dropClass(dname, cinfo, lo + r*30);
-        });
-      })(cinfo, r);
-      g.appendChild(cell);
-    }
+    for (var r = 0; r < nrows; r++) addCell(g, ci+2, r, dname, cinfo, lo, 2);
   });
-
-  // 수업 블록
   list.forEach(function(c){
     var r0 = Math.floor((mins(c.start)-lo)/30), r1 = Math.ceil(((mins(c.end||c.start))-lo)/30);
     if (r1 <= r0) r1 = r0+1;
-    var b = document.createElement('div');
-    b.className = 'blk ' + (mode==='today' ? '' : 'droppable ') + colorOf(c.cls) + (classMoving && classMoving.id===c.id ? ' moving-src' : '');
+    var b = blockEl(c);
     b.style.gridColumn = String((colIdx[c.loc+'|'+c.teacher]||0)+2);
     b.style.gridRow = (r0+2) + ' / ' + (r1+2);
-    var awayOf = {};   // 이 반에서 1회 이동으로 빠진 학생 → 도착 반 라벨
-    var temps = [];    // 이 반으로 1회 이동해 온 학생
-    onceMoves.forEach(function(o){
-      if (o.fromId === c.id){ var t = classes.find(function(x){ return x.id===o.toId; }); awayOf[o.student.replace(/\(.*\)$/,'')] = t ? labelOf(t) : ''; }
-      if (o.toId === c.id) temps.push(o);
+    g.appendChild(b);
+  });
+
+  var wrap = document.createElement('div');
+  wrap.style.overflowX = 'auto';
+  wrap.appendChild(g);
+  return wrap;
+}
+
+/* 전체 보기: 월~일이 가로축 — 요일 아래에 그 요일의 담당T 열 */
+function buildFullGrid(){
+  // 요일별 열 구성 (반이 있는 담당T만, 없으면 빈 열 1개)
+  var dayCols = {};
+  DAYS.forEach(function(dname){
+    var cols = [], seen = {};
+    classes.forEach(function(c){
+      if (c.day !== dname) return;
+      var key = c.loc + '|' + c.teacher;
+      if (!seen[key]){ seen[key] = true; cols.push({ key:key, loc:c.loc, teacher:c.teacher }); }
     });
-    var chips = '';
-    if (mode === 'today'){
-      chips = c.students.map(function(nm){
-        var plain = nm.replace(/\(.*\)$/,'');
-        var away = Object.prototype.hasOwnProperty.call(awayOf, plain);
-        var a = attend[c.id + '|' + nm];
-        var cls2 = a ? (a.status==='출석'?'at-ok':a.status==='지각'?'at-late':'at-abs') : '';
-        var tail = a ? (a.status==='지각' ? ' · 지각' : a.status==='결석' ? '' : '') : '';
-        return '<button data-att-cid="'+esc(c.id)+'" data-nm="'+esc(nm)+'" class="'+cls2+(away?' away':'')+'"'+
-               ((a && a.memo) ? ' title="'+esc(a.memo)+'"' : (away ? ' title="이번 주 1회 이동: '+esc(awayOf[plain])+'"' : ''))+'>'+
-               esc(nm)+tail+(away?'<em>1회↗</em>':'')+'</button>';
-      }).join('');
-      chips += temps.map(function(o){
-        var a = attend[c.id + '|' + o.student];
-        var cls2 = a ? (a.status==='출석'?'at-ok':a.status==='지각'?'at-late':'at-abs') : 'once';
-        return '<button data-att-cid="'+esc(c.id)+'" data-nm="'+esc(o.student)+'" class="'+cls2+'" title="1회 이동 · 사유: '+esc(o.reason)+((a&&a.memo)?' / '+esc(a.memo):'')+'">'+esc(o.student)+' · 1회</button>';
-      }).join('');
-    } else {
-      chips = c.students.map(function(nm){
-        var plain = nm.replace(/\(.*\)$/,'');
-        var away = Object.prototype.hasOwnProperty.call(awayOf, plain);
-        return '<button data-cid="'+esc(c.id)+'" data-nm="'+esc(nm)+'"'+
-               (away ? ' class="away" title="이번 주 1회 이동: '+esc(awayOf[plain])+'"' : '')+'>'+
-               esc(nm)+(away?'<em>1회↗</em>':'')+'</button>';
-      }).join('');
-      chips += temps.map(function(o){
-        return '<button class="once" data-once-row="'+o.row+'" data-nm="'+esc(o.student)+'" title="사유: '+esc(o.reason)+' ('+esc(o.date)+')">'+esc(o.student)+' · 1회</button>';
-      }).join('');
-    }
-    if (!chips) chips = '<span class="empty-note">비어 있음</span>';
-    var hdrBtns = (mode === 'today') ? '' :
-      '<button class="addbtn" title="이 반에 학생 추가">추가</button>'+
-      '<button class="addbtn clsmove" title="이 반을 빈 자리로 통째 이동">이동</button>';
-    b.innerHTML = '<div class="bt">'+hdrBtns+
-                  '<span class="nm">'+esc(c.cls)+'</span><small>'+esc(c.start)+'~'+esc(c.end)+' · '+c.students.length+'명</small></div>'+
-                  '<div class="stus">'+chips+'</div>';
-    b.addEventListener('click', function(e){ onBlockClick(e, c); });
+    cols.sort(function(a,b){
+      var ia = TEACHER_ORDER.indexOf(a.teacher), ib = TEACHER_ORDER.indexOf(b.teacher);
+      return (ia<0?99:ia) - (ib<0?99:ib);
+    });
+    if (!cols.length) cols = [{ key:'-', loc:'', teacher:'' }];   // 빈 요일도 열 유지 (반 이동·추가용)
+    dayCols[dname] = cols;
+  });
+
+  // 통합 시간축: 10:00 ~ 10:00(22시), 수업이 벗어나면 확장
+  var lo = 10*60, hi = 22*60;
+  classes.forEach(function(c){
+    lo = Math.min(lo, mins(c.start));
+    hi = Math.max(hi, mins(c.end || c.start));
+  });
+  lo = Math.floor(lo/30)*30; hi = Math.ceil(hi/30)*30;
+  var nrows = Math.round((hi - lo) / 30);
+
+  // 그리드 컬럼: 시간축 + [요일별 열들 + 구분선]
+  var colDefs = ['46px'], colMeta = [];   // colMeta[i] = {day, cinfo} (1-based 제외한 데이터열)
+  DAYS.forEach(function(dname, di){
+    dayCols[dname].forEach(function(cinfo){
+      colDefs.push('minmax(104px, 1fr)');
+      colMeta.push({ day: dname, cinfo: cinfo });
+    });
+    if (di < DAYS.length-1){ colDefs.push('7px'); colMeta.push(null); }   // 요일 구분 공백
+  });
+
+  var g = document.createElement('div');
+  g.className = 'grid fullgrid';
+  g.style.gridTemplateColumns = colDefs.join(' ');
+  g.style.gridTemplateRows = 'auto auto repeat(' + nrows + ', 46px)';
+
+  // 1행: 요일 헤더 (해당 요일 열들에 걸침)
+  var corner = document.createElement('div'); corner.style.gridRow='1 / 3'; g.appendChild(corner);
+  var colPos = 2;
+  DAYS.forEach(function(dname, di){
+    var n = dayCols[dname].length;
+    var dh = document.createElement('div');
+    dh.className = 'dhead';
+    dh.textContent = dname;
+    dh.style.gridColumn = colPos + ' / ' + (colPos + n);
+    dh.style.gridRow = '1';
+    g.appendChild(dh);
+    // 2행: 담당T 헤더
+    dayCols[dname].forEach(function(cinfo, i){
+      var h = document.createElement('div');
+      h.className = 'thead';
+      h.innerHTML = cinfo.teacher ? '<b>' + esc(cinfo.teacher) + '</b>' + esc(cinfo.loc) : '<b>—</b>';
+      h.style.gridColumn = String(colPos + i);
+      h.style.gridRow = '2';
+      g.appendChild(h);
+    });
+    colPos += n + (di < DAYS.length-1 ? 1 : 0);
+  });
+
+  // 시간 라벨
+  for (var r = 0; r < nrows; r++){
+    var lab = document.createElement('div');
+    lab.className = 'tlab';
+    lab.textContent = fmtT(lo + r*30);
+    lab.style.gridColumn = '1';
+    lab.style.gridRow = String(r+3);
+    g.appendChild(lab);
+  }
+
+  // 빈 칸 + 블록
+  var gcol = 2;
+  var colOfKey = {};   // day|loc|teacher → grid column
+  DAYS.forEach(function(dname, di){
+    dayCols[dname].forEach(function(cinfo){
+      colOfKey[dname + '|' + cinfo.key] = gcol;
+      for (var r = 0; r < nrows; r++) addCell(g, gcol, r, dname, cinfo, lo, 3);
+      gcol++;
+    });
+    if (di < DAYS.length-1) gcol++;
+  });
+  classes.forEach(function(c){
+    var col = colOfKey[c.day + '|' + c.loc + '|' + c.teacher];
+    if (!col) return;
+    var r0 = Math.floor((mins(c.start)-lo)/30), r1 = Math.ceil(((mins(c.end||c.start))-lo)/30);
+    if (r1 <= r0) r1 = r0+1;
+    var b = blockEl(c);
+    b.style.gridColumn = String(col);
+    b.style.gridRow = (r0+3) + ' / ' + (r1+3);
     g.appendChild(b);
   });
 
@@ -537,8 +640,18 @@ function onBlockClick(e, c){
   if (mode === 'today') return;
   var mv = e.target.closest('.clsmove');
   if (mv && !moving && !classMoving){ startClassMove(c); return; }
-  var addbtn = e.target.closest('.addbtn');
-  if (addbtn && !moving && !classMoving){ openAdd(c); return; }
+  var ab = e.target.closest('.stuadd');
+  if (ab && !moving && !classMoving){ openAdd(c); return; }
+  var del = e.target.closest('.clsdel');
+  if (del && !moving && !classMoving){
+    if (c.students.length){ alert('학생이 남아 있는 반은 삭제할 수 없어요.\n먼저 학생을 다른 반으로 이동하거나 빼주세요. (' + c.students.length + '명)'); return; }
+    if (!confirm(labelOf(c) + '\n\n이 빈 반을 삭제할까요?')) return;
+    post({ action:'timetableDeleteClass', book:book, classId:c.id }, '삭제하는 중…', function(res){
+      if (res && res.result === 'success'){ setStatus('반을 삭제했어요.', 'ok'); load(true); }
+      else setStatus('삭제 실패: ' + ((res && res.message) || '오류'), 'err');
+    });
+    return;
+  }
   var onceChip = e.target.closest('button[data-once-row]');
   if (onceChip && !moving){
     var row = onceChip.getAttribute('data-once-row'), nm = onceChip.getAttribute('data-nm');
@@ -755,6 +868,51 @@ function openAdd(c){
       .then(function(d){ roster = (d && d.students) || []; wire(); })
       .catch(function(){ $('add-err').textContent = '명단을 불러오지 못했어요.'; });
   }
+}
+
+/* 반 추가 */
+function openAddClass(){
+  var timeOpts = [];
+  for (var t = 10*60; t <= 21*60+30; t += 30) timeOpts.push(fmt12(t));
+  var timeSel = function(id, def){
+    return '<select id="'+id+'" style="font:inherit;font-size:.92rem;border:1.5px solid var(--line);border-radius:10px;padding:8px 10px;width:100%;margin-top:6px;">'+
+      timeOpts.map(function(o){ return '<option'+(o===def?' selected':'')+'>'+o+'</option>'; }).join('')+'</select>';
+  };
+  var locs = [];
+  classes.forEach(function(c){ if (c.loc && locs.indexOf(c.loc) < 0) locs.push(c.loc); });
+  if (!locs.length) locs = ['본원','민트초코','화정센터','정리정독'];
+  openModal(
+    '<h3>반 추가 — '+esc(book)+' 시간표</h3>'+
+    '<div style="display:flex;gap:8px;"><div style="flex:1;"><label style="font-size:.8rem;color:var(--ink-soft);">요일</label>'+
+    '<select id="nc-day" style="font:inherit;font-size:.92rem;border:1.5px solid var(--line);border-radius:10px;padding:8px 10px;width:100%;margin-top:6px;">'+
+    DAYS.map(function(d){ return '<option>'+d+'</option>'; }).join('')+'</select></div>'+
+    '<div style="flex:1;"><label style="font-size:.8rem;color:var(--ink-soft);">시작</label>'+timeSel('nc-start','5:30')+'</div>'+
+    '<div style="flex:1;"><label style="font-size:.8rem;color:var(--ink-soft);">끝</label>'+timeSel('nc-end','7:00')+'</div></div>'+
+    '<div style="display:flex;gap:8px;margin-top:8px;"><div style="flex:1;"><label style="font-size:.8rem;color:var(--ink-soft);">위치</label>'+
+    '<input type="text" id="nc-loc" list="nc-locs" placeholder="예) 본원"><datalist id="nc-locs">'+
+    locs.map(function(l){ return '<option>'+esc(l)+'</option>'; }).join('')+'</datalist></div>'+
+    '<div style="flex:1;"><label style="font-size:.8rem;color:var(--ink-soft);">담당T</label>'+
+    '<input type="text" id="nc-teacher" list="nc-ts" placeholder="예) 주혜"><datalist id="nc-ts">'+
+    TEACHER_ORDER.map(function(t){ return '<option>'+t+'</option>'; }).join('')+'</datalist></div></div>'+
+    '<label style="font-size:.8rem;color:var(--ink-soft);display:block;margin-top:8px;">반이름</label>'+
+    '<input type="text" id="nc-cls" placeholder="예) 고1 가 · 정리정독 중2 · 내신 화정고">'+
+    '<p class="subnote">반이름이 \'가/나\'로 끝나면 학생 이동 시 리포트의 정규 가/나 칸에 연결돼요.</p>'+
+    '<p class="merr" id="nc-err"></p>'+
+    '<div class="mbtns"><button onclick="closeModal()">취소</button>'+
+    '<button class="primary" onclick="submitAddClass()">만들기</button></div>'
+  );
+}
+function submitAddClass(){
+  var d = $('nc-day').value, st = $('nc-start').value, en = $('nc-end').value;
+  var loc = $('nc-loc').value.trim(), teacher = $('nc-teacher').value.trim(), cls = $('nc-cls').value.trim();
+  if (!cls){ $('nc-err').textContent = '반이름을 입력해 주세요.'; return; }
+  if (mins(en) <= mins(st)){ $('nc-err').textContent = '끝 시간이 시작보다 빨라요.'; return; }
+  closeModal();
+  post({ action:'timetableAddClass', book:book, day:d, start:st, end:en, loc:loc, teacher:teacher, cls:cls },
+    '반을 만드는 중…', function(res){
+      if (res && res.result === 'success'){ setStatus(cls + ' 반을 만들었어요. 이제 학생을 추가해 주세요.', 'ok'); load(true); }
+      else setStatus('반 추가 실패: ' + ((res && res.message) || '오류'), 'err');
+    });
 }
 
 /* 이동 기록 */
