@@ -239,7 +239,7 @@
       <button id="v-all" onclick="setMode('all')">전체 시간표</button>
       <button id="v-week" onclick="setMode('week')">주차별</button>
       <span class="sp"></span>
-      <button class="reload" onclick="openMakeup()">결석 보충</button>
+      <button class="reload" onclick="openMakeup()">결석자 관리</button>
       <button class="reload" onclick="load(true)">다시 불러오기</button>
     </div>
     <div class="editbar" id="editbar">
@@ -1572,7 +1572,7 @@ function classLabelOf(cid){
   return c ? (c.cls + ' (' + c.day + c.start + ' ' + c.teacher + 'T)') : cid;
 }
 function openMakeup(){
-  openModal('<h3>결석자 영상보충</h3>'+
+  openModal('<h3>결석자 관리</h3>'+
     '<p class="mdesc">결석 기록마다 보충 일정(날짜·요일·시간)을 적고, 확인 후 완료 처리하세요.</p>'+
     '<div id="mk-list"><p class="subnote">불러오는 중…</p></div>'+
     '<div class="mbtns"><button onclick="closeModal()">닫기</button></div>');
