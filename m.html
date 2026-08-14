@@ -242,7 +242,7 @@ body{font-family:'Noto Sans KR',sans-serif; background:var(--sage-fog); color:va
 var LOCK_KEY = 'shueguk_teacher_unlocked';
 var PASS_ENC = 'c2g=';
 (function(){
-  try { if(localStorage.getItem(LOCK_KEY)==='1'){ unlock(); return; } } catch(e){}
+  unlock(); return;   // 티쳐스 페이지 비밀번호 제거(접속 간소화, 2026-08-14)
   document.body.classList.add('locked');
 })();
 function unlock(){
