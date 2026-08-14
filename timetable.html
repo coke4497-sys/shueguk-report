@@ -66,6 +66,14 @@
   .viewtabs .sp{flex:1;}
   .viewtabs .reload{font-size:.82rem;background:var(--icon-bg);border:1px solid var(--line-soft);
     border-radius:9px;padding:6px 12px;color:var(--ink-soft);cursor:pointer;}
+  .searchbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:6px;}
+  .searchbar input{font:inherit;font-size:.9rem;padding:6px 12px;border:1.5px solid var(--line);border-radius:10px;width:150px;}
+  #searchResults{display:flex;gap:6px;flex-wrap:wrap;font-size:.8rem;align-items:center;color:var(--ink-soft);}
+  #searchResults button{font:inherit;font-size:.8rem;background:#fff;border:1px solid var(--line);
+    border-radius:999px;padding:3px 11px;cursor:pointer;color:var(--ink);}
+  #searchResults button b{color:var(--accent);}
+  .blk.search-blk{outline:2px solid #B08A3E;}
+  .stus button.search-hit{background:#B08A3E;border-color:#B08A3E;color:#fff;font-weight:700;}
   .editbar{display:none;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:6px;}
   .editbar.show{display:flex;}
   .editbar .elabel{font-size:.78rem;color:var(--ink-soft);margin-right:2px;}
@@ -220,6 +228,10 @@
       <button id="e-del" onclick="setEdit('del')">반 삭제</button>
       <button onclick="openAddClass()">반 추가</button>
       <button onclick="openLog()">이동 기록</button>
+    </div>
+    <div class="searchbar">
+      <input id="stu-q" placeholder="학생 검색" autocomplete="off" />
+      <span id="searchResults"></span>
     </div>
     <p class="hint">학생 이름을 누르면 이동 모드가 켜져요. 옮길 반(다른 요일 포함)을 누르면 이동됩니다.</p>
     <div class="legend">
@@ -514,6 +526,7 @@ function blockEl(c){
   var b = document.createElement('div');
   var todayDrop = (mode==='today' && moving && moving.once) ? 'droppable ' : '';
   b.className = 'blk ' + (mode==='today' ? todayDrop : 'droppable ') + colorOf(c.cls) + (classMoving && classMoving.id===c.id ? ' moving-src' : '');
+  b.setAttribute('data-cid', c.id);
   var awayOf = {};   // 이 반에서 1회 이동으로 빠진 학생 → {label, row}
   var temps = [];    // 이 반으로 1회 이동해 온 학생
   onceMoves.forEach(function(o){
@@ -575,6 +588,7 @@ function tuneRowHeight(g, headerAuto, nrows){
     if (maxPer > 46) g.style.gridTemplateRows = (headerAuto ? headerAuto + ' ' : '') + 'repeat(' + nrows + ', ' + maxPer + 'px)';
     var sw = g.closest ? g.closest('.scrollwrap') : null;
     if (sw && pendingScroll){ sw.scrollTop = pendingScroll.top; sw.scrollLeft = pendingScroll.left; pendingScroll = null; }
+    applySearchHits();
   });
 }
 function addCell(g, ci, r, dname, cinfo, lo, rowOffset){
@@ -878,6 +892,7 @@ function buildWeekGrid(){
     if (r1 <= r0) r1 = r0+1;
     var b = document.createElement('div');
     b.className = 'blk ' + colorOf(c.cls);
+    b.setAttribute('data-cid', c.id);
     b.style.gridColumn = String(col);
     b.style.gridRow = (r0+1) + ' / ' + (r1+1);
     var awayOf = {}, temps = [];
@@ -946,10 +961,56 @@ function rosterNote(res){
   return res.rosterUpdated ? ' 리포트·학생 페이지에도 반영됐어요.' : (res.rosterMsg ? ' (' + res.rosterMsg + ')' : '');
 }
 
+/* ── 학생 검색 ── */
+function plainName(nm){ return String(nm || '').replace(/\(.*\)$/, ''); }
+function searchStudent(){
+  var q = $('stu-q').value.trim();
+  var box = $('searchResults');
+  if (!q){ box.innerHTML = ''; applySearchHits(); return; }
+  var out = [];
+  classes.forEach(function(c){
+    c.students.forEach(function(nm){
+      if (plainName(nm).indexOf(q) >= 0) out.push({ c: c, nm: nm });
+    });
+  });
+  out.sort(function(a, b){ return plainName(a.nm).localeCompare(plainName(b.nm), 'ko') || (DAY_IDX[a.c.day] - DAY_IDX[b.c.day]); });
+  box.innerHTML = out.length
+    ? out.slice(0, 12).map(function(h){
+        return '<button onclick="gotoSearchHit(\'' + esc(h.c.id) + '\')"><b>' + esc(h.nm) + '</b> ' +
+               esc(h.c.cls) + ' · ' + esc(h.c.day) + esc(h.c.start) + ' ' + esc(h.c.teacher) + 'T</button>';
+      }).join('') + (out.length > 12 ? '<span>외 ' + (out.length - 12) + '건</span>' : '')
+    : '<span>검색 결과가 없어요.</span>';
+  applySearchHits();
+}
+function applySearchHits(){
+  var q = $('stu-q') ? $('stu-q').value.trim() : '';
+  document.querySelectorAll('.stus button.search-hit').forEach(function(b){ b.classList.remove('search-hit'); });
+  document.querySelectorAll('.blk.search-blk').forEach(function(b){ b.classList.remove('search-blk'); });
+  if (!q) return;
+  document.querySelectorAll('.stus button[data-nm]').forEach(function(b){
+    if (plainName(b.getAttribute('data-nm')).indexOf(q) >= 0){
+      b.classList.add('search-hit');
+      var blk = b.closest('.blk');
+      if (blk) blk.classList.add('search-blk');
+    }
+  });
+}
+function gotoSearchHit(cid){
+  var el = document.querySelector('.blk[data-cid="' + cid + '"]');
+  if (!el && mode === 'today'){
+    setMode('all');
+    requestAnimationFrame(function(){ requestAnimationFrame(function(){ gotoSearchHit(cid); }); });
+    return;
+  }
+  if (!el) return;
+  el.scrollIntoView({ block: 'center', inline: 'center', behavior: 'smooth' });
+}
+
 /* ── 모달 ── */
 function openModal(html){ $('modal-box').innerHTML = html; $('modal').classList.add('on'); }
 function closeModal(){ $('modal').classList.remove('on'); }
 $('modal').addEventListener('click', function(e){ if (e.target === this) closeModal(); });
+$('stu-q').addEventListener('input', searchStudent);
 
 /* ── 이동 ── */
 function labelOf(c){ return c.cls + ' (' + c.day + c.start + ' ' + c.teacher + 'T)'; }
