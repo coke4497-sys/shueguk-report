@@ -37,9 +37,10 @@
   .vchart{display:flex;align-items:flex-end;gap:10px;height:132px;padding:4px 2px 0;}
   .vcol{flex:1;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:4px;cursor:pointer;-webkit-tap-highlight-color:transparent;}
   .vcol .vc{font-size:12px;font-weight:700;color:var(--ink-soft);}
-  .vcol .vbar{width:68%;max-width:46px;background:#C7D8CF;border-radius:8px 8px 3px 3px;min-height:6px;transition:background .15s;}
+  .vcol .vbar{width:68%;max-width:46px;background:#C7D8CF;border:1px solid rgba(0,0,0,.06);
+    border-radius:8px 8px 3px 3px;min-height:6px;transition:box-shadow .15s;}
   .vcol .vgl{font-size:12.5px;font-weight:700;color:var(--ink-soft);}
-  .vcol.on .vbar{background:linear-gradient(180deg,#7FA895,var(--accent));}
+  .vcol.on .vbar{filter:saturate(1.2);border-color:var(--accent);}   /* 선택 학년: 채도 20% 증가 */
   .vcol.on .vc,.vcol.on .vgl{color:var(--accent);}
   .sch-list{margin-top:13px;border-top:1px solid var(--line-soft);padding-top:11px;}
   .sch-list .sl-t{font-size:.76rem;font-weight:700;color:var(--ink-soft);margin:0 0 6px;}
@@ -490,13 +491,15 @@
     drawStatBars(); drawStatSchools();
     $('statCard').style.display='block';
   }
+  /* 학년 색 — 시간표(출석부) 반 색상과 동일: 고1 노랑·고2 보라·고3 초록·중등 파랑·기타 살구 */
+  var GRADE_COLOR = { '중1':'#E9EDF8', '중2':'#E9EDF8', '중3':'#E9EDF8', '고1':'#FBF3DA', '고2':'#EFE7F5', '고3':'#DFEBE6' };
   function drawStatBars(){
     var gmax = Math.max.apply(null, STAT.gkeys.map(function(k){ return STAT.gmap[k]; }));
     $('gradeBars').innerHTML = STAT.gkeys.map(function(k){
       var h = Math.max(6, Math.round(STAT.gmap[k] / gmax * 72));   // 막대 영역 최대 72%
       return '<div class="vcol'+(k===STAT.sel?' on':'')+'" data-g="'+esc(k)+'">'+
         '<span class="vc">'+STAT.gmap[k]+'명</span>'+
-        '<span class="vbar" style="height:'+h+'%"></span>'+
+        '<span class="vbar" style="height:'+h+'%;background:'+(GRADE_COLOR[k]||'#F3EAE4')+'"></span>'+
         '<span class="vgl">'+esc(k)+'</span></div>';
     }).join('');
   }
