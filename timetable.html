@@ -168,6 +168,8 @@
   .dhead{font-family:"Gowun Batang",serif;font-weight:700;text-align:center;color:#fff;background:var(--btn);
     border-radius:8px;padding:3px 0;font-size:.9rem;}
   .scrollwrap{max-height:calc(100vh - 150px);overflow:auto;}
+  /* 시간축 가로 고정 — 행 전체를 그리드 영역으로 쓰고 라벨(46px)만 왼쪽에 붙임 */
+  .tlab.stick{position:sticky;left:0;width:46px;box-sizing:border-box;z-index:3;background:var(--surface);}
   .stickhead{position:sticky;top:0;z-index:10;background:var(--surface);width:max-content;min-width:100%;
     padding-bottom:3px;box-shadow:0 3px 6px -3px rgba(42,51,47,.18);}
   .stickhead .grid{min-width:0;}
@@ -891,9 +893,9 @@ function buildFullGrid(){
   g.style.gridTemplateRows = 'repeat(' + nrows + ', 46px)';
   for (var r = 0; r < nrows; r++){
     var lab = document.createElement('div');
-    lab.className = 'tlab';
+    lab.className = 'tlab stick';
     lab.textContent = fmtT(lo + r*30);
-    lab.style.gridColumn = '1';
+    lab.style.gridColumn = '1 / -1';
     lab.style.gridRow = String(r+1);
     g.appendChild(lab);
   }
@@ -1011,9 +1013,9 @@ function buildWeekGrid(){
   g.style.gridTemplateRows = 'repeat(' + nrows + ', 46px)';
   for (var r = 0; r < nrows; r++){
     var lab = document.createElement('div');
-    lab.className = 'tlab';
+    lab.className = 'tlab stick';
     lab.textContent = fmtT(lo + r*30);
-    lab.style.gridColumn = '1';
+    lab.style.gridColumn = '1 / -1';
     lab.style.gridRow = String(r+1);
     g.appendChild(lab);
   }

@@ -7,7 +7,7 @@
   - 예외: 만점(100%) 표시의 🏆 같은 성취 표시 이모지는 유지 (사용자 확정)
 
 ## 정규 시간표 시스템 (2026-08-14 구축)
-- **티쳐스 페이지 비밀번호 게이트 전부 제거**(2026-08-14 사용자 확정, 접속 지연 간소화) — timetable·hwcheck·superstar·notice·m·t·analyses·stats 모두 게이트 없이 바로 열림. 백엔드 TEACHER_PW는 유지하고 페이지에 내장(notice.html과 동일한 공개 수준).
+- **티쳐스 페이지 비밀번호 게이트 전부 제거**(2026-08-14 사용자 확정, 접속 지연 간소화) — timetable·hwcheck·superstar·notice·m·t·analyses·stats + 클리닉(shueguk-clinic teacher.html·clinic_assign.html)·주말 신청(shuegukweekendtest signup_teacher.html) 모두 게이트 없이 바로 열림. 백엔드 TEACHER_PW는 유지하고 페이지에 내장(notice.html과 동일한 공개 수준).
 - **교사 페이지**: `timetable.html`
   - 상단에서 **정규/내신** 시간표 선택('내신시간표' 탭, 초기 빈 상태) + **오늘의 시간표/전체/주차별** 보기 전환.
   - **주차별 보기**: 수요일 시작 주차(숙제 검사와 동일), 지난주/다음주 이동. 그 주의 출석 기록·1회 이동이 반영된 주간 그리드(요일+날짜 헤더). 학생 클릭으로 해당 날짜 출석 소급 기록·수정 가능. 1회 이동 생성은 오늘의 시간표에서만.
