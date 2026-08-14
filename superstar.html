@@ -283,6 +283,8 @@
       </div>
       <label>부모님 연락처 8자리</label>
       <input type="text" id="f-sid" inputmode="numeric" maxlength="8" placeholder="숫자 8자리 (성적 확인 비밀번호)" autocomplete="off" />
+      <label>학생 연락처 8자리 <span class="opt">(선택)</span></label>
+      <input type="text" id="f-sphone" inputmode="numeric" maxlength="8" placeholder="숫자 8자리 (학생 본인 번호)" autocomplete="off" />
       <label>담당 교사 <span class="opt">(선택)</span></label>
       <input type="text" id="f-teacher" list="teacherList" placeholder="예) 남주혜" autocomplete="off" />
       <datalist id="teacherList"></datalist>
@@ -526,17 +528,19 @@
 
   function submitStudent(force){
     var name=$('f-name').value.trim(), school=$('f-school').value.trim(),
-        grade=$('f-grade').value.trim(), sid=$('f-sid').value.trim();
+        grade=$('f-grade').value.trim(), sid=$('f-sid').value.trim(),
+        sphone=$('f-sphone').value.trim();
     if(!name){ setReg('이름을 입력해 주세요.','err'); return; }
     if(!school || !grade){ setReg('학교와 학년을 입력해 주세요.','err'); return; }
     if(!/^\d{8}$/.test(sid)){ setReg('부모님 연락처 8자리는 숫자 8개여야 해요.','err'); return; }
+    if(sphone && !/^\d{8}$/.test(sphone)){ setReg('학생 연락처는 숫자 8개여야 해요. (없으면 비워두세요)','err'); return; }
     hideWarn();
     var btn=$('regBtn'); btn.disabled=true; setReg('등록하는 중…');
     fetch(ENDPOINT, {
       method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
       body: JSON.stringify({
         action:'addStudent', pw:SERVER_PW, force: force ? '1' : '',
-        name:name, school:school, grade:grade, sid:sid,
+        name:name, school:school, grade:grade, sid:sid, sphone:sphone,
         teacher:$('f-teacher').value.trim(), memo:$('f-memo').value.trim(),
         classA:$('f-classA').value.trim(), classB:$('f-classB').value.trim(),
         progress:$('f-progress').value.trim(), checkup:$('f-checkup').value.trim()
@@ -576,7 +580,7 @@
     }
   }
   function resetForm(){
-    ['f-name','f-school','f-grade','f-sid','f-teacher','f-memo','f-classA','f-classB','f-progress','f-checkup']
+    ['f-name','f-school','f-grade','f-sid','f-sphone','f-teacher','f-memo','f-classA','f-classB','f-progress','f-checkup']
       .forEach(function(id){ $(id).value=''; });
     $('copyStatus').textContent='';
     $('doneCard').style.display='none';
