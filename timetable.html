@@ -1153,7 +1153,7 @@ function searchStudent(){
   out.sort(function(a, b){ return plainName(a.nm).localeCompare(plainName(b.nm), 'ko') || (DAY_IDX[a.c.day] - DAY_IDX[b.c.day]); });
   box.innerHTML = out.length
     ? out.slice(0, 12).map(function(h){
-        return '<button onclick="gotoSearchHit(\'' + esc(h.c.id) + '\')"><b>' + esc(h.nm) + '</b> ' +
+        return '<button onclick="gotoSearchHit(\'' + esc(h.c.id) + '\')"><b>' + esc(plainName(h.nm)) + '</b> ' +
                esc(h.c.cls) + ' · ' + esc(h.c.day) + esc(h.c.start) + ' ' + esc(h.c.teacher) + 'T</button>';
       }).join('') + (out.length > 12 ? '<span>외 ' + (out.length - 12) + '건</span>' : '')
     : '<span>검색 결과가 없어요.</span>';
@@ -1231,7 +1231,7 @@ function onBlockClick(e, c){
     moving = { name: chip.getAttribute('data-nm'), fromId: chip.getAttribute('data-cid'), fromLabel: labelOf(c) };
     document.body.classList.add('moving');
     $('movebar').classList.add('on');
-    $('mv-name').textContent = moving.name;
+    $('mv-name').textContent = plainName(moving.name);
     $('mv-from').textContent = moving.fromLabel + ' 에서';
     chip.classList.add('sel');
     setStatus('아래 목록에서 옮길 반을 고르거나, 시간표에서 반을 직접 누르세요.');
@@ -1397,7 +1397,7 @@ function openAttend(c, nm, dateStr){
   var cur = attendAt(attDate, c.id, nm);
   openModal(
     '<h3>출석 체크</h3>'+
-    '<p class="mdesc"><b>'+esc(nm)+'</b> — '+esc(labelOf(c))+'<br>'+esc(attDate)+'</p>'+
+    '<p class="mdesc"><b>'+esc(plainName(nm))+'</b> — '+esc(labelOf(c))+'<br>'+esc(attDate)+'</p>'+
     '<div class="att-btns">'+
     '<button class="pick-ok'+(cur&&cur.status==='출석'?' on':'')+'" onclick="submitAttend(\''+esc(c.id)+'\',\''+esc(nm)+'\',\'출석\')">출석</button>'+
     '<button class="pick-late'+(cur&&cur.status==='지각'?' on':'')+'" onclick="submitAttend(\''+esc(c.id)+'\',\''+esc(nm)+'\',\'지각\')">지각</button>'+
@@ -1433,7 +1433,7 @@ function submitAttend(cid, nm, status){
           if (status) attend[key] = { status: status, memo: memo }; else delete attend[key];
         }
         render();
-        setStatus(nm + (status ? ' — ' + status + ' 기록 완료.' : ' 기록을 지웠어요.') + (d !== todayStr() ? ' (' + d + ')' : ''), 'ok');
+        setStatus(plainName(nm) + (status ? ' — ' + status + ' 기록 완료.' : ' 기록을 지웠어요.') + (d !== todayStr() ? ' (' + d + ')' : ''), 'ok');
       } else setStatus('기록 실패: ' + ((res && res.message) || '오류'), 'err');
     });
 }
@@ -1457,7 +1457,7 @@ function openMovePicker(fromC){
   var cands = classes.filter(function(x){ return x.id !== fromC.id && classGroupKey(x.cls) === g; })
     .sort(function(a, b){ return (DAY_IDX[a.day] - DAY_IDX[b.day]) || (mins(a.start) - mins(b.start)); });
   openModal(
-    '<h3>학생 이동 — ' + esc(m.name) + '</h3>'+
+    '<h3>학생 이동 — ' + esc(plainName(m.name)) + '</h3>'+
     '<p class="mdesc">' + esc(m.fromLabel) + ' 에서 이동. 같은 종류(<b>' + esc(g) + '</b>) 반:</p>'+
     (cands.length
       ? '<div class="pick-list" style="flex-direction:column;align-items:stretch;">'+
@@ -1485,7 +1485,7 @@ function openMoveModal(target){
   var m = moving; if (!m) return;
   openModal(
     '<h3>학생 이동 (영구)</h3>'+
-    '<p class="mdesc"><b>'+esc(m.name)+'</b><br>'+esc(m.fromLabel)+'<br>→ '+esc(labelOf(target))+'</p>'+
+    '<p class="mdesc"><b>'+esc(plainName(m.name))+'</b><br>'+esc(m.fromLabel)+'<br>→ '+esc(labelOf(target))+'</p>'+
     '<p class="mdesc">반이 완전히 바뀌고, 리포트·학생 페이지의 정규 수업도 변경됩니다.<br>이번 주만 옮기는 <b>1회 이동은 오늘의 시간표</b>에서 학생 이름을 눌러 해주세요.</p>'+
     '<textarea id="mv-reason" placeholder="사유 메모 (선택)"></textarea>'+
     '<div class="mbtns"><button onclick="closeModal()">취소</button>'+
@@ -1546,7 +1546,7 @@ function startOnceMove(c, nm){
   $('movebar').classList.add('on');
   $('mv-remove').style.display = 'none';
   $('mv-note').style.display = 'none';
-  $('mv-name').textContent = nm;
+  $('mv-name').textContent = plainName(nm);
   $('mv-from').textContent = moving.fromLabel + ' 에서 1회 이동 — 옮길 반을 누르세요';
   render();
   setStatus('오늘 수업 중 옮겨 갈 반을 누르세요.');
@@ -1555,7 +1555,7 @@ function openOnceModal(target){
   var m = moving; if (!m) return;
   openModal(
     '<h3>1회 이동 (오늘만)</h3>'+
-    '<p class="mdesc"><b>'+esc(m.name)+'</b><br>'+esc(m.fromLabel)+'<br>→ '+esc(labelOf(target))+'</p>'+
+    '<p class="mdesc"><b>'+esc(plainName(m.name))+'</b><br>'+esc(m.fromLabel)+'<br>→ '+esc(labelOf(target))+'</p>'+
     '<p class="mdesc">원래 반과 리포트는 그대로 두고, 시간표에 일주일간 표시돼요.</p>'+
     '<textarea id="once-reason" placeholder="사유 메모 (필수) — 예: 학교 행사, 병원 진료로 보강"></textarea>'+
     '<p class="merr" id="once-err"></p>'+
@@ -1572,7 +1572,7 @@ function submitOnce(toId){
     '기록하는 중…', function(res){
       if (res && res.result === 'success'){
         cancelMove();
-        setStatus(m.name + ' 1회 이동 완료. 이동한 반에서 보라색 이름으로 표시돼요.', 'ok');
+        setStatus(plainName(m.name) + ' 1회 이동 완료. 이동한 반에서 보라색 이름으로 표시돼요.', 'ok');
         load(true);
       } else { setStatus('1회 이동 실패: ' + ((res && res.message) || '오류'), 'err'); cancelMove(); }
     });
@@ -1596,7 +1596,7 @@ function openOnceManage(c, nm, row, dir, dateStr){
     : '';
   openModal(
     '<h3>1회 이동 학생</h3>'+
-    '<p class="mdesc"><b>'+esc(nm)+'</b> ('+esc(o.date)+')<br>'+
+    '<p class="mdesc"><b>'+esc(plainName(nm))+'</b> ('+esc(o.date)+')<br>'+
     esc(from ? labelOf(from) : '') + ' → ' + esc(to ? labelOf(to) : '') +
     (dir==='out' ? '<br>오늘은 이동한 반에서 수업해요. 출석 체크도 그 반에서 해주세요.' : '')+'</p>'+
     attSec +
@@ -1622,7 +1622,7 @@ function onceEditReason(row, nm){
   });
 }
 function onceCancel(row, nm){
-  if (!confirm(nm + '의 1회 이동을 취소할까요?\n원래 반으로 되돌아갑니다.')) return;
+  if (!confirm(plainName(nm) + '의 1회 이동을 취소할까요?\n원래 반으로 되돌아갑니다.')) return;
   closeModal();
   post({ action:'timetableOnceCancel', row:row, student:nm }, '취소하는 중…', function(res){
     if (res && res.result==='success'){ setStatus('1회 이동을 취소했어요.', 'ok'); if (mode==='week') loadWeek(); load(true); }
@@ -1635,7 +1635,7 @@ function openRemove(){
   var m = moving; if (!m) return;
   openModal(
     '<h3>반에서 빼기</h3>'+
-    '<p class="mdesc"><b>'+esc(m.name)+'</b> — '+esc(m.fromLabel)+'</p>'+
+    '<p class="mdesc"><b>'+esc(plainName(m.name))+'</b> — '+esc(m.fromLabel)+'</p>'+
     '<p class="mdesc">반 명단에서 빠지고, 리포트의 해당 정규 수업 칸도 비워져요.<br>퇴원 처리는 슈퍼스타 관리에서 해주세요.</p>'+
     '<textarea id="rm-reason" placeholder="사유 메모 (선택)"></textarea>'+
     '<div class="mbtns"><button onclick="closeModal()">취소</button>'+
@@ -1809,7 +1809,7 @@ function renderMakeup(){
           '<button class="done-btn" onclick="saveMakeup(' + i + ', true)">처리 완료</button></div>' : '');
     }
     html += '<div class="mk-item' + (m.done ? ' done' : '') + '">' +
-      '<div class="mk-top"><b>' + esc(m.student) + '</b>' +
+      '<div class="mk-top"><b>' + esc(plainName(m.student)) + '</b>' +
       '<small>' + esc(m.date) + ' (' + mkDayOf(m.date) + ') 결석 · ' + esc(classLabelOf(m.classId)) + (m.memo ? ' · ' + esc(m.memo) : '') + '</small></div>' +
       planLine + memoLine + btnLine +
       '</div>';
@@ -1820,7 +1820,7 @@ function renderMakeup(){
 function openMkMemo(i){
   var m = makeupList[i]; if (!m) return;
   openModal(
-    '<h3>메모 — ' + esc(m.student) + '</h3>'+
+    '<h3>메모 — ' + esc(plainName(m.student)) + '</h3>'+
     '<p class="mdesc">' + esc(m.date) + ' (' + mkDayOf(m.date) + ') 결석 건 메모예요.<br>약속 시간 변경, 보충 태도 등을 적어두세요.</p>'+
     '<textarea id="mk-memo-in" placeholder="예) 8/18로 약속 변경 / 열심히 다녀감">' + esc(m.mkMemo || '') + '</textarea>'+
     '<div class="mbtns"><button onclick="openMakeup()">뒤로</button>'+
@@ -1834,7 +1834,7 @@ function saveMkMemo(i){
          plan:m.plan || '', done:m.done ? '1' : '', mkMemo:v }, '메모 저장 중…', function(res){
     if (res && res.result === 'success'){
       m.mkMemo = v;
-      setStatus(m.student + ' — 메모를 저장했어요.', 'ok');
+      setStatus(plainName(m.student) + ' — 메모를 저장했어요.', 'ok');
       openMakeup();
     } else setStatus('저장 실패: ' + ((res && res.message) || '오류'), 'err');
   });
@@ -1853,7 +1853,7 @@ function saveMakeup(i, doneVal){
     if (res && res.result === 'success'){
       m.plan = plan; m.done = done;
       renderMakeup();
-      setStatus(m.student + ' — ' + (doneVal === null ? '보충 일정 저장'
+      setStatus(plainName(m.student) + ' — ' + (doneVal === null ? '보충 일정 저장'
         : (done ? (mkIsVideo({ plan:plan, done:false }) ? '영상보충 출석 — 완료 처리' : '완료 처리') : '미완료로 변경')) + ' 완료.', 'ok');
     } else setStatus('저장 실패: ' + ((res && res.message) || '오류'), 'err');
   });
@@ -1863,7 +1863,7 @@ function saveMakeup(i, doneVal){
 function openMakeupVideo(i){
   var m = makeupList[i]; if (!m) return;
   openModal(
-    '<h3>영상보충 — ' + esc(m.student) + '</h3>'+
+    '<h3>영상보충 — ' + esc(plainName(m.student)) + '</h3>'+
     '<p class="mdesc">' + esc(m.date) + ' (' + mkDayOf(m.date) + ') ' + esc(classLabelOf(m.classId)) + ' 결석.<br>영상보충하러 오는 날짜·요일·시간을 적어주세요.</p>'+
     '<input type="text" id="mk-plan-' + i + '" placeholder="예) 8/17(월) 6:00" value="' + esc(m.plan.indexOf('영상보충') === 0 ? m.plan.replace(/^영상보충:\s*/, '') : '') + '" />'+
     '<p class="merr" id="mkv-err"></p>'+
@@ -1879,7 +1879,7 @@ function saveMakeupVideo(i){
          plan:'영상보충: ' + v, done:'', mkMemo: m.mkMemo || '' }, '저장하는 중…', function(res){
     if (res && res.result === 'success'){
       m.plan = '영상보충: ' + v;
-      setStatus(m.student + ' — 영상보충 목록으로 옮겼어요. 다녀가면 [영상보충 출석]을 눌러주세요.', 'ok');
+      setStatus(plainName(m.student) + ' — 영상보충 목록으로 옮겼어요. 다녀가면 [영상보충 출석]을 눌러주세요.', 'ok');
       openMakeup();
     } else setStatus('저장 실패: ' + ((res && res.message) || '오류'), 'err');
   });
@@ -1888,14 +1888,14 @@ function saveMakeupVideo(i){
 /* 무단 결석·당일 통보 — 보충 없이 완료 처리 */
 function noRemedy(i, type){
   var m = makeupList[i]; if (!m) return;
-  if (!confirm(m.student + ' (' + m.date + ' 결석)\n"' + type + '"로 기록하고 보충 없이 완료 처리할까요?')) return;
+  if (!confirm(plainName(m.student) + ' (' + m.date + ' 결석)\n"' + type + '"로 기록하고 보충 없이 완료 처리할까요?')) return;
   var plan = type + ' (보충 없음)';
   post({ action:'attendMakeupSet', book:book, date:m.date, classId:m.classId, student:m.student,
          plan:plan, done:'1', mkMemo: m.mkMemo || '' }, '처리 중…', function(res){
     if (res && res.result === 'success'){
       m.plan = plan; m.done = true;
       renderMakeup();
-      setStatus(m.student + ' — ' + type + '로 완료 처리했어요.', 'ok');
+      setStatus(plainName(m.student) + ' — ' + type + '로 완료 처리했어요.', 'ok');
     } else setStatus('처리 실패: ' + ((res && res.message) || '오류'), 'err');
   });
 }
@@ -1909,7 +1909,7 @@ function openMakeupMove(i){
   var cands = classes.filter(function(x){ return x.id !== fromC.id && classGroupKey(x.cls) === g; })
     .sort(function(a, b){ return (DAY_IDX[a.day] - DAY_IDX[b.day]) || (mins(a.start) - mins(b.start)); });
   openModal(
-    '<h3>반 이동 보충 — ' + esc(m.student) + '</h3>'+
+    '<h3>반 이동 보충 — ' + esc(plainName(m.student)) + '</h3>'+
     '<p class="mdesc">' + esc(m.date) + ' (' + mkDayOf(m.date) + ') ' + esc(fromC.cls) + ' 결석.<br>같은 종류(<b>' + esc(g) + '</b>) 반에서 1회 보충할 반을 고르세요. 시간표에 보라색으로 표시돼요.</p>'+
     (cands.length
       ? '<div class="pick-list" style="flex-direction:column;align-items:stretch;">'+
@@ -1925,7 +1925,7 @@ function openMakeupMove(i){
     b.addEventListener('click', function(){
       var t = classes.find(function(x){ return x.id === b.getAttribute('data-mk-to'); });
       if (!t) return;
-      if (!confirm(m.student + '\n' + fromC.cls + ' (' + m.date + ' 결석)\n→ ' + labelOf(t) + ' 에서 1회 보충\n\n기록할까요?')) return;
+      if (!confirm(plainName(m.student) + '\n' + fromC.cls + ' (' + m.date + ' 결석)\n→ ' + labelOf(t) + ' 에서 1회 보충\n\n기록할까요?')) return;
       var reason = m.date.slice(5).replace('-', '/') + ' 결석 보충';
       post({ action:'timetableMove', book:book, student:m.student, fromId:fromC.id, toId:t.id,
              moveType:'once', reason:reason }, '보충 이동 기록 중…', function(res){
@@ -1936,7 +1936,7 @@ function openMakeupMove(i){
         var plan = '반 이동 보충: ' + t.cls + ' ' + t.day + t.start + ' (' + t.teacher + 'T)';
         post({ action:'attendMakeupSet', book:book, date:m.date, classId:m.classId, student:m.student,
                plan:plan, done:'1', mkMemo: m.mkMemo || '' }, '보충 일정 저장 중…', function(res2){
-          setStatus(m.student + ' — ' + plan + ' 기록·완료 처리했어요. 시간표에 표시됩니다.', 'ok');
+          setStatus(plainName(m.student) + ' — ' + plan + ' 기록·완료 처리했어요. 시간표에 표시됩니다.', 'ok');
           load(true);        // 1회 이동을 오늘·주차별 시간표에 반영
           openMakeup();      // 목록 새로고침
         });
