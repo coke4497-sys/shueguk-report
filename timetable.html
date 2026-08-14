@@ -16,8 +16,8 @@
     --accent:#4C6E66; --btn:#628C83; --icon-bg:#EBF0ED;
     --line:#D7E3DD; --line-soft:#E5EDE8; --radius:16px;
     --g1:#FBF3DA; --g2:#EFE7F5; --g3:#DFEBE6; --mid:#E9EDF8; --etc:#F3EAE4;
-    --reg:#DCE8EF; --reg-ink:#454D51; --reg-line:#C4D6E1;      /* 기간 색: 정규(기본)=연한 파스텔 하늘색, 글자 진한 그레이 */
-    --exam:#E3DBEF; --exam-ink:#454D51; --exam-line:#CEC2E0;   /* 내신=연한 파스텔 연보라 */
+    --reg:#DCE8EF; --reg-ink:#454D51; --reg-line:#C4D6E1;      /* 캘린더 기간 색: 정규(기본)=파스텔 하늘색 */
+    --exam:#E3DBEF; --exam-line:#CEC2E0; --exam-ink:#454D51;   /* 내신=파스텔 연보라 */
   }
   *{box-sizing:border-box;}
   html,body{margin:0;padding:0;}
@@ -64,9 +64,10 @@
   .today-sum{font-size:.82rem;color:var(--ink-soft);margin:0 4px 10px;}
   .today-sum b{color:var(--accent);}
   /* 슈국 캘린더 */
-  .pbadge{display:none;font-size:.88rem;font-weight:700;color:var(--reg-ink);background:var(--reg);
-    border:1px solid var(--reg-line);border-radius:10px;padding:7px 14px;margin:0 0 8px;}
-  .pbadge.exam{background:var(--exam);color:var(--exam-ink);border-color:var(--exam-line);}
+  /* 주차 안내 배너 — 정규/내신 모두 연한 그레이 (내신은 살짝 진하게) */
+  .pbadge{display:none;font-size:.88rem;font-weight:700;color:#454D51;background:#EAEDEF;
+    border:1px solid #D8DDE0;border-radius:10px;padding:7px 14px;margin:0 0 8px;}
+  .pbadge.exam{background:#DDE1E4;border-color:#C9CFD3;}
   .cal-head{display:flex;align-items:center;gap:10px;margin:14px 4px 10px;flex-wrap:wrap;}
   .cal-head button{font:inherit;font-size:.88rem;background:var(--icon-bg);border:1px solid var(--line-soft);border-radius:10px;padding:6px 12px;cursor:pointer;color:var(--ink);}
   .cal-head b{font-family:"Gowun Batang",serif;font-size:1.05rem;color:var(--accent);}
