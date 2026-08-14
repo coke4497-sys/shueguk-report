@@ -73,6 +73,9 @@
   .cal-cell.other{opacity:.4;}
   .cal-cell.today{outline:2px solid var(--accent);outline-offset:-1px;}
   .cal-cell .dnum{font-weight:700;font-size:.82rem;}
+  .cal-cell.holiday{background:#FBF4F2;}
+  .cal-cell .dnum.hd{color:#B4574E;}
+  .cal-cell .hname{font-size:.68rem;font-weight:700;color:#B4574E;margin-left:4px;word-break:keep-all;}
   .cal-cell .cmemo{font-size:.7rem;color:var(--ink-soft);margin-top:3px;line-height:1.45;max-height:4.3em;overflow:hidden;word-break:break-word;white-space:pre-wrap;}
   .memobox{background:var(--surface);border:1px solid var(--line-soft);border-radius:14px;padding:14px 16px;margin:16px 4px 8px;}
   .memobox .memotitle{font-family:"Gowun Batang",serif;font-weight:700;color:var(--accent);margin:0 0 8px;font-size:.98rem;}
@@ -670,6 +673,19 @@ function render(){
 }
 
 /* ── 슈국 캘린더 (달력 + 주별 기간 + 날짜 메모) ── */
+/* 2026년 공휴일 (대체공휴일 포함) — 2027년 날짜는 확정되는 대로 추가 */
+var HOLIDAYS = {
+  '2026-01-01': '신정',
+  '2026-02-16': '설날 연휴', '2026-02-17': '설날', '2026-02-18': '설날 연휴',
+  '2026-03-01': '삼일절', '2026-03-02': '대체공휴일',
+  '2026-05-05': '어린이날',
+  '2026-05-24': '부처님오신날', '2026-05-25': '대체공휴일',
+  '2026-06-03': '지방선거일', '2026-06-06': '현충일',
+  '2026-08-15': '광복절', '2026-08-17': '대체공휴일',
+  '2026-09-24': '추석 연휴', '2026-09-25': '추석', '2026-09-26': '추석 연휴',
+  '2026-10-03': '개천절', '2026-10-05': '대체공휴일', '2026-10-09': '한글날',
+  '2026-12-25': '성탄절'
+};
 function calWeeks(){
   var first = new Date(calMonth.getFullYear(), calMonth.getMonth(), 1);
   var last = new Date(calMonth.getFullYear(), calMonth.getMonth()+1, 0);
@@ -713,9 +729,11 @@ function buildCalendar(){
     w.forEach(function(d, di){
       var ds = ymdOf(d);
       var m = memos[ds];
-      h += '<div class="cal-cell' + (d.getMonth() !== calMonth.getMonth() ? ' other' : '') + (ds === todayY ? ' today' : '') + '"' +
+      var hd = HOLIDAYS[ds];
+      h += '<div class="cal-cell' + (d.getMonth() !== calMonth.getMonth() ? ' other' : '') + (ds === todayY ? ' today' : '') + (hd ? ' holiday' : '') + '"' +
         ' onclick="editWeekMemo(\'' + ds + '\',\'' + ['월','화','수','목','금','토','일'][di] + '\')">' +
-        '<span class="dnum">' + d.getDate() + '</span>' +
+        '<span class="dnum' + (hd ? ' hd' : '') + '">' + d.getDate() + '</span>' +
+        (hd ? '<span class="hname">' + esc(hd) + '</span>' : '') +
         (m ? '<div class="cmemo">' + esc(m) + '</div>' : '') + '</div>';
     });
   });
