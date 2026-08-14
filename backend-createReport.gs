@@ -2241,6 +2241,7 @@ function doPost(e) {
     if (data && data.action === 'timetableOnceCancel') { return timetableOnceCancel(data); }
     if (data && data.action === 'timetableOnceEdit')   { return timetableOnceEdit(data); }
     if (data && data.action === 'attendSet')        { return attendSet(data); }
+    if (data && data.action === 'attendSetBulk')    { return attendSetBulk(data); }
     if (data && data.action === 'timetableMoveClass') { return timetableMoveClass(data); }
     if (data && data.action === 'timetableAddClass')  { return timetableAddClass(data); }
     if (data && data.action === 'timetableDeleteClass') { return timetableDeleteClass(data); }
@@ -2842,6 +2843,45 @@ function getTimetableWeek(fromStr, toStr, book) {
     }
   }
   return json({ result:'success', from: fromStr, to: toStr, attend: attend, onceMoves: once });
+}
+/** 반 일괄 출석. { pw, book, date, classId, students:[이름...] }
+ *  기록이 없는 학생만 '출석'으로 기록 — 이미 출석/지각/결석이 있는 학생은 그대로 둔다. */
+function attendSetBulk(data) {
+  if (String(data.pw || '') !== TEACHER_PW) return json({ result:'error', message:'unauthorized' });
+  var book = ttBook_(data.book);
+  var dateStr = String(data.date || '').trim();
+  var classId = String(data.classId || '').trim();
+  var students = (data.students || []).map(function (s) { return String(s || '').trim(); }).filter(String);
+  if (!dateStr || !classId || !students.length) return json({ result:'error', message:'날짜·반·학생 명단이 필요합니다.' });
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ensureAttendSheet_(ss);
+  var lock = LockService.getScriptLock();
+  try { lock.waitLock(10000); } catch (e) { return json({ result:'error', message:'잠시 후 다시 시도해 주세요.' }); }
+  try {
+    var v = sh.getDataRange().getValues();
+    var have = {};
+    for (var i = 1; i < v.length; i++) {
+      var d = v[i][0];
+      var ds = (d && d.getTime) ? Utilities.formatDate(d, 'Asia/Seoul', 'yyyy-MM-dd') : String(d || '').trim();
+      if (ds === dateStr && ttBook_(v[i][1]) === book && String(v[i][2] || '').trim() === classId) {
+        have[String(v[i][3] || '').trim()] = true;
+      }
+    }
+    var now = new Date(), rows = [], marked = [];
+    students.forEach(function (nm) {
+      if (have[nm]) return;
+      rows.push([dateStr, book, classId, nm, '출석', '', now]);
+      marked.push(nm);
+    });
+    if (rows.length) {
+      var rg = sh.getRange(sh.getLastRow() + 1, 1, rows.length, 7);
+      rg.setNumberFormats(rows.map(function () { return ['@','@','@','@','@','@','yyyy-mm-dd hh:mm']; }));
+      rg.setValues(rows);
+    }
+    return json({ result:'success', marked: marked, skipped: students.length - marked.length });
+  } finally {
+    try { lock.releaseLock(); } catch (e) {}
+  }
 }
 /** 출석 기록/변경/삭제. { pw, book, date, classId, student, status(출석|지각|결석|''), memo }
  *  status ''(빈값)이면 기록 삭제. 지각은 메모 필수. */

@@ -565,7 +565,9 @@ function blockEl(c){
     }).join('');
   }
   if (!chips) chips = '<span class="empty-note">비어 있음</span>';
-  var btnRow = '';   // 편집 기능은 상단 편집 도구줄에서
+  var btnRow = (mode === 'today')
+    ? '<div class="btns"><button class="bbtn attall" title="기록 없는 학생을 모두 출석 처리">전체 출석</button></div>'
+    : '';   // 편집 기능은 상단 편집 도구줄에서
   b.innerHTML = '<div class="bt"><span class="nm">'+esc(c.cls)+'</span>'+
                 '<small>'+esc(c.start)+'~'+esc(c.end)+' · '+c.students.length+'명</small></div>'+
                 btnRow +
@@ -1016,6 +1018,8 @@ $('stu-q').addEventListener('input', searchStudent);
 function labelOf(c){ return c.cls + ' (' + c.day + c.start + ' ' + c.teacher + 'T)'; }
 function onBlockClick(e, c){
   if (mode === 'today'){
+    var aa = e.target.closest('.attall');
+    if (aa){ bulkAttend(c); return; }
     var chip0 = e.target.closest('button[data-nm]');
     if (moving && moving.once){
       // 1회 이동 대상 반 선택 중
@@ -1104,6 +1108,28 @@ function dropClass(dname, cinfo, startMin){
 }
 
 /* ── 출석 체크 ── */
+/* 반 일괄 출석 — 오늘 이 반에서 수업하는 학생(1회 이동 온 학생 포함, 나간 학생 제외) 중
+ * 아직 기록이 없는 학생을 모두 '출석'으로. 지각·결석 등 기존 기록은 유지. */
+function bulkAttend(c){
+  var away = {}, temps = [];
+  onceMoves.forEach(function(o){
+    if (o.fromId === c.id) away[o.student.replace(/\(.*\)$/, '')] = true;
+    if (o.toId === c.id) temps.push(o.student);
+  });
+  var targets = c.students.filter(function(nm){ return !away[nm.replace(/\(.*\)$/, '')]; }).concat(temps);
+  targets = targets.filter(function(nm){ return !attend[c.id + '|' + nm]; });
+  if (!targets.length){ setStatus(c.cls + ' — 모든 학생이 이미 기록되어 있어요.', 'ok'); return; }
+  if (!confirm(labelOf(c) + '\n기록 없는 학생 ' + targets.length + '명을 모두 출석 처리할까요?\n(지각·결석 등 기존 기록은 그대로 둡니다)')) return;
+  post({ action:'attendSetBulk', book:book, date:todayStr(), classId:c.id, students:targets },
+    '일괄 출석 처리 중…', function(res){
+      if (res && res.result === 'success'){
+        (res.marked || []).forEach(function(nm){ attend[c.id + '|' + nm] = { status:'출석', memo:'' }; });
+        render();
+        setStatus(c.cls + ' — ' + (res.marked || []).length + '명 출석 처리 완료.' +
+                  (res.skipped ? ' (기존 기록 ' + res.skipped + '명 유지)' : ''), 'ok');
+      } else setStatus('일괄 처리 실패: ' + ((res && res.message) || '오류'), 'err');
+    });
+}
 function openAttend(c, nm, dateStr){
   attDate = dateStr || todayStr();
   var cur = attendAt(attDate, c.id, nm);
