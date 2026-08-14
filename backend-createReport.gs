@@ -75,6 +75,7 @@ var TAB_TT_LOG = '시간표이동기록';  // A:일시 B:구분(영구/1회/추�
 var TT_ONCE_DAYS = 8;               // 1회 이동을 시간표에 표시하는 기간(일)
 var TAB_ATTEND = '출석기록';        // A:날짜(yyyy-MM-dd) B:시간표(정규/내신) C:반ID D:학생 E:상태(출석/지각/결석) F:메모 G:기록일시
 var TAB_TT_MEMO = '시간표메모';     // A:날짜(yyyy-MM-dd) B:메모(오늘의 이슈) C:기록일시
+var TAB_TT_PERIOD = '기간설정';     // A:주차수요일(yyyy-MM-dd) B:구분(정규/내신) C:기록일시 — 슈국 캘린더 주별 기간
 
 var HWCHECK_ITEMS_KEY = '숙제검사 항목';
 var HWCHECK_DEFAULT_ITEMS = ['숙제 수행', '오답 처리'];
@@ -420,6 +421,11 @@ function doGet(e) {
   if (p.action === 'timetableWeek') {
     if (String(p.pw || '') !== TEACHER_PW) return json({ result:'error', message:'unauthorized' });
     return getTimetableWeek(p.from, p.to, p.book);
+  }
+  // 주별 기간(정규/내신) 조회 (timetable.html 슈국 캘린더) — 비밀번호 필요
+  if (p.action === 'ttPeriodList') {
+    if (String(p.pw || '') !== TEACHER_PW) return json({ result:'error', message:'unauthorized' });
+    return getTtPeriodList();
   }
   // 오늘의 이슈 메모 조회 (timetable.html) — 비밀번호 필요
   if (p.action === 'ttMemoList') {
@@ -2263,6 +2269,7 @@ function doPost(e) {
     if (data && data.action === 'attendSetBulk')    { return attendSetBulk(data); }
     if (data && data.action === 'attendMakeupSet')  { return attendMakeupSet(data); }
     if (data && data.action === 'ttMemoSet')        { return ttMemoSet(data); }
+    if (data && data.action === 'ttPeriodSet')      { return ttPeriodSet(data); }
     if (data && data.action === 'timetableMoveClass') { return timetableMoveClass(data); }
     if (data && data.action === 'timetableAddClass')  { return timetableAddClass(data); }
     if (data && data.action === 'timetableDeleteClass') { return timetableDeleteClass(data); }
@@ -2988,6 +2995,64 @@ function getTtMemoList(fromStr, toStr) {
   }
   return json({ result:'success', from: fromStr, to: toStr, memos: out });
 }
+/* ── 슈국 캘린더: 주별 기간(정규/내신) ── */
+function ttPeriodSheet_(ss) {
+  var sh = ss.getSheetByName(TAB_TT_PERIOD);
+  if (!sh) {
+    sh = ss.insertSheet(TAB_TT_PERIOD);
+    sh.appendRow(['주차수요일', '구분', '기록일시']);
+  }
+  return sh;
+}
+/** 저장된 주별 기간 전체. GET action=ttPeriodList&pw= */
+function getTtPeriodList() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ss.getSheetByName(TAB_TT_PERIOD);
+  var out = [];
+  if (sh) {
+    var v = sh.getDataRange().getValues();
+    for (var i = 1; i < v.length; i++) {
+      var d = v[i][0];
+      var ds = (d && d.getTime) ? Utilities.formatDate(d, 'Asia/Seoul', 'yyyy-MM-dd') : String(d || '').trim();
+      var b = String(v[i][1] || '').trim();
+      if (ds && (b === '정규' || b === '내신')) out.push({ week: ds, book: b });
+    }
+  }
+  return json({ result:'success', periods: out });
+}
+/** 주별 기간 저장. { pw, week(수요일 yyyy-MM-dd), book('정규'|'내신'|'' 빈값=삭제) } */
+function ttPeriodSet(data) {
+  if (String(data.pw || '') !== TEACHER_PW) return json({ result:'error', message:'unauthorized' });
+  var week = String(data.week || '').trim();
+  var bk = String(data.book || '').trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(week)) return json({ result:'error', message:'주차(yyyy-MM-dd)가 필요합니다.' });
+  if (bk && bk !== '정규' && bk !== '내신') return json({ result:'error', message:'구분은 정규/내신만 가능해요.' });
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ttPeriodSheet_(ss);
+  var lock = LockService.getScriptLock();
+  try { lock.waitLock(10000); } catch (e) { return json({ result:'error', message:'잠시 후 다시 시도해 주세요.' }); }
+  try {
+    var v = sh.getDataRange().getValues();
+    var row = 0;
+    for (var i = 1; i < v.length; i++) {
+      var d = v[i][0];
+      var ds = (d && d.getTime) ? Utilities.formatDate(d, 'Asia/Seoul', 'yyyy-MM-dd') : String(d || '').trim();
+      if (ds === week) { row = i + 1; break; }
+    }
+    if (!bk) {
+      if (row) sh.deleteRow(row);
+      return json({ result:'success', deleted: !!row });
+    }
+    if (!row) row = sh.getLastRow() + 1;
+    var rg = sh.getRange(row, 1, 1, 3);
+    rg.setNumberFormats([['@', '@', 'yyyy-mm-dd hh:mm']]);
+    rg.setValues([[week, bk, new Date()]]);
+    return json({ result:'success' });
+  } finally {
+    try { lock.releaseLock(); } catch (e) {}
+  }
+}
+
 /** 날짜별 메모 저장/수정/삭제. { pw, date, memo } — memo 빈값이면 그 날짜 메모 삭제 */
 function ttMemoSet(data) {
   if (String(data.pw || '') !== TEACHER_PW) return json({ result:'error', message:'unauthorized' });

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>정규 시간표 · 이수경국어</title>
+<title>슈국 스케쥴 · 이수경국어</title>
 <meta name="description" content="이수경국어 정규 수업 시간표 — 반 편성 확인 · 학생 이동 (교사용)" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -55,6 +55,25 @@
   .dhead small{font-weight:400;font-size:.72rem;opacity:.9;margin-left:4px;}
   .today-sum{font-size:.82rem;color:var(--ink-soft);margin:0 4px 10px;}
   .today-sum b{color:var(--accent);}
+  /* 슈국 캘린더 */
+  .pbadge{display:none;align-items:center;font-size:.82rem;font-weight:700;color:#fff;background:var(--btn);border-radius:10px;padding:6px 12px;}
+  .pbadge.exam{background:#B08A3E;}
+  .cal-head{display:flex;align-items:center;gap:10px;margin:14px 4px 10px;flex-wrap:wrap;}
+  .cal-head button{font:inherit;font-size:.88rem;background:var(--icon-bg);border:1px solid var(--line-soft);border-radius:10px;padding:6px 12px;cursor:pointer;color:var(--ink);}
+  .cal-head b{font-family:"Gowun Batang",serif;font-size:1.05rem;color:var(--accent);}
+  .cal-head small{flex-basis:100%;color:var(--ink-soft);font-size:.78rem;}
+  .calgrid{display:grid;grid-template-columns:88px repeat(7,1fr);gap:4px;margin:0 4px 8px;}
+  .cal-dh{text-align:center;font-weight:700;font-size:.82rem;color:var(--ink-soft);padding:2px 0;}
+  .cal-period{display:flex;flex-direction:column;gap:4px;justify-content:center;}
+  .cal-period button{font:inherit;font-size:.76rem;border:1px solid var(--line);background:#fff;color:var(--ink-soft);border-radius:8px;padding:4px 2px;cursor:pointer;}
+  .cal-period button.on-reg{background:var(--btn);border-color:var(--btn);color:#fff;font-weight:700;}
+  .cal-period button.on-exam{background:#B08A3E;border-color:#B08A3E;color:#fff;font-weight:700;}
+  .cal-cell{background:var(--surface);border:1px solid var(--line-soft);border-radius:10px;min-height:76px;padding:6px 8px;cursor:pointer;}
+  .cal-cell:hover{border-color:var(--accent);}
+  .cal-cell.other{opacity:.4;}
+  .cal-cell.today{outline:2px solid var(--accent);outline-offset:-1px;}
+  .cal-cell .dnum{font-weight:700;font-size:.82rem;}
+  .cal-cell .cmemo{font-size:.7rem;color:var(--ink-soft);margin-top:3px;line-height:1.45;max-height:4.3em;overflow:hidden;word-break:break-word;white-space:pre-wrap;}
   .memobox{background:var(--surface);border:1px solid var(--line-soft);border-radius:14px;padding:14px 16px;margin:16px 4px 8px;}
   .memobox .memotitle{font-family:"Gowun Batang",serif;font-weight:700;color:var(--accent);margin:0 0 8px;font-size:.98rem;}
   .memobox textarea{width:100%;box-sizing:border-box;font:inherit;font-size:.9rem;border:1px solid var(--line);
@@ -238,7 +257,7 @@
     티쳐스 메인 페이지로 가기
   </a>
   <header>
-    <p class="brand">정규 시간표</p>
+    <p class="brand">슈국 스케쥴</p>
     <p class="sub">Shueguk · 반 편성 확인과 학생 이동 (교사용) — 이동은 저장 즉시 리포트·학생 페이지에 반영</p>
   </header>
 
@@ -254,9 +273,11 @@
   <div class="bar" id="bar">
     <div class="viewtabs">
       <span class="bookwrap"><button id="b-reg" onclick="setBook('정규')">정규</button><button id="b-exam" onclick="setBook('내신')">내신</button></span>
+      <span id="period-badge" class="pbadge"></span>
       <button id="v-today" onclick="setMode('today')">오늘의 시간표</button>
       <button id="v-all" onclick="setMode('all')">전체 시간표</button>
       <button id="v-week" onclick="setMode('week')">주차별</button>
+      <button id="v-cal" onclick="setMode('cal')">슈국 캘린더</button>
       <span class="sp"></span>
       <button class="reload" onclick="openMakeup()">결석자 관리</button>
       <button class="reload" onclick="load(true)">다시 불러오기</button>
@@ -302,7 +323,7 @@
 
   <div class="sheet" id="sheet"></div>
 
-  <footer>이수경국어 Shueguk · 정규 시간표</footer>
+  <footer>이수경국어 Shueguk · 슈국 스케쥴</footer>
 </main>
 
 <div class="modal-bg" id="modal"><div class="modal" id="modal-box"></div></div>
@@ -324,6 +345,8 @@ var WEEK_VIEW_ORDER = ['월','화','수','목','금','토','일'];   // 주차�
 var weekAttend = {};   // 주차 출석: 날짜|반ID|학생 -> {status, memo}
 var memos = {};        // 오늘의 이슈 메모: 날짜(yyyy-MM-dd) -> 텍스트
 var memoDraft = null;  // 다시 그릴 때 저장 전 입력 보존용
+var periods = {};      // 주별 기간: 주차 수요일(yyyy-MM-dd) -> '정규'|'내신' (미설정=정규)
+var calMonth = null;   // 캘린더가 보는 달 (그 달 1일 Date)
 var weekOnce = [];     // 주차 1회 이동
 var attDate = null;    // 출석 모달이 다루는 날짜
 var editMode = null;        // 'move' | 'add' | 'del' — 편집 도구줄에서 선택
@@ -361,6 +384,8 @@ function weekDates(){
 }
 function moveWeek(n){
   weekStart.setDate(weekStart.getDate() + 7*n);
+  renderTabs();
+  if (applyAutoBook()) return;   // 기간이 바뀌면 load()가 이어서 그림
   loadWeek();
 }
 function loadWeek(){
@@ -468,6 +493,35 @@ function loadAttend(done){
     })
     .catch(function(){ done(); });
 }
+/* 슈국 캘린더: 주별 기간(정규/내신) — 미설정 주는 정규 */
+function loadPeriods(done){
+  fetch(ENDPOINT + '?action=ttPeriodList&pw=' + encodeURIComponent(pw) + '&t=' + Date.now())
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      periods = {};
+      if (d && d.result === 'success') (d.periods || []).forEach(function(p){ periods[p.week] = p.book; });
+      done();
+    })
+    .catch(function(){ done(); });
+}
+function periodOf(weekWedDate){ return periods[ymdOf(weekWedDate)] || '정규'; }
+function autoBookFor(){
+  if (mode === 'today') return periodOf(weekStartOf(new Date()));
+  if (mode === 'week') return periodOf(weekStart);
+  return book;
+}
+/* 오늘/주차별 보기에서 캘린더 기간에 맞는 시간표로 자동 전환. 다시 불러왔으면 true */
+function applyAutoBook(){
+  var target = autoBookFor();
+  if (target !== book){
+    book = target;
+    sessionStorage.setItem('tt_book', book);
+    load(false);
+    return true;
+  }
+  return false;
+}
+
 /* 기간 내 '오늘의 이슈' 메모 불러오기 (범위 안은 서버 값으로 갱신) */
 function loadMemos(from, to, done){
   fetch(ENDPOINT + '?action=ttMemoList&pw=' + encodeURIComponent(pw) + '&from=' + from + '&to=' + to + '&t=' + Date.now())
@@ -521,6 +575,8 @@ function setMode(m){
   clearEdit();
   cancelMove();
   renderTabs();
+  if (m === 'cal'){ calLoadAndRender(); return; }
+  if ((m === 'today' || m === 'week') && applyAutoBook()) return;   // 기간에 맞는 시간표로 다시 불러오는 중
   if (m === 'week') loadWeek(); else render();
 }
 function setBook(b){
@@ -531,17 +587,31 @@ function setBook(b){
   load(false);
 }
 function renderTabs(){
+  var auto = (mode==='today' || mode==='week');   // 캘린더 기간이 시간표를 결정
+  $('b-reg').style.display = (mode==='all') ? '' : 'none';
+  $('b-exam').style.display = (mode==='all') ? '' : 'none';
   $('b-reg').classList.toggle('on', book==='정규');
   $('b-exam').classList.toggle('on', book==='내신');
+  var pb = $('period-badge');
+  pb.style.display = auto ? 'inline-flex' : 'none';
+  if (auto){
+    var bk = autoBookFor();
+    pb.textContent = (mode==='today' ? '이번 주' : '이 주') + ' · ' + bk + ' 기간';
+    pb.className = 'pbadge' + (bk==='내신' ? ' exam' : '');
+  }
   $('v-today').classList.toggle('on', mode==='today');
   $('v-all').classList.toggle('on', mode==='all');
   $('v-week').classList.toggle('on', mode==='week');
+  $('v-cal').classList.toggle('on', mode==='cal');
   document.querySelector('.hint').textContent =
     (mode === 'today') ? '학생 이름을 누르면 출석·지각·결석 기록 창이 떠요. 그 창 아래 [다른 반으로 1회 이동] 버튼으로 1회 이동도 할 수 있어요.'
     : (mode === 'week') ? '그 주의 출석·1회 이동 기록이 함께 보여요. 학생 이름을 누르면 해당 날짜의 출석 기록·수정. 월·화 직전보강은 위 반 추가 버튼으로 만드세요.'
+    : (mode === 'cal') ? '주마다 [정규]/[내신]을 골라 그 주에 쓸 시간표를 정하세요. 오늘의 시간표·주차별이 자동으로 따라갑니다. 날짜 칸을 누르면 메모를 적을 수 있어요.'
     : '학생 이름을 누르면 이동 모드가 켜져요. 옮길 반(다른 요일 포함)을 누르면 영구 이동됩니다.';
-  $('editbar').classList.toggle('show', mode !== 'today');
+  $('editbar').classList.toggle('show', mode === 'all' || mode === 'week');
   $('attbar').classList.toggle('show', mode === 'today');
+  document.querySelector('.searchbar').style.display = (mode === 'cal') ? 'none' : '';
+  document.querySelector('.legend').style.display = (mode === 'cal') ? 'none' : '';
 }
 function render(){
   var host = $('sheet');
@@ -581,6 +651,10 @@ function render(){
     host.appendChild(buildFullGrid());
     return;
   }
+  if (mode === 'cal'){
+    host.appendChild(buildCalendar());
+    return;
+  }
   // 주차별 — 표시 범위는 월(수요일-2)~일(수요일+4)
   var wfrom = new Date(weekStart); wfrom.setDate(wfrom.getDate() - 2);
   var to = new Date(weekStart); to.setDate(to.getDate() + 4);
@@ -593,6 +667,72 @@ function render(){
   host.appendChild(nav);
   host.appendChild(buildWeekGrid());
   host.appendChild(weekMemoSection());
+}
+
+/* ── 슈국 캘린더 (달력 + 주별 기간 + 날짜 메모) ── */
+function calWeeks(){
+  var first = new Date(calMonth.getFullYear(), calMonth.getMonth(), 1);
+  var last = new Date(calMonth.getFullYear(), calMonth.getMonth()+1, 0);
+  var cur = new Date(first); cur.setDate(cur.getDate() - ((cur.getDay()+6)%7));   // 그 주 월요일
+  var weeks = [];
+  while (cur <= last){
+    var w = [];
+    for (var i = 0; i < 7; i++){ var d = new Date(cur); d.setDate(d.getDate()+i); w.push(d); }
+    weeks.push(w);
+    cur.setDate(cur.getDate()+7);
+  }
+  return weeks;
+}
+function calLoadAndRender(){
+  if (!calMonth){ var n = new Date(); calMonth = new Date(n.getFullYear(), n.getMonth(), 1); }
+  var weeks = calWeeks();
+  var from = ymdOf(weeks[0][0]), to = ymdOf(weeks[weeks.length-1][6]);
+  loadMemos(from, to, function(){ render(); });
+}
+function moveCalMonth(n){
+  calMonth = new Date(calMonth.getFullYear(), calMonth.getMonth()+n, 1);
+  calLoadAndRender();
+}
+function buildCalendar(){
+  if (!calMonth){ var n0 = new Date(); calMonth = new Date(n0.getFullYear(), n0.getMonth(), 1); }
+  var box = document.createElement('div');
+  var weeks = calWeeks();
+  var todayY = todayStr();
+  var h = '<div class="cal-head"><button onclick="moveCalMonth(-1)">지난달</button>' +
+    '<b>' + calMonth.getFullYear() + '년 ' + (calMonth.getMonth()+1) + '월</b>' +
+    '<button onclick="moveCalMonth(1)">다음달</button>' +
+    '<small>왼쪽 [정규]/[내신] 버튼으로 그 주에 쓸 시간표를 정하세요 (아무것도 안 고르면 정규). 날짜 칸을 누르면 그 날 메모를 적을 수 있어요.</small></div>';
+  h += '<div class="calgrid"><div class="cal-dh">기간</div>';
+  ['월','화','수','목','금','토','일'].forEach(function(dy){ h += '<div class="cal-dh">' + dy + '</div>'; });
+  weeks.forEach(function(w){
+    var wed = ymdOf(w[2]);
+    var p = periods[wed] || '';
+    h += '<div class="cal-period">' +
+      '<button class="' + (p !== '내신' ? 'on-reg' : '') + '" onclick="setPeriod(\'' + wed + '\',\'정규\')">정규' + (p === '' ? '·기본' : '') + '</button>' +
+      '<button class="' + (p === '내신' ? 'on-exam' : '') + '" onclick="setPeriod(\'' + wed + '\',\'내신\')">내신</button></div>';
+    w.forEach(function(d, di){
+      var ds = ymdOf(d);
+      var m = memos[ds];
+      h += '<div class="cal-cell' + (d.getMonth() !== calMonth.getMonth() ? ' other' : '') + (ds === todayY ? ' today' : '') + '"' +
+        ' onclick="editWeekMemo(\'' + ds + '\',\'' + ['월','화','수','목','금','토','일'][di] + '\')">' +
+        '<span class="dnum">' + d.getDate() + '</span>' +
+        (m ? '<div class="cmemo">' + esc(m) + '</div>' : '') + '</div>';
+    });
+  });
+  h += '</div>';
+  box.innerHTML = h;
+  return box;
+}
+function setPeriod(wed, bk){
+  if ((periods[wed] || '정규') === bk && periods[wed]) return;   // 이미 그 기간
+  post({ action:'ttPeriodSet', week:wed, book:bk }, '기간을 저장하는 중…', function(res){
+    if (res && res.result === 'success'){
+      periods[wed] = bk;
+      var md = wed.slice(5).replace('-', '/');
+      setStatus(md + ' 주를 ' + bk + ' 기간으로 설정했어요. 오늘의 시간표·주차별에 자동 반영됩니다.', 'ok');
+      render();
+    } else setStatus('저장 실패: ' + ((res && res.message) || '오류'), 'err');
+  });
 }
 
 /* ── 오늘의 이슈 메모 ── */
@@ -1970,7 +2110,16 @@ $('gate').style.display = 'none';
 $('bar').style.display = 'block';
 $('sheet').style.display = 'block';
 renderTabs();
-load(false);
+/* 주별 기간을 먼저 읽고, 오늘/주차별이면 그 주 기간(정규/내신)의 시간표로 연다 */
+loadPeriods(function(){
+  if (mode === 'today' || mode === 'week'){
+    book = autoBookFor();
+    sessionStorage.setItem('tt_book', book);
+  }
+  renderTabs();
+  if (mode === 'cal'){ calLoadAndRender(); }
+  load(false);
+});
 </script>
 </body>
 </html>
