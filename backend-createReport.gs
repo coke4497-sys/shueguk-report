@@ -421,6 +421,8 @@ function doGet(e) {
     if (String(p.pw || '') !== TEACHER_PW) return json({ result:'error', message:'unauthorized' });
     return getStarRanking();
   }
+  // 슈퍼스타 TOP 30 (학생 공개 — s.html 공지사항 메뉴, 비밀번호 불필요)
+  if (p.action === 'starRankTop30') { return getStarRankingPublic(); }
   if (p.action === 'starLog') {
     if (String(p.pw || '') !== TEACHER_PW) return json({ result:'error', message:'unauthorized' });
     return getStarLog();
@@ -1328,10 +1330,10 @@ function countHwcheckPerfect_(ss, key) {
  *  매칭 규칙은 학생 개인 페이지와 동일: 번호+이름 → 이름(명단에서 유일하면 학교 오타 무관 인정,
  *  동명이인은 학생ID→학교로 구분) → 접미사 이름 → 고유 번호.
  */
-function getStarRanking() {
+function starRankingData_() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var stSh = ss.getSheetByName(TAB_STUDENTS);
-  if (!stSh) return json({ result:'error', message:"'" + TAB_STUDENTS + "' 탭이 없습니다." });
+  if (!stSh) return null;
   var sv = stSh.getDataRange().getValues();
   var codeCol = findHeaderCol_(sv[0], '접근코드', STU_CODE_COL);
   var stus = [], byIdName = {}, byName = {}, byBase = {}, byId = {}, idCount = {}, byToken = {};
@@ -1507,7 +1509,25 @@ function getStarRanking() {
            + bd.notice * STAR_RULES.notice + bd.bonus };
   });
   out.sort(function (a, b) { return b.total - a.total || a.earnedAt - b.earnedAt || a.name.localeCompare(b.name, 'ko'); });
+  return out;
+}
+function getStarRanking() {
+  var out = starRankingData_();
+  if (!out) return json({ result:'error', message:"'" + TAB_STUDENTS + "' 탭이 없습니다." });
   return json({ result: 'success', top: out.slice(0, 10) });
+}
+/** 학생 공개용 슈퍼스타 TOP 30 — s.html 알려드립니다의 '슈퍼스타 TOP 30' 메뉴.
+ *  이름·학교·별 수만 공개, 5분 캐시. 이 목록을 보는 것은 공지 확인 별 적립과 무관. */
+function getStarRankingPublic() {
+  var cache = CacheService.getScriptCache();
+  try { var hit = cache.get('starTop30'); if (hit) return json(JSON.parse(hit)); } catch (e) {}
+  var out = starRankingData_();
+  if (!out) return json({ result:'error', message:'명단이 없습니다.' });
+  var res = { result:'success', top: out.slice(0, 30).map(function (s) {
+    return { name: s.name, school: s.school, total: s.total };
+  }) };
+  try { cache.put('starTop30', JSON.stringify(res), 300); } catch (e) {}
+  return json(res);
 }
 
 /** 접미사 이름 후보 중 선택: 1명이면 그 학생, 여럿이면 부모님 번호가 일치하는 학생. */

@@ -1067,12 +1067,49 @@ function checkNoticeBtn(btn){
     alert('전송에 실패했어요. 인터넷을 확인해 주세요.');
   });
 }
+/* 슈퍼스타 TOP 30 — 공지사항 안의 공개 순위 메뉴. 확인해도 별이 쌓이지 않는 열람 전용. */
+function starTop30Html(){
+  return '<div class="notice-item" id="top30Card">' +
+    '<span class="ntag" style="background:#F3E9CF;color:#8A6D2F;">슈퍼스타</span>' +
+    '<div class="nh"><span class="ntitle">슈퍼스타 TOP 30</span></div>' +
+    '<div class="nbody">지금까지 별을 가장 많이 모은 슈퍼스타 30명을 볼 수 있어요.</div>' +
+    '<button type="button" class="nchk-btn" onclick="toggleTop30(this)">순위 보기</button>' +
+    '<div id="top30List" style="display:none;margin-top:10px;"></div>' +
+    '</div>';
+}
+function toggleTop30(btn){
+  var box = document.getElementById('top30List');
+  if(box.style.display !== 'none'){ box.style.display='none'; btn.textContent='순위 보기'; return; }
+  box.style.display='block'; btn.textContent='접기';
+  if(box.getAttribute('data-loaded')) return;
+  box.innerHTML = '<p style="color:#65726B;font-size:.88rem;">순위를 불러오는 중…</p>';
+  fetch(ENDPOINT + '?action=starRankTop30&t=' + Date.now())
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      if(!d || d.result!=='success' || !d.top || !d.top.length){
+        box.innerHTML = '<p style="color:#65726B;font-size:.88rem;">아직 순위가 없어요.</p>'; return;
+      }
+      box.setAttribute('data-loaded','1');
+      var myName = (STATE.info && STATE.info.name) || '';
+      box.innerHTML = d.top.map(function(s, i){
+        var me = myName && s.name === myName;
+        return '<div style="display:flex;align-items:center;gap:8px;padding:5px 8px;border-radius:8px;font-size:.9rem;'+
+               (me ? 'background:#EBF0ED;font-weight:700;' : '')+'">'+
+          '<span style="width:2em;text-align:right;color:'+(i<3?'#B08A3E':'#65726B')+';font-weight:700;">'+(i+1)+'</span>'+
+          '<span style="flex:1;word-break:keep-all;">'+esc(s.name)+' <small style="color:#65726B;">'+esc(s.school||'')+'</small>'+(me?' · 나':'')+'</span>'+
+          '<span style="color:#B08A3E;font-weight:700;white-space:nowrap;">⭐ '+s.total+'</span>'+
+          '</div>';
+      }).join('');
+    })
+    .catch(function(){ box.innerHTML = '<p style="color:#65726B;font-size:.88rem;">순위를 불러오지 못했어요. 잠시 후 다시 열어주세요.</p>'; });
+}
 function renderNotices(){
   var ns = STATE.notices || [];
   var as = STATE.analyses || [];
   var todo = as.filter(function(a){ return !a.done; });
   var done = as.filter(function(a){ return a.done; });
   var parts = [];
+  parts.push(starTop30Html());                                       // 슈퍼스타 TOP 30 (열람 전용, 별 적립 없음)
   todo.forEach(function(a){ parts.push(analysisNoticeHtml(a)); });   // 미입력 복기 먼저
   ns.forEach(function(n){ parts.push(noticeItemHtml(n)); });         // 일반 공지
   done.forEach(function(a){ parts.push(analysisNoticeHtml(a)); });   // 입력 완료는 아래
