@@ -71,6 +71,9 @@
   .items-panel input{flex:1;font:inherit;font-size:.9rem;padding:7px 10px;border:1.5px solid var(--line);border-radius:9px;}
   .items-panel .addrow button{font:inherit;font-size:.85rem;background:var(--btn);color:#fff;border:none;border-radius:9px;padding:7px 14px;cursor:pointer;}
   .items-panel .hint{font-size:.75rem;color:var(--ink-soft);margin:8px 0 0;}
+  .crit-note{font-size:.78rem;color:var(--ink-soft);background:var(--icon-bg);border:1px solid var(--line-soft);
+    border-radius:10px;padding:7px 11px;margin-top:8px;}
+  .crit-note b{color:var(--ink);font-weight:700;}
 
   /* 학생 카드 */
   .list{display:flex;flex-direction:column;gap:10px;margin-top:8px;}
@@ -118,6 +121,9 @@
     border-radius:9px;padding:4px 10px;color:var(--ink-soft);cursor:pointer;}
   .plans-btn .cnt{display:inline-block;min-width:18px;text-align:center;background:#B4574E;color:#fff;
     border-radius:999px;font-size:.72rem;padding:1px 5px;margin-left:4px;}
+  .plans-btn.back{background:var(--btn);border-color:var(--btn);color:#fff;font-weight:700;}
+  .plans-back{font:inherit;font-size:.95rem;background:var(--btn);color:#fff;border:none;border-radius:12px;
+    padding:12px 16px;cursor:pointer;margin-top:6px;}
   .plans-wrap{display:none;flex-direction:column;gap:10px;margin-top:8px;}
   .pw-week{font-family:"Gowun Batang",serif;font-weight:700;color:var(--accent);margin:10px 4px 0;font-size:.95rem;}
   .pw-week small{font-family:"Gowun Dodum",sans-serif;font-weight:400;color:var(--ink-soft);}
@@ -173,10 +179,11 @@
     <div class="meta-row">
       <span id="count-note"></span>
       <span>
-        <button class="plans-btn" id="plans-btn" onclick="togglePlans()">미제출 대책<span class="cnt" id="plans-cnt" style="display:none;">0</span></button>
+        <button class="plans-btn" id="plans-btn" onclick="togglePlans()"><span id="plans-lb">미제출 확인</span><span class="cnt" id="plans-cnt" style="display:none;">0</span></button>
         <button class="items-btn" onclick="toggleItems()">검사 항목 관리</button>
       </span>
     </div>
+    <p class="crit-note">평가 기준 (조교 참고) — <b>모두 수행: 별 5개</b> · <b>완벽한 수행: 별 6개</b></p>
     <div class="items-panel" id="items-panel">
       <div id="chips"></div>
       <div class="addrow">
@@ -646,17 +653,24 @@ function refreshPlansBadge(){
     .then(function(r){
       if (!r || r.result !== 'success') return;
       plans = r.plans || [];
-      var pending = plans.filter(function(p){ return !p.done; }).length;
-      var cnt = $('plans-cnt');
-      cnt.textContent = pending;
-      cnt.style.display = pending ? '' : 'none';
+      updatePlansBtn();
     })
     .catch(function(){});
+}
+/* 상단 버튼: 목록 화면에선 "미제출 확인", 미제출 화면에선 "검사하러 가기"로 바뀐다 */
+function updatePlansBtn(){
+  var pending = plans.filter(function(p){ return !p.done; }).length;
+  $('plans-lb').textContent = plansOpen ? '✏️ 검사하러 가기' : '미제출 확인';
+  $('plans-btn').classList.toggle('back', plansOpen);
+  var cnt = $('plans-cnt');
+  cnt.textContent = pending;
+  cnt.style.display = (pending && !plansOpen) ? '' : 'none';
 }
 function togglePlans(){
   plansOpen = !plansOpen;
   $('list').style.display = plansOpen ? 'none' : '';
   $('plans').style.display = plansOpen ? 'flex' : 'none';
+  updatePlansBtn();
   if (plansOpen) loadPlans();
 }
 function loadPlans(){
@@ -675,11 +689,9 @@ function weekLabelOf(wk){
   return (wed.getMonth()+1)+'/'+wed.getDate()+' ~ '+(sun.getMonth()+1)+'/'+sun.getDate()+' 주차';
 }
 function renderPlans(){
-  var pending = plans.filter(function(p){ return !p.done; }).length;
-  var cnt = $('plans-cnt');
-  cnt.textContent = pending;
-  cnt.style.display = pending ? '' : 'none';
-  if (!plans.length){ $('plans').innerHTML = '<p class="empty">미제출·대책 기록이 없어요.</p>'; return; }
+  updatePlansBtn();
+  var backBtn = '<button class="plans-back" onclick="togglePlans()">✏️ 검사하러 가기</button>';
+  if (!plans.length){ $('plans').innerHTML = '<p class="empty">미제출·대책 기록이 없어요.</p>' + backBtn; return; }
   var html = '', curWeek = null;
   plans.forEach(function(p, i){
     if (p.week !== curWeek){ curWeek = p.week; html += '<p class="pw-week">' + weekLabelOf(p.week) + '</p>'; }
@@ -689,7 +701,7 @@ function renderPlans(){
       '<button class="okbtn' + (p.done ? ' on' : '') + '" onclick="togglePlanDone(' + i + ')">' + (p.done ? '완료 ✓' : '확인') + '</button>' +
     '</div>';
   });
-  $('plans').innerHTML = html;
+  $('plans').innerHTML = html + backBtn;
 }
 function togglePlanDone(i){
   var p = plans[i];
