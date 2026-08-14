@@ -405,19 +405,34 @@ function moveWeek(n){
 function loadWeek(){
   var from = new Date(weekStart); from.setDate(from.getDate() - 2);   // 월요일
   var to = new Date(weekStart); to.setDate(to.getDate() + 4);         // 일요일
-  setStatus('주차 기록을 불러오는 중…');
+  // 캐시가 있으면 먼저 그리고 최신으로 갱신
+  var ck = 'week:' + book + ':' + ymdOf(from);
+  var cw = cacheGet(ck);
+  if (cw){
+    weekAttend = {};
+    (cw.attend || []).forEach(function(a){ weekAttend[a.date + '|' + a.classId + '|' + a.student] = { status:a.status, memo:a.memo }; });
+    weekOnce = cw.onceMoves || [];
+    render();
+    setStatus('최신 데이터 확인 중…');
+  } else {
+    setStatus('주차 기록을 불러오는 중…');
+  }
   var pWeek = fetch(ENDPOINT + '?action=timetableWeek&pw=' + encodeURIComponent(pw) + '&book=' + encodeURIComponent(book) +
         '&from=' + ymdOf(from) + '&to=' + ymdOf(to) + '&t=' + Date.now())
     .then(function(r){ return r.json(); }).catch(function(){ return null; });
   var pMemo = new Promise(function(res){ loadMemos(ymdOf(from), ymdOf(to), res); });
   Promise.all([pWeek, pMemo]).then(function(rs){
     var d = rs[0];
-    weekAttend = {}; weekOnce = [];
     if (d && d.result === 'success'){
+      weekAttend = {}; weekOnce = [];
       (d.attend || []).forEach(function(a){ weekAttend[a.date + '|' + a.classId + '|' + a.student] = { status:a.status, memo:a.memo }; });
       weekOnce = d.onceMoves || [];
+      cacheSet(ck, { attend: d.attend || [], onceMoves: d.onceMoves || [] });
       setStatus('');
+    } else if (cw){
+      setStatus('');   // 캐시 화면 유지
     } else {
+      weekAttend = {}; weekOnce = [];
       setStatus('주차 기록을 불러오지 못했어요.', 'err');
     }
     render();
@@ -476,7 +491,22 @@ $('pw').addEventListener('keydown', function(e){ if(e.key==='Enter') tryLogin();
 var loadSeq = 0;   // 기간 전환 등으로 load가 겹칠 때 마지막 요청만 반영
 function load(isReload, cb){
   var seq = ++loadSeq;
-  setStatus('시간표를 불러오는 중…');
+  // 캐시가 있으면 즉시 그려서 바로 보이게 (뒤에서 최신으로 갱신)
+  var painted = false;
+  if (!isReload){
+    var cd = cacheGet('list:' + book);
+    if (cd && cd.classes && cd.classes.length){
+      classes = cd.classes;
+      onceMoves = cd.onceMoves || [];
+      attend = {};
+      var ca = cacheGet('att:' + book + ':' + todayStr());
+      if (ca) ca.forEach(function(x){ attend[x.classId + '|' + x.student] = { status: x.status, memo: x.memo }; });
+      renderTabs();
+      if (mode !== 'week') render();
+      painted = true;
+    }
+  }
+  setStatus(painted ? '최신 데이터 확인 중…' : '시간표를 불러오는 중…');
   var pList = fetch(ENDPOINT + '?action=timetableList&pw=' + encodeURIComponent(pw) + '&book=' + encodeURIComponent(book) + '&t=' + Date.now())
     .then(function(r){ return r.json(); }).catch(function(){ return null; });
   var pAtt = fetch(ENDPOINT + '?action=attendList&pw=' + encodeURIComponent(pw) + '&book=' + encodeURIComponent(book) +
@@ -487,29 +517,41 @@ function load(isReload, cb){
     if (seq !== loadSeq) return;   // 더 새 요청이 있음
     var d = rs[0];
     if (!d || d.result !== 'success'){
+      if (painted){ setStatus(''); if (cb) cb(true); return; }   // 캐시 화면 유지
       if (cb) cb(false); else setStatus('불러오지 못했어요. 새로고침 해 주세요.', 'err');
       return;
     }
     classes = d.classes || [];
     onceMoves = d.onceMoves || [];
+    cacheSet('list:' + book, { classes: classes, onceMoves: onceMoves });
     var a = rs[1];
     attend = {};
-    if (a && a.result === 'success') (a.attend || []).forEach(function(x){
-      attend[x.classId + '|' + x.student] = { status: x.status, memo: x.memo };
-    });
+    if (a && a.result === 'success'){
+      (a.attend || []).forEach(function(x){
+        attend[x.classId + '|' + x.student] = { status: x.status, memo: x.memo };
+      });
+      cacheSet('att:' + book + ':' + todayStr(), a.attend || []);
+    }
     setStatus(isReload ? '최신 시간표로 다시 불러왔어요.' : '', isReload ? 'ok' : '');
     renderTabs();
     if (mode === 'week') loadWeek(); else render();
     if (cb) cb(true);
   });
 }
+/* ── 브라우저 캐시: 이전 데이터를 즉시 띄우고, 뒤에서 최신으로 조용히 갱신 ── */
+function cacheGet(k){ try { var v = JSON.parse(localStorage.getItem('ttc:' + k) || 'null'); return v && v.d; } catch(e){ return null; } }
+function cacheSet(k, d){ try { localStorage.setItem('ttc:' + k, JSON.stringify({ t: Date.now(), d: d })); } catch(e){} }
+
 /* 슈국 캘린더: 주별 기간(정규/내신) — 미설정 주는 정규 */
 function loadPeriods(done){
   fetch(ENDPOINT + '?action=ttPeriodList&pw=' + encodeURIComponent(pw) + '&t=' + Date.now())
     .then(function(r){ return r.json(); })
     .then(function(d){
-      periods = {};
-      if (d && d.result === 'success') (d.periods || []).forEach(function(p){ periods[p.week] = p.book; });
+      if (d && d.result === 'success'){
+        periods = {};
+        (d.periods || []).forEach(function(p){ periods[p.week] = p.book; });
+        cacheSet('periods', d.periods || []);
+      }
       done();
     })
     .catch(function(){ done(); });
@@ -2152,8 +2194,15 @@ function openLog(){
 $('gate').style.display = 'none';
 $('bar').style.display = 'block';
 $('sheet').style.display = 'block';
+/* 캐시된 주별 기간을 먼저 적용해 시작 시간표를 정확히 고른다 */
+var cachedPeriods = cacheGet('periods');
+if (cachedPeriods){ periods = {}; cachedPeriods.forEach(function(p){ periods[p.week] = p.book; }); }
+if (mode === 'today' || mode === 'week'){
+  book = autoBookFor();
+  sessionStorage.setItem('tt_book', book);
+}
 renderTabs();
-/* 저장된 선택(book)으로 바로 불러오기 시작 + 주별 기간은 동시에 확인.
+/* 캐시로 즉시 그리며 불러오기 시작 + 주별 기간은 동시에 최신 확인.
  * 기간이 달라진 드문 경우에만 그 기간의 시간표로 다시 불러온다. */
 if (mode === 'cal') calLoadAndRender();
 load(false);
