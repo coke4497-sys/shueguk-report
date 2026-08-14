@@ -947,7 +947,7 @@ function addCell(g, ci, r, dname, cinfo, lo, rowOffset){
 
 /* 요일별·오늘 보기: 담당T × 시간 그리드 */
 function buildDayGrid(list){
-  var dname = list.length ? list[0].day : day;
+  var dname = list.length ? list[0].day : todayDay();
   var cols = [], seen = {};
   classes.forEach(function(c){
     var key = c.loc + '|' + c.teacher;
@@ -971,44 +971,57 @@ function buildDayGrid(list){
   lo = Math.floor(lo/30)*30; hi = Math.ceil(hi/30)*30;
   var nrows = Math.max(1, Math.round((hi - lo) / 30));
 
-  var g = document.createElement('div');
-  g.className = 'grid' + (mode==='today' ? ' fitgrid' : '');
-  g.style.gridTemplateColumns = (mode==='today')
-    ? '42px repeat(' + cols.length + ', minmax(0, 1fr))'      // 오늘 보기: 스크롤 없이 전체 폭에 맞춤
-    : '52px repeat(' + cols.length + ', minmax(118px, 1fr))';
-  g.style.gridTemplateRows = 'auto repeat(' + nrows + ', 46px)';   // 30분 = 46px 균일 간격
+  // 좁은 화면(모바일)은 열 최소폭을 확보해 가로 스크롤, 넓은 화면은 전체 폭에 맞춤
+  var narrow = window.innerWidth < 760;
+  var colDefs = '42px repeat(' + cols.length + ', ' + (narrow ? 'minmax(96px, 1fr)' : 'minmax(0, 1fr)') + ')';
 
-  var corner = document.createElement('div'); corner.className='thead'; g.appendChild(corner);
+  // 고정 헤더(담당T·위치) — 세로 스크롤 시 상단 고정
+  var hg = document.createElement('div');
+  hg.className = 'grid fitgrid';
+  hg.style.gridTemplateColumns = colDefs;
+  hg.style.gridTemplateRows = 'auto';
+  var corner = document.createElement('div'); corner.className='thead'; hg.appendChild(corner);
   cols.forEach(function(c){
     var h = document.createElement('div');
     h.className = 'thead';
     h.innerHTML = '<b>' + esc(c.teacher) + '</b>' + esc(c.loc);
-    g.appendChild(h);
+    hg.appendChild(h);
   });
+
+  var g = document.createElement('div');
+  g.className = 'grid fitgrid';
+  g.style.gridTemplateColumns = colDefs;
+  g.style.gridTemplateRows = 'repeat(' + nrows + ', 46px)';   // 30분 = 46px 균일 간격
   for (var r = 0; r < nrows; r++){
     var lab = document.createElement('div');
-    lab.className = 'tlab';
+    lab.className = 'tlab stick';
     lab.textContent = fmtT(lo + r*30);
-    lab.style.gridColumn = '1';
-    lab.style.gridRow = String(r+2);
+    lab.style.gridColumn = '1 / -1';
+    lab.style.width = '42px';
+    lab.style.gridRow = String(r+1);
     g.appendChild(lab);
   }
   cols.forEach(function(cinfo, ci){
-    for (var r = 0; r < nrows; r++) addCell(g, ci+2, r, dname, cinfo, lo, 2);
+    for (var r = 0; r < nrows; r++) addCell(g, ci+2, r, dname, cinfo, lo, 1);
   });
   list.forEach(function(c){
     var r0 = Math.floor((mins(c.start)-lo)/30), r1 = Math.ceil((minsEnd(c)-lo)/30);
     if (r1 <= r0) r1 = r0+1;
     var b = blockEl(c);
     b.style.gridColumn = String((colIdx[c.loc+'|'+c.teacher]||0)+2);
-    b.style.gridRow = (r0+2) + ' / ' + (r1+2);
+    b.style.gridRow = (r0+1) + ' / ' + (r1+1);
     g.appendChild(b);
   });
 
-  tuneRowHeight(g, 'auto', nrows);
+  tuneRowHeight(g, '', nrows);
   var wrap = document.createElement('div');
-  wrap.style.overflowX = 'auto';
+  wrap.className = 'scrollwrap';
+  var sh2 = document.createElement('div');
+  sh2.className = 'stickhead';
+  sh2.appendChild(hg);
+  wrap.appendChild(sh2);
   wrap.appendChild(g);
+  attachTimeSync(wrap, g);
   return wrap;
 }
 
