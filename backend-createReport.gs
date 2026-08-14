@@ -1525,13 +1525,13 @@ function getStarRanking() {
  *  이름·학교·별 수만 공개, 5분 캐시. 이 목록을 보는 것은 공지 확인 별 적립과 무관. */
 function getStarRankingPublic() {
   var cache = CacheService.getScriptCache();
-  try { var hit = cache.get('starTop30'); if (hit) return json(JSON.parse(hit)); } catch (e) {}
+  try { var hit = cache.get('starTop30v2'); if (hit) return json(JSON.parse(hit)); } catch (e) {}
   var out = starRankingData_();
   if (!out) return json({ result:'error', message:'명단이 없습니다.' });
   var res = { result:'success', top: out.slice(0, 30).map(function (s) {
-    return { name: s.name, school: s.school, total: s.total };
+    return { name: s.name, school: s.school, grade: s.grade, total: s.total };
   }) };
-  try { cache.put('starTop30', JSON.stringify(res), 300); } catch (e) {}
+  try { cache.put('starTop30v2', JSON.stringify(res), 300); } catch (e) {}
   return json(res);
 }
 
