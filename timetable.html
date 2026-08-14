@@ -235,6 +235,7 @@ var day = '수';
 var mode = sessionStorage.getItem('tt_mode') || 'today'; // 'today'(오늘) | 'all'(전체) | 'week'(주차별)
 if (mode === 'day') mode = 'week';
 var WEEK_DAYS = ['수','목','금','토','일','월','화'];   // 주차 = 수요일 시작 (숙제 검사와 동일)
+var WEEK_VIEW_ORDER = ['월','화','수','목','금','토','일'];   // 주차별 화면 배치: 월·화(직전보강)를 수요일 왼쪽에
 var weekAttend = {};   // 주차 출석: 날짜|반ID|학생 -> {status, memo}
 var weekOnce = [];     // 주차 1회 이동
 var attDate = null;    // 출석 모달이 다루는 날짜
@@ -298,6 +299,11 @@ function mins(t){
   var h = parseInt(p[0],10)||0, m = parseInt(p[1],10)||0;
   if (h < 10) h += 12;
   return h*60+m;
+}
+function minsEnd(c){
+  var s = mins(c.start), e = mins(c.end || c.start);
+  if (e <= s) e += 12*60;
+  return e;
 }
 function fmt12(t){
   var h24 = Math.floor(t/60), mm = t%60;
@@ -386,7 +392,7 @@ function renderTabs(){
   $('v-week').classList.toggle('on', mode==='week');
   document.querySelector('.hint').textContent =
     (mode === 'today') ? '학생 이름을 누르면 출석·지각·결석을 기록할 수 있어요. 1회 이동은 출석 모달의 버튼으로.'
-    : (mode === 'week') ? '그 주의 출석·1회 이동 기록이 함께 보여요. 학생 이름을 누르면 해당 날짜의 출석을 기록·수정할 수 있어요.'
+    : (mode === 'week') ? '그 주의 출석·1회 이동 기록이 함께 보여요. 학생 이름을 누르면 해당 날짜의 출석 기록·수정. 월·화 직전보강은 위 반 추가 버튼으로 만드세요.'
     : '학생 이름을 누르면 이동 모드가 켜져요. 옮길 반(다른 요일 포함)을 누르면 영구 이동됩니다.';
 }
 function render(){
@@ -495,6 +501,20 @@ function blockEl(c){
   return b;
 }
 
+/* 렌더 후 블록이 잘리지 않도록 30분 행 높이를 일괄 상향(균일 간격 유지) */
+function tuneRowHeight(g, headerAuto, nrows){
+  requestAnimationFrame(function(){
+    var maxPer = 46;
+    g.querySelectorAll('.blk').forEach(function(b){
+      var gr = String(b.style.gridRow).split('/');
+      var span = Math.max(1, (parseInt(gr[1], 10) - parseInt(gr[0], 10)) || 1);
+      var per = Math.ceil((b.scrollHeight + 2 - (span - 1) * 3) / span);
+      if (per > maxPer) maxPer = per;
+    });
+    maxPer = Math.min(maxPer, 140);
+    if (maxPer > 46) g.style.gridTemplateRows = headerAuto + ' repeat(' + nrows + ', ' + maxPer + 'px)';
+  });
+}
 function addCell(g, ci, r, dname, cinfo, lo, rowOffset){
   var cell = document.createElement('div');
   cell.className = 'cell';
@@ -527,7 +547,7 @@ function buildDayGrid(list){
   var hi = weekend ? 21*60 : 22*60;
   list.forEach(function(c){
     lo = Math.min(lo, mins(c.start));
-    hi = Math.max(hi, mins(c.end || c.start));
+    hi = Math.max(hi, minsEnd(c));
   });
   lo = Math.floor(lo/30)*30; hi = Math.ceil(hi/30)*30;
   var nrows = Math.max(1, Math.round((hi - lo) / 30));
@@ -558,7 +578,7 @@ function buildDayGrid(list){
     for (var r = 0; r < nrows; r++) addCell(g, ci+2, r, dname, cinfo, lo, 2);
   });
   list.forEach(function(c){
-    var r0 = Math.floor((mins(c.start)-lo)/30), r1 = Math.ceil(((mins(c.end||c.start))-lo)/30);
+    var r0 = Math.floor((mins(c.start)-lo)/30), r1 = Math.ceil((minsEnd(c)-lo)/30);
     if (r1 <= r0) r1 = r0+1;
     var b = blockEl(c);
     b.style.gridColumn = String((colIdx[c.loc+'|'+c.teacher]||0)+2);
@@ -566,6 +586,7 @@ function buildDayGrid(list){
     g.appendChild(b);
   });
 
+  tuneRowHeight(g, 'auto', nrows);
   var wrap = document.createElement('div');
   wrap.style.overflowX = 'auto';
   wrap.appendChild(g);
@@ -585,13 +606,29 @@ function buildFullGrid(){
   });
   if (!baseCols.length) baseCols = [{ key:'-', loc:'', teacher:'' }];
   var dayCols = {};
-  DAYS.forEach(function(dname){ dayCols[dname] = baseCols; });
+  DAYS.forEach(function(dname){
+    if (dname === '월' || dname === '화'){
+      var cols = [], seen = {};
+      classes.forEach(function(c){
+        if (c.day !== dname) return;
+        var key = c.loc + '|' + c.teacher;
+        if (!seen[key]){ seen[key] = true; cols.push({ key:key, loc:c.loc, teacher:c.teacher }); }
+      });
+      cols.sort(function(a,b){
+        var ia = TEACHER_ORDER.indexOf(a.teacher), ib = TEACHER_ORDER.indexOf(b.teacher);
+        return (ia<0?99:ia) - (ib<0?99:ib);
+      });
+      dayCols[dname] = cols.length ? cols : [{ key:'-', loc:'', teacher:'' }];
+    } else {
+      dayCols[dname] = baseCols;
+    }
+  });
 
   // 통합 시간축: 10:00 ~ 10:00(22시), 수업이 벗어나면 확장
   var lo = 10*60, hi = 22*60;
   classes.forEach(function(c){
     lo = Math.min(lo, mins(c.start));
-    hi = Math.max(hi, mins(c.end || c.start));
+    hi = Math.max(hi, minsEnd(c));
   });
   lo = Math.floor(lo/30)*30; hi = Math.ceil(hi/30)*30;
   var nrows = Math.round((hi - lo) / 30);
@@ -658,7 +695,7 @@ function buildFullGrid(){
   classes.forEach(function(c){
     var col = colOfKey[c.day + '|' + c.loc + '|' + c.teacher];
     if (!col) return;
-    var r0 = Math.floor((mins(c.start)-lo)/30), r1 = Math.ceil(((mins(c.end||c.start))-lo)/30);
+    var r0 = Math.floor((mins(c.start)-lo)/30), r1 = Math.ceil((minsEnd(c)-lo)/30);
     if (r1 <= r0) r1 = r0+1;
     var b = blockEl(c);
     b.style.gridColumn = String(col);
@@ -666,6 +703,7 @@ function buildFullGrid(){
     g.appendChild(b);
   });
 
+  tuneRowHeight(g, 'auto auto', nrows);
   var wrap = document.createElement('div');
   wrap.style.overflowX = 'auto';
   wrap.appendChild(g);
@@ -689,15 +727,34 @@ function buildWeekGrid(){
   var lo = 10*60, hi = 22*60;
   classes.forEach(function(c){
     lo = Math.min(lo, mins(c.start));
-    hi = Math.max(hi, mins(c.end || c.start));
+    hi = Math.max(hi, minsEnd(c));
   });
   lo = Math.floor(lo/30)*30; hi = Math.ceil(hi/30)*30;
   var nrows = Math.round((hi - lo) / 30);
 
+  // 요일별 열: 월·화는 그날 수업(직전보강)만큼만(없으면 한 줄), 수~일은 전체 담당T 열
+  var dayColsOf = {};
+  WEEK_VIEW_ORDER.forEach(function(dname){
+    if (dname === '월' || dname === '화'){
+      var cols = [], seen = {};
+      classes.forEach(function(c){
+        if (c.day !== dname) return;
+        var key = c.loc + '|' + c.teacher;
+        if (!seen[key]){ seen[key] = true; cols.push({ key:key, loc:c.loc, teacher:c.teacher }); }
+      });
+      cols.sort(function(a,b){
+        var ia = TEACHER_ORDER.indexOf(a.teacher), ib = TEACHER_ORDER.indexOf(b.teacher);
+        return (ia<0?99:ia) - (ib<0?99:ib);
+      });
+      dayColsOf[dname] = cols.length ? cols : [{ key:'-', loc:'', teacher:'' }];
+    } else {
+      dayColsOf[dname] = baseCols;
+    }
+  });
   var colDefs = ['46px'];
-  WEEK_DAYS.forEach(function(dname, di){
-    baseCols.forEach(function(){ colDefs.push('minmax(96px, 1fr)'); });
-    if (di < WEEK_DAYS.length-1) colDefs.push('7px');
+  WEEK_VIEW_ORDER.forEach(function(dname, di){
+    dayColsOf[dname].forEach(function(){ colDefs.push('minmax(96px, 1fr)'); });
+    if (di < WEEK_VIEW_ORDER.length-1) colDefs.push('7px');
   });
 
   var g = document.createElement('div');
@@ -708,14 +765,15 @@ function buildWeekGrid(){
   var corner = document.createElement('div'); corner.style.gridRow='1 / 3'; g.appendChild(corner);
   var colPos = 2;
   var colOfKey = {};
-  WEEK_DAYS.forEach(function(dname, di){
+  WEEK_VIEW_ORDER.forEach(function(dname, di){
+    var dcols = dayColsOf[dname];
     var dh = document.createElement('div');
     dh.className = 'dhead';
     dh.innerHTML = esc(dname) + '<small>' + mdOf(dates[dname]) + '</small>';
-    dh.style.gridColumn = colPos + ' / ' + (colPos + baseCols.length);
+    dh.style.gridColumn = colPos + ' / ' + (colPos + dcols.length);
     dh.style.gridRow = '1';
     g.appendChild(dh);
-    baseCols.forEach(function(cinfo, i){
+    dcols.forEach(function(cinfo, i){
       var h = document.createElement('div');
       h.className = 'thead';
       h.innerHTML = cinfo.teacher ? '<b>' + esc(cinfo.teacher) + '</b>' + esc(cinfo.loc) : '<b>—</b>';
@@ -724,7 +782,7 @@ function buildWeekGrid(){
       g.appendChild(h);
       colOfKey[dname + '|' + cinfo.key] = colPos + i;
     });
-    colPos += baseCols.length + (di < WEEK_DAYS.length-1 ? 1 : 0);
+    colPos += dcols.length + (di < WEEK_VIEW_ORDER.length-1 ? 1 : 0);
   });
   for (var r = 0; r < nrows; r++){
     var lab = document.createElement('div');
@@ -738,7 +796,7 @@ function buildWeekGrid(){
     var col = colOfKey[c.day + '|' + c.loc + '|' + c.teacher];
     if (!col) return;
     var dstr = ymdOf(dates[c.day]);
-    var r0 = Math.floor((mins(c.start)-lo)/30), r1 = Math.ceil(((mins(c.end||c.start))-lo)/30);
+    var r0 = Math.floor((mins(c.start)-lo)/30), r1 = Math.ceil((minsEnd(c)-lo)/30);
     if (r1 <= r0) r1 = r0+1;
     var b = document.createElement('div');
     b.className = 'blk ' + colorOf(c.cls);
@@ -768,17 +826,34 @@ function buildWeekGrid(){
     if (!chips) chips = '<span class="empty-note">비어 있음</span>';
     b.innerHTML = '<div class="bt"><span class="nm">'+esc(c.cls)+'</span>'+
                   '<small>'+esc(c.start)+'~'+esc(c.end)+' · '+c.students.length+'명</small></div>'+
+                  '<div class="btns">'+
+                  '<button class="bbtn stuadd" title="이 반에 학생 추가">추가</button>'+
+                  '<button class="bbtn clsdel" title="이 반 삭제 (빈 반만)">삭제</button>'+
+                  '</div>'+
                   '<div class="stus">'+chips+'</div>';
     b.addEventListener('click', function(e){ onWeekClick(e, c, dstr); });
     g.appendChild(b);
   });
 
+  tuneRowHeight(g, 'auto auto', nrows);
   var wrap = document.createElement('div');
   wrap.style.overflowX = 'auto';
   wrap.appendChild(g);
   return wrap;
 }
 function onWeekClick(e, c, dstr){
+  var ab = e.target.closest('.stuadd');
+  if (ab){ openAdd(c); return; }
+  var del = e.target.closest('.clsdel');
+  if (del){
+    if (c.students.length){ alert('학생이 남아 있는 반은 삭제할 수 없어요.\n먼저 학생을 빼주세요. (' + c.students.length + '명)'); return; }
+    if (!confirm(labelOf(c) + '\n\n이 빈 반을 삭제할까요?')) return;
+    post({ action:'timetableDeleteClass', book:book, classId:c.id }, '삭제하는 중…', function(res){
+      if (res && res.result === 'success'){ setStatus('반을 삭제했어요.', 'ok'); load(true); }
+      else setStatus('삭제 실패: ' + ((res && res.message) || '오류'), 'err');
+    });
+    return;
+  }
   var chip = e.target.closest('button[data-nm]');
   if (!chip) return;
   var nm = chip.getAttribute('data-nm');
@@ -889,18 +964,19 @@ function dropClass(dname, cinfo, startMin){
   var cm = classMoving; if (!cm) return;
   var c = classes.find(function(x){ return x.id===cm.id; });
   if (!c) { cancelMove(); return; }
-  var dur = Math.max(30, mins(c.end || c.start) - mins(c.start));
+  var dur = Math.max(30, minsEnd(c) - mins(c.start));
   var s = startMin, e2 = startMin + dur;
   // 겹침 확인 (같은 요일·같은 열)
   var clash = classes.find(function(x){
     return x.id !== c.id && x.day === dname && x.loc === cinfo.loc && x.teacher === cinfo.teacher &&
-           mins(x.start) < e2 && s < mins(x.end || x.start);
+           mins(x.start) < e2 && s < minsEnd(x);
   });
   if (clash){ setStatus('그 자리엔 이미 ' + clash.cls + ' 수업이 있어요. 다른 빈 자리를 눌러주세요.', 'err'); return; }
   var startStr = fmt12(s), endStr = fmt12(e2);
-  if (!confirm(c.cls + ' (' + c.students.length + '명)\n' + c.day + ' ' + c.start + '~' + c.end + ' · ' + c.teacher + 'T\n→ ' + dname + ' ' + startStr + '~' + endStr + ' · ' + cinfo.teacher + 'T (' + cinfo.loc + ')\n\n반 전체를 이동할까요?' + (book==='정규' ? '\n(학생들 리포트의 정규 수업 시간도 함께 바뀝니다)' : ''))) return;
+  var newTeacher = cinfo.teacher || c.teacher, newLoc = cinfo.loc || c.loc;   // 빈 열(월·화 등)이면 담당·위치 유지
+  if (!confirm(c.cls + ' (' + c.students.length + '명)\n' + c.day + ' ' + c.start + '~' + c.end + ' · ' + c.teacher + 'T\n→ ' + dname + ' ' + startStr + '~' + endStr + ' · ' + newTeacher + 'T (' + newLoc + ')\n\n반 전체를 이동할까요?' + (book==='정규' ? '\n(학생들 리포트의 정규 수업 시간도 함께 바뀝니다)' : ''))) return;
   post({ action:'timetableMoveClass', book:book, classId:c.id, day:dname, start:startStr, end:endStr,
-         teacher:cinfo.teacher, loc:cinfo.loc }, '반을 이동하는 중…', function(res){
+         teacher:newTeacher, loc:newLoc }, '반을 이동하는 중…', function(res){
     if (res && res.result === 'success'){
       cancelMove();
       var extra = (book==='정규') ? ' 학생 ' + (res.rosterUpdated||0) + '명 리포트 반영' + (res.rosterSkipped && res.rosterSkipped.length ? ' (미반영: ' + res.rosterSkipped.join(', ') + ')' : '') : '';
