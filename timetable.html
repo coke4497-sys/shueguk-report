@@ -16,6 +16,7 @@
     --accent:#4C6E66; --btn:#628C83; --icon-bg:#EBF0ED;
     --line:#D7E3DD; --line-soft:#E5EDE8; --radius:16px;
     --g1:#FBF3DA; --g2:#EFE7F5; --g3:#DFEBE6; --mid:#E9EDF8; --etc:#F3EAE4;
+    --reg:#6C9BC0; --exam:#A08BC8;   /* 기간 색: 정규(기본)=하늘색, 내신=연보라 */
   }
   *{box-sizing:border-box;}
   html,body{margin:0;padding:0;}
@@ -56,8 +57,8 @@
   .today-sum{font-size:.82rem;color:var(--ink-soft);margin:0 4px 10px;}
   .today-sum b{color:var(--accent);}
   /* 슈국 캘린더 */
-  .pbadge{display:none;align-items:center;font-size:.82rem;font-weight:700;color:#fff;background:var(--btn);border-radius:10px;padding:6px 12px;}
-  .pbadge.exam{background:#B08A3E;}
+  .pbadge{display:none;align-items:center;font-size:.82rem;font-weight:700;color:#fff;background:var(--reg);border-radius:10px;padding:6px 12px;}
+  .pbadge.exam{background:var(--exam);}
   .cal-head{display:flex;align-items:center;gap:10px;margin:14px 4px 10px;flex-wrap:wrap;}
   .cal-head button{font:inherit;font-size:.88rem;background:var(--icon-bg);border:1px solid var(--line-soft);border-radius:10px;padding:6px 12px;cursor:pointer;color:var(--ink);}
   .cal-head b{font-family:"Gowun Batang",serif;font-size:1.05rem;color:var(--accent);}
@@ -66,14 +67,15 @@
   .cal-dh{text-align:center;font-weight:700;font-size:.82rem;color:var(--ink-soft);padding:2px 0;}
   .cal-period{display:flex;flex-direction:column;gap:4px;justify-content:center;}
   .cal-period button{font:inherit;font-size:.76rem;border:1px solid var(--line);background:#fff;color:var(--ink-soft);border-radius:8px;padding:4px 2px;cursor:pointer;}
-  .cal-period button.on-reg{background:var(--btn);border-color:var(--btn);color:#fff;font-weight:700;}
-  .cal-period button.on-exam{background:#B08A3E;border-color:#B08A3E;color:#fff;font-weight:700;}
+  .cal-period button.on-reg{background:var(--reg);border-color:var(--reg);color:#fff;font-weight:700;}
+  .cal-period button.on-exam{background:var(--exam);border-color:var(--exam);color:#fff;font-weight:700;}
   .cal-cell{background:var(--surface);border:1px solid var(--line-soft);border-radius:10px;min-height:76px;padding:6px 8px;cursor:pointer;}
   .cal-cell:hover{border-color:var(--accent);}
   .cal-cell.other{opacity:.4;}
   .cal-cell.today{outline:2px solid var(--accent);outline-offset:-1px;}
   .cal-cell .dnum{font-weight:700;font-size:.82rem;}
   .cal-cell.holiday{background:#FBF4F2;}
+  .cal-cell.memoed{background:#FDF6D0;}   /* 메모 있는 날 = 레몬색 */
   .cal-cell .dnum.hd{color:#B4574E;}
   .cal-cell .hname{font-size:.68rem;font-weight:700;color:#B4574E;margin-left:4px;word-break:keep-all;}
   .cal-cell .cmemo{font-size:.7rem;color:var(--ink-soft);margin-top:3px;line-height:1.45;max-height:4.3em;overflow:hidden;word-break:break-word;white-space:pre-wrap;}
@@ -730,7 +732,7 @@ function buildCalendar(){
       var ds = ymdOf(d);
       var m = memos[ds];
       var hd = HOLIDAYS[ds];
-      h += '<div class="cal-cell' + (d.getMonth() !== calMonth.getMonth() ? ' other' : '') + (ds === todayY ? ' today' : '') + (hd ? ' holiday' : '') + '"' +
+      h += '<div class="cal-cell' + (d.getMonth() !== calMonth.getMonth() ? ' other' : '') + (ds === todayY ? ' today' : '') + (hd ? ' holiday' : '') + (m ? ' memoed' : '') + '"' +
         ' onclick="editWeekMemo(\'' + ds + '\',\'' + ['월','화','수','목','금','토','일'][di] + '\')">' +
         '<span class="dnum' + (hd ? ' hd' : '') + '">' + d.getDate() + '</span>' +
         (hd ? '<span class="hname">' + esc(hd) + '</span>' : '') +
