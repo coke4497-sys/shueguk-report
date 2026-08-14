@@ -2376,6 +2376,7 @@ function getStudentLinks() {
     if (/^(퇴원|n|no|off|x|중단|비재원)$/i.test(String(v[i][10] || '').trim())) continue;
     out.push({
       name:   name,
+      sid:    String(v[i][0] || '').replace(/^'/, '').trim(),   // 학생ID(부모님 8자리 = 비밀번호)
       school: String(v[i][2] || '').trim(),
       grade:  String(v[i][3] || '').trim(),
       teacher:String(v[i][4] || '').trim(),

@@ -40,7 +40,9 @@
   .vcol .vbar{width:68%;max-width:46px;background:#C7D8CF;border:1px solid rgba(0,0,0,.06);
     border-radius:8px 8px 3px 3px;min-height:6px;transition:box-shadow .15s;}
   .vcol .vgl{font-size:12.5px;font-weight:700;color:var(--ink-soft);}
-  .vcol.on .vbar{filter:saturate(1.2);border-color:var(--accent);}   /* 선택 학년: 채도 20% 증가 */
+  @keyframes ppyong{0%{transform:scale(.78)}45%{transform:scale(1.13)}70%{transform:scale(.95)}100%{transform:scale(1)}}
+  .vcol.on .vbar{filter:saturate(1.2);border:1.5px solid #454D51;   /* 선택 학년: 채도 20% 증가 + 진한 그레이 테두리 */
+    animation:ppyong .38s cubic-bezier(.34,1.56,.64,1);}
   .vcol.on .vc,.vcol.on .vgl{color:var(--accent);}
   .sch-list{margin-top:13px;border-top:1px solid var(--line-soft);padding-top:11px;}
   .sch-list .sl-t{font-size:.76rem;font-weight:700;color:var(--ink-soft);margin:0 0 6px;}
@@ -143,7 +145,7 @@
     font-size:12.5px;font-weight:700;padding:7px 12px;border-radius:9px;text-decoration:none;white-space:nowrap;}
   .lrow .nocode{font-size:12px;color:var(--bad);}
   .lrow .edit{display:inline-flex;align-items:center;border:1.5px solid var(--line);color:var(--ink-soft);
-    font-size:12.5px;font-weight:700;padding:7px 12px;border-radius:9px;background:#fff;cursor:pointer;white-space:nowrap;}
+    font:inherit;font-size:12.5px;font-weight:700;padding:7px 12px;border-radius:9px;background:#fff;cursor:pointer;white-space:nowrap;}
   .lwrap{margin-bottom:8px;}
   .lwrap .lrow{margin-bottom:0;}
   .ledit{display:none;background:#F4F8F5;border:1px solid var(--line-soft);border-top:none;
@@ -702,7 +704,7 @@
     if(!LK_ROWS.length){ $('lk-list').innerHTML='<div class="empty">검색 결과가 없어요.</div>'; return; }
     $('lk-list').innerHTML = LK_ROWS.map(function(s,i){
       var tt=[s.classA&&('가 '+s.classA), s.classB&&('나 '+s.classB), s.progress&&('진도 '+s.progress), s.checkup&&('확인 '+s.checkup)].filter(Boolean).join(' · ');
-      var meta = esc([s.school, s.grade, s.teacher?('담당 '+s.teacher):''].filter(Boolean).join(' · '))
+      var meta = esc([s.school, s.grade, s.sid?('비밀번호 '+s.sid):''].filter(Boolean).join(' · '))
                + (tt ? '<br>'+esc(tt) : '');
       var acts = (s.code
         ? '<button type="button" class="copy" data-i="'+i+'">링크 복사</button>'+
