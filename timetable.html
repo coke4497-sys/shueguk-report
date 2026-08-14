@@ -406,21 +406,22 @@ function loadWeek(){
   var from = new Date(weekStart); from.setDate(from.getDate() - 2);   // 월요일
   var to = new Date(weekStart); to.setDate(to.getDate() + 4);         // 일요일
   setStatus('주차 기록을 불러오는 중…');
-  fetch(ENDPOINT + '?action=timetableWeek&pw=' + encodeURIComponent(pw) + '&book=' + encodeURIComponent(book) +
+  var pWeek = fetch(ENDPOINT + '?action=timetableWeek&pw=' + encodeURIComponent(pw) + '&book=' + encodeURIComponent(book) +
         '&from=' + ymdOf(from) + '&to=' + ymdOf(to) + '&t=' + Date.now())
-    .then(function(r){ return r.json(); })
-    .then(function(d){
-      weekAttend = {}; weekOnce = [];
-      if (d && d.result === 'success'){
-        (d.attend || []).forEach(function(a){ weekAttend[a.date + '|' + a.classId + '|' + a.student] = { status:a.status, memo:a.memo }; });
-        weekOnce = d.onceMoves || [];
-      }
-      loadMemos(ymdOf(from), ymdOf(to), function(){
-        setStatus('');
-        render();
-      });
-    })
-    .catch(function(){ setStatus('주차 기록을 불러오지 못했어요.', 'err'); render(); });
+    .then(function(r){ return r.json(); }).catch(function(){ return null; });
+  var pMemo = new Promise(function(res){ loadMemos(ymdOf(from), ymdOf(to), res); });
+  Promise.all([pWeek, pMemo]).then(function(rs){
+    var d = rs[0];
+    weekAttend = {}; weekOnce = [];
+    if (d && d.result === 'success'){
+      (d.attend || []).forEach(function(a){ weekAttend[a.date + '|' + a.classId + '|' + a.student] = { status:a.status, memo:a.memo }; });
+      weekOnce = d.onceMoves || [];
+      setStatus('');
+    } else {
+      setStatus('주차 기록을 불러오지 못했어요.', 'err');
+    }
+    render();
+  });
 }
 function attendAt(dateStr, cid, nm){
   return (mode === 'week') ? weekAttend[dateStr + '|' + cid + '|' + nm] : attend[cid + '|' + nm];
@@ -471,41 +472,36 @@ function tryLogin(){
 }
 $('pw').addEventListener('keydown', function(e){ if(e.key==='Enter') tryLogin(); });
 
-/* ── 데이터 ── */
+/* ── 데이터 — 시간표·출석·메모를 동시에 불러와 왕복 시간을 줄인다 ── */
+var loadSeq = 0;   // 기간 전환 등으로 load가 겹칠 때 마지막 요청만 반영
 function load(isReload, cb){
+  var seq = ++loadSeq;
   setStatus('시간표를 불러오는 중…');
-  fetch(ENDPOINT + '?action=timetableList&pw=' + encodeURIComponent(pw) + '&book=' + encodeURIComponent(book) + '&t=' + Date.now())
-    .then(function(r){ return r.json(); })
-    .then(function(d){
-      if (!d || d.result !== 'success'){
-        if (cb) cb(false); else setStatus('불러오지 못했어요. 새로고침 해 주세요.', 'err');
-        return;
-      }
-      classes = d.classes || [];
-      onceMoves = d.onceMoves || [];
-      setStatus(isReload ? '최신 시간표로 다시 불러왔어요.' : '', isReload ? 'ok' : '');
-      loadAttend(function(){
-        loadMemos(todayStr(), todayStr(), function(){
-          renderTabs();
-          if (mode === 'week') loadWeek(); else render();
-          if (cb) cb(true);
-        });
-      });
-    })
-    .catch(function(){ if (cb) cb(false); else setStatus('서버 연결에 실패했어요.', 'err'); });
-}
-function loadAttend(done){
-  fetch(ENDPOINT + '?action=attendList&pw=' + encodeURIComponent(pw) + '&book=' + encodeURIComponent(book) +
+  var pList = fetch(ENDPOINT + '?action=timetableList&pw=' + encodeURIComponent(pw) + '&book=' + encodeURIComponent(book) + '&t=' + Date.now())
+    .then(function(r){ return r.json(); }).catch(function(){ return null; });
+  var pAtt = fetch(ENDPOINT + '?action=attendList&pw=' + encodeURIComponent(pw) + '&book=' + encodeURIComponent(book) +
         '&date=' + todayStr() + '&t=' + Date.now())
-    .then(function(r){ return r.json(); })
-    .then(function(d){
-      attend = {};
-      if (d && d.result === 'success') (d.attend || []).forEach(function(a){
-        attend[a.classId + '|' + a.student] = { status: a.status, memo: a.memo };
-      });
-      done();
-    })
-    .catch(function(){ done(); });
+    .then(function(r){ return r.json(); }).catch(function(){ return null; });
+  var pMemo = new Promise(function(res){ loadMemos(todayStr(), todayStr(), res); });
+  Promise.all([pList, pAtt, pMemo]).then(function(rs){
+    if (seq !== loadSeq) return;   // 더 새 요청이 있음
+    var d = rs[0];
+    if (!d || d.result !== 'success'){
+      if (cb) cb(false); else setStatus('불러오지 못했어요. 새로고침 해 주세요.', 'err');
+      return;
+    }
+    classes = d.classes || [];
+    onceMoves = d.onceMoves || [];
+    var a = rs[1];
+    attend = {};
+    if (a && a.result === 'success') (a.attend || []).forEach(function(x){
+      attend[x.classId + '|' + x.student] = { status: x.status, memo: x.memo };
+    });
+    setStatus(isReload ? '최신 시간표로 다시 불러왔어요.' : '', isReload ? 'ok' : '');
+    renderTabs();
+    if (mode === 'week') loadWeek(); else render();
+    if (cb) cb(true);
+  });
 }
 /* 슈국 캘린더: 주별 기간(정규/내신) — 미설정 주는 정규 */
 function loadPeriods(done){
@@ -2157,15 +2153,18 @@ $('gate').style.display = 'none';
 $('bar').style.display = 'block';
 $('sheet').style.display = 'block';
 renderTabs();
-/* 주별 기간을 먼저 읽고, 오늘/주차별이면 그 주 기간(정규/내신)의 시간표로 연다 */
+/* 저장된 선택(book)으로 바로 불러오기 시작 + 주별 기간은 동시에 확인.
+ * 기간이 달라진 드문 경우에만 그 기간의 시간표로 다시 불러온다. */
+if (mode === 'cal') calLoadAndRender();
+load(false);
 loadPeriods(function(){
-  if (mode === 'today' || mode === 'week'){
+  if ((mode === 'today' || mode === 'week') && autoBookFor() !== book){
     book = autoBookFor();
     sessionStorage.setItem('tt_book', book);
+    load(false);
   }
-  renderTabs();
-  if (mode === 'cal'){ calLoadAndRender(); }
-  load(false);
+  renderTabs();   // 기간 배너 갱신
+  if (mode === 'cal') render();
 });
 </script>
 </body>
