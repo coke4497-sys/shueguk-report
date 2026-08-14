@@ -43,11 +43,25 @@
     padding:12px 14px;margin:10px 0;display:none;}
   .viewtabs{display:flex;gap:6px;align-items:center;margin-bottom:8px;flex-wrap:wrap;}
   .viewtabs button{font:inherit;font-size:.92rem;background:#fff;border:1px solid var(--line);
-    border-radius:10px;padding:6px 14px;color:var(--ink);cursor:pointer;}
-  .viewtabs button.on{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:700;}
-  .bookwrap{display:inline-flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;margin-right:6px;}
+    border-radius:999px;padding:6px 14px;color:var(--ink);cursor:pointer;position:relative;
+    transition:border-radius .2s ease;}
+  /* 선택 = 물방울 뿅! — 반짝이는 파스텔 방울 + 통통 애니메이션 */
+  @keyframes ppyong{0%{transform:scale(.78)}45%{transform:scale(1.13)}70%{transform:scale(.95)}100%{transform:scale(1)}}
+  @keyframes dropIn{0%{transform:translateY(6px) scale(0);opacity:0}60%{transform:translateY(-2px) scale(1.25);opacity:1}100%{transform:translateY(0) scale(1);opacity:1}}
+  .viewtabs button.on{
+    background:radial-gradient(circle at 30% 26%, rgba(255,255,255,.95), rgba(255,255,255,0) 46%), #CBE3DA;
+    border-color:#9CC2B4;color:#2F5D51;font-weight:700;border-radius:999px;
+    box-shadow:0 3px 9px rgba(76,110,102,.20), inset 0 -2px 5px rgba(76,110,102,.10);
+    animation:ppyong .38s cubic-bezier(.34,1.56,.64,1);}
+  .viewtabs button.on::after{content:'';position:absolute;top:-4px;right:10px;width:7px;height:7px;border-radius:50%;
+    background:radial-gradient(circle at 35% 30%, #fff, #CBE3DA 75%);border:1px solid #9CC2B4;
+    animation:dropIn .5s cubic-bezier(.34,1.56,.64,1);}
+  .bookwrap{display:inline-flex;border:1px solid var(--line);border-radius:999px;overflow:hidden;margin-right:6px;}
   .bookwrap button{border:none;border-radius:0;}
-  .bookwrap button.on{background:var(--btn);color:#fff;font-weight:700;}
+  .bookwrap button.on{
+    background:radial-gradient(circle at 30% 26%, rgba(255,255,255,.95), rgba(255,255,255,0) 46%), #CBE3DA;
+    color:#2F5D51;font-weight:700;box-shadow:inset 0 -2px 5px rgba(76,110,102,.12);
+    animation:ppyong .38s cubic-bezier(.34,1.56,.64,1);}
   .today-head{font-family:"Gowun Batang",serif;font-weight:700;font-size:1.1rem;color:var(--accent);margin:14px 4px 2px;}
   .weeknav-tt{display:flex;align-items:center;gap:10px;margin:14px 4px 8px;}
   .weeknav-tt button{font:inherit;font-size:.88rem;background:var(--icon-bg);color:var(--ink);
@@ -110,7 +124,7 @@
   .attbar .elabel{font-size:.78rem;color:var(--ink-soft);margin-right:2px;}
   .attbar button{font:inherit;font-size:.84rem;background:var(--icon-bg);border:1px solid var(--line-soft);
     border-radius:9px;padding:5px 12px;color:var(--ink);cursor:pointer;}
-  .attbar button.on{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:700;}
+  .attbar button.on{background:radial-gradient(circle at 30% 26%, rgba(255,255,255,.95), rgba(255,255,255,0) 46%), #CBE3DA;border-color:#9CC2B4;color:#2F5D51;font-weight:700;border-radius:999px;box-shadow:0 3px 9px rgba(76,110,102,.20), inset 0 -2px 5px rgba(76,110,102,.10);animation:ppyong .38s cubic-bezier(.34,1.56,.64,1);}
   body.multisel .blk{cursor:pointer;}
   .stus button.msel{outline:2px solid var(--accent);outline-offset:1px;font-weight:700;}
   .searchbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:6px;}
@@ -126,14 +140,14 @@
   .editbar .elabel{font-size:.78rem;color:var(--ink-soft);margin-right:2px;}
   .editbar button{font:inherit;font-size:.84rem;background:var(--icon-bg);border:1px solid var(--line-soft);
     border-radius:9px;padding:5px 12px;color:var(--ink);cursor:pointer;}
-  .editbar button.on{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:700;}
+  .editbar button.on{background:radial-gradient(circle at 30% 26%, rgba(255,255,255,.95), rgba(255,255,255,0) 46%), #CBE3DA;border-color:#9CC2B4;color:#2F5D51;font-weight:700;border-radius:999px;box-shadow:0 3px 9px rgba(76,110,102,.20), inset 0 -2px 5px rgba(76,110,102,.10);animation:ppyong .38s cubic-bezier(.34,1.56,.64,1);}
   body.editpick .blk{cursor:pointer;}
   body.editpick .blk:hover{outline:2px solid var(--btn);}
   .daytabs{display:none;gap:6px;flex-wrap:wrap;align-items:center;}
   .daytabs.show{display:flex;}
   .daytabs button{font:inherit;font-size:.95rem;background:#fff;border:1px solid var(--line);
     border-radius:999px;padding:6px 16px;color:var(--ink);cursor:pointer;}
-  .daytabs button.on{background:var(--btn);border-color:var(--btn);color:#fff;font-weight:700;}
+  .daytabs button.on{background:radial-gradient(circle at 30% 26%, rgba(255,255,255,.95), rgba(255,255,255,0) 46%), #CBE3DA;border-color:#9CC2B4;color:#2F5D51;font-weight:700;border-radius:999px;box-shadow:0 3px 9px rgba(76,110,102,.20), inset 0 -2px 5px rgba(76,110,102,.10);animation:ppyong .38s cubic-bezier(.34,1.56,.64,1);}
   .dayhead{font-family:"Gowun Batang",serif;font-weight:700;font-size:1.05rem;color:var(--accent);
     margin:18px 4px 6px;padding-top:4px;}
   .dayhead:first-child{margin-top:2px;}
