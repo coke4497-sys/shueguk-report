@@ -410,6 +410,11 @@ function doGet(e) {
     if (String(p.pw || '') !== TEACHER_PW) return json({ result:'error', message:'unauthorized' });
     return getAttendList(p.date, p.book);
   }
+  // 주차 조회 (timetable.html 주차별 시간표) — 비밀번호 필요
+  if (p.action === 'timetableWeek') {
+    if (String(p.pw || '') !== TEACHER_PW) return json({ result:'error', message:'unauthorized' });
+    return getTimetableWeek(p.from, p.to, p.book);
+  }
   // 별 보너스 로그(관리용) — 비밀번호 필요
   // 슈퍼스타 TOP 10 순위 — 전 재원생 별 집계 (비밀번호 필요)
   if (p.action === 'starRank') {
@@ -2782,6 +2787,41 @@ function getAttendList(dateStr, book) {
     }
   }
   return json({ result:'success', date: dateStr, attend: out });
+}
+/** 주차 조회 — 기간 내 출석 기록 + 1회 이동. GET action=timetableWeek&pw=&book=&from=yyyy-MM-dd&to=yyyy-MM-dd */
+function getTimetableWeek(fromStr, toStr, book) {
+  book = ttBook_(book);
+  fromStr = String(fromStr || '').trim(); toStr = String(toStr || '').trim();
+  if (!fromStr || !toStr) return json({ result:'error', message:'기간이 필요합니다.' });
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var attend = [];
+  var ash = ss.getSheetByName(TAB_ATTEND);
+  if (ash) {
+    var av = ash.getDataRange().getValues();
+    for (var i = 1; i < av.length; i++) {
+      var d = av[i][0];
+      var ds = (d && d.getTime) ? Utilities.formatDate(d, 'Asia/Seoul', 'yyyy-MM-dd') : String(d || '').trim();
+      if (ds < fromStr || ds > toStr || ttBook_(av[i][1]) !== book) continue;
+      attend.push({ date: ds, classId: String(av[i][2] || '').trim(), student: String(av[i][3] || '').trim(),
+                    status: String(av[i][4] || '').trim(), memo: String(av[i][5] || '').trim() });
+    }
+  }
+  var once = [];
+  var lsh = ss.getSheetByName(TAB_TT_LOG);
+  if (lsh) {
+    var lv = lsh.getDataRange().getValues();
+    for (var j = 1; j < lv.length; j++) {
+      if (String(lv[j][1] || '').trim() !== '1회') continue;
+      if (ttBook_(lv[j][8]) !== book) continue;
+      var ld = lv[j][0];
+      var lds = (ld && ld.getTime) ? Utilities.formatDate(ld, 'Asia/Seoul', 'yyyy-MM-dd') : String(ld || '').trim().slice(0, 10);
+      if (lds < fromStr || lds > toStr) continue;
+      once.push({ row: j + 1, date: lds, student: String(lv[j][2] || '').trim(),
+                  fromId: String(lv[j][3] || '').trim(), toId: String(lv[j][5] || '').trim(),
+                  reason: String(lv[j][7] || '').trim() });
+    }
+  }
+  return json({ result:'success', from: fromStr, to: toStr, attend: attend, onceMoves: once });
 }
 /** 출석 기록/변경/삭제. { pw, book, date, classId, student, status(출석|지각|결석|''), memo }
  *  status ''(빈값)이면 기록 삭제. 지각은 메모 필수. */
