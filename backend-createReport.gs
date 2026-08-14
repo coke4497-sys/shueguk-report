@@ -2834,9 +2834,14 @@ function ensureAttendSheet_(ss) {
   var sh = ss.getSheetByName(TAB_ATTEND);
   if (!sh) {
     sh = ss.insertSheet(TAB_ATTEND);
-    sh.appendRow(['날짜', '시간표', '반ID', '학생', '상태', '메모', '기록일시', '보충일정', '보충완료']);
-  } else if (String(sh.getRange(1, 8).getValue() || '') !== '보충일정') {
-    sh.getRange(1, 8, 1, 2).setValues([['보충일정', '보충완료']]);   // 기존 탭에 보충 열 보강
+    sh.appendRow(['날짜', '시간표', '반ID', '학생', '상태', '메모', '기록일시', '보충일정', '보충완료', '보충메모']);
+  } else {
+    if (String(sh.getRange(1, 8).getValue() || '') !== '보충일정') {
+      sh.getRange(1, 8, 1, 2).setValues([['보충일정', '보충완료']]);   // 기존 탭에 보충 열 보강
+    }
+    if (String(sh.getRange(1, 10).getValue() || '') !== '보충메모') {
+      sh.getRange(1, 10).setValue('보충메모');   // 결석 건 메모(약속 변경·태도 등) 열 보강
+    }
   }
   return sh;
 }
@@ -2856,7 +2861,8 @@ function getAttendAbsentList(book) {
       out.push({ date: ds, classId: String(v[i][2] || '').trim(), student: String(v[i][3] || '').trim(),
                  memo: String(v[i][5] || '').trim(),
                  plan: String(v[i].length > 7 ? v[i][7] || '' : '').trim(),
-                 done: String(v[i].length > 8 ? v[i][8] || '' : '').trim() === '1' });
+                 done: String(v[i].length > 8 ? v[i][8] || '' : '').trim() === '1',
+                 mkMemo: String(v[i].length > 9 ? v[i][9] || '' : '').trim() });
     }
   }
   return json({ result:'success', list: out });
@@ -2880,9 +2886,10 @@ function attendMakeupSet(data) {
       var ds = (d && d.getTime) ? Utilities.formatDate(d, 'Asia/Seoul', 'yyyy-MM-dd') : String(d || '').trim();
       if (ds === dateStr && ttBook_(v[i][1]) === book &&
           String(v[i][2] || '').trim() === classId && String(v[i][3] || '').trim() === student) {
-        var rg = sh.getRange(i + 1, 8, 1, 2);
+        var rg = sh.getRange(i + 1, 8, 1, 3);
         rg.setNumberFormat('@');
-        rg.setValues([[String(data.plan || '').trim(), String(data.done || '') === '1' ? '1' : '']]);
+        rg.setValues([[String(data.plan || '').trim(), String(data.done || '') === '1' ? '1' : '',
+                       String(data.mkMemo == null ? '' : data.mkMemo).trim()]]);
         return json({ result:'success' });
       }
     }
