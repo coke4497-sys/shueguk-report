@@ -16,7 +16,7 @@
  *  ① 보고서목록   A:ID | B:제목 | C:총평 | D:시험범위                                  ★D 신규
  *  ② 문항         A:보고서ID | B:번호 | C:영역(상위) | D:형식(객/서술) | E:난도 | F:내용 | G:세부유형(하위) | H:지문그룹   ★G·H 신규
  *  ③ 제출결과     제출일시 | 시험 | 학교 | 학년 | 이름 | 틀린문항수 | 틀린문항·반성 | 다음시험다짐 | 선생님의한마디 | 예상점수 | 부모님연락처   ★K 신규(010 제외 8자리 · 학생 매칭 키)
- *  ④ 학생정보     A:학생ID(부모님8자리=비밀번호) | B:이름 | C:학교 | D:학년 | E:담당교사 | F:메모 | G:정규가 | H:정규나 | I:내신진도 | J:내신확인 | K:재원여부 | L:접근코드(토큰)   ★신규 탭
+ *  ④ 학생정보     A:학생ID(부모님8자리=비밀번호) | B:이름 | C:학교 | D:학년 | E:담당교사 | F:메모 | G:정규가 | H:정규나 | I:내신진도 | J:내신확인 | K:재원여부 | L:접근코드(토큰) | M:학생연락처(8자리, 선택)   ★신규 탭
  *  ⑤ 공지         A:작성일 | B:대상유형(전체/학년/개인/일부) | C:대상 | D:제목 | E:내용 | F:게시(빈칸=노출, N/숨김/off=숨김)   ★알려드립니다 탭
  *
  * [업데이트] 기존 코드를 전부 지우고 이 코드로 교체 → 저장
@@ -2040,6 +2040,7 @@ function addStudent(data) {
   var school  = String(data.school  || '').trim();
   var grade   = String(data.grade   || '').trim();
   var sid     = String(data.sid     || '').trim();
+  var sphone  = String(data.sphone  || '').trim();
   var teacher = String(data.teacher || '').trim();
   var memo    = String(data.memo    || '').trim();
   var classA  = String(data.classA  || '').trim();
@@ -2048,6 +2049,7 @@ function addStudent(data) {
   var checkup = String(data.checkup || '').trim();
   if (!name) return json({ result: 'error', message: '이름을 입력하세요.' });
   if (!/^\d{8}$/.test(sid)) return json({ result: 'error', message: '부모님 연락처 8자리(숫자)를 입력하세요. 성적 확인 비밀번호로 쓰여요.' });
+  if (sphone && !/^\d{8}$/.test(sphone)) return json({ result: 'error', message: '학생 연락처는 숫자 8자리로 입력하세요. (없으면 비워두세요)' });
   if (!school || !grade) return json({ result: 'error', message: '학교와 학년을 입력하세요.' });
 
   var ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -2077,12 +2079,16 @@ function addStudent(data) {
     // 접근코드 생성 (기존 코드와 충돌 없게)
     var token = '';
     do { token = randTok_(); } while (used[token]);
+    // 학생 연락처 열(M) — 헤더가 없으면 만든다
+    var phoneCol = Math.max(codeCol + 1, 12);
+    if (String(v[0][phoneCol] || '').trim() !== '학생연락처') sh.getRange(1, phoneCol + 1).setValue('학생연락처');
     var row = [];
-    for (var c = 0; c <= Math.max(codeCol, 11); c++) row.push('');
+    for (var c = 0; c <= Math.max(codeCol, phoneCol); c++) row.push('');
     row[0] = "'" + sid; row[1] = name; row[2] = school; row[3] = grade;
     row[4] = teacher; row[5] = memo;
     row[6] = classA; row[7] = classB; row[8] = progress; row[9] = checkup;
     row[codeCol] = token;
+    row[phoneCol] = sphone ? "'" + sphone : '';
     sh.appendRow(row);
     dropTab_(TAB_STUDENTS);
     return json({ result: 'success', name: name, token: token });
