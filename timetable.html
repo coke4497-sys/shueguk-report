@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>정규 시간표 · 이수경국어</title>
+<meta name="description" content="이수경국어 정규 수업 시간표 — 반 편성 확인 · 학생 이동 (교사용)" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=Gowun+Dodum&display=swap" rel="stylesheet" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='48' fill='%23DCE9E4'/%3E%3C/svg%3E" />
+<style>
+  :root{
+    --bg:#C6D5D2; --surface:#FFFFFF;
+    --ink:#2A332F; --ink-soft:#65726B;
+    --accent:#4C6E66; --btn:#628C83; --icon-bg:#EBF0ED;
+    --line:#D7E3DD; --line-soft:#E5EDE8; --radius:16px;
+    --g1:#FBF3DA; --g2:#EFE7F5; --g3:#DFEBE6; --mid:#E9EDF8; --etc:#F3EAE4;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{background:var(--bg);color:var(--ink);
+    font-family:"Gowun Dodum","Apple SD Gothic Neo","Malgun Gothic",-apple-system,system-ui,sans-serif;
+    font-size:16px;line-height:1.5;-webkit-font-smoothing:antialiased;padding:0 0 70px;}
+  .wrap{max-width:1180px;margin:0 auto;padding:0 14px;}
+  header{padding:22px 4px 8px;text-align:center;}
+  .brand{font-family:"Gowun Batang",serif;font-size:1.35rem;font-weight:700;color:var(--accent);margin:0;}
+  .sub{color:var(--ink-soft);font-size:.85rem;margin:4px 0 0;}
+
+  .gate{background:var(--surface);border:1px solid var(--line-soft);border-radius:var(--radius);
+    padding:26px 22px;margin:26px auto;max-width:380px;text-align:center;}
+  .gate input{width:100%;font:inherit;font-size:1.05rem;text-align:center;letter-spacing:.2em;
+    padding:12px;border:1.5px solid var(--line);border-radius:12px;margin:14px 0 10px;}
+  .gate button{width:100%;font:inherit;font-size:1rem;color:#fff;background:var(--btn);
+    border:none;border-radius:12px;padding:13px;cursor:pointer;}
+  .gate .err{color:#B4574E;font-size:.85rem;min-height:1.2em;margin:8px 0 0;}
+
+  .bar{background:var(--surface);border:1px solid var(--line-soft);border-radius:var(--radius);
+    padding:12px 14px;margin:10px 0;display:none;}
+  .daytabs{display:flex;gap:6px;flex-wrap:wrap;align-items:center;}
+  .daytabs button{font:inherit;font-size:.95rem;background:#fff;border:1px solid var(--line);
+    border-radius:999px;padding:6px 16px;color:var(--ink);cursor:pointer;}
+  .daytabs button.on{background:var(--btn);border-color:var(--btn);color:#fff;font-weight:700;}
+  .daytabs .sp{flex:1;}
+  .daytabs .reload{font-size:.82rem;background:var(--icon-bg);border:1px solid var(--line-soft);
+    border-radius:9px;padding:6px 12px;color:var(--ink-soft);cursor:pointer;}
+  .hint{font-size:.8rem;color:var(--ink-soft);margin:8px 2px 0;}
+  .legend{display:flex;gap:10px;flex-wrap:wrap;font-size:.75rem;color:var(--ink-soft);margin-top:6px;}
+  .legend i{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:4px;vertical-align:-1px;border:1px solid rgba(0,0,0,.06);}
+
+  /* 이동 모드 바 */
+  .movebar{display:none;position:sticky;top:0;z-index:30;background:var(--accent);color:#fff;
+    border-radius:12px;padding:10px 14px;margin:8px 0;align-items:center;gap:10px;}
+  .movebar.on{display:flex;}
+  .movebar b{font-family:"Gowun Batang",serif;}
+  .movebar .sp{flex:1;}
+  .movebar button{font:inherit;font-size:.85rem;background:rgba(255,255,255,.16);color:#fff;
+    border:1px solid rgba(255,255,255,.45);border-radius:9px;padding:5px 12px;cursor:pointer;}
+
+  .status{min-height:1.3em;font-size:.85rem;margin:6px 4px;color:var(--ink-soft);}
+  .status.ok{color:#4C8A5C;}
+  .status.err{color:#B4574E;}
+
+  /* 시간표 그리드 */
+  .sheet{background:var(--surface);border:1px solid var(--line-soft);border-radius:var(--radius);
+    padding:14px;margin:8px 0;overflow-x:auto;display:none;}
+  .grid{display:grid;gap:3px;min-width:900px;}
+  .thead{font-size:.8rem;text-align:center;color:var(--ink-soft);padding:2px 0 4px;}
+  .thead b{display:block;font-family:"Gowun Batang",serif;font-size:.9rem;color:var(--accent);}
+  .tlab{font-size:.7rem;color:var(--ink-soft);text-align:right;padding:2px 6px 0 0;white-space:nowrap;}
+  .blk{border-radius:10px;border:1px solid rgba(0,0,0,.05);padding:6px 7px;overflow:hidden;
+    font-size:.78rem;cursor:default;}
+  .blk .bt{font-weight:700;font-size:.8rem;margin-bottom:3px;display:flex;justify-content:space-between;gap:4px;align-items:baseline;}
+  .blk .bt small{font-weight:400;color:var(--ink-soft);font-size:.68rem;white-space:nowrap;}
+  .blk .stus{display:flex;flex-wrap:wrap;gap:3px;}
+  .blk .stus button{font:inherit;font-size:.74rem;background:rgba(255,255,255,.75);border:1px solid rgba(0,0,0,.08);
+    border-radius:999px;padding:1px 8px;cursor:pointer;color:var(--ink);line-height:1.5;}
+  .blk .stus button:hover{border-color:var(--accent);}
+  .blk .stus button.sel{background:var(--accent);border-color:var(--accent);color:#fff;}
+  .blk .empty-note{color:var(--ink-soft);font-size:.72rem;}
+  .blk.c-g1{background:var(--g1);} .blk.c-g2{background:var(--g2);} .blk.c-g3{background:var(--g3);}
+  .blk.c-mid{background:var(--mid);} .blk.c-etc{background:var(--etc);}
+  body.moving .blk.droppable{outline:2px dashed var(--btn);outline-offset:1px;cursor:pointer;}
+  body.moving .blk.droppable:hover{outline-style:solid;background-image:linear-gradient(rgba(98,140,131,.12),rgba(98,140,131,.12));}
+  body.moving .blk .stus button{pointer-events:none;}
+  body.moving .blk .stus button.sel{pointer-events:auto;}
+  .empty-day{text-align:center;color:var(--ink-soft);padding:30px 0;font-size:.9rem;}
+  footer{text-align:center;margin-top:34px;color:var(--ink-soft);font-size:.8rem;}
+</style>
+</head>
+<body>
+<main class="wrap">
+  <header>
+    <p class="brand">정규 시간표</p>
+    <p class="sub">Shueguk · 반 편성 확인과 학생 이동 (교사용) — 이동은 저장 즉시 리포트·학생 페이지에 반영</p>
+  </header>
+
+  <!-- 비밀번호 게이트 -->
+  <div class="gate" id="gate">
+    <div style="font-family:'Gowun Batang',serif;font-weight:700;">교사 확인</div>
+    <input id="pw" type="password" inputmode="text" placeholder="비밀번호" autocomplete="off" />
+    <button onclick="tryLogin()">확인</button>
+    <p class="err" id="gate-err"></p>
+  </div>
+
+  <!-- 상단 컨트롤 -->
+  <div class="bar" id="bar">
+    <div class="daytabs" id="daytabs">
+      <span class="sp"></span>
+      <button class="reload" onclick="load(true)">다시 불러오기</button>
+    </div>
+    <p class="hint">학생 이름을 누르면 이동 모드가 켜져요. 옮길 반(다른 요일 포함)을 누르면 이동됩니다.</p>
+    <div class="legend">
+      <span><i style="background:var(--g1)"></i>고1</span>
+      <span><i style="background:var(--g2)"></i>고2</span>
+      <span><i style="background:var(--g3)"></i>고3</span>
+      <span><i style="background:var(--mid)"></i>정리정독(중등)</span>
+      <span><i style="background:var(--etc)"></i>기타</span>
+    </div>
+  </div>
+
+  <div class="movebar" id="movebar">
+    <span>이동 중 — <b id="mv-name"></b> <span id="mv-from" style="font-size:.82rem;opacity:.85;"></span></span>
+    <span class="sp"></span>
+    <button onclick="cancelMove()">취소</button>
+  </div>
+  <p class="status" id="status"></p>
+
+  <div class="sheet" id="sheet"></div>
+
+  <footer>이수경국어 Shueguk · 정규 시간표</footer>
+</main>
+
+<script>
+var ENDPOINT = "https://script.google.com/macros/s/AKfycbzhCncBwn-JlqXARC3wfrWUCuNHzlNK2df0bdhx-w78Xr8mzYUcIYZOJdRi9N4bHtsb/exec";
+var DAYS = ['수', '목', '금', '토', '일'];
+var TEACHER_ORDER = ['슈', '선주', '승연', '주혜', '현정', '연주', '현지', '지원', '덕기', '은지'];
+
+var pw = sessionStorage.getItem('tt_pw') || '';
+var classes = [];      // {id, day, start, end, loc, teacher, cls, students[]}
+var day = '수';
+var moving = null;     // {name, fromId, fromLabel}
+
+function $(id){ return document.getElementById(id); }
+function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+function setStatus(m,k){ var s=$('status'); s.textContent=m||''; s.className='status'+(k?' '+k:''); }
+
+/* "5:30" → 분(오전 10~12시는 오전, 1~9시는 오후로 해석) */
+function mins(t){
+  var p = String(t||'').split(':');
+  var h = parseInt(p[0],10)||0, m = parseInt(p[1],10)||0;
+  if (h < 10) h += 12;
+  return h*60+m;
+}
+function colorOf(cls){
+  if (/^고1/.test(cls)) return 'c-g1';
+  if (/^고2/.test(cls)) return 'c-g2';
+  if (/^고3/.test(cls)) return 'c-g3';
+  if (/정리정독/.test(cls)) return 'c-mid';
+  return 'c-etc';
+}
+
+/* ── 로그인 ── */
+function tryLogin(){
+  var v = $('pw').value.trim();
+  if (!v){ $('gate-err').textContent='비밀번호를 입력해 주세요.'; return; }
+  pw = v;
+  $('gate-err').textContent='';
+  load(false, function(ok){
+    if (ok){ sessionStorage.setItem('tt_pw', pw); $('gate').style.display='none'; $('bar').style.display='block'; $('sheet').style.display='block'; }
+    else { pw=''; $('gate-err').textContent='비밀번호가 맞지 않아요.'; }
+  });
+}
+$('pw').addEventListener('keydown', function(e){ if(e.key==='Enter') tryLogin(); });
+
+/* ── 데이터 ── */
+function load(isReload, cb){
+  setStatus('시간표를 불러오는 중…');
+  fetch(ENDPOINT + '?action=timetableList&pw=' + encodeURIComponent(pw) + '&t=' + Date.now())
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      if (!d || d.result !== 'success'){
+        if (cb) cb(false); else setStatus('불러오지 못했어요. 새로고침 해 주세요.', 'err');
+        return;
+      }
+      classes = d.classes || [];
+      setStatus(isReload ? '최신 시간표로 다시 불러왔어요.' : '', isReload ? 'ok' : '');
+      renderTabs(); render();
+      if (cb) cb(true);
+    })
+    .catch(function(){ if (cb) cb(false); else setStatus('서버 연결에 실패했어요.', 'err'); });
+}
+
+/* ── 렌더 ── */
+function renderTabs(){
+  var host = $('daytabs');
+  host.querySelectorAll('.dbtn').forEach(function(b){ b.remove(); });
+  var sp = host.querySelector('.sp');
+  DAYS.slice().reverse().forEach(function(dname){
+    var n = classes.filter(function(c){ return c.day===dname; }).length;
+    var b = document.createElement('button');
+    b.className = 'dbtn' + (dname===day ? ' on' : '');
+    b.textContent = dname + ' ' + n;
+    b.onclick = function(){ day = dname; renderTabs(); render(); };
+    host.insertBefore(b, host.firstChild);
+  });
+}
+function render(){
+  var host = $('sheet');
+  var list = classes.filter(function(c){ return c.day===day; });
+  if (!list.length){ host.innerHTML = '<p class="empty-day">이 요일에는 등록된 반이 없어요.</p>'; return; }
+
+  // 열: (위치, 담당T) — 담당T 고정 순서
+  var cols = [], seen = {};
+  list.forEach(function(c){
+    var key = c.loc + '|' + c.teacher;
+    if (!seen[key]){ seen[key] = true; cols.push({ key:key, loc:c.loc, teacher:c.teacher }); }
+  });
+  cols.sort(function(a,b){
+    var ia = TEACHER_ORDER.indexOf(a.teacher), ib = TEACHER_ORDER.indexOf(b.teacher);
+    return (ia<0?99:ia) - (ib<0?99:ib);
+  });
+  var colIdx = {}; cols.forEach(function(c,i){ colIdx[c.key] = i; });
+
+  // 행: 30분 슬롯
+  var lo = Math.min.apply(null, list.map(function(c){ return mins(c.start); }));
+  var hi = Math.max.apply(null, list.map(function(c){ return mins(c.end || c.start); }));
+  if (hi <= lo) hi = lo + 30;
+  var nrows = Math.ceil((hi - lo) / 30);
+
+  var g = document.createElement('div');
+  g.className = 'grid';
+  g.style.gridTemplateColumns = '52px repeat(' + cols.length + ', minmax(118px, 1fr))';
+  g.style.gridTemplateRows = 'auto repeat(' + nrows + ', minmax(26px, auto))';
+
+  // 헤더
+  var corner = document.createElement('div'); corner.className='thead'; g.appendChild(corner);
+  cols.forEach(function(c){
+    var h = document.createElement('div');
+    h.className = 'thead';
+    h.innerHTML = '<b>' + esc(c.teacher) + '</b>' + esc(c.loc);
+    g.appendChild(h);
+  });
+
+  // 시간 라벨
+  for (var r = 0; r < nrows; r++){
+    var t = lo + r*30, h24 = Math.floor(t/60), mm = t%60;
+    var h12 = h24 > 12 ? h24-12 : h24;
+    var lab = document.createElement('div');
+    lab.className = 'tlab';
+    lab.textContent = h12 + ':' + (mm<10?'0':'')+mm;
+    lab.style.gridColumn = '1';
+    lab.style.gridRow = String(r+2);
+    g.appendChild(lab);
+  }
+
+  // 수업 블록
+  list.forEach(function(c){
+    var r0 = Math.floor((mins(c.start)-lo)/30), r1 = Math.ceil(((mins(c.end||c.start))-lo)/30);
+    if (r1 <= r0) r1 = r0+1;
+    var b = document.createElement('div');
+    b.className = 'blk droppable ' + colorOf(c.cls);
+    b.style.gridColumn = String((colIdx[c.loc+'|'+c.teacher]||0)+2);
+    b.style.gridRow = (r0+2) + ' / ' + (r1+2);
+    var chips = c.students.length
+      ? c.students.map(function(nm){
+          return '<button data-cid="'+esc(c.id)+'" data-nm="'+esc(nm)+'">'+esc(nm)+'</button>';
+        }).join('')
+      : '<span class="empty-note">비어 있음</span>';
+    b.innerHTML = '<div class="bt"><span>'+esc(c.cls)+'</span><small>'+esc(c.start)+'~'+esc(c.end)+' · '+c.students.length+'명</small></div>'+
+                  '<div class="stus">'+chips+'</div>';
+    b.addEventListener('click', function(e){ onBlockClick(e, c); });
+    g.appendChild(b);
+  });
+
+  host.innerHTML = '';
+  host.appendChild(g);
+}
+
+/* ── 이동 ── */
+function labelOf(c){ return c.cls + ' (' + c.day + c.start + ' ' + c.teacher + 'T)'; }
+function onBlockClick(e, c){
+  var chip = e.target.closest('button[data-nm]');
+  if (chip && !moving){
+    // 학생 선택 → 이동 모드 시작
+    moving = { name: chip.getAttribute('data-nm'), fromId: chip.getAttribute('data-cid'), fromLabel: labelOf(c) };
+    document.body.classList.add('moving');
+    $('movebar').classList.add('on');
+    $('mv-name').textContent = moving.name;
+    $('mv-from').textContent = moving.fromLabel + ' 에서';
+    chip.classList.add('sel');
+    setStatus('옮길 반을 누르세요. 다른 요일로 옮기려면 위에서 요일을 바꿔도 돼요.');
+    return;
+  }
+  if (chip && moving && chip.classList.contains('sel')){ cancelMove(); return; }
+  if (!moving) return;
+  if (c.id === moving.fromId){ return; }
+  var ok = confirm(moving.name + '\n' + moving.fromLabel + '\n→ ' + labelOf(c) + '\n\n이동할까요?');
+  if (!ok) return;
+  doMove(moving.name, moving.fromId, c.id);
+}
+function cancelMove(){
+  moving = null;
+  document.body.classList.remove('moving');
+  $('movebar').classList.remove('on');
+  document.querySelectorAll('.stus button.sel').forEach(function(b){ b.classList.remove('sel'); });
+  setStatus('');
+}
+function doMove(name, fromId, toId){
+  setStatus('이동하는 중…');
+  fetch(ENDPOINT, {
+    method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
+    body: JSON.stringify({ action:'timetableMove', pw:pw, student:name, fromId:fromId, toId:toId })
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(res){
+    if (res && res.result === 'success'){
+      // 로컬 반영
+      var from = classes.find(function(c){ return c.id===fromId; });
+      var to   = classes.find(function(c){ return c.id===toId; });
+      if (from){ from.students = from.students.filter(function(n){ return n !== (res.moved||name); }); }
+      if (to){ to.students.push(res.moved || name); }
+      cancelMove(); renderTabs(); render();
+      var extra = res.rosterUpdated ? ' 리포트·학생 페이지에도 반영됐어요.' : (res.rosterMsg ? ' (' + res.rosterMsg + ')' : '');
+      setStatus(name + ' 이동 완료.' + extra, res.rosterUpdated ? 'ok' : 'err');
+    } else {
+      setStatus('이동 실패: ' + ((res && res.message) || '오류'), 'err');
+      cancelMove(); load(true);
+    }
+  })
+  .catch(function(){ setStatus('전송에 실패했어요. 인터넷을 확인해 주세요.', 'err'); });
+}
+
+/* ── 시작 ── */
+if (pw){
+  load(false, function(ok){
+    if (ok){ $('gate').style.display='none'; $('bar').style.display='block'; $('sheet').style.display='block'; }
+    else { sessionStorage.removeItem('tt_pw'); pw=''; }
+  });
+}
+</script>
+</body>
+</html>

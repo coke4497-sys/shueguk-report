@@ -65,6 +65,12 @@ var TEACHER_PW = 'sh';   // 티쳐스 페이지에서 어휘 켜기/끄기 할 �
 // 교사 화면의 '미제출 대책' 목록에서 확인(완료) 표시로 처리 여부를 관리한다.
 // 만점(100%) 주차는 슈퍼스타 별 1개로 집계(STAR_RULES.hwcheck).
 var TAB_HWCHECK = '숙제검사';
+
+// ── 정규 시간표 (timetable.html) ──────────────────────────────
+// '정규시간표' 탭이 반 편성의 원본. 학생 이동 시 '학생정보'의 정규가/나 열도 함께 갱신되어
+// 학생 개별 페이지(s.html)·숙제 검사(hwcheck.html)에 자동 반영된다.
+var TAB_TIMETABLE = '정규시간표';   // A:반ID B:요일 C:시작 D:끝 E:위치 F:담당T G:반이름 H:학생명단(공백 구분)
+
 var HWCHECK_ITEMS_KEY = '숙제검사 항목';
 var HWCHECK_DEFAULT_ITEMS = ['숙제 수행', '오답 처리'];
 var HWCHECK_STARS_MAX = 6;   // 항목당 별 0~6개
@@ -384,6 +390,11 @@ function doGet(e) {
   if (p.action === 'studentLinks') {
     if (String(p.pw || '') !== TEACHER_PW) return json({ result:'error', message:'unauthorized' });
     return getStudentLinks();
+  }
+  // 정규 시간표 조회(교사용, timetable.html) — 비밀번호 필요
+  if (p.action === 'timetableList') {
+    if (String(p.pw || '') !== TEACHER_PW) return json({ result:'error', message:'unauthorized' });
+    return getTimetable();
   }
   // 별 보너스 로그(관리용) — 비밀번호 필요
   // 슈퍼스타 TOP 10 순위 — 전 재원생 별 집계 (비밀번호 필요)
@@ -2184,6 +2195,10 @@ function doPost(e) {
     if (data && data.action === 'addStudent')      { return addStudent(data); }
     if (data && data.action === 'updateStudent')   { return updateStudent(data); }
 
+    // (12-1) 정규 시간표 (timetable.html) — 학생 반 이동 / 전체 교체(가져오기·재동기화)
+    if (data && data.action === 'timetableMove')    { return timetableMove(data); }
+    if (data && data.action === 'timetableSaveAll') { return timetableSaveAll(data); }
+
     // (13) 공지 '확인했습니다' — 확인 1건당 별 1개 (s.html, 토큰으로 학생 확인)
     if (data && data.action === 'checkNotice')     { return checkNotice(data); }
 
@@ -2329,6 +2344,139 @@ function updateStudent(data) {
     ]]);
     dropTab_(TAB_STUDENTS);
     return json({ result: 'success' });
+  } finally {
+    try { lock.releaseLock(); } catch (e) {}
+  }
+}
+
+/* ===== 정규 시간표 (timetable.html) =====
+ * '정규시간표' 탭이 반 편성의 원본: A:반ID B:요일 C:시작 D:끝 E:위치 F:담당T G:반이름 H:학생명단(공백 구분)
+ * 반이름 끝의 '가/나'에 따라 학생정보 G열(정규가)/H열(정규나)을 갱신한다.
+ * 고3파이널·정리정독 등 단일 수업은 '정규가' 열 사용, '논술'은 학생정보에 반영하지 않는다. */
+function ensureTimetableSheet_(ss) {
+  var sh = ss.getSheetByName(TAB_TIMETABLE);
+  if (!sh) {
+    sh = ss.insertSheet(TAB_TIMETABLE);
+    sh.appendRow(['반ID', '요일', '시작', '끝', '위치', '담당T', '반이름', '학생명단']);
+  }
+  return sh;
+}
+/** 시트가 시간을 날짜로 바꿔둔 경우까지 "5:30" 형태 문자열로 정규화 */
+function ttTime_(v) {
+  if (v && v.getTime) return Utilities.formatDate(v, 'Asia/Seoul', 'H:mm');
+  return String(v == null ? '' : v).trim();
+}
+/** 반이름 → 학생정보 반영 종류: 'A'(정규가) / 'B'(정규나) / 'S'(단일→정규가) / ''(미반영) */
+function ttKind_(cls) {
+  var c = String(cls || '').trim();
+  if (/논술/.test(c)) return '';
+  if (/가$/.test(c)) return 'A';
+  if (/나$/.test(c)) return 'B';
+  return 'S';
+}
+function getTimetable() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ensureTimetableSheet_(ss);
+  var v = sh.getDataRange().getValues();
+  var out = [];
+  for (var i = 1; i < v.length; i++) {
+    if (!String(v[i][0] || '').trim()) continue;
+    out.push({
+      id: String(v[i][0]).trim(), day: String(v[i][1] || '').trim(),
+      start: ttTime_(v[i][2]), end: ttTime_(v[i][3]),
+      loc: String(v[i][4] || '').trim(), teacher: String(v[i][5] || '').trim(),
+      cls: String(v[i][6] || '').trim(),
+      students: String(v[i][7] || '').trim().split(/\s+/).filter(String)
+    });
+  }
+  return json({ result:'success', classes: out });
+}
+/** 학생 반 이동. { pw, student, fromId, toId }
+ *  시간표 탭에서 옮긴 뒤, 학생정보의 정규가/나 열도 함께 갱신(이름으로 매칭). */
+function timetableMove(data) {
+  if (String(data.pw || '') !== TEACHER_PW) return json({ result:'error', message:'unauthorized' });
+  var name = String(data.student || '').trim();
+  var fromId = String(data.fromId || '').trim(), toId = String(data.toId || '').trim();
+  if (!name || !fromId || !toId) return json({ result:'error', message:'이동 정보가 부족합니다.' });
+  if (fromId === toId) return json({ result:'error', message:'같은 반입니다.' });
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ensureTimetableSheet_(ss);
+  var lock = LockService.getScriptLock();
+  try { lock.waitLock(10000); } catch (e) { return json({ result:'error', message:'잠시 후 다시 시도해 주세요.' }); }
+  try {
+    var v = sh.getDataRange().getValues();
+    var fromRow = -1, toRow = -1;
+    for (var i = 1; i < v.length; i++) {
+      var id = String(v[i][0] || '').trim();
+      if (id === fromId) fromRow = i;
+      if (id === toId) toRow = i;
+    }
+    if (fromRow < 0 || toRow < 0) return json({ result:'error', message:'반을 찾을 수 없어요. 새로고침 후 다시 시도해 주세요.' });
+    var fromList = String(v[fromRow][7] || '').trim().split(/\s+/).filter(String);
+    var toList   = String(v[toRow][7]  || '').trim().split(/\s+/).filter(String);
+    var plain = name.replace(/\(.*\)$/, '');
+    var idx = -1;
+    for (var k = 0; k < fromList.length; k++) {
+      if (fromList[k] === name || fromList[k].replace(/\(.*\)$/, '') === plain) { idx = k; break; }
+    }
+    if (idx < 0) return json({ result:'error', message:'이동할 학생이 원래 반에 없어요. 새로고침 후 다시 시도해 주세요.' });
+    for (var k2 = 0; k2 < toList.length; k2++) {
+      if (toList[k2].replace(/\(.*\)$/, '') === plain) return json({ result:'error', message:'이미 그 반에 있는 학생이에요.' });
+    }
+    var moved = fromList.splice(idx, 1)[0];
+    toList.push(moved);
+    sh.getRange(fromRow + 1, 8).setValue(fromList.join(' '));
+    sh.getRange(toRow + 1, 8).setValue(toList.join(' '));
+
+    // 학생정보(정규가/나) 반영 — 이동한 반의 종류에 따라
+    var fk = ttKind_(v[fromRow][6]), tk = ttKind_(v[toRow][6]);
+    var slot = String(v[toRow][1] || '').trim() + ttTime_(v[toRow][2]);   // 예: 토6:00
+    var rosterUpdated = false, rosterMsg = '';
+    if (tk) {
+      var colOf = function (k) { return (k === 'B') ? 8 : 7; };   // G=7, H=8 (1-based)
+      var ssh = ss.getSheetByName(TAB_STUDENTS);
+      var sv = ssh ? ssh.getDataRange().getValues() : null;
+      var rowN = -1, cnt = 0;
+      if (sv) for (var s = 1; s < sv.length; s++) {
+        if (String(sv[s][1] || '').trim() === plain) { rowN = s; cnt++; }
+      }
+      if (cnt === 1) {
+        ssh.getRange(rowN + 1, colOf(tk)).setValue(slot);
+        if (fk && colOf(fk) !== colOf(tk)) ssh.getRange(rowN + 1, colOf(fk)).setValue('');
+        dropTab_(TAB_STUDENTS);
+        rosterUpdated = true;
+      } else {
+        rosterMsg = (cnt === 0) ? '학생정보 명단에 없는 이름이라 리포트에는 반영되지 않았어요.'
+                                : '같은 이름이 여러 명이라 리포트에는 반영되지 않았어요. 슈스 링크 탭에서 직접 확인해 주세요.';
+      }
+    } else {
+      rosterMsg = '논술 수업은 리포트 시간표에 반영하지 않아요.';
+    }
+    return json({ result:'success', moved: moved, rosterUpdated: rosterUpdated, rosterMsg: rosterMsg });
+  } finally {
+    try { lock.releaseLock(); } catch (e) {}
+  }
+}
+/** 전체 교체(최초 가져오기·재동기화용). { pw, rows:[[반ID,요일,시작,끝,위치,담당T,반이름,학생명단], ...] } */
+function timetableSaveAll(data) {
+  if (String(data.pw || '') !== TEACHER_PW) return json({ result:'error', message:'unauthorized' });
+  var rows = data.rows || [];
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ensureTimetableSheet_(ss);
+  var lock = LockService.getScriptLock();
+  try { lock.waitLock(10000); } catch (e) { return json({ result:'error', message:'잠시 후 다시 시도해 주세요.' }); }
+  try {
+    sh.clearContents();
+    var out = [['반ID', '요일', '시작', '끝', '위치', '담당T', '반이름', '학생명단']];
+    for (var i = 0; i < rows.length; i++) {
+      var r = (rows[i] || []).slice(0, 8).map(function (x) { return String(x == null ? '' : x); });
+      while (r.length < 8) r.push('');
+      out.push(r);
+    }
+    var rg = sh.getRange(1, 1, out.length, 8);
+    rg.setNumberFormat('@');   // "5:30"이 날짜/시간으로 자동 변환되지 않게 텍스트로 저장
+    rg.setValues(out);
+    return json({ result:'success', saved: rows.length });
   } finally {
     try { lock.releaseLock(); } catch (e) {}
   }
