@@ -77,6 +77,14 @@
     border-radius:10px;padding:7px 11px;margin-top:8px;}
   .crit-note b{color:var(--ink);font-weight:700;}
 
+  /* 시간표 연동 배지 (그 주 출석·1회 이동) */
+  .ttinfo{display:flex;flex-wrap:wrap;gap:4px;margin:6px 0 2px;}
+  .tt-chip{font-size:.7rem;border-radius:999px;padding:2px 8px;border:1px solid transparent;}
+  .tt-chip.ok{background:#E3EFE7;color:#2F5D51;border-color:#BAD6C6;}
+  .tt-chip.late{background:#F5E7C6;color:#6B5423;border-color:#DFC98F;}
+  .tt-chip.abs{background:#F0DBD8;color:#8A3B33;border-color:#DEB6B0;}
+  .tt-chip.once{background:#EFE9F7;color:#5E4A78;border-color:#D4C5E8;}
+
   /* 학생 카드 */
   .list{display:flex;flex-direction:column;gap:10px;margin-top:8px;}
   .stu{background:var(--surface);border:1px solid var(--line-soft);border-radius:var(--radius);padding:14px 16px;}
@@ -300,8 +308,12 @@ function boot(){
 function loadWeek(){
   weekLabel();
   setStatus('검사 기록을 불러오는 중…');
-  getJSON(ENDPOINT + '?action=hwcheckData&pw=' + encodeURIComponent(pw) + '&week=' + encodeURIComponent(week))
-    .then(function(r){
+  var pData = getJSON(ENDPOINT + '?action=hwcheckData&pw=' + encodeURIComponent(pw) + '&week=' + encodeURIComponent(week));
+  var pTT = (ttClasses === null) ? loadTimetableMap() : Promise.resolve();
+  var pWk = loadWeekTT();
+  Promise.all([pData, pTT, pWk])
+    .then(function(rs){
+      var r = rs[0];
       if (!r || r.result !== 'success'){ setStatus('기록을 불러오지 못했어요. 새로고침 해주세요.', true); return; }
       items = r.items || [];
       records = r.records || {};
@@ -310,6 +322,56 @@ function loadWeek(){
       render();
     })
     .catch(function(){ setStatus('서버 연결에 실패했어요. 잠시 후 다시 시도해 주세요.', true); });
+}
+
+/* ── 시간표 연동: 그 주의 출석·1회 이동을 학생 카드에 표시 ── */
+var ttClasses = null;   // 반ID -> {slot('금5:30'), label}
+var wkAtt = [], wkOnce = [];
+function plainNm(n){ return String(n || '').replace(/\(.*\)$/, '').trim(); }
+function loadTimetableMap(){
+  return getJSON(ENDPOINT + '?action=timetableList&pw=' + encodeURIComponent(pw) + '&book=' + encodeURIComponent('정규'))
+    .then(function(r){
+      ttClasses = {};
+      if (r && r.result === 'success') (r.classes || []).forEach(function(c){
+        ttClasses[c.id] = { slot: slotNorm(c.day + c.start), label: c.cls };
+      });
+    })
+    .catch(function(){ ttClasses = {}; });
+}
+function loadWeekTT(){
+  var to = ymd(new Date(parseYmd(week).getTime() + 4*86400000));   // 수~일
+  return getJSON(ENDPOINT + '?action=timetableWeek&pw=' + encodeURIComponent(pw) +
+                 '&book=' + encodeURIComponent('정규') + '&from=' + week + '&to=' + to)
+    .then(function(r){
+      wkAtt = (r && r.attend) || [];
+      wkOnce = (r && r.onceMoves) || [];
+    })
+    .catch(function(){ wkAtt = []; wkOnce = []; });
+}
+function ttInfoHtml(s){
+  if (!ttClasses) return '';
+  var pn = plainNm(s.name);
+  var mySlots = {};
+  if (s.classA) mySlots[slotNorm(s.classA)] = 1;
+  if (s.classB) mySlots[slotNorm(s.classB)] = 1;
+  var parts = [];
+  wkAtt.forEach(function(a){
+    if (plainNm(a.student) !== pn) return;
+    var c = ttClasses[a.classId];
+    if (!c || !mySlots[c.slot]) return;   // 이 학생의 가/나 수업 기록만
+    var md = String(a.date).slice(5).replace('-', '/');
+    var k = a.status === '출석' ? 'ok' : (a.status === '지각' ? 'late' : 'abs');
+    parts.push('<span class="tt-chip ' + k + '">' + md + ' ' + esc(c.slot) + ' ' + esc(a.status) +
+               (a.memo ? ' · ' + esc(a.memo) : '') + '</span>');
+  });
+  wkOnce.forEach(function(o){
+    if (plainNm(o.student) !== pn) return;
+    var f = ttClasses[o.fromId], t = ttClasses[o.toId];
+    var md = String(o.date).slice(5).replace('-', '/');
+    parts.push('<span class="tt-chip once">' + md + ' 1회 이동 ' + esc(f ? f.slot : '?') + '→' + esc(t ? t.slot : '?') +
+               (o.reason ? ' · ' + esc(o.reason) : '') + '</span>');
+  });
+  return parts.length ? '<div class="ttinfo">' + parts.join('') + '</div>' : '';
 }
 
 /* ── 그룹 필터 — 학년 → 학교 → 담당 강사 → 시간대.
@@ -478,6 +540,7 @@ function render(){
       (extra ? '<span class="extra-badge">추가됨</span><button class="extra-rm" onclick="removeExtra(\'' + esc(s.code) + '\')" title="목록에서 빼기">×</button>' : '') + '</span>' +
       '<span class="pct"><span id="pct-' + esc(s.code) + '">' + pctHtml + '</span>' +
       '<span class="save-dot" id="dot-' + esc(s.code) + '"></span></span></div>' +
+      ttInfoHtml(s) +
       starsHtml +
       '<div class="memo-btns">' +
         '<button class="missbtn ' + (rec && rec.missing ? 'on' : '') + '" onclick="toggleMissing(\'' + esc(s.code) + '\')">미제출</button>' +
