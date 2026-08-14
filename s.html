@@ -888,7 +888,10 @@ function renderHub(){
       if(STATE.vocaOpen===false){
         desc = '잠시 쉬어갑니다';        // 선생님이 중단 → 준비 중 유지
       } else if(vg && STATE.vocaWeek>=1){
-        url = VOCA_BASE + '?g=' + encodeURIComponent(vg) + '&w=' + STATE.vocaWeek;
+        url = VOCA_BASE + '?g=' + encodeURIComponent(vg) + '&w=' + STATE.vocaWeek
+            + '&name=' + encodeURIComponent((STATE.info && STATE.info.name) || '')
+            + '&school=' + encodeURIComponent((STATE.info && STATE.info.school) || '')
+            + '&p4=' + encodeURIComponent(String((STATE.info && STATE.info.id) || '').slice(-4));
         desc = STATE.vocaWeek + '주차 어휘';
         if(STATE.vocaTaken === false) vocaBadge = true;   // 아직 미응시 → 빨간 뱃지
       }
