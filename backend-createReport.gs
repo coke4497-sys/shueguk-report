@@ -1514,7 +1514,7 @@ function starRankingData_() {
 function getStarRanking() {
   var out = starRankingData_();
   if (!out) return json({ result:'error', message:"'" + TAB_STUDENTS + "' 탭이 없습니다." });
-  return json({ result: 'success', top: out.slice(0, 10) });
+  return json({ result: 'success', top: out.slice(0, 30) });
 }
 /** 학생 공개용 슈퍼스타 TOP 30 — s.html 알려드립니다의 '슈퍼스타 TOP 30' 메뉴.
  *  이름·학교·별 수만 공개, 5분 캐시. 이 목록을 보는 것은 공지 확인 별 적립과 무관. */
