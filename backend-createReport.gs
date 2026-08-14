@@ -74,6 +74,7 @@ var TAB_TIMETABLE_EXAM = '내신시간표';   // 내신 대비 시간표 — 구
 var TAB_TT_LOG = '시간표이동기록';  // A:일시 B:구분(영구/1회/추가/빼기) C:학생 D:from반ID E:from반 F:to반ID G:to반 H:사유 I:시간표(정규/내신)
 var TT_ONCE_DAYS = 8;               // 1회 이동을 시간표에 표시하는 기간(일)
 var TAB_ATTEND = '출석기록';        // A:날짜(yyyy-MM-dd) B:시간표(정규/내신) C:반ID D:학생 E:상태(출석/지각/결석) F:메모 G:기록일시
+var TAB_TT_MEMO = '시간표메모';     // A:날짜(yyyy-MM-dd) B:메모(오늘의 이슈) C:기록일시
 
 var HWCHECK_ITEMS_KEY = '숙제검사 항목';
 var HWCHECK_DEFAULT_ITEMS = ['숙제 수행', '오답 처리'];
@@ -419,6 +420,11 @@ function doGet(e) {
   if (p.action === 'timetableWeek') {
     if (String(p.pw || '') !== TEACHER_PW) return json({ result:'error', message:'unauthorized' });
     return getTimetableWeek(p.from, p.to, p.book);
+  }
+  // 오늘의 이슈 메모 조회 (timetable.html) — 비밀번호 필요
+  if (p.action === 'ttMemoList') {
+    if (String(p.pw || '') !== TEACHER_PW) return json({ result:'error', message:'unauthorized' });
+    return getTtMemoList(p.from, p.to);
   }
   // 별 보너스 로그(관리용) — 비밀번호 필요
   // 슈퍼스타 TOP 10 순위 — 전 재원생 별 집계 (비밀번호 필요)
@@ -2249,6 +2255,7 @@ function doPost(e) {
     if (data && data.action === 'attendSet')        { return attendSet(data); }
     if (data && data.action === 'attendSetBulk')    { return attendSetBulk(data); }
     if (data && data.action === 'attendMakeupSet')  { return attendMakeupSet(data); }
+    if (data && data.action === 'ttMemoSet')        { return ttMemoSet(data); }
     if (data && data.action === 'timetableMoveClass') { return timetableMoveClass(data); }
     if (data && data.action === 'timetableAddClass')  { return timetableAddClass(data); }
     if (data && data.action === 'timetableDeleteClass') { return timetableDeleteClass(data); }
@@ -2903,6 +2910,66 @@ function getTimetableWeek(fromStr, toStr, book) {
     }
   }
   return json({ result:'success', from: fromStr, to: toStr, attend: attend, onceMoves: once });
+}
+/* ── 오늘의 이슈 메모 (timetable.html) — 날짜별 1건, 주차별 보기에서 모아 봄 ── */
+function ttMemoSheet_(ss) {
+  var sh = ss.getSheetByName(TAB_TT_MEMO);
+  if (!sh) {
+    sh = ss.insertSheet(TAB_TT_MEMO);
+    sh.appendRow(['날짜', '메모', '기록일시']);
+  }
+  return sh;
+}
+/** 기간 내 메모 조회. GET action=ttMemoList&pw=&from=yyyy-MM-dd&to=yyyy-MM-dd (to 생략 시 from 하루) */
+function getTtMemoList(fromStr, toStr) {
+  fromStr = String(fromStr || '').trim();
+  toStr = String(toStr || '').trim() || fromStr;
+  if (!fromStr) return json({ result:'error', message:'기간이 필요합니다.' });
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ss.getSheetByName(TAB_TT_MEMO);
+  var out = [];
+  if (sh) {
+    var v = sh.getDataRange().getValues();
+    for (var i = 1; i < v.length; i++) {
+      var d = v[i][0];
+      var ds = (d && d.getTime) ? Utilities.formatDate(d, 'Asia/Seoul', 'yyyy-MM-dd') : String(d || '').trim();
+      if (ds < fromStr || ds > toStr) continue;
+      var m = String(v[i][1] || '').trim();
+      if (m) out.push({ date: ds, memo: m });
+    }
+  }
+  return json({ result:'success', from: fromStr, to: toStr, memos: out });
+}
+/** 날짜별 메모 저장/수정/삭제. { pw, date, memo } — memo 빈값이면 그 날짜 메모 삭제 */
+function ttMemoSet(data) {
+  if (String(data.pw || '') !== TEACHER_PW) return json({ result:'error', message:'unauthorized' });
+  var dateStr = String(data.date || '').trim();
+  var memo = String(data.memo == null ? '' : data.memo).trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return json({ result:'error', message:'날짜(yyyy-MM-dd)가 필요합니다.' });
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ttMemoSheet_(ss);
+  var lock = LockService.getScriptLock();
+  try { lock.waitLock(10000); } catch (e) { return json({ result:'error', message:'잠시 후 다시 시도해 주세요.' }); }
+  try {
+    var v = sh.getDataRange().getValues();
+    var row = 0;
+    for (var i = 1; i < v.length; i++) {
+      var d = v[i][0];
+      var ds = (d && d.getTime) ? Utilities.formatDate(d, 'Asia/Seoul', 'yyyy-MM-dd') : String(d || '').trim();
+      if (ds === dateStr) { row = i + 1; break; }
+    }
+    if (!memo) {
+      if (row) sh.deleteRow(row);
+      return json({ result:'success', deleted: !!row });
+    }
+    if (!row) row = sh.getLastRow() + 1;
+    var rg = sh.getRange(row, 1, 1, 3);
+    rg.setNumberFormats([['@', '@', 'yyyy-mm-dd hh:mm']]);
+    rg.setValues([[dateStr, memo, new Date()]]);
+    return json({ result:'success' });
+  } finally {
+    try { lock.releaseLock(); } catch (e) {}
+  }
 }
 /** 반 일괄 출석 처리. { pw, book, date, classId, students:[이름...], status, overwrite }
  *  status '출석'(기본)/'결석': 기록. overwrite='1'이면 기존 기록도 덮어씀, 아니면 기록 없는 학생만.
