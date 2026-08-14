@@ -405,6 +405,11 @@ function doGet(e) {
     if (String(p.pw || '') !== TEACHER_PW) return json({ result:'error', message:'unauthorized' });
     return getTimetableLog();
   }
+  // 결석자 영상보충 목록 (timetable.html) — 비밀번호 필요
+  if (p.action === 'attendAbsentList') {
+    if (String(p.pw || '') !== TEACHER_PW) return json({ result:'error', message:'unauthorized' });
+    return getAttendAbsentList(p.book);
+  }
   // 출석 기록 조회 (timetable.html 오늘의 시간표) — 비밀번호 필요
   if (p.action === 'attendList') {
     if (String(p.pw || '') !== TEACHER_PW) return json({ result:'error', message:'unauthorized' });
@@ -2242,6 +2247,7 @@ function doPost(e) {
     if (data && data.action === 'timetableOnceEdit')   { return timetableOnceEdit(data); }
     if (data && data.action === 'attendSet')        { return attendSet(data); }
     if (data && data.action === 'attendSetBulk')    { return attendSetBulk(data); }
+    if (data && data.action === 'attendMakeupSet')  { return attendMakeupSet(data); }
     if (data && data.action === 'timetableMoveClass') { return timetableMoveClass(data); }
     if (data && data.action === 'timetableAddClass')  { return timetableAddClass(data); }
     if (data && data.action === 'timetableDeleteClass') { return timetableDeleteClass(data); }
@@ -2785,9 +2791,62 @@ function ensureAttendSheet_(ss) {
   var sh = ss.getSheetByName(TAB_ATTEND);
   if (!sh) {
     sh = ss.insertSheet(TAB_ATTEND);
-    sh.appendRow(['날짜', '시간표', '반ID', '학생', '상태', '메모', '기록일시']);
+    sh.appendRow(['날짜', '시간표', '반ID', '학생', '상태', '메모', '기록일시', '보충일정', '보충완료']);
+  } else if (String(sh.getRange(1, 8).getValue() || '') !== '보충일정') {
+    sh.getRange(1, 8, 1, 2).setValues([['보충일정', '보충완료']]);   // 기존 탭에 보충 열 보강
   }
   return sh;
+}
+/** 결석자 목록 (영상보충 관리). GET action=attendAbsentList&pw=&book= */
+function getAttendAbsentList(book) {
+  book = ttBook_(book);
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ss.getSheetByName(TAB_ATTEND);
+  var out = [];
+  if (sh) {
+    var v = sh.getDataRange().getValues();
+    for (var i = 1; i < v.length; i++) {
+      if (String(v[i][4] || '').trim() !== '결석') continue;
+      if (ttBook_(v[i][1]) !== book) continue;
+      var d = v[i][0];
+      var ds = (d && d.getTime) ? Utilities.formatDate(d, 'Asia/Seoul', 'yyyy-MM-dd') : String(d || '').trim();
+      out.push({ date: ds, classId: String(v[i][2] || '').trim(), student: String(v[i][3] || '').trim(),
+                 memo: String(v[i][5] || '').trim(),
+                 plan: String(v[i].length > 7 ? v[i][7] || '' : '').trim(),
+                 done: String(v[i].length > 8 ? v[i][8] || '' : '').trim() === '1' });
+    }
+  }
+  return json({ result:'success', list: out });
+}
+/** 결석 보충 일정·완료 기록. { pw, book, date, classId, student, plan, done('1'|'') } */
+function attendMakeupSet(data) {
+  if (String(data.pw || '') !== TEACHER_PW) return json({ result:'error', message:'unauthorized' });
+  var book = ttBook_(data.book);
+  var dateStr = String(data.date || '').trim();
+  var classId = String(data.classId || '').trim();
+  var student = String(data.student || '').trim();
+  if (!dateStr || !classId || !student) return json({ result:'error', message:'대상 정보가 부족합니다.' });
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ensureAttendSheet_(ss);
+  var lock = LockService.getScriptLock();
+  try { lock.waitLock(10000); } catch (e) { return json({ result:'error', message:'잠시 후 다시 시도해 주세요.' }); }
+  try {
+    var v = sh.getDataRange().getValues();
+    for (var i = 1; i < v.length; i++) {
+      var d = v[i][0];
+      var ds = (d && d.getTime) ? Utilities.formatDate(d, 'Asia/Seoul', 'yyyy-MM-dd') : String(d || '').trim();
+      if (ds === dateStr && ttBook_(v[i][1]) === book &&
+          String(v[i][2] || '').trim() === classId && String(v[i][3] || '').trim() === student) {
+        var rg = sh.getRange(i + 1, 8, 1, 2);
+        rg.setNumberFormat('@');
+        rg.setValues([[String(data.plan || '').trim(), String(data.done || '') === '1' ? '1' : '']]);
+        return json({ result:'success' });
+      }
+    }
+    return json({ result:'error', message:'해당 결석 기록을 찾을 수 없어요. 새로고침 후 다시 시도해 주세요.' });
+  } finally {
+    try { lock.releaseLock(); } catch (e) {}
+  }
 }
 /** 특정 날짜의 출석 기록. GET action=attendList&pw=&date=yyyy-MM-dd&book= */
 function getAttendList(dateStr, book) {
