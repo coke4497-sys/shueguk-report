@@ -317,8 +317,7 @@ var attend = {};       // 오늘 출석: (반ID + '|' + 학생) -> {status, memo
 var day = '수';
 var mode = sessionStorage.getItem('tt_mode') || 'today'; // 'today'(오늘) | 'all'(전체) | 'week'(주차별)
 if (mode === 'day') mode = 'week';
-var WEEK_DAYS = ['수','목','금','토','일','월','화'];   // 주차 = 수요일 시작 (숙제 검사와 동일)
-var WEEK_VIEW_ORDER = ['월','화','수','목','금','토','일'];   // 주차별 화면 배치: 월·화(직전보강)를 수요일 왼쪽에
+var WEEK_VIEW_ORDER = ['월','화','수','목','금','토','일'];   // 주차별 배치 — 월·화(직전보강)는 수요일 '직전' 날짜, 날짜 오름차순
 var weekAttend = {};   // 주차 출석: 날짜|반ID|학생 -> {status, memo}
 var memos = {};        // 오늘의 이슈 메모: 날짜(yyyy-MM-dd) -> 텍스트
 var memoDraft = null;  // 다시 그릴 때 저장 전 입력 보존용
@@ -339,19 +338,22 @@ function todayStr(){
 }
 function todayDay(){ return ['일','월','화','수','목','금','토'][new Date().getDay()]; }
 function weekStartOf(d){
+  // 그 날짜가 속한 월~일 달력 주의 '수요일' (월·화는 아직 오지 않은 이번 주 수요일)
   var x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-  x.setDate(x.getDate() - ((x.getDay() + 4) % 7));   // 수요일로
+  x.setDate(x.getDate() - ((x.getDay() + 6) % 7) + 2);
   return x;
 }
 var weekStart = weekStartOf(new Date());
 function ymdOf(d){ return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'); }
 function mdOf(d){ return (d.getMonth()+1) + '/' + d.getDate(); }
 function weekDates(){
+  // 월(-2)·화(-1)는 수요일 직전 날짜 — 월화수목금토일 날짜가 순서대로 이어짐
+  var off = { '월':-2, '화':-1, '수':0, '목':1, '금':2, '토':3, '일':4 };
   var out = {};
-  for (var i = 0; i < 7; i++){
-    var d = new Date(weekStart); d.setDate(d.getDate() + i);
-    out[WEEK_DAYS[i]] = d;
-  }
+  WEEK_VIEW_ORDER.forEach(function(dy){
+    var d = new Date(weekStart); d.setDate(d.getDate() + off[dy]);
+    out[dy] = d;
+  });
   return out;
 }
 function moveWeek(n){
@@ -359,10 +361,11 @@ function moveWeek(n){
   loadWeek();
 }
 function loadWeek(){
-  var to = new Date(weekStart); to.setDate(to.getDate() + 6);
+  var from = new Date(weekStart); from.setDate(from.getDate() - 2);   // 월요일
+  var to = new Date(weekStart); to.setDate(to.getDate() + 4);         // 일요일
   setStatus('주차 기록을 불러오는 중…');
   fetch(ENDPOINT + '?action=timetableWeek&pw=' + encodeURIComponent(pw) + '&book=' + encodeURIComponent(book) +
-        '&from=' + ymdOf(weekStart) + '&to=' + ymdOf(to) + '&t=' + Date.now())
+        '&from=' + ymdOf(from) + '&to=' + ymdOf(to) + '&t=' + Date.now())
     .then(function(r){ return r.json(); })
     .then(function(d){
       weekAttend = {}; weekOnce = [];
@@ -370,7 +373,7 @@ function loadWeek(){
         (d.attend || []).forEach(function(a){ weekAttend[a.date + '|' + a.classId + '|' + a.student] = { status:a.status, memo:a.memo }; });
         weekOnce = d.onceMoves || [];
       }
-      loadMemos(ymdOf(weekStart), ymdOf(to), function(){
+      loadMemos(ymdOf(from), ymdOf(to), function(){
         setStatus('');
         render();
       });
@@ -575,13 +578,14 @@ function render(){
     host.appendChild(buildFullGrid());
     return;
   }
-  // 주차별
-  var to = new Date(weekStart); to.setDate(to.getDate() + 6);
+  // 주차별 — 표시 범위는 월(수요일-2)~일(수요일+4)
+  var wfrom = new Date(weekStart); wfrom.setDate(wfrom.getDate() - 2);
+  var to = new Date(weekStart); to.setDate(to.getDate() + 4);
   var isThis = ymdOf(weekStart) === ymdOf(weekStartOf(new Date()));
   var nav = document.createElement('div');
   nav.className = 'weeknav-tt';
   nav.innerHTML = '<button onclick="moveWeek(-1)">지난주</button>'+
-    '<b>' + mdOf(weekStart) + ' ~ ' + mdOf(to) + ' 주차</b>' + (isThis ? '<small>(이번 주)</small>' : '')+
+    '<b>' + mdOf(wfrom) + ' ~ ' + mdOf(to) + ' 주차</b>' + (isThis ? '<small>(이번 주)</small>' : '')+
     '<button onclick="moveWeek(1)">다음주</button>';
   host.appendChild(nav);
   host.appendChild(buildWeekGrid());
@@ -618,7 +622,7 @@ function weekMemoSection(){
   var box = document.createElement('div');
   box.className = 'memobox';
   var h = '<p class="memotitle">주간 메모 — 오늘의 이슈 모음</p>';
-  WEEK_DAYS.forEach(function(dy){
+  WEEK_VIEW_ORDER.forEach(function(dy){
     var d = days[dy], ds = ymdOf(d);
     var m = memos[ds];
     h += '<div class="wm-row" onclick="editWeekMemo(\'' + ds + '\',\'' + dy + '\')">' +
