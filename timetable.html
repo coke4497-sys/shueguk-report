@@ -55,6 +55,19 @@
   .dhead small{font-weight:400;font-size:.72rem;opacity:.9;margin-left:4px;}
   .today-sum{font-size:.82rem;color:var(--ink-soft);margin:0 4px 10px;}
   .today-sum b{color:var(--accent);}
+  .memobox{background:var(--surface);border:1px solid var(--line-soft);border-radius:14px;padding:14px 16px;margin:16px 4px 8px;}
+  .memobox .memotitle{font-family:"Gowun Batang",serif;font-weight:700;color:var(--accent);margin:0 0 8px;font-size:.98rem;}
+  .memobox textarea{width:100%;box-sizing:border-box;font:inherit;font-size:.9rem;border:1px solid var(--line);
+    border-radius:10px;padding:9px 11px;min-height:64px;resize:vertical;background:#fff;color:var(--ink);}
+  .memoact{display:flex;align-items:center;gap:10px;margin-top:8px;}
+  .memoact button{font:inherit;font-size:.88rem;background:var(--btn);color:#fff;border:1px solid var(--btn);
+    border-radius:10px;padding:7px 16px;cursor:pointer;}
+  .memoact span{font-size:.82rem;color:var(--accent);}
+  .wm-row{display:flex;gap:12px;align-items:flex-start;padding:8px 6px;border-top:1px solid var(--line-soft);cursor:pointer;border-radius:8px;}
+  .wm-row:hover{background:var(--icon-bg);}
+  .wm-day{flex:none;width:78px;font-size:.85rem;font-weight:700;color:var(--ink-soft);}
+  .wm-text{font-size:.88rem;line-height:1.6;white-space:pre-wrap;word-break:break-word;min-width:0;}
+  .wm-none{font-size:.85rem;color:var(--ink-soft);opacity:.55;}
   .blk .stus button.at-ok{background:var(--btn);border-color:var(--btn);color:#fff;}
   .blk .stus button.at-late{background:#F5E7C6;border-color:#B08A3E;color:#6B5423;}
   .blk .stus button.at-abs{background:#F0DBD8;border-color:#C99B94;color:#8A3B33;text-decoration:line-through;}
@@ -305,6 +318,8 @@ if (mode === 'day') mode = 'week';
 var WEEK_DAYS = ['수','목','금','토','일','월','화'];   // 주차 = 수요일 시작 (숙제 검사와 동일)
 var WEEK_VIEW_ORDER = ['월','화','수','목','금','토','일'];   // 주차별 화면 배치: 월·화(직전보강)를 수요일 왼쪽에
 var weekAttend = {};   // 주차 출석: 날짜|반ID|학생 -> {status, memo}
+var memos = {};        // 오늘의 이슈 메모: 날짜(yyyy-MM-dd) -> 텍스트
+var memoDraft = null;  // 다시 그릴 때 저장 전 입력 보존용
 var weekOnce = [];     // 주차 1회 이동
 var attDate = null;    // 출석 모달이 다루는 날짜
 var editMode = null;        // 'move' | 'add' | 'del' — 편집 도구줄에서 선택
@@ -353,8 +368,10 @@ function loadWeek(){
         (d.attend || []).forEach(function(a){ weekAttend[a.date + '|' + a.classId + '|' + a.student] = { status:a.status, memo:a.memo }; });
         weekOnce = d.onceMoves || [];
       }
-      setStatus('');
-      render();
+      loadMemos(ymdOf(weekStart), ymdOf(to), function(){
+        setStatus('');
+        render();
+      });
     })
     .catch(function(){ setStatus('주차 기록을 불러오지 못했어요.', 'err'); render(); });
 }
@@ -421,9 +438,11 @@ function load(isReload, cb){
       onceMoves = d.onceMoves || [];
       setStatus(isReload ? '최신 시간표로 다시 불러왔어요.' : '', isReload ? 'ok' : '');
       loadAttend(function(){
-        renderTabs();
-        if (mode === 'week') loadWeek(); else render();
-        if (cb) cb(true);
+        loadMemos(todayStr(), todayStr(), function(){
+          renderTabs();
+          if (mode === 'week') loadWeek(); else render();
+          if (cb) cb(true);
+        });
       });
     })
     .catch(function(){ if (cb) cb(false); else setStatus('서버 연결에 실패했어요.', 'err'); });
@@ -437,6 +456,19 @@ function loadAttend(done){
       if (d && d.result === 'success') (d.attend || []).forEach(function(a){
         attend[a.classId + '|' + a.student] = { status: a.status, memo: a.memo };
       });
+      done();
+    })
+    .catch(function(){ done(); });
+}
+/* 기간 내 '오늘의 이슈' 메모 불러오기 (범위 안은 서버 값으로 갱신) */
+function loadMemos(from, to, done){
+  fetch(ENDPOINT + '?action=ttMemoList&pw=' + encodeURIComponent(pw) + '&from=' + from + '&to=' + to + '&t=' + Date.now())
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      if (d && d.result === 'success'){
+        Object.keys(memos).forEach(function(k){ if (k >= from && k <= to) delete memos[k]; });
+        (d.memos || []).forEach(function(m){ memos[m.date] = m.memo; });
+      }
       done();
     })
     .catch(function(){ done(); });
@@ -508,6 +540,8 @@ function render(){
   var prevSw = host.querySelector('.scrollwrap');
   pendingScroll = (keepScroll && prevSw) ? { top: prevSw.scrollTop, left: prevSw.scrollLeft } : null;
   keepScroll = true;
+  var prevTa = host.querySelector('#memo-ta');
+  memoDraft = prevTa ? prevTa.value : null;
   host.innerHTML = '';
   if (mode === 'today'){
     var td = todayDay();
@@ -528,9 +562,11 @@ function render(){
       em.className = 'empty-day';
       em.textContent = '오늘(' + td + ')은 등록된 ' + book + ' 수업이 없어요.';
       host.appendChild(em);
+      host.appendChild(memoCard(todayStr()));
       return;
     }
     host.appendChild(buildDayGrid(list));
+    host.appendChild(memoCard(todayStr()));
     return;
   }
   if (mode === 'all'){
@@ -547,6 +583,72 @@ function render(){
     '<button onclick="moveWeek(1)">다음주</button>';
   host.appendChild(nav);
   host.appendChild(buildWeekGrid());
+  host.appendChild(weekMemoSection());
+}
+
+/* ── 오늘의 이슈 메모 ── */
+function memoCard(dateStr){
+  var box = document.createElement('div');
+  box.className = 'memobox';
+  box.innerHTML =
+    '<p class="memotitle">오늘의 이슈 메모</p>' +
+    '<textarea id="memo-ta" placeholder="오늘 있었던 일·전달 사항을 적어 두세요. 주차별 보기의 주간 메모에 모아 볼 수 있어요."></textarea>' +
+    '<div class="memoact"><button onclick="saveMemo(\'' + dateStr + '\')">메모 저장</button><span id="memo-stat"></span></div>';
+  box.querySelector('#memo-ta').value = (memoDraft != null) ? memoDraft : (memos[dateStr] || '');
+  memoDraft = null;
+  return box;
+}
+function saveMemo(dateStr){
+  var ta = $('memo-ta');
+  if (!ta) return;
+  var text = ta.value.trim();
+  post({ action:'ttMemoSet', date: dateStr, memo: text }, '메모를 저장하는 중…', function(res){
+    if (res && res.result === 'success'){
+      if (text) memos[dateStr] = text; else delete memos[dateStr];
+      setStatus('');
+      var st = $('memo-stat');
+      if (st){ st.textContent = text ? '저장했어요.' : '메모를 지웠어요.'; setTimeout(function(){ var s2=$('memo-stat'); if (s2) s2.textContent=''; }, 2500); }
+    } else setStatus('메모 저장 실패: ' + ((res && res.message) || '오류'), 'err');
+  });
+}
+function weekMemoSection(){
+  var days = weekDates();
+  var box = document.createElement('div');
+  box.className = 'memobox';
+  var h = '<p class="memotitle">주간 메모 — 오늘의 이슈 모음</p>';
+  WEEK_DAYS.forEach(function(dy){
+    var d = days[dy], ds = ymdOf(d);
+    var m = memos[ds];
+    h += '<div class="wm-row" onclick="editWeekMemo(\'' + ds + '\',\'' + dy + '\')">' +
+         '<span class="wm-day">' + mdOf(d) + ' (' + dy + ')</span>' +
+         (m ? '<span class="wm-text">' + esc(m) + '</span>' : '<span class="wm-none">메모 없음 — 눌러서 적기</span>') +
+         '</div>';
+  });
+  box.innerHTML = h;
+  return box;
+}
+function editWeekMemo(ds, dy){
+  openModal(
+    '<h3>' + esc(ds) + ' (' + esc(dy) + ') 메모</h3>' +
+    '<p class="mdesc">이 날의 이슈 메모를 적거나 고칠 수 있어요.</p>' +
+    '<textarea id="wm-ta" style="width:100%;min-height:96px;">' + esc(memos[ds] || '') + '</textarea>' +
+    '<div class="mbtns">' +
+    '<button class="primary" onclick="saveWeekMemo(\'' + esc(ds) + '\')">저장</button>' +
+    '<button onclick="closeModal()">닫기</button></div>'
+  );
+}
+function saveWeekMemo(ds){
+  var ta = $('wm-ta');
+  if (!ta) return;
+  var text = ta.value.trim();
+  closeModal();
+  post({ action:'ttMemoSet', date: ds, memo: text }, '메모를 저장하는 중…', function(res){
+    if (res && res.result === 'success'){
+      if (text) memos[ds] = text; else delete memos[ds];
+      setStatus(text ? ds + ' 메모를 저장했어요.' : ds + ' 메모를 지웠어요.', 'ok');
+      render();
+    } else setStatus('메모 저장 실패: ' + ((res && res.message) || '오류'), 'err');
+  });
 }
 
 function fmtT(t){
