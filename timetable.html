@@ -66,6 +66,14 @@
   .viewtabs .sp{flex:1;}
   .viewtabs .reload{font-size:.82rem;background:var(--icon-bg);border:1px solid var(--line-soft);
     border-radius:9px;padding:6px 12px;color:var(--ink-soft);cursor:pointer;}
+  .attbar{display:none;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:6px;}
+  .attbar.show{display:flex;}
+  .attbar .elabel{font-size:.78rem;color:var(--ink-soft);margin-right:2px;}
+  .attbar button{font:inherit;font-size:.84rem;background:var(--icon-bg);border:1px solid var(--line-soft);
+    border-radius:9px;padding:5px 12px;color:var(--ink);cursor:pointer;}
+  .attbar button.on{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:700;}
+  body.multisel .blk{cursor:pointer;}
+  .stus button.msel{outline:2px solid var(--accent);outline-offset:1px;font-weight:700;}
   .searchbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:6px;}
   .searchbar input{font:inherit;font-size:.9rem;padding:6px 12px;border:1.5px solid var(--line);border-radius:10px;width:150px;}
   #searchResults{display:flex;gap:6px;flex-wrap:wrap;font-size:.8rem;align-items:center;color:var(--ink-soft);}
@@ -229,6 +237,14 @@
       <button onclick="openAddClass()">반 추가</button>
       <button onclick="openLog()">이동 기록</button>
     </div>
+    <div class="attbar" id="attbar">
+      <span class="elabel">출석</span>
+      <button id="a-multi" onclick="toggleMulti()">복수 선택</button>
+      <button onclick="multiApply('출석')">선택 출석</button>
+      <button onclick="multiApply('결석')">선택 결석</button>
+      <button onclick="multiApply('')">선택 기록 지우기</button>
+      <span id="multiCnt" class="elabel"></span>
+    </div>
     <div class="searchbar">
       <input id="stu-q" placeholder="학생 검색" autocomplete="off" />
       <span id="searchResults"></span>
@@ -277,6 +293,8 @@ var weekAttend = {};   // 주차 출석: 날짜|반ID|학생 -> {status, memo}
 var weekOnce = [];     // 주차 1회 이동
 var attDate = null;    // 출석 모달이 다루는 날짜
 var editMode = null;        // 'move' | 'add' | 'del' — 편집 도구줄에서 선택
+var multiMode = false;      // 오늘 보기 복수 선택 모드
+var multiSel = {};          // 선택된 학생: cid|이름 → {cid, nm}
 var pendingScroll = null;   // 재렌더 후 복원할 스크롤 위치
 var keepScroll = true;      // 보기 전환 시에는 복원하지 않음
 var book = sessionStorage.getItem('tt_book') || '정규';  // '정규' | '내신'
@@ -468,6 +486,7 @@ function renderTabs(){
     : (mode === 'week') ? '그 주의 출석·1회 이동 기록이 함께 보여요. 학생 이름을 누르면 해당 날짜의 출석 기록·수정. 월·화 직전보강은 위 반 추가 버튼으로 만드세요.'
     : '학생 이름을 누르면 이동 모드가 켜져요. 옮길 반(다른 요일 포함)을 누르면 영구 이동됩니다.';
   $('editbar').classList.toggle('show', mode !== 'today');
+  $('attbar').classList.toggle('show', mode === 'today');
 }
 function render(){
   var host = $('sheet');
@@ -591,6 +610,7 @@ function tuneRowHeight(g, headerAuto, nrows){
     var sw = g.closest ? g.closest('.scrollwrap') : null;
     if (sw && pendingScroll){ sw.scrollTop = pendingScroll.top; sw.scrollLeft = pendingScroll.left; pendingScroll = null; }
     applySearchHits();
+    applyMultiSel();
   });
 }
 function addCell(g, ci, r, dname, cinfo, lo, rowOffset){
@@ -1020,6 +1040,12 @@ function onBlockClick(e, c){
   if (mode === 'today'){
     var aa = e.target.closest('.attall');
     if (aa){ bulkAttend(c); return; }
+    if (multiMode){
+      var mchip = e.target.closest('button[data-att-cid]');
+      if (mchip) toggleSelOne(mchip.getAttribute('data-att-cid'), mchip.getAttribute('data-nm'));
+      else toggleSelClass(c);
+      return;
+    }
     var chip0 = e.target.closest('button[data-nm]');
     if (moving && moving.once){
       // 1회 이동 대상 반 선택 중
@@ -1105,6 +1131,82 @@ function dropClass(dname, cinfo, startMin){
       load(true);
     } else { setStatus('반 이동 실패: ' + ((res && res.message) || '오류'), 'err'); }
   });
+}
+
+/* ── 복수 선택 출석 ── */
+function toggleMulti(){
+  multiMode = !multiMode;
+  if (!multiMode) multiSel = {};
+  document.body.classList.toggle('multisel', multiMode);
+  $('a-multi').classList.toggle('on', multiMode);
+  updateMultiCnt();
+  applyMultiSel();
+  setStatus(multiMode ? '학생 이름을 눌러 선택하세요. 반의 빈 곳을 누르면 그 반 전체가 선택돼요.' : '');
+}
+function updateMultiCnt(){
+  var n = Object.keys(multiSel).length;
+  $('multiCnt').textContent = n ? n + '명 선택' : '';
+}
+function applyMultiSel(){
+  document.querySelectorAll('.stus button.msel').forEach(function(b){ b.classList.remove('msel'); });
+  if (!multiMode) return;
+  document.querySelectorAll('.stus button[data-att-cid]').forEach(function(b){
+    var key = b.getAttribute('data-att-cid') + '|' + b.getAttribute('data-nm');
+    if (multiSel[key]) b.classList.add('msel');
+  });
+}
+function toggleSelOne(cid, nm){
+  var key = cid + '|' + nm;
+  if (multiSel[key]) delete multiSel[key]; else multiSel[key] = { cid: cid, nm: nm };
+  updateMultiCnt(); applyMultiSel();
+}
+function toggleSelClass(c){
+  var away = {}, temps = [];
+  onceMoves.forEach(function(o){
+    if (o.fromId === c.id) away[o.student.replace(/\(.*\)$/, '')] = true;
+    if (o.toId === c.id) temps.push(o.student);
+  });
+  var names = c.students.filter(function(nm){ return !away[nm.replace(/\(.*\)$/, '')]; }).concat(temps);
+  var allSel = names.every(function(nm){ return multiSel[c.id + '|' + nm]; });
+  names.forEach(function(nm){
+    var key = c.id + '|' + nm;
+    if (allSel) delete multiSel[key]; else multiSel[key] = { cid: c.id, nm: nm };
+  });
+  updateMultiCnt(); applyMultiSel();
+}
+function multiApply(status){
+  if (!multiMode){ setStatus('먼저 [복수 선택]을 켜고 학생을 선택해 주세요.', 'err'); return; }
+  var sel = Object.keys(multiSel).map(function(k){ return multiSel[k]; });
+  if (!sel.length){ setStatus('선택된 학생이 없어요.', 'err'); return; }
+  var byClass = {};
+  sel.forEach(function(s){ (byClass[s.cid] = byClass[s.cid] || []).push(s.nm); });
+  var cids = Object.keys(byClass);
+  var label = status === '' ? '기록 지우기' : status;
+  if (!confirm(sel.length + '명을 일괄 ' + label + ' 처리할까요?')) return;
+  var done = 0, total = 0;
+  var next = function(i){
+    if (i >= cids.length){
+      multiSel = {}; updateMultiCnt();
+      render();
+      setStatus(total + '명 ' + label + ' 완료.', 'ok');
+      return;
+    }
+    var cid = cids[i];
+    post({ action:'attendSetBulk', book:book, date:todayStr(), classId:cid, students:byClass[cid],
+           status:status, overwrite:'1' }, label + ' 처리 중… (' + (i+1) + '/' + cids.length + ')', function(res){
+      if (res && res.result === 'success'){
+        if (status === ''){
+          byClass[cid].forEach(function(nm){ delete attend[cid + '|' + nm]; });
+          total += res.cleared || 0;
+        } else {
+          (res.marked || []).forEach(function(nm){ attend[cid + '|' + nm] = { status: status, memo: '' }; });
+          total += (res.marked || []).length;
+        }
+      }
+      next(i + 1);
+    });
+  };
+  next(0);
 }
 
 /* ── 출석 체크 ── */

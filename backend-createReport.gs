@@ -2844,34 +2844,50 @@ function getTimetableWeek(fromStr, toStr, book) {
   }
   return json({ result:'success', from: fromStr, to: toStr, attend: attend, onceMoves: once });
 }
-/** 반 일괄 출석. { pw, book, date, classId, students:[이름...] }
- *  기록이 없는 학생만 '출석'으로 기록 — 이미 출석/지각/결석이 있는 학생은 그대로 둔다. */
+/** 반 일괄 출석 처리. { pw, book, date, classId, students:[이름...], status, overwrite }
+ *  status '출석'(기본)/'결석': 기록. overwrite='1'이면 기존 기록도 덮어씀, 아니면 기록 없는 학생만.
+ *  status ''(빈값): 해당 학생들의 기록 삭제(일괄 취소). */
 function attendSetBulk(data) {
   if (String(data.pw || '') !== TEACHER_PW) return json({ result:'error', message:'unauthorized' });
   var book = ttBook_(data.book);
   var dateStr = String(data.date || '').trim();
   var classId = String(data.classId || '').trim();
   var students = (data.students || []).map(function (s) { return String(s || '').trim(); }).filter(String);
+  var status = String(data.status == null ? '출석' : data.status).trim();
+  var overwrite = String(data.overwrite || '') === '1';
   if (!dateStr || !classId || !students.length) return json({ result:'error', message:'날짜·반·학생 명단이 필요합니다.' });
+  if (status && ['출석', '결석'].indexOf(status) < 0) return json({ result:'error', message:'일괄 처리는 출석/결석/지우기만 가능해요. (지각은 메모가 필요해 개별로)' });
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sh = ensureAttendSheet_(ss);
   var lock = LockService.getScriptLock();
   try { lock.waitLock(10000); } catch (e) { return json({ result:'error', message:'잠시 후 다시 시도해 주세요.' }); }
   try {
     var v = sh.getDataRange().getValues();
-    var have = {};
+    var haveRow = {};   // 이름 → 시트 행 번호(1-based)
     for (var i = 1; i < v.length; i++) {
       var d = v[i][0];
       var ds = (d && d.getTime) ? Utilities.formatDate(d, 'Asia/Seoul', 'yyyy-MM-dd') : String(d || '').trim();
       if (ds === dateStr && ttBook_(v[i][1]) === book && String(v[i][2] || '').trim() === classId) {
-        have[String(v[i][3] || '').trim()] = true;
+        haveRow[String(v[i][3] || '').trim()] = i + 1;
       }
+    }
+    // 일괄 삭제(취소)
+    if (!status) {
+      var del = [];
+      students.forEach(function (nm) { if (haveRow[nm]) del.push(haveRow[nm]); });
+      del.sort(function (a, b) { return b - a; }).forEach(function (r) { sh.deleteRow(r); });
+      return json({ result:'success', cleared: del.length, clearedNames: students.filter(function (nm) { return !!haveRow[nm]; }) });
     }
     var now = new Date(), rows = [], marked = [];
     students.forEach(function (nm) {
-      if (have[nm]) return;
-      rows.push([dateStr, book, classId, nm, '출석', '', now]);
-      marked.push(nm);
+      if (haveRow[nm]) {
+        if (!overwrite) return;
+        sh.getRange(haveRow[nm], 5, 1, 3).setValues([[status, '', now]]);
+        marked.push(nm);
+      } else {
+        rows.push([dateStr, book, classId, nm, status, '', now]);
+        marked.push(nm);
+      }
     });
     if (rows.length) {
       var rg = sh.getRange(sh.getLastRow() + 1, 1, rows.length, 7);
