@@ -70,6 +70,10 @@ var TAB_HWCHECK = '숙제검사';
 // '정규시간표' 탭이 반 편성의 원본. 학생 이동 시 '학생정보'의 정규가/나 열도 함께 갱신되어
 // 학생 개별 페이지(s.html)·숙제 검사(hwcheck.html)에 자동 반영된다.
 var TAB_TIMETABLE = '정규시간표';   // A:반ID B:요일 C:시작 D:끝 E:위치 F:담당T G:반이름 H:학생명단(공백 구분)
+var TAB_TIMETABLE_EXAM = '내신시간표';   // 내신 대비 시간표 — 구조 동일, 학생정보 정규가/나에는 반영하지 않음
+var TAB_TT_LOG = '시간표이동기록';  // A:일시 B:구분(영구/1회/추가/빼기) C:학생 D:from반ID E:from반 F:to반ID G:to반 H:사유 I:시간표(정규/내신)
+var TT_ONCE_DAYS = 8;               // 1회 이동을 시간표에 표시하는 기간(일)
+var TAB_ATTEND = '출석기록';        // A:날짜(yyyy-MM-dd) B:시간표(정규/내신) C:반ID D:학생 E:상태(출석/지각/결석) F:메모 G:기록일시
 
 var HWCHECK_ITEMS_KEY = '숙제검사 항목';
 var HWCHECK_DEFAULT_ITEMS = ['숙제 수행', '오답 처리'];
@@ -394,7 +398,17 @@ function doGet(e) {
   // 정규 시간표 조회(교사용, timetable.html) — 비밀번호 필요
   if (p.action === 'timetableList') {
     if (String(p.pw || '') !== TEACHER_PW) return json({ result:'error', message:'unauthorized' });
-    return getTimetable();
+    return getTimetable(p.book);
+  }
+  // 정규 시간표 이동 기록 (timetable.html) — 비밀번호 필요
+  if (p.action === 'timetableLog') {
+    if (String(p.pw || '') !== TEACHER_PW) return json({ result:'error', message:'unauthorized' });
+    return getTimetableLog();
+  }
+  // 출석 기록 조회 (timetable.html 오늘의 시간표) — 비밀번호 필요
+  if (p.action === 'attendList') {
+    if (String(p.pw || '') !== TEACHER_PW) return json({ result:'error', message:'unauthorized' });
+    return getAttendList(p.date, p.book);
   }
   // 별 보너스 로그(관리용) — 비밀번호 필요
   // 슈퍼스타 TOP 10 순위 — 전 재원생 별 집계 (비밀번호 필요)
@@ -2195,8 +2209,13 @@ function doPost(e) {
     if (data && data.action === 'addStudent')      { return addStudent(data); }
     if (data && data.action === 'updateStudent')   { return updateStudent(data); }
 
-    // (12-1) 정규 시간표 (timetable.html) — 학생 반 이동 / 전체 교체(가져오기·재동기화)
+    // (12-1) 정규 시간표 (timetable.html) — 학생 반 이동/추가/빼기, 전체 교체(가져오기·재동기화)
     if (data && data.action === 'timetableMove')    { return timetableMove(data); }
+    if (data && data.action === 'timetableAdd')     { return timetableAdd(data); }
+    if (data && data.action === 'timetableRemove')  { return timetableRemove(data); }
+    if (data && data.action === 'timetableOnceCancel') { return timetableOnceCancel(data); }
+    if (data && data.action === 'attendSet')        { return attendSet(data); }
+    if (data && data.action === 'timetableMoveClass') { return timetableMoveClass(data); }
     if (data && data.action === 'timetableSaveAll') { return timetableSaveAll(data); }
 
     // (13) 공지 '확인했습니다' — 확인 1건당 별 1개 (s.html, 토큰으로 학생 확인)
@@ -2353,10 +2372,12 @@ function updateStudent(data) {
  * '정규시간표' 탭이 반 편성의 원본: A:반ID B:요일 C:시작 D:끝 E:위치 F:담당T G:반이름 H:학생명단(공백 구분)
  * 반이름 끝의 '가/나'에 따라 학생정보 G열(정규가)/H열(정규나)을 갱신한다.
  * 고3파이널·정리정독 등 단일 수업은 '정규가' 열 사용, '논술'은 학생정보에 반영하지 않는다. */
-function ensureTimetableSheet_(ss) {
-  var sh = ss.getSheetByName(TAB_TIMETABLE);
+function ttBook_(v) { return (String(v || '').trim() === '내신') ? '내신' : '정규'; }
+function ensureTimetableSheet_(ss, book) {
+  var name = (ttBook_(book) === '내신') ? TAB_TIMETABLE_EXAM : TAB_TIMETABLE;
+  var sh = ss.getSheetByName(name);
   if (!sh) {
-    sh = ss.insertSheet(TAB_TIMETABLE);
+    sh = ss.insertSheet(name);
     sh.appendRow(['반ID', '요일', '시작', '끝', '위치', '담당T', '반이름', '학생명단']);
   }
   return sh;
@@ -2374,9 +2395,21 @@ function ttKind_(cls) {
   if (/나$/.test(c)) return 'B';
   return 'S';
 }
-function getTimetable() {
+function ensureTtLogSheet_(ss) {
+  var sh = ss.getSheetByName(TAB_TT_LOG);
+  if (!sh) {
+    sh = ss.insertSheet(TAB_TT_LOG);
+    sh.appendRow(['일시', '구분', '학생', 'from반ID', 'from반', 'to반ID', 'to반', '사유']);
+  }
+  return sh;
+}
+function ttLog_(ss, kind, student, fromId, fromCls, toId, toCls, reason, book) {
+  ensureTtLogSheet_(ss).appendRow([new Date(), kind, student, fromId, fromCls, toId, toCls, String(reason || '').trim(), ttBook_(book)]);
+}
+function getTimetable(book) {
+  book = ttBook_(book);
   var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sh = ensureTimetableSheet_(ss);
+  var sh = ensureTimetableSheet_(ss, book);
   var v = sh.getDataRange().getValues();
   var out = [];
   for (var i = 1; i < v.length; i++) {
@@ -2389,18 +2422,72 @@ function getTimetable() {
       students: String(v[i][7] || '').trim().split(/\s+/).filter(String)
     });
   }
-  return json({ result:'success', classes: out });
+  // 최근 1회 이동 (표시 기간 내) — 시간표에 '1회' 표시용
+  var once = [];
+  var lsh = ss.getSheetByName(TAB_TT_LOG);
+  if (lsh) {
+    var lv = lsh.getDataRange().getValues();
+    var cut = Date.now() - TT_ONCE_DAYS * 24 * 3600 * 1000;
+    for (var j = 1; j < lv.length; j++) {
+      if (String(lv[j][1] || '').trim() !== '1회') continue;
+      if (ttBook_(lv[j][8]) !== book) continue;   // 기존 기록(9열 없음)은 '정규'로 취급
+      var d = lv[j][0];
+      var t = (d && d.getTime) ? d.getTime() : Date.parse(d);
+      if (!t || t < cut) continue;
+      once.push({ row: j + 1, date: fmtCellDate_ ? fmtCellDate_(d) : String(d),
+        student: String(lv[j][2] || '').trim(),
+        fromId: String(lv[j][3] || '').trim(), toId: String(lv[j][5] || '').trim(),
+        reason: String(lv[j][7] || '').trim() });
+    }
+  }
+  return json({ result:'success', classes: out, onceMoves: once });
 }
-/** 학생 반 이동. { pw, student, fromId, toId }
- *  시간표 탭에서 옮긴 뒤, 학생정보의 정규가/나 열도 함께 갱신(이름으로 매칭). */
+/** 이동 기록 목록 (최신 100건). GET action=timetableLog&pw= */
+function getTimetableLog() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ss.getSheetByName(TAB_TT_LOG);
+  if (!sh) return json({ result:'success', log: [] });
+  var v = sh.getDataRange().getValues();
+  var out = [];
+  for (var i = Math.max(1, v.length - 100); i < v.length; i++) {
+    out.push({ row: i + 1, date: fmtCellDate_ ? fmtCellDate_(v[i][0]) : String(v[i][0]),
+      kind: String(v[i][1] || '').trim(), student: String(v[i][2] || '').trim(),
+      fromCls: String(v[i][4] || '').trim(), toCls: String(v[i][6] || '').trim(),
+      fromId: String(v[i][3] || '').trim(), toId: String(v[i][5] || '').trim(),
+      reason: String(v[i][7] || '').trim(), book: ttBook_(v[i][8]) });
+  }
+  out.reverse();
+  return json({ result:'success', log: out });
+}
+/** 1회 이동 취소(기록 삭제). { pw, row, student } */
+function timetableOnceCancel(data) {
+  if (String(data.pw || '') !== TEACHER_PW) return json({ result:'error', message:'unauthorized' });
+  var row = parseInt(data.row, 10);
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ss.getSheetByName(TAB_TT_LOG);
+  if (!sh || !row || row < 2 || row > sh.getLastRow()) return json({ result:'error', message:'기록을 찾을 수 없어요.' });
+  var v = sh.getRange(row, 1, 1, 8).getValues()[0];
+  if (String(v[1]).trim() !== '1회' || String(v[2]).trim() !== String(data.student || '').trim()) {
+    return json({ result:'error', message:'기록이 달라졌어요. 새로고침 후 다시 시도해 주세요.' });
+  }
+  sh.deleteRow(row);
+  return json({ result:'success' });
+}
+/** 학생 반 이동. { pw, student, fromId, toId, moveType:'perm'|'once', reason }
+ *  영구(perm): 시간표 탭에서 옮기고 학생정보의 정규가/나 열도 갱신 + 기록.
+ *  1회(once): 반 명단·학생정보는 그대로, 이동 기록만 남긴다(사유 필수). */
 function timetableMove(data) {
   if (String(data.pw || '') !== TEACHER_PW) return json({ result:'error', message:'unauthorized' });
   var name = String(data.student || '').trim();
   var fromId = String(data.fromId || '').trim(), toId = String(data.toId || '').trim();
+  var moveType = (String(data.moveType || 'perm') === 'once') ? 'once' : 'perm';
+  var reason = String(data.reason || '').trim();
+  var book = ttBook_(data.book);
   if (!name || !fromId || !toId) return json({ result:'error', message:'이동 정보가 부족합니다.' });
   if (fromId === toId) return json({ result:'error', message:'같은 반입니다.' });
+  if (moveType === 'once' && !reason) return json({ result:'error', message:'1회 이동은 사유를 적어주세요.' });
   var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sh = ensureTimetableSheet_(ss);
+  var sh = ensureTimetableSheet_(ss, book);
   var lock = LockService.getScriptLock();
   try { lock.waitLock(10000); } catch (e) { return json({ result:'error', message:'잠시 후 다시 시도해 주세요.' }); }
   try {
@@ -2423,13 +2510,22 @@ function timetableMove(data) {
     for (var k2 = 0; k2 < toList.length; k2++) {
       if (toList[k2].replace(/\(.*\)$/, '') === plain) return json({ result:'error', message:'이미 그 반에 있는 학생이에요.' });
     }
+
+    // 1회 이동: 명단·학생정보는 그대로 두고 기록만 남긴다
+    if (moveType === 'once') {
+      ttLog_(ss, '1회', fromList[idx], fromId, String(v[fromRow][6] || ''), toId, String(v[toRow][6] || ''), reason, book);
+      return json({ result:'success', moved: fromList[idx], once: true, rosterUpdated: false, rosterMsg: '' });
+    }
+
     var moved = fromList.splice(idx, 1)[0];
     toList.push(moved);
     sh.getRange(fromRow + 1, 8).setValue(fromList.join(' '));
     sh.getRange(toRow + 1, 8).setValue(toList.join(' '));
+    ttLog_(ss, '영구', moved, fromId, String(v[fromRow][6] || ''), toId, String(v[toRow][6] || ''), reason, book);
 
     // 학생정보(정규가/나) 반영 — 이동한 반의 종류에 따라
     var fk = ttKind_(v[fromRow][6]), tk = ttKind_(v[toRow][6]);
+    if (book === '내신') { fk = ''; tk = ''; }   // 내신 시간표는 학생정보 정규가/나에 반영하지 않음
     var slot = String(v[toRow][1] || '').trim() + ttTime_(v[toRow][2]);   // 예: 토6:00
     var rosterUpdated = false, rosterMsg = '';
     if (tk) {
@@ -2450,9 +2546,207 @@ function timetableMove(data) {
                                 : '같은 이름이 여러 명이라 리포트에는 반영되지 않았어요. 슈스 링크 탭에서 직접 확인해 주세요.';
       }
     } else {
-      rosterMsg = '논술 수업은 리포트 시간표에 반영하지 않아요.';
+      rosterMsg = (book === '내신') ? '' : '논술 수업은 리포트 시간표에 반영하지 않아요.';
     }
     return json({ result:'success', moved: moved, rosterUpdated: rosterUpdated, rosterMsg: rosterMsg });
+  } finally {
+    try { lock.releaseLock(); } catch (e) {}
+  }
+}
+/** 학생정보의 정규가/나 열 갱신 (이름 유일 매칭일 때만). kind: 'A'/'B'/'S', slot 빈 문자열이면 비우기 */
+function ttRosterSet_(ss, plainName, kind, slot) {
+  if (!kind) return { updated: false, msg: '논술 수업은 리포트 시간표에 반영하지 않아요.' };
+  var ssh = ss.getSheetByName(TAB_STUDENTS);
+  if (!ssh) return { updated: false, msg: "'학생정보' 탭이 없습니다." };
+  var sv = ssh.getDataRange().getValues();
+  var rowN = -1, cnt = 0;
+  for (var s = 1; s < sv.length; s++) {
+    if (String(sv[s][1] || '').trim() === plainName) { rowN = s; cnt++; }
+  }
+  if (cnt !== 1) {
+    return { updated: false, msg: (cnt === 0) ? '학생정보 명단에 없는 이름이라 리포트에는 반영되지 않았어요.'
+                                              : '같은 이름이 여러 명이라 리포트에는 반영되지 않았어요. 슈스 링크 탭에서 직접 확인해 주세요.' };
+  }
+  ssh.getRange(rowN + 1, (kind === 'B') ? 8 : 7).setValue(slot);
+  dropTab_(TAB_STUDENTS);
+  return { updated: true, msg: '' };
+}
+/** 반에 학생 추가. { pw, student, toId } — 학생정보의 정규가/나 열도 갱신 */
+function timetableAdd(data) {
+  if (String(data.pw || '') !== TEACHER_PW) return json({ result:'error', message:'unauthorized' });
+  var name = String(data.student || '').trim().replace(/\s+/g, '');
+  var toId = String(data.toId || '').trim();
+  if (!name || !toId) return json({ result:'error', message:'학생 이름과 반이 필요합니다.' });
+  var book = ttBook_(data.book);
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ensureTimetableSheet_(ss, book);
+  var lock = LockService.getScriptLock();
+  try { lock.waitLock(10000); } catch (e) { return json({ result:'error', message:'잠시 후 다시 시도해 주세요.' }); }
+  try {
+    var v = sh.getDataRange().getValues();
+    var toRow = -1;
+    for (var i = 1; i < v.length; i++) if (String(v[i][0] || '').trim() === toId) { toRow = i; break; }
+    if (toRow < 0) return json({ result:'error', message:'반을 찾을 수 없어요. 새로고침 후 다시 시도해 주세요.' });
+    var toList = String(v[toRow][7] || '').trim().split(/\s+/).filter(String);
+    var plain = name.replace(/\(.*\)$/, '');
+    for (var k = 0; k < toList.length; k++) {
+      if (toList[k].replace(/\(.*\)$/, '') === plain) return json({ result:'error', message:'이미 그 반에 있는 학생이에요.' });
+    }
+    toList.push(name);
+    sh.getRange(toRow + 1, 8).setValue(toList.join(' '));
+    var tk = (book === '내신') ? '' : ttKind_(v[toRow][6]);
+    var slot = String(v[toRow][1] || '').trim() + ttTime_(v[toRow][2]);
+    var r = (book === '내신') ? { updated:false, msg:'' } : ttRosterSet_(ss, plain, tk, slot);
+    ttLog_(ss, '추가', name, '', '', toId, String(v[toRow][6] || ''), String(data.reason || ''), book);
+    return json({ result:'success', added: name, rosterUpdated: r.updated, rosterMsg: r.msg });
+  } finally {
+    try { lock.releaseLock(); } catch (e) {}
+  }
+}
+/** 반에서 학생 빼기. { pw, student, fromId } — 학생정보의 해당 열은 비운다 */
+function timetableRemove(data) {
+  if (String(data.pw || '') !== TEACHER_PW) return json({ result:'error', message:'unauthorized' });
+  var name = String(data.student || '').trim();
+  var fromId = String(data.fromId || '').trim();
+  if (!name || !fromId) return json({ result:'error', message:'학생 이름과 반이 필요합니다.' });
+  var book = ttBook_(data.book);
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ensureTimetableSheet_(ss, book);
+  var lock = LockService.getScriptLock();
+  try { lock.waitLock(10000); } catch (e) { return json({ result:'error', message:'잠시 후 다시 시도해 주세요.' }); }
+  try {
+    var v = sh.getDataRange().getValues();
+    var fromRow = -1;
+    for (var i = 1; i < v.length; i++) if (String(v[i][0] || '').trim() === fromId) { fromRow = i; break; }
+    if (fromRow < 0) return json({ result:'error', message:'반을 찾을 수 없어요. 새로고침 후 다시 시도해 주세요.' });
+    var fromList = String(v[fromRow][7] || '').trim().split(/\s+/).filter(String);
+    var plain = name.replace(/\(.*\)$/, '');
+    var idx = -1;
+    for (var k = 0; k < fromList.length; k++) {
+      if (fromList[k] === name || fromList[k].replace(/\(.*\)$/, '') === plain) { idx = k; break; }
+    }
+    if (idx < 0) return json({ result:'error', message:'그 반에 없는 학생이에요. 새로고침 후 다시 시도해 주세요.' });
+    var removed = fromList.splice(idx, 1)[0];
+    sh.getRange(fromRow + 1, 8).setValue(fromList.join(' '));
+    var fk = (book === '내신') ? '' : ttKind_(v[fromRow][6]);
+    var r = (book === '내신') ? { updated:false, msg:'' } : ttRosterSet_(ss, plain, fk, '');   // 해당 열 비우기
+    ttLog_(ss, '빼기', removed, fromId, String(v[fromRow][6] || ''), '', '', String(data.reason || ''), book);
+    return json({ result:'success', removed: removed, rosterUpdated: r.updated, rosterMsg: r.msg });
+  } finally {
+    try { lock.releaseLock(); } catch (e) {}
+  }
+}
+/** 반 통째 이동(빈 자리로). { pw, book, classId, day, start, end, teacher, loc }
+ *  반의 요일·시간·위치·담당을 바꾸고, 정규 시간표면 소속 학생 전원의 정규가/나 열도 새 시간으로 갱신. */
+function timetableMoveClass(data) {
+  if (String(data.pw || '') !== TEACHER_PW) return json({ result:'error', message:'unauthorized' });
+  var book = ttBook_(data.book);
+  var classId = String(data.classId || '').trim();
+  var newDay = String(data.day || '').trim();
+  var newStart = String(data.start || '').trim(), newEnd = String(data.end || '').trim();
+  var newTeacher = String(data.teacher || '').trim(), newLoc = String(data.loc || '').trim();
+  if (!classId || !newDay || !newStart || !newEnd) return json({ result:'error', message:'이동 정보가 부족합니다.' });
+  if ('월화수목금토일'.indexOf(newDay) < 0) return json({ result:'error', message:'요일이 올바르지 않아요.' });
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ensureTimetableSheet_(ss, book);
+  var lock = LockService.getScriptLock();
+  try { lock.waitLock(10000); } catch (e) { return json({ result:'error', message:'잠시 후 다시 시도해 주세요.' }); }
+  try {
+    var v = sh.getDataRange().getValues();
+    var row = -1;
+    for (var i = 1; i < v.length; i++) if (String(v[i][0] || '').trim() === classId) { row = i; break; }
+    if (row < 0) return json({ result:'error', message:'반을 찾을 수 없어요. 새로고침 후 다시 시도해 주세요.' });
+    var oldLabel = String(v[row][6] || '') + ' (' + String(v[row][1] || '') + ttTime_(v[row][2]) + ')';
+    var rg = sh.getRange(row + 1, 2, 1, 5);
+    rg.setNumberFormat('@');
+    rg.setValues([[newDay, newStart, newEnd, newLoc, newTeacher]]);
+    // 소속 학생 전원 리포트 반영 (정규 + 가/나/단일만)
+    var kind = (book === '내신') ? '' : ttKind_(v[row][6]);
+    var updated = 0, skipped = [];
+    if (kind) {
+      var slot = newDay + newStart;
+      var names = String(v[row][7] || '').trim().split(/\s+/).filter(String);
+      for (var n = 0; n < names.length; n++) {
+        var plain = names[n].replace(/\(.*\)$/, '');
+        var r = ttRosterSet_(ss, plain, kind, slot);
+        if (r.updated) updated++; else skipped.push(plain);
+      }
+    }
+    ttLog_(ss, '반이동', '(반 전체 ' + String(v[row][7] || '').split(/\s+/).filter(String).length + '명)',
+           classId, oldLabel, classId, String(v[row][6] || '') + ' (' + newDay + newStart + ')', String(data.reason || ''), book);
+    return json({ result:'success', rosterUpdated: updated, rosterSkipped: skipped });
+  } finally {
+    try { lock.releaseLock(); } catch (e) {}
+  }
+}
+
+/* ── 출석 체크 (오늘의 시간표) ── */
+function ensureAttendSheet_(ss) {
+  var sh = ss.getSheetByName(TAB_ATTEND);
+  if (!sh) {
+    sh = ss.insertSheet(TAB_ATTEND);
+    sh.appendRow(['날짜', '시간표', '반ID', '학생', '상태', '메모', '기록일시']);
+  }
+  return sh;
+}
+/** 특정 날짜의 출석 기록. GET action=attendList&pw=&date=yyyy-MM-dd&book= */
+function getAttendList(dateStr, book) {
+  book = ttBook_(book);
+  dateStr = String(dateStr || '').trim();
+  if (!dateStr) return json({ result:'error', message:'날짜가 필요합니다.' });
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ss.getSheetByName(TAB_ATTEND);
+  var out = [];
+  if (sh) {
+    var v = sh.getDataRange().getValues();
+    for (var i = 1; i < v.length; i++) {
+      var d = v[i][0];
+      var ds = (d && d.getTime) ? Utilities.formatDate(d, 'Asia/Seoul', 'yyyy-MM-dd') : String(d || '').trim();
+      if (ds !== dateStr || ttBook_(v[i][1]) !== book) continue;
+      out.push({ classId: String(v[i][2] || '').trim(), student: String(v[i][3] || '').trim(),
+                 status: String(v[i][4] || '').trim(), memo: String(v[i][5] || '').trim() });
+    }
+  }
+  return json({ result:'success', date: dateStr, attend: out });
+}
+/** 출석 기록/변경/삭제. { pw, book, date, classId, student, status(출석|지각|결석|''), memo }
+ *  status ''(빈값)이면 기록 삭제. 지각은 메모 필수. */
+function attendSet(data) {
+  if (String(data.pw || '') !== TEACHER_PW) return json({ result:'error', message:'unauthorized' });
+  var book = ttBook_(data.book);
+  var dateStr = String(data.date || '').trim();
+  var classId = String(data.classId || '').trim();
+  var student = String(data.student || '').trim();
+  var status = String(data.status || '').trim();
+  var memo = String(data.memo || '').trim();
+  if (!dateStr || !classId || !student) return json({ result:'error', message:'날짜·반·학생 정보가 필요합니다.' });
+  if (status && ['출석','지각','결석'].indexOf(status) < 0) return json({ result:'error', message:'상태는 출석/지각/결석 중 하나여야 해요.' });
+  if (status === '지각' && !memo) return json({ result:'error', message:'지각은 메모를 적어주세요. (미리 연락 여부, 몇 분 지각 등)' });
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ensureAttendSheet_(ss);
+  var lock = LockService.getScriptLock();
+  try { lock.waitLock(10000); } catch (e) { return json({ result:'error', message:'잠시 후 다시 시도해 주세요.' }); }
+  try {
+    var v = sh.getDataRange().getValues();
+    var row = -1;
+    for (var i = 1; i < v.length; i++) {
+      var d = v[i][0];
+      var ds = (d && d.getTime) ? Utilities.formatDate(d, 'Asia/Seoul', 'yyyy-MM-dd') : String(d || '').trim();
+      if (ds === dateStr && ttBook_(v[i][1]) === book &&
+          String(v[i][2] || '').trim() === classId && String(v[i][3] || '').trim() === student) { row = i + 1; break; }
+    }
+    if (!status) {
+      if (row > 0) sh.deleteRow(row);
+      return json({ result:'success', cleared: true });
+    }
+    if (row > 0) {
+      sh.getRange(row, 5, 1, 3).setValues([[status, memo, new Date()]]);
+    } else {
+      var rg = sh.getRange(sh.getLastRow() + 1, 1, 1, 7);
+      rg.setNumberFormats([['@','@','@','@','@','@','yyyy-mm-dd hh:mm']]);
+      rg.setValues([[dateStr, book, classId, student, status, memo, new Date()]]);
+    }
+    return json({ result:'success', status: status });
   } finally {
     try { lock.releaseLock(); } catch (e) {}
   }
@@ -2462,7 +2756,7 @@ function timetableSaveAll(data) {
   if (String(data.pw || '') !== TEACHER_PW) return json({ result:'error', message:'unauthorized' });
   var rows = data.rows || [];
   var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sh = ensureTimetableSheet_(ss);
+  var sh = ensureTimetableSheet_(ss, ttBook_(data.book));
   var lock = LockService.getScriptLock();
   try { lock.waitLock(10000); } catch (e) { return json({ result:'error', message:'잠시 후 다시 시도해 주세요.' }); }
   try {
