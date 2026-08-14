@@ -2250,6 +2250,7 @@ function doPost(e) {
     if (data && data.action === 'timetableMove')    { return timetableMove(data); }
     if (data && data.action === 'timetableAdd')     { return timetableAdd(data); }
     if (data && data.action === 'timetableRemove')  { return timetableRemove(data); }
+    if (data && data.action === 'timetableRenameStudent') { return timetableRenameStudent(data); }
     if (data && data.action === 'timetableOnceCancel') { return timetableOnceCancel(data); }
     if (data && data.action === 'timetableOnceEdit')   { return timetableOnceEdit(data); }
     if (data && data.action === 'attendSet')        { return attendSet(data); }
@@ -2675,6 +2676,40 @@ function timetableRemove(data) {
     var r = (book === '내신') ? { updated:false, msg:'' } : ttRosterSet_(ss, plain, fk, '');   // 해당 열 비우기
     ttLog_(ss, '빼기', removed, fromId, String(v[fromRow][6] || ''), '', '', String(data.reason || ''), book);
     return json({ result:'success', removed: removed, rosterUpdated: r.updated, rosterMsg: r.msg });
+  } finally {
+    try { lock.releaseLock(); } catch (e) {}
+  }
+}
+/** 학생 이름 표기(괄호 특이사항) 수정. { pw, book, from, to }
+ *  그 시간표의 모든 반 명단에서 from 토큰을 to로 교체 (가/나 두 반 모두 반영).
+ *  괄호 안 특이사항만 바꾸는 용도 — 학생정보 탭은 건드리지 않음. */
+function timetableRenameStudent(data) {
+  if (String(data.pw || '') !== TEACHER_PW) return json({ result:'error', message:'unauthorized' });
+  var from = String(data.from || '').trim();
+  var to = String(data.to || '').trim().replace(/\s+/g, '');
+  if (!from || !to) return json({ result:'error', message:'수정할 이름이 필요합니다.' });
+  var book = ttBook_(data.book);
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ensureTimetableSheet_(ss, book);
+  var lock = LockService.getScriptLock();
+  try { lock.waitLock(10000); } catch (e) { return json({ result:'error', message:'잠시 후 다시 시도해 주세요.' }); }
+  try {
+    var v = sh.getDataRange().getValues();
+    var changed = 0;
+    for (var i = 1; i < v.length; i++) {
+      var list = String(v[i][7] || '').trim().split(/\s+/).filter(String);
+      var hit = false;
+      for (var k = 0; k < list.length; k++) if (list[k] === from) { list[k] = to; hit = true; }
+      if (hit) {
+        var rg = sh.getRange(i + 1, 8);
+        rg.setNumberFormat('@');
+        rg.setValue(list.join(' '));
+        changed++;
+      }
+    }
+    if (!changed) return json({ result:'error', message:'그 이름을 명단에서 찾지 못했어요. 새로고침 후 다시 시도해 주세요.' });
+    ttLog_(ss, '표기수정', from, '', '', '', '', from + ' → ' + to, book);
+    return json({ result:'success', classes: changed });
   } finally {
     try { lock.releaseLock(); } catch (e) {}
   }
