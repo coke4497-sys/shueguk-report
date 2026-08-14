@@ -1752,7 +1752,7 @@ function classLabelOf(cid){
 }
 function openMakeup(){
   openModal('<h3>결석자 관리</h3>'+
-    '<p class="mdesc">결석 기록마다 보충 일정(날짜·요일·시간)을 적고, 확인 후 완료 처리하세요.</p>'+
+    '<p class="mdesc">반이동·무단 결석·당일 결석은 처리하면 바로 완료돼요.<br>영상보충은 일정을 적으면 영상보충 목록으로 넘어가고, 다녀가면 [영상보충 출석]을 눌러 완료하세요.</p>'+
     '<div id="mk-list"><p class="subnote">불러오는 중…</p></div>'+
     '<div class="mbtns"><button onclick="closeModal()">닫기</button></div>', true);
   fetch(ENDPOINT + '?action=attendAbsentList&pw=' + encodeURIComponent(pw) + '&book=' + encodeURIComponent(book) + '&t=' + Date.now())
@@ -1769,35 +1769,75 @@ function mkDayOf(dateStr){
   if (p.length !== 3) return '';
   return ['일','월','화','수','목','금','토'][new Date(+p[0], +p[1]-1, +p[2]).getDay()];
 }
+function mkIsVideo(m){ return !m.done && String(m.plan || '').indexOf('영상보충') === 0; }
+function mkSecOf(m){ return m.done ? 2 : (mkIsVideo(m) ? 1 : 0); }
 function renderMakeup(){
   var box = $('mk-list'); if (!box) return;
   if (!makeupList.length){ box.innerHTML = '<p class="subnote">결석 기록이 없어요.</p>'; return; }
-  var sorted = makeupList.slice().sort(function(a, b){ return (a.done - b.done) || (a.date < b.date ? 1 : -1); });
-  var html = '', sec = null;
-  sorted.forEach(function(m, idx){
-    var s = m.done ? 'done' : 'todo';
-    if (s !== sec){ sec = s; html += '<p class="mk-sec">' + (m.done ? '완료' : '미완료') + '</p>'; }
+  var sorted = makeupList.slice().sort(function(a, b){ return (mkSecOf(a) - mkSecOf(b)) || (a.date < b.date ? 1 : -1); });
+  var html = '', sec = -1;
+  var titles = ['미완료 — 처리 방법을 고르세요', '영상보충 — 다녀가면 출석을 눌러 완료', '완료'];
+  sorted.forEach(function(m){
+    var s = mkSecOf(m);
+    if (s !== sec){ sec = s; html += '<p class="mk-sec">' + titles[s] + '</p>'; }
     var i = makeupList.indexOf(m);
     var planLine = m.plan
       ? '<div class="mk-plan">보충: <b>' + esc(m.plan) + '</b></div>'
       : '';
-    var btnLine = m.done
-      ? '<div class="mk-row"><button onclick="saveMakeup(' + i + ', false)">미완료로</button></div>'
-      : '<div class="mk-row"><span class="mk-alt">처리 방법 —</span>' +
+    var memoLine = m.mkMemo
+      ? '<div class="mk-plan">메모: ' + esc(m.mkMemo) + '</div>'
+      : '';
+    var btnLine;
+    if (m.done){
+      btnLine = '<div class="mk-row">' +
+        '<button onclick="openMkMemo(' + i + ')">메모</button>' +
+        '<button onclick="saveMakeup(' + i + ', false)">미완료로</button></div>';
+    } else if (s === 1){
+      btnLine = '<div class="mk-row">' +
+        '<button onclick="openMkMemo(' + i + ')">메모</button>' +
+        '<button onclick="openMakeupVideo(' + i + ')">일정 수정</button>' +
+        '<button class="done-btn" onclick="saveMakeup(' + i + ', true)">영상보충 출석</button></div>';
+    } else {
+      btnLine = '<div class="mk-row"><span class="mk-alt">처리 방법 —</span>' +
         '<button onclick="openMakeupMove(' + i + ')">반이동</button>' +
         '<button onclick="openMakeupVideo(' + i + ')">영상보충</button>' +
         '<button onclick="noRemedy(' + i + ', \'무단 결석\')">무단 결석</button>' +
         '<button onclick="noRemedy(' + i + ', \'당일 결석\')">당일 결석</button>' +
+        '<button onclick="openMkMemo(' + i + ')">메모</button>' +
         '</div>' +
         (m.plan ? '<div class="mk-row" style="justify-content:flex-end;border-top:1px dotted var(--line);padding-top:6px;">' +
           '<button class="done-btn" onclick="saveMakeup(' + i + ', true)">처리 완료</button></div>' : '');
+    }
     html += '<div class="mk-item' + (m.done ? ' done' : '') + '">' +
       '<div class="mk-top"><b>' + esc(m.student) + '</b>' +
       '<small>' + esc(m.date) + ' (' + mkDayOf(m.date) + ') 결석 · ' + esc(classLabelOf(m.classId)) + (m.memo ? ' · ' + esc(m.memo) : '') + '</small></div>' +
-      planLine + btnLine +
+      planLine + memoLine + btnLine +
       '</div>';
   });
   box.innerHTML = html;
+}
+/* 결석 건 메모 — 약속 변경·태도 등 */
+function openMkMemo(i){
+  var m = makeupList[i]; if (!m) return;
+  openModal(
+    '<h3>메모 — ' + esc(m.student) + '</h3>'+
+    '<p class="mdesc">' + esc(m.date) + ' (' + mkDayOf(m.date) + ') 결석 건 메모예요.<br>약속 시간 변경, 보충 태도 등을 적어두세요.</p>'+
+    '<textarea id="mk-memo-in" placeholder="예) 8/18로 약속 변경 / 열심히 다녀감">' + esc(m.mkMemo || '') + '</textarea>'+
+    '<div class="mbtns"><button onclick="openMakeup()">뒤로</button>'+
+    '<button class="primary" onclick="saveMkMemo(' + i + ')">저장</button></div>', true
+  );
+}
+function saveMkMemo(i){
+  var m = makeupList[i]; if (!m) return;
+  var v = $('mk-memo-in').value.trim();
+  post({ action:'attendMakeupSet', book:book, date:m.date, classId:m.classId, student:m.student,
+         plan:m.plan || '', done:m.done ? '1' : '', mkMemo:v }, '메모 저장 중…', function(res){
+    if (res && res.result === 'success'){
+      m.mkMemo = v;
+      setStatus(m.student + ' — 메모를 저장했어요.', 'ok');
+      openMakeup();
+    } else setStatus('저장 실패: ' + ((res && res.message) || '오류'), 'err');
+  });
 }
 function saveMakeup(i, doneVal){
   var m = makeupList[i]; if (!m) return;
@@ -1809,11 +1849,12 @@ function saveMakeup(i, doneVal){
     return;
   }
   post({ action:'attendMakeupSet', book:book, date:m.date, classId:m.classId, student:m.student,
-         plan:plan, done: done ? '1' : '' }, '저장하는 중…', function(res){
+         plan:plan, done: done ? '1' : '', mkMemo: m.mkMemo || '' }, '저장하는 중…', function(res){
     if (res && res.result === 'success'){
       m.plan = plan; m.done = done;
       renderMakeup();
-      setStatus(m.student + ' — 보충 ' + (doneVal === null ? '일정 저장' : (done ? '완료 처리' : '미완료로 변경')) + ' 완료.', 'ok');
+      setStatus(m.student + ' — ' + (doneVal === null ? '보충 일정 저장'
+        : (done ? (mkIsVideo({ plan:plan, done:false }) ? '영상보충 출석 — 완료 처리' : '완료 처리') : '미완료로 변경')) + ' 완료.', 'ok');
     } else setStatus('저장 실패: ' + ((res && res.message) || '오류'), 'err');
   });
 }
@@ -1835,10 +1876,10 @@ function saveMakeupVideo(i){
   var v = $('mk-plan-' + i).value.trim();
   if (!v){ $('mkv-err').textContent = '날짜·요일·시간을 적어주세요.'; return; }
   post({ action:'attendMakeupSet', book:book, date:m.date, classId:m.classId, student:m.student,
-         plan:'영상보충: ' + v, done:'' }, '저장하는 중…', function(res){
+         plan:'영상보충: ' + v, done:'', mkMemo: m.mkMemo || '' }, '저장하는 중…', function(res){
     if (res && res.result === 'success'){
       m.plan = '영상보충: ' + v;
-      setStatus(m.student + ' — 영상보충 일정 저장 완료.', 'ok');
+      setStatus(m.student + ' — 영상보충 목록으로 옮겼어요. 다녀가면 [영상보충 출석]을 눌러주세요.', 'ok');
       openMakeup();
     } else setStatus('저장 실패: ' + ((res && res.message) || '오류'), 'err');
   });
@@ -1850,7 +1891,7 @@ function noRemedy(i, type){
   if (!confirm(m.student + ' (' + m.date + ' 결석)\n"' + type + '"로 기록하고 보충 없이 완료 처리할까요?')) return;
   var plan = type + ' (보충 없음)';
   post({ action:'attendMakeupSet', book:book, date:m.date, classId:m.classId, student:m.student,
-         plan:plan, done:'1' }, '처리 중…', function(res){
+         plan:plan, done:'1', mkMemo: m.mkMemo || '' }, '처리 중…', function(res){
     if (res && res.result === 'success'){
       m.plan = plan; m.done = true;
       renderMakeup();
@@ -1894,8 +1935,8 @@ function openMakeupMove(i){
         }
         var plan = '반 이동 보충: ' + t.cls + ' ' + t.day + t.start + ' (' + t.teacher + 'T)';
         post({ action:'attendMakeupSet', book:book, date:m.date, classId:m.classId, student:m.student,
-               plan:plan, done:'' }, '보충 일정 저장 중…', function(res2){
-          setStatus(m.student + ' — ' + plan + ' 기록 완료. 시간표에 표시됩니다.', 'ok');
+               plan:plan, done:'1', mkMemo: m.mkMemo || '' }, '보충 일정 저장 중…', function(res2){
+          setStatus(m.student + ' — ' + plan + ' 기록·완료 처리했어요. 시간표에 표시됩니다.', 'ok');
           load(true);        // 1회 이동을 오늘·주차별 시간표에 반영
           openMakeup();      // 목록 새로고침
         });
