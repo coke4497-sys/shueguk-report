@@ -71,6 +71,9 @@
   .items-panel input{flex:1;font:inherit;font-size:.9rem;padding:7px 10px;border:1.5px solid var(--line);border-radius:9px;}
   .items-panel .addrow button{font:inherit;font-size:.85rem;background:var(--btn);color:#fff;border:none;border-radius:9px;padding:7px 14px;cursor:pointer;}
   .items-panel .hint{font-size:.75rem;color:var(--ink-soft);margin:8px 0 0;}
+  .crit-note{font-size:.78rem;color:var(--ink-soft);background:var(--icon-bg);border:1px solid var(--line-soft);
+    border-radius:10px;padding:7px 11px;margin-top:8px;}
+  .crit-note b{color:var(--ink);font-weight:700;}
 
   /* 학생 카드 */
   .list{display:flex;flex-direction:column;gap:10px;margin-top:8px;}
@@ -177,6 +180,7 @@
         <button class="items-btn" onclick="toggleItems()">검사 항목 관리</button>
       </span>
     </div>
+    <p class="crit-note">평가 기준 (조교 참고) — <b>모두 수행: 별 5개</b> · <b>완벽한 수행: 별 6개</b></p>
     <div class="items-panel" id="items-panel">
       <div id="chips"></div>
       <div class="addrow">
