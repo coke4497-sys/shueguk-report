@@ -304,6 +304,9 @@ function fmt12(t){
   var h12 = h24 > 12 ? h24-12 : h24;
   return h12 + ':' + (mm<10?'0':'')+mm;
 }
+function sortNames(arr){
+  return arr.slice().sort(function(a,b){ return String(a).localeCompare(String(b), 'ko'); });
+}
 function colorOf(cls){
   if (/^고1/.test(cls)) return 'c-g1';
   if (/^고2/.test(cls)) return 'c-g2';
@@ -447,8 +450,9 @@ function blockEl(c){
     if (o.toId === c.id) temps.push(o);
   });
   var chips = '';
+  var sorted = sortNames(c.students);
   if (mode === 'today'){
-    chips = c.students.map(function(nm){
+    chips = sorted.map(function(nm){
       var plain = nm.replace(/\(.*\)$/,'');
       var away = Object.prototype.hasOwnProperty.call(awayOf, plain);
       var a = attend[c.id + '|' + nm];
@@ -459,13 +463,13 @@ function blockEl(c){
              ((a && a.memo) ? ' title="'+esc(a.memo)+'"' : (away ? ' title="오늘 1회 이동: '+esc(awayOf[plain].label)+'"' : ''))+'>'+
              esc(nm)+tail+(away?'<em>1회↗</em>':'')+'</button>';
     }).join('');
-    chips += temps.map(function(o){
+    chips += temps.sort(function(a,b){ return a.student.localeCompare(b.student,'ko'); }).map(function(o){
       var a = attend[c.id + '|' + o.student];
       var cls2 = a ? (a.status==='출석'?'at-ok':a.status==='지각'?'at-late':'at-abs') : 'once';
       return '<button data-att-cid="'+esc(c.id)+'" data-nm="'+esc(o.student)+'" data-once-row="'+o.row+'" class="'+cls2+'" title="1회 이동 · 사유: '+esc(o.reason)+((a&&a.memo)?' / '+esc(a.memo):'')+'">'+esc(o.student)+' · 1회</button>';
     }).join('');
   } else {
-    chips = c.students.map(function(nm){
+    chips = sorted.map(function(nm){
       var plain = nm.replace(/\(.*\)$/,'');
       var away = Object.prototype.hasOwnProperty.call(awayOf, plain);
       return '<button data-cid="'+esc(c.id)+'" data-nm="'+esc(nm)+'"'+
@@ -745,7 +749,7 @@ function buildWeekGrid(){
       if (o.fromId === c.id){ var t = classes.find(function(x){ return x.id===o.toId; }); awayOf[o.student.replace(/\(.*\)$/,'')] = { label: t ? labelOf(t) : '', row: o.row }; }
       if (o.toId === c.id) temps.push(o);
     });
-    var chips = c.students.map(function(nm){
+    var chips = sortNames(c.students).map(function(nm){
       var plain = nm.replace(/\(.*\)$/,'');
       var away = Object.prototype.hasOwnProperty.call(awayOf, plain);
       var a = weekAttend[dstr + '|' + c.id + '|' + nm];
@@ -756,7 +760,7 @@ function buildWeekGrid(){
              ((a && a.memo) ? ' title="'+esc(a.memo)+'"' : (away ? ' title="이 주 1회 이동: '+esc(awayOf[plain].label)+'"' : ''))+'>'+
              esc(nm)+tail+(away?'<em>1회↗</em>':'')+'</button>';
     }).join('');
-    chips += temps.map(function(o){
+    chips += temps.sort(function(a,b){ return a.student.localeCompare(b.student,'ko'); }).map(function(o){
       var a = weekAttend[dstr + '|' + c.id + '|' + o.student];
       var cls2 = a ? (a.status==='출석'?'at-ok':a.status==='지각'?'at-late':'at-abs') : 'once';
       return '<button data-nm="'+esc(o.student)+'" data-once-row="'+o.row+'" class="'+cls2+'" title="1회 이동 · 사유: '+esc(o.reason)+((a&&a.memo)?' / '+esc(a.memo):'')+'">'+esc(o.student)+' · 1회</button>';
