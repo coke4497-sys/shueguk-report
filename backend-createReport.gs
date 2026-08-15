@@ -125,6 +125,13 @@ function dropTab_(tab) {
   delete MEMO_['tab:' + tab];
   try { CacheService.getScriptCache().remove('tab:' + tab); } catch (e) {}
 }
+/** 검증→쓰기를 한 덩어리로 묶는 잠금 래퍼. 행 번호로 지우거나 고치는 함수는 반드시 이걸 통과시킬 것.
+ *  (잠금 없이 "행 확인 → 삭제"를 하면, 그 사이 다른 사람이 앞 행을 지웠을 때 엉뚱한 행이 지워진다.) */
+function withLock_(fn, waitMs) {
+  var lock = LockService.getScriptLock();
+  try { lock.waitLock(waitMs || 10000); } catch (e) { return json({ result:'error', message:'잠시 후 다시 시도해 주세요.' }); }
+  try { return fn(); } finally { try { lock.releaseLock(); } catch (e) {} }
+}
 function extSnap_(key, ttlSec, build) {
   var mk = 'snap:' + key;
   if (MEMO_[mk]) return MEMO_[mk];
@@ -1304,18 +1311,20 @@ function hwcheckPlanDone(data) {
   if (String(data.pw || '') !== TEACHER_PW) return json({ result: 'error', message: 'unauthorized' });
   var week = String(data.week || '').trim(), token = String(data.token || '').trim();
   if (!week || !token) return json({ result: 'error', message: '기록 식별 정보가 없습니다.' });
-  var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(TAB_HWCHECK);
-  if (!sh) return json({ result: 'error', message: '기록이 없습니다.' });
-  var last = sh.getLastRow();
-  var keys = last > 1 ? sh.getRange(2, 2, last - 1, 2).getValues() : [];
-  for (var i = 0; i < keys.length; i++) {
-    if (hwcheckWeekStr_(keys[i][0]) === week && String(keys[i][1] || '').trim() === token) {
-      sh.getRange(i + 2, 14).setValue(String(data.done || '') === '1' ? '완료' : '');
-      dropTab_(TAB_HWCHECK);
-      return json({ result: 'success' });
+  return withLock_(function () {
+    var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(TAB_HWCHECK);
+    if (!sh) return json({ result: 'error', message: '기록이 없습니다.' });
+    var last = sh.getLastRow();
+    var keys = last > 1 ? sh.getRange(2, 2, last - 1, 2).getValues() : [];
+    for (var i = 0; i < keys.length; i++) {
+      if (hwcheckWeekStr_(keys[i][0]) === week && String(keys[i][1] || '').trim() === token) {
+        sh.getRange(i + 2, 14).setValue(String(data.done || '') === '1' ? '완료' : '');
+        dropTab_(TAB_HWCHECK);
+        return json({ result: 'success' });
+      }
     }
-  }
-  return json({ result: 'error', message: '기록을 찾을 수 없습니다. 새로고침 후 다시 시도해 주세요.' });
+    return json({ result: 'error', message: '기록을 찾을 수 없습니다. 새로고침 후 다시 시도해 주세요.' });
+  }, 8000);
 }
 /** 학생 개별 페이지용 — 주차별 점수 %·항목 점수·공개 메모(최신순 20주). 비공개 메모 제외. */
 function collectHwchecks_(ss, key) {
@@ -1910,18 +1919,20 @@ function deleteStarBonus(data) {
   if (String(data.pw || '') !== TEACHER_PW) return json({ result: 'error', message: 'unauthorized' });
   var rowIndex = parseInt(data.rowIndex, 10);
   if (!rowIndex || rowIndex < 2) return json({ result: 'error', message: '잘못된 행입니다.' });
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sh = ss.getSheetByName(TAB_STARS);
-  if (!sh || rowIndex > sh.getLastRow()) return json({ result: 'error', message: '존재하지 않는 행입니다.' });
-  var stale = false;
-  if (data.name && String(sh.getRange(rowIndex, 3).getValue()).trim() !== String(data.name).trim()) stale = true;
-  if (!stale && data.school != null && String(data.school).trim() &&
-      String(sh.getRange(rowIndex, 4).getValue()).trim() !== String(data.school).trim()) stale = true;
-  if (!stale && data.stars && (parseInt(sh.getRange(rowIndex, 5).getValue(), 10) || 0) !== parseInt(data.stars, 10)) stale = true;
-  if (stale) return json({ result: 'error', message: '목록이 변경되었습니다. 새로고침 후 다시 시도하세요.' });
-  sh.deleteRow(rowIndex);
-  dropTab_(TAB_STARS);
-  return json({ result: 'success' });
+  return withLock_(function () {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var sh = ss.getSheetByName(TAB_STARS);
+    if (!sh || rowIndex > sh.getLastRow()) return json({ result: 'error', message: '존재하지 않는 행입니다.' });
+    var stale = false;
+    if (data.name && String(sh.getRange(rowIndex, 3).getValue()).trim() !== String(data.name).trim()) stale = true;
+    if (!stale && data.school != null && String(data.school).trim() &&
+        String(sh.getRange(rowIndex, 4).getValue()).trim() !== String(data.school).trim()) stale = true;
+    if (!stale && data.stars && (parseInt(sh.getRange(rowIndex, 5).getValue(), 10) || 0) !== parseInt(data.stars, 10)) stale = true;
+    if (stale) return json({ result: 'error', message: '목록이 변경되었습니다. 새로고침 후 다시 시도하세요.' });
+    sh.deleteRow(rowIndex);
+    dropTab_(TAB_STARS);
+    return json({ result: 'success' });
+  });
 }
 
 /* ===== 퇴원 정리 도구 (exit.html) =====
@@ -2315,20 +2326,22 @@ function saveTeacherNote(data) {
   try {
     var rowIndex = parseInt(data.rowIndex, 10);
     if (!rowIndex || rowIndex < 2) return json({ result:'error', message:'잘못된 행 번호입니다.' });
-    var ss = SpreadsheetApp.getActiveSpreadsheet();
-    var sh = ss.getSheetByName(TAB_RESULT);
-    if (!sh) return json({ result:'error', message:"'" + TAB_RESULT + "' 탭이 없습니다." });
-    if (rowIndex > sh.getLastRow()) return json({ result:'error', message:'존재하지 않는 행입니다.' });
+    return withLock_(function () {
+      var ss = SpreadsheetApp.getActiveSpreadsheet();
+      var sh = ss.getSheetByName(TAB_RESULT);
+      if (!sh) return json({ result:'error', message:"'" + TAB_RESULT + "' 탭이 없습니다." });
+      if (rowIndex > sh.getLastRow()) return json({ result:'error', message:'존재하지 않는 행입니다.' });
 
-    // 행 검증: 이름(E열)이 일치해야 저장
-    if (data.name) {
-      var nameCell = String(sh.getRange(rowIndex, 5).getValue()).trim();
-      if (nameCell !== String(data.name).trim()) {
-        return json({ result:'error', message:'행 정보가 바뀌었습니다. 목록을 새로고침한 뒤 다시 시도해주세요.' });
+      // 행 검증: 이름(E열)이 일치해야 저장
+      if (data.name) {
+        var nameCell = String(sh.getRange(rowIndex, 5).getValue()).trim();
+        if (nameCell !== String(data.name).trim()) {
+          return json({ result:'error', message:'행 정보가 바뀌었습니다. 목록을 새로고침한 뒤 다시 시도해주세요.' });
+        }
       }
-    }
-    sh.getRange(rowIndex, RESULT_NOTE_COL).setValue(String(data.note || ''));
-    return json({ result:'success', rowIndex: rowIndex });
+      sh.getRange(rowIndex, RESULT_NOTE_COL).setValue(String(data.note || ''));
+      return json({ result:'success', rowIndex: rowIndex });
+    });
   } catch (err) {
     return json({ result:'error', message:String(err) });
   }
@@ -2530,15 +2543,17 @@ function getTimetableLog() {
 function timetableOnceCancel(data) {
   if (String(data.pw || '') !== TEACHER_PW) return json({ result:'error', message:'unauthorized' });
   var row = parseInt(data.row, 10);
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sh = ss.getSheetByName(TAB_TT_LOG);
-  if (!sh || !row || row < 2 || row > sh.getLastRow()) return json({ result:'error', message:'기록을 찾을 수 없어요.' });
-  var v = sh.getRange(row, 1, 1, 8).getValues()[0];
-  if (String(v[1]).trim() !== '1회' || String(v[2]).trim() !== String(data.student || '').trim()) {
-    return json({ result:'error', message:'기록이 달라졌어요. 새로고침 후 다시 시도해 주세요.' });
-  }
-  sh.deleteRow(row);
-  return json({ result:'success' });
+  return withLock_(function () {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var sh = ss.getSheetByName(TAB_TT_LOG);
+    if (!sh || !row || row < 2 || row > sh.getLastRow()) return json({ result:'error', message:'기록을 찾을 수 없어요.' });
+    var v = sh.getRange(row, 1, 1, 8).getValues()[0];
+    if (String(v[1]).trim() !== '1회' || String(v[2]).trim() !== String(data.student || '').trim()) {
+      return json({ result:'error', message:'기록이 달라졌어요. 새로고침 후 다시 시도해 주세요.' });
+    }
+    sh.deleteRow(row);
+    return json({ result:'success' });
+  });
 }
 /** 학생 반 이동. { pw, student, fromId, toId, moveType:'perm'|'once', reason }
  *  영구(perm): 시간표 탭에서 옮기고 학생정보의 정규가/나 열도 갱신 + 기록.
@@ -2789,15 +2804,17 @@ function timetableOnceEdit(data) {
   var row = parseInt(data.row, 10);
   var reason = String(data.reason || '').trim();
   if (!reason) return json({ result:'error', message:'사유를 적어주세요.' });
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sh = ss.getSheetByName(TAB_TT_LOG);
-  if (!sh || !row || row < 2 || row > sh.getLastRow()) return json({ result:'error', message:'기록을 찾을 수 없어요.' });
-  var v = sh.getRange(row, 1, 1, 8).getValues()[0];
-  if (String(v[1]).trim() !== '1회' || String(v[2]).trim() !== String(data.student || '').trim()) {
-    return json({ result:'error', message:'기록이 달라졌어요. 새로고침 후 다시 시도해 주세요.' });
-  }
-  sh.getRange(row, 8).setValue(reason);
-  return json({ result:'success', reason: reason });
+  return withLock_(function () {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var sh = ss.getSheetByName(TAB_TT_LOG);
+    if (!sh || !row || row < 2 || row > sh.getLastRow()) return json({ result:'error', message:'기록을 찾을 수 없어요.' });
+    var v = sh.getRange(row, 1, 1, 8).getValues()[0];
+    if (String(v[1]).trim() !== '1회' || String(v[2]).trim() !== String(data.student || '').trim()) {
+      return json({ result:'error', message:'기록이 달라졌어요. 새로고침 후 다시 시도해 주세요.' });
+    }
+    sh.getRange(row, 8).setValue(reason);
+    return json({ result:'success', reason: reason });
+  });
 }
 /** 반 추가. { pw, book, day, start, end, loc, teacher, cls } */
 function timetableAddClass(data) {
@@ -3282,33 +3299,37 @@ function setNoticeShow(data) {
   if (String(data.pw||'') !== TEACHER_PW) return json({ result:'error', message:'unauthorized' });
   var rowIndex = parseInt(data.rowIndex, 10);
   if (!rowIndex || rowIndex < 2) return json({ result:'error', message:'잘못된 행입니다.' });
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sh = ss.getSheetByName(TAB_NOTICE);
-  if (!sh || rowIndex > sh.getLastRow()) return json({ result:'error', message:'존재하지 않는 행입니다.' });
-  var H = sh.getRange(1,1,1,sh.getLastColumn()).getValues()[0];
-  var cShow = findHeaderCol_(H, '게시', 5);
-  sh.getRange(rowIndex, cShow + 1).setValue((data.hidden===true || data.hidden==='1') ? 'N' : '노출');
-  dropTab_(TAB_NOTICE);
-  return json({ result:'success' });
+  return withLock_(function () {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var sh = ss.getSheetByName(TAB_NOTICE);
+    if (!sh || rowIndex > sh.getLastRow()) return json({ result:'error', message:'존재하지 않는 행입니다.' });
+    var H = sh.getRange(1,1,1,sh.getLastColumn()).getValues()[0];
+    var cShow = findHeaderCol_(H, '게시', 5);
+    sh.getRange(rowIndex, cShow + 1).setValue((data.hidden===true || data.hidden==='1') ? 'N' : '노출');
+    dropTab_(TAB_NOTICE);
+    return json({ result:'success' });
+  });
 }
 
 function deleteNotice(data) {
   if (String(data.pw||'') !== TEACHER_PW) return json({ result:'error', message:'unauthorized' });
   var rowIndex = parseInt(data.rowIndex, 10);
   if (!rowIndex || rowIndex < 2) return json({ result:'error', message:'잘못된 행입니다.' });
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sh = ss.getSheetByName(TAB_NOTICE);
-  if (!sh || rowIndex > sh.getLastRow()) return json({ result:'error', message:'존재하지 않는 행입니다.' });
-  // 안전 검증: 제목이 일치할 때만 삭제(목록 로드 후 행 변동 방지)
-  if (data.title) {
-    var H = sh.getRange(1,1,1,sh.getLastColumn()).getValues()[0];
-    var cTitle = findHeaderCol_(H, '제목', 3);
-    var cur = String(sh.getRange(rowIndex, cTitle + 1).getValue()).trim();
-    if (cur !== String(data.title).trim()) return json({ result:'error', message:'목록이 변경되었습니다. 새로고침 후 다시 시도하세요.' });
-  }
-  sh.deleteRow(rowIndex);
-  dropTab_(TAB_NOTICE);
-  return json({ result:'success' });
+  return withLock_(function () {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var sh = ss.getSheetByName(TAB_NOTICE);
+    if (!sh || rowIndex > sh.getLastRow()) return json({ result:'error', message:'존재하지 않는 행입니다.' });
+    // 안전 검증: 제목이 일치할 때만 삭제(목록 로드 후 행 변동 방지)
+    if (data.title) {
+      var H = sh.getRange(1,1,1,sh.getLastColumn()).getValues()[0];
+      var cTitle = findHeaderCol_(H, '제목', 3);
+      var cur = String(sh.getRange(rowIndex, cTitle + 1).getValue()).trim();
+      if (cur !== String(data.title).trim()) return json({ result:'error', message:'목록이 변경되었습니다. 새로고침 후 다시 시도하세요.' });
+    }
+    sh.deleteRow(rowIndex);
+    dropTab_(TAB_NOTICE);
+    return json({ result:'success' });
+  });
 }
 
 /* ===== (9) 도구별 배정 ===== hwork_assign.html 등 (H WORK·클리닉·주말 공용)
@@ -3370,12 +3391,22 @@ function deleteAssignment(data) {
   if (String(data.pw||'') !== TEACHER_PW) return json({ result:'error', message:'unauthorized' });
   var rowIndex = parseInt(data.rowIndex, 10);
   if (!rowIndex || rowIndex < 2) return json({ result:'error', message:'잘못된 행입니다.' });
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sh = ss.getSheetByName(TAB_ASSIGN);
-  if (!sh || rowIndex > sh.getLastRow()) return json({ result:'error', message:'존재하지 않는 행입니다.' });
-  sh.deleteRow(rowIndex);
-  dropTab_(TAB_ASSIGN);
-  return json({ result:'success' });
+  return withLock_(function () {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var sh = ss.getSheetByName(TAB_ASSIGN);
+    if (!sh || rowIndex > sh.getLastRow()) return json({ result:'error', message:'존재하지 않는 행입니다.' });
+    // 안전 검증: 도구·항목이 맞을 때만 삭제(목록 로드 후 행 변동 방지). 옛 페이지는 안 보내므로 왔을 때만 확인.
+    if (data.tool || data.item) {
+      var cur = sh.getRange(rowIndex, 2, 1, 2).getValues()[0];
+      if ((data.tool && String(cur[0] || '').trim() !== String(data.tool).trim()) ||
+          (data.item && String(cur[1] || '').trim() !== String(data.item).trim())) {
+        return json({ result:'error', message:'목록이 변경되었습니다. 새로고침 후 다시 시도하세요.' });
+      }
+    }
+    sh.deleteRow(rowIndex);
+    dropTab_(TAB_ASSIGN);
+    return json({ result:'success' });
+  });
 }
 
 /* ===== (5) 시험 등록 =====
@@ -3467,11 +3498,13 @@ function deleteAnalysisAssign(data) {
   if (String(data.pw||'') !== TEACHER_PW) return json({ result:'error', message:'unauthorized' });
   var id = String(data.id||'').trim();
   if (!id) return json({ result:'error', message:'시험 ID가 없습니다.' });
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sh = ss.getSheetByName(TAB_ASSIGN);
-  if (sh) deleteAssignByToolItem_(sh, ANALYSIS_TOOL, id);
-  dropTab_(TAB_ASSIGN);
-  return json({ result:'success', id:id });
+  return withLock_(function () {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var sh = ss.getSheetByName(TAB_ASSIGN);
+    if (sh) deleteAssignByToolItem_(sh, ANALYSIS_TOOL, id);
+    dropTab_(TAB_ASSIGN);
+    return json({ result:'success', id:id });
+  });
 }
 
 /* ===== (11) 리포트 완전 삭제 ===== analyses.html
@@ -3482,15 +3515,17 @@ function deleteReport(data) {
   if (String(data.pw||'') !== TEACHER_PW) return json({ result:'error', message:'unauthorized' });
   var id = String(data.id||'').trim();
   if (!id) return json({ result:'error', message:'시험 ID가 없습니다.' });
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var listSh = ss.getSheetByName(TAB_LIST);
-  var itemSh = ss.getSheetByName(TAB_ITEMS);
-  var asgSh  = ss.getSheetByName(TAB_ASSIGN);
-  if (listSh) deleteRowsById_(listSh, 1, id);   // 보고서목록 A열=ID
-  if (itemSh) deleteRowsById_(itemSh, 1, id);   // 문항 A열=보고서ID
-  if (asgSh)  deleteAssignByToolItem_(asgSh, ANALYSIS_TOOL, id);   // 배정 제거
-  dropTab_(TAB_LIST); dropTab_(TAB_ITEMS); dropTab_(TAB_ASSIGN);
-  return json({ result:'success', id:id });
+  return withLock_(function () {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var listSh = ss.getSheetByName(TAB_LIST);
+    var itemSh = ss.getSheetByName(TAB_ITEMS);
+    var asgSh  = ss.getSheetByName(TAB_ASSIGN);
+    if (listSh) deleteRowsById_(listSh, 1, id);   // 보고서목록 A열=ID
+    if (itemSh) deleteRowsById_(itemSh, 1, id);   // 문항 A열=보고서ID
+    if (asgSh)  deleteAssignByToolItem_(asgSh, ANALYSIS_TOOL, id);   // 배정 제거
+    dropTab_(TAB_LIST); dropTab_(TAB_ITEMS); dropTab_(TAB_ASSIGN);
+    return json({ result:'success', id:id });
+  }, 20000);   // 탭 3개를 지우므로 넉넉히
 }
 
 /** '배정' 탭에서 도구(B)+항목(C)이 일치하는 행을 모두 삭제(헤더 제외, 아래에서 위로). */
