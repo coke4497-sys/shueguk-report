@@ -71,6 +71,29 @@
   .hw-chips .hwc{font:inherit; font-size:11.5px; padding:4px 10px; border:1.5px solid var(--line); border-radius:14px;
     background:#fff; color:var(--ink-soft); cursor:pointer;}
   .hw-chips .hwc.on{background:var(--btn); border-color:var(--btn); color:#fff; font-weight:700;}
+  .hw-chips .hwc.miss{background:#F0DBD8; border-color:#C99B94; color:#8A3B33; font-weight:700; text-decoration:line-through;}
+  .hw-chips .hwc i{font-style:normal; font-size:10.5px; margin-left:4px; opacity:.9;}
+
+  /* ── 과제 별점 창 ── */
+  .hw-wrap{position:fixed; inset:0; background:rgba(42,51,47,.45); z-index:60; display:none;
+    align-items:center; justify-content:center; padding:16px;}
+  .hw-wrap.on{display:flex;}
+  .hw-box{background:#fff; border-radius:16px; padding:22px 22px 18px; max-width:360px; width:100%;}
+  .hw-box h3{font-family:'Gowun Batang',serif; font-size:16px; color:var(--accent); margin-bottom:2px;}
+  .hw-box .who{font-size:12.5px; color:var(--ink-soft); margin-bottom:14px;}
+  .hw-box .srow{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:8px;}
+  .hw-box .srow > span{font-size:13.5px; flex:0 0 66px;}
+  .hw-box .stars{display:flex; gap:2px;}
+  .hw-box .stars button{border:none; background:none; font-size:24px; line-height:1; padding:1px; cursor:pointer; color:#D8E2DD;}
+  .hw-box .stars button.on{color:#E8B93E;}
+  .hw-box .missrow{margin:12px 0 4px; padding-top:12px; border-top:1px dashed var(--line);}
+  .hw-box .missbtn{width:100%; font:inherit; font-size:13px; padding:9px; border:1.5px solid var(--line);
+    border-radius:10px; background:#fff; color:var(--ink-soft); cursor:pointer;}
+  .hw-box .missbtn.on{background:#B4574E; border-color:#B4574E; color:#fff; font-weight:700;}
+  .hw-box .btns{display:flex; gap:8px; margin-top:14px;}
+  .hw-box .btns button{flex:1; font:inherit; font-size:13.5px; padding:10px; border-radius:10px; cursor:pointer;}
+  .hw-box .btns .clear{border:1.5px solid var(--line); background:#fff; color:var(--ink-soft);}
+  .hw-box .btns .close{border:1.5px solid var(--accent); background:var(--accent); color:#fff;}
 
   /* ── 학습 보고서 (캡쳐용 한 장) ── */
   .rpt-wrap{position:fixed; inset:0; background:rgba(42,51,47,.45); overflow-y:auto; z-index:50; display:none; padding:16px 10px 40px;}
@@ -130,6 +153,11 @@
     <button type="button" onclick="closeRpt()">닫기</button>
   </div>
   <div class="rpt" id="rpt-card"></div>
+</div>
+
+<!-- 과제 별점 -->
+<div class="hw-wrap" id="hw-wrap" onclick="if(event.target===this)closeHw()">
+  <div class="hw-box" id="hw-box"></div>
 </div>
 
 <div class="status" id="status"></div>
@@ -441,24 +469,31 @@ function renderWeek(){
     '<textarea id="ns-hw" rows="3" placeholder="예) 아홉 1장 필사&#10;어휘 3개&#10;프린트 전부 필사">'+esc(wk.hw)+'</textarea>'+
     '<div class="savebar"><button type="button" class="act" onclick="saveWeek()">메모·과제 저장</button></div>'+
     '<div class="stu">'+
-      '<label>학생별 과제 수행 / 질문 사항 <span class="dot">과제 버튼 = 해온 것 체크 · 메모는 칸을 벗어나면 자동 저장</span></label>'+
+      '<label>학생별 과제 수행 / 질문 사항 <span class="dot">과제를 누르면 학습량·학습 깊이 별점과 미제출을 고를 수 있어요 · 메모는 칸을 벗어나면 자동 저장</span></label>'+
       '<p style="font-size:12px;color:var(--ink-soft);margin:0 0 6px;line-height:1.6;"><b style="color:var(--accent);">REPORT</b> — 시험 기간이 시작된 이후 학생의 피드백 내용을 종합하여 기록합니다. 상담시 참고할 수 있습니다.</p>'+
       stus.map(function(nm,i){
-        var done = hwd[nm] || [];
+        var done = hwMapOf(week, nm);
         return '<div class="stu-row" data-row-nm="'+esc(nm)+'">'+
           '<div class="stu-id"><b><span class="stu-no">'+(i+1)+'</span> '+esc(nm)+'</b>'+
           '<button type="button" class="rpt-btn" onclick="openRpt(\''+esc(nm)+'\')" title="이 학생의 내신 대비 학습 보고서 (캡쳐용)">REPORT</button></div>'+
           '<div style="flex:1;display:flex;flex-direction:column;gap:5px;">'+
           (hwItems.length
             ? '<div class="hw-chips">'+hwItems.map(function(it){
-                var on = done.indexOf(it)>=0;
-                return '<button type="button" class="hwc'+(on?' on':'')+'" data-nm="'+esc(nm)+'" data-it="'+esc(it)+'" onclick="toggleHw(this)">'+(on?'✓ ':'')+esc(it)+'</button>';
+                var v=done[it];
+                var cls = v ? (v.x ? ' miss' : ' on') : '';
+                var tag = (v && !v.x) ? '<i>'+(v.a||0)+'·'+(v.d||0)+'</i>' : '';
+                return '<button type="button" class="hwc'+cls+'" data-hw-nm="'+esc(nm)+'" data-hw-it="'+esc(it)+'">'+
+                       (v&&!v.x?'✓ ':'')+esc(it)+tag+'</button>';
               }).join('')+'</div>'
             : '')+
           '<textarea data-nm="'+esc(nm)+'" onblur="saveNote(this)" placeholder="예) 나는 오늘: 8, 문법 덜 풀고 안가져옴, 오마이갓,,,, 숙제 깜빡했다고 함, 똑똑이임">'+esc(notes[nm]||'')+'</textarea>'+
           '</div></div>';
       }).join('')+
     '</div>';
+  // 과제 칩 클릭 → 별점 창 (따옴표가 든 과제명도 안전하게 data 속성으로)
+  $('wbody').querySelectorAll('button[data-hw-it]').forEach(function(b){
+    b.addEventListener('click', function(){ openHw(b.getAttribute('data-hw-nm'), b.getAttribute('data-hw-it')); });
+  });
   // 학생 검색으로 들어온 경우 — 그 학생 줄로 스크롤 + 잠깐 강조
   if(FOCUS_STU){
     var rows=document.querySelectorAll('#wbody .stu-row');
@@ -519,22 +554,62 @@ function removeUnit(it){
   renderWeek(); saveUnits();
 }
 /* 학생별 과제 확인 토글 */
-function toggleHw(btn){
-  var nm=btn.getAttribute('data-nm'), it=btn.getAttribute('data-it');
-  var m=(rec.hwdone[week]=rec.hwdone[week]||{});
-  var arr=m[nm]=m[nm]||[];
-  var i=arr.indexOf(it);
-  if(i>=0) arr.splice(i,1); else arr.push(it);
-  renderWeek();
-  saveStudent(nm);
+/* 과제 기록 — 학생별 { '과제명': {a:학습량0~5, d:학습깊이0~5, x:미제출} } .
+ * 옛 형식(과제명 배열)은 읽을 때 자동 변환. */
+function hwMapOf(w, nm){
+  var m=(rec.hwdone[w]||{})[nm];
+  if(Array.isArray(m)){ var o={}; m.forEach(function(it){ o[it]={a:0,d:0}; }); (rec.hwdone[w]=rec.hwdone[w]||{})[nm]=o; return o; }
+  return m||{};
+}
+var HW_CUR=null;   // {nm, it}
+function openHw(nm, it){
+  HW_CUR={ nm:nm, it:it };
+  renderHwBox();
+  $('hw-wrap').classList.add('on');
+}
+function closeHw(){ $('hw-wrap').classList.remove('on'); HW_CUR=null; }
+function renderHwBox(){
+  if(!HW_CUR) return;
+  var v=hwMapOf(week, HW_CUR.nm)[HW_CUR.it] || {};
+  function stars(kind, cur){
+    var out='';
+    for(var k=1;k<=5;k++) out+='<button type="button" data-k="'+kind+'" data-v="'+k+'" class="'+((cur||0)>=k?'on':'')+'">★</button>';
+    return '<div class="stars">'+out+'</div>';
+  }
+  $('hw-box').innerHTML =
+    '<h3>'+esc(HW_CUR.it)+'</h3>'+
+    '<p class="who">'+esc(HW_CUR.nm)+' · '+esc(wkLabel(week))+'</p>'+
+    '<div class="srow"><span>학습량</span>'+stars('a', v.x?0:v.a)+'</div>'+
+    '<div class="srow"><span>학습 깊이</span>'+stars('d', v.x?0:v.d)+'</div>'+
+    '<div class="missrow"><button type="button" class="missbtn'+(v.x?' on':'')+'" data-k="x">'+(v.x?'✓ 미제출':'미제출로 표시')+'</button></div>'+
+    '<div class="btns"><button type="button" class="clear" data-k="clear">기록 지우기</button>'+
+    '<button type="button" class="close" data-k="close">닫기</button></div>';
+  $('hw-box').querySelectorAll('button').forEach(function(b){
+    b.addEventListener('click', function(){ hwBoxClick(b.getAttribute('data-k'), b.getAttribute('data-v')); });
+  });
+}
+function hwBoxClick(kind, val){
+  if(kind==='close'){ closeHw(); return; }
+  var m=hwMapOf(week, HW_CUR.nm);
+  if(kind==='clear'){ delete m[HW_CUR.it]; }
+  else {
+    var v=m[HW_CUR.it]=m[HW_CUR.it]||{a:0,d:0};
+    if(kind==='x'){ v.x=!v.x; if(v.x){ v.a=0; v.d=0; } }
+    else {
+      var n=parseInt(val,10);
+      v[kind] = (v[kind]===n) ? 0 : n;   // 같은 별을 다시 누르면 해제
+      v.x=false;
+    }
+  }
+  renderHwBox(); renderWeek(); saveStudent(HW_CUR.nm);
 }
 /* 학생 행 저장 — 메모(F열)와 과제 확인(G열)을 항상 함께 */
 function saveStudent(nm){
   var w=week;
   var memo=((rec.notes[w]||{})[nm]||'').trim();
-  var arr=((rec.hwdone[w]||{})[nm]||[]);
+  var m=hwMapOf(w, nm);
   post({ action:'naeshinSet', period:period, classId:curClass.id, kind:'학생', week:String(w), student:nm,
-         text1: memo, text2: arr.length?JSON.stringify(arr):'' }, function(res){
+         text1: memo, text2: Object.keys(m).length?JSON.stringify(m):'' }, function(res){
     if(res && res.result==='success') setStatus(nm+' 저장');
     else setStatus(nm+' 저장 실패 — 다시 시도해 주세요');
   });
@@ -587,14 +662,16 @@ function openRpt(nm){
   weekOptions().forEach(function(w){
     var wk=rec.weeks[w]||{prog:'',hw:''};
     var note=(rec.notes[w]||{})[nm]||'';
-    var done=((rec.hwdone[w]||{})[nm])||[];
+    var done=hwMapOf(w, nm);
     if(!wk.prog && !wk.hw && !note && !unitsOfWeek(w).length) return;   // 기록 없는 주차는 생략
     var hwLines=lines(wk.hw);
     var hwHtml = hwLines.length
       ? hwLines.map(function(ln){
-          var ok=done.indexOf(ln)>=0;
-          return ok ? '<span style="color:var(--accent);font-weight:700;">✓</span> '+esc(ln)
-                    : '<span style="color:#B08A3E;font-weight:700;">·</span> '+esc(ln)+' <span style="font-size:11px;color:#B08A3E;">미확인</span>';
+          var v=done[ln];
+          if(v && v.x) return '<span style="color:#B4574E;font-weight:700;">✕</span> <s style="color:var(--ink-soft);">'+esc(ln)+'</s> <span style="font-size:11px;color:#B4574E;">미제출</span>';
+          if(v) return '<span style="color:var(--accent);font-weight:700;">✓</span> '+esc(ln)+
+                       ' <span style="font-size:11px;color:var(--ink-soft);">학습량 '+(v.a||0)+' · 깊이 '+(v.d||0)+'</span>';
+          return '<span style="color:#B08A3E;font-weight:700;">·</span> '+esc(ln)+' <span style="font-size:11px;color:#B08A3E;">미확인</span>';
         }).join('<br>')
       : esc(wk.hw);
     var units=unitsOfWeek(w);
