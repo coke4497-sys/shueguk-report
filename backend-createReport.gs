@@ -2501,20 +2501,22 @@ function getTimetable(book) {
       students: String(v[i][7] || '').trim().split(/\s+/).filter(String)
     });
   }
-  // 최근 1회 이동 (표시 기간 내) — 시간표에 '1회' 표시용
+  // 최근 1회 이동 — 오늘의 시간표 '1회' 표시용. 적용일(ymd) 기준 오늘 전후 TT_ONCE_DAYS 이내만.
+  // (기록일 기준으로 자르면 8일 이상 앞서 예약한 이동이 정작 당일에 목록에서 빠진다)
   var once = [];
   var lsh = ss.getSheetByName(TAB_TT_LOG);
   if (lsh) {
     var lv = lsh.getDataRange().getValues();
-    var cut = Date.now() - TT_ONCE_DAYS * 24 * 3600 * 1000;
+    var span = TT_ONCE_DAYS * 24 * 3600 * 1000, nowMs = Date.now();
     for (var j = 1; j < lv.length; j++) {
       if (String(lv[j][1] || '').trim() !== '1회') continue;
       if (ttBook_(lv[j][8]) !== book) continue;   // 기존 기록(9열 없음)은 '정규'로 취급
+      var aYmd = ttApplyYmd_(lv[j]);
+      var am = Date.parse(aYmd);
+      if (!am || Math.abs(am - nowMs) > span) continue;
       var d = lv[j][0];
-      var t = (d && d.getTime) ? d.getTime() : Date.parse(d);
-      if (!t || t < cut) continue;
       once.push({ row: j + 1, date: fmtCellDate_ ? fmtCellDate_(d) : String(d),
-        ymd: ttApplyYmd_(lv[j]),
+        ymd: aYmd,
         student: String(lv[j][2] || '').trim(),
         fromId: String(lv[j][3] || '').trim(), toId: String(lv[j][5] || '').trim(),
         reason: String(lv[j][7] || '').trim() });

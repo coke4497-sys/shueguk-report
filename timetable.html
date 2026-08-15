@@ -377,6 +377,11 @@ function todayStr(){
   var d = new Date();
   return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
 }
+/* 오늘 적용되는 1회 이동만 — 지난 날짜·미래 예약 이동은 제외 (1회 이동은 주차마다 독립) */
+function onceMovesToday(){
+  var t = todayStr();
+  return onceMoves.filter(function(o){ return !o.ymd || o.ymd === t; });
+}
 function todayDay(){ return ['일','월','화','수','목','금','토'][new Date().getDay()]; }
 function weekStartOf(d){
   // 그 날짜가 속한 월~일 달력 주의 '수요일' (월·화는 아직 오지 않은 이번 주 수요일)
@@ -887,8 +892,9 @@ function blockEl(c){
   b.setAttribute('data-cid', c.id);
   var awayOf = {};   // 이 반에서 1회 이동으로 빠진 학생 → {label, row}
   var temps = [];    // 이 반으로 1회 이동해 온 학생
-  // 오늘 보기는 '오늘 적용되는' 이동만 반영 (미래 예약 이동은 그 날짜에 나타남)
-  var srcOnce = (mode === 'today') ? onceMoves.filter(function(o){ return !o.ymd || o.ymd === todayStr(); }) : onceMoves;
+  // 오늘 보기는 '오늘 적용되는' 이동만 반영 (미래 예약 이동은 그 날짜에 나타남).
+  // 전체 시간표는 주차와 무관한 '기본값'이므로 1회 이동을 표시하지 않음 — 1회 이동은 오늘/주차별에서만.
+  var srcOnce = (mode === 'today') ? onceMovesToday() : [];
   srcOnce.forEach(function(o){
     if (o.fromId === c.id){ var t = classes.find(function(x){ return x.id===o.toId; }); awayOf[o.student.replace(/\(.*\)$/,'')] = { label: t ? labelOf(t) : '', row: o.row }; }
     if (o.toId === c.id) temps.push(o);
@@ -1560,7 +1566,7 @@ function toggleSelOne(cid, nm){
 }
 function toggleSelClass(c){
   var away = {}, temps = [];
-  onceMoves.forEach(function(o){
+  onceMovesToday().forEach(function(o){
     if (o.fromId === c.id) away[o.student.replace(/\(.*\)$/, '')] = true;
     if (o.toId === c.id) temps.push(o.student);
   });
@@ -1612,7 +1618,7 @@ function multiApply(status){
  * 아직 기록이 없는 학생을 모두 '출석'으로. 지각·결석 등 기존 기록은 유지. */
 function bulkAttend(c){
   var away = {}, temps = [];
-  onceMoves.forEach(function(o){
+  onceMovesToday().forEach(function(o){
     if (o.fromId === c.id) away[o.student.replace(/\(.*\)$/, '')] = true;
     if (o.toId === c.id) temps.push(o.student);
   });
