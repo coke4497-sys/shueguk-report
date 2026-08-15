@@ -176,8 +176,16 @@ body{font-family:'Noto Sans KR',sans-serif; background:var(--sage-fog); color:va
     </div>
     <div class="fld">
       <label>시험 제목 <span class="req">*</span></label>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:7px;">
+        <select id="f_school" onchange="composeTitle()" style="width:auto;flex:1;min-width:130px;"><option value="">학교 선택</option></select>
+        <select id="f_gradeN" onchange="composeTitle()" style="width:auto;flex:0 0 104px;">
+          <option value="">학년</option>
+          <option value="1">1학년</option><option value="2">2학년</option><option value="3">3학년</option>
+        </select>
+        <input type="text" id="f_subject" oninput="composeTitle()" placeholder="과목명 입력 (예: 화법과 작문)" autocomplete="off" style="width:auto;flex:1.4;min-width:150px;">
+      </div>
       <input type="text" id="f_title" placeholder="예) 26-1-중간-서정고3-화법과 작문" autocomplete="off">
-      <p class="hint">이 제목이 시험을 구분하는 기준입니다. 시험마다 겹치지 않게 정해주세요. 같은 제목으로 다시 저장하면 덮어써집니다(수정).</p>
+      <p class="hint">기간·학교·학년·과목을 고르면 제목이 자동으로 만들어져요. 필요하면 아래 제목을 직접 다듬어도 됩니다.<br>이 제목이 시험을 구분하는 기준입니다. 시험마다 겹치지 않게 정해주세요. 같은 제목으로 다시 저장하면 덮어써집니다(수정).</p>
     </div>
     <div class="fld">
       <label>학생 배정 <span class="req">*</span></label>
@@ -272,8 +280,37 @@ document.addEventListener('DOMContentLoaded',function(){
   if(inp){ inp.addEventListener('keydown',function(e){ if(e.key==='Enter'){ checkLock(); } }); }
   initPicker();      // 학생 배정 위젯 (공지와 동일)
   initPeriodChips();
+  loadSchoolList();
   maybeLoadEdit();   // ?id= 있으면 기존 리포트 수정 모드로 불러오기
 });
+
+/* ===== 제목 조합: 기간-학교학년-과목 (예: 26-2-중간-화정고1-공통국어2) ===== */
+function loadSchoolList(){
+  fetch(ENDPOINT + '?action=roster&t=' + Date.now())
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      var sel=document.getElementById('f_school');
+      if(!sel || !d || d.result!=='success') return;
+      var seen={}, schools=[];
+      (d.students||[]).forEach(function(s){ if(s.school && !seen[s.school]){ seen[s.school]=1; schools.push(s.school); } });
+      schools.sort(function(a,b){ return a.localeCompare(b,'ko'); });
+      sel.innerHTML='<option value="">학교 선택</option>'+schools.map(function(s){ return '<option>'+s.replace(/</g,'&lt;')+'</option>'; }).join('');
+    }).catch(function(){});
+}
+function composeTitle(){
+  var t=document.getElementById('f_title');
+  if(t.readOnly) return;   // 수정 모드: 제목 변경 불가
+  var p=periodOf(t.value);
+  var school=document.getElementById('f_school').value;
+  var gradeN=document.getElementById('f_gradeN').value;
+  var subject=document.getElementById('f_subject').value.trim();
+  var parts=[];
+  if(p) parts.push(p);
+  if(school) parts.push(school+(gradeN||''));
+  if(subject) parts.push(subject);
+  t.value=parts.join('-');
+  syncPeriodChips();
+}
 
 /* ===== 시험 기간 선택 (26-1-중간 등 — 제목 접두어로 통일) ===== */
 function periodOf(title){ var m=String(title||'').match(/^(\d{2}-[12]-(?:중간|기말))/); return m?m[1]:''; }
@@ -737,6 +774,7 @@ function prefillForm(d, id){
   SUPPRESS_SCROLL=true;
   var t=document.getElementById('f_title');
   t.value=d.title||id; t.readOnly=true; t.style.background='#EEF2EF';
+  ['f_school','f_gradeN','f_subject'].forEach(function(x){ var el=document.getElementById(x); if(el) el.disabled=true; });
   if (typeof syncPeriodChips==='function') syncPeriodChips();
   var titleHint=t.parentNode.querySelector('.hint');
   if(titleHint) titleHint.innerHTML='수정 모드에서는 제목(시험 구분 기준)을 바꿀 수 없습니다. 다른 항목만 수정하세요.';
