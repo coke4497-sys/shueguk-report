@@ -556,10 +556,16 @@ function removeUnit(it){
 /* 학생별 과제 확인 토글 */
 /* 과제 기록 — 학생별 { '과제명': {a:학습량0~5, d:학습깊이0~5, x:미제출} } .
  * 옛 형식(과제명 배열)은 읽을 때 자동 변환. */
-function hwMapOf(w, nm){
+function hwMapOf(w, nm){          // 읽기용 — 없으면 빈 객체
   var m=(rec.hwdone[w]||{})[nm];
   if(Array.isArray(m)){ var o={}; m.forEach(function(it){ o[it]={a:0,d:0}; }); (rec.hwdone[w]=rec.hwdone[w]||{})[nm]=o; return o; }
   return m||{};
+}
+function hwMapEnsure(w, nm){     // 쓰기용 — rec 안에 실제로 자리를 만들고 그 객체를 돌려준다
+  var wk = rec.hwdone[w] = rec.hwdone[w] || {};
+  var m = wk[nm];
+  if(Array.isArray(m)){ var o={}; m.forEach(function(it){ o[it]={a:0,d:0}; }); return (wk[nm]=o); }
+  return (wk[nm] = m || {});
 }
 var HW_CUR=null;   // {nm, it}
 function openHw(nm, it){
@@ -590,7 +596,7 @@ function renderHwBox(){
 }
 function hwBoxClick(kind, val){
   if(kind==='close'){ closeHw(); return; }
-  var m=hwMapOf(week, HW_CUR.nm);
+  var m=hwMapEnsure(week, HW_CUR.nm);
   if(kind==='clear'){ delete m[HW_CUR.it]; }
   else {
     var v=m[HW_CUR.it]=m[HW_CUR.it]||{a:0,d:0};
