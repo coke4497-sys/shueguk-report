@@ -439,10 +439,10 @@ function doGet(e) {
     if (String(p.pw || '') !== TEACHER_PW) return json({ result:'error', message:'unauthorized' });
     return getTtMemoList(p.from, p.to);
   }
-  // 내신 대비 기록 조회 (naeshin.html) — 비밀번호 필요. ?action=naeshinGet&period=26-2-중간&classId=n001
+  // 내신 대비 기록 조회 (naeshin.html) — 비밀번호 필요. ?action=naeshinGet&period=26-2-중간&classId=n001[&scopeKey=공유:고1|화정]
   if (p.action === 'naeshinGet') {
     if (String(p.pw || '') !== TEACHER_PW) return json({ result:'error', message:'unauthorized' });
-    return getNaeshin(p.period, p.classId);
+    return getNaeshin(p.period, p.classId, p.scopeKey);
   }
   // 별 보너스 로그(관리용) — 비밀번호 필요
   // 슈퍼스타 TOP 10 순위 — 전 재원생 별 집계 (비밀번호 필요)
@@ -3073,22 +3073,33 @@ function naeshinSheet_(ss) {
   }
   return sh;
 }
-function getNaeshin(period, classId) {
+function getNaeshin(period, classId, scopeKey) {
   period = String(period || '').trim(); classId = String(classId || '').trim();
+  scopeKey = String(scopeKey || '').trim();
   if (!period || !classId) return json({ result:'error', message:'기간과 반이 필요합니다.' });
   var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(TAB_NAESHIN);
-  var scope = '', weeks = {}, notes = {};
+  // 시험범위는 학교·학년 공유 키(scopeKey)로 저장 — 같은 학교·학년의 병렬 반이 한 번만 입력하면 되게.
+  // 공유 키 행이 없으면 반 단위(옛 기록)로 대체.
+  var scope = '', scopeShared = null, scopeLegacy = null, weeks = {}, notes = {};
   if (sh) {
     var v = sh.getDataRange().getValues();
     for (var i = 1; i < v.length; i++) {
-      if (String(v[i][0] || '').trim() !== period || String(v[i][1] || '').trim() !== classId) continue;
+      if (String(v[i][0] || '').trim() !== period) continue;
+      var b = String(v[i][1] || '').trim();
       var kind = String(v[i][2] || '').trim();
       var wk = String(v[i][3] || '').trim();
-      if (kind === '범위') scope = { f: String(v[i][5] || ''), g: String(v[i][6] || '') };
-      else if (kind === '주차') weeks[wk] = { prog: String(v[i][5] || ''), hw: String(v[i][6] || '') };
+      if (kind === '범위') {
+        var sv = { f: String(v[i][5] || ''), g: String(v[i][6] || '') };
+        if (scopeKey && b === scopeKey) scopeShared = sv;
+        else if (b === classId) scopeLegacy = sv;
+        continue;
+      }
+      if (b !== classId) continue;
+      if (kind === '주차') weeks[wk] = { prog: String(v[i][5] || ''), hw: String(v[i][6] || '') };
       else if (kind === '학생') { (notes[wk] = notes[wk] || {})[String(v[i][4] || '').trim()] = String(v[i][5] || ''); }
     }
   }
+  scope = scopeShared || scopeLegacy || '';
   // 시험범위 — 세분화(F열 JSON: book/inRange/extra/outRange) 또는 옛 단일 문자열 둘 다 지원.
   // scope는 읽기 좋은 문자열(G열 우선), scopeParts는 세분화 값.
   var scopeText = '', scopeParts = null;
@@ -3105,11 +3116,13 @@ function getNaeshin(period, classId) {
   }
   return json({ result:'success', period: period, classId: classId, scope: scopeText, scopeParts: scopeParts, weeks: weeks, notes: notes });
 }
-/** 저장(덮어쓰기). { pw, period, classId, kind(범위/주차/학생), week, student, text1, text2 } */
+/** 저장(덮어쓰기). { pw, period, classId, kind(범위/주차/학생), week, student, text1, text2, scopeKey }
+ *  kind '범위'는 scopeKey(학교·학년 공유 키)가 오면 그 키로 저장해 병렬 반과 공유한다. */
 function naeshinSet(data) {
   if (String(data.pw || '') !== TEACHER_PW) return json({ result:'error', message:'unauthorized' });
   var period = String(data.period || '').trim(), classId = String(data.classId || '').trim();
   var kind = String(data.kind || '').trim();
+  if (kind === '범위' && String(data.scopeKey || '').trim()) classId = String(data.scopeKey).trim();
   var week = String(data.week || '').trim(), student = String(data.student || '').trim();
   var t1 = String(data.text1 == null ? '' : data.text1).trim();
   var t2 = String(data.text2 == null ? '' : data.text2).trim();
