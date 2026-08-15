@@ -49,6 +49,31 @@
   .cls-head small{color:var(--ink-soft); font-size:12.5px;}
   .empty{text-align:center; color:var(--ink-soft); font-size:13.5px; padding:26px 0;}
   .dot{font-size:11.5px; color:var(--ink-soft); margin-left:6px;}
+  .stu-row .rpt-btn{flex:0 0 auto; font:inherit; font-size:12px; padding:6px 10px; margin-top:3px;
+    border:1.5px solid var(--line); border-radius:8px; background:#fff; color:var(--accent); cursor:pointer; white-space:nowrap;}
+  .stu-row .rpt-btn:hover{border-color:var(--accent);}
+
+  /* ── 학습 보고서 (캡쳐용 한 장) ── */
+  .rpt-wrap{position:fixed; inset:0; background:rgba(42,51,47,.45); overflow-y:auto; z-index:50; display:none; padding:16px 10px 40px;}
+  .rpt-bar{max-width:640px; margin:0 auto 10px; display:flex; justify-content:space-between; align-items:center; gap:10px;}
+  .rpt-bar small{color:#fff; font-size:12.5px;}
+  .rpt-bar button{font:inherit; font-size:13px; padding:8px 16px; border:none; border-radius:10px; background:#fff; color:var(--ink); cursor:pointer;}
+  .rpt{max-width:640px; margin:0 auto; background:#fff; border-radius:14px; padding:30px 30px 24px; color:var(--ink);}
+  .rpt .brand{font-family:'Gowun Batang',serif; font-size:13px; color:var(--accent); letter-spacing:.06em; text-align:center;}
+  .rpt h2{font-family:'Gowun Batang',serif; font-size:21px; text-align:center; margin:6px 0 2px;}
+  .rpt .who{text-align:center; font-size:14px; color:var(--ink-soft); margin-bottom:16px;}
+  .rpt .who b{color:var(--ink); font-size:16px;}
+  .rpt .box{border:1.5px solid var(--line); border-radius:12px; padding:12px 14px; margin-bottom:12px;}
+  .rpt .box .bt{font-family:'Gowun Batang',serif; font-size:13px; color:var(--accent); font-weight:700; margin-bottom:5px;}
+  .rpt .box .bc{font-size:13.5px; line-height:1.65; white-space:pre-wrap;}
+  .rpt .wk{border:1.5px solid var(--line-soft); border-radius:12px; padding:11px 14px; margin-bottom:9px;}
+  .rpt .wk .wt{font-family:'Gowun Batang',serif; font-size:13.5px; font-weight:700; color:var(--accent); margin-bottom:6px;}
+  .rpt .wk .row{display:flex; gap:8px; font-size:13px; line-height:1.6; margin-bottom:3px;}
+  .rpt .wk .row span:first-child{flex:0 0 52px; color:var(--ink-soft);}
+  .rpt .wk .row span:last-child{white-space:pre-wrap; flex:1;}
+  .rpt .wk .note{background:var(--icon-bg); border-radius:9px; padding:8px 11px; margin-top:6px; font-size:13px; line-height:1.6; white-space:pre-wrap;}
+  .rpt .wk .note b{font-size:12px; color:var(--accent); display:block; margin-bottom:2px;}
+  .rpt .foot{text-align:center; font-family:'Gowun Batang',serif; font-size:12px; color:var(--ink-soft); margin-top:16px; padding-top:12px; border-top:1.5px solid var(--line-soft);}
 </style>
 </head>
 <body>
@@ -72,6 +97,16 @@
 
   <div id="panel"></div>
 </div>
+
+<!-- 학습 보고서 (캡쳐용) -->
+<div class="rpt-wrap" id="rpt-wrap" onclick="if(event.target===this)closeRpt()">
+  <div class="rpt-bar">
+    <small>아래 카드를 화면 캡쳐해서 전달하세요</small>
+    <button type="button" onclick="closeRpt()">닫기</button>
+  </div>
+  <div class="rpt" id="rpt-card"></div>
+</div>
+
 <div class="status" id="status"></div>
 
 <script>
@@ -194,7 +229,8 @@ function renderWeek(){
       '<label>학생별 과제 수행 / 질문 사항 <span class="dot">칸을 벗어나면 자동 저장</span></label>'+
       stus.map(function(nm,i){
         return '<div class="stu-row"><b>'+esc(nm)+'</b>'+
-          '<textarea data-nm="'+esc(nm)+'" onblur="saveNote(this)" placeholder="예) 아 -1 / 문법 덜풀고 안가져옴">'+esc(notes[nm]||'')+'</textarea></div>';
+          '<textarea data-nm="'+esc(nm)+'" onblur="saveNote(this)" placeholder="예) 아 -1 / 문법 덜풀고 안가져옴">'+esc(notes[nm]||'')+'</textarea>'+
+          '<button type="button" class="rpt-btn" onclick="openRpt(\''+esc(nm)+'\')" title="이 학생의 내신 대비 학습 보고서 (캡쳐용)">보고서</button></div>';
       }).join('')+
     '</div>';
 }
@@ -224,6 +260,35 @@ function saveNote(el){
     else setStatus(nm+' 메모 저장 실패 — 다시 시도해 주세요');
   });
 }
+
+/* ── 학생별 학습 보고서 (캡쳐용 한 장) ── */
+function openRpt(nm){
+  var c=curClass; if(!c) return;
+  var today=new Date();
+  var dstr=today.getFullYear()+'년 '+(today.getMonth()+1)+'월 '+today.getDate()+'일';
+  var wkHtml='';
+  WEEKS.forEach(function(w){
+    var wk=rec.weeks[w]||{prog:'',hw:''};
+    var note=(rec.notes[w]||{})[nm]||'';
+    if(!wk.prog && !wk.hw && !note) return;   // 기록 없는 주차는 생략
+    wkHtml += '<div class="wk"><div class="wt">'+w+'주차</div>'+
+      (wk.prog ? '<div class="row"><span>수업 진도</span><span>'+esc(wk.prog)+'</span></div>' : '')+
+      (wk.hw   ? '<div class="row"><span>과제</span><span>'+esc(wk.hw)+'</span></div>' : '')+
+      (note    ? '<div class="note"><b>'+esc(nm)+' 학생 기록</b>'+esc(note)+'</div>' : '')+
+      '</div>';
+  });
+  if(!wkHtml) wkHtml='<div class="wk"><div class="row"><span></span><span>아직 주차별 기록이 없습니다.</span></div></div>';
+  $('rpt-card').innerHTML =
+    '<p class="brand">이수경국어 · SHUEGUK</p>'+
+    '<h2>내신 대비 학습 보고서</h2>'+
+    '<p class="who"><b>'+esc(nm)+'</b> · '+esc(c.cls)+' · '+esc(c.teacher)+'T<br>'+esc(period)+' 대비</p>'+
+    (rec.scope ? '<div class="box"><div class="bt">시험범위</div><div class="bc">'+esc(rec.scope)+'</div></div>' : '')+
+    wkHtml+
+    '<p class="foot">'+dstr+' · 이수경국어</p>';
+  $('rpt-wrap').style.display='block';
+  window.scrollTo(0,0);
+}
+function closeRpt(){ $('rpt-wrap').style.display='none'; }
 
 /* ── 지필 리포트 제작으로 (시험범위 연동) ── */
 function goReport(){
