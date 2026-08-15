@@ -170,6 +170,11 @@ body{font-family:'Noto Sans KR',sans-serif; background:var(--sage-fog); color:va
     <!-- 1. 제목 / 시험 ID -->
     <h2 class="sec-h"><span class="step">1</span>제목</h2>
     <div class="fld">
+      <label>시험 기간 <span class="req">*</span></label>
+      <div id="periodChips" style="display:flex;gap:7px;flex-wrap:wrap;margin:2px 0 4px;"></div>
+      <p class="hint">기간을 고르면 제목 앞에 자동으로 붙습니다. 학생·선생님 화면에서 이 기간으로 먼저 골라 들어가게 됩니다.</p>
+    </div>
+    <div class="fld">
       <label>시험 제목 <span class="req">*</span></label>
       <input type="text" id="f_title" placeholder="예) 26-1-중간-서정고3-화법과 작문" autocomplete="off">
       <p class="hint">이 제목이 시험을 구분하는 기준입니다. 시험마다 겹치지 않게 정해주세요. 같은 제목으로 다시 저장하면 덮어써집니다(수정).</p>
@@ -266,8 +271,46 @@ document.addEventListener('DOMContentLoaded',function(){
   var inp=document.getElementById('lockInput');
   if(inp){ inp.addEventListener('keydown',function(e){ if(e.key==='Enter'){ checkLock(); } }); }
   initPicker();      // 학생 배정 위젯 (공지와 동일)
+  initPeriodChips();
   maybeLoadEdit();   // ?id= 있으면 기존 리포트 수정 모드로 불러오기
 });
+
+/* ===== 시험 기간 선택 (26-1-중간 등 — 제목 접두어로 통일) ===== */
+function periodOf(title){ var m=String(title||'').match(/^(\d{2}-[12]-(?:중간|기말))/); return m?m[1]:''; }
+function periodOptions(){
+  var yy = new Date().getFullYear()%100;
+  var out=[];
+  [yy, yy+1].forEach(function(y){ ['1-중간','1-기말','2-중간','2-기말'].forEach(function(s){ out.push(y+'-'+s); }); });
+  return out;
+}
+function initPeriodChips(){
+  var box=document.getElementById('periodChips'); if(!box) return;
+  box.innerHTML = periodOptions().map(function(p){
+    return '<button type="button" class="period-chip" data-p="'+p+'" onclick="pickPeriod(this)" '+
+      'style="font:inherit;font-size:13.5px;padding:8px 13px;border:1.5px solid var(--line);border-radius:20px;background:#fff;cursor:pointer;color:var(--ink-mid);">'+p+'</button>';
+  }).join('');
+  var t=document.getElementById('f_title');
+  t.addEventListener('input', function(){ syncPeriodChips(); });
+  syncPeriodChips();
+}
+function pickPeriod(btn){
+  var t=document.getElementById('f_title'); if(t.readOnly) return;   // 수정 모드에서는 제목 변경 불가
+  var p=btn.getAttribute('data-p');
+  var rest=t.value.replace(/^\d{2}-[12]-(?:중간|기말)-?/,'');
+  t.value = p + (rest ? '-'+rest.replace(/^-/,'') : '-');
+  syncPeriodChips();
+  t.focus();
+}
+function syncPeriodChips(){
+  var cur=periodOf(document.getElementById('f_title').value);
+  document.querySelectorAll('#periodChips .period-chip').forEach(function(b){
+    var on=b.getAttribute('data-p')===cur;
+    b.style.background=on?'var(--sage-deep)':'#fff';
+    b.style.color=on?'#fff':'var(--ink-mid)';
+    b.style.borderColor=on?'var(--sage-deep)':'var(--line)';
+    b.style.fontWeight=on?'700':'400';
+  });
+}
 
 /* ===== 학생 배정 위젯 (공지·H WORK와 동일한 StudentPicker) ===== */
 var assignPicker=null, assignSel=null, pickerInited=false;
@@ -525,6 +568,7 @@ function collect(){
 /* 블록 단위 구조 검증 (정확한 안내용) */
 function validateForm(data){
   if(!data.title){ document.getElementById('f_title').focus(); return '시험 제목을 입력해주세요.'; }
+  if(!EDIT_MODE && !periodOf(data.title)){ document.getElementById('f_title').focus(); return '시험 기간을 먼저 골라주세요 (제목이 26-1-중간 같은 기간으로 시작해야 해요).'; }
   var sel = assignSel || (assignPicker && assignPicker.getSelection());
   if(!sel && !EDIT_MODE){ return '이 시험을 볼 학생을 배정해주세요. (전 학년 / 학년 / 개인 / 일부 중 선택)'; }
   var blocks=document.querySelectorAll('#blockList > .block');
@@ -693,6 +737,7 @@ function prefillForm(d, id){
   SUPPRESS_SCROLL=true;
   var t=document.getElementById('f_title');
   t.value=d.title||id; t.readOnly=true; t.style.background='#EEF2EF';
+  if (typeof syncPeriodChips==='function') syncPeriodChips();
   var titleHint=t.parentNode.querySelector('.hint');
   if(titleHint) titleHint.innerHTML='수정 모드에서는 제목(시험 구분 기준)을 바꿀 수 없습니다. 다른 항목만 수정하세요.';
   var apHint=document.getElementById('assignPicker').parentNode.querySelector('.hint');

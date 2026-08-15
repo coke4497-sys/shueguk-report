@@ -128,6 +128,9 @@
   var inited=false, REPORTS=[], ASSIGN={};
   function init(){ if(inited) return; inited=true; loadAll(); }
 
+  /* 시험 기간 접두어 (26-1-중간 등) */
+  function periodOf(title){ var m=String(title||'').match(/^(\d{2}-[12]-(?:중간|기말))/); return m?m[1]:''; }
+
   /* ===== 목록 로드: 리포트 목록 + 현재 배정 ===== */
   function loadAll(){
     var box=document.getElementById('list');
@@ -144,7 +147,22 @@
         asg.assignments.forEach(function(a){ if(a.item){ ASSIGN[a.item] = { type:a.type||'', target:a.target||'' }; } });
       }
       if(!REPORTS.length){ box.innerHTML='<div class="mgr-empty">등록된 리포트가 없어요.<br>먼저 ‘지필고사 리포트 제작’에서 만들어 주세요.</div>'; return; }
-      box.innerHTML = REPORTS.map(renderItem).join('');
+      // 시험 기간(26-1-중간 등)별로 묶어 최근 기간부터 표시
+      var groups={}, order=[];
+      REPORTS.forEach(function(rep){
+        var p=periodOf(rep.title||rep.id)||'기간 없음';
+        if(!groups[p]){ groups[p]=[]; order.push(p); }
+        groups[p].push(rep);
+      });
+      order.sort(function(a,b){
+        if(a==='기간 없음') return 1;
+        if(b==='기간 없음') return -1;
+        return a<b?1:(a>b?-1:0);
+      });
+      box.innerHTML = order.map(function(p){
+        return '<h3 style="font-family:\'Gowun Batang\',serif;font-size:14.5px;color:#4C6E66;margin:16px 2px 8px;padding-bottom:5px;border-bottom:1.5px solid #D7E3DD;">'+esc(p)+' <span style="font-weight:400;color:#8B928C;font-size:12.5px;">'+groups[p].length+'개</span></h3>'+
+               groups[p].map(renderItem).join('');
+      }).join('');
     }).catch(function(){ box.innerHTML='<div class="mgr-empty">불러오지 못했어요. 인터넷을 확인해 주세요.</div>'; });
   }
 

@@ -143,6 +143,10 @@ body{font-family:'Noto Sans KR',sans-serif; background:var(--sage-fog); color:va
     <h1>SHUEGUK 지필고사 REPORT 제작</h1>
     <p class="desc">시험을 고르고 학생을 선택하면, 학생이 제출한 분석에 '선생님의 한 마디'를 더해 학부모용 보고서가 만들어집니다. PDF로 저장해 공유하세요.</p>
     <div class="ctl-row">
+      <div class="ctl" style="flex:0 0 160px;">
+        <label>시험 기간</label>
+        <select id="periodSel" onchange="fillReportSel()"><option value="">전체</option></select>
+      </div>
       <div class="ctl">
         <label>시험 선택</label>
         <select id="reportSel" onchange="onReportChange()"><option value="">— 보고서를 불러오는 중... —</option></select>
@@ -318,7 +322,39 @@ function openBlankSheet(){
   window.open('r.html?id=' + encodeURIComponent(rid) + '&blank=1', '_blank');
 }
 
-// 페이지 열릴 때 보고서 목록 불러와 드롭다운 채우기
+// 페이지 열릴 때 보고서 목록 불러와 드롭다운 채우기 — 시험 기간(26-1-중간 등)으로 먼저 거른 뒤 세부 시험 선택
+var ALL_REPORTS = [];
+function periodOf(title){ var m=String(title||'').match(/^(\d{2}-[12]-(?:중간|기말))/); return m?m[1]:''; }
+function fillPeriodSel(){
+  var ps = document.getElementById('periodSel');
+  var seen = {}, periods = [], hasEtc = false;
+  ALL_REPORTS.forEach(function(rp){
+    var p = periodOf(rp.title || rp.id);
+    if(!p){ hasEtc = true; return; }
+    if(!seen[p]){ seen[p] = true; periods.push(p); }
+  });
+  periods.sort().reverse();   // 최근 기간 먼저
+  ps.innerHTML = '<option value="">전체</option>' +
+    periods.map(function(p){ return '<option value="'+esc(p)+'">'+esc(p)+'</option>'; }).join('') +
+    (hasEtc ? '<option value="__etc__">기간 없음</option>' : '');
+  if(periods.length) ps.value = periods[0];   // 기본: 가장 최근 기간
+}
+function fillReportSel(){
+  var sel = document.getElementById('reportSel');
+  var p = document.getElementById('periodSel').value;
+  var reps = ALL_REPORTS.filter(function(rp){
+    var rp_p = periodOf(rp.title || rp.id);
+    if(!p) return true;
+    if(p === '__etc__') return !rp_p;
+    return rp_p === p;
+  });
+  sel.innerHTML = '<option value="">— 시험을 선택하세요 —</option>' +
+    reps.map(function(rp){
+      var label = rp.title ? rp.title : rp.id;
+      return '<option value="'+esc(rp.id)+'">'+esc(label)+'</option>';
+    }).join('');
+  setStatus('시험을 선택하면 제출 학생을 불러옵니다.');
+}
 function loadReportList(){
   setStatus('보고서 목록을 불러오는 중...');
   var sel = document.getElementById('reportSel');
@@ -328,18 +364,20 @@ function loadReportList(){
       setStatus("'보고서목록' 탭에 보고서를 먼저 등록해주세요.");
       return;
     }
-    sel.innerHTML = '<option value="">— 시험을 선택하세요 —</option>' +
-      d.reports.map(function(rp){
-        var label = rp.title ? rp.title : rp.id;
-        return '<option value="'+esc(rp.id)+'">'+esc(label)+'</option>';
-      }).join('');
-    // URL ?id= 로 들어온 경우 자동 선택 + 학생 불러오기
+    ALL_REPORTS = d.reports;
+    fillPeriodSel();
+    fillReportSel();
+    // URL ?id= 로 들어온 경우 자동 선택 + 학생 불러오기 (그 시험의 기간으로 맞춰서)
     if(PRESELECT){
+      var hit = ALL_REPORTS.filter(function(rp){ return String(rp.id)===String(PRESELECT); })[0];
+      if(hit){
+        var pp = periodOf(hit.title || hit.id);
+        document.getElementById('periodSel').value = pp || '__etc__';
+        fillReportSel();
+      }
       sel.value = PRESELECT;
       if(sel.value){ onReportChange(); }
       PRESELECT = '';
-    } else {
-      setStatus('시험을 선택하면 제출 학생을 불러옵니다.');
     }
   }).catch(function(){ setStatus('보고서 목록을 불러오지 못했어요. 인터넷을 확인해주세요.'); });
 }
