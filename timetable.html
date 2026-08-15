@@ -191,10 +191,12 @@
   .blk .stus button.away{opacity:.5;}
   .blk .stus button.away em{font-style:normal;font-size:.66rem;color:var(--accent);margin-left:3px;}
   .blk .empty-note{color:var(--ink-soft);font-size:.72rem;}
-  .blk .btns{display:flex;gap:2px;margin:0 0 4px;flex-wrap:wrap;}
-  .blk .bbtn{font:inherit;font-size:.62rem;background:rgba(255,255,255,.7);border:1px solid rgba(0,0,0,.12);
-    border-radius:7px;padding:1px 5px;cursor:pointer;color:var(--ink-soft);white-space:nowrap;flex:none;}
-  .blk .bbtn:hover{border-color:var(--accent);color:var(--accent);}
+  /* 도구 버튼(전체 출석·숙제 검사 등)은 세이지 채움 + 아래 구분선 — 학생 이름 칩(흰 배경)과 구분 */
+  .blk .btns{display:flex;gap:3px;margin:0 0 4px;flex-wrap:wrap;padding-bottom:4px;
+    border-bottom:1px dashed rgba(76,110,102,.4);}
+  .blk .bbtn{font:inherit;font-size:.62rem;background:var(--accent);border:1px solid var(--accent);
+    border-radius:7px;padding:1px 6px;cursor:pointer;color:#fff;white-space:nowrap;flex:none;}
+  .blk .bbtn:hover{background:var(--btn);border-color:var(--btn);}
   .blk a.bbtn{text-decoration:none;display:inline-block;}
   body.moving .blk .btns{visibility:hidden;}
   .cell{border-top:1px dotted #BFCFC9;}
@@ -944,7 +946,7 @@ function blockEl(c){
   var btnRow = (mode === 'today')
     ? '<div class="btns"><button class="bbtn attall" title="기록 없는 학생을 모두 출석 처리">전체 출석</button>' +
       '<a class="bbtn" href="hwcheck.html?slot=' + encodeURIComponent(c.day + c.start) + '&cid=' + encodeURIComponent(c.id) + '" target="_blank" rel="noopener"' +
-      ' onclick="event.stopPropagation()" title="이 시간대의 숙제 검사로 이동">숙제 검사</a></div>'
+      ' onclick="event.stopPropagation()" title="이 반의 숙제 검사로 이동">숙제 검사</a></div>'
     : '';   // 편집 기능은 상단 편집 도구줄에서
   b.innerHTML = '<div class="bt"><span class="nm">'+esc(c.cls)+'</span>'+
                 '<small>'+esc(c.start)+'~'+esc(c.end)+' · '+c.students.length+'명</small></div>'+
