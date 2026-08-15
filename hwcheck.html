@@ -286,6 +286,15 @@ function setStatus(msg, isErr){
 function cacheGet(k){ try { var v = JSON.parse(localStorage.getItem('hwc:' + k) || 'null'); return v && v.d; } catch(e){ return null; } }
 function cacheSet(k, d){ try { localStorage.setItem('hwc:' + k, JSON.stringify({ t: Date.now(), d: d })); } catch(e){} }
 
+/* 시간표에서 [숙제 검사] 버튼으로 넘어온 경우 — 주소의 시간대를 자동 선택 */
+function applyUrlSlot(){
+  var p = new URLSearchParams(location.search).get('slot');
+  if (!p) return;
+  var v = slotNorm(p), sel = $('f-slot');
+  for (var i = 0; i < sel.options.length; i++){
+    if (sel.options[i].value === v){ sel.value = v; rebuildFilters(); break; }
+  }
+}
 function boot(){
   // 캐시된 명단이 있으면 즉시 화면부터
   var cr = cacheGet('roster');
@@ -295,6 +304,7 @@ function boot(){
     $('gate').style.display = 'none';
     $('bar').style.display = 'block';
     buildTypeValues();
+    applyUrlSlot();
     loadWeek();
     painted = true;
   }
@@ -316,6 +326,7 @@ function boot(){
       $('gate').style.display = 'none';
       $('bar').style.display = 'block';   // CSS 기본값이 display:none이라 ''로는 안 보임
       buildTypeValues();
+      if (!painted) applyUrlSlot();
       if (painted) render(); else loadWeek();   // 이미 주차 로딩을 시작했으면 목록만 갱신
       setTimeout(refreshPlansBadge, 4000);   // 대책 뱃지는 잠시 뒤에 — 첫 화면 요청과 겹치지 않게
     })

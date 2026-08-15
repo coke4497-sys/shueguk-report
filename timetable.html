@@ -195,6 +195,7 @@
   .blk .bbtn{font:inherit;font-size:.62rem;background:rgba(255,255,255,.7);border:1px solid rgba(0,0,0,.12);
     border-radius:7px;padding:1px 5px;cursor:pointer;color:var(--ink-soft);white-space:nowrap;flex:none;}
   .blk .bbtn:hover{border-color:var(--accent);color:var(--accent);}
+  .blk a.bbtn{text-decoration:none;display:inline-block;}
   body.moving .blk .btns{visibility:hidden;}
   .cell{border-top:1px dotted #BFCFC9;}
   .tlab{border-top:1px dotted #BFCFC9;}
@@ -933,7 +934,9 @@ function blockEl(c){
   }
   if (!chips) chips = '<span class="empty-note">비어 있음</span>';
   var btnRow = (mode === 'today')
-    ? '<div class="btns"><button class="bbtn attall" title="기록 없는 학생을 모두 출석 처리">전체 출석</button></div>'
+    ? '<div class="btns"><button class="bbtn attall" title="기록 없는 학생을 모두 출석 처리">전체 출석</button>' +
+      '<a class="bbtn" href="hwcheck.html?slot=' + encodeURIComponent(c.day + c.start) + '" target="_blank" rel="noopener"' +
+      ' onclick="event.stopPropagation()" title="이 시간대의 숙제 검사로 이동">숙제 검사</a></div>'
     : '';   // 편집 기능은 상단 편집 도구줄에서
   b.innerHTML = '<div class="bt"><span class="nm">'+esc(c.cls)+'</span>'+
                 '<small>'+esc(c.start)+'~'+esc(c.end)+' · '+c.students.length+'명</small></div>'+
