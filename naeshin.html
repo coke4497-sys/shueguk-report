@@ -37,7 +37,8 @@
   .wtabs button.on.has{color:#fff;}
   .stu{border-top:1px dashed var(--line); padding:10px 0 2px; margin-top:10px;}
   .stu-row{display:flex; gap:10px; align-items:flex-start; padding:7px 0; border-bottom:1px solid var(--line-soft);}
-  .stu-row b{flex:0 0 92px; font-size:14px; padding-top:9px;}
+  .stu-id{flex:0 0 96px; display:flex; flex-direction:column; align-items:flex-start; gap:6px; padding-top:6px;}
+  .stu-id b{font-size:14px;}
   .stu-no{display:inline-block; min-width:20px; text-align:center; font-size:11.5px; font-weight:700;
     color:var(--accent); background:var(--icon-bg); border-radius:6px; padding:2px 0; margin-right:2px;}
   .stu-row textarea{min-height:38px; font-size:13.5px;}
@@ -51,9 +52,9 @@
   .cls-head small{color:var(--ink-soft); font-size:12.5px;}
   .empty{text-align:center; color:var(--ink-soft); font-size:13.5px; padding:26px 0;}
   .dot{font-size:11.5px; color:var(--ink-soft); margin-left:6px;}
-  .stu-row .rpt-btn{flex:0 0 auto; font:inherit; font-size:12px; padding:6px 10px; margin-top:3px;
+  .stu-row .rpt-btn{font:inherit; font-size:11px; font-weight:700; letter-spacing:.05em; padding:4px 10px;
     border:1.5px solid var(--line); border-radius:8px; background:#fff; color:var(--accent); cursor:pointer; white-space:nowrap;}
-  .stu-row .rpt-btn:hover{border-color:var(--accent);}
+  .stu-row .rpt-btn:hover{background:var(--accent); border-color:var(--accent); color:#fff;}
 
   /* ── 학습 보고서 (캡쳐용 한 장) ── */
   .rpt-wrap{position:fixed; inset:0; background:rgba(42,51,47,.45); overflow-y:auto; z-index:50; display:none; padding:16px 10px 40px;}
@@ -275,10 +276,12 @@ function renderWeek(){
     '<div class="savebar"><button type="button" class="act" onclick="saveWeek()">진도·과제 저장</button></div>'+
     '<div class="stu">'+
       '<label>학생별 과제 수행 / 질문 사항 <span class="dot">칸을 벗어나면 자동 저장</span></label>'+
+      '<p style="font-size:12px;color:var(--ink-soft);margin:0 0 6px;line-height:1.6;"><b style="color:var(--accent);">REPORT</b> — 시험 기간이 시작된 이후 학생의 피드백 내용을 종합하여 기록합니다. 상담시 참고할 수 있습니다.</p>'+
       stus.map(function(nm,i){
-        return '<div class="stu-row"><b><span class="stu-no">'+(i+1)+'</span> '+esc(nm)+'</b>'+
-          '<textarea data-nm="'+esc(nm)+'" onblur="saveNote(this)" placeholder="예) 나는 오늘: 8, 문법 덜 풀고 안가져옴, 오마이갓,,,, 숙제 깜빡했다고 함, 똑똑이임">'+esc(notes[nm]||'')+'</textarea>'+
-          '<button type="button" class="rpt-btn" onclick="openRpt(\''+esc(nm)+'\')" title="이 학생의 내신 대비 학습 보고서 (캡쳐용)">보고서</button></div>';
+        return '<div class="stu-row">'+
+          '<div class="stu-id"><b><span class="stu-no">'+(i+1)+'</span> '+esc(nm)+'</b>'+
+          '<button type="button" class="rpt-btn" onclick="openRpt(\''+esc(nm)+'\')" title="이 학생의 내신 대비 학습 보고서 (캡쳐용)">REPORT</button></div>'+
+          '<textarea data-nm="'+esc(nm)+'" onblur="saveNote(this)" placeholder="예) 나는 오늘: 8, 문법 덜 풀고 안가져옴, 오마이갓,,,, 숙제 깜빡했다고 함, 똑똑이임">'+esc(notes[nm]||'')+'</textarea></div>';
       }).join('')+
     '</div>';
 }
