@@ -444,8 +444,19 @@ function matchBase_(s, upTo){
   if (upTo === 'school') return true;
   if (upTo !== 'teacher' && tc && String(s.teacher||'').trim() !== tc) return false;
   if (upTo === 'teacher') return true;
-  if (upTo !== 'slot' && sl && slotNorm(s.classA) !== sl && slotNorm(s.classB) !== sl) return false;
+  if (upTo !== 'slot' && sl && slotNorm(s.classA) !== sl && slotNorm(s.classB) !== sl && !onceToSlots_(s)[sl]) return false;
   return true;
+}
+/* 이번 주 1회 이동으로 '이동해 간' 시간대들 — 그 시간대 목록에도 학생이 나타나게 */
+function onceToSlots_(s){
+  if (!ttClasses || !wkOnce.length) return {};
+  var pn = plainNm(s.name), out = {};
+  wkOnce.forEach(function(o){
+    if (plainNm(o.student) !== pn) return;
+    var t = ttClasses[o.toId];
+    if (t) out[t.slot] = 1;
+  });
+  return out;
 }
 function fillSelect_(id, label, vals){
   var sel = $(id), cur = sel.value;
