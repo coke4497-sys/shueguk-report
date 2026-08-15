@@ -891,6 +891,17 @@ function fmtT(t){
   return h12 + ':' + (mm<10?'0':'')+mm;
 }
 
+/* 그 날 실제 인원 표기 — 원래 명단에서 1회 이동으로 나간 학생을 빼고 들어온 학생을 더한다.
+ * 예: 14명 명단 + 1회 이동 1명 → '15명 (+1)'. 전체 시간표(주차 무관)는 원래 명단 그대로. */
+function countLabel(c, awayOf, temps){
+  var base = c.students.length;
+  var out = Object.keys(awayOf || {}).length, inn = (temps || []).length;
+  var real = base - out + inn;
+  var d = [];
+  if (inn) d.push('+' + inn);
+  if (out) d.push('-' + out);
+  return real + '명' + (d.length ? ' (' + d.join(' ') + ')' : '');
+}
 /* 반 블록 요소 (내용·클릭 공통) — 위치는 호출한 쪽에서 지정 */
 function blockEl(c){
   var b = document.createElement('div');
@@ -953,8 +964,9 @@ function blockEl(c){
       '<a class="bbtn" href="hwcheck.html?slot=' + encodeURIComponent(c.day + c.start) + '&cid=' + encodeURIComponent(c.id) + '" target="_blank" rel="noopener"' +
       ' onclick="event.stopPropagation()" title="이 반의 숙제 검사로 이동">숙제 검사</a></div>'
     : '';   // 편집 기능은 상단 편집 도구줄에서
+  var cntLabel = (mode === 'today') ? countLabel(c, awayOf, temps) : (c.students.length + '명');
   b.innerHTML = '<div class="bt"><span class="nm">'+esc(c.cls)+'</span>'+
-                '<small>'+esc(c.start)+'~'+esc(c.end)+' · '+c.students.length+'명</small></div>'+
+                '<small>'+esc(c.start)+'~'+esc(c.end)+' · '+cntLabel+'</small></div>'+
                 btnRow +
                 '<div class="stus">'+chips+'</div>';
   b.addEventListener('click', function(e){ onBlockClick(e, c); });
@@ -1335,7 +1347,7 @@ function buildWeekGrid(){
     }).join('');
     if (!chips) chips = '<span class="empty-note">비어 있음</span>';
     b.innerHTML = '<div class="bt"><span class="nm">'+esc(c.cls)+'</span>'+
-                  '<small>'+esc(c.start)+'~'+esc(c.end)+' · '+c.students.length+'명</small></div>'+
+                  '<small>'+esc(c.start)+'~'+esc(c.end)+' · '+countLabel(c, awayOf, temps)+'</small></div>'+
 
                   '<div class="stus">'+chips+'</div>';
     b.addEventListener('click', function(e){ onWeekClick(e, c, dstr); });
