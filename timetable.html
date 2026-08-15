@@ -191,12 +191,14 @@
   .blk .stus button.away{opacity:.5;}
   .blk .stus button.away em{font-style:normal;font-size:.66rem;color:var(--accent);margin-left:3px;}
   .blk .empty-note{color:var(--ink-soft);font-size:.72rem;}
-  /* 도구 버튼(전체 출석·숙제 검사 등)은 진회색 채움 + 아래 구분선 — 학생 이름 칩(흰 배경)·출석 완료 칩(세이지)과 구분 */
+  /* 도구 버튼(전체 출석·숙제 검사 등)은 은은한 세이지 톤 + 진초록 굵은 글자 + 아래 구분선 —
+     흰 학생 칩·세이지 채움 출석 칩 어느 쪽과도 다르면서 답답하지 않게 */
   .blk .btns{display:flex;gap:3px;margin:0 0 4px;flex-wrap:wrap;padding-bottom:4px;
     border-bottom:1px dashed rgba(76,110,102,.4);}
-  .blk .bbtn{font:inherit;font-size:.62rem;background:#555E59;border:1px solid #555E59;
-    border-radius:7px;padding:1px 6px;cursor:pointer;color:#fff;white-space:nowrap;flex:none;}
-  .blk .bbtn:hover{background:#3E4642;border-color:#3E4642;}
+  .blk .bbtn{font:inherit;font-size:.62rem;font-weight:700;background:rgba(255,255,255,.45);
+    border:1px solid rgba(76,110,102,.45);border-radius:7px;padding:1px 6px;cursor:pointer;
+    color:var(--accent);white-space:nowrap;flex:none;}
+  .blk .bbtn:hover{background:var(--accent);border-color:var(--accent);color:#fff;}
   .blk a.bbtn{text-decoration:none;display:inline-block;}
   body.moving .blk .btns{visibility:hidden;}
   .cell{border-top:1px dotted #BFCFC9;}
