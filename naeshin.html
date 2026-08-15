@@ -93,8 +93,13 @@
     <div class="ptabs" id="ptabs"></div>
     <div class="filters">
       <div><label>학년</label><select id="f-grade" onchange="onGradeChange()"></select></div>
-      <div><label>담당 강사</label><select id="f-teacher" onchange="fillClassSel()"></select></div>
-      <div style="flex:2;"><label>내신반</label><select id="f-class" onchange="openClass()"></select></div>
+      <div><label>담당 강사</label><select id="f-teacher" onchange="onTeacherChange()"></select></div>
+      <div style="flex:2;"><label id="cls-label">담당반</label><select id="f-class" onchange="openClass()"></select></div>
+    </div>
+    <div style="margin-top:4px;">
+      <label>학생 검색 <span class="dot">이름으로 반을 바로 찾아 이동</span></label>
+      <input id="f-stu" placeholder="학생 이름 입력" autocomplete="off" oninput="stuSearch()">
+      <div id="stu-results" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;"></div>
     </div>
   </div>
 
@@ -155,20 +160,23 @@ function renderPeriodTabs(){
 function pickPeriod(p){ period=p; renderPeriodTabs(); if(curClass) openClass(); }
 
 /* ── 반 목록 (내신 시간표) ── */
+/* 확인 수업은 피드백 대상이 아님 — 진도 수업만 (사용자 확정, 2026-08-15) */
+function progOnly(list){ return (list||[]).filter(function(c){ return !/확인/.test(String(c.cls||'')); }); }
 function loadClasses(){
-  var cached = cacheGet('classes');
-  if(cached && cached.length){ classes = cached; fillFilters(); setStatus('최신 명단 확인 중…'); }
+  var cached = progOnly(cacheGet('classes'));
+  if(cached && cached.length){ classes = cached; fillFilters(); applyUrlPick(); setStatus('최신 명단 확인 중…'); }
   else setStatus('내신반 목록을 불러오는 중…');
   fetch(ENDPOINT + '?action=timetableList&pw=' + encodeURIComponent(PW) + '&book=' + encodeURIComponent('내신') + '&t=' + Date.now())
     .then(function(r){ return r.json(); })
     .then(function(d){
       if(!d || d.result!=='success'){ if(!cached) setStatus('내신 시간표를 불러오지 못했어요.'); else setStatus(''); return; }
-      classes = d.classes || [];
+      classes = progOnly(d.classes);
       cacheSet('classes', classes);
       // 선택 유지한 채 목록만 갱신
       var g=$('f-grade').value, t=$('f-teacher').value, c=$('f-class').value;
       fillFilters();
       $('f-grade').value=g; fillTeacherSel(); $('f-teacher').value=t; fillClassSel(); $('f-class').value=c;
+      if(!cached) applyUrlPick();
       if(curClass){ curClass = classes.find(function(x){ return x.id===curClass.id; }) || curClass; }
       setStatus('');
     }).catch(function(){ if(!cached) setStatus('서버 연결에 실패했어요.'); else setStatus(''); });
@@ -193,7 +201,68 @@ function fillTeacherSel(){
     Object.keys(teachers).sort(function(a,b){ return a.localeCompare(b,'ko'); }).map(function(t){ return '<option>'+esc(t)+'</option>'; }).join('');
   if(teachers[cur]) $('f-teacher').value=cur;
 }
-function onGradeChange(){ fillTeacherSel(); fillClassSel(); }
+function onGradeChange(){ fillTeacherSel(); fillClassSel(); updateUrl(); }
+/* 강사를 고르면 그 강사의 담당반으로 바로 이동 — 주소에도 저장돼 강사별 즐겨찾기 가능 */
+function onTeacherChange(){
+  fillClassSel();
+  updateUrl();
+  var t=$('f-teacher').value;
+  $('cls-label').textContent = t ? t+'T의 담당반' : '담당반';
+  if(t){
+    var list=classes.filter(function(c){ return (! $('f-grade').value || gradeOf(c.cls)===$('f-grade').value) && c.teacher===t; });
+    if(list.length===1){ $('f-class').value=list[0].id; openClass(); }   // 담당반이 하나면 바로 열기
+    else $('f-class').focus();
+  }
+}
+function updateUrl(){
+  var q=new URLSearchParams();
+  if($('f-grade').value) q.set('grade',$('f-grade').value);
+  if($('f-teacher').value) q.set('teacher',$('f-teacher').value);
+  history.replaceState(null,'', location.pathname+(q.toString()?'?'+q.toString():''));
+}
+var URL_APPLIED=false;
+function applyUrlPick(){
+  if(URL_APPLIED) return;
+  var q=new URLSearchParams(location.search);
+  var g=q.get('grade')||'', t=q.get('teacher')||'';
+  if(!g && !t) { URL_APPLIED=true; return; }
+  URL_APPLIED=true;
+  if(g) $('f-grade').value=g;
+  fillTeacherSel();
+  if(t) $('f-teacher').value=t;
+  onTeacherChange();
+}
+
+/* ── 학생 검색 — 이름으로 반을 찾아 바로 이동 ── */
+var FOCUS_STU='';
+function stuSearch(){
+  var q=$('f-stu').value.trim(), box=$('stu-results');
+  if(!q){ box.innerHTML=''; return; }
+  var hits=[];
+  classes.forEach(function(c){
+    (c.students||[]).forEach(function(raw){
+      var p=plain(raw);
+      if(p.indexOf(q)>=0) hits.push({nm:p, c:c});
+    });
+  });
+  box.innerHTML = hits.length
+    ? hits.slice(0,12).map(function(h){
+        return '<button type="button" class="rpt-btn" style="font-size:12.5px;letter-spacing:0;" '+
+          'onclick="goStu(\''+esc(h.c.id)+'\',\''+esc(h.nm)+'\')">'+esc(h.nm)+' · '+esc(h.c.cls)+' ('+esc(h.c.teacher)+'T)</button>';
+      }).join('') + (hits.length>12 ? '<span class="dot">외 '+(hits.length-12)+'건 — 이름을 더 입력해 주세요</span>' : '')
+    : '<span class="dot">진도 내신반 명단에 없는 이름이에요</span>';
+}
+function goStu(cid, nm){
+  var c=classes.find(function(x){ return x.id===cid; }); if(!c) return;
+  $('f-grade').value=gradeOf(c.cls); fillTeacherSel();
+  $('f-teacher').value=c.teacher; fillClassSel();
+  $('cls-label').textContent=c.teacher+'T의 담당반';
+  $('f-class').value=cid;
+  FOCUS_STU=nm;
+  $('f-stu').value=''; $('stu-results').innerHTML='';
+  updateUrl();
+  openClass();
+}
 function fillClassSel(){
   var g=$('f-grade').value, t=$('f-teacher').value;
   var list = classes.filter(function(c){
@@ -286,12 +355,25 @@ function renderWeek(){
       '<label>학생별 과제 수행 / 질문 사항 <span class="dot">칸을 벗어나면 자동 저장</span></label>'+
       '<p style="font-size:12px;color:var(--ink-soft);margin:0 0 6px;line-height:1.6;"><b style="color:var(--accent);">REPORT</b> — 시험 기간이 시작된 이후 학생의 피드백 내용을 종합하여 기록합니다. 상담시 참고할 수 있습니다.</p>'+
       stus.map(function(nm,i){
-        return '<div class="stu-row">'+
+        return '<div class="stu-row" data-row-nm="'+esc(nm)+'">'+
           '<div class="stu-id"><b><span class="stu-no">'+(i+1)+'</span> '+esc(nm)+'</b>'+
           '<button type="button" class="rpt-btn" onclick="openRpt(\''+esc(nm)+'\')" title="이 학생의 내신 대비 학습 보고서 (캡쳐용)">REPORT</button></div>'+
           '<textarea data-nm="'+esc(nm)+'" onblur="saveNote(this)" placeholder="예) 나는 오늘: 8, 문법 덜 풀고 안가져옴, 오마이갓,,,, 숙제 깜빡했다고 함, 똑똑이임">'+esc(notes[nm]||'')+'</textarea></div>';
       }).join('')+
     '</div>';
+  // 학생 검색으로 들어온 경우 — 그 학생 줄로 스크롤 + 잠깐 강조
+  if(FOCUS_STU){
+    var rows=document.querySelectorAll('#wbody .stu-row');
+    for(var ri=0; ri<rows.length; ri++){
+      if(rows[ri].getAttribute('data-row-nm')===FOCUS_STU){
+        rows[ri].style.background='var(--icon-bg)'; rows[ri].style.borderRadius='10px';
+        rows[ri].scrollIntoView({block:'center', behavior:'smooth'});
+        (function(el){ setTimeout(function(){ el.style.background=''; }, 2600); })(rows[ri]);
+        break;
+      }
+    }
+    FOCUS_STU='';
+  }
 }
 
 /* ── 저장 ── */
