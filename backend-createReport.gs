@@ -2491,11 +2491,18 @@ function ensureTtLogSheet_(ss) {
 }
 function ttLog_(ss, kind, student, fromId, fromCls, toId, toCls, reason, book, applyDate) {
   // applyDate(J열, yyyy-MM-dd): 1회 이동이 적용되는 날짜 — 미래 주차 예약 이동용. 빈값이면 기록일 기준(기존 동작).
-  ensureTtLogSheet_(ss).appendRow([new Date(), kind, student, fromId, fromCls, toId, toCls, String(reason || '').trim(), ttBook_(book), String(applyDate || '').trim()]);
+  // J열은 '@'(텍스트)로 강제 — 시트가 날짜 값으로 바꾸면 ttApplyYmd_가 텍스트를 못 읽어 기록일로 후퇴한다.
+  var sh = ensureTtLogSheet_(ss);
+  var rg = sh.getRange(sh.getLastRow() + 1, 1, 1, 10);
+  rg.setNumberFormats([['yyyy-mm-dd hh:mm', '@', '@', '@', '@', '@', '@', '@', '@', '@']]);
+  rg.setValues([[new Date(), kind, student, fromId, fromCls, toId, toCls, String(reason || '').trim(), ttBook_(book), String(applyDate || '').trim()]]);
 }
-/** 이동 기록 행의 적용 날짜(yyyy-MM-dd) — J열이 있으면 그 값, 없으면 기록일 */
+/** 이동 기록 행의 적용 날짜(yyyy-MM-dd) — J열이 있으면 그 값, 없으면 기록일.
+ *  시트가 J열을 날짜 값으로 바꿔버린 기록도 그대로 읽는다. */
 function ttApplyYmd_(row) {
-  var ad = String(row.length > 9 ? row[9] || '' : '').trim();
+  var raw = row.length > 9 ? row[9] : '';
+  if (raw && raw.getTime) return Utilities.formatDate(raw, 'Asia/Seoul', 'yyyy-MM-dd');
+  var ad = String(raw || '').trim();
   if (/^\d{4}-\d{2}-\d{2}$/.test(ad)) return ad;
   var d = row[0];
   return (d && d.getTime) ? Utilities.formatDate(d, 'Asia/Seoul', 'yyyy-MM-dd') : String(d || '').trim().slice(0, 10);
