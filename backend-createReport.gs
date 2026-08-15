@@ -1215,6 +1215,19 @@ function hwcheckWeekKey_(d) {
   return Utilities.formatDate(dt, 'GMT+9', 'yyyy-MM-dd');
 }
 /** 주차별 기록·항목 조회 (교사 화면). 비공개 메모 포함 — pw 확인 뒤에만 호출된다. */
+/** 대책·메모 셀 값 → 문자열. 시트가 "8/16 일 11:00" 같은 문구를 날짜 값으로 바꿔버린 옛 기록은
+ *  자연스러운 한국어(월/일 요일 시:분)로 복원한다. */
+function hwcheckTextStr_(v) {
+  if (v && v.getTime) {
+    var dow = '일월화수목금토'.charAt(v.getDay());
+    var h = v.getHours(), m = v.getMinutes();
+    var base = (v.getMonth() + 1) + '/' + v.getDate() + ' ' + dow;
+    if (!h && !m) return base;
+    var h12 = h % 12 === 0 ? 12 : h % 12;   // 학원 표기(5:30=오후)에 맞춰 12시간제
+    return base + ' ' + h12 + ':' + ('0' + m).slice(-2);
+  }
+  return String(v == null ? '' : v);
+}
 function getHwcheckData(weekParam) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var week = String(weekParam || '').trim();
@@ -1227,9 +1240,9 @@ function getHwcheckData(weekParam) {
     if (!tok) continue;
     var scores = {}; try { scores = JSON.parse(v[i][6] || '{}'); } catch (e) {}
     records[tok] = { scores: scores, pct: Number(v[i][8]) || 0,
-                     pub: String(v[i][9] || ''), priv: String(v[i][10] || ''),
+                     pub: hwcheckTextStr_(v[i][9]), priv: hwcheckTextStr_(v[i][10]),
                      missing: String(v[i][11] || '').trim() === '미제출',
-                     plan: String(v[i][12] || '') };   // 뒤 행이 최신(같은 키 중복 대비)
+                     plan: hwcheckTextStr_(v[i][12]) };   // 뒤 행이 최신(같은 키 중복 대비)
   }
   return json({ result: 'success', week: week, items: hwcheckItems_(ss), records: records });
 }
@@ -1269,8 +1282,10 @@ function hwcheckSave(data) {
       }
     }
     row.push(at > 0 ? String(sh.getRange(at, 14).getValue() || '') : '');   // N대책완료는 저장 시 유지 (완료 표시는 별도 API)
-    if (at > 0) sh.getRange(at, 1, 1, 14).setValues([row]);
-    else sh.appendRow(row);
+    // J공개·K비공개·M대책 등 문구 열은 '@'(텍스트)로 강제 — 시트가 "8/16 일 11:00"을 날짜로 바꾸는 것 방지
+    var rg = sh.getRange(at > 0 ? at : sh.getLastRow() + 1, 1, 1, 14);
+    rg.setNumberFormats([['yyyy-mm-dd hh:mm','@','@','@','@','@','@','0','0','@','@','@','@','@']]);
+    rg.setValues([row]);
     dropTab_(TAB_HWCHECK);
     return json({ result: 'success', week: week, pct: pct });
   } finally {
@@ -1296,7 +1311,7 @@ function getHwcheckPlans() {
   var out = [];
   if (v) for (var i = 1; i < v.length; i++) {
     var missing = String(v[i][11] || '').trim() === '미제출';
-    var plan = String(v[i][12] || '').trim();
+    var plan = hwcheckTextStr_(v[i][12]).trim();
     if (!missing && !plan) continue;
     out.push({ week: hwcheckWeekStr_(v[i][1]), token: String(v[i][2] || '').trim(),
                name: String(v[i][3] || '').trim(), school: String(v[i][4] || '').trim(),
