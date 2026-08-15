@@ -891,16 +891,12 @@ function fmtT(t){
   return h12 + ':' + (mm<10?'0':'')+mm;
 }
 
-/* 그 날 실제 인원 표기 — 원래 명단에서 1회 이동으로 나간 학생을 빼고 들어온 학생을 더한다.
- * 예: 14명 명단 + 1회 이동 1명 → '15명 (+1)'. 전체 시간표(주차 무관)는 원래 명단 그대로. */
+/* 그 날 실제 인원 표기 — '원래 인원(나간 학생 제외)+1회 이동 온 인원'.
+ * 예: 14명 반에 1명 이동해 오면 '14+1명', 1명 빠지면 '13명'. 전체 시간표(주차 무관)는 원래 명단 그대로. */
 function countLabel(c, awayOf, temps){
-  var base = c.students.length;
   var out = Object.keys(awayOf || {}).length, inn = (temps || []).length;
-  var real = base - out + inn;
-  var d = [];
-  if (inn) d.push('+' + inn);
-  if (out) d.push('-' + out);
-  return real + '명' + (d.length ? ' (' + d.join(' ') + ')' : '');
+  var stay = c.students.length - out;            // 원래 명단에서 오늘 빠진 학생을 뺀 수
+  return stay + (inn ? '+' + inn : '') + '명';   // 예: 14+1명 / 13명
 }
 /* 반 블록 요소 (내용·클릭 공통) — 위치는 호출한 쪽에서 지정 */
 function blockEl(c){
