@@ -75,9 +75,13 @@ printf '{"scriptId":"<SCRIPT_ID>"}' > .clasp.json
 clasp pull -f                        # 현재 코드+appsscript.json 내려받기
 cp <저장소의-최신-.gs> ./Code.gs     # pull 로 받은 코드 파일명에 맞춰 교체
 clasp push -f
-clasp deployments                    # 배포 목록 확인
-clasp deploy -i <DEPLOYMENT_ID>      # 기존 배포 새 버전(= exec 주소 그대로 유지)
+clasp list-deployments               # 배포 목록 확인 (구버전: clasp deployments)
+clasp update-deployment -d "설명" <DEPLOYMENT_ID>   # 기존 배포 새 버전(= exec 주소 그대로 유지)
 ```
+- **clasp 3.x부터 명령어가 바뀌었다**(2026-08-15 확인, 3.3.0 기준). 옛 `clasp deploy -i <ID>` → 지금은 **`clasp update-deployment <ID>`**(별칭 `redeploy`). 새 배포를 만드는 `clasp deploy`를 쓰면 주소가 바뀌어 학생 페이지가 깨지므로 절대 쓰지 말 것. 성공하면 `Redeployed <ID> @<새버전>` 이 출력된다.
+- **덮어쓰기 전 반드시 확인**: `clasp pull -f`로 받은 현재 배포본과 저장소의 직전 커밋 버전을 `diff`로 비교해, 시트/편집기에서 직접 손댄 변경이 없는지 먼저 볼 것. 다르면 그대로 push 하면 남의 수정이 사라진다.
+- **배포 후 동작 확인**: GET은 `curl -sL "<exec>?action=..."`로 되지만, **POST는 `curl -L`로 하면 HTML("Sorry, unable to open the file")이 돌아온다**(302에서 POST가 GET으로 바뀌어서). POST 확인은 리다이렉트를 직접 따라갈 것 —
+  `loc=$(curl -s -o /dev/null -D - -X POST -H 'Content-Type: text/plain;charset=utf-8' -d '<json>' "<exec>" | grep -i '^location:' | tr -d '\r' | sed 's/^[Ll]ocation: //'); curl -s "$loc"`
 - **DEPLOYMENT_ID** = 웹앱 주소 `/macros/s/`**`<이 부분>`**`/exec` 문자열(아래 표).
 - **SCRIPT_ID**는 아직 미확보 → 처음 한 번 사용자에게 요청: “Apps Script 편집기 → ⚙️프로젝트 설정 → **스크립트 ID** 복사해서 알려주세요.” 알게 되면 아래 표에 채워 넣고 커밋해 둘 것.
 
