@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>슈국 내신대비 피드백</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=Gowun+Dodum&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#C6D5D2; --surface:#FFFFFF;
+    --ink:#2A332F; --ink-soft:#65726B;
+    --accent:#4C6E66; --btn:#628C83; --icon-bg:#EBF0ED;
+    --line:#D7E3DD; --line-soft:#E5EDE8;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{font-family:'Gowun Dodum',sans-serif; background:var(--bg); color:var(--ink); min-height:100vh; padding:18px 14px 60px;}
+  .wrap{max-width:860px; margin:0 auto;}
+  .back{display:inline-flex; align-items:center; gap:6px; color:var(--accent); text-decoration:none; font-size:13.5px; margin-bottom:10px;}
+  h1{font-family:'Gowun Batang',serif; font-size:21px; text-align:center; color:var(--accent); margin-bottom:4px;}
+  .sub{text-align:center; font-size:13px; color:var(--ink-soft); margin-bottom:16px;}
+  .card{background:var(--surface); border-radius:16px; padding:16px 16px 18px; box-shadow:0 2px 10px rgba(42,51,47,.06); margin-bottom:14px;}
+  label{display:block; font-size:12.5px; color:var(--ink-soft); margin:10px 0 4px;}
+  select, textarea, input{width:100%; font:inherit; font-size:14px; padding:9px 11px; border:1.5px solid var(--line); border-radius:10px; background:#FBFCFB; color:var(--ink);}
+  select:focus, textarea:focus, input:focus{outline:none; border-color:var(--btn); background:#fff;}
+  textarea{resize:vertical; min-height:56px; line-height:1.55;}
+  .filters{display:flex; gap:8px; flex-wrap:wrap;}
+  .filters > div{flex:1; min-width:130px;}
+  .ptabs{display:flex; gap:7px; margin-bottom:4px;}
+  .ptabs button{flex:1; font:inherit; font-size:14px; font-weight:700; font-family:'Gowun Batang',serif; padding:10px; border:1.5px solid var(--line); border-radius:10px; background:#fff; color:var(--ink-soft); cursor:pointer;}
+  .ptabs button.on{background:var(--accent); border-color:var(--accent); color:#fff;}
+  .wtabs{display:flex; gap:5px; margin:14px 0 10px; flex-wrap:wrap;}
+  .wtabs button{font:inherit; font-size:13px; padding:7px 14px; border:1.5px solid var(--line); border-radius:18px; background:#fff; color:var(--ink-soft); cursor:pointer;}
+  .wtabs button.on{background:var(--btn); border-color:var(--btn); color:#fff; font-weight:700;}
+  .wtabs button.has{border-color:var(--accent); color:var(--accent); font-weight:700;}
+  .wtabs button.on.has{color:#fff;}
+  .stu{border-top:1px dashed var(--line); padding:10px 0 2px; margin-top:10px;}
+  .stu-row{display:flex; gap:10px; align-items:flex-start; padding:7px 0; border-bottom:1px solid var(--line-soft);}
+  .stu-row b{flex:0 0 74px; font-size:14px; padding-top:9px;}
+  .stu-row textarea{min-height:38px; font-size:13.5px;}
+  .savebar{display:flex; gap:8px; justify-content:flex-end; margin-top:8px;}
+  button.act{font:inherit; font-size:13.5px; padding:9px 16px; border:1.5px solid var(--accent); border-radius:10px; background:var(--accent); color:#fff; cursor:pointer;}
+  button.ghost{background:#fff; color:var(--accent);}
+  .status{position:fixed; left:50%; bottom:18px; transform:translateX(-50%); background:var(--ink); color:#fff; font-size:13px; padding:9px 16px; border-radius:20px; opacity:0; transition:opacity .25s; pointer-events:none; max-width:90%;}
+  .status.show{opacity:.93;}
+  .cls-head{display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap;}
+  .cls-head h2{font-family:'Gowun Batang',serif; font-size:16.5px; color:var(--accent);}
+  .cls-head small{color:var(--ink-soft); font-size:12.5px;}
+  .empty{text-align:center; color:var(--ink-soft); font-size:13.5px; padding:26px 0;}
+  .dot{font-size:11.5px; color:var(--ink-soft); margin-left:6px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a class="back" href="https://coke4497-sys.github.io/shueguk-hub/study.html">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M11 18l-6-6 6-6"/></svg>
+    학습 관리로 가기
+  </a>
+  <h1>내신대비 피드백</h1>
+  <p class="sub">Shueguk · 내신반 주차별 진도·과제·학생 피드백 (교사·조교용)</p>
+
+  <div class="card">
+    <label>시험 기간</label>
+    <div class="ptabs" id="ptabs"></div>
+    <div class="filters">
+      <div><label>학년</label><select id="f-grade" onchange="fillClassSel()"></select></div>
+      <div><label>담당 강사</label><select id="f-teacher" onchange="fillClassSel()"></select></div>
+      <div style="flex:2;"><label>내신반</label><select id="f-class" onchange="openClass()"></select></div>
+    </div>
+  </div>
+
+  <div id="panel"></div>
+</div>
+<div class="status" id="status"></div>
+
+<script>
+var ENDPOINT = "https://script.google.com/macros/s/AKfycbzhCncBwn-JlqXARC3wfrWUCuNHzlNK2df0bdhx-w78Xr8mzYUcIYZOJdRi9N4bHtsb/exec";
+var PW = "sh";
+var PERIODS = ['26-2-중간','26-2-기말'];   // 연말에 27년 기간 추가
+var WEEKS = [1,2,3,4,5,6];
+
+var classes = [];          // 내신 시간표 반 목록
+var period = PERIODS[0];
+var curClass = null;
+var rec = { scope:'', weeks:{}, notes:{} };   // 현재 반·기간의 기록
+var week = 1;
+var saveTimers = {};
+
+function $(id){ return document.getElementById(id); }
+function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+function plain(nm){ return String(nm||'').replace(/\(.*\)$/,''); }
+function gradeOf(cls){ var m=String(cls||'').match(/^(중[1-3]|고[1-3])/); return m?m[1]:'기타'; }
+function setStatus(m){ var el=$('status'); el.textContent=m; el.classList.add('show'); clearTimeout(el._t); el._t=setTimeout(function(){ el.classList.remove('show'); },1800); }
+function post(body, cb){
+  body.pw = PW;
+  fetch(ENDPOINT, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify(body) })
+    .then(function(r){ return r.json(); }).then(cb)
+    .catch(function(){ cb(null); });
+}
+
+/* ── 기간 탭 ── */
+function renderPeriodTabs(){
+  $('ptabs').innerHTML = PERIODS.map(function(p){
+    return '<button type="button" class="'+(p===period?'on':'')+'" onclick="pickPeriod(\''+p+'\')">'+p+'</button>';
+  }).join('');
+}
+function pickPeriod(p){ period=p; renderPeriodTabs(); if(curClass) openClass(); }
+
+/* ── 반 목록 (내신 시간표) ── */
+function loadClasses(){
+  setStatus('내신반 목록을 불러오는 중…');
+  fetch(ENDPOINT + '?action=timetableList&pw=' + encodeURIComponent(PW) + '&book=' + encodeURIComponent('내신') + '&t=' + Date.now())
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      if(!d || d.result!=='success'){ setStatus('내신 시간표를 불러오지 못했어요.'); return; }
+      classes = d.classes || [];
+      fillFilters();
+      setStatus('');
+    }).catch(function(){ setStatus('서버 연결에 실패했어요.'); });
+}
+function fillFilters(){
+  var grades={}, teachers={};
+  classes.forEach(function(c){ grades[gradeOf(c.cls)]=1; teachers[c.teacher]=1; });
+  var gOrder=['중1','중2','중3','고1','고2','고3','기타'];
+  $('f-grade').innerHTML = '<option value="">학년 전체</option>' +
+    gOrder.filter(function(g){ return grades[g]; }).map(function(g){ return '<option>'+g+'</option>'; }).join('');
+  $('f-teacher').innerHTML = '<option value="">담당 전체</option>' +
+    Object.keys(teachers).sort(function(a,b){ return a.localeCompare(b,'ko'); }).map(function(t){ return '<option>'+esc(t)+'</option>'; }).join('');
+  fillClassSel();
+}
+function fillClassSel(){
+  var g=$('f-grade').value, t=$('f-teacher').value;
+  var list = classes.filter(function(c){
+    return (!g || gradeOf(c.cls)===g) && (!t || c.teacher===t);
+  });
+  $('f-class').innerHTML = '<option value="">반을 선택하세요 ('+list.length+'개)</option>' +
+    list.map(function(c){
+      return '<option value="'+esc(c.id)+'">'+esc(c.cls)+' · '+esc(c.day)+esc(c.start)+' · '+esc(c.teacher)+'T ('+c.students.length+'명)</option>';
+    }).join('');
+}
+
+/* ── 반 열기 ── */
+function openClass(){
+  var id=$('f-class').value;
+  curClass = classes.find(function(c){ return c.id===id; }) || null;
+  if(!curClass){ $('panel').innerHTML=''; return; }
+  $('panel').innerHTML = '<div class="card"><p class="empty">기록을 불러오는 중…</p></div>';
+  fetch(ENDPOINT + '?action=naeshinGet&pw=' + encodeURIComponent(PW) +
+        '&period=' + encodeURIComponent(period) + '&classId=' + encodeURIComponent(curClass.id) + '&t=' + Date.now())
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      if(!d || d.result!=='success'){ $('panel').innerHTML='<div class="card"><p class="empty">기록을 불러오지 못했어요.</p></div>'; return; }
+      rec = { scope:d.scope||'', weeks:d.weeks||{}, notes:d.notes||{} };
+      week = 1;
+      renderPanel();
+    }).catch(function(){ $('panel').innerHTML='<div class="card"><p class="empty">서버 연결에 실패했어요.</p></div>'; });
+}
+
+function renderPanel(){
+  var c=curClass; if(!c) return;
+  var html =
+    '<div class="card">'+
+      '<div class="cls-head">'+
+        '<h2>'+esc(c.cls)+' <small>'+esc(c.day)+esc(c.start)+'~'+esc(c.end)+' · '+esc(c.teacher)+'T · '+esc(c.loc)+' · '+period+'</small></h2>'+
+        '<button type="button" class="act ghost" onclick="goReport()" title="시험범위가 시험 등록 화면에 자동으로 채워져요">지필 리포트 제작</button>'+
+      '</div>'+
+      '<label>시험범위 <span class="dot">지필고사 리포트 제작 시 자동으로 가져다 써요</span></label>'+
+      '<textarea id="ns-scope" placeholder="예) 서사갈래-소설 이론, 아홉켤레의 구두로 남은 사내, 문법요소와 어휘 …">'+esc(rec.scope)+'</textarea>'+
+      '<div class="savebar"><button type="button" class="act" onclick="saveScope()">시험범위 저장</button></div>'+
+    '</div>'+
+    '<div class="card">'+
+      '<div class="wtabs" id="wtabs"></div>'+
+      '<div id="wbody"></div>'+
+    '</div>';
+  $('panel').innerHTML = html;
+  renderWeek();
+}
+function renderWeek(){
+  $('wtabs').innerHTML = WEEKS.map(function(w){
+    var has = (rec.weeks[w] && (rec.weeks[w].prog||rec.weeks[w].hw)) || Object.keys(rec.notes[w]||{}).length;
+    return '<button type="button" class="'+(w===week?'on ':'')+(has?'has':'')+'" onclick="week='+w+';renderWeek()">'+w+'주차</button>';
+  }).join('');
+  var wk = rec.weeks[week] || { prog:'', hw:'' };
+  var notes = rec.notes[week] || {};
+  var stus = (curClass.students||[]).map(plain);
+  $('wbody').innerHTML =
+    '<label>'+week+'주차 진도</label>'+
+    '<textarea id="ns-prog" placeholder="예) 1. 대장간  2. 멸치  3. 서사갈래 이론">'+esc(wk.prog)+'</textarea>'+
+    '<label>'+week+'주차 과제</label>'+
+    '<textarea id="ns-hw" placeholder="예) 아홉 1장 필사, 어휘 3개, 프린트 전부 필사">'+esc(wk.hw)+'</textarea>'+
+    '<div class="savebar"><button type="button" class="act" onclick="saveWeek()">진도·과제 저장</button></div>'+
+    '<div class="stu">'+
+      '<label>학생별 과제 수행 / 질문 사항 <span class="dot">칸을 벗어나면 자동 저장</span></label>'+
+      stus.map(function(nm,i){
+        return '<div class="stu-row"><b>'+esc(nm)+'</b>'+
+          '<textarea data-nm="'+esc(nm)+'" onblur="saveNote(this)" placeholder="예) 아 -1 / 문법 덜풀고 안가져옴">'+esc(notes[nm]||'')+'</textarea></div>';
+      }).join('')+
+    '</div>';
+}
+
+/* ── 저장 ── */
+function saveScope(){
+  var v=$('ns-scope').value.trim();
+  post({ action:'naeshinSet', period:period, classId:curClass.id, kind:'범위', text1:v }, function(res){
+    if(res && res.result==='success'){ rec.scope=v; setStatus('시험범위 저장 완료'); }
+    else setStatus('저장 실패 — 다시 시도해 주세요');
+  });
+}
+function saveWeek(){
+  var p=$('ns-prog').value.trim(), h=$('ns-hw').value.trim();
+  post({ action:'naeshinSet', period:period, classId:curClass.id, kind:'주차', week:String(week), text1:p, text2:h }, function(res){
+    if(res && res.result==='success'){ rec.weeks[week]={prog:p,hw:h}; setStatus(week+'주차 진도·과제 저장 완료'); renderWeek(); }
+    else setStatus('저장 실패 — 다시 시도해 주세요');
+  });
+}
+function saveNote(el){
+  var nm=el.getAttribute('data-nm'), v=el.value.trim();
+  var before=(rec.notes[week]||{})[nm]||'';
+  if(v===before) return;
+  var w=week;   // 저장 완료 전에 주차를 옮겨도 원래 주차로 기록
+  post({ action:'naeshinSet', period:period, classId:curClass.id, kind:'학생', week:String(w), student:nm, text1:v }, function(res){
+    if(res && res.result==='success'){ (rec.notes[w]=rec.notes[w]||{})[nm]=v; setStatus(nm+' 메모 저장'); }
+    else setStatus(nm+' 메모 저장 실패 — 다시 시도해 주세요');
+  });
+}
+
+/* ── 지필 리포트 제작으로 (시험범위 연동) ── */
+function goReport(){
+  var url='m.html?nsPeriod='+encodeURIComponent(period)+'&nsClass='+encodeURIComponent(curClass.id)+
+          '&nsName='+encodeURIComponent(curClass.cls);
+  window.open(url,'_blank');
+}
+
+renderPeriodTabs();
+loadClasses();
+</script>
+</body>
+</html>
