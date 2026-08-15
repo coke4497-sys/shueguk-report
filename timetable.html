@@ -261,6 +261,8 @@
   .log-item .lr{color:var(--ink-soft);font-size:.78rem;margin-top:2px;}
   .blk.c-g1{background:var(--g1);} .blk.c-g2{background:var(--g2);} .blk.c-g3{background:var(--g3);}
   .blk.c-mid{background:var(--mid);} .blk.c-etc{background:var(--etc);}
+  /* '나' 수업 — 같은 학년 색에서 채도만 낮춰 '가'와 한눈에 구분 */
+  .blk.c-b{filter:saturate(.35);}
   body.moving .blk.droppable{outline:2px dashed var(--btn);outline-offset:1px;cursor:pointer;}
   body.moving .blk.droppable:hover{outline-style:solid;background-image:linear-gradient(rgba(98,140,131,.12),rgba(98,140,131,.12));}
   body.moving .blk .stus button{pointer-events:none;}
@@ -331,6 +333,7 @@
       <span><i style="background:var(--g3)"></i>고3</span>
       <span><i style="background:var(--mid)"></i>정리정독(중등)</span>
       <span><i style="background:var(--etc)"></i>기타</span>
+      <span style="margin-left:2px;"><i style="background:var(--g2);filter:saturate(.35);"></i>나 수업(연한 색)</span>
     </div>
   </div>
 
@@ -480,11 +483,12 @@ function sortNames(arr){
   return arr.slice().sort(function(a,b){ return String(a).localeCompare(String(b), 'ko'); });
 }
 function colorOf(cls){
-  if (/^고1/.test(cls)) return 'c-g1';
-  if (/^고2/.test(cls)) return 'c-g2';
-  if (/^고3/.test(cls)) return 'c-g3';
-  if (/정리정독/.test(cls)) return 'c-mid';
-  return 'c-etc';
+  var base = /^고1/.test(cls) ? 'c-g1'
+           : /^고2/.test(cls) ? 'c-g2'
+           : /^고3/.test(cls) ? 'c-g3'
+           : /정리정독/.test(cls) ? 'c-mid' : 'c-etc';
+  // '나' 수업은 같은 학년 색을 유지하되 채도를 낮춰 '가'와 구분 (반이름 끝 글자로 판별)
+  return base + (/나\s*$/.test(String(cls || '').trim()) ? ' c-b' : '');
 }
 
 /* ── 로그인 ── */
