@@ -663,7 +663,7 @@ function renderTabs(){
   $('v-cal').classList.toggle('on', mode==='cal');
   document.querySelector('.hint').textContent =
     (mode === 'today') ? '학생 이름을 누르면 출석·지각·결석 기록 창이 떠요. 그 창 아래 [다른 반으로 1회 이동] 버튼으로 1회 이동도 할 수 있어요.'
-    : (mode === 'week') ? '그 주의 출석·1회 이동 기록이 함께 보여요. 학생 이름을 누르면 해당 날짜의 출석 기록·수정. 월·화 직전보강은 위 반 추가 버튼으로 만드세요.'
+    : (mode === 'week') ? '그 주의 출석·1회 이동 기록이 함께 보여요. 학생 이름 클릭 = 그 날짜 출석 기록·수정, 출석 창의 [다른 반으로 1회 이동]으로 다음주 이동도 미리 예약할 수 있어요.'
     : (mode === 'cal') ? '주마다 [정규]/[내신]을 골라 그 주에 쓸 시간표를 정하세요. 오늘의 시간표·주차별이 자동으로 따라갑니다. 날짜 칸을 누르면 메모를 적을 수 있어요.'
     : '학생 이름을 누르면 이동 모드가 켜져요. 옮길 반(다른 요일 포함)을 누르면 영구 이동됩니다.';
   $('editbar').classList.toggle('show', mode === 'all' || mode === 'week');
@@ -887,7 +887,9 @@ function blockEl(c){
   b.setAttribute('data-cid', c.id);
   var awayOf = {};   // 이 반에서 1회 이동으로 빠진 학생 → {label, row}
   var temps = [];    // 이 반으로 1회 이동해 온 학생
-  onceMoves.forEach(function(o){
+  // 오늘 보기는 '오늘 적용되는' 이동만 반영 (미래 예약 이동은 그 날짜에 나타남)
+  var srcOnce = (mode === 'today') ? onceMoves.filter(function(o){ return !o.ymd || o.ymd === todayStr(); }) : onceMoves;
+  srcOnce.forEach(function(o){
     if (o.fromId === c.id){ var t = classes.find(function(x){ return x.id===o.toId; }); awayOf[o.student.replace(/\(.*\)$/,'')] = { label: t ? labelOf(t) : '', row: o.row }; }
     if (o.toId === c.id) temps.push(o);
   });
@@ -1340,6 +1342,14 @@ function buildWeekGrid(){
 }
 function onWeekClick(e, c, dstr){
   if (editMode && !moving && !classMoving){ applyEdit(c); return; }
+  if (moving && moving.once){
+    // 주차별 1회 이동: 옮겨 갈 반을 누르면 그 반 요일의 날짜로 기록
+    var selChip = e.target.closest('button[data-nm]');
+    if (selChip && selChip.classList.contains('sel')){ cancelMove(); return; }
+    if (c.id === moving.fromId) return;
+    openOnceModal(c);
+    return;
+  }
   var chip = e.target.closest('button[data-nm]');
   if (!chip) return;
   var nm = chip.getAttribute('data-nm');
@@ -1636,7 +1646,7 @@ function openAttend(c, nm, dateStr){
     '<div class="mbtns">'+
     (cur ? '<button onclick="submitAttend(\''+esc(c.id)+'\',\''+esc(nm)+'\',\'\')">기록 지우기</button>' : '')+
     '<button onclick="openNoteEdit(\''+esc(nm)+'\')">특이사항</button>'+
-    (mode === 'today' ? '<button onclick="startOnceMoveById(\''+esc(c.id)+'\',\''+esc(nm)+'\')">다른 반으로 1회 이동</button>' : '')+
+    ((mode === 'today' || mode === 'week') ? '<button onclick="startOnceMoveById(\''+esc(c.id)+'\',\''+esc(nm)+'\')">다른 반으로 1회 이동</button>' : '')+
     '<button onclick="closeModal()">닫기</button></div>'
   );
 }
@@ -1777,15 +1787,23 @@ function startOnceMove(c, nm){
   $('mv-name').textContent = plainName(nm);
   $('mv-from').textContent = moving.fromLabel + ' 에서 1회 이동 — 옮길 반을 누르세요';
   render();
-  setStatus('오늘 수업 중 옮겨 갈 반을 누르세요.');
+  setStatus(mode === 'week'
+    ? '이 주 시간표에서 옮겨 갈 반을 누르세요. 누른 반의 요일 날짜로 기록돼요. (지난주/다음주로 이동해 미리 예약도 가능)'
+    : '오늘 수업 중 옮겨 갈 반을 누르세요.');
 }
 function openOnceModal(target){
   var m = moving; if (!m) return;
+  // 적용일: 오늘 보기 = 오늘, 주차별 = 대상 반 요일의 그 주 날짜 (다음주면 예약 이동)
+  var ad = (mode === 'week') ? ymdOf(weekDates()[target.day]) : todayStr();
+  m.applyDate = ad;
+  var dk = ['일','월','화','수','목','금','토'];
+  var adDate = new Date(+ad.slice(0,4), +ad.slice(5,7)-1, +ad.slice(8,10));
+  var adLabel = mdOf(adDate) + ' (' + dk[adDate.getDay()] + ')';
   openModal(
-    '<h3>1회 이동 (오늘만)</h3>'+
-    '<p class="mdesc"><b>'+esc(plainName(m.name))+'</b><br>'+esc(m.fromLabel)+'<br>→ '+esc(labelOf(target))+'</p>'+
-    '<p class="mdesc">원래 반과 리포트는 그대로 두고, 시간표에 일주일간 표시돼요.</p>'+
-    '<textarea id="once-reason" placeholder="사유 메모 (필수) — 예: 학교 행사, 병원 진료로 보강"></textarea>'+
+    '<h3>1회 이동 — ' + esc(adLabel) + '</h3>'+
+    '<p class="mdesc"><b>'+esc(plainName(m.name))+'</b><br>'+esc(m.fromLabel)+'<br>→ '+esc(labelOf(target))+' · <b>'+esc(adLabel)+'</b> 적용</p>'+
+    '<p class="mdesc">원래 반과 리포트는 그대로 두고, 그 날짜의 시간표에 표시돼요.</p>'+
+    '<textarea id="once-reason" placeholder="사유 메모 (필수) — 예: 여행으로 앞당겨 수업, 학교 행사"></textarea>'+
     '<p class="merr" id="once-err"></p>'+
     '<div class="mbtns"><button onclick="closeModal()">취소</button>'+
     '<button class="primary" onclick="submitOnce(\''+esc(target.id)+'\')">1회 이동</button></div>'
@@ -1796,12 +1814,14 @@ function submitOnce(toId){
   var reason = $('once-reason').value.trim();
   if (!reason){ $('once-err').textContent = '1회 이동은 사유를 적어주세요.'; return; }
   closeModal();
-  post({ action:'timetableMove', book:book, student:m.name, fromId:m.fromId, toId:toId, moveType:'once', reason:reason },
+  post({ action:'timetableMove', book:book, student:m.name, fromId:m.fromId, toId:toId, moveType:'once',
+         reason:reason, date:m.applyDate || todayStr() },
     '기록하는 중…', function(res){
       if (res && res.result === 'success'){
+        var wasWeek = (mode === 'week');
         cancelMove();
         setStatus(plainName(m.name) + ' 1회 이동 완료. 이동한 반에서 보라색 이름으로 표시돼요.', 'ok');
-        load(true);
+        if (wasWeek) loadWeek(); else load(true);
       } else { setStatus('1회 이동 실패: ' + ((res && res.message) || '오류'), 'err'); cancelMove(); }
     });
 }

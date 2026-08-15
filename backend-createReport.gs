@@ -2461,8 +2461,16 @@ function ensureTtLogSheet_(ss) {
   }
   return sh;
 }
-function ttLog_(ss, kind, student, fromId, fromCls, toId, toCls, reason, book) {
-  ensureTtLogSheet_(ss).appendRow([new Date(), kind, student, fromId, fromCls, toId, toCls, String(reason || '').trim(), ttBook_(book)]);
+function ttLog_(ss, kind, student, fromId, fromCls, toId, toCls, reason, book, applyDate) {
+  // applyDate(J열, yyyy-MM-dd): 1회 이동이 적용되는 날짜 — 미래 주차 예약 이동용. 빈값이면 기록일 기준(기존 동작).
+  ensureTtLogSheet_(ss).appendRow([new Date(), kind, student, fromId, fromCls, toId, toCls, String(reason || '').trim(), ttBook_(book), String(applyDate || '').trim()]);
+}
+/** 이동 기록 행의 적용 날짜(yyyy-MM-dd) — J열이 있으면 그 값, 없으면 기록일 */
+function ttApplyYmd_(row) {
+  var ad = String(row.length > 9 ? row[9] || '' : '').trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(ad)) return ad;
+  var d = row[0];
+  return (d && d.getTime) ? Utilities.formatDate(d, 'Asia/Seoul', 'yyyy-MM-dd') : String(d || '').trim().slice(0, 10);
 }
 function getTimetable(book) {
   book = ttBook_(book);
@@ -2493,6 +2501,7 @@ function getTimetable(book) {
       var t = (d && d.getTime) ? d.getTime() : Date.parse(d);
       if (!t || t < cut) continue;
       once.push({ row: j + 1, date: fmtCellDate_ ? fmtCellDate_(d) : String(d),
+        ymd: ttApplyYmd_(lv[j]),
         student: String(lv[j][2] || '').trim(),
         fromId: String(lv[j][3] || '').trim(), toId: String(lv[j][5] || '').trim(),
         reason: String(lv[j][7] || '').trim() });
@@ -2540,10 +2549,12 @@ function timetableMove(data) {
   var fromId = String(data.fromId || '').trim(), toId = String(data.toId || '').trim();
   var moveType = (String(data.moveType || 'perm') === 'once') ? 'once' : 'perm';
   var reason = String(data.reason || '').trim();
+  var applyDate = String(data.date || '').trim();   // 1회 이동 적용일 (미래 주차 예약 가능, 빈값=기록일)
   var book = ttBook_(data.book);
   if (!name || !fromId || !toId) return json({ result:'error', message:'이동 정보가 부족합니다.' });
   if (fromId === toId) return json({ result:'error', message:'같은 반입니다.' });
   if (moveType === 'once' && !reason) return json({ result:'error', message:'1회 이동은 사유를 적어주세요.' });
+  if (applyDate && !/^\d{4}-\d{2}-\d{2}$/.test(applyDate)) return json({ result:'error', message:'적용 날짜 형식이 올바르지 않아요.' });
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sh = ensureTimetableSheet_(ss, book);
   var lock = LockService.getScriptLock();
@@ -2571,8 +2582,8 @@ function timetableMove(data) {
 
     // 1회 이동: 명단·학생정보는 그대로 두고 기록만 남긴다
     if (moveType === 'once') {
-      ttLog_(ss, '1회', fromList[idx], fromId, String(v[fromRow][6] || ''), toId, String(v[toRow][6] || ''), reason, book);
-      return json({ result:'success', moved: fromList[idx], once: true, rosterUpdated: false, rosterMsg: '' });
+      ttLog_(ss, '1회', fromList[idx], fromId, String(v[fromRow][6] || ''), toId, String(v[toRow][6] || ''), reason, book, applyDate);
+      return json({ result:'success', moved: fromList[idx], once: true, date: applyDate, rosterUpdated: false, rosterMsg: '' });
     }
 
     var moved = fromList.splice(idx, 1)[0];
@@ -2957,8 +2968,7 @@ function getTimetableWeek(fromStr, toStr, book) {
     for (var j = 1; j < lv.length; j++) {
       if (String(lv[j][1] || '').trim() !== '1회') continue;
       if (ttBook_(lv[j][8]) !== book) continue;
-      var ld = lv[j][0];
-      var lds = (ld && ld.getTime) ? Utilities.formatDate(ld, 'Asia/Seoul', 'yyyy-MM-dd') : String(ld || '').trim().slice(0, 10);
+      var lds = ttApplyYmd_(lv[j]);   // 적용일(J열) 우선 — 미래 주차 예약 이동 지원
       if (lds < fromStr || lds > toStr) continue;
       once.push({ row: j + 1, date: lds, student: String(lv[j][2] || '').trim(),
                   fromId: String(lv[j][3] || '').trim(), toId: String(lv[j][5] || '').trim(),
