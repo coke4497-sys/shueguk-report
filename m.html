@@ -315,10 +315,8 @@ function composeTitle(){
 /* ===== 시험 기간 선택 (26-1-중간 등 — 제목 접두어로 통일) ===== */
 function periodOf(title){ var m=String(title||'').match(/^(\d{2}-[12]-(?:중간|기말))/); return m?m[1]:''; }
 function periodOptions(){
-  var yy = new Date().getFullYear()%100;
-  var out=[];
-  [yy, yy+1].forEach(function(y){ ['1-중간','1-기말','2-중간','2-기말'].forEach(function(s){ out.push(y+'-'+s); }); });
-  return out;
+  // 지금 출제하는 기간만 노출 (사용자 확정, 2026-08-15). 27년 시험은 연말에 여기에 추가.
+  return ['26-2-중간','26-2-기말'];
 }
 function initPeriodChips(){
   var box=document.getElementById('periodChips'); if(!box) return;
