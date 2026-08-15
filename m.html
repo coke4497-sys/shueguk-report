@@ -285,14 +285,16 @@ document.addEventListener('DOMContentLoaded',function(){
 });
 
 /* ===== 제목 조합: 기간-학교학년-과목 (예: 26-2-중간-화정고1-공통국어2) ===== */
+var ROSTER=[];   // 학생 명단 — 학교 목록·내신 자동 배정용
 function loadSchoolList(){
   fetch(ENDPOINT + '?action=roster&t=' + Date.now())
     .then(function(r){ return r.json(); })
     .then(function(d){
       var sel=document.getElementById('f_school');
       if(!sel || !d || d.result!=='success') return;
+      ROSTER = d.students || [];
       var seen={}, schools=[];
-      (d.students||[]).forEach(function(s){ if(s.school && !seen[s.school]){ seen[s.school]=1; schools.push(s.school); } });
+      ROSTER.forEach(function(s){ if(s.school && !seen[s.school]){ seen[s.school]=1; schools.push(s.school); } });
       schools.sort(function(a,b){ return a.localeCompare(b,'ko'); });
       sel.innerHTML='<option value="">학교 선택</option>'+schools.map(function(s){ return '<option>'+s.replace(/</g,'&lt;')+'</option>'; }).join('');
     }).catch(function(){});
@@ -751,8 +753,9 @@ function maybeNaeshinPrefill(){
     };
     if(!trySchool()){ var n=0, iv=setInterval(function(){ if(trySchool() || ++n>20) clearInterval(iv); }, 500); }   // 학교 목록 로딩 대기
   }
-  // 시험범위 가져오기
-  fetch(ENDPOINT+'?action=naeshinGet&pw='+encodeURIComponent(SERVER_PW||'sh')+'&period='+encodeURIComponent(nsPeriod)+'&classId='+encodeURIComponent(nsClass)+'&t='+Date.now())
+  // 시험범위 가져오기 (학교·학년 공유 키 우선)
+  var nsKey = (function(){ var m=nsName.match(/^([중고][1-3])\s+([가-힣]+)/); return m ? '공유:'+m[1]+'|'+m[2] : nsClass; })();
+  fetch(ENDPOINT+'?action=naeshinGet&pw='+encodeURIComponent(SERVER_PW||'sh')+'&period='+encodeURIComponent(nsPeriod)+'&classId='+encodeURIComponent(nsClass)+'&scopeKey='+encodeURIComponent(nsKey)+'&t='+Date.now())
     .then(function(r){ return r.json(); })
     .then(function(d){
       if(d && d.result==='success' && d.scope){
@@ -760,6 +763,51 @@ function maybeNaeshinPrefill(){
         if(!sc.value.trim()) sc.value=d.scope;
         setStatus('내신 기록의 시험범위를 가져왔습니다: '+nsName, '');
       }
+    }).catch(function(){});
+  // 학생 자동 배정 — 같은 학교·학년 내신반 학생 전체를 '일부'로 미리 선택 (배정 칸에서 직접 바꾸면 그 선택이 우선)
+  fetch(ENDPOINT+'?action=timetableList&pw='+encodeURIComponent(SERVER_PW||'sh')+'&book='+encodeURIComponent('내신')+'&t='+Date.now())
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      if(!d || d.result!=='success') return;
+      var names={}, hints={};
+      (d.classes||[]).forEach(function(c){
+        var key=(function(){ var m=String(c.cls||'').match(/^([중고][1-3])\s+([가-힣]+)/); return m ? '공유:'+m[1]+'|'+m[2] : c.id; })();
+        if(key!==nsKey) return;
+        (c.students||[]).forEach(function(raw){
+          var plain=String(raw).replace(/\(.*\)$/,'');
+          names[plain]=1;
+          var h=(String(raw).match(/\(([가-힣]+)\)/)||[])[1];
+          if(h) hints[plain]=h;
+        });
+      });
+      var list=Object.keys(names);
+      if(!list.length) return;
+      var tryAssign=function(){
+        if(!ROSTER.length) return false;
+        var nameCount={}; ROSTER.forEach(function(s){ nameCount[s.name]=(nameCount[s.name]||0)+1; });
+        var toks=[], skip=[];
+        list.forEach(function(nm){
+          var cands=ROSTER.filter(function(s){ return s.name===nm; });
+          if(cands.length>1 && hints[nm]) cands=cands.filter(function(s){ return String(s.school||'').indexOf(hints[nm])===0; });
+          if(cands.length!==1){ skip.push(nm); return; }
+          var s=cands[0];
+          toks.push(nameCount[s.name]<=1 ? s.name
+            : [s.name, String(s.school||'').replace(/\s+/g,''), String(s.grade||'').replace(/\s+/g,'')].join('|'));
+        });
+        if(toks.length){
+          assignSel={ type:'일부', target:toks.join(', '), count:toks.length,
+                      summary:'일부 — '+toks.length+'명 (내신반 자동 배정)' };
+          var ap=document.getElementById('assignPicker');
+          if(ap && !document.getElementById('nsAssignNote')){
+            var n=document.createElement('p'); n.id='nsAssignNote';
+            n.style.cssText='margin:6px 0 0;font-size:12.5px;color:var(--sage-deep);font-weight:700;';
+            n.textContent='✓ 내신반 학생 '+toks.length+'명 자동 배정됨'+(skip.length?' (명단 미일치 '+skip.length+'명: '+skip.join(', ')+' — 직접 추가해 주세요)':'')+'. 아래에서 직접 선택하면 그 선택이 우선합니다.';
+            ap.parentNode.insertBefore(n, ap);
+          }
+        }
+        return true;
+      };
+      if(!tryAssign()){ var n=0, iv=setInterval(function(){ if(tryAssign() || ++n>20) clearInterval(iv); }, 500); }
     }).catch(function(){});
 }
 function maybeLoadEdit(){
