@@ -1830,7 +1830,8 @@ function submitOnce(toId){
       if (res && res.result === 'success'){
         var wasWeek = (mode === 'week');
         cancelMove();
-        setStatus(plainName(m.name) + ' 1회 이동 완료. 이동한 반에서 보라색 이름으로 표시돼요.', 'ok');
+        setStatus(plainName(m.name) + ' 1회 이동 완료. 이동한 반에서 보라색 이름으로 표시돼요.' +
+                  (res.makeupDone ? ' 결석자 관리도 완료 처리했어요.' : ''), 'ok');
         if (wasWeek) loadWeek(); else load(true);
       } else { setStatus('1회 이동 실패: ' + ((res && res.message) || '오류'), 'err'); cancelMove(); }
     });
@@ -2159,6 +2160,22 @@ function noRemedy(i, type){
 }
 
 /* 결석 보충 — 다른 동일 시간표(같은 종류 반)로 1회 이동 */
+/* 결석 날짜가 속한 수업 주차(수요일 시작, 월·화=직전보강) 기준으로 보충 갈 반(요일)의 적용 날짜.
+   이미 지난 날짜면 한 주 뒤로. — 미래 결석(예: 다음주 일요일)의 보충이 이번 주로 기록되지 않게 한다. */
+function mkApplyDate(absYmd, day){
+  var off = { '수':0, '목':1, '금':2, '토':3, '일':4, '월':-2, '화':-1 }[day];
+  if (off == null) return todayStr();
+  var d = new Date(+absYmd.slice(0,4), +absYmd.slice(5,7)-1, +absYmd.slice(8,10));
+  var dow = d.getDay();   // 0=일
+  var wed = new Date(d);
+  if (dow >= 3) wed.setDate(d.getDate() - (dow - 3));        // 수~토 → 그 주 수요일
+  else if (dow === 0) wed.setDate(d.getDate() - 4);          // 일 → 지난 수요일
+  else wed.setDate(d.getDate() + (3 - dow));                 // 월·화(직전보강) → 다가오는 수요일 주차
+  var t = new Date(wed); t.setDate(wed.getDate() + off);
+  var now = new Date(); now = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  if (t < now) t.setDate(t.getDate() + 7);
+  return ymdOf(t);
+}
 function openMakeupMove(i){
   var m = makeupList[i]; if (!m) return;
   var fromC = classes.find(function(x){ return x.id === m.classId; });
@@ -2166,15 +2183,21 @@ function openMakeupMove(i){
   var g = classGroupKey(fromC.cls);
   var cands = classes.filter(function(x){ return x.id !== fromC.id && classGroupKey(x.cls) === g; })
     .sort(function(a, b){ return (DAY_IDX[a.day] - DAY_IDX[b.day]) || (mins(a.start) - mins(b.start)); });
+  var dk = ['일','월','화','수','목','금','토'];
+  function adLabelOf(ymd){
+    var d = new Date(+ymd.slice(0,4), +ymd.slice(5,7)-1, +ymd.slice(8,10));
+    return ymd.slice(5).replace('-', '/') + '(' + dk[d.getDay()] + ')';
+  }
   openModal(
     '<h3>반 이동 보충 — ' + esc(plainName(m.student)) + '</h3>'+
-    '<p class="mdesc">' + esc(m.date) + ' (' + mkDayOf(m.date) + ') ' + esc(fromC.cls) + ' 결석.<br>같은 종류(<b>' + esc(g) + '</b>) 반에서 1회 보충할 반을 고르세요. 시간표에 보라색으로 표시돼요.</p>'+
+    '<p class="mdesc">' + esc(m.date) + ' (' + mkDayOf(m.date) + ') ' + esc(fromC.cls) + ' 결석.<br>같은 종류(<b>' + esc(g) + '</b>) 반에서 1회 보충할 반을 고르세요. 표시된 날짜의 시간표에 보라색으로 나타나요.</p>'+
     (cands.length
       ? '<div class="pick-list" style="flex-direction:column;align-items:stretch;">'+
         cands.map(function(x){
           return '<button data-mk-to="' + esc(x.id) + '" style="text-align:left;border-radius:10px;padding:8px 12px;">'+
             '<b>' + esc(x.cls) + '</b> · ' + esc(x.day) + esc(x.start) + '~' + esc(x.end) +
-            ' · ' + esc(x.teacher) + 'T (' + esc(x.loc) + ') · ' + x.students.length + '명</button>';
+            ' · ' + esc(x.teacher) + 'T (' + esc(x.loc) + ') · ' + x.students.length + '명'+
+            ' · <b>' + esc(adLabelOf(mkApplyDate(m.date, x.day))) + ' 보충</b></button>';
         }).join('') + '</div>'
       : '<p class="subnote">같은 종류의 다른 반이 없어요. 영상보충 메모를 이용해 주세요.</p>')+
     '<div class="mbtns"><button onclick="openMakeup()">뒤로</button></div>', true
@@ -2183,21 +2206,19 @@ function openMakeupMove(i){
     b.addEventListener('click', function(){
       var t = classes.find(function(x){ return x.id === b.getAttribute('data-mk-to'); });
       if (!t) return;
-      if (!confirm(plainName(m.student) + '\n' + fromC.cls + ' (' + m.date + ' 결석)\n→ ' + labelOf(t) + ' 에서 1회 보충\n\n기록할까요?')) return;
+      var ad = mkApplyDate(m.date, t.day);
+      if (!confirm(plainName(m.student) + '\n' + fromC.cls + ' (' + m.date + ' 결석)\n→ ' + labelOf(t) + ' 에서 ' + adLabelOf(ad) + ' 1회 보충\n\n기록할까요?')) return;
       var reason = m.date.slice(5).replace('-', '/') + ' 결석 보충';
       post({ action:'timetableMove', book:book, student:m.student, fromId:fromC.id, toId:t.id,
-             moveType:'once', reason:reason }, '보충 이동 기록 중…', function(res){
+             moveType:'once', reason:reason, date:ad }, '보충 이동 기록 중…', function(res){
         if (!(res && res.result === 'success')){
           setStatus('보충 이동 실패: ' + ((res && res.message) || '오류'), 'err');
           openMakeup(); return;
         }
-        var plan = '반 이동 보충: ' + t.cls + ' ' + t.day + t.start + ' (' + t.teacher + 'T)';
-        post({ action:'attendMakeupSet', book:book, date:m.date, classId:m.classId, student:m.student,
-               plan:plan, done:'1', mkMemo: m.mkMemo || '' }, '보충 일정 저장 중…', function(res2){
-          setStatus(plainName(m.student) + ' — ' + plan + ' 기록·완료 처리했어요. 시간표에 표시됩니다.', 'ok');
-          load(true);        // 1회 이동을 오늘·주차별 시간표에 반영
-          openMakeup();      // 목록 새로고침
-        });
+        // 결석 완료 처리는 백엔드(mkAutoComplete_)가 이동 기록과 함께 자동으로 한다
+        setStatus(plainName(m.student) + ' — ' + (res.makeupDone || ('반 이동 보충: ' + t.cls + ' ' + t.day + t.start)) + ' 기록·완료 처리했어요.', 'ok');
+        load(true);        // 1회 이동을 오늘·주차별 시간표에 반영
+        openMakeup();      // 목록 새로고침
       });
     });
   });

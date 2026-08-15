@@ -2622,7 +2622,10 @@ function timetableMove(data) {
     // 1회 이동: 명단·학생정보는 그대로 두고 기록만 남긴다
     if (moveType === 'once') {
       ttLog_(ss, '1회', fromList[idx], fromId, String(v[fromRow][6] || ''), toId, String(v[toRow][6] || ''), reason, book, applyDate);
-      return json({ result:'success', moved: fromList[idx], once: true, date: applyDate, rosterUpdated: false, rosterMsg: '' });
+      // 이 이동이 결석 보충이면(같은 반에 미완료 결석이 있으면) 결석자 관리 자동 완료
+      var mkPlan = mkAutoComplete_(ss, book, fromList[idx], fromId,
+        String(v[toRow][6] || ''), String(v[toRow][1] || ''), ttTime_(v[toRow][2]), String(v[toRow][5] || ''), applyDate);
+      return json({ result:'success', moved: fromList[idx], once: true, date: applyDate, makeupDone: mkPlan, rosterUpdated: false, rosterMsg: '' });
     }
 
     var moved = fromList.splice(idx, 1)[0];
@@ -2912,6 +2915,37 @@ function ensureAttendSheet_(ss) {
   return sh;
 }
 /** 결석자 목록 (영상보충 관리). GET action=attendAbsentList&pw=&book= */
+/** 1회 이동이 결석 보충이면 결석자 관리 자동 완료.
+ *  같은 반(fromId)·같은 학생의 미완료 결석 중 적용일과 가장 가까운 것(±14일)을 완료 처리.
+ *  (보충이 결석보다 앞설 수도 있어 — 8/22 결석을 8/21에 미리 보충 — 양방향으로 본다.)
+ *  완료한 경우 보충 문구를, 해당 없으면 빈 문자열을 돌려준다. J열(보충메모)은 건드리지 않는다. */
+function mkAutoComplete_(ss, book, student, fromId, toCls, toDay, toStart, toTeacher, applyYmd) {
+  var sh = ss.getSheetByName(TAB_ATTEND);
+  if (!sh) return '';
+  var plain = String(student).replace(/\(.*\)$/, '');
+  var v = sh.getDataRange().getValues();
+  var best = -1, bestGap = 15;
+  var am = Date.parse(String(applyYmd || '').trim());
+  if (!am) am = Date.now();
+  for (var i = 1; i < v.length; i++) {
+    if (String(v[i][4] || '').trim() !== '결석') continue;
+    if (ttBook_(v[i][1]) !== book) continue;
+    if (String(v[i][2] || '').trim() !== fromId) continue;
+    if (String(v[i][3] || '').trim().replace(/\(.*\)$/, '') !== plain) continue;
+    if (String(v[i][8] || '').trim() === '1') continue;   // 이미 완료된 결석
+    var d = v[i][0];
+    var ds = (d && d.getTime) ? Utilities.formatDate(d, 'Asia/Seoul', 'yyyy-MM-dd') : String(d || '').trim();
+    var gap = Math.abs((Date.parse(ds) - am) / 86400000);
+    if (gap < bestGap) { bestGap = gap; best = i; }
+  }
+  if (best < 0) return '';
+  var plan = '반 이동 보충: ' + toCls + ' ' + toDay + toStart + ' (' + toTeacher + 'T)' +
+             (String(applyYmd || '').trim() ? ' · ' + String(applyYmd).slice(5).replace('-', '/') + ' 보충' : '');
+  var rg = sh.getRange(best + 1, 8, 1, 2);
+  rg.setNumberFormat('@');
+  rg.setValues([[plan, '1']]);
+  return plan;
+}
 function getAttendAbsentList(book) {
   book = ttBook_(book);
   var ss = SpreadsheetApp.getActiveSpreadsheet();
