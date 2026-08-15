@@ -237,7 +237,7 @@ function renderWeek(){
       '<label>학생별 과제 수행 / 질문 사항 <span class="dot">칸을 벗어나면 자동 저장</span></label>'+
       stus.map(function(nm,i){
         return '<div class="stu-row"><b>'+esc(nm)+'</b>'+
-          '<textarea data-nm="'+esc(nm)+'" onblur="saveNote(this)" placeholder="예) 아 -1 / 문법 덜풀고 안가져옴">'+esc(notes[nm]||'')+'</textarea>'+
+          '<textarea data-nm="'+esc(nm)+'" onblur="saveNote(this)" placeholder="예) 나는 오늘: 8, 문법 덜 풀고 안가져옴, 오마이갓,,,, 숙제 깜빡했다고 함, 똑똑이임">'+esc(notes[nm]||'')+'</textarea>'+
           '<button type="button" class="rpt-btn" onclick="openRpt(\''+esc(nm)+'\')" title="이 학생의 내신 대비 학습 보고서 (캡쳐용)">보고서</button></div>';
       }).join('')+
     '</div>';
