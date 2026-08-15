@@ -439,6 +439,11 @@ function doGet(e) {
     if (String(p.pw || '') !== TEACHER_PW) return json({ result:'error', message:'unauthorized' });
     return getTtMemoList(p.from, p.to);
   }
+  // 내신 대비 기록 조회 (naeshin.html) — 비밀번호 필요. ?action=naeshinGet&period=26-2-중간&classId=n001
+  if (p.action === 'naeshinGet') {
+    if (String(p.pw || '') !== TEACHER_PW) return json({ result:'error', message:'unauthorized' });
+    return getNaeshin(p.period, p.classId);
+  }
   // 별 보너스 로그(관리용) — 비밀번호 필요
   // 슈퍼스타 TOP 10 순위 — 전 재원생 별 집계 (비밀번호 필요)
   if (p.action === 'starRank') {
@@ -2295,6 +2300,7 @@ function doPost(e) {
     if (data && data.action === 'attendSetBulk')    { return attendSetBulk(data); }
     if (data && data.action === 'attendMakeupSet')  { return attendMakeupSet(data); }
     if (data && data.action === 'ttMemoSet')        { return ttMemoSet(data); }
+    if (data && data.action === 'naeshinSet')       { return naeshinSet(data); }
     if (data && data.action === 'ttPeriodSet')      { return ttPeriodSet(data); }
     if (data && data.action === 'timetableMoveClass') { return timetableMoveClass(data); }
     if (data && data.action === 'timetableAddClass')  { return timetableAddClass(data); }
@@ -3052,6 +3058,73 @@ function getTimetableWeek(fromStr, toStr, book) {
   }
   return json({ result:'success', from: fromStr, to: toStr, attend: attend, onceMoves: once });
 }
+/* ── 내신 대비 기록 (naeshin.html) — 시험기간·내신반 단위 기록 ──
+ *  '내신기록' 탭: A:기간(26-2-중간) B:반ID C:구분(범위/주차/학생) D:주차 E:학생 F:내용1 G:내용2 H:기록일시
+ *   · 범위: 반의 시험범위 (F) — 지필고사 리포트 제작 때 자동으로 가져다 씀
+ *   · 주차: 주차별 진도(F)·과제(G)
+ *   · 학생: 주차별 학생 메모 — 과제 수행/질문 사항 (F)
+ *  키(기간+반+구분+주차+학생)가 같으면 덮어쓰기. 빈 내용 저장 = 그 기록 삭제. */
+var TAB_NAESHIN = '내신기록';
+function naeshinSheet_(ss) {
+  var sh = ss.getSheetByName(TAB_NAESHIN);
+  if (!sh) {
+    sh = ss.insertSheet(TAB_NAESHIN);
+    sh.appendRow(['기간', '반ID', '구분', '주차', '학생', '내용1', '내용2', '기록일시']);
+  }
+  return sh;
+}
+function getNaeshin(period, classId) {
+  period = String(period || '').trim(); classId = String(classId || '').trim();
+  if (!period || !classId) return json({ result:'error', message:'기간과 반이 필요합니다.' });
+  var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(TAB_NAESHIN);
+  var scope = '', weeks = {}, notes = {};
+  if (sh) {
+    var v = sh.getDataRange().getValues();
+    for (var i = 1; i < v.length; i++) {
+      if (String(v[i][0] || '').trim() !== period || String(v[i][1] || '').trim() !== classId) continue;
+      var kind = String(v[i][2] || '').trim();
+      var wk = String(v[i][3] || '').trim();
+      if (kind === '범위') scope = String(v[i][5] || '');
+      else if (kind === '주차') weeks[wk] = { prog: String(v[i][5] || ''), hw: String(v[i][6] || '') };
+      else if (kind === '학생') { (notes[wk] = notes[wk] || {})[String(v[i][4] || '').trim()] = String(v[i][5] || ''); }
+    }
+  }
+  return json({ result:'success', period: period, classId: classId, scope: scope, weeks: weeks, notes: notes });
+}
+/** 저장(덮어쓰기). { pw, period, classId, kind(범위/주차/학생), week, student, text1, text2 } */
+function naeshinSet(data) {
+  if (String(data.pw || '') !== TEACHER_PW) return json({ result:'error', message:'unauthorized' });
+  var period = String(data.period || '').trim(), classId = String(data.classId || '').trim();
+  var kind = String(data.kind || '').trim();
+  var week = String(data.week || '').trim(), student = String(data.student || '').trim();
+  var t1 = String(data.text1 == null ? '' : data.text1).trim();
+  var t2 = String(data.text2 == null ? '' : data.text2).trim();
+  if (!period || !classId) return json({ result:'error', message:'기간과 반이 필요합니다.' });
+  if (['범위','주차','학생'].indexOf(kind) < 0) return json({ result:'error', message:'구분이 올바르지 않습니다.' });
+  if (kind !== '범위' && !week) return json({ result:'error', message:'주차가 필요합니다.' });
+  if (kind === '학생' && !student) return json({ result:'error', message:'학생 이름이 필요합니다.' });
+  return withLock_(function () {
+    var sh = naeshinSheet_(SpreadsheetApp.getActiveSpreadsheet());
+    var v = sh.getDataRange().getValues();
+    var at = -1;
+    for (var i = 1; i < v.length; i++) {
+      if (String(v[i][0] || '').trim() === period && String(v[i][1] || '').trim() === classId &&
+          String(v[i][2] || '').trim() === kind &&
+          String(v[i][3] || '').trim() === (kind === '범위' ? '' : week) &&
+          String(v[i][4] || '').trim() === (kind === '학생' ? student : '')) { at = i + 1; break; }
+    }
+    if (!t1 && !t2) {           // 빈 값 저장 = 기록 삭제
+      if (at > 0) sh.deleteRow(at);
+      return json({ result:'success', cleared: true });
+    }
+    var row = [period, classId, kind, kind === '범위' ? '' : week, kind === '학생' ? student : '', t1, t2, new Date()];
+    var rg = sh.getRange(at > 0 ? at : sh.getLastRow() + 1, 1, 1, 8);
+    rg.setNumberFormats([['@','@','@','@','@','@','@','yyyy-mm-dd hh:mm']]);
+    rg.setValues([row]);
+    return json({ result:'success' });
+  });
+}
+
 /* ── 오늘의 이슈 메모 (timetable.html) — 날짜별 1건, 주차별 보기에서 모아 봄 ── */
 function ttMemoSheet_(ss) {
   var sh = ss.getSheetByName(TAB_TT_MEMO);

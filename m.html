@@ -727,10 +727,45 @@ function copyLink(inputId, btnId){
 
 /* ===== 수정 모드 (?id=) : 기존 리포트를 불러와 폼에 채운다 ===== */
 var EDIT_MODE=false, EDIT_ID='';
+/* 내신대비 피드백(naeshin.html)에서 [지필 리포트 제작]으로 넘어온 경우 —
+ * 그 반의 시험범위·기간을 자동으로 채우고, 반 이름에서 학교·학년도 추정해 채운다. */
+function maybeNaeshinPrefill(){
+  var qs=new URLSearchParams(location.search);
+  var nsPeriod=(qs.get('nsPeriod')||'').trim(), nsClass=(qs.get('nsClass')||'').trim(), nsName=(qs.get('nsName')||'').trim();
+  if(!nsPeriod || !nsClass) return;
+  // 기간 → 제목 접두어
+  var t=document.getElementById('f_title');
+  if(!t.value){ t.value=nsPeriod+'-'; syncPeriodChips(); }
+  // 반 이름 "고1 화정A(천재수)" → 학년 숫자·학교 단어 추정
+  var gm=nsName.match(/^[중고]([1-3])/);
+  if(gm) document.getElementById('f_gradeN').value=gm[1];
+  var sm=nsName.match(/^[중고][1-3]\s+([가-힣]+)/);
+  if(sm){
+    var word=sm[1].replace(/[A-Za-z]+$/,'');
+    var trySchool=function(){
+      var sel=document.getElementById('f_school');
+      for(var i=0;i<sel.options.length;i++){
+        if(sel.options[i].value.indexOf(word)===0){ sel.value=sel.options[i].value; composeTitle(); return true; }
+      }
+      return false;
+    };
+    if(!trySchool()){ var n=0, iv=setInterval(function(){ if(trySchool() || ++n>20) clearInterval(iv); }, 500); }   // 학교 목록 로딩 대기
+  }
+  // 시험범위 가져오기
+  fetch(ENDPOINT+'?action=naeshinGet&pw='+encodeURIComponent(SERVER_PW||'sh')+'&period='+encodeURIComponent(nsPeriod)+'&classId='+encodeURIComponent(nsClass)+'&t='+Date.now())
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      if(d && d.result==='success' && d.scope){
+        var sc=document.getElementById('f_scope');
+        if(!sc.value.trim()) sc.value=d.scope;
+        setStatus('내신 기록의 시험범위를 가져왔습니다: '+nsName, '');
+      }
+    }).catch(function(){});
+}
 function maybeLoadEdit(){
   var qs=new URLSearchParams(location.search);
   var id=(qs.get('id')||'').trim();
-  if(!id) return;
+  if(!id){ maybeNaeshinPrefill(); return; }
   EDIT_MODE=true; EDIT_ID=id;
   var h1=document.querySelector('.panel h1'); if(h1) h1.textContent='SHUEGUK 시험 수정';
   var sb=document.getElementById('saveBtn'); if(sb) sb.textContent='수정 저장';
