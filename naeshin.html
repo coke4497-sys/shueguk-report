@@ -58,13 +58,14 @@
   .stu-row .rpt-btn{font:inherit; font-size:11px; font-weight:700; letter-spacing:.05em; padding:4px 10px;
     border:1.5px solid var(--line); border-radius:8px; background:#fff; color:var(--accent); cursor:pointer; white-space:nowrap;}
   .stu-row .rpt-btn:hover{background:var(--accent); border-color:var(--accent); color:#fff;}
-  /* 시험범위 클리어 칩 */
-  .clr-list{display:flex; flex-wrap:wrap; gap:6px; margin:2px 0 4px;}
-  .clr-list .clr{font:inherit; font-size:12.5px; padding:6px 12px; border:1.5px solid var(--line); border-radius:16px;
-    background:#fff; color:var(--ink); cursor:pointer;}
-  .clr-list .clr:hover{border-color:var(--accent);}
-  .clr-list .clr.done{background:var(--icon-bg); border-color:var(--accent); color:var(--ink-soft); text-decoration:line-through;}
-  .clr-list .clr.done i{font-style:normal; text-decoration:none; font-size:11px; font-weight:700; color:var(--accent); margin-left:5px;}
+  /* 이번 주 진도 단원 칩 */
+  .unit-list{display:flex; flex-wrap:wrap; gap:6px; margin:7px 0 2px; align-items:center;}
+  .unit-list .unit{display:inline-flex; align-items:center; gap:6px; font-size:12.5px; padding:5px 8px 5px 12px;
+    background:var(--icon-bg); border:1.5px solid var(--accent); border-radius:16px; color:var(--ink);}
+  .unit-list .unit i{font-style:normal; font-size:11px; font-weight:700; color:var(--accent);}
+  .unit-list .unit button{font:inherit; font-size:14px; line-height:1; padding:0 2px; border:none; background:none;
+    color:var(--ink-soft); cursor:pointer;}
+  .unit-list .unit button:hover{color:#DB4C39;}
   /* 학생별 과제 확인 칩 */
   .hw-chips{display:flex; flex-wrap:wrap; gap:5px;}
   .hw-chips .hwc{font:inherit; font-size:11.5px; padding:4px 10px; border:1.5px solid var(--line); border-radius:14px;
@@ -102,7 +103,7 @@
   </a>
   <h1>내신대비 피드백</h1>
   <p class="sub">Shueguk · 내신반 주차별 진도·과제·학생 피드백 (교사·조교용)</p>
-  <p class="tip">화면이 예전 그대로거나 시간표 변경이 안 보이면 <b>Ctrl+Shift+R</b> (맥은 <b>⌘+Shift+R</b>)로 새로고침해 주세요.</p>
+  <p class="tip">화면이 예전 그대로거나 방금 바꾼 내용이 안 보이면 <b>Ctrl+Shift+R</b> 로 새로고침해 주세요.</p>
 
   <div class="card">
     <label>시험 기간</label>
@@ -416,19 +417,29 @@ function renderWeek(){
   var hwItems = lines(wk.hw);
   var hwd = rec.hwdone[week] || {};
   $('wbody').innerHTML =
+    '<label>'+esc(wkLabel(week))+' 진도 <span class="dot">시험범위에서 이번 주에 나간 단원을 고르세요 — 고른 단원은 범위에서 지워집니다</span></label>'+
     (items.length
-      ? '<label>시험범위 클리어 <span class="dot">이번 주에 나간 범위를 누르세요 · 지난주에 하다 만 항목은 이번 주에 한 번 더 누르면 기간이 이어져요</span></label>'+
-        '<div class="clr-list">'+items.map(function(it){
+      ? '<select id="ns-unit" onchange="addUnit(this)">'+
+          '<option value="">＋ 단원 선택</option>'+
+          items.map(function(it){
+            var c=rec.cleared[it];
+            var inWeek = c && String(c.s)<=String(week) && String(week)<=String(c.d);
+            if(inWeek) return '';                                  // 이번 주에 이미 고른 건 아래 칩에
+            var tag = c ? ' — '+(c.s===c.d?wkShort(c.s):wkShort(c.s)+'~'+wkShort(c.d))+' 완료' : '';
+            return '<option value="'+esc(it)+'">'+esc(it)+esc(tag)+'</option>';
+          }).join('')+
+        '</select>'+
+        '<div class="unit-list">'+unitsOfWeek(week).map(function(it){
           var c=rec.cleared[it];
-          var tag=c ? (c.s===c.d ? wkShort(c.s) : wkShort(c.s)+'~'+wkShort(c.d)) : '';
-          return '<button type="button" class="clr'+(c?' done':'')+'" data-it="'+esc(it)+'" onclick="toggleClear(this)">'+esc(it)+(tag?'<i>'+tag+'</i>':'')+'</button>';
-        }).join('')+'</div>'
-      : '')+
-    '<label>'+esc(wkLabel(week))+' 진도</label>'+
-    '<textarea id="ns-prog" placeholder="예) 1. 대장간  2. 멸치  3. 서사갈래 이론">'+esc(wk.prog)+'</textarea>'+
+          var tag=(c && c.s!==c.d) ? '<i>'+esc(wkShort(c.s)+'~'+wkShort(c.d))+'</i>' : '';
+          return '<span class="unit">'+esc(it)+tag+'<button type="button" onclick="removeUnit(\''+esc(it).replace(/'/g,"\\'")+'\')" title="이 주 진도에서 빼기">×</button></span>';
+        }).join('') + (unitsOfWeek(week).length ? '' : '<span class="dot">아직 고른 단원이 없어요</span>') + '</div>'
+      : '<p class="dot" style="margin:0 0 8px;">먼저 위에서 시험범위를 저장하면 단원 목록이 나옵니다.</p>')+
+    '<label>메모 <span class="dot">수업 중 특이사항 등 자유롭게</span></label>'+
+    '<textarea id="ns-prog" placeholder="예) 진도 조금 밀림 · 다음 주 실전 2회부터">'+esc(wk.prog)+'</textarea>'+
     '<label>'+esc(wkLabel(week))+' 과제 <span class="dot">한 줄에 한 과제 — 줄마다 학생별 확인 버튼이 됩니다</span></label>'+
     '<textarea id="ns-hw" rows="3" placeholder="예) 아홉 1장 필사&#10;어휘 3개&#10;프린트 전부 필사">'+esc(wk.hw)+'</textarea>'+
-    '<div class="savebar"><button type="button" class="act" onclick="saveWeek()">진도·과제 저장</button></div>'+
+    '<div class="savebar"><button type="button" class="act" onclick="saveWeek()">메모·과제 저장</button></div>'+
     '<div class="stu">'+
       '<label>학생별 과제 수행 / 질문 사항 <span class="dot">과제 버튼 = 해온 것 체크 · 메모는 칸을 벗어나면 자동 저장</span></label>'+
       '<p style="font-size:12px;color:var(--ink-soft);margin:0 0 6px;line-height:1.6;"><b style="color:var(--accent);">REPORT</b> — 시험 기간이 시작된 이후 학생의 피드백 내용을 종합하여 기록합니다. 상담시 참고할 수 있습니다.</p>'+
@@ -470,21 +481,42 @@ function scopeItems(){
   ['inRange','extra','outRange'].forEach(function(k){ lines(sp[k]).forEach(function(x){ out.push(x); }); });
   return out;
 }
-/* 시험범위 클리어 토글 — 누르면 이번 주 완료, 지난주 것을 이번 주에 또 누르면 기간 확장(1~2주),
- * 이미 이번 주가 포함된 항목을 다시 누르면 해제 */
-function toggleClear(btn){
-  var it=btn.getAttribute('data-it');
+/* 이번 주에 나간 단원 — 시험범위 항목 중 기간(s~d)이 이 주를 포함하는 것 */
+function unitsOfWeek(w){
+  return scopeItems().filter(function(it){
+    var c=rec.cleared[it];
+    return c && String(c.s)<=String(w) && String(w)<=String(c.d);
+  });
+}
+function saveUnits(){
+  var has=Object.keys(rec.cleared).length;
+  post({ action:'naeshinSet', period:period, classId:curClass.id, kind:'클리어',
+         text1: has?JSON.stringify(rec.cleared):'' }, function(res){
+    if(res && res.result==='success') setStatus('진도 저장');
+    else setStatus('진도 저장 실패 — 다시 시도해 주세요');
+  });
+}
+/* 드롭다운에서 단원 선택 — 처음이면 이 주 진도로, 지난 주에 하다 만 것이면 기간을 이 주까지 확장 */
+function addUnit(sel){
+  var it=sel.value; sel.value='';
+  if(!it) return;
   var c=rec.cleared[it];
   if(!c) rec.cleared[it]={ s:week, d:week };
   else if(String(week)>String(c.d)) c.d=week;      // yyyy-MM-dd라 문자열 비교로 순서가 맞는다
   else if(String(week)<String(c.s)) c.s=week;
-  else delete rec.cleared[it];
-  renderWeek();
-  var has=Object.keys(rec.cleared).length;
-  post({ action:'naeshinSet', period:period, classId:curClass.id, kind:'클리어',
-         text1: has?JSON.stringify(rec.cleared):'' }, function(res){
-    if(!(res && res.result==='success')) setStatus('클리어 저장 실패 — 다시 시도해 주세요');
-  });
+  renderWeek(); saveUnits();
+}
+/* 칩의 × — 이 주에서만 빼기 (여러 주에 걸친 단원은 기간을 줄이고, 한 주짜리면 삭제) */
+function removeUnit(it){
+  var c=rec.cleared[it]; if(!c) return;
+  if(String(c.s)===String(c.d)){ delete rec.cleared[it]; }
+  else {
+    var ws=weekOptions();
+    if(String(week)===String(c.s)){ var i=ws.indexOf(week); if(i>=0 && ws[i+1]) c.s=ws[i+1]; else delete rec.cleared[it]; }
+    else if(String(week)===String(c.d)){ var j=ws.indexOf(week); if(j>0 && ws[j-1]) c.d=ws[j-1]; else delete rec.cleared[it]; }
+    else delete rec.cleared[it];   // 중간 주를 빼는 경우는 통째로 해제
+  }
+  renderWeek(); saveUnits();
 }
 /* 학생별 과제 확인 토글 */
 function toggleHw(btn){
@@ -556,7 +588,7 @@ function openRpt(nm){
     var wk=rec.weeks[w]||{prog:'',hw:''};
     var note=(rec.notes[w]||{})[nm]||'';
     var done=((rec.hwdone[w]||{})[nm])||[];
-    if(!wk.prog && !wk.hw && !note) return;   // 기록 없는 주차는 생략
+    if(!wk.prog && !wk.hw && !note && !unitsOfWeek(w).length) return;   // 기록 없는 주차는 생략
     var hwLines=lines(wk.hw);
     var hwHtml = hwLines.length
       ? hwLines.map(function(ln){
@@ -565,9 +597,11 @@ function openRpt(nm){
                     : '<span style="color:#B08A3E;font-weight:700;">·</span> '+esc(ln)+' <span style="font-size:11px;color:#B08A3E;">미확인</span>';
         }).join('<br>')
       : esc(wk.hw);
+    var units=unitsOfWeek(w);
     wkHtml += '<div class="wk"><div class="wt">'+esc(wkLabel(w))+'</div>'+
-      (wk.prog ? '<div class="row"><span>수업 진도</span><span>'+esc(wk.prog)+'</span></div>' : '')+
+      (units.length ? '<div class="row"><span>수업 진도</span><span>'+units.map(esc).join(', ')+'</span></div>' : '')+
       (wk.hw   ? '<div class="row"><span>과제</span><span>'+hwHtml+'</span></div>' : '')+
+      (wk.prog ? '<div class="row"><span>메모</span><span>'+esc(wk.prog)+'</span></div>' : '')+
       (note    ? '<div class="note"><b>'+esc(nm)+' 학생 기록</b>'+esc(note)+'</div>' : '')+
       '</div>';
   });
