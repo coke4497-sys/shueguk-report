@@ -89,7 +89,7 @@
   body:not(.locked) .lock{display:none;}
   @media (prefers-reduced-motion:reduce){*{transition:none !important;}}
   .tip{text-align:center; font-size:12px; color:#65726B; background:#EBF0ED;
-    border:1px solid #E5EDE8; border-radius:10px; padding:7px 12px; margin:6px auto 14px; max-width:560px; line-height:1.55;}
+    border:1px solid #E5EDE8; border-radius:10px; padding:7px 12px; margin:22px auto 8px; max-width:560px; line-height:1.55;}
   .tip b{color:#4C6E66;}
 </style>
 </head>
@@ -122,7 +122,6 @@
     <h2><span class="dot"></span>새 공지 작성</h2>
     <p class="sub">대상을 고르고 내용을 입력하면, 해당 학생들 페이지에 바로 표시됩니다.</p>
 
-  <p class="tip">화면이 예전 그대로거나 방금 바꾼 내용이 안 보이면 <b>Ctrl+Shift+R</b> 로 새로고침해 주세요.</p>
     <label>대상 선택</label>
     <div id="picker"></div>
 
@@ -280,5 +279,7 @@
     .catch(function(){ btn.disabled=false; alert('삭제 실패 — 인터넷을 확인해 주세요.'); });
   }
 </script>
+
+<p class="tip">화면이 예전 그대로거나 방금 바꾼 내용이 안 보이면 <b>Ctrl+Shift+R</b> 로 새로고침해 주세요.</p>
 </body>
 </html>
