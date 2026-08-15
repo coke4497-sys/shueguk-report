@@ -71,7 +71,9 @@
   .hw-chips .hwc{font:inherit; font-size:11.5px; padding:4px 10px; border:1.5px solid var(--line); border-radius:14px;
     background:#fff; color:var(--ink-soft); cursor:pointer;}
   .hw-chips .hwc.on{background:var(--btn); border-color:var(--btn); color:#fff; font-weight:700;}
-  .hw-chips .hwc.miss{background:#F0DBD8; border-color:#C99B94; color:#8A3B33; font-weight:700; text-decoration:line-through;}
+  .hw-chips .hwc.miss{background:#fff; border-color:#B4574E; color:#8A3B33; font-weight:700;}
+  .hw-chips .hwc.miss em{font-style:normal; font-size:10.5px; font-weight:700; color:#fff; background:#B4574E;
+    border-radius:5px; padding:1px 5px; margin-right:4px;}
   .hw-chips .hwc i{font-style:normal; font-size:10.5px; margin-left:4px; opacity:.9;}
 
   /* ── 과제 별점 창 ── */
@@ -481,8 +483,9 @@ function renderWeek(){
                 var v=done[it];
                 var cls = v ? (v.x ? ' miss' : ' on') : '';
                 var tag = (v && !v.x) ? '<i>'+(v.a||0)+'·'+(v.d||0)+'</i>' : '';
+                var head = (v&&v.x) ? '<em>미</em>' : (v ? '✓ ' : '');
                 return '<button type="button" class="hwc'+cls+'" data-hw-nm="'+esc(nm)+'" data-hw-it="'+esc(it)+'">'+
-                       (v&&!v.x?'✓ ':'')+esc(it)+tag+'</button>';
+                       head+esc(it)+tag+'</button>';
               }).join('')+'</div>'
             : '')+
           '<textarea data-nm="'+esc(nm)+'" onblur="saveNote(this)" placeholder="예) 나는 오늘: 8, 문법 덜 풀고 안가져옴, 오마이갓,,,, 숙제 깜빡했다고 함, 똑똑이임">'+esc(notes[nm]||'')+'</textarea>'+
@@ -673,7 +676,7 @@ function openRpt(nm){
     var hwHtml = hwLines.length
       ? hwLines.map(function(ln){
           var v=done[ln];
-          if(v && v.x) return '<span style="color:#B4574E;font-weight:700;">✕</span> <s style="color:var(--ink-soft);">'+esc(ln)+'</s> <span style="font-size:11px;color:#B4574E;">미제출</span>';
+          if(v && v.x) return '<span style="color:#B4574E;font-weight:700;">'+esc(ln)+' <span style="font-size:11px;">— 미제출</span></span>';
           if(v) return '<span style="color:var(--accent);font-weight:700;">✓</span> '+esc(ln)+
                        ' <span style="font-size:11px;color:var(--ink-soft);">학습량 '+(v.a||0)+' · 깊이 '+(v.d||0)+'</span>';
           return '<span style="color:#B08A3E;font-weight:700;">·</span> '+esc(ln)+' <span style="font-size:11px;color:#B08A3E;">미확인</span>';
