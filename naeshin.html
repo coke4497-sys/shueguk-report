@@ -336,11 +336,11 @@ function renderPanel(){
       '<input id="ns-book" placeholder="예) 창비 공통국어2" value="'+esc(sp.book||'')+'">'+
       '<label>2. 교과서 내 범위 <span class="dot">한 줄에 한 항목 — 줄마다 클리어 버튼이 됩니다</span></label>'+
       '<textarea id="ns-in" rows="4" placeholder="예) 현대시: 나는 오늘&#10;화법: 대화의 원리&#10;독서: 인간과 동물의 공존&#10;문법: 국어사">'+esc(sp.inRange||'')+'</textarea>'+
-      '<label>3. 추가 자료 <span class="dot">한 줄에 한 항목</span></label>'+
-      '<textarea id="ns-extra" placeholder="예) 학습지 프린트">'+esc(sp.extra||'')+'</textarea>'+
-      '<label>4. 교과서 외 범위 <span class="dot">한 줄에 한 항목</span></label>'+
-      '<textarea id="ns-out" placeholder="예) 2503 고1 독서(사회) 형사법과 민사법">'+esc(sp.outRange||'')+'</textarea>'+
-      '<div class="savebar"><button type="button" class="act" onclick="saveScope()">시험범위 저장</button></div>'+
+      '<label>3. 교과서 외 범위 <span class="dot">한 줄에 한 항목</span></label>'+
+      '<textarea id="ns-out" placeholder="예) 2503 고1 독서(사회) 형사법과 민사법&#10;학습지 프린트">'+esc(sp.outRange||'')+'</textarea>'+
+      '<div class="savebar" style="align-items:center;">'+
+        '<span class="dot" style="margin:0 auto 0 0;">저장하면 아래 주차별 <b>시험범위 클리어</b> 목록에 바로 반영됩니다</span>'+
+        '<button type="button" class="act" onclick="saveScope()">시험범위 저장</button></div>'+
     '</div>'+
     '<div class="card">'+
       '<div class="wtabs" id="wtabs"></div>'+
@@ -455,18 +455,24 @@ function saveStudent(nm){
 
 /* ── 저장 ── */
 function scopeLabelPairs(sp){
-  return [['교과서',sp.book],['교과서 내 범위',sp.inRange],['추가 자료',sp.extra],['교과서 외 범위',sp.outRange]]
-    .filter(function(x){ return x[1]; });
+  return [['교과서',sp.book],['교과서 내 범위',sp.inRange],['교과서 외 범위',sp.outRange],['추가 자료',sp.extra]]
+    .filter(function(x){ return x[1]; });   // '추가 자료'는 옛 기록이 있을 때만 표시
 }
 function saveScope(){
+  var prev=rec.scopeParts||{};
   var sp={ book:$('ns-book').value.trim(), inRange:$('ns-in').value.trim(),
-           extra:$('ns-extra').value.trim(), outRange:$('ns-out').value.trim() };
+           extra:String(prev.extra||'').trim(),   // 칸은 없앴지만 옛 기록은 그대로 보존
+           outRange:$('ns-out').value.trim() };
   var readable=scopeLabelPairs(sp).map(function(x){ return x[0]+': '+x[1]; }).join('\n');
   var empty=!readable;
   post({ action:'naeshinSet', period:period, classId:curClass.id, kind:'범위',
          scopeKey: scopeKeyOf(curClass.cls, curClass.id),
          text1: empty?'':JSON.stringify(sp), text2: readable }, function(res){
-    if(res && res.result==='success'){ rec.scopeParts=empty?null:sp; rec.scope=readable; setStatus('시험범위 저장 완료'); }
+    if(res && res.result==='success'){
+      rec.scopeParts=empty?null:sp; rec.scope=readable;
+      renderWeek();   // 주차 화면의 '시험범위 클리어' 버튼을 새 범위로 즉시 갱신
+      setStatus('시험범위 저장 완료 — 주차별 클리어 목록에 반영했어요');
+    }
     else setStatus('저장 실패 — 다시 시도해 주세요');
   });
 }
