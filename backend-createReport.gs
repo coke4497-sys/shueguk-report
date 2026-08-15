@@ -3080,7 +3080,7 @@ function getNaeshin(period, classId, scopeKey) {
   var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(TAB_NAESHIN);
   // 시험범위는 학교·학년 공유 키(scopeKey)로 저장 — 같은 학교·학년의 병렬 반이 한 번만 입력하면 되게.
   // 공유 키 행이 없으면 반 단위(옛 기록)로 대체.
-  var scope = '', scopeShared = null, scopeLegacy = null, weeks = {}, notes = {};
+  var scope = '', scopeShared = null, scopeLegacy = null, weeks = {}, notes = {}, cleared = {}, hwdone = {};
   if (sh) {
     var v = sh.getDataRange().getValues();
     for (var i = 1; i < v.length; i++) {
@@ -3096,7 +3096,14 @@ function getNaeshin(period, classId, scopeKey) {
       }
       if (b !== classId) continue;
       if (kind === '주차') weeks[wk] = { prog: String(v[i][5] || ''), hw: String(v[i][6] || '') };
-      else if (kind === '학생') { (notes[wk] = notes[wk] || {})[String(v[i][4] || '').trim()] = String(v[i][5] || ''); }
+      else if (kind === '학생') {
+        var snm = String(v[i][4] || '').trim();
+        (notes[wk] = notes[wk] || {})[snm] = String(v[i][5] || '');
+        // G열: 그 학생이 클리어한 과제 항목 목록(JSON 배열)
+        var hj = String(v[i][6] || '').trim();
+        if (hj) { try { (hwdone[wk] = hwdone[wk] || {})[snm] = JSON.parse(hj) || []; } catch (e) {} }
+      }
+      else if (kind === '클리어') { try { cleared = JSON.parse(String(v[i][5] || '{}')) || {}; } catch (e) {} }
     }
   }
   scope = scopeShared || scopeLegacy || '';
@@ -3114,7 +3121,8 @@ function getNaeshin(period, classId, scopeKey) {
         .filter(function (x) { return x[1]; }).map(function (x) { return x[0] + ': ' + x[1]; }).join('\n');
     }
   }
-  return json({ result:'success', period: period, classId: classId, scope: scopeText, scopeParts: scopeParts, weeks: weeks, notes: notes });
+  return json({ result:'success', period: period, classId: classId, scope: scopeText, scopeParts: scopeParts,
+                weeks: weeks, notes: notes, cleared: cleared, hwdone: hwdone });
 }
 /** 저장(덮어쓰기). { pw, period, classId, kind(범위/주차/학생), week, student, text1, text2, scopeKey }
  *  kind '범위'는 scopeKey(학교·학년 공유 키)가 오면 그 키로 저장해 병렬 반과 공유한다. */
@@ -3127,8 +3135,9 @@ function naeshinSet(data) {
   var t1 = String(data.text1 == null ? '' : data.text1).trim();
   var t2 = String(data.text2 == null ? '' : data.text2).trim();
   if (!period || !classId) return json({ result:'error', message:'기간과 반이 필요합니다.' });
-  if (['범위','주차','학생'].indexOf(kind) < 0) return json({ result:'error', message:'구분이 올바르지 않습니다.' });
-  if (kind !== '범위' && !week) return json({ result:'error', message:'주차가 필요합니다.' });
+  if (['범위','주차','학생','클리어'].indexOf(kind) < 0) return json({ result:'error', message:'구분이 올바르지 않습니다.' });
+  var needWeek = (kind === '주차' || kind === '학생');
+  if (needWeek && !week) return json({ result:'error', message:'주차가 필요합니다.' });
   if (kind === '학생' && !student) return json({ result:'error', message:'학생 이름이 필요합니다.' });
   return withLock_(function () {
     var sh = naeshinSheet_(SpreadsheetApp.getActiveSpreadsheet());
@@ -3137,14 +3146,14 @@ function naeshinSet(data) {
     for (var i = 1; i < v.length; i++) {
       if (String(v[i][0] || '').trim() === period && String(v[i][1] || '').trim() === classId &&
           String(v[i][2] || '').trim() === kind &&
-          String(v[i][3] || '').trim() === (kind === '범위' ? '' : week) &&
+          String(v[i][3] || '').trim() === (needWeek ? week : '') &&
           String(v[i][4] || '').trim() === (kind === '학생' ? student : '')) { at = i + 1; break; }
     }
     if (!t1 && !t2) {           // 빈 값 저장 = 기록 삭제
       if (at > 0) sh.deleteRow(at);
       return json({ result:'success', cleared: true });
     }
-    var row = [period, classId, kind, kind === '범위' ? '' : week, kind === '학생' ? student : '', t1, t2, new Date()];
+    var row = [period, classId, kind, needWeek ? week : '', kind === '학생' ? student : '', t1, t2, new Date()];
     var rg = sh.getRange(at > 0 ? at : sh.getLastRow() + 1, 1, 1, 8);
     rg.setNumberFormats([['@','@','@','@','@','@','@','yyyy-mm-dd hh:mm']]);
     rg.setValues([row]);
