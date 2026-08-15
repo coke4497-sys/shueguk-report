@@ -186,7 +186,7 @@ function openClass(){
     .then(function(r){ return r.json(); })
     .then(function(d){
       if(!d || d.result!=='success'){ $('panel').innerHTML='<div class="card"><p class="empty">기록을 불러오지 못했어요.</p></div>'; return; }
-      rec = { scope:d.scope||'', weeks:d.weeks||{}, notes:d.notes||{} };
+      rec = { scope:d.scope||'', scopeParts:d.scopeParts||null, weeks:d.weeks||{}, notes:d.notes||{} };
       week = 1;
       renderPanel();
     }).catch(function(){ $('panel').innerHTML='<div class="card"><p class="empty">서버 연결에 실패했어요.</p></div>'; });
@@ -194,14 +194,22 @@ function openClass(){
 
 function renderPanel(){
   var c=curClass; if(!c) return;
+  var sp = rec.scopeParts || (rec.scope ? { inRange: rec.scope } : {});   // 옛 단일 기록은 '교과서 내 범위'에
   var html =
     '<div class="card">'+
       '<div class="cls-head">'+
         '<h2>'+esc(c.cls)+' <small>'+esc(c.day)+esc(c.start)+'~'+esc(c.end)+' · '+esc(c.teacher)+'T · '+esc(c.loc)+' · '+period+'</small></h2>'+
         '<button type="button" class="act ghost" onclick="goReport()" title="시험범위가 시험 등록 화면에 자동으로 채워져요">지필 리포트 제작</button>'+
       '</div>'+
-      '<label>시험범위 <span class="dot">지필고사 리포트 제작 시 자동으로 가져다 써요</span></label>'+
-      '<textarea id="ns-scope" placeholder="예) 서사갈래-소설 이론, 아홉켤레의 구두로 남은 사내, 문법요소와 어휘 …">'+esc(rec.scope)+'</textarea>'+
+      '<label style="margin-bottom:0;">시험범위 <span class="dot">지필고사 리포트 제작 시 자동으로 가져다 써요</span></label>'+
+      '<label>1. 교과서</label>'+
+      '<input id="ns-book" placeholder="예) 창비 공통국어2" value="'+esc(sp.book||'')+'">'+
+      '<label>2. 교과서 내 범위</label>'+
+      '<textarea id="ns-in" placeholder="예) 현대시: 나는 오늘, 화법: 대화의 원리, 독서: 인간과 동물의 공존, 문법: 국어사">'+esc(sp.inRange||'')+'</textarea>'+
+      '<label>3. 추가 자료</label>'+
+      '<textarea id="ns-extra" placeholder="예) 학습지 프린트">'+esc(sp.extra||'')+'</textarea>'+
+      '<label>4. 교과서 외 범위</label>'+
+      '<textarea id="ns-out" placeholder="예) 2503 고1 독서(사회) 형사법과 민사법">'+esc(sp.outRange||'')+'</textarea>'+
       '<div class="savebar"><button type="button" class="act" onclick="saveScope()">시험범위 저장</button></div>'+
     '</div>'+
     '<div class="card">'+
@@ -236,10 +244,18 @@ function renderWeek(){
 }
 
 /* ── 저장 ── */
+function scopeLabelPairs(sp){
+  return [['교과서',sp.book],['교과서 내 범위',sp.inRange],['추가 자료',sp.extra],['교과서 외 범위',sp.outRange]]
+    .filter(function(x){ return x[1]; });
+}
 function saveScope(){
-  var v=$('ns-scope').value.trim();
-  post({ action:'naeshinSet', period:period, classId:curClass.id, kind:'범위', text1:v }, function(res){
-    if(res && res.result==='success'){ rec.scope=v; setStatus('시험범위 저장 완료'); }
+  var sp={ book:$('ns-book').value.trim(), inRange:$('ns-in').value.trim(),
+           extra:$('ns-extra').value.trim(), outRange:$('ns-out').value.trim() };
+  var readable=scopeLabelPairs(sp).map(function(x){ return x[0]+': '+x[1]; }).join('\n');
+  var empty=!readable;
+  post({ action:'naeshinSet', period:period, classId:curClass.id, kind:'범위',
+         text1: empty?'':JSON.stringify(sp), text2: readable }, function(res){
+    if(res && res.result==='success'){ rec.scopeParts=empty?null:sp; rec.scope=readable; setStatus('시험범위 저장 완료'); }
     else setStatus('저장 실패 — 다시 시도해 주세요');
   });
 }
@@ -282,7 +298,12 @@ function openRpt(nm){
     '<p class="brand">이수경국어 · SHUEGUK</p>'+
     '<h2>내신 대비 학습 보고서</h2>'+
     '<p class="who"><b>'+esc(nm)+'</b> · '+esc(c.cls)+' · '+esc(c.teacher)+'T<br>'+esc(period)+' 대비</p>'+
-    (rec.scope ? '<div class="box"><div class="bt">시험범위</div><div class="bc">'+esc(rec.scope)+'</div></div>' : '')+
+    (rec.scopeParts
+      ? '<div class="box"><div class="bt">시험범위</div>'+
+        scopeLabelPairs(rec.scopeParts).map(function(x){
+          return '<div class="bc" style="margin-bottom:4px;"><b style="color:var(--accent);font-size:12.5px;">'+x[0]+'</b> · '+esc(x[1])+'</div>';
+        }).join('')+'</div>'
+      : (rec.scope ? '<div class="box"><div class="bt">시험범위</div><div class="bc">'+esc(rec.scope)+'</div></div>' : ''))+
     wkHtml+
     '<p class="foot">'+dstr+' · 이수경국어</p>';
   $('rpt-wrap').style.display='block';

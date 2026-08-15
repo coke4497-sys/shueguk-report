@@ -3084,12 +3084,26 @@ function getNaeshin(period, classId) {
       if (String(v[i][0] || '').trim() !== period || String(v[i][1] || '').trim() !== classId) continue;
       var kind = String(v[i][2] || '').trim();
       var wk = String(v[i][3] || '').trim();
-      if (kind === '범위') scope = String(v[i][5] || '');
+      if (kind === '범위') scope = { f: String(v[i][5] || ''), g: String(v[i][6] || '') };
       else if (kind === '주차') weeks[wk] = { prog: String(v[i][5] || ''), hw: String(v[i][6] || '') };
       else if (kind === '학생') { (notes[wk] = notes[wk] || {})[String(v[i][4] || '').trim()] = String(v[i][5] || ''); }
     }
   }
-  return json({ result:'success', period: period, classId: classId, scope: scope, weeks: weeks, notes: notes });
+  // 시험범위 — 세분화(F열 JSON: book/inRange/extra/outRange) 또는 옛 단일 문자열 둘 다 지원.
+  // scope는 읽기 좋은 문자열(G열 우선), scopeParts는 세분화 값.
+  var scopeText = '', scopeParts = null;
+  if (scope) {
+    if (/^\s*\{/.test(scope.f)) {
+      try { scopeParts = JSON.parse(scope.f); } catch (e) {}
+    }
+    scopeText = scope.g || (scopeParts ? '' : scope.f);
+    if (!scopeText && scopeParts) {
+      scopeText = [['교과서', scopeParts.book], ['교과서 내 범위', scopeParts.inRange],
+                   ['추가 자료', scopeParts.extra], ['교과서 외 범위', scopeParts.outRange]]
+        .filter(function (x) { return x[1]; }).map(function (x) { return x[0] + ': ' + x[1]; }).join('\n');
+    }
+  }
+  return json({ result:'success', period: period, classId: classId, scope: scopeText, scopeParts: scopeParts, weeks: weeks, notes: notes });
 }
 /** 저장(덮어쓰기). { pw, period, classId, kind(범위/주차/학생), week, student, text1, text2 } */
 function naeshinSet(data) {
