@@ -133,13 +133,14 @@
 var ENDPOINT = "https://script.google.com/macros/s/AKfycbzhCncBwn-JlqXARC3wfrWUCuNHzlNK2df0bdhx-w78Xr8mzYUcIYZOJdRi9N4bHtsb/exec";
 var PW = "sh";
 var PERIODS = ['26-2-중간','26-2-기말'];   // 연말에 27년 기간 추가
-var WEEKS = [1,2,3,4,5,6];
+var WEEKS = [];            // 슈국 캘린더의 '내신' 주차(수요일 yyyy-MM-dd) — 오름차순
+var WEEKS_READY = false;
 
 var classes = [];          // 내신 시간표 반 목록
 var period = PERIODS[0];
 var curClass = null;
 var rec = { scope:'', weeks:{}, notes:{} };   // 현재 반·기간의 기록
-var week = 1;
+var week = '';
 var saveTimers = {};
 
 function $(id){ return document.getElementById(id); }
@@ -154,6 +155,46 @@ function gradeOf(cls){ var m=String(cls||'').match(/^(중[1-3]|고[1-3])/); retu
 function scopeKeyOf(cls, id){
   var m=String(cls||'').match(/^([중고][1-3])\s+([가-힣]+)/);
   return m ? '공유:'+m[1]+'|'+m[2] : id;
+}
+
+/* ── 주차 = 슈국 캘린더의 내신 기간 (수요일 시작, 수~일 수업) ── */
+function md(ymd){ var p=String(ymd).split('-'); return (+p[1])+'/'+(+p[2]); }
+function plusDays(ymd, n){
+  var p=String(ymd).split('-'); var d=new Date(+p[0], +p[1]-1, +p[2]+n);
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+function wkLabel(w){
+  var i=WEEKS.indexOf(w);
+  if(i<0) return /^\d+$/.test(String(w)) ? String(w)+'주차(이전 기록)' : String(w);
+  return (i+1)+'주 · '+md(w)+'~'+md(plusDays(w,4));
+}
+function wkShort(w){
+  var i=WEEKS.indexOf(w);
+  if(i<0) return /^\d+$/.test(String(w)) ? String(w)+'주' : String(w);
+  return md(w);
+}
+/* 저장된 기록에 캘린더에 없는 주차(옛 1~6주차 등)가 있으면 목록 뒤에 붙여 잃어버리지 않게 */
+function weekOptions(){
+  var extra={};
+  [rec.weeks, rec.notes, rec.hwdone].forEach(function(o){
+    Object.keys(o||{}).forEach(function(k){ if(WEEKS.indexOf(k)<0) extra[k]=1; });
+  });
+  return WEEKS.concat(Object.keys(extra).sort());
+}
+function loadCalendarWeeks(){
+  var cached = cacheGet('weeks');
+  if(cached && cached.length){ WEEKS = cached; WEEKS_READY = true; }
+  return fetch(ENDPOINT + '?action=ttPeriodList&pw=' + encodeURIComponent(PW) + '&t=' + Date.now())
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      if(!d || d.result!=='success') return;
+      WEEKS = (d.periods||[]).filter(function(p){ return String(p.book||'').trim()==='내신'; })
+                .map(function(p){ return String(p.week||'').trim(); })
+                .filter(function(x){ return /^\d{4}-\d{2}-\d{2}$/.test(x); })
+                .sort();
+      WEEKS_READY = true;
+      cacheSet('weeks', WEEKS);
+    }).catch(function(){});
 }
 function setStatus(m){ var el=$('status'); el.textContent=m; el.classList.add('show'); clearTimeout(el._t); el._t=setTimeout(function(){ el.classList.remove('show'); },1800); }
 function post(body, cb){
@@ -294,7 +335,7 @@ function openClass(){
   var ck = 'rec:' + period + ':' + curClass.id;
   var cached = cacheGet(ck);
   var painted = false;
-  if(cached){ rec = cached; rec.cleared=rec.cleared||{}; rec.hwdone=rec.hwdone||{}; week = 1; renderPanel(); painted = true; setStatus('최신 기록 확인 중…'); }
+  if(cached){ rec = cached; rec.cleared=rec.cleared||{}; rec.hwdone=rec.hwdone||{}; week = ''; renderPanel(); painted = true; setStatus('최신 기록 확인 중…'); }
   else $('panel').innerHTML = '<div class="card"><p class="empty">기록을 불러오는 중…</p></div>';
   fetch(ENDPOINT + '?action=naeshinGet&pw=' + encodeURIComponent(PW) +
         '&period=' + encodeURIComponent(period) + '&classId=' + encodeURIComponent(curClass.id) +
@@ -312,7 +353,7 @@ function openClass(){
       var typing = document.activeElement && $('panel').contains(document.activeElement) &&
                    /^(TEXTAREA|INPUT)$/.test(document.activeElement.tagName);
       if(!painted || (!typing && JSON.stringify(fresh)!==JSON.stringify(rec))){
-        rec = fresh; if(!painted) week = 1;
+        rec = fresh; if(!painted) week = '';
         renderPanel();
       } else {
         rec = typing ? rec : fresh;
@@ -350,10 +391,20 @@ function renderPanel(){
   renderWeek();
 }
 function renderWeek(){
-  $('wtabs').innerHTML = WEEKS.map(function(w){
-    var has = (rec.weeks[w] && (rec.weeks[w].prog||rec.weeks[w].hw)) || Object.keys(rec.notes[w]||{}).length;
-    return '<button type="button" class="'+(w===week?'on ':'')+(has?'has':'')+'" onclick="week='+w+';renderWeek()">'+w+'주차</button>';
-  }).join('');
+  var wopts = weekOptions();
+  if(!wopts.length){
+    $('wtabs').innerHTML = '<p class="empty" style="padding:8px 0;">슈국 캘린더에 <b>내신 기간</b>으로 지정된 주가 없어요.<br>시간표 → 슈국 캘린더 → 기간설정에서 내신 주차를 먼저 지정해 주세요.</p>';
+    $('wbody').innerHTML=''; return;
+  }
+  if(wopts.indexOf(week)<0) week = wopts[0];
+  $('wtabs').innerHTML =
+    '<label style="margin:0 0 4px;">주차 <span class="dot">슈국 캘린더의 내신 기간</span></label>'+
+    '<select id="wk-sel" onchange="week=this.value;renderWeek()">'+
+      wopts.map(function(w){
+        var has = (rec.weeks[w] && (rec.weeks[w].prog||rec.weeks[w].hw)) || Object.keys(rec.notes[w]||{}).length;
+        return '<option value="'+esc(w)+'"'+(w===week?' selected':'')+'>'+esc(wkLabel(w))+(has?' ●':'')+'</option>';
+      }).join('')+
+    '</select>';
   var wk = rec.weeks[week] || { prog:'', hw:'' };
   var notes = rec.notes[week] || {};
   var stus = (curClass.students||[]).map(plain);
@@ -365,13 +416,13 @@ function renderWeek(){
       ? '<label>시험범위 클리어 <span class="dot">이번 주에 나간 범위를 누르세요 · 지난주에 하다 만 항목은 이번 주에 한 번 더 누르면 기간이 이어져요</span></label>'+
         '<div class="clr-list">'+items.map(function(it){
           var c=rec.cleared[it];
-          var tag=c ? (c.s===c.d ? c.s+'주' : c.s+'~'+c.d+'주') : '';
+          var tag=c ? (c.s===c.d ? wkShort(c.s) : wkShort(c.s)+'~'+wkShort(c.d)) : '';
           return '<button type="button" class="clr'+(c?' done':'')+'" data-it="'+esc(it)+'" onclick="toggleClear(this)">'+esc(it)+(tag?'<i>'+tag+'</i>':'')+'</button>';
         }).join('')+'</div>'
       : '')+
-    '<label>'+week+'주차 진도</label>'+
+    '<label>'+esc(wkLabel(week))+' 진도</label>'+
     '<textarea id="ns-prog" placeholder="예) 1. 대장간  2. 멸치  3. 서사갈래 이론">'+esc(wk.prog)+'</textarea>'+
-    '<label>'+week+'주차 과제 <span class="dot">한 줄에 한 과제 — 줄마다 학생별 확인 버튼이 됩니다</span></label>'+
+    '<label>'+esc(wkLabel(week))+' 과제 <span class="dot">한 줄에 한 과제 — 줄마다 학생별 확인 버튼이 됩니다</span></label>'+
     '<textarea id="ns-hw" rows="3" placeholder="예) 아홉 1장 필사&#10;어휘 3개&#10;프린트 전부 필사">'+esc(wk.hw)+'</textarea>'+
     '<div class="savebar"><button type="button" class="act" onclick="saveWeek()">진도·과제 저장</button></div>'+
     '<div class="stu">'+
@@ -421,8 +472,8 @@ function toggleClear(btn){
   var it=btn.getAttribute('data-it');
   var c=rec.cleared[it];
   if(!c) rec.cleared[it]={ s:week, d:week };
-  else if(week>c.d) c.d=week;
-  else if(week<c.s) c.s=week;
+  else if(String(week)>String(c.d)) c.d=week;      // yyyy-MM-dd라 문자열 비교로 순서가 맞는다
+  else if(String(week)<String(c.s)) c.s=week;
   else delete rec.cleared[it];
   renderWeek();
   var has=Object.keys(rec.cleared).length;
@@ -497,7 +548,7 @@ function openRpt(nm){
   var today=new Date();
   var dstr=today.getFullYear()+'년 '+(today.getMonth()+1)+'월 '+today.getDate()+'일';
   var wkHtml='';
-  WEEKS.forEach(function(w){
+  weekOptions().forEach(function(w){
     var wk=rec.weeks[w]||{prog:'',hw:''};
     var note=(rec.notes[w]||{})[nm]||'';
     var done=((rec.hwdone[w]||{})[nm])||[];
@@ -510,7 +561,7 @@ function openRpt(nm){
                     : '<span style="color:#B08A3E;font-weight:700;">·</span> '+esc(ln)+' <span style="font-size:11px;color:#B08A3E;">미확인</span>';
         }).join('<br>')
       : esc(wk.hw);
-    wkHtml += '<div class="wk"><div class="wt">'+w+'주차</div>'+
+    wkHtml += '<div class="wk"><div class="wt">'+esc(wkLabel(w))+'</div>'+
       (wk.prog ? '<div class="row"><span>수업 진도</span><span>'+esc(wk.prog)+'</span></div>' : '')+
       (wk.hw   ? '<div class="row"><span>과제</span><span>'+hwHtml+'</span></div>' : '')+
       (note    ? '<div class="note"><b>'+esc(nm)+' 학생 기록</b>'+esc(note)+'</div>' : '')+
@@ -528,7 +579,7 @@ function openRpt(nm){
             ? esc(x[1])
             : lines(x[1]).map(function(ln){
                 var c=rec.cleared[ln];
-                return c ? '<s style="color:var(--ink-soft);">'+esc(ln)+'</s> <b style="font-size:11px;color:var(--accent);">'+(c.s===c.d?c.s+'주':c.s+'~'+c.d+'주')+'</b>' : esc(ln);
+                return c ? '<s style="color:var(--ink-soft);">'+esc(ln)+'</s> <b style="font-size:11px;color:var(--accent);">'+esc(c.s===c.d?wkShort(c.s):wkShort(c.s)+'~'+wkShort(c.d))+'</b>' : esc(ln);
               }).join('<br>');
           return '<div class="bc" style="margin-bottom:5px;"><b style="color:var(--accent);font-size:12.5px;">'+x[0]+'</b><br>'+body+'</div>';
         }).join('')+'</div>'
@@ -548,6 +599,7 @@ function goReport(){
 }
 
 renderPeriodTabs();
+loadCalendarWeeks().then(function(){ if(curClass) renderWeek(); });
 loadClasses();
 </script>
 </body>
