@@ -943,7 +943,7 @@ function blockEl(c){
   if (!chips) chips = '<span class="empty-note">비어 있음</span>';
   var btnRow = (mode === 'today')
     ? '<div class="btns"><button class="bbtn attall" title="기록 없는 학생을 모두 출석 처리">전체 출석</button>' +
-      '<a class="bbtn" href="hwcheck.html?slot=' + encodeURIComponent(c.day + c.start) + '" target="_blank" rel="noopener"' +
+      '<a class="bbtn" href="hwcheck.html?slot=' + encodeURIComponent(c.day + c.start) + '&cid=' + encodeURIComponent(c.id) + '" target="_blank" rel="noopener"' +
       ' onclick="event.stopPropagation()" title="이 시간대의 숙제 검사로 이동">숙제 검사</a></div>'
     : '';   // 편집 기능은 상단 편집 도구줄에서
   b.innerHTML = '<div class="bt"><span class="nm">'+esc(c.cls)+'</span>'+
