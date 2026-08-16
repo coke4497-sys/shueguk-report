@@ -2288,6 +2288,7 @@ function doPost(e) {
     if (data && data.action === 'exitDelete')      { return exitDelete(data); }
     if (data && data.action === 'addStudent')      { return addStudent(data); }
     if (data && data.action === 'updateStudent')   { return updateStudent(data); }
+    if (data && data.action === 'studentRename')   { return studentRename(data); }
 
     // (12-1) 정규 시간표 (timetable.html) — 학생 반 이동/추가/빼기, 전체 교체(가져오기·재동기화)
     if (data && data.action === 'timetableMove')    { return timetableMove(data); }
@@ -2427,6 +2428,39 @@ function getStudentLinks() {
 
 /** 재원생 정보 수정 (superstar.html 슈스 링크 탭). 접근코드로 행을 찾아
  *  학교·학년·담당교사·메모·시간표(정규가/나·내신진도/확인)만 갱신 — 이름·8자리·재원여부는 건드리지 않음. */
+/** 학생 이름 표기 변경 (동명이인 A/B 구분 등). { pw, code(접근코드), to(새 이름) }
+ *  '학생정보' 탭 B열만 바꾼다 — 접근코드·8자리·시간표 열은 그대로라 학생 개인 페이지 링크는 유지된다.
+ *  시간표의 이름은 timetableRenameStudent로 따로 바꿔야 한다(명단과 맞춰둘 것). */
+function studentRename(data) {
+  if (String(data.pw || '') !== TEACHER_PW) return json({ result: 'error', message: 'unauthorized' });
+  var code = String(data.code || '').trim();
+  var to = String(data.to || '').trim().replace(/\s+/g, '');
+  if (!code) return json({ result: 'error', message: '학생 식별 정보(접근코드)가 없습니다.' });
+  if (!to) return json({ result: 'error', message: '새 이름이 필요합니다.' });
+  return withLock_(function () {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var sh = ss.getSheetByName(TAB_STUDENTS);
+    if (!sh) return json({ result: 'error', message: "'" + TAB_STUDENTS + "' 탭이 없습니다." });
+    var v = sh.getDataRange().getValues();
+    var codeCol = findHeaderCol_(v[0], '접근코드', STU_CODE_COL);
+    var row = -1, from = '';
+    for (var i = 1; i < v.length; i++) {
+      if (String(v[i][codeCol] || '').trim() === code) { row = i + 1; from = String(v[i][1] || '').trim(); break; }
+    }
+    if (row < 0) return json({ result: 'error', message: '학생을 찾을 수 없어요.' });
+    // 같은 이름이 이미 있으면 거절 (동명이인 구분이 목적이므로)
+    for (var j = 1; j < v.length; j++) {
+      if (j + 1 !== row && String(v[j][1] || '').trim() === to) {
+        return json({ result: 'error', message: "'" + to + "' 이름이 이미 있어요. 다른 표기를 써주세요." });
+      }
+    }
+    var rg = sh.getRange(row, 2);
+    rg.setNumberFormat('@');
+    rg.setValue(to);
+    dropTab_(TAB_STUDENTS);
+    return json({ result: 'success', from: from, to: to });
+  });
+}
 function updateStudent(data) {
   if (String(data.pw || '') !== TEACHER_PW) return json({ result: 'error', message: 'unauthorized' });
   var code = String(data.code || '').trim();
