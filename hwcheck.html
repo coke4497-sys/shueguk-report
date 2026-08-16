@@ -113,11 +113,11 @@
   .plan-area label{display:block;font-size:.75rem;color:#B4574E;margin-bottom:4px;}
   .plan-area input{width:100%;font:inherit;font-size:.9rem;border:1.5px solid #E3C2BE;border-radius:10px;padding:8px 10px;}
   .qp-row{display:flex;align-items:center;gap:6px;margin:0 0 6px;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:2px;}
-  .qp-row .qp-lb{flex:none;font-size:.72rem;color:var(--ink-soft);min-width:3.2em;}
+  .qp-row .qp-lb{flex:none;font-size:.72rem;color:var(--ink-soft);min-width:4em;white-space:nowrap;}
   .qp-row button{flex:none;font:inherit;font-size:.8rem;background:#fff;border:1px solid var(--line);
     border-radius:999px;padding:4px 11px;color:var(--ink);cursor:pointer;white-space:nowrap;}
   .qp-row button.on{background:var(--btn);border-color:var(--btn);color:#fff;}
-  .qp-hint{font-size:.72rem;color:var(--ink-soft);margin:-2px 0 6px 3.9em;}
+  .qp-hint{font-size:.72rem;color:var(--ink-soft);margin:-2px 0 6px 4.7em;}
   .qp-same{font:inherit;font-size:.78rem;background:var(--icon-bg);border:1px solid var(--line-soft);
     border-radius:9px;padding:4px 10px;color:var(--accent);cursor:pointer;margin-bottom:6px;}
   .memo-area{display:none;margin-top:8px;}
@@ -720,10 +720,10 @@ var PLAN_TIMES = ['11:00', '12:30', '2:00', '3:30', '5:30', '7:00', '8:30'];
 var DOW_KO = '일월화수목금토';
 var planPick = {};   // token -> {type(문구), date, time}
 var lastPlan = '';   // 직전에 기록한 대책 — '이전과 동일' 버튼용
-function planDates(){
+function planDates(from, count){
   var out = [];
-  for (var i = 0; i < 7; i++){
-    var d = new Date(); d.setDate(d.getDate() + i);
+  for (var i = 0; i < count; i++){
+    var d = new Date(); d.setDate(d.getDate() + from + i);
     out.push((d.getMonth()+1) + '/' + d.getDate() + ' ' + DOW_KO.charAt(d.getDay()));
   }
   return out;
@@ -732,12 +732,13 @@ function planPickerHtml(token){
   function chips(kind, list){
     return list.map(function(v){
       var label = Array.isArray(v) ? v[0] : v, val = Array.isArray(v) ? v[1] : v;
-      return '<button onclick="pickPlan(\'' + esc(token) + '\',\'' + kind + '\',\'' + esc(val) + '\',this)">' + esc(label) + '</button>';
+      return '<button data-k="' + kind + '" onclick="pickPlan(\'' + esc(token) + '\',\'' + kind + '\',\'' + esc(val) + '\',this)">' + esc(label) + '</button>';
     }).join('');
   }
   return (lastPlan ? '<button class="qp-same" onclick="samePlan(\'' + esc(token) + '\')">이전과 동일: ' + esc(lastPlan.length > 18 ? lastPlan.slice(0,18) + '…' : lastPlan) + '</button>' : '') +
     '<div class="qp-row"><span class="qp-lb">무엇을</span>' + chips('type', PLAN_TYPES) + '</div>' +
-    '<div class="qp-row"><span class="qp-lb">언제</span>' + chips('date', planDates()) + '</div>' +
+    '<div class="qp-row"><span class="qp-lb">언제</span>' + chips('date', planDates(0, 7)) + '</div>' +
+    '<div class="qp-row"><span class="qp-lb">다음 주</span>' + chips('date', planDates(7, 7)) + '</div>' +
     '<div class="qp-row"><span class="qp-lb">몇 시</span>' + chips('time', PLAN_TIMES) + '</div>' +
     '<p class="qp-hint">가까운 시간대를 선택해주세요.</p>';
 }
@@ -745,8 +746,9 @@ function pickPlan(token, kind, val, btn){
   var p = planPick[token] = planPick[token] || {};
   var wasOn = p[kind] === val;
   p[kind] = wasOn ? '' : val;
-  // 같은 줄의 버튼 표시 갱신 (누른 것만 켜기, 다시 누르면 끄기)
-  var sib = btn.parentNode.querySelectorAll('button');
+  // 같은 종류 버튼 표시 갱신 (누른 것만 켜기, 다시 누르면 끄기) — 날짜는 두 줄(이번 주/다음 주)에 걸쳐 있어 함께 끈다
+  var box = btn.closest ? btn.closest('.plan-area') : null;
+  var sib = (box || btn.parentNode).querySelectorAll('button[data-k="' + kind + '"]');
   for (var i = 0; i < sib.length; i++) sib[i].classList.remove('on');
   if (!wasOn) btn.classList.add('on');
   composePlan(token);
