@@ -1477,7 +1477,11 @@ function mockDayLabel(x){
 function renderMockHub(){
   var html='';
   var oi=STATE.info||{};
-  var su = SIGNUP_PAGE + '?key=' + encodeURIComponent(KEY);
+  var su = SIGNUP_PAGE + '?key=' + encodeURIComponent(KEY)
+    + '&nm='  + encodeURIComponent(oi.name||'')
+    + '&sc='  + encodeURIComponent(oi.school||'')
+    + '&gr='  + encodeURIComponent(hsGradeNum(oi.grade)||'')
+    + '&sid=' + encodeURIComponent(oi.id||'');   // 신청 폼 자동 입력용 (OMR 링크와 동일)
   // ① 모의고사 신청 — 이번 주 신청 내역 표시 + 학년 게이팅 유지
   var sgn = STATE.mockSignups || [];
   if(sgn.length){
