@@ -2131,7 +2131,7 @@ function renderMakeup(){
         '<button onclick="' + (isOff ? 'openMakeupOffline' : 'openMakeupVideo') + '(' + i + ')">일정 수정</button>' + delBtn +
         '<button class="done-btn" onclick="saveMakeup(' + i + ', true)">' + (isOff ? '보충 출석' : '영상보충 출석') + '</button></div>';
     } else {
-      btnLine = '<div class="mk-row"><span class="mk-alt">처리 방법 —</span>' +
+      btnLine = '<div class="mk-row">' +
         '<button onclick="openMakeupMove(' + i + ')">반이동</button>' +
         '<button onclick="openMakeupVideo(' + i + ')">영상보충</button>' +
         '<button onclick="openMakeupOffline(' + i + ')">오프라인 보충</button>' +
