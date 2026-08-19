@@ -2104,14 +2104,15 @@ function renderMakeup(){
       ? '<div class="mk-plan">메모: ' + esc(m.mkMemo) + '</div>'
       : '';
     var btnLine;
+    var delBtn = '<button style="color:#B4574E;" onclick="deleteAbsence(' + i + ')">기록 삭제</button>';
     if (m.done){
       btnLine = '<div class="mk-row">' +
         '<button onclick="openMkMemo(' + i + ')">메모</button>' +
-        '<button onclick="saveMakeup(' + i + ', false)">미완료로</button></div>';
+        '<button onclick="saveMakeup(' + i + ', false)">미완료로</button>' + delBtn + '</div>';
     } else if (s === 1){
       btnLine = '<div class="mk-row">' +
         '<button onclick="openMkMemo(' + i + ')">메모</button>' +
-        '<button onclick="openMakeupVideo(' + i + ')">일정 수정</button>' +
+        '<button onclick="openMakeupVideo(' + i + ')">일정 수정</button>' + delBtn +
         '<button class="done-btn" onclick="saveMakeup(' + i + ', true)">영상보충 출석</button></div>';
     } else {
       btnLine = '<div class="mk-row"><span class="mk-alt">처리 방법 —</span>' +
@@ -2119,7 +2120,7 @@ function renderMakeup(){
         '<button onclick="openMakeupVideo(' + i + ')">영상보충</button>' +
         '<button onclick="noRemedy(' + i + ', \'무단 결석\')">무단 결석</button>' +
         '<button onclick="noRemedy(' + i + ', \'당일 결석\')">당일 결석</button>' +
-        '<button onclick="openMkMemo(' + i + ')">메모</button>' +
+        '<button onclick="openMkMemo(' + i + ')">메모</button>' + delBtn +
         '</div>' +
         (m.plan ? '<div class="mk-row" style="justify-content:flex-end;border-top:1px dotted var(--line);padding-top:6px;">' +
           '<button class="done-btn" onclick="saveMakeup(' + i + ', true)">처리 완료</button></div>' : '');
@@ -2132,6 +2133,19 @@ function renderMakeup(){
   });
   box.innerHTML = html;
 }
+/* 결석 기록 삭제 — 잘못 기록되거나 중복된 결석 건을 목록에서 지운다 (출석기록 행 삭제) */
+function deleteAbsence(i){
+  var m = makeupList[i]; if (!m) return;
+  if (!confirm(plainName(m.student) + ' — ' + m.date + ' (' + mkDayOf(m.date) + ') 결석 기록을 지울까요?\n잘못 기록되거나 중복된 건만 지워주세요. 보충 일정·메모도 함께 사라져요.\n(같은 날 같은 반 중복 기록은 한 번에 한 건씩 지워져요)')) return;
+  post({ action:'attendSet', book:book, date:m.date, classId:m.classId, student:m.student, status:'', memo:'' },
+    '기록을 지우는 중…', function(res){
+      if (res && res.result === 'success'){
+        setStatus(plainName(m.student) + ' — 결석 기록을 지웠어요.', 'ok');
+        openMakeup();   // 목록 새로고침 (중복이었다면 남은 건이 보여요)
+      } else setStatus('삭제 실패: ' + ((res && res.message) || '오류'), 'err');
+    });
+}
+
 /* 결석 건 메모 — 약속 변경·태도 등 */
 function openMkMemo(i){
   var m = makeupList[i]; if (!m) return;
