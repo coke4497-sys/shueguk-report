@@ -125,6 +125,32 @@ function dropTab_(tab) {
   delete MEMO_['tab:' + tab];
   try { CacheService.getScriptCache().remove('tab:' + tab); } catch (e) {}
 }
+/* ── 큰 기록 시트 꼬리 읽기 (성능) ─────────────────────────────
+ * '출석기록'·'시간표이동기록'은 매일 행이 쌓여 전체 읽기가 갈수록 느려진다.
+ * 두 시트 모두 기록일시 순으로 아래에 쌓이므로, 아래(최신)에서 위로 900행씩 읽다가
+ * 기록일시가 since보다 오래된 행을 만나면 멈춘다. (미래 날짜 선기록·소급 기록을 위해
+ * 호출부는 since에 넉넉한 여유를 둘 것 — 출석 14일, 이동기록 60일)
+ * 반환 { rows, start }: rows[0]의 시트 행번호가 start (행번호 계산·수정용). */
+function sheetTail_(sh, tsCol0, sinceMs) {
+  var last = sh.getLastRow(), cols = sh.getLastColumn();
+  if (last < 2 || cols < 1) return { rows: [], start: 2 };
+  var CHUNK = 900, end = last, out = [];
+  while (end >= 2) {
+    var start = Math.max(2, end - CHUNK + 1);
+    var v = sh.getRange(start, 1, end - start + 1, cols).getValues();
+    out = v.concat(out);
+    var ts = v[0][tsCol0];
+    var t = (ts && ts.getTime) ? ts.getTime() : Date.parse(String(ts || ''));
+    if (start === 2 || (t && t < sinceMs)) return { rows: out, start: start };
+    end = start - 1;
+  }
+  return { rows: out, start: 2 };
+}
+function daysAgoMs_(baseYmd, days) {
+  var t = Date.parse(String(baseYmd || '')) || Date.now();
+  return t - days * 24 * 3600 * 1000;
+}
+
 /** 검증→쓰기를 한 덩어리로 묶는 잠금 래퍼. 행 번호로 지우거나 고치는 함수는 반드시 이걸 통과시킬 것.
  *  (잠금 없이 "행 확인 → 삭제"를 하면, 그 사이 다른 사람이 앞 행을 지웠을 때 엉뚱한 행이 지워진다.) */
 function withLock_(fn, waitMs) {
@@ -403,6 +429,16 @@ function doGet(e) {
   if (p.action === 'studentLinks') {
     if (String(p.pw || '') !== TEACHER_PW) return json({ result:'error', message:'unauthorized' });
     return getStudentLinks();
+  }
+  // 통합 부팅 조회 (timetable.html) — 비밀번호 필요
+  if (p.action === 'ttBoot') {
+    if (String(p.pw || '') !== TEACHER_PW) return json({ result:'error', message:'unauthorized' });
+    return ttBoot(p);
+  }
+  // 통합 부팅 조회 (hwcheck.html) — 비밀번호 필요
+  if (p.action === 'hwcheckBoot') {
+    if (String(p.pw || '') !== TEACHER_PW) return json({ result:'error', message:'unauthorized' });
+    return hwcheckBoot(p);
   }
   // 정규 시간표 조회(교사용, timetable.html) — 비밀번호 필요
   if (p.action === 'timetableList') {
@@ -1233,7 +1269,7 @@ function hwcheckTextStr_(v) {
   }
   return String(v == null ? '' : v);
 }
-function getHwcheckData(weekParam) {
+function hwcheckData_(weekParam) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var week = String(weekParam || '').trim();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(week)) week = hwcheckWeekKey_(new Date());
@@ -1249,7 +1285,11 @@ function getHwcheckData(weekParam) {
                      missing: String(v[i][11] || '').trim() === '미제출',
                      plan: hwcheckTextStr_(v[i][12]) };   // 뒤 행이 최신(같은 키 중복 대비)
   }
-  return json({ result: 'success', week: week, items: hwcheckItems_(ss), records: records });
+  return { week: week, items: hwcheckItems_(ss), records: records };
+}
+function getHwcheckData(weekParam) {
+  var d = hwcheckData_(weekParam);
+  return json({ result: 'success', week: d.week, items: d.items, records: d.records });
 }
 /** 한 학생의 주차 기록 저장(덮어쓰기). { pw, week, token, name, school, grade, scores:{항목:0~6}, pub, priv } */
 function hwcheckSave(data) {
@@ -2399,10 +2439,10 @@ function getRoster() {
 
 /** 학생 개인 페이지 링크 목록 (재원생의 이름·학교·학년·담당·접근코드).
  *  교사용 links.html 전용 — 접근코드가 포함되므로 반드시 pw 확인 뒤에만 호출된다. */
-function getStudentLinks() {
+function studentLinksData_() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var v = tabValues_(ss, TAB_STUDENTS);   // 60초 캐시 — 숙제 검사 등에서 자주 불려 캐시 사용
-  if (!v) return json({ result:'error', message:"'" + TAB_STUDENTS + "' 탭이 없습니다." });
+  if (!v) return null;
   var codeCol = findHeaderCol_(v[0], '접근코드', STU_CODE_COL);
   var out = [];
   for (var i = 1; i < v.length; i++) {
@@ -2423,6 +2463,11 @@ function getStudentLinks() {
       code:   String(v[i][codeCol] || '').trim()   // 빈칸이면 assignAccessCodes() 미실행 학생
     });
   }
+  return out;
+}
+function getStudentLinks() {
+  var out = studentLinksData_();
+  if (!out) return json({ result:'error', message:"'" + TAB_STUDENTS + "' 탭이 없습니다." });
   return json({ result:'success', students: out });
 }
 
@@ -2547,7 +2592,7 @@ function ttApplyYmd_(row) {
   var d = row[0];
   return (d && d.getTime) ? Utilities.formatDate(d, 'Asia/Seoul', 'yyyy-MM-dd') : String(d || '').trim().slice(0, 10);
 }
-function getTimetable(book) {
+function ttListData_(book) {
   book = ttBook_(book);
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sh = ensureTimetableSheet_(ss, book);
@@ -2568,37 +2613,46 @@ function getTimetable(book) {
   var once = [];
   var lsh = ss.getSheetByName(TAB_TT_LOG);
   if (lsh) {
-    var lv = lsh.getDataRange().getValues();
+    var tail = sheetTail_(lsh, 0, Date.now() - 60 * 24 * 3600 * 1000);   // 최근 60일 기록만 훑기
+    var lv = tail.rows;
     var span = TT_ONCE_DAYS * 24 * 3600 * 1000, nowMs = Date.now();
-    for (var j = 1; j < lv.length; j++) {
+    for (var j = 0; j < lv.length; j++) {
       if (String(lv[j][1] || '').trim() !== '1회') continue;
       if (ttBook_(lv[j][8]) !== book) continue;   // 기존 기록(9열 없음)은 '정규'로 취급
       var aYmd = ttApplyYmd_(lv[j]);
       var am = Date.parse(aYmd);
       if (!am || Math.abs(am - nowMs) > span) continue;
       var d = lv[j][0];
-      once.push({ row: j + 1, date: fmtCellDate_ ? fmtCellDate_(d) : String(d),
+      once.push({ row: tail.start + j, date: fmtCellDate_ ? fmtCellDate_(d) : String(d),
         ymd: aYmd,
         student: String(lv[j][2] || '').trim(),
         fromId: String(lv[j][3] || '').trim(), toId: String(lv[j][5] || '').trim(),
         reason: String(lv[j][7] || '').trim() });
     }
   }
-  return json({ result:'success', classes: out, onceMoves: once });
+  return { classes: out, onceMoves: once };
+}
+function getTimetable(book) {
+  var d = ttListData_(book);
+  return json({ result:'success', classes: d.classes, onceMoves: d.onceMoves });
 }
 /** 이동 기록 목록 (최신 100건). GET action=timetableLog&pw= */
 function getTimetableLog() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sh = ss.getSheetByName(TAB_TT_LOG);
   if (!sh) return json({ result:'success', log: [] });
-  var v = sh.getDataRange().getValues();
-  var out = [];
-  for (var i = Math.max(1, v.length - 100); i < v.length; i++) {
-    out.push({ row: i + 1, date: fmtCellDate_ ? fmtCellDate_(v[i][0]) : String(v[i][0]),
-      kind: String(v[i][1] || '').trim(), student: String(v[i][2] || '').trim(),
-      fromCls: String(v[i][4] || '').trim(), toCls: String(v[i][6] || '').trim(),
-      fromId: String(v[i][3] || '').trim(), toId: String(v[i][5] || '').trim(),
-      reason: String(v[i][7] || '').trim(), book: ttBook_(v[i][8]) });
+  // 최신 100건만 필요하므로 시트 끝 100행만 읽는다 (전체 읽기 금지 — 계속 쌓이는 시트)
+  var last = sh.getLastRow(), out = [];
+  if (last >= 2) {
+    var startRow = Math.max(2, last - 99);
+    var v = sh.getRange(startRow, 1, last - startRow + 1, Math.max(9, sh.getLastColumn())).getValues();
+    for (var i = 0; i < v.length; i++) {
+      out.push({ row: startRow + i, date: fmtCellDate_ ? fmtCellDate_(v[i][0]) : String(v[i][0]),
+        kind: String(v[i][1] || '').trim(), student: String(v[i][2] || '').trim(),
+        fromCls: String(v[i][4] || '').trim(), toCls: String(v[i][6] || '').trim(),
+        fromId: String(v[i][3] || '').trim(), toId: String(v[i][5] || '').trim(),
+        reason: String(v[i][7] || '').trim(), book: ttBook_(v[i][8]) });
+    }
   }
   out.reverse();
   return json({ result:'success', log: out });
@@ -3020,13 +3074,14 @@ function attendMakeupSet(data) {
   var lock = LockService.getScriptLock();
   try { lock.waitLock(10000); } catch (e) { return json({ result:'error', message:'잠시 후 다시 시도해 주세요.' }); }
   try {
-    var v = sh.getDataRange().getValues();
-    for (var i = 1; i < v.length; i++) {
+    var tail = sheetTail_(sh, 6, daysAgoMs_(dateStr, 14));   // 결석 행은 그 날짜에 만들어져 끝쪽에 있다
+    var v = tail.rows;
+    for (var i = 0; i < v.length; i++) {
       var d = v[i][0];
       var ds = (d && d.getTime) ? Utilities.formatDate(d, 'Asia/Seoul', 'yyyy-MM-dd') : String(d || '').trim();
       if (ds === dateStr && ttBook_(v[i][1]) === book &&
           String(v[i][2] || '').trim() === classId && String(v[i][3] || '').trim() === student) {
-        var rg = sh.getRange(i + 1, 8, 1, 3);
+        var rg = sh.getRange(tail.start + i, 8, 1, 3);
         rg.setNumberFormat('@');
         rg.setValues([[String(data.plan || '').trim(), String(data.done || '') === '1' ? '1' : '',
                        String(data.mkMemo == null ? '' : data.mkMemo).trim()]]);
@@ -3039,16 +3094,15 @@ function attendMakeupSet(data) {
   }
 }
 /** 특정 날짜의 출석 기록. GET action=attendList&pw=&date=yyyy-MM-dd&book= */
-function getAttendList(dateStr, book) {
+function attendListData_(dateStr, book) {
   book = ttBook_(book);
   dateStr = String(dateStr || '').trim();
-  if (!dateStr) return json({ result:'error', message:'날짜가 필요합니다.' });
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sh = ss.getSheetByName(TAB_ATTEND);
   var out = [];
-  if (sh) {
-    var v = sh.getDataRange().getValues();
-    for (var i = 1; i < v.length; i++) {
+  if (sh && dateStr) {
+    var v = sheetTail_(sh, 6, daysAgoMs_(dateStr, 14)).rows;   // G기록일시 기준 최근분만
+    for (var i = 0; i < v.length; i++) {
       var d = v[i][0];
       var ds = (d && d.getTime) ? Utilities.formatDate(d, 'Asia/Seoul', 'yyyy-MM-dd') : String(d || '').trim();
       if (ds !== dateStr || ttBook_(v[i][1]) !== book) continue;
@@ -3056,19 +3110,23 @@ function getAttendList(dateStr, book) {
                  status: String(v[i][4] || '').trim(), memo: String(v[i][5] || '').trim() });
     }
   }
-  return json({ result:'success', date: dateStr, attend: out });
+  return out;
+}
+function getAttendList(dateStr, book) {
+  dateStr = String(dateStr || '').trim();
+  if (!dateStr) return json({ result:'error', message:'날짜가 필요합니다.' });
+  return json({ result:'success', date: dateStr, attend: attendListData_(dateStr, book) });
 }
 /** 주차 조회 — 기간 내 출석 기록 + 1회 이동. GET action=timetableWeek&pw=&book=&from=yyyy-MM-dd&to=yyyy-MM-dd */
-function getTimetableWeek(fromStr, toStr, book) {
+function ttWeekData_(fromStr, toStr, book) {
   book = ttBook_(book);
   fromStr = String(fromStr || '').trim(); toStr = String(toStr || '').trim();
-  if (!fromStr || !toStr) return json({ result:'error', message:'기간이 필요합니다.' });
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var attend = [];
   var ash = ss.getSheetByName(TAB_ATTEND);
   if (ash) {
-    var av = ash.getDataRange().getValues();
-    for (var i = 1; i < av.length; i++) {
+    var av = sheetTail_(ash, 6, daysAgoMs_(fromStr, 14)).rows;   // G기록일시 기준 최근분만
+    for (var i = 0; i < av.length; i++) {
       var d = av[i][0];
       var ds = (d && d.getTime) ? Utilities.formatDate(d, 'Asia/Seoul', 'yyyy-MM-dd') : String(d || '').trim();
       if (ds < fromStr || ds > toStr || ttBook_(av[i][1]) !== book) continue;
@@ -3079,18 +3137,25 @@ function getTimetableWeek(fromStr, toStr, book) {
   var once = [];
   var lsh = ss.getSheetByName(TAB_TT_LOG);
   if (lsh) {
-    var lv = lsh.getDataRange().getValues();
-    for (var j = 1; j < lv.length; j++) {
+    var tail = sheetTail_(lsh, 0, daysAgoMs_(fromStr, 60));   // 예약 이동 여유 60일
+    var lv = tail.rows;
+    for (var j = 0; j < lv.length; j++) {
       if (String(lv[j][1] || '').trim() !== '1회') continue;
       if (ttBook_(lv[j][8]) !== book) continue;
       var lds = ttApplyYmd_(lv[j]);   // 적용일(J열) 우선 — 미래 주차 예약 이동 지원
       if (lds < fromStr || lds > toStr) continue;
-      once.push({ row: j + 1, date: lds, student: String(lv[j][2] || '').trim(),
+      once.push({ row: tail.start + j, date: lds, student: String(lv[j][2] || '').trim(),
                   fromId: String(lv[j][3] || '').trim(), toId: String(lv[j][5] || '').trim(),
                   reason: String(lv[j][7] || '').trim() });
     }
   }
-  return json({ result:'success', from: fromStr, to: toStr, attend: attend, onceMoves: once });
+  return { attend: attend, onceMoves: once };
+}
+function getTimetableWeek(fromStr, toStr, book) {
+  fromStr = String(fromStr || '').trim(); toStr = String(toStr || '').trim();
+  if (!fromStr || !toStr) return json({ result:'error', message:'기간이 필요합니다.' });
+  var d = ttWeekData_(fromStr, toStr, book);
+  return json({ result:'success', from: fromStr, to: toStr, attend: d.attend, onceMoves: d.onceMoves });
 }
 /* ── 내신 대비 기록 (naeshin.html) — 시험기간·내신반 단위 기록 ──
  *  '내신기록' 탭: A:기간(26-2-중간) B:반ID C:구분(범위/주차/학생) D:주차 E:학생 F:내용1 G:내용2 H:기록일시
@@ -3205,10 +3270,9 @@ function ttMemoSheet_(ss) {
   return sh;
 }
 /** 기간 내 메모 조회. GET action=ttMemoList&pw=&from=yyyy-MM-dd&to=yyyy-MM-dd (to 생략 시 from 하루) */
-function getTtMemoList(fromStr, toStr) {
+function ttMemoData_(fromStr, toStr) {
   fromStr = String(fromStr || '').trim();
   toStr = String(toStr || '').trim() || fromStr;
-  if (!fromStr) return json({ result:'error', message:'기간이 필요합니다.' });
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sh = ss.getSheetByName(TAB_TT_MEMO);
   var out = [];
@@ -3222,7 +3286,13 @@ function getTtMemoList(fromStr, toStr) {
       if (m) out.push({ date: ds, memo: m });
     }
   }
-  return json({ result:'success', from: fromStr, to: toStr, memos: out });
+  return out;
+}
+function getTtMemoList(fromStr, toStr) {
+  fromStr = String(fromStr || '').trim();
+  toStr = String(toStr || '').trim() || fromStr;
+  if (!fromStr) return json({ result:'error', message:'기간이 필요합니다.' });
+  return json({ result:'success', from: fromStr, to: toStr, memos: ttMemoData_(fromStr, toStr) });
 }
 /* ── 슈국 캘린더: 주별 기간(정규/내신) ── */
 function ttPeriodSheet_(ss) {
@@ -3234,7 +3304,7 @@ function ttPeriodSheet_(ss) {
   return sh;
 }
 /** 저장된 주별 기간 전체. GET action=ttPeriodList&pw= */
-function getTtPeriodList() {
+function ttPeriodData_() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sh = ss.getSheetByName(TAB_TT_PERIOD);
   var out = [];
@@ -3247,7 +3317,44 @@ function getTtPeriodList() {
       if (ds && (b === '정규' || b === '내신')) out.push({ week: ds, book: b });
     }
   }
-  return json({ result:'success', periods: out });
+  return out;
+}
+function getTtPeriodList() {
+  return json({ result:'success', periods: ttPeriodData_() });
+}
+
+/* ── 통합 부팅 조회 (접속 지연 대책, 2026-08-19) ─────────────────
+ * 페이지 첫 화면이 서버를 여러 번 부르지 않도록 필요한 것을 한 번에 담아 준다.
+ * (Apps Script는 요청 1건마다 왕복 비용이 커서 요청 수 줄이기가 가장 효과적) */
+/** 슈국 스케쥴 부팅. GET action=ttBoot&pw=&book=&date=[&wfrom=&wto=][&mfrom=&mto=]
+ *  → 시간표+1회이동, date의 출석, 메모(mfrom~mto), 주별 기간, (wfrom 있으면) 주간 출석·이동 */
+function ttBoot(p) {
+  var book = ttBook_(p.book);
+  var dateStr = String(p.date || '').trim();
+  var mfrom = String(p.mfrom || '').trim() || dateStr;
+  var mto = String(p.mto || '').trim() || mfrom;
+  var d = ttListData_(book);
+  var out = { result: 'success', book: book, date: dateStr,
+              classes: d.classes, onceMoves: d.onceMoves,
+              attend: dateStr ? attendListData_(dateStr, book) : [],
+              memos: mfrom ? ttMemoData_(mfrom, mto) : [],
+              periods: ttPeriodData_() };
+  var wfrom = String(p.wfrom || '').trim(), wto = String(p.wto || '').trim();
+  if (wfrom && wto) out.week = ttWeekData_(wfrom, wto, book);
+  return json(out);
+}
+/** 숙제 검사 부팅. GET action=hwcheckBoot&pw=&week=yyyy-MM-dd
+ *  → 명단 + 그 주 검사 기록 + 정규 시간표 + 그 주(수~일) 출석·1회 이동 */
+function hwcheckBoot(p) {
+  var hw = hwcheckData_(p.week);
+  var week = hw.week;
+  var to = Utilities.formatDate(new Date(Date.parse(week) + 4 * 24 * 3600 * 1000), 'Asia/Seoul', 'yyyy-MM-dd');
+  var tt = ttListData_('정규');
+  var wk = ttWeekData_(week, to, '정규');
+  return json({ result: 'success', week: week, items: hw.items, records: hw.records,
+                students: studentLinksData_() || [],
+                classes: tt.classes,
+                weekAttend: wk.attend, weekOnce: wk.onceMoves });
 }
 /** 주별 기간 저장. { pw, week(수요일 yyyy-MM-dd), book('정규'|'내신'|'' 빈값=삭제) } */
 function ttPeriodSet(data) {
@@ -3386,13 +3493,14 @@ function attendSet(data) {
   var lock = LockService.getScriptLock();
   try { lock.waitLock(10000); } catch (e) { return json({ result:'error', message:'잠시 후 다시 시도해 주세요.' }); }
   try {
-    var v = sh.getDataRange().getValues();
+    var tail = sheetTail_(sh, 6, daysAgoMs_(dateStr, 14));   // 해당 날짜 행은 시트 끝쪽에 있다
+    var v = tail.rows;
     var row = -1;
-    for (var i = 1; i < v.length; i++) {
+    for (var i = 0; i < v.length; i++) {
       var d = v[i][0];
       var ds = (d && d.getTime) ? Utilities.formatDate(d, 'Asia/Seoul', 'yyyy-MM-dd') : String(d || '').trim();
       if (ds === dateStr && ttBook_(v[i][1]) === book &&
-          String(v[i][2] || '').trim() === classId && String(v[i][3] || '').trim() === student) { row = i + 1; break; }
+          String(v[i][2] || '').trim() === classId && String(v[i][3] || '').trim() === student) { row = tail.start + i; break; }
     }
     if (!status) {
       if (row > 0) sh.deleteRow(row);
