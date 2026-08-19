@@ -332,6 +332,19 @@
       링크를 잃어버리면 티쳐스의 <b>'학생 페이지 링크'</b> 메뉴에서 언제든 다시 찾을 수 있습니다.</p>
       <div class="status" id="copyStatus"></div>
     </section>
+
+    <section class="card" id="nsCard">
+      <h2><span class="dot"></span>이번 달 신입 슈스 <span class="opt" id="nsCount"></span></h2>
+      <div class="mgr-bar" style="justify-content:space-between;align-items:center;">
+        <div style="display:flex;gap:6px;align-items:center;">
+          <button type="button" class="refresh" onclick="nsShift(-1)">◁ 지난달</button>
+          <b id="nsMonth" style="font-size:14px;"></b>
+          <button type="button" class="refresh" onclick="nsShift(1)">다음달 ▷</button>
+        </div>
+        <button type="button" class="refresh" onclick="loadNewList()">새로고침</button>
+      </div>
+      <div id="nsList"><div class="mgr-empty">불러오는 중…</div></div>
+    </section>
   </div>
 
   <!-- ════════ 아웃 슈스 ════════ -->
@@ -426,7 +439,7 @@
   function $(id){ return document.getElementById(id); }
 
   (function(){ unlock(); })();   // 티쳐스 페이지 비밀번호 제거(접속 간소화, 2026-08-14)
-  function unlock(){ document.body.classList.remove('locked'); loadRoster(); }
+  function unlock(){ document.body.classList.remove('locked'); loadRoster(); loadNewList(); }
   function checkLock(){
     var v=$('lockInput').value, ok=false;
     try{ ok=(btoa(v)===PASS_ENC); }catch(e){ ok=false; }
@@ -448,6 +461,44 @@
     if (which==='link') loadLinks();   // 처음 열 때만 명단 로딩
     if (which==='star') starInit();
     window.scrollTo(0,0);
+  }
+
+  /* ── 이번 달 신입 슈스 목록 — 이름·학교·학년·배정 시간표 (등록일 기준) ── */
+  var NS_M = (function(){ var d=new Date(); return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2); })();
+  function nsShift(n){
+    var p = NS_M.split('-'), d = new Date(+p[0], +p[1]-1+n, 1);
+    NS_M = d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2);
+    loadNewList();
+  }
+  function nsSlots(st){
+    var parts=[];
+    if(st.classA) parts.push('가 '+st.classA);
+    if(st.classB) parts.push('나 '+st.classB);
+    if(st.progress && st.progress!==st.classA) parts.push('진도 '+st.progress);
+    if(st.checkup && st.checkup!==st.classB) parts.push('확인 '+st.checkup);
+    return parts.length ? parts.join(' · ') : '시간표 미배정';
+  }
+  function loadNewList(){
+    $('nsMonth').textContent = NS_M.replace('-','년 ')+'월';
+    var box=$('nsList');
+    box.innerHTML='<div class="mgr-empty">불러오는 중…</div>';
+    fetch(ENDPOINT+'?action=newStudents&pw='+encodeURIComponent(SERVER_PW)+'&month='+NS_M+'&t='+Date.now())
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        if(!d || d.result!=='success'){ box.innerHTML='<div class="mgr-empty">목록을 불러오지 못했어요.</div>'; $('nsCount').textContent=''; return; }
+        var list=d.students||[];
+        $('nsCount').textContent = list.length ? '('+list.length+'명)' : '';
+        if(!list.length){ box.innerHTML='<div class="mgr-empty">이 달에 등록한 신입 슈스가 없어요.<br><span style="font-size:12px;">(등록일 기록은 2026-08-19부터 — 그 전 등록은 표시되지 않아요)</span></div>'; return; }
+        box.innerHTML = list.map(function(st){
+          return '<div class="log-item">'+
+            '<span class="who"><b>'+esc(st.name)+'</b></span>'+
+            '<span class="rsn">'+metaHtml(st)+'</span>'+
+            '<span class="rsn" style="color:#5F7A72;">'+esc(nsSlots(st))+'</span>'+
+            '<span class="dt" style="margin-left:auto;color:#9aa6a0;font-size:12.5px;">'+esc((st.date||'').slice(5).replace('-','/'))+' 등록</span>'+
+            '</div>';
+        }).join('');
+      })
+      .catch(function(){ box.innerHTML='<div class="mgr-empty">목록을 불러오지 못했어요. 인터넷을 확인해 주세요.</div>'; });
   }
 
   /* ══════════ 신입 슈스 ══════════ */
@@ -566,6 +617,7 @@
       if(!d || d.result!=='success'){ setReg('등록 실패: '+((d&&d.message)||'오류'),'err'); return; }
       setReg('');
       LINKS = null;   // 슈스 링크 탭이 새 학생을 반영하도록 캐시 비움
+      loadNewList();   // 이번 달 신입 목록에 방금 등록한 학생 반영
       $('formCard').style.display='none';
       $('doneCard').style.display='block';
       $('doneName').textContent = d.name + ' 슈퍼스타, 환영해요! 🌱';
