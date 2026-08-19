@@ -550,7 +550,9 @@ function loadGradeGates(){
   var vg = vocaGradeCode(STATE.info && STATE.info.grade);
   var wantVoca = (STATE.vocaOpen !== false && STATE.vocaWeek >= 1 && !!vg);
   var vocaJob;
-  if (wantVoca){
+  if (wantVoca && STATE.vocaFromServer){
+    vocaJob = Promise.resolve(null);   // 리포트 응답에 이미 담겨 옴
+  } else if (wantVoca){
     var nm = encodeURIComponent(STATE.info.name || '');
     var ph = encodeURIComponent(String(STATE.info.id || '').slice(-4));
     vocaJob = jsonpRetry(VOCA_API + '?action=taken&name=' + nm + '&phone4=' + ph + '&round=' + encodeURIComponent(STATE.vocaWeek));
@@ -573,8 +575,10 @@ function loadGradeGates(){
     + '&name='   + encodeURIComponent(si.name || '')
     + '&school=' + encodeURIComponent(si.school || '')
     + '&grade='  + encodeURIComponent(hsGradeNum(si.grade) || ''));
+  var daysJob = STATE.mockGatesFromServer ? Promise.resolve(null)   // 리포트 응답에 이미 담겨 옴
+    : jsonpRetry(SIGNUP_API + '?action=days');
   Promise.all([
-    jsonpRetry(SIGNUP_API + '?action=days'),
+    daysJob,
     clinicJob,
     vocaJob,
     signupJob
@@ -609,6 +613,9 @@ function refreshOnReturn(){
   var now = Date.now();
   if(now - GATE_LAST < 20000) return;
   GATE_LAST = now;
+  // 복귀 갱신은 최신이 중요(방금 응시·신청했을 수 있음) — 서버 제공값 대신 직접 조회
+  STATE.mockGatesFromServer = false;
+  STATE.vocaFromServer = false;
   loadGradeGates();                                // 모의고사 신청·클리닉 대상·어휘 응시
   api('').then(function(d){                        // 클리닉 내역·공지·H WORK·별 갱신
     if(!d || d.result!=='success') return;
@@ -663,7 +670,7 @@ function hide(id){ $(id).style.display='none'; }
 
 var KEY = '';        // 접근코드(토큰) — 없으면 테스트용 id
 var IS_ID = false;
-var STATE = { info:null, authed:false, exams:null, examCount:0, notices:null, homework:null, analyses:null, clinic:null, stars:null, vocaOpen:null, vocaWeek:null, mockGrades:null, clinicEligible:null, vocaTaken:null, mockSignups:null, mockFromServer:false, hwcheck:null };
+var STATE = { info:null, authed:false, exams:null, examCount:0, notices:null, homework:null, analyses:null, clinic:null, stars:null, vocaOpen:null, vocaWeek:null, mockGrades:null, clinicEligible:null, vocaTaken:null, mockSignups:null, mockFromServer:false, mockGatesFromServer:false, vocaFromServer:false, hwcheck:null };
 
 function showError(title, msg){
   hide('loadBox'); hide('hubView'); $('gradeView').style.display='none'; $('mockHubView').style.display='none'; $('mockView').style.display='none'; $('clinicView').style.display='none'; $('hwcheckView').style.display='none';
@@ -1636,6 +1643,9 @@ function boot(){
       STATE.stars=d.stars||null;   // 슈퍼스타 별 (구버전 백엔드면 null → 카드 숨김)
       STATE.vocaOpen=d.vocaOpen;   // true/false/undefined(=열림)
       STATE.vocaWeek=d.vocaWeek;   // 교사가 연 주차(없으면 null → 준비 중)
+      // 접속 지연 대책: 리포트가 함께 담아준 값이 있으면 그걸 쓰고 별도 조회 생략
+      if (d.mockGates && d.mockGates.grades){ STATE.mockGrades = d.mockGates.grades; STATE.mockGatesFromServer = true; }
+      if (typeof d.vocaTaken === 'boolean'){ STATE.vocaTaken = d.vocaTaken; STATE.vocaFromServer = true; }
       STATE.hwcheck=d.hwcheck||null;   // 숙제 검사 주차별 기록 (기록 없으면 카드 숨김)
       if(d.exams){ STATE.exams=d.exams; }
       renderHub();

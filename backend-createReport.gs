@@ -106,6 +106,7 @@ TAB_CACHE_TTL_[TAB_STARS] = 60;
 TAB_CACHE_TTL_[TAB_LIST] = 120;
 TAB_CACHE_TTL_[TAB_ITEMS] = 120;
 TAB_CACHE_TTL_[TAB_HWCHECK] = 60;
+TAB_CACHE_TTL_[TAB_RESULT] = 60;   // 학생 페이지가 열릴 때마다 전체 읽기 — 지필 제출이 쌓여도 느려지지 않게 (제출 시 즉시 무효화)
 function tabValues_(ss, tab) {
   var k = 'tab:' + tab;
   if (k in MEMO_) return MEMO_[k];
@@ -356,6 +357,41 @@ function signupSnap_() {
     }
     return snap;
   });
+}
+
+/* 모의고사 신청 게이트 — 신청 서버가 시트 '설정' 탭에 기록해 둔 신청받기·가능 학년을
+ * 읽는다(60초 캐시). 아직 기록이 없으면 null → 학생 페이지가 기존 직접 조회로 폴백.
+ * (UrlFetch는 새 권한 승인이 필요해 쓰지 않는다 — 시트 미러 방식, 2026-08-19) */
+function mockGates_() {
+  return extSnap_('mockGates', 60, function () {
+    try {
+      var sh = SpreadsheetApp.openById(SIGNUP_SHEET_ID).getSheetByName('설정');
+      if (!sh) return null;
+      var v = sh.getRange(1, 1, 2, 2).getValues();
+      if (String(v[0][0]) !== '신청받기') return null;
+      var grades = [];
+      try { grades = JSON.parse(String(v[1][1] || '[]')); } catch (e) {}
+      if (!grades || !grades.length) return null;
+      return { open: String(v[0][1]).trim() === '1', grades: grades.map(String) };
+    } catch (e2) { return null; }
+  });
+}
+
+/* 어휘 응시 여부 — 어휘 서버의 checkTaken_와 같은 규칙(이름+주차 일치 → 응시)을
+ * 리포트가 이미 읽는 어휘 스냅샷으로 계산한다 (서버 간 호출 없음). */
+function vocaTakenLocal_(name, week) {
+  try {
+    name = String(name || '').trim();
+    var round = String(week == null ? '' : week).trim();
+    if (!name || !round) return false;
+    var snap = vocaSnap_();
+    if (!snap.ok || !snap.has.name || !snap.has.round) return null;   // 조회 불가 → 페이지가 직접 조회
+    for (var i = 0; i < snap.rows.length; i++) {
+      if (snap.rows[i][1].trim() !== round) continue;
+      if (snap.rows[i][0].trim() === name) return true;
+    }
+    return false;
+  } catch (e) { return null; }
 }
 
 /* 이번 주 모의고사 신청 내역 [{day, date}] — 없으면 [], 시트 접근 실패 시 null */
@@ -757,6 +793,11 @@ function getStudent(opts) {
   // 어휘 주차: 교사가 연 주차(없으면 null → 학생 카드 준비 중)
   var vwk = configVal_(ss, '어휘 주차', '');
   resp.vocaWeek = vwk ? parseInt(vwk, 10) : null;
+  // 접속 지연 대책(2026-08-19): 학생 페이지가 따로 묻던 것들을 함께 담는다 (실패 시 null → 직접 조회 폴백)
+  resp.mockGates = mockGates_();                 // 모의고사 신청 가능 학년·요일 (60초 공유 캐시)
+  if (resp.vocaOpen !== false && resp.vocaWeek) {
+    resp.vocaTaken = vocaTakenLocal_(info.name, resp.vocaWeek);   // 어휘 응시 여부 (스냅샷 계산)
+  }
   if (authed) {
     var exams = collectExams_(ss, sid, info.name, siblingShared, String(info.school || '').trim(), !info.nameDup, String(info.grade || ''));
     // 각 시험에 보고서 상세(시험범위·총평·문항)를 붙여 PDF/HTML 리포트와 동일하게 표시
@@ -856,6 +897,7 @@ function examIndex_(ss) {
   return (MEMO_[mk] = rows);
 }
 function dropExamIdx_() {
+  dropTab_(TAB_RESULT);   // 60초 캐시 즉시 무효화 — 방금 제출한 결과가 바로 보이게
   delete MEMO_['snap:examIdx'];
   try { CacheService.getScriptCache().remove('examIdx'); } catch (e) {}
 }
