@@ -329,52 +329,30 @@ function clearCid(){
   render();
 }
 function boot(){
-  // 캐시된 명단이 있으면 즉시 화면부터
+  // 캐시된 명단이 있으면 즉시 화면부터 (최신 데이터는 loadWeek의 통합 요청 한 번으로)
   var cr = cacheGet('roster');
-  var painted = false;
   if (cr && cr.length){
     roster = cr;
     $('gate').style.display = 'none';
     $('bar').style.display = 'block';
     buildTypeValues();
     applyUrlSlot();
-    loadWeek();
-    painted = true;
+    bootPainted = true;
   }
-  setStatus(painted ? '최신 명단 확인 중…' : '명단을 불러오는 중…');
-  getJSON(ENDPOINT + '?action=studentLinks&pw=' + encodeURIComponent(pw))
-    .then(function(r){
-      if (!r || r.result !== 'success'){
-        if (painted){ setStatus(''); return; }   // 캐시 화면 유지
-        pw = ''; sessionStorage.removeItem('hwcheck_pw');
-        $('gate').style.display = ''; $('bar').style.display = 'none';
-        $('gate-err').textContent = (r && /unauthor/i.test(r.message||'')) ? '비밀번호가 올바르지 않습니다.' : '명단을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.';
-        setStatus('');
-        return;
-      }
-      sessionStorage.setItem('hwcheck_pw', pw);
-      roster = (r.students || []).filter(function(s){ return s.code; });
-      roster.sort(function(a,b){ return a.name.localeCompare(b.name, 'ko'); });
-      cacheSet('roster', roster);
-      $('gate').style.display = 'none';
-      $('bar').style.display = 'block';   // CSS 기본값이 display:none이라 ''로는 안 보임
-      buildTypeValues();
-      if (!painted) applyUrlSlot();
-      if (painted) render(); else loadWeek();   // 이미 주차 로딩을 시작했으면 목록만 갱신
-      setTimeout(refreshPlansBadge, 4000);   // 대책 뱃지는 잠시 뒤에 — 첫 화면 요청과 겹치지 않게
-    })
-    .catch(function(){ if (painted) setStatus(''); else setStatus('서버 연결에 실패했어요. 잠시 후 다시 시도해 주세요.', true); });
+  loadWeek();
 }
 
+var bootPainted = false;   // 캐시로 화면을 먼저 그렸는지
+var slotApplied = false;   // 주소의 slot 자동 선택을 이미 했는지
 function loadWeek(){
   weekLabel();
   // 캐시된 주차 기록이 있으면 즉시 표시
   var chw = cacheGet('hw:' + week);
   var painted = false;
-  if (chw){
+  if (bootPainted && chw){
     items = chw.items || [];
     records = chw.records || {};
-    if (ttClasses === null){ var ctm = cacheGet('ttmap'); if (ctm){ ttClasses = ctm; ttStale = true; } }
+    if (ttClasses === null){ var ctm = cacheGet('ttmap'); if (ctm) ttClasses = ctm; }
     var cwk = cacheGet('hwwk:' + week);
     if (cwk){ wkAtt = cwk.a || []; wkOnce = cwk.o || []; }
     renderChips();
@@ -382,60 +360,56 @@ function loadWeek(){
     painted = true;
   }
   setStatus(painted ? '최신 기록 확인 중…' : '검사 기록을 불러오는 중…');
-  var pData = getJSON(ENDPOINT + '?action=hwcheckData&pw=' + encodeURIComponent(pw) + '&week=' + encodeURIComponent(week));
-  var pTT = (ttClasses === null || ttStale) ? loadTimetableMap() : Promise.resolve();
-  var pWk = loadWeekTT();
-  Promise.all([pData, pTT, pWk])
-    .then(function(rs){
-      var r = rs[0];
+  // 통합 부팅 조회 — 명단·검사 기록·시간표·주간 출석을 한 번에 (접속 지연 대책, 2026-08-19)
+  getJSON(ENDPOINT + '?action=hwcheckBoot&pw=' + encodeURIComponent(pw) + '&week=' + encodeURIComponent(week))
+    .then(function(r){
       if (!r || r.result !== 'success'){
-        if (painted) setStatus('');
-        else setStatus('기록을 불러오지 못했어요. 새로고침 해주세요.', true);
+        if (painted){ setStatus(''); return; }   // 캐시 화면 유지
+        if (r && /unauthor/i.test(r.message||'')){
+          pw = ''; sessionStorage.removeItem('hwcheck_pw');
+          $('gate').style.display = ''; $('bar').style.display = 'none';
+          $('gate-err').textContent = '비밀번호가 올바르지 않습니다.';
+          setStatus('');
+        } else setStatus('기록을 불러오지 못했어요. 새로고침 해주세요.', true);
         return;
       }
+      sessionStorage.setItem('hwcheck_pw', pw);
+      // ① 명단
+      roster = (r.students || []).filter(function(s){ return s.code; });
+      roster.sort(function(a,b){ return a.name.localeCompare(b.name, 'ko'); });
+      cacheSet('roster', roster);
+      $('gate').style.display = 'none';
+      $('bar').style.display = 'block';   // CSS 기본값이 display:none이라 ''로는 안 보임
+      buildTypeValues();
+      // ② 시간표 (반ID→시간대)
+      ttClasses = {};
+      (r.classes || []).forEach(function(c){
+        ttClasses[c.id] = { slot: slotNorm(c.day + c.start), label: c.cls, students: (c.students || []) };
+      });
+      cacheSet('ttmap', ttClasses);
+      if (urlCid){ updateCidNote(); rebuildFilters(); }   // 반 명단이 준비되면 반 필터 적용
+      // ③ 주간 출석·1회 이동
+      wkAtt = r.weekAttend || [];
+      wkOnce = r.weekOnce || [];
+      cacheSet('hwwk:' + week, { a: wkAtt, o: wkOnce });
+      // ④ 검사 기록
       items = r.items || [];
       records = r.records || {};
       cacheSet('hw:' + week, { items: items, records: records });
+      if (!slotApplied){ slotApplied = true; if (!bootPainted) applyUrlSlot(); }
       setStatus('');
       renderChips();
       render();
+      if (!plansTimerSet){ plansTimerSet = true; setTimeout(refreshPlansBadge, 4000); }   // 대책 뱃지는 잠시 뒤에
     })
     .catch(function(){ if (painted) setStatus(''); else setStatus('서버 연결에 실패했어요. 잠시 후 다시 시도해 주세요.', true); });
 }
+var plansTimerSet = false;
 
 /* ── 시간표 연동: 그 주의 출석·1회 이동을 학생 카드에 표시 ── */
 var ttClasses = null;   // 반ID -> {slot('금5:30'), label}
-var ttStale = false;    // 캐시로 채워졌으면 한 번 최신으로 갱신
 var wkAtt = [], wkOnce = [];
 function plainNm(n){ return String(n || '').replace(/\(.*\)$/, '').trim(); }
-function loadTimetableMap(){
-  return getJSON(ENDPOINT + '?action=timetableList&pw=' + encodeURIComponent(pw) + '&book=' + encodeURIComponent('정규'))
-    .then(function(r){
-      if (r && r.result === 'success'){
-        ttClasses = {};
-        (r.classes || []).forEach(function(c){
-          ttClasses[c.id] = { slot: slotNorm(c.day + c.start), label: c.cls, students: (c.students || []) };
-        });
-        cacheSet('ttmap', ttClasses);
-        ttStale = false;
-        if (urlCid){ updateCidNote(); rebuildFilters(); }   // 반 명단이 준비되면 반 필터 적용
-      } else if (ttClasses === null) ttClasses = {};
-    })
-    .catch(function(){ if (ttClasses === null) ttClasses = {}; });
-}
-function loadWeekTT(){
-  var to = ymd(new Date(parseYmd(week).getTime() + 4*86400000));   // 수~일
-  return getJSON(ENDPOINT + '?action=timetableWeek&pw=' + encodeURIComponent(pw) +
-                 '&book=' + encodeURIComponent('정규') + '&from=' + week + '&to=' + to)
-    .then(function(r){
-      if (r && r.result === 'success'){
-        wkAtt = r.attend || [];
-        wkOnce = r.onceMoves || [];
-        cacheSet('hwwk:' + week, { a: wkAtt, o: wkOnce });
-      }
-    })
-    .catch(function(){});
-}
 function ttInfoHtml(s){
   if (!ttClasses) return '';
   var pn = plainNm(s.name);

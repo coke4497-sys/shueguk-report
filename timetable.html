@@ -519,40 +519,75 @@ function load(isReload, cb){
       attend = {};
       var ca = cacheGet('att:' + book + ':' + todayStr());
       if (ca) ca.forEach(function(x){ attend[x.classId + '|' + x.student] = { status: x.status, memo: x.memo }; });
+      if (mode === 'week'){
+        var wf0 = new Date(weekStart); wf0.setDate(wf0.getDate() - 2);
+        var cwk = cacheGet('week:' + book + ':' + ymdOf(wf0));
+        if (cwk){
+          weekAttend = {};
+          (cwk.attend || []).forEach(function(a){ weekAttend[a.date + '|' + a.classId + '|' + a.student] = { status:a.status, memo:a.memo }; });
+          weekOnce = cwk.onceMoves || [];
+        }
+      }
       renderTabs();
-      if (mode !== 'week') render();
+      render();
       painted = true;
     }
   }
   setStatus(painted ? '최신 데이터 확인 중…' : '시간표를 불러오는 중…');
-  var pList = fetch(ENDPOINT + '?action=timetableList&pw=' + encodeURIComponent(pw) + '&book=' + encodeURIComponent(book) + '&t=' + Date.now())
-    .then(function(r){ return r.json(); }).catch(function(){ return null; });
-  var pAtt = fetch(ENDPOINT + '?action=attendList&pw=' + encodeURIComponent(pw) + '&book=' + encodeURIComponent(book) +
-        '&date=' + todayStr() + '&t=' + Date.now())
-    .then(function(r){ return r.json(); }).catch(function(){ return null; });
-  var pMemo = new Promise(function(res){ loadMemos(todayStr(), todayStr(), res); });
-  Promise.all([pList, pAtt, pMemo]).then(function(rs){
+  // 통합 부팅 조회 — 시간표·오늘 출석·메모·주별 기간(+주차별이면 주간 기록)을 한 번에 (접속 지연 대책)
+  var url = ENDPOINT + '?action=ttBoot&pw=' + encodeURIComponent(pw) + '&book=' + encodeURIComponent(book) +
+            '&date=' + todayStr();
+  var mfrom = todayStr(), mto = todayStr(), wfrom = '', wto = '';
+  if (mode === 'week'){
+    var wf = new Date(weekStart); wf.setDate(wf.getDate() - 2);   // 월요일
+    var wt = new Date(weekStart); wt.setDate(wt.getDate() + 4);   // 일요일
+    wfrom = ymdOf(wf); wto = ymdOf(wt); mfrom = wfrom; mto = wto;
+  }
+  url += '&mfrom=' + mfrom + '&mto=' + mto;
+  if (wfrom) url += '&wfrom=' + wfrom + '&wto=' + wto;
+  fetch(url + '&t=' + Date.now())
+    .then(function(r){ return r.json(); }).catch(function(){ return null; })
+    .then(function(d){
     if (seq !== loadSeq) return;   // 더 새 요청이 있음
-    var d = rs[0];
     if (!d || d.result !== 'success'){
       if (painted){ setStatus(''); if (cb) cb(true); return; }   // 캐시 화면 유지
       if (cb) cb(false); else setStatus('불러오지 못했어요. 새로고침 해 주세요.', 'err');
       return;
     }
+    // 주별 기간 — 이번 주 기간이 바뀌었으면 맞는 시간표로 한 번 다시 불러온다
+    if (d.periods){
+      periods = {};
+      d.periods.forEach(function(pd){ periods[pd.week] = pd.book; });
+      cacheSet('periods', d.periods);
+      if ((mode === 'today' || mode === 'week') && autoBookFor() !== book){
+        book = autoBookFor();
+        sessionStorage.setItem('tt_book', book);
+        renderTabs();
+        load(isReload, cb);
+        return;
+      }
+    }
     classes = d.classes || [];
     onceMoves = d.onceMoves || [];
     cacheSet('list:' + book, { classes: classes, onceMoves: onceMoves });
-    var a = rs[1];
     attend = {};
-    if (a && a.result === 'success'){
-      (a.attend || []).forEach(function(x){
-        attend[x.classId + '|' + x.student] = { status: x.status, memo: x.memo };
-      });
-      cacheSet('att:' + book + ':' + todayStr(), a.attend || []);
+    (d.attend || []).forEach(function(x){
+      attend[x.classId + '|' + x.student] = { status: x.status, memo: x.memo };
+    });
+    cacheSet('att:' + book + ':' + todayStr(), d.attend || []);
+    if (d.memos){
+      Object.keys(memos).forEach(function(k){ if (k >= mfrom && k <= mto) delete memos[k]; });
+      d.memos.forEach(function(m){ memos[m.date] = m.memo; });
+    }
+    if (d.week){   // 주차별 보기용 주간 기록도 같이 옴
+      weekAttend = {}; weekOnce = [];
+      (d.week.attend || []).forEach(function(a){ weekAttend[a.date + '|' + a.classId + '|' + a.student] = { status:a.status, memo:a.memo }; });
+      weekOnce = d.week.onceMoves || [];
+      cacheSet('week:' + book + ':' + wfrom, { attend: d.week.attend || [], onceMoves: weekOnce });
     }
     setStatus(isReload ? '최신 시간표로 다시 불러왔어요.' : '', isReload ? 'ok' : '');
     renderTabs();
-    if (mode === 'week') loadWeek(); else render();
+    if (mode === 'week' && !d.week) loadWeek(); else render();
     if (cb) cb(true);
   });
 }
@@ -2274,17 +2309,11 @@ if (mode === 'today' || mode === 'week'){
 renderTabs();
 /* 캐시로 즉시 그리며 불러오기 시작 + 주별 기간은 동시에 최신 확인.
  * 기간이 달라진 드문 경우에만 그 기간의 시간표로 다시 불러온다. */
-if (mode === 'cal') calLoadAndRender();
-load(false);
-loadPeriods(function(){
-  if ((mode === 'today' || mode === 'week') && autoBookFor() !== book){
-    book = autoBookFor();
-    sessionStorage.setItem('tt_book', book);
-    load(false);
-  }
-  renderTabs();   // 기간 배너 갱신
-  if (mode === 'cal') render();
-});
+if (mode === 'cal'){
+  calLoadAndRender();
+  loadPeriods(function(){ renderTabs(); render(); });
+}
+load(false);   // ttBoot 한 번에 시간표·출석·메모·기간이 함께 온다 (기간이 다르면 안에서 다시 불러옴)
 </script>
 
 <p class="tip">화면이 예전 그대로거나 방금 바꾼 내용이 안 보이면 <b>Ctrl+Shift+R</b> 로 새로고침해 주세요.</p>
