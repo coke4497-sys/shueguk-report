@@ -528,6 +528,11 @@ function doGet(e) {
     if (String(p.pw || '') !== TEACHER_PW) return json({ result:'error', message:'unauthorized' });
     return getStarLog();
   }
+  // 이번 달 신입 슈스 목록 (superstar.html) — 비밀번호 필요
+  if (p.action === 'newStudents') {
+    if (String(p.pw || '') !== TEACHER_PW) return json({ result:'error', message:'unauthorized' });
+    return getNewStudents(p.month);
+  }
   // 별 더하기 탭 통합 조회 — 순위+선물 기록 한 번에 (superstar.html, 접속 지연 대책)
   if (p.action === 'starBoot') {
     if (String(p.pw || '') !== TEACHER_PW) return json({ result:'error', message:'unauthorized' });
@@ -2209,13 +2214,20 @@ function addStudent(data) {
     // 학생 연락처 열(M) — 헤더가 없으면 만든다
     var phoneCol = Math.max(codeCol + 1, 12);
     if (String(v[0][phoneCol] || '').trim() !== '학생연락처') sh.getRange(1, phoneCol + 1).setValue('학생연락처');
+    // 등록일 열 — '이번 달 신입 슈스' 목록용. 헤더가 없으면 만든다
+    var regCol = findHeaderCol_(v[0], '등록일', -1);
+    if (regCol < 0) {
+      regCol = Math.max(phoneCol + 1, v[0].length);
+      sh.getRange(1, regCol + 1).setValue('등록일');
+    }
     var row = [];
-    for (var c = 0; c <= Math.max(codeCol, phoneCol); c++) row.push('');
+    for (var c = 0; c <= Math.max(codeCol, phoneCol, regCol); c++) row.push('');
     row[0] = "'" + sid; row[1] = name; row[2] = school; row[3] = grade;
     row[4] = teacher; row[5] = memo;
     row[6] = classA; row[7] = classB; row[8] = progress; row[9] = checkup;
     row[codeCol] = token;
     row[phoneCol] = sphone ? "'" + sphone : '';
+    row[regCol] = "'" + Utilities.formatDate(new Date(), 'Asia/Seoul', 'yyyy-MM-dd');
     sh.appendRow(row);
     dropTab_(TAB_STUDENTS);
     return json({ result: 'success', name: name, token: token });
@@ -2466,6 +2478,37 @@ function saveTeacherNote(data) {
  *  setNoticeShow / deleteNotice : 게시(노출/숨김) 토글 · 삭제
  *  쓰기·관리 작업은 pw === TEACHER_PW 필요.
  */
+/** 이번 달 신입 슈스 목록 (superstar.html 신입 탭). GET action=newStudents&pw=[&month=yyyy-MM]
+ *  등록일(addStudent가 기록)이 그 달인 재원생 — 이름·학교·학년·배정 시간표.
+ *  ※ 등록일 열이 생기기 전(2026-08-19 이전)에 등록한 학생은 나오지 않는다. */
+function getNewStudents(monthParam) {
+  var month = String(monthParam || '').trim();
+  if (!/^\d{4}-\d{2}$/.test(month)) month = Utilities.formatDate(new Date(), 'Asia/Seoul', 'yyyy-MM');
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var v = tabValues_(ss, TAB_STUDENTS);
+  if (!v) return json({ result:'error', message:"'" + TAB_STUDENTS + "' 탭이 없습니다." });
+  var regCol = findHeaderCol_(v[0], '등록일', -1);
+  var out = [];
+  if (regCol >= 0) {
+    for (var i = 1; i < v.length; i++) {
+      var d = v[i][regCol];
+      var ds = (d && d.getTime) ? Utilities.formatDate(d, 'Asia/Seoul', 'yyyy-MM-dd') : String(d || '').trim();
+      if (ds.slice(0, 7) !== month) continue;
+      if (!String(v[i][1] || '').trim()) continue;
+      if (/^(퇴원|n|no|off|x|중단|비재원)$/i.test(String(v[i][10] || '').trim())) continue;
+      out.push({
+        date: ds,
+        name: String(v[i][1] || '').trim(), school: String(v[i][2] || '').trim(),
+        grade: String(v[i][3] || '').trim(), teacher: String(v[i][4] || '').trim(),
+        classA: String(v[i][6] || '').trim(), classB: String(v[i][7] || '').trim(),
+        progress: String(v[i][8] || '').trim(), checkup: String(v[i][9] || '').trim()
+      });
+    }
+  }
+  out.sort(function(a, b){ return a.date < b.date ? 1 : -1; });   // 최근 등록이 위로
+  return json({ result:'success', month: month, students: out });
+}
+
 function getRoster() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var v = tabValues_(ss, TAB_STUDENTS);   // 60초 캐시 — 학생 등록·수정 시 즉시 갱신
