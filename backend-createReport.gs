@@ -359,23 +359,22 @@ function signupSnap_() {
   });
 }
 
-/* 모의고사 신청 게이트(days 응답) — 전 학생 공통이라 60초에 1번만 신청 서버에 묻는다.
- * 실패하면 null → 학생 페이지가 기존 직접 조회로 폴백. */
-var SIGNUP_EXEC_URL = 'https://script.google.com/macros/s/AKfycbzdqac0xTnCaOo_t_2swJQqdfxjiA14sTo-ThTV8VvwcwaTucM1MQGeJfMfV4lNLM75/exec';
+/* 모의고사 신청 게이트 — 신청 서버가 시트 '설정' 탭에 기록해 둔 신청받기·가능 학년을
+ * 읽는다(60초 캐시). 아직 기록이 없으면 null → 학생 페이지가 기존 직접 조회로 폴백.
+ * (UrlFetch는 새 권한 승인이 필요해 쓰지 않는다 — 시트 미러 방식, 2026-08-19) */
 function mockGates_() {
-  var cache = CacheService.getScriptCache();
-  try {
-    var hit = cache.get('gateDays');
-    if (hit) return JSON.parse(hit);
-  } catch (e) {}
-  try {
-    var r = UrlFetchApp.fetch(SIGNUP_EXEC_URL + '?action=days', { muteHttpExceptions: true, followRedirects: true });
-    if (r.getResponseCode() !== 200) return null;
-    var d = JSON.parse(r.getContentText());
-    if (!d || d.result !== 'success') return null;
-    try { cache.put('gateDays', JSON.stringify(d), 60); } catch (e2) {}
-    return d;
-  } catch (e3) { return null; }
+  return extSnap_('mockGates', 60, function () {
+    try {
+      var sh = SpreadsheetApp.openById(SIGNUP_SHEET_ID).getSheetByName('설정');
+      if (!sh) return null;
+      var v = sh.getRange(1, 1, 2, 2).getValues();
+      if (String(v[0][0]) !== '신청받기') return null;
+      var grades = [];
+      try { grades = JSON.parse(String(v[1][1] || '[]')); } catch (e) {}
+      if (!grades || !grades.length) return null;
+      return { open: String(v[0][1]).trim() === '1', grades: grades.map(String) };
+    } catch (e2) { return null; }
+  });
 }
 
 /* 어휘 응시 여부 — 어휘 서버의 checkTaken_와 같은 규칙(이름+주차 일치 → 응시)을
