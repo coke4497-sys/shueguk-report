@@ -408,7 +408,7 @@ function renderPanel(){
       '<label style="margin-bottom:0;">시험범위 <span class="dot">지필고사 리포트 제작 시 자동으로 가져다 써요'+
       (scopeKeyOf(c.cls,c.id)!==c.id ? ' · 같은 학교·학년의 다른 반과 자동 공유됩니다' : '')+'</span></label>'+
       '<label>1. 교과서</label>'+
-      '<input id="ns-book" placeholder="예) 창비 공통국어2" value="'+esc(sp.book||'')+'">'+
+      '<input id="ns-book" placeholder="예) 창비 공통국어2" value="'+esc(sp.book||defaultBookOf(curClass.cls))+'">'+
       '<label>2. 교과서 내 범위 <span class="dot">한 줄에 한 항목 — 줄마다 클리어 버튼이 됩니다</span></label>'+
       '<textarea id="ns-in" rows="4" placeholder="예) 현대시: 나는 오늘&#10;화법: 대화의 원리&#10;독서: 인간과 동물의 공존&#10;문법: 국어사">'+esc(sp.inRange||'')+'</textarea>'+
       '<label>3. 교과서 외 범위 <span class="dot">한 줄에 한 항목</span></label>'+
@@ -513,6 +513,15 @@ function renderWeek(){
 
 /* ── 줄 단위 항목 (엔터로 구분) ── */
 function lines(s){ return String(s||'').split('\n').map(function(t){ return t.trim(); }).filter(Boolean); }
+/* 반 이름 괄호의 교과서를 기본값으로 — "고2 화수A(창비 화언)" → "창비 화법과 언어".
+ * 저장된 교과서가 있으면 그 값을 쓰고, 빈칸일 때만 채운다(수정 가능). */
+function defaultBookOf(cls){
+  var m = /\(([^)]+)\)\s*$/.exec(String(cls||''));
+  if (!m) return '';
+  var full = { '화언':'화법과 언어', '독작':'독서와 작문', '언매':'언어와 매체', '화작':'화법과 작문',
+               '문영':'문학과 영상', '매체':'매체 의사소통' };
+  return m[1].trim().split('·')[0].trim().split(/\s+/).map(function(w){ return full[w] || w; }).join(' ');
+}
 function scopeItems(){
   var sp=rec.scopeParts||{}, out=[];
   ['inRange','extra','outRange'].forEach(function(k){ lines(sp[k]).forEach(function(x){ out.push(x); }); });
