@@ -528,6 +528,12 @@ function doGet(e) {
     if (String(p.pw || '') !== TEACHER_PW) return json({ result:'error', message:'unauthorized' });
     return getStarLog();
   }
+  // 별 더하기 탭 통합 조회 — 순위+선물 기록 한 번에 (superstar.html, 접속 지연 대책)
+  if (p.action === 'starBoot') {
+    if (String(p.pw || '') !== TEACHER_PW) return json({ result:'error', message:'unauthorized' });
+    var srk = starRankingData_();
+    return json({ result:'success', top: (srk || []).slice(0, 30), log: starLogData_() });
+  }
   // 퇴원 정리 — 전 시트에서 학생 기록 검색 (개인정보 포함이므로 비밀번호 필요)
   if (p.action === 'exitScan') {
     if (String(p.pw || '') !== TEACHER_PW) return json({ result:'error', message:'unauthorized' });
@@ -1995,12 +2001,11 @@ function addStarBonus(data) {
 }
 
 /** 보너스 로그(관리용, 최근이 위로). pw 필요. */
-function getStarLog() {
+function starLogData_() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sh = ss.getSheetByName(TAB_STARS);
+  var v = tabValues_(ss, TAB_STARS);   // 60초 캐시 — 랭킹과 같은 탭을 두 번 읽지 않게
   var out = [];
-  if (sh) {
-    var v = sh.getDataRange().getValues();
+  if (v) {
     for (var i = 1; i < v.length; i++) {
       if (!String(v[i][2] || '').trim()) continue;
       out.push({
@@ -2012,7 +2017,10 @@ function getStarLog() {
     }
   }
   out.reverse();
-  return json({ result: 'success', log: out.slice(0, 50) });
+  return out.slice(0, 50);
+}
+function getStarLog() {
+  return json({ result: 'success', log: starLogData_() });
 }
 
 /** 보너스 한 건 삭제(실수 정정용). { pw, rowIndex, name[, school, stars] }
