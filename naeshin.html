@@ -516,7 +516,8 @@ function lines(s){ return String(s||'').split('\n').map(function(t){ return t.tr
 /* 반 이름 괄호의 교과서를 기본값으로 — "고2 화수A(창비 화언)" → "창비 화법과 언어".
  * 저장된 교과서가 있으면 그 값을 쓰고, 빈칸일 때만 채운다(수정 가능). */
 function defaultBookOf(cls){
-  var m = /\(([^)]+)\)\s*$/.exec(String(cls||''));
+  // 첫 여는 괄호부터 끝까지 — 중2 "서정A(비상(영))"처럼 괄호가 겹친 표기도 읽는다
+  var m = /\((.+)\)\s*$/.exec(String(cls||''));
   if (!m) return '';
   var full = { '화언':'화법과 언어', '독작':'독서와 작문', '언매':'언어와 매체', '화작':'화법과 작문',
                '문영':'문학과 영상', '매체':'매체 의사소통' };
