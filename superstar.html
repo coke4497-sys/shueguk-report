@@ -451,11 +451,13 @@
   }
 
   /* ══════════ 신입 슈스 ══════════ */
+  var ROSTER_CACHE = null;   // 부팅 때 받은 명단 (별 더하기 탭 재사용)
   function loadRoster(){
     fetch(ENDPOINT+'?action=roster&t='+Date.now())
       .then(function(r){ return r.json(); })
       .then(function(d){
         if(!d || d.result!=='success') return;
+        ROSTER_CACHE = d.students||[];   // 별 더하기 탭 명단으로 재사용 (같은 조회 반복 방지)
         var sc={}, gr={}, tc={};
         (d.students||[]).forEach(function(s){
           if(s.school) sc[s.school]=1; if(s.grade) gr[s.grade]=1; if(s.teacher) tc[s.teacher]=1;
@@ -754,7 +756,19 @@
 
   /* ══════════ 별 더하기 ══════════ */
   var STAR_INITED=false, ST_PICK=[], SEL=null, LOGS=[];
-  function starInit(){ if(STAR_INITED) return; STAR_INITED=true; loadPickList(); loadLog(); loadRank(); }
+  function starInit(){
+    if(STAR_INITED) return; STAR_INITED=true;
+    loadPickList();   // 부팅 명단 재사용 — 보통 조회 없음
+    $('rankList').innerHTML='<div class="mgr-empty">불러오는 중…</div>';
+    $('logList').innerHTML='<div class="mgr-empty">불러오는 중…</div>';
+    fetch(ENDPOINT+'?action=starBoot&pw='+encodeURIComponent(SERVER_PW)+'&t='+Date.now())
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        if(!d || d.result!=='success'){ loadLog(); loadRank(); return; }   // 옛 배포본 폴백
+        renderRank(d); renderLog(d);
+      })
+      .catch(function(){ loadLog(); loadRank(); });
+  }
 
   // 등급 임계값은 s.html의 LEVELS와 동일하게 유지
   var LEVELS=[[0,'원석'],[2,'오디션 합격'],[5,'연습생'],[9,'월말평가 통과'],[14,'데뷔조'],[20,'데뷔 쇼케이스'],[27,'데뷔 신인'],[35,'첫 음악방송'],[44,'음방 1위'],[54,'신인상 수상'],[66,'대상 후보'],[80,'슈퍼스타']];
@@ -800,7 +814,13 @@
     box.innerHTML='<div class="mgr-empty">불러오는 중…</div>';
     fetch(ENDPOINT+'?action=starRank&pw='+encodeURIComponent(SERVER_PW)+'&t='+Date.now())
       .then(function(r){ return r.json(); })
-      .then(function(d){
+      .then(renderRank)
+      .catch(function(){ box.innerHTML='<div class="mgr-empty">순위를 불러오지 못했어요. 인터넷을 확인해 주세요.</div>'; });
+  }
+  function renderRank(d){
+    var box=$('rankList');
+    {
+      {
         if(!d || d.result!=='success' || !d.top){ box.innerHTML='<div class="mgr-empty">순위를 불러오지 못했어요.</div>'; return; }
         if(!d.top.length){ box.innerHTML='<div class="mgr-empty">아직 별을 모은 학생이 없어요.</div>'; return; }
         var medals=['🥇','🥈','🥉'];
@@ -816,8 +836,8 @@
             '<div class="rk-detail">'+srcRows(s.breakdown)+'</div>'+
             '</div>';
         }).join('');
-      })
-      .catch(function(){ box.innerHTML='<div class="mgr-empty">순위를 불러오지 못했어요. 인터넷을 확인해 주세요.</div>'; });
+      }
+    }
   }
   $('rankList').addEventListener('click', function(e){
     var row = e.target.closest('.rk'); if(!row) return;
@@ -825,6 +845,7 @@
   });
 
   function loadPickList(){
+    if (ROSTER_CACHE && ROSTER_CACHE.length){ ST_PICK = ROSTER_CACHE; renderPick(''); return; }   // 부팅 명단 재사용
     fetch(ENDPOINT+'?action=roster&t='+Date.now())
       .then(function(r){ return r.json(); })
       .then(function(d){
@@ -894,7 +915,13 @@
     box.innerHTML='<div class="mgr-empty">불러오는 중…</div>';
     fetch(ENDPOINT+'?action=starLog&pw='+encodeURIComponent(SERVER_PW)+'&t='+Date.now())
       .then(function(r){ return r.json(); })
-      .then(function(d){
+      .then(renderLog)
+      .catch(function(){ box.innerHTML='<div class="mgr-empty">목록을 불러오지 못했어요.</div>'; });
+  }
+  function renderLog(d){
+    var box=$('logList');
+    {
+      {
         if(!d || d.result!=='success'){ box.innerHTML='<div class="mgr-empty">목록을 불러오지 못했어요.</div>'; return; }
         if(!d.log || !d.log.length){ box.innerHTML='<div class="mgr-empty">아직 선물한 별이 없어요.</div>'; return; }
         LOGS = d.log;
@@ -907,8 +934,8 @@
             '<button type="button" class="del" onclick="delBonus('+i+',this)">삭제</button>'+
             '</div>';
         }).join('');
-      })
-      .catch(function(){ box.innerHTML='<div class="mgr-empty">목록을 불러오지 못했어요.</div>'; });
+      }
+    }
   }
   function delBonus(i, btn){
     var g=LOGS[i]; if(!g) return;
