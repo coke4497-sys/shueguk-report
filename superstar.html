@@ -464,8 +464,10 @@
   }
 
   /* ── 이번 달 신입 슈스 목록 — 이름·학교·학년·배정 시간표 (등록일 기준) ── */
-  var NS_M = (function(){ var d=new Date(); return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2); })();
+  var NS_M = '';   // 표시 중인 달 — 첫 로딩 때 이번 달로 초기화 (부팅이 이 선언보다 먼저 실행됨)
+  function nsMonthNow_(){ var d=new Date(); return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2); }
   function nsShift(n){
+    if(!NS_M) NS_M = nsMonthNow_();
     var p = NS_M.split('-'), d = new Date(+p[0], +p[1]-1+n, 1);
     NS_M = d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2);
     loadNewList();
@@ -479,6 +481,7 @@
     return parts.length ? parts.join(' · ') : '시간표 미배정';
   }
   function loadNewList(){
+    if(!NS_M) NS_M = nsMonthNow_();
     $('nsMonth').textContent = NS_M.replace('-','년 ')+'월';
     var box=$('nsList');
     box.innerHTML='<div class="mgr-empty">불러오는 중…</div>';
