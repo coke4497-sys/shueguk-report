@@ -2048,7 +2048,10 @@ function submitAddClass(){
   var d = $('nc-day').value, st = $('nc-start').value, en = $('nc-end').value;
   var loc = $('nc-loc').value.trim(), teacher = $('nc-teacher').value.trim(), cls = $('nc-cls').value.trim();
   if (!cls){ $('nc-err').textContent = '반이름을 입력해 주세요.'; return; }
-  if (mins(en) <= mins(st)){ $('nc-err').textContent = '끝 시간이 시작보다 빨라요.'; return; }
+  // 표시 로직(minsEnd)과 같은 규칙: 끝이 시작보다 이르면 오후로 해석 — 저녁 8:30~10:00(밤) 허용
+  var st0 = mins(st), en0 = mins(en);
+  if (en0 <= st0) en0 += 12*60;
+  if (en0 > 22*60){ $('nc-err').textContent = '끝 시간이 시작보다 빨라요. (수업은 밤 10시까지)'; return; }
   closeModal();
   post({ action:'timetableAddClass', book:book, day:d, start:st, end:en, loc:loc, teacher:teacher, cls:cls },
     '반을 만드는 중…', function(res){
