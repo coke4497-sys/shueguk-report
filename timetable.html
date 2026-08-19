@@ -2011,11 +2011,14 @@ function openAdd(c){
 
 /* 반 추가 */
 function openAddClass(){
-  var timeOpts = [];
-  for (var t = 10*60; t <= 21*60+30; t += 30) timeOpts.push(fmt12(t));
-  var timeSel = function(id, def){
+  // 시작: 오전 10:00 ~ 밤 9:30 / 끝: 오전 10:30 ~ 밤 10:00
+  // ("10:00" 끝은 밤 10시 — 끝이 시작보다 이르면 오후로 해석(minsEnd)하므로 정상 표시·저장)
+  var startOpts = [], endOpts = [];
+  for (var t = 10*60; t <= 21*60+30; t += 30) startOpts.push(fmt12(t));
+  for (var t2 = 10*60+30; t2 <= 22*60; t2 += 30) endOpts.push(fmt12(t2));
+  var timeSel = function(id, def, opts){
     return '<select id="'+id+'" style="font:inherit;font-size:.92rem;border:1.5px solid var(--line);border-radius:10px;padding:8px 10px;width:100%;margin-top:6px;">'+
-      timeOpts.map(function(o){ return '<option'+(o===def?' selected':'')+'>'+o+'</option>'; }).join('')+'</select>';
+      opts.map(function(o){ return '<option'+(o===def?' selected':'')+'>'+o+'</option>'; }).join('')+'</select>';
   };
   var locs = [];
   classes.forEach(function(c){ if (c.loc && locs.indexOf(c.loc) < 0) locs.push(c.loc); });
@@ -2025,8 +2028,8 @@ function openAddClass(){
     '<div style="display:flex;gap:8px;"><div style="flex:1;"><label style="font-size:.8rem;color:var(--ink-soft);">요일</label>'+
     '<select id="nc-day" style="font:inherit;font-size:.92rem;border:1.5px solid var(--line);border-radius:10px;padding:8px 10px;width:100%;margin-top:6px;">'+
     DAYS.map(function(d){ return '<option>'+d+'</option>'; }).join('')+'</select></div>'+
-    '<div style="flex:1;"><label style="font-size:.8rem;color:var(--ink-soft);">시작</label>'+timeSel('nc-start','5:30')+'</div>'+
-    '<div style="flex:1;"><label style="font-size:.8rem;color:var(--ink-soft);">끝</label>'+timeSel('nc-end','7:00')+'</div></div>'+
+    '<div style="flex:1;"><label style="font-size:.8rem;color:var(--ink-soft);">시작</label>'+timeSel('nc-start','5:30',startOpts)+'</div>'+
+    '<div style="flex:1;"><label style="font-size:.8rem;color:var(--ink-soft);">끝</label>'+timeSel('nc-end','7:00',endOpts)+'</div></div>'+
     '<div style="display:flex;gap:8px;margin-top:8px;"><div style="flex:1;"><label style="font-size:.8rem;color:var(--ink-soft);">위치</label>'+
     '<input type="text" id="nc-loc" list="nc-locs" placeholder="예) 본원"><datalist id="nc-locs">'+
     locs.map(function(l){ return '<option>'+esc(l)+'</option>'; }).join('')+'</datalist></div>'+
