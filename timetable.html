@@ -189,6 +189,7 @@
   .blk .stus button.sel{background:var(--accent);border-color:var(--accent);color:#fff;}
   .blk .stus button.once{background:#EFE9F7;border:1px dashed #8A6FA8;color:#5E4A78;font-weight:700;}
   .blk .stus button.away{opacity:.5;}
+  .blk .stus button.plan-once{border-bottom:2px dotted #8AA0C8;}
   .blk .stus button.away em{font-style:normal;font-size:.66rem;color:var(--accent);margin-left:3px;}
   .blk .empty-note{color:var(--ink-soft);font-size:.72rem;}
   /* 도구 버튼(전체 출석·숙제 검사 등)은 은은한 세이지 톤 + 진초록 굵은 글자 + 아래 구분선 —
@@ -953,6 +954,18 @@ function blockEl(c){
     if (o.fromId === c.id){ var t = classes.find(function(x){ return x.id===o.toId; }); awayOf[o.student.replace(/\(.*\)$/,'')] = { label: t ? labelOf(t) : '', row: o.row }; }
     if (o.toId === c.id) temps.push(o);
   });
+  // 오늘 이후에 적용될 1회 이동 예약 — 마우스를 올리면 안내가 보이도록 (표시 자체는 적용일에)
+  var planOf = {};
+  if (mode === 'today'){
+    var tdy = todayStr();
+    onceMoves.forEach(function(o){
+      if (o.fromId !== c.id || !o.ymd || o.ymd <= tdy) return;
+      var tt = classes.find(function(x){ return x.id === o.toId; });
+      var md = o.ymd.slice(5).replace(/^0/, '').replace('-0', '/').replace('-', '/');
+      planOf[o.student.replace(/\(.*\)$/,'')] =
+        '1회 이동 예약: ' + md + '(' + mkDayOf(o.ymd) + ') ' + (tt ? labelOf(tt) : '') + (o.reason ? ' · ' + o.reason : '');
+    });
+  }
   var chips = '';
   var sorted = sortNames(c.students);
   if (mode === 'today'){
@@ -966,7 +979,8 @@ function blockEl(c){
       var tp = [];
       if (note) tp.push(note);
       if (a && a.memo) tp.push(a.memo); else if (away) tp.push('오늘 1회 이동: ' + awayOf[plain].label);
-      return '<button data-att-cid="'+esc(c.id)+'" data-nm="'+esc(nm)+'" class="'+cls2+(away?' away':'')+'"'+
+      if (planOf[plain]) tp.push(planOf[plain]);
+      return '<button data-att-cid="'+esc(c.id)+'" data-nm="'+esc(nm)+'" class="'+cls2+(away?' away':'')+(planOf[plain]?' plan-once':'')+'"'+
              (away ? ' data-away-row="'+awayOf[plain].row+'"' : '')+
              (tp.length ? ' title="'+esc(tp.join(' · '))+'"' : '')+'>'+
              esc(plain)+tail+(away?'<em>1회↗</em>':'')+'</button>';
