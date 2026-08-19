@@ -2082,7 +2082,7 @@ function classLabelOf(cid){
 }
 function openMakeup(){
   openModal('<h3>결석자 관리</h3>'+
-    '<p class="mdesc">반이동·무단 결석·당일 결석은 처리하면 바로 완료돼요.<br>영상보충은 일정을 적으면 영상보충 목록으로 넘어가고, 다녀가면 [영상보충 출석]을 눌러 완료하세요.</p>'+
+    '<p class="mdesc">반이동·무단 결석·당일 결석은 처리하면 바로 완료돼요.<br>영상·오프라인 보충은 일정을 적으면 보충 목록으로 넘어가고, 다녀가면 출석 버튼을 눌러 완료하세요.</p>'+
     '<div id="mk-list"><p class="subnote">불러오는 중…</p></div>'+
     '<div class="mbtns"><button onclick="closeModal()">닫기</button></div>', true);
   fetch(ENDPOINT + '?action=attendAbsentList&pw=' + encodeURIComponent(pw) + '&book=' + encodeURIComponent(book) + '&t=' + Date.now())
@@ -2100,13 +2100,14 @@ function mkDayOf(dateStr){
   return ['일','월','화','수','목','금','토'][new Date(+p[0], +p[1]-1, +p[2]).getDay()];
 }
 function mkIsVideo(m){ return !m.done && String(m.plan || '').indexOf('영상보충') === 0; }
-function mkSecOf(m){ return m.done ? 2 : (mkIsVideo(m) ? 1 : 0); }
+function mkIsOffline(m){ return !m.done && String(m.plan || '').indexOf('오프라인 보충') === 0; }
+function mkSecOf(m){ return m.done ? 2 : ((mkIsVideo(m) || mkIsOffline(m)) ? 1 : 0); }
 function renderMakeup(){
   var box = $('mk-list'); if (!box) return;
   if (!makeupList.length){ box.innerHTML = '<p class="subnote">결석 기록이 없어요.</p>'; return; }
   var sorted = makeupList.slice().sort(function(a, b){ return (mkSecOf(a) - mkSecOf(b)) || (a.date < b.date ? 1 : -1); });
   var html = '', sec = -1;
-  var titles = ['미완료 — 처리 방법을 고르세요', '영상보충 — 다녀가면 출석을 눌러 완료', '완료'];
+  var titles = ['미완료 — 처리 방법을 고르세요', '영상·오프라인 보충 — 다녀가면 출석을 눌러 완료', '완료'];
   sorted.forEach(function(m){
     var s = mkSecOf(m);
     if (s !== sec){ sec = s; html += '<p class="mk-sec">' + titles[s] + '</p>'; }
@@ -2124,14 +2125,16 @@ function renderMakeup(){
         '<button onclick="openMkMemo(' + i + ')">메모</button>' +
         '<button onclick="saveMakeup(' + i + ', false)">미완료로</button>' + delBtn + '</div>';
     } else if (s === 1){
+      var isOff = mkIsOffline(m);
       btnLine = '<div class="mk-row">' +
         '<button onclick="openMkMemo(' + i + ')">메모</button>' +
-        '<button onclick="openMakeupVideo(' + i + ')">일정 수정</button>' + delBtn +
-        '<button class="done-btn" onclick="saveMakeup(' + i + ', true)">영상보충 출석</button></div>';
+        '<button onclick="' + (isOff ? 'openMakeupOffline' : 'openMakeupVideo') + '(' + i + ')">일정 수정</button>' + delBtn +
+        '<button class="done-btn" onclick="saveMakeup(' + i + ', true)">' + (isOff ? '보충 출석' : '영상보충 출석') + '</button></div>';
     } else {
       btnLine = '<div class="mk-row"><span class="mk-alt">처리 방법 —</span>' +
         '<button onclick="openMakeupMove(' + i + ')">반이동</button>' +
         '<button onclick="openMakeupVideo(' + i + ')">영상보충</button>' +
+        '<button onclick="openMakeupOffline(' + i + ')">오프라인 보충</button>' +
         '<button onclick="noRemedy(' + i + ', \'무단 결석\')">무단 결석</button>' +
         '<button onclick="noRemedy(' + i + ', \'당일 결석\')">당일 결석</button>' +
         '<button onclick="openMkMemo(' + i + ')">메모</button>' + delBtn +
@@ -2199,6 +2202,32 @@ function saveMakeup(i, doneVal){
       renderMakeup();
       setStatus(plainName(m.student) + ' — ' + (doneVal === null ? '보충 일정 저장'
         : (done ? (mkIsVideo({ plan:plan, done:false }) ? '영상보충 출석 — 완료 처리' : '완료 처리') : '미완료로 변경')) + ' 완료.', 'ok');
+    } else setStatus('저장 실패: ' + ((res && res.message) || '오류'), 'err');
+  });
+}
+
+/* 오프라인 보충 기능창 — 날짜·요일·시간 메모 (영상보충과 동일한 흐름) */
+function openMakeupOffline(i){
+  var m = makeupList[i]; if (!m) return;
+  openModal(
+    '<h3>오프라인 보충 — ' + esc(plainName(m.student)) + '</h3>'+
+    '<p class="mdesc">' + esc(m.date) + ' (' + mkDayOf(m.date) + ') ' + esc(classLabelOf(m.classId)) + ' 결석.<br>오프라인 보충하러 오는 날짜·요일·시간을 적어주세요.</p>'+
+    '<input type="text" id="mk-plan-' + i + '" placeholder="예) 8/17(월) 6:00" value="' + esc(m.plan.indexOf('오프라인 보충') === 0 ? m.plan.replace(/^오프라인 보충:\s*/, '') : '') + '" />'+
+    '<p class="merr" id="mko-err"></p>'+
+    '<div class="mbtns"><button onclick="openMakeup()">뒤로</button>'+
+    '<button class="primary" onclick="saveMakeupOffline(' + i + ')">저장</button></div>', true
+  );
+}
+function saveMakeupOffline(i){
+  var m = makeupList[i]; if (!m) return;
+  var v = $('mk-plan-' + i).value.trim();
+  if (!v){ $('mko-err').textContent = '날짜·요일·시간을 적어주세요.'; return; }
+  post({ action:'attendMakeupSet', book:book, date:m.date, classId:m.classId, student:m.student,
+         plan:'오프라인 보충: ' + v, done:'', mkMemo: m.mkMemo || '' }, '저장하는 중…', function(res){
+    if (res && res.result === 'success'){
+      m.plan = '오프라인 보충: ' + v;
+      setStatus(plainName(m.student) + ' — 보충 목록으로 옮겼어요. 다녀가면 [보충 출석]을 눌러주세요.', 'ok');
+      openMakeup();
     } else setStatus('저장 실패: ' + ((res && res.message) || '오류'), 'err');
   });
 }
