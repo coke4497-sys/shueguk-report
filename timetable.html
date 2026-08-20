@@ -983,7 +983,7 @@ function blockEl(c){
       return '<button data-att-cid="'+esc(c.id)+'" data-nm="'+esc(nm)+'" class="'+cls2+(away?' away':'')+(planOf[plain]?' plan-once':'')+'"'+
              (away ? ' data-away-row="'+awayOf[plain].row+'"' : '')+
              (tp.length ? ' title="'+esc(tp.join(' · '))+'"' : '')+'>'+
-             esc(plain)+tail+(away?'<em>1회↗</em>':'')+'</button>';
+             esc(plain)+tail+(away?'<em>1회↗</em>':(planOf[plain]?'<em style="color:#8AA0C8;">예약↗</em>':''))+'</button>';
     }).join('');
     chips += temps.sort(function(a,b){ return a.student.localeCompare(b.student,'ko'); }).map(function(o){
       var a = attend[c.id + '|' + o.student];
@@ -1705,12 +1705,27 @@ function bulkAttend(c){
       } else setStatus('일괄 처리 실패: ' + ((res && res.message) || '오류'), 'err');
     });
 }
+/* 이 학생의 '앞으로 적용될' 1회 이동 예약 문구 — 없으면 '' */
+function futureOncePlan(cid, nm){
+  var tdy = todayStr(), plain = String(nm||'').replace(/\(.*\)$/,'');
+  var found = '';
+  onceMoves.concat(weekOnce || []).forEach(function(o){
+    if (found || o.fromId !== cid || !o.ymd || o.ymd <= tdy) return;
+    if (String(o.student||'').replace(/\(.*\)$/,'') !== plain) return;
+    var tt = classes.find(function(x){ return x.id === o.toId; });
+    var md = o.ymd.slice(5).replace(/^0/, '').replace('-0', '/').replace('-', '/');
+    found = md + '(' + mkDayOf(o.ymd) + ') ' + (tt ? labelOf(tt) : '') + (o.reason ? ' · ' + o.reason : '');
+  });
+  return found;
+}
 function openAttend(c, nm, dateStr){
   attDate = dateStr || todayStr();
   var cur = attendAt(attDate, c.id, nm);
+  var fut = futureOncePlan(c.id, nm);
   openModal(
     '<h3>출석 체크</h3>'+
     '<p class="mdesc"><b>'+esc(plainName(nm))+'</b> — '+esc(labelOf(c))+'<br>'+esc(attDate)+'</p>'+
+    (fut ? '<p class="mdesc" style="color:#5B76A8;background:#F0F4FA;border-radius:9px;padding:8px 10px;">1회 이동 예약 — '+esc(fut)+'</p>' : '')+
     '<div class="att-btns">'+
     '<button class="pick-ok'+(cur&&cur.status==='출석'?' on':'')+'" onclick="submitAttend(\''+esc(c.id)+'\',\''+esc(nm)+'\',\'출석\')">출석</button>'+
     '<button class="pick-late'+(cur&&cur.status==='지각'?' on':'')+'" onclick="submitAttend(\''+esc(c.id)+'\',\''+esc(nm)+'\',\'지각\')">지각</button>'+
