@@ -174,6 +174,20 @@
   .grid.fitgrid .blk .stus button{font:inherit;font-size:.65rem;padding:0 4px;letter-spacing:-.02em;line-height:1.6;}
   .grid.fitgrid .blk .bt small{font-size:.64rem;white-space:normal;}
   .grid.fitgrid .blk .bt .nm{font-size:.74rem;}
+  /* 모바일 목록 보기 (오늘의 시간표) — 그리드 대신 시간순 카드 */
+  .mview-toggle{font:inherit;font-size:.84rem;background:var(--icon-bg);border:1px solid var(--line-soft);
+    border-radius:9px;padding:6px 14px;color:var(--ink);cursor:pointer;margin:4px 0 6px;}
+  .daylist{display:flex;flex-direction:column;gap:8px;margin-top:2px;}
+  .daylist .dl-time{font-family:"Gowun Batang",serif;font-weight:700;font-size:.92rem;color:var(--ink-soft);margin:10px 2px 0;}
+  .daylist .dl-time:first-child{margin-top:2px;}
+  .daylist .dl-nowhead{color:var(--accent);}
+  .daylist .blk{padding:10px 12px;font-size:.9rem;}
+  .daylist .blk .bt .nm{font-size:.98rem;}
+  .daylist .blk .bt small{font-size:.78rem;white-space:normal;}
+  .daylist .blk .stus{gap:6px;}
+  .daylist .blk .stus button{font-size:.9rem;padding:5px 12px;line-height:1.6;}
+  .daylist .blk.dl-now{outline:2px solid var(--accent);outline-offset:-1px;}
+  .daylist .blk.dl-past{opacity:.65;}
   .thead{font-size:.8rem;text-align:center;color:var(--ink-soft);padding:2px 0 4px;}
   .thead b{display:block;font-family:"Gowun Batang",serif;font-size:.9rem;color:var(--accent);}
   .tlab{font-size:.7rem;color:var(--ink-soft);text-align:right;padding:2px 6px 0 0;white-space:nowrap;}
@@ -793,7 +807,17 @@ function render(){
       host.appendChild(memoCard(todayStr()));
       return;
     }
-    host.appendChild(buildDayGrid(list));
+    // 좁은 화면(모바일)은 기본이 목록 보기 — 표로도 전환 가능
+    var narrow = window.innerWidth < 760;
+    var useList = narrow && (localStorage.getItem('tt_mview') || 'list') === 'list';
+    if (narrow){
+      var tg = document.createElement('button');
+      tg.className = 'mview-toggle';
+      tg.textContent = useList ? '표로 보기' : '목록으로 보기';
+      tg.onclick = function(){ localStorage.setItem('tt_mview', useList ? 'grid' : 'list'); keepScroll = false; render(); };
+      host.appendChild(tg);
+    }
+    host.appendChild(useList ? buildDayList(list) : buildDayGrid(list));
     host.appendChild(memoCard(todayStr()));
     return;
   }
@@ -979,7 +1003,7 @@ function countLabel(c, awayOf, temps){
   return c.students.length + (out ? '-' + out : '') + (inn ? '+' + inn : '') + '명';   // 나간 것 먼저, 온 것 나중
 }
 /* 반 블록 요소 (내용·클릭 공통) — 위치는 호출한 쪽에서 지정 */
-function blockEl(c){
+function blockEl(c, forList){
   var b = document.createElement('div');
   var todayDrop = (mode==='today' && moving && moving.once) ? 'droppable ' : '';
   b.className = 'blk ' + (mode==='today' ? todayDrop : 'droppable ') + colorOf(c.cls) + (classMoving && classMoving.id===c.id ? ' moving-src' : '');
@@ -1061,8 +1085,11 @@ function blockEl(c){
       ' onclick="event.stopPropagation()" title="이 반의 숙제 검사로 이동">숙제 검사</a></div>'
     : '';   // 편집 기능은 상단 편집 도구줄에서
   var cntLabel = (mode === 'today') ? countLabel(c, awayOf, temps) : (c.students.length + '명');
+  var meta = esc(c.start)+'~'+esc(c.end)+
+             (forList ? ' · '+esc(c.teacher)+'T'+(c.loc ? ' · '+esc(c.loc) : '') : '')+
+             ' · '+cntLabel;
   b.innerHTML = '<div class="bt"><span class="nm">'+esc(c.cls)+'</span>'+
-                '<small>'+esc(c.start)+'~'+esc(c.end)+' · '+cntLabel+'</small></div>'+
+                '<small>'+meta+'</small></div>'+
                 btnRow +
                 '<div class="stus">'+chips+'</div>';
   b.addEventListener('click', function(e){ onBlockClick(e, c); });
@@ -1187,6 +1214,46 @@ function buildDayGrid(list){
   wrap.appendChild(g);
   attachTimeSync(wrap, g);
   return wrap;
+}
+
+/* 모바일 목록 보기(오늘의 시간표) — 그리드 대신 수업을 시간순 카드로.
+ * 지금 진행 중인 수업이 맨 위, 끝난 수업은 흐리게. 카드 자체는 blockEl 재사용이라
+ * 출석 체크·1회 이동·특이사항 등 모든 기능이 그리드와 동일하게 동작한다. */
+function buildDayList(list){
+  var box = document.createElement('div');
+  box.className = 'daylist';
+  var now = new Date();
+  var nowM = now.getHours()*60 + now.getMinutes();
+  var ord = function(t){ var i = TEACHER_ORDER.indexOf(t); return i < 0 ? 99 : i; };
+  var sorted = list.slice().sort(function(a,b){ return (mins(a.start)-mins(b.start)) || (ord(a.teacher)-ord(b.teacher)); });
+  var running = sorted.filter(function(c){ return nowM >= mins(c.start) && nowM < minsEnd(c); });
+  var rest = sorted.filter(function(c){ return running.indexOf(c) < 0; });
+  if (running.length){
+    var nh = document.createElement('div');
+    nh.className = 'dl-time dl-nowhead';
+    nh.textContent = '지금 수업 중';
+    box.appendChild(nh);
+    running.forEach(function(c){
+      var b = blockEl(c, true);
+      b.classList.add('dl-now');
+      box.appendChild(b);
+    });
+  }
+  var lastStart = null;
+  rest.forEach(function(c){
+    if (c.start !== lastStart){
+      lastStart = c.start;
+      var h = document.createElement('div');
+      h.className = 'dl-time';
+      h.textContent = c.start;
+      box.appendChild(h);
+    }
+    var b = blockEl(c, true);
+    if (minsEnd(c) <= nowM) b.classList.add('dl-past');
+    box.appendChild(b);
+  });
+  requestAnimationFrame(function(){ applySearchHits(); applyMultiSel(); });
+  return box;
 }
 
 /* 전체 보기: 월~일이 가로축 — 모든 요일에 전체 담당T 열(본원 포함)을 항상 표시 */
