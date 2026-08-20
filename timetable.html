@@ -187,6 +187,12 @@
   .daylist .blk .stus button{font-size:.9rem;padding:5px 12px;line-height:1.6;}
   .daylist .blk.dl-now{outline:2px solid var(--accent);outline-offset:-1px;}
   .daylist .blk.dl-past{opacity:.65;}
+  .dl-daytabs{display:flex;gap:5px;flex-wrap:wrap;margin:2px 0 8px;}
+  .dl-daytabs button{font:inherit;font-size:.9rem;background:#fff;border:1px solid var(--line);
+    border-radius:999px;padding:6px 12px;color:var(--ink);cursor:pointer;}
+  .dl-daytabs button small{display:block;font-size:.66rem;color:var(--ink-soft);line-height:1.2;}
+  .dl-daytabs button.on{background:var(--icon-bg);filter:saturate(1.2);color:var(--accent);font-weight:700;}
+  .dl-daytabs button.on small{color:var(--accent);}
   .thead{font-size:.8rem;text-align:center;color:var(--ink-soft);padding:2px 0 4px;}
   .thead b{display:block;font-family:"Gowun Batang",serif;font-size:.9rem;color:var(--accent);}
   .tlab{font-size:.7rem;color:var(--ink-soft);text-align:right;padding:2px 6px 0 0;white-space:nowrap;}
@@ -807,21 +813,14 @@ function render(){
       return;
     }
     // 좁은 화면(모바일)은 기본이 목록 보기 — 표로도 전환 가능
-    var narrow = window.innerWidth < 760;
-    var useList = narrow && (localStorage.getItem('tt_mview') || 'list') === 'list';
-    if (narrow){
-      var tg = document.createElement('button');
-      tg.className = 'mview-toggle';
-      tg.textContent = useList ? '표로 보기' : '목록으로 보기';
-      tg.onclick = function(){ localStorage.setItem('tt_mview', useList ? 'grid' : 'list'); keepScroll = false; render(); };
-      host.appendChild(tg);
-    }
-    host.appendChild(useList ? buildDayList(list) : buildDayGrid(list));
+    if (narrowScreen()) host.appendChild(mviewToggleBtn());
+    host.appendChild(useListView() ? buildDayList(list) : buildDayGrid(list));
     host.appendChild(memoCard(todayStr()));
     return;
   }
   if (mode === 'all'){
-    host.appendChild(buildFullGrid());
+    if (narrowScreen()) host.appendChild(mviewToggleBtn());
+    host.appendChild(useListView() ? buildAllList() : buildFullGrid());
     return;
   }
   if (mode === 'cal'){
@@ -838,7 +837,8 @@ function render(){
     '<b>' + mdOf(wfrom) + ' ~ ' + mdOf(to) + ' 주차</b>' + (isThis ? '<small>(이번 주)</small>' : '')+
     '<button onclick="moveWeek(1)">다음주</button>';
   host.appendChild(nav);
-  host.appendChild(buildWeekGrid());
+  if (narrowScreen()) host.appendChild(mviewToggleBtn());
+  host.appendChild(useListView() ? buildWeekList() : buildWeekGrid());
   host.appendChild(weekMemoSection());
 }
 
@@ -1220,11 +1220,20 @@ function buildDayGrid(list){
  * 진행 중 수업은 테두리 강조, 끝난 수업은 흐리게. 카드 자체는 blockEl 재사용이라
  * 출석 체크·1회 이동·특이사항 등 모든 기능이 그리드와 동일하게 동작한다. */
 var LOC_ORDER = ['정리정독', '화정센터', '민트초코', '본원'];
-function buildDayList(list){
+function narrowScreen(){ return window.innerWidth < 760; }
+function useListView(){ return narrowScreen() && (localStorage.getItem('tt_mview') || 'list') === 'list'; }
+function mviewToggleBtn(){
+  var useList = useListView();
+  var tg = document.createElement('button');
+  tg.className = 'mview-toggle';
+  tg.textContent = useList ? '표로 보기' : '목록으로 보기';
+  tg.onclick = function(){ localStorage.setItem('tt_mview', useList ? 'grid' : 'list'); keepScroll = false; render(); };
+  return tg;
+}
+/* 구역(정리정독→화정센터→민트초코→본원)별로 묶고 구역 안에서 시간순 정렬한 카드 목록 */
+function locGroupList(list, makeCard){
   var box = document.createElement('div');
   box.className = 'daylist';
-  var now = new Date();
-  var nowM = now.getHours()*60 + now.getMinutes();
   var ord = function(t){ var i = TEACHER_ORDER.indexOf(t); return i < 0 ? 99 : i; };
   var lord = function(l){ var i = LOC_ORDER.indexOf(l); return i < 0 ? 99 : i; };
   var sorted = list.slice().sort(function(a,b){
@@ -1239,13 +1248,118 @@ function buildDayList(list){
       h.textContent = c.loc || '기타';
       box.appendChild(h);
     }
-    var b = blockEl(c, true);
-    if (nowM >= mins(c.start) && nowM < minsEnd(c)) b.classList.add('dl-now');
-    else if (minsEnd(c) <= nowM) b.classList.add('dl-past');
-    box.appendChild(b);
+    box.appendChild(makeCard(c));
   });
   requestAnimationFrame(function(){ applySearchHits(); applyMultiSel(); });
   return box;
+}
+function buildDayList(list){
+  var now = new Date();
+  var nowM = now.getHours()*60 + now.getMinutes();
+  return locGroupList(list, function(c){
+    var b = blockEl(c, true);
+    if (nowM >= mins(c.start) && nowM < minsEnd(c)) b.classList.add('dl-now');
+    else if (minsEnd(c) <= nowM) b.classList.add('dl-past');
+    return b;
+  });
+}
+/* 요일 선택 탭 — 전체 시간표·주차별 목록 보기 공용 */
+function dayTabsEl(cur, labelOfDay, onPick){
+  var tabs = document.createElement('div');
+  tabs.className = 'dl-daytabs';
+  WEEK_VIEW_ORDER.forEach(function(dy){
+    var btn = document.createElement('button');
+    btn.innerHTML = labelOfDay(dy);
+    if (dy === cur) btn.className = 'on';
+    btn.onclick = function(){ onPick(dy); };
+    tabs.appendChild(btn);
+  });
+  return tabs;
+}
+/* 전체 시간표 목록 보기 — 요일을 골라 그 요일 수업을 구역별·시간순으로 */
+var allListDay = null;
+function buildAllList(){
+  if (!allListDay) allListDay = todayDay();
+  var wrap = document.createElement('div');
+  wrap.appendChild(dayTabsEl(allListDay, function(dy){ return esc(dy); },
+    function(dy){ allListDay = dy; keepScroll = false; render(); }));
+  var list = classes.filter(function(c){ return c.day === allListDay; });
+  if (!list.length){
+    var em = document.createElement('p');
+    em.className = 'day-empty';
+    em.textContent = allListDay + '요일에는 등록된 ' + book + ' 수업이 없어요.';
+    wrap.appendChild(em);
+  } else {
+    wrap.appendChild(locGroupList(list, function(c){ return blockEl(c, true); }));
+  }
+  return wrap;
+}
+/* 주차별 목록 보기 — 날짜(요일)를 골라 그 날 수업 + 출석 기록을 구역별·시간순으로 */
+var weekListDay = null;
+function buildWeekList(){
+  var days = weekDates();
+  if (!weekListDay){
+    var td = todayDay();
+    weekListDay = (ymdOf(days[td]) === todayStr()) ? td : '수';
+  }
+  var wrap = document.createElement('div');
+  wrap.appendChild(dayTabsEl(weekListDay,
+    function(dy){ return esc(dy) + '<small>' + mdOf(days[dy]) + '</small>'; },
+    function(dy){ weekListDay = dy; keepScroll = false; render(); }));
+  var dstr = ymdOf(days[weekListDay]);
+  var list = classes.filter(function(c){ return c.day === weekListDay; });
+  if (!list.length){
+    var em = document.createElement('p');
+    em.className = 'day-empty';
+    em.textContent = weekListDay + '요일에는 등록된 ' + book + ' 수업이 없어요.';
+    wrap.appendChild(em);
+  } else {
+    wrap.appendChild(locGroupList(list, function(c){ return weekBlockEl(c, dstr, true); }));
+  }
+  return wrap;
+}
+/* 주차별 반 카드 — 그리드·목록 공용 (그 날짜의 출석·1회 이동·보존 기록 칩 포함) */
+function weekBlockEl(c, dstr, forList){
+  var b = document.createElement('div');
+  b.className = 'blk ' + colorOf(c.cls);
+  b.setAttribute('data-cid', c.id);
+  var awayOf = {}, temps = [];
+  weekOnce.forEach(function(o){
+    if (o.fromId === c.id){ var t = classes.find(function(x){ return x.id===o.toId; }); awayOf[o.student.replace(/\(.*\)$/,'')] = { label: t ? labelOf(t) : '', row: o.row }; }
+    if (o.toId === c.id) temps.push(o);
+  });
+  var chips = sortNames(c.students).map(function(nm){
+    var plain = nm.replace(/\(.*\)$/,'');
+    var note = nameNote(nm);
+    var away = Object.prototype.hasOwnProperty.call(awayOf, plain);
+    var a = weekAttend[dstr + '|' + c.id + '|' + nm];
+    var cls2 = a ? (a.status==='출석'?'at-ok':a.status==='지각'?'at-late':'at-abs') : (note ? 'note' : '');
+    var tail = a && a.status==='지각' ? ' · 지각' : '';
+    var tp = [];
+    if (note) tp.push(note);
+    if (a && a.memo) tp.push(a.memo); else if (away) tp.push('이 주 1회 이동: ' + awayOf[plain].label);
+    return '<button data-nm="'+esc(nm)+'" class="'+cls2+(away?' away':'')+'"'+
+           (away ? ' data-away-row="'+awayOf[plain].row+'"' : '')+
+           (tp.length ? ' title="'+esc(tp.join(' · '))+'"' : '')+'>'+
+           esc(plain)+tail+(away?'<em>1회↗</em>':'')+'</button>';
+  }).join('');
+  chips += temps.sort(function(a,b){ return a.student.localeCompare(b.student,'ko'); }).map(function(o){
+    var a = weekAttend[dstr + '|' + c.id + '|' + o.student];
+    var cls2 = a ? (a.status==='출석'?'at-ok':a.status==='지각'?'at-late':'at-abs') : 'once';
+    return '<button data-nm="'+esc(o.student)+'" data-once-row="'+o.row+'" class="'+cls2+'" title="1회 이동 · 사유: '+esc(o.reason)+((a&&a.memo)?' / '+esc(a.memo):'')+'">'+esc(o.student)+' · 1회</button>';
+  }).join('');
+  chips += keptAttendNames(c, c.students, temps, dstr).map(function(nm){
+    return keptChip(c, nm, weekAttend[dstr + '|' + c.id + '|' + nm]);
+  }).join('');
+  if (!chips) chips = '<span class="empty-note">비어 있음</span>';
+  var meta = esc(c.start)+'~'+esc(c.end)+
+             (forList ? ' · '+esc(c.teacher)+'T'+(c.loc ? ' · '+esc(c.loc) : '') : '')+
+             ' · '+countLabel(c, awayOf, temps);
+  b.innerHTML = '<div class="bt"><span class="nm">'+esc(c.cls)+'</span>'+
+                '<small>'+meta+'</small></div>'+
+                '<div class="stus">'+chips+'</div>';
+  b.addEventListener('click', function(e){ onWeekClick(e, c, dstr); });
+  return b;
 }
 
 /* 전체 보기: 월~일이 가로축 — 모든 요일에 전체 담당T 열(본원 포함)을 항상 표시 */
@@ -1470,48 +1584,11 @@ function buildWeekGrid(){
     var dstr = ymdOf(dates[c.day]);
     var r0 = Math.floor((mins(c.start)-lo)/30), r1 = Math.ceil((minsEnd(c)-lo)/30);
     if (r1 <= r0) r1 = r0+1;
-    var b = document.createElement('div');
-    b.className = 'blk ' + colorOf(c.cls);
-    b.setAttribute('data-cid', c.id);
+    var b = weekBlockEl(c, dstr);
     b.style.gridColumn = String(col);
     b.style.gridRow = (r0+1) + ' / ' + (r1+1);
-    var awayOf = {}, temps = [];
-    weekOnce.forEach(function(o){
-      if (o.fromId === c.id){ var t = classes.find(function(x){ return x.id===o.toId; }); awayOf[o.student.replace(/\(.*\)$/,'')] = { label: t ? labelOf(t) : '', row: o.row }; }
-      if (o.toId === c.id) temps.push(o);
-    });
-    var chips = sortNames(c.students).map(function(nm){
-      var plain = nm.replace(/\(.*\)$/,'');
-      var note = nameNote(nm);
-      var away = Object.prototype.hasOwnProperty.call(awayOf, plain);
-      var a = weekAttend[dstr + '|' + c.id + '|' + nm];
-      var cls2 = a ? (a.status==='출석'?'at-ok':a.status==='지각'?'at-late':'at-abs') : (note ? 'note' : '');
-      var tail = a && a.status==='지각' ? ' · 지각' : '';
-      var tp = [];
-      if (note) tp.push(note);
-      if (a && a.memo) tp.push(a.memo); else if (away) tp.push('이 주 1회 이동: ' + awayOf[plain].label);
-      return '<button data-nm="'+esc(nm)+'" class="'+cls2+(away?' away':'')+'"'+
-             (away ? ' data-away-row="'+awayOf[plain].row+'"' : '')+
-             (tp.length ? ' title="'+esc(tp.join(' · '))+'"' : '')+'>'+
-             esc(plain)+tail+(away?'<em>1회↗</em>':'')+'</button>';
-    }).join('');
-    chips += temps.sort(function(a,b){ return a.student.localeCompare(b.student,'ko'); }).map(function(o){
-      var a = weekAttend[dstr + '|' + c.id + '|' + o.student];
-      var cls2 = a ? (a.status==='출석'?'at-ok':a.status==='지각'?'at-late':'at-abs') : 'once';
-      return '<button data-nm="'+esc(o.student)+'" data-once-row="'+o.row+'" class="'+cls2+'" title="1회 이동 · 사유: '+esc(o.reason)+((a&&a.memo)?' / '+esc(a.memo):'')+'">'+esc(o.student)+' · 1회</button>';
-    }).join('');
-    chips += keptAttendNames(c, c.students, temps, dstr).map(function(nm){
-      return keptChip(c, nm, weekAttend[dstr + '|' + c.id + '|' + nm]);
-    }).join('');
-    if (!chips) chips = '<span class="empty-note">비어 있음</span>';
-    b.innerHTML = '<div class="bt"><span class="nm">'+esc(c.cls)+'</span>'+
-                  '<small>'+esc(c.start)+'~'+esc(c.end)+' · '+countLabel(c, awayOf, temps)+'</small></div>'+
-
-                  '<div class="stus">'+chips+'</div>';
-    b.addEventListener('click', function(e){ onWeekClick(e, c, dstr); });
     g.appendChild(b);
   });
-
   tuneRowHeight(g, '', nrows);
   var wrap = document.createElement('div');
   wrap.className = 'scrollwrap';
