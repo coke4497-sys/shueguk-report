@@ -1189,14 +1189,19 @@ function buildDayGrid(list){
   if (!cols.length) cols = TEACHER_ORDER.slice(0,4).map(function(t){ return { key:'|'+t, loc:'', teacher:t }; });
   var colIdx = {}; cols.forEach(function(c,i){ colIdx[c.key] = i; });
 
-  // 행: 스프레드시트와 같은 고정 축 — 평일 2:00~10:00, 주말 10:00~9:00. 수업이 벗어나면 자동 확장.
+  // 행: 그 날 가장 이른 수업 시작 시각부터 표시(빈 앞줄 제거 — 2026-08-21 사용자 확정).
+  // 수업이 없으면 기존 고정 축(평일 2:00~10:00, 주말 10:00~9:00), 끝은 마지막 수업까지 자동 확장.
   var weekend = (dname === '토' || dname === '일');
-  var lo = weekend ? 10*60 : 14*60;
-  var hi = weekend ? 21*60 : 22*60;
-  list.forEach(function(c){
-    lo = Math.min(lo, mins(c.start));
-    hi = Math.max(hi, minsEnd(c));
-  });
+  var lo, hi = weekend ? 21*60 : 22*60;
+  if (list.length){
+    lo = Infinity;
+    list.forEach(function(c){
+      lo = Math.min(lo, mins(c.start));
+      hi = Math.max(hi, minsEnd(c));
+    });
+  } else {
+    lo = weekend ? 10*60 : 14*60;
+  }
   lo = Math.floor(lo/30)*30; hi = Math.ceil(hi/30)*30;
   var nrows = Math.max(1, Math.round((hi - lo) / 30));
 
