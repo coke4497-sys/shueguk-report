@@ -1048,19 +1048,33 @@ function schoolColor(s){
   var h = 0; for (var i = 0; i < b.length; i++) h = (h * 31 + b.charCodeAt(i)) % 360;
   return 'hsl(' + h + ',45%,88%)';
 }
-/* 슈국 캘린더 날짜 칸 과목 칩 — '화정고1 국어' 형태로 학교+학년을 붙이고,
+/* 과목명 두 글자 축약 (표시 전용 — 저장된 원문은 그대로, 마우스 호버 title에 원문)
+ * '화법과 언어'→화언, '독서 토론과 글쓰기'→독토처럼 단어 첫 글자 조합 규칙 + 예외 목록 (2026-08-21 사용자 확정) */
+var SUBJ_ABBR = { '공통국어':'국어', '공통국어1':'국어', '공통국어2':'국어', '심화국어':'심국', '고전읽기':'고전' };
+function subjAbbr(t){
+  t = String(t || '').trim();
+  if (!t) return '';
+  if (t.indexOf('/') >= 0) return t.split('/').map(subjAbbr).join('/');   // '언매/화작' 같은 복수 표기
+  var s = t.replace(/\s+/g, '');
+  if (SUBJ_ABBR[s]) return SUBJ_ABBR[s];
+  if (s.length <= 2) return s;
+  var ws = t.split(/\s+/).filter(Boolean);
+  if (ws.length >= 2) return ws[0].slice(0,1) + ws[1].slice(0,1);   // '독서 토론과 글쓰기' → 독토
+  return s.slice(0,2);                                              // 한 단어면 앞 두 글자
+}
+/* 슈국 캘린더 날짜 칸 과목 칩 — '화정고1 국어' 형태(학교는 한 번만) + 과목 축약,
  * 그 학교 시험 기간의 시작일이면 '첫째날' 표시 (2026-08-21 사용자 확정) */
 function calExamChip(x){
   var base = schoolBase(x.school), lvl = schoolLevel(x.school);
   var first = examPeriods.some(function(p){ return p.school === x.school && p.start === x.date; });
-  var txt = String(x.text || '').split(',').map(function(t){
+  var txt = String(x.text || '').split(',').map(function(t, i){
     t = t.trim();
     if (!t) return '';
-    var mm = t.match(/^([고중])\s*([1-3])\s*(.*)$/);   // '고1 국어' → '화정고1 국어'
+    var mm = t.match(/^([고중])\s*([1-3])\s*(.*)$/);   // '고1 국어' → '화정고1 국어' (뒤 항목은 학년만)
     if (mm && (!lvl || mm[1] === lvl))
-      return '<b>' + esc(base + mm[1] + mm[2]) + '</b>' + (mm[3] ? ' ' + esc(mm[3]) : '');
-    return '<b>' + esc(base + lvl) + '</b> ' + esc(t);
-  }).filter(Boolean).join(', ');
+      return '<b>' + esc((i === 0 ? base : '') + mm[1] + mm[2]) + '</b>' + (mm[3] ? ' ' + esc(subjAbbr(mm[3])) : '');
+    return '<b>' + esc(i === 0 ? base + lvl : '') + '</b> ' + esc(subjAbbr(t));
+  }).filter(Boolean).join('·');
   return '<div class="cal-exam" style="background:' + schoolColor(x.school) + '"' +
     ' title="' + esc(x.school + ' ' + x.text + (first ? ' · 시험 첫째날' : '')) + '">' +
     (first ? '<span class="cal-exam-first">첫째날</span> ' : '') + txt + '</div>';
@@ -1207,6 +1221,15 @@ function examSchedView(){
   box.innerHTML = h;
   return box;
 }
+/* 막대 아래 칸 표기 — '고1 국어, 고3 독서' → '고1 국어·고3 독서' (과목 축약, 학교는 줄 이름에 있음) */
+function exsCellAbbr(t){
+  return String(t || '').split(',').map(function(p){
+    p = p.trim();
+    var mm = p.match(/^([고중])\s*([1-3])\s*(.*)$/);
+    if (mm) return mm[1] + mm[2] + (mm[3] ? ' ' + subjAbbr(mm[3]) : '');
+    return subjAbbr(p);
+  }).filter(Boolean).join('·');
+}
 /* 시트와 같은 형식 — 월·날짜·요일 축이 맨 위, 학교별 색 막대가 아래로 쌓여 겹치는 일정을 한눈에.
  * 주말·오늘은 세로 띠, 한 줄 건너 격줄 배경으로 학교명과 막대를 눈으로 잇는다. 막대를 누르면 수정 창.
  * 학교명 열은 가로 스크롤에도 고정, 학교가 많으면 아래에도 날짜축을 한 번 더 그린다. (2026-08-21) */
@@ -1269,7 +1292,7 @@ function exsTimeline(ps){
         ' title="' + esc(p.school + ' ' + exsMd(days[c]) + (xs.length ? ' — 누르면 수정' : ' 과목 입력')) + '"' +
         ' onclick="' + (xs.length ? 'exsEditSubject(' + xs[0].row + ')'
                                   : 'exsEditSubject(0,\'' + esc(p.school) + '\',\'' + days[c] + '\')') + '">' +
-        xs.map(function(x){ return esc(x.text); }).join('<br>') + '</div>';
+        xs.map(function(x){ return esc(exsCellAbbr(x.text)); }).join('<br>') + '</div>';
     }
   });
   if (mirror) h += axisRow(rowOf(m), 'w') + axisRow(rowOf(m) + 1, 'd');
