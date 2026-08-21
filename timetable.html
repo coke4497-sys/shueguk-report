@@ -88,6 +88,28 @@
   .cal-cell .dnum.hd{color:#B4574E;}
   .cal-cell .hname{font-size:.68rem;font-weight:700;color:#B4574E;margin-left:4px;word-break:keep-all;}
   .cal-cell .cmemo{font-size:.7rem;color:var(--ink-soft);margin-top:3px;line-height:1.45;max-height:4.3em;overflow:hidden;word-break:break-word;white-space:pre-wrap;}
+  /* 지필고사 일정 — 달력 과목 칩 + 접이식 섹션 */
+  .cal-exam{font-size:.64rem;border-radius:6px;padding:1px 5px;margin-top:2px;border:1px solid rgba(0,0,0,.07);line-height:1.45;word-break:keep-all;}
+  .cal-exam b{font-size:.66rem;}
+  .exs-head{width:100%;display:flex;align-items:center;gap:10px;font:inherit;font-weight:700;font-size:.95rem;
+    color:var(--accent);background:none;border:none;padding:2px 0;cursor:pointer;text-align:left;}
+  .exs-cnt{font-weight:400;font-size:.78rem;color:var(--ink-soft);}
+  .exs-arrow{margin-left:auto;font-weight:400;font-size:.8rem;color:var(--ink-soft);}
+  .exs-desc{font-size:.78rem;color:var(--ink-soft);margin:8px 0 10px;}
+  .exs-row{display:flex;align-items:center;gap:9px;border:1px solid var(--line-soft,#E5EDE8);border-radius:10px;
+    padding:7px 10px;margin-bottom:6px;font-size:.84rem;flex-wrap:wrap;}
+  .exs-tag{font-size:.76rem;font-weight:700;border-radius:12px;padding:2px 10px;border:1px solid rgba(0,0,0,.08);flex:none;}
+  .exs-range{font-weight:700;}
+  .exs-note{color:var(--ink-soft);font-size:.78rem;}
+  .exs-acts{margin-left:auto;display:flex;gap:6px;flex:none;}
+  .exs-acts button{font:inherit;font-size:.74rem;border:1px solid var(--line);background:#fff;border-radius:8px;padding:3px 9px;cursor:pointer;color:var(--ink-soft);}
+  .exs-acts button:hover{color:var(--accent);border-color:var(--accent);}
+  .exs-none{font-size:.8rem;color:var(--ink-soft);margin:6px 0;}
+  .exs-sub-h{font-size:.8rem;font-weight:700;color:var(--ink-soft);margin:12px 0 6px;}
+  .exs-add{display:flex;gap:8px;margin-top:10px;}
+  .exs-add button{font:inherit;font-size:.82rem;font-weight:700;border:1.5px solid var(--line);background:#fff;
+    color:var(--accent);border-radius:10px;padding:8px 13px;cursor:pointer;}
+  .exs-add button:hover{border-color:var(--accent);}
   .memobox{background:var(--surface);border:1px solid var(--line-soft);border-radius:14px;padding:14px 16px;margin:16px 4px 8px;}
   .memobox .memotitle{font-family:"Gowun Batang",serif;font-weight:700;color:var(--accent);margin:0 0 8px;font-size:.98rem;}
   .memobox textarea{width:100%;box-sizing:border-box;font:inherit;font-size:.9rem;border:1px solid var(--line);
@@ -861,6 +883,7 @@ function render(){
   }
   if (mode === 'cal'){
     host.appendChild(buildCalendar());
+    host.appendChild(examSchedSection());   // 지필고사 일정 (접이식)
     return;
   }
   // 주차별 — 표시 범위는 월(수요일-2)~일(수요일+4)
@@ -910,7 +933,7 @@ function calLoadAndRender(){
   if (!calMonth){ var n = new Date(); calMonth = new Date(n.getFullYear(), n.getMonth(), 1); }
   var weeks = calWeeks();
   var from = ymdOf(weeks[0][0]), to = ymdOf(weeks[weeks.length-1][6]);
-  loadMemos(from, to, function(){ render(); });
+  loadMemos(from, to, function(){ loadExamSched(from, to, function(){ render(); }); });
 }
 function moveCalMonth(n){
   calMonth = new Date(calMonth.getFullYear(), calMonth.getMonth()+n, 1);
@@ -937,16 +960,160 @@ function buildCalendar(){
       var ds = ymdOf(d);
       var m = memos[ds];
       var hd = HOLIDAYS[ds];
+      var subs = examSubjects[ds] || [];
       h += '<div class="cal-cell' + (d.getMonth() !== calMonth.getMonth() ? ' other' : '') + (ds === todayY ? ' today' : '') + (hd ? ' holiday' : '') + (m ? ' memoed' : '') + '"' +
         ' onclick="editWeekMemo(\'' + ds + '\',\'' + ['월','화','수','목','금','토','일'][di] + '\')">' +
         '<span class="dnum' + (hd ? ' hd' : '') + '">' + d.getDate() + '</span>' +
         (hd ? '<span class="hname">' + esc(hd) + '</span>' : '') +
+        subs.map(function(x){
+          return '<div class="cal-exam" style="background:' + schoolColor(x.school) + '" title="' + esc(x.school + ' ' + x.text) + '">' +
+                 '<b>' + esc(schoolBase(x.school)) + '</b> ' + esc(x.text) + '</div>';
+        }).join('') +
         (m ? '<div class="cmemo">' + esc(m) + '</div>' : '') + '</div>';
     });
   });
   h += '</div>';
   box.innerHTML = h;
   return box;
+}
+/* ── 지필고사 일정 (슈국 캘린더 아래 접이식 메뉴 — 2026-08-21 사용자 확정) ──
+ * 학교별 시험 기간(시작~끝)은 직접 입력(중학교 등 과목 없이 기간만 아는 경우가 많음),
+ * 날짜별 과목은 선택 입력 — 넣으면 달력 날짜 칸에 학교색 칩으로 표시. '지필일정' 탭 저장. */
+var examPeriods = [], examSubjects = {};   // subjects: 날짜 → [{row,school,text}]
+var EXS_SCHOOLS = ['능곡고','도래울고','무원고','백양고','서정고','성사고','화수고','화정고','행신고',
+                   '지도중','향동중','화수중','능곡중','서정중','지축중','무원중','백양중','화정중','고양중','덕은한강중','가람중'];
+var SCHOOL_HUE = { '능곡':'#F6D9D7','도래울':'#FBE5CB','무원':'#FBF0C8','백양':'#DDEFD9','서정':'#DDE6E9',
+                   '성사':'#D6E4F5','화수':'#D8E2F7','화정':'#E6DCF2','행신':'#F3DAE4','지도':'#F3D3CE',
+                   '향동':'#FBE5CB','지축':'#D6E4F5','고양':'#F8DFC8','덕은한강':'#FBF0C8','가람':'#D9EBD3' };
+function schoolBase(s){ return String(s||'').replace(/[고중]$/, ''); }
+function schoolColor(s){
+  var b = schoolBase(s);
+  if (SCHOOL_HUE[b]) return SCHOOL_HUE[b];
+  var h = 0; for (var i = 0; i < b.length; i++) h = (h * 31 + b.charCodeAt(i)) % 360;
+  return 'hsl(' + h + ',45%,88%)';
+}
+function loadExamSched(from, to, done){
+  fetch(ENDPOINT + '?action=examSched&pw=' + encodeURIComponent(pw) + '&from=' + from + '&to=' + to + '&t=' + Date.now())
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      if (d && d.result === 'success'){
+        examPeriods = d.periods || [];
+        examSubjects = {};
+        (d.subjects || []).forEach(function(x){ (examSubjects[x.date] = examSubjects[x.date] || []).push(x); });
+      }
+      done();
+    }).catch(function(){ done(); });
+}
+function exsReload(){
+  var weeks = calWeeks();
+  loadExamSched(ymdOf(weeks[0][0]), ymdOf(weeks[weeks.length-1][6]), function(){ render(); });
+}
+function exsOpen(){ try { return localStorage.getItem('tt_exs_open') === '1'; } catch(e){ return false; } }
+function exsToggle(){ try { localStorage.setItem('tt_exs_open', exsOpen() ? '0' : '1'); } catch(e){} render(); }
+function exsMd(d){ return d ? d.slice(5).replace(/^0/,'').replace('-0','/').replace('-','/') + '(' + mkDayOf(d) + ')' : ''; }
+function examSchedSection(){
+  var box = document.createElement('div');
+  box.className = 'memobox';
+  var open = exsOpen();
+  var ps = examPeriods.slice().sort(function(a,b){ return a.start.localeCompare(b.start) || a.school.localeCompare(b.school,'ko'); });
+  var subList = [];
+  Object.keys(examSubjects).sort().forEach(function(d){ examSubjects[d].forEach(function(x){ subList.push(x); }); });
+  var h = '<button type="button" class="exs-head" onclick="exsToggle()">지필고사 일정' +
+    '<span class="exs-cnt">' + (ps.length ? ps.length + '개 학교' : '없음') + '</span>' +
+    '<span class="exs-arrow">' + (open ? '▾ 접기' : '▸ 열기') + '</span></button>';
+  if (open){
+    h += '<p class="exs-desc">이 달과 겹치는 학교별 시험 기간이에요. 날짜별 과목을 넣으면 달력 날짜 칸에 칩으로 보여요.</p>';
+    if (ps.length){
+      h += ps.map(function(p){
+        return '<div class="exs-row">' +
+          '<span class="exs-tag" style="background:' + schoolColor(p.school) + '">' + esc(p.school) + '</span>' +
+          '<span class="exs-range">' + exsMd(p.start) + (p.end !== p.start ? ' ~ ' + exsMd(p.end) : '') + '</span>' +
+          (p.text ? '<span class="exs-note">' + esc(p.text) + '</span>' : '') +
+          '<span class="exs-acts"><button onclick="exsEditPeriod(' + p.row + ')">수정</button>' +
+          '<button onclick="exsDel(' + p.row + ',\'' + esc(p.school) + '\')">삭제</button></span></div>';
+      }).join('');
+    } else {
+      h += '<p class="exs-none">이 달에 등록된 시험 기간이 없어요 — 아래에서 추가하세요.</p>';
+    }
+    if (subList.length){
+      h += '<p class="exs-sub-h">날짜별 과목 (달력 칸에 표시)</p>' + subList.map(function(x){
+        return '<div class="exs-row">' +
+          '<span class="exs-tag" style="background:' + schoolColor(x.school) + '">' + esc(x.school) + '</span>' +
+          '<span class="exs-range">' + exsMd(x.date) + '</span>' +
+          '<span class="exs-note">' + esc(x.text) + '</span>' +
+          '<span class="exs-acts"><button onclick="exsEditSubject(' + x.row + ')">수정</button>' +
+          '<button onclick="exsDel(' + x.row + ',\'' + esc(x.school) + '\')">삭제</button></span></div>';
+      }).join('');
+    }
+    h += '<div class="exs-add"><button onclick="exsEditPeriod(0)">+ 시험 기간 추가</button>' +
+         '<button onclick="exsEditSubject(0)">+ 날짜별 과목 추가</button></div>';
+  }
+  box.innerHTML = h;
+  return box;
+}
+function exsSchoolInput(val){
+  var names = {};
+  EXS_SCHOOLS.forEach(function(s){ names[s] = 1; });
+  examPeriods.forEach(function(p){ names[p.school] = 1; });
+  return '<input id="exs-school" list="exs-schools" placeholder="학교 (예: 능곡고, 화수중)" value="' + esc(val || '') + '"' +
+    ' style="width:100%;font:inherit;border:1.5px solid var(--line);border-radius:9px;padding:9px 11px;margin-bottom:8px;">' +
+    '<datalist id="exs-schools">' + Object.keys(names).sort(function(a,b){ return a.localeCompare(b,'ko'); })
+      .map(function(s){ return '<option value="' + esc(s) + '">'; }).join('') + '</datalist>';
+}
+function exsEditPeriod(row){
+  var p = row ? examPeriods.find(function(x){ return x.row === row; }) : null;
+  openModal(
+    '<h3>' + (p ? '시험 기간 수정' : '시험 기간 추가') + '</h3>' +
+    '<p class="mdesc">학교와 시험 시작·마지막 날짜를 넣어주세요. 과목은 몰라도 기간만 등록하면 돼요.</p>' +
+    exsSchoolInput(p ? p.school : '') +
+    '<div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;">' +
+    '<input type="date" id="exs-start" value="' + (p ? p.start : '') + '" style="flex:1;font:inherit;border:1.5px solid var(--line);border-radius:9px;padding:8px;">' +
+    '<span>~</span>' +
+    '<input type="date" id="exs-end" value="' + (p ? p.end : '') + '" style="flex:1;font:inherit;border:1.5px solid var(--line);border-radius:9px;padding:8px;"></div>' +
+    '<input id="exs-text" placeholder="메모 (선택 · 예: 중간고사)" value="' + esc(p ? p.text : '') + '"' +
+    ' style="width:100%;font:inherit;border:1.5px solid var(--line);border-radius:9px;padding:9px 11px;">' +
+    '<p class="merr" id="exs-err"></p>' +
+    '<div class="mbtns"><button onclick="closeModal()">취소</button>' +
+    '<button class="primary" onclick="exsSave(' + (row || 0) + ',\'기간\')">저장</button></div>'
+  );
+}
+function exsEditSubject(row){
+  var x = null;
+  if (row){ Object.keys(examSubjects).forEach(function(d){ examSubjects[d].forEach(function(s){ if (s.row === row) x = s; }); }); }
+  openModal(
+    '<h3>' + (x ? '날짜별 과목 수정' : '날짜별 과목 추가') + '</h3>' +
+    '<p class="mdesc">그 날 시험 보는 과목을 적으면 달력 날짜 칸에 학교색 칩으로 보여요.</p>' +
+    exsSchoolInput(x ? x.school : '') +
+    '<input type="date" id="exs-start" value="' + (x ? x.date : '') + '"' +
+    ' style="width:100%;font:inherit;border:1.5px solid var(--line);border-radius:9px;padding:8px;margin-bottom:8px;">' +
+    '<input id="exs-text" placeholder="과목 (예: 고2 문학, 고3 언매/화작)" value="' + esc(x ? x.text : '') + '"' +
+    ' style="width:100%;font:inherit;border:1.5px solid var(--line);border-radius:9px;padding:9px 11px;">' +
+    '<p class="merr" id="exs-err"></p>' +
+    '<div class="mbtns"><button onclick="closeModal()">취소</button>' +
+    '<button class="primary" onclick="exsSave(' + (row || 0) + ',\'과목\')">저장</button></div>'
+  );
+}
+function exsSave(row, kind){
+  var school = ($('exs-school') ? $('exs-school').value : '').trim();
+  var start = ($('exs-start') ? $('exs-start').value : '').trim();
+  var end = ($('exs-end') ? $('exs-end').value : '').trim();
+  var text = ($('exs-text') ? $('exs-text').value : '').trim();
+  var err = $('exs-err');
+  if (!school || !start){ if (err) err.textContent = '학교와 날짜를 넣어주세요.'; return; }
+  if (kind === '과목' && !text){ if (err) err.textContent = '과목 내용을 적어주세요.'; return; }
+  closeModal();
+  post({ action:'examSchedSet', row: row || '', kind: kind, school: school, start: start, end: end, text: text },
+    '지필 일정을 저장하는 중…', function(res){
+      if (res && res.result === 'success'){ setStatus(school + ' — 지필 일정을 저장했어요.', 'ok'); exsReload(); }
+      else setStatus('저장 실패: ' + ((res && res.message) || '오류'), 'err');
+    });
+}
+function exsDel(row, school){
+  if (!confirm(school + ' 일정을 지울까요?')) return;
+  post({ action:'examSchedSet', row: row, del: 1, school: school }, '지우는 중…', function(res){
+    if (res && res.result === 'success'){ setStatus(school + ' 일정을 지웠어요.', 'ok'); exsReload(); }
+    else setStatus('삭제 실패: ' + ((res && res.message) || '오류'), 'err');
+  });
 }
 function setPeriod(wed, bk){
   if ((periods[wed] || '정규') === bk && periods[wed]) return;   // 이미 그 기간
