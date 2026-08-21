@@ -582,7 +582,8 @@ function loadGradeGates(){
   var clinicJob = jsonpRetry(CLINIC_API + '?action=amITarget'
     + '&name='   + encodeURIComponent(si.name || '')
     + '&school=' + encodeURIComponent(si.school || '')
-    + '&grade='  + encodeURIComponent(levelGrade(si.grade) || ''));
+    + '&grade='  + encodeURIComponent(levelGrade(si.grade) || '')
+    + '&teacher=' + encodeURIComponent(si.teacher || ''));   // 담당강사 클리닉의 대상으로 판정 (강사별 대상)
   var daysJob = STATE.mockGatesFromServer ? Promise.resolve(null)   // 리포트 응답에 이미 담겨 옴
     : jsonpRetry(SIGNUP_API + '?action=days');
   Promise.all([
