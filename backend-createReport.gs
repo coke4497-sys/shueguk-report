@@ -2962,8 +2962,27 @@ function timetableRenameStudent(data) {
       }
     }
     if (!changed) return json({ result:'error', message:'그 이름을 명단에서 찾지 못했어요. 새로고침 후 다시 시도해 주세요.' });
+    // 최근 출석 기록(60일 꼬리)의 이름도 함께 바꿔 기록이 학생을 따라가게 한다
+    // (출석부에는 표기와 무관하게 출석 기록이 보여야 함 — 2026-08-21 사용자 확정)
+    var fromPlain = from.replace(/\(.*\)$/, '');
+    var ash = ss.getSheetByName(TAB_ATTEND);
+    var attFixed = 0;
+    if (ash) {
+      var atail = sheetTail_(ash, 6, Date.now() - 60 * 24 * 3600 * 1000);
+      var av = atail.rows;
+      for (var a = 0; a < av.length; a++) {
+        if (ttBook_(av[a][1]) !== book) continue;
+        var tok = String(av[a][3] || '').trim();
+        if (tok === from || tok.replace(/\(.*\)$/, '') === fromPlain) {
+          var acell = ash.getRange(atail.start + a, 4);
+          acell.setNumberFormat('@');
+          acell.setValue(to);
+          attFixed++;
+        }
+      }
+    }
     ttLog_(ss, '표기수정', from, '', '', '', '', from + ' → ' + to, book);
-    return json({ result:'success', classes: changed });
+    return json({ result:'success', classes: changed, attendFixed: attFixed });
   } finally {
     try { lock.releaseLock(); } catch (e) {}
   }
@@ -3532,26 +3551,27 @@ function attendSetBulk(data) {
   try { lock.waitLock(10000); } catch (e) { return json({ result:'error', message:'잠시 후 다시 시도해 주세요.' }); }
   try {
     var v = sh.getDataRange().getValues();
-    var haveRow = {};   // 이름 → 시트 행 번호(1-based)
+    var haveRow = {};   // 이름(괄호 제외) → 시트 행 번호(1-based) — 표기가 달라도 같은 학생 매칭
+    var plainOf = function (s) { return String(s || '').trim().replace(/\(.*\)$/, ''); };
     for (var i = 1; i < v.length; i++) {
       var d = v[i][0];
       var ds = (d && d.getTime) ? Utilities.formatDate(d, 'Asia/Seoul', 'yyyy-MM-dd') : String(d || '').trim();
       if (ds === dateStr && ttBook_(v[i][1]) === book && String(v[i][2] || '').trim() === classId) {
-        haveRow[String(v[i][3] || '').trim()] = i + 1;
+        haveRow[plainOf(v[i][3])] = i + 1;
       }
     }
     // 일괄 삭제(취소)
     if (!status) {
       var del = [];
-      students.forEach(function (nm) { if (haveRow[nm]) del.push(haveRow[nm]); });
+      students.forEach(function (nm) { if (haveRow[plainOf(nm)]) del.push(haveRow[plainOf(nm)]); });
       del.sort(function (a, b) { return b - a; }).forEach(function (r) { sh.deleteRow(r); });
-      return json({ result:'success', cleared: del.length, clearedNames: students.filter(function (nm) { return !!haveRow[nm]; }) });
+      return json({ result:'success', cleared: del.length, clearedNames: students.filter(function (nm) { return !!haveRow[plainOf(nm)]; }) });
     }
     var now = new Date(), rows = [], marked = [];
     students.forEach(function (nm) {
-      if (haveRow[nm]) {
+      if (haveRow[plainOf(nm)]) {
         if (!overwrite) return;
-        sh.getRange(haveRow[nm], 5, 1, 3).setValues([[status, '', now]]);
+        sh.getRange(haveRow[plainOf(nm)], 5, 1, 3).setValues([[status, '', now]]);
         marked.push(nm);
       } else {
         rows.push([dateStr, book, classId, nm, status, '', now]);
@@ -3588,18 +3608,24 @@ function attendSet(data) {
   try {
     var tail = sheetTail_(sh, 6, daysAgoMs_(dateStr, 14));   // 해당 날짜 행은 시트 끝쪽에 있다
     var v = tail.rows;
+    // 학생 매칭은 괄호(특이사항) 제외 이름 기준 — 표기가 바뀌어도 같은 학생이면 한 기록으로 합친다
+    var plain = student.replace(/\(.*\)$/, '');
     var row = -1;
     for (var i = 0; i < v.length; i++) {
       var d = v[i][0];
       var ds = (d && d.getTime) ? Utilities.formatDate(d, 'Asia/Seoul', 'yyyy-MM-dd') : String(d || '').trim();
-      if (ds === dateStr && ttBook_(v[i][1]) === book &&
-          String(v[i][2] || '').trim() === classId && String(v[i][3] || '').trim() === student) { row = tail.start + i; break; }
+      if (ds !== dateStr || ttBook_(v[i][1]) !== book || String(v[i][2] || '').trim() !== classId) continue;
+      var tok = String(v[i][3] || '').trim();
+      if (tok === student || tok.replace(/\(.*\)$/, '') === plain) { row = tail.start + i; break; }
     }
     if (!status) {
       if (row > 0) sh.deleteRow(row);
       return json({ result:'success', cleared: true });
     }
     if (row > 0) {
+      var nmCell = sh.getRange(row, 4);
+      nmCell.setNumberFormat('@');
+      nmCell.setValue(student);   // 기록의 이름 표기를 현재 명단 표기로 갱신
       sh.getRange(row, 5, 1, 3).setValues([[status, memo, new Date()]]);
     } else {
       var rg = sh.getRange(sh.getLastRow() + 1, 1, 1, 7);

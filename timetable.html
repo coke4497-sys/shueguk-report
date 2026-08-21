@@ -461,7 +461,7 @@ function loadWeek(){
   var cw = cacheGet(ck);
   if (cw){
     weekAttend = {};
-    (cw.attend || []).forEach(function(a){ weekAttend[a.date + '|' + a.classId + '|' + a.student] = { status:a.status, memo:a.memo }; });
+    (cw.attend || []).forEach(function(a){ weekAttend[wkAttKey(a.date, a.classId, a.student)] = { status:a.status, memo:a.memo }; });
     weekOnce = cw.onceMoves || [];
     render();
     setStatus('최신 데이터 확인 중…');
@@ -476,7 +476,7 @@ function loadWeek(){
     var d = rs[0];
     if (d && d.result === 'success'){
       weekAttend = {}; weekOnce = [];
-      (d.attend || []).forEach(function(a){ weekAttend[a.date + '|' + a.classId + '|' + a.student] = { status:a.status, memo:a.memo }; });
+      (d.attend || []).forEach(function(a){ weekAttend[wkAttKey(a.date, a.classId, a.student)] = { status:a.status, memo:a.memo }; });
       weekOnce = d.onceMoves || [];
       cacheSet(ck, { attend: d.attend || [], onceMoves: d.onceMoves || [] });
       setStatus('');
@@ -489,8 +489,13 @@ function loadWeek(){
     render();
   });
 }
+/* 출석 기록 키 — 괄호(특이사항) 제외 이름 기준.
+ * 특이사항 표기가 바뀌거나 기록 당시 표기가 달라도 출석 기록이 항상 학생 칩에 붙게 한다
+ * (출석부의 목적은 출석 확인 — 2026-08-21 사용자 확정). 동명이인은 A/B/C 표기로 이미 구분됨. */
+function attKey(cid, nm){ return cid + '|' + String(nm||'').replace(/\(.*\)$/, ''); }
+function wkAttKey(dateStr, cid, nm){ return dateStr + '|' + attKey(cid, nm); }
 function attendAt(dateStr, cid, nm){
-  return (mode === 'week') ? weekAttend[dateStr + '|' + cid + '|' + nm] : attend[cid + '|' + nm];
+  return (mode === 'week') ? weekAttend[wkAttKey(dateStr, cid, nm)] : attend[attKey(cid, nm)];
 }
 /* 이미 처리된 출석 기록 보존 표시 — 영구 이동·빼기로 현재 명단에서 빠진 학생이라도,
  * 그 날짜에 이 반의 출석 기록이 있으면 칩으로 계속 보여준다(클릭해 수정도 가능).
@@ -577,13 +582,13 @@ function load(isReload, cb){
       onceMoves = cd.onceMoves || [];
       attend = {};
       var ca = cacheGet('att:' + book + ':' + todayStr());
-      if (ca) ca.forEach(function(x){ attend[x.classId + '|' + x.student] = { status: x.status, memo: x.memo }; });
+      if (ca) ca.forEach(function(x){ attend[attKey(x.classId, x.student)] = { status: x.status, memo: x.memo }; });
       if (mode === 'week'){
         var wf0 = new Date(weekStart); wf0.setDate(wf0.getDate() - 2);
         var cwk = cacheGet('week:' + book + ':' + ymdOf(wf0));
         if (cwk){
           weekAttend = {};
-          (cwk.attend || []).forEach(function(a){ weekAttend[a.date + '|' + a.classId + '|' + a.student] = { status:a.status, memo:a.memo }; });
+          (cwk.attend || []).forEach(function(a){ weekAttend[wkAttKey(a.date, a.classId, a.student)] = { status:a.status, memo:a.memo }; });
           weekOnce = cwk.onceMoves || [];
         }
       }
@@ -631,7 +636,7 @@ function load(isReload, cb){
     cacheSet('list:' + book, { classes: classes, onceMoves: onceMoves });
     attend = {};
     (d.attend || []).forEach(function(x){
-      attend[x.classId + '|' + x.student] = { status: x.status, memo: x.memo };
+      attend[attKey(x.classId, x.student)] = { status: x.status, memo: x.memo };
     });
     cacheSet('att:' + book + ':' + todayStr(), d.attend || []);
     if (d.memos){
@@ -640,7 +645,7 @@ function load(isReload, cb){
     }
     if (d.week){   // 주차별 보기용 주간 기록도 같이 옴
       weekAttend = {}; weekOnce = [];
-      (d.week.attend || []).forEach(function(a){ weekAttend[a.date + '|' + a.classId + '|' + a.student] = { status:a.status, memo:a.memo }; });
+      (d.week.attend || []).forEach(function(a){ weekAttend[wkAttKey(a.date, a.classId, a.student)] = { status:a.status, memo:a.memo }; });
       weekOnce = d.week.onceMoves || [];
       cacheSet('week:' + book + ':' + wfrom, { attend: d.week.attend || [], onceMoves: weekOnce });
     }
@@ -1039,7 +1044,7 @@ function blockEl(c, forList){
       var plain = nm.replace(/\(.*\)$/,'');
       var note = nameNote(nm);
       var away = Object.prototype.hasOwnProperty.call(awayOf, plain);
-      var a = attend[c.id + '|' + nm];
+      var a = attend[attKey(c.id, nm)];
       var cls2 = a ? (a.status==='출석'?'at-ok':a.status==='지각'?'at-late':'at-abs') : (note ? 'note' : '');
       var tp = [];
       if (note) tp.push(note);
@@ -1054,12 +1059,12 @@ function blockEl(c, forList){
              esc(plain)+(away?'<em>1회↗</em>':(planOf[plain]?'<em style="color:#8AA0C8;">예약↗</em>':''))+'</button>';
     }).join('');
     chips += temps.sort(function(a,b){ return a.student.localeCompare(b.student,'ko'); }).map(function(o){
-      var a = attend[c.id + '|' + o.student];
+      var a = attend[attKey(c.id, o.student)];
       var cls2 = a ? (a.status==='출석'?'at-ok':a.status==='지각'?'at-late':'at-abs') : 'once';
       return '<button data-att-cid="'+esc(c.id)+'" data-nm="'+esc(o.student)+'" data-once-row="'+o.row+'" class="'+cls2+'" title="1회 이동 · 사유: '+esc(o.reason)+((a&&a.status==='지각')?' / 지각'+(a.memo?' — '+esc(a.memo):''):((a&&a.memo)?' / '+esc(a.memo):''))+'">'+esc(o.student)+' · 1회</button>';
     }).join('');
     chips += keptAttendNames(c, sorted, temps).map(function(nm){
-      return keptChip(c, nm, attend[c.id + '|' + nm]);
+      return keptChip(c, nm, attend[attKey(c.id, nm)]);
     }).join('');
   } else {
     chips = sorted.map(function(nm){
@@ -1334,7 +1339,7 @@ function weekBlockEl(c, dstr, forList){
     var plain = nm.replace(/\(.*\)$/,'');
     var note = nameNote(nm);
     var away = Object.prototype.hasOwnProperty.call(awayOf, plain);
-    var a = weekAttend[dstr + '|' + c.id + '|' + nm];
+    var a = weekAttend[wkAttKey(dstr, c.id, nm)];
     var cls2 = a ? (a.status==='출석'?'at-ok':a.status==='지각'?'at-late':'at-abs') : (note ? 'note' : '');
     var tp = [];
     if (note) tp.push(note);
@@ -1347,12 +1352,12 @@ function weekBlockEl(c, dstr, forList){
            esc(plain)+(away?'<em>1회↗</em>':'')+'</button>';
   }).join('');
   chips += temps.sort(function(a,b){ return a.student.localeCompare(b.student,'ko'); }).map(function(o){
-    var a = weekAttend[dstr + '|' + c.id + '|' + o.student];
+    var a = weekAttend[wkAttKey(dstr, c.id, o.student)];
     var cls2 = a ? (a.status==='출석'?'at-ok':a.status==='지각'?'at-late':'at-abs') : 'once';
     return '<button data-nm="'+esc(o.student)+'" data-once-row="'+o.row+'" class="'+cls2+'" title="1회 이동 · 사유: '+esc(o.reason)+((a&&a.status==='지각')?' / 지각'+(a.memo?' — '+esc(a.memo):''):((a&&a.memo)?' / '+esc(a.memo):''))+'">'+esc(o.student)+' · 1회</button>';
   }).join('');
   chips += keptAttendNames(c, c.students, temps, dstr).map(function(nm){
-    return keptChip(c, nm, weekAttend[dstr + '|' + c.id + '|' + nm]);
+    return keptChip(c, nm, weekAttend[wkAttKey(dstr, c.id, nm)]);
   }).join('');
   if (!chips) chips = '<span class="empty-note">비어 있음</span>';
   var meta = esc(c.start)+'~'+esc(c.end)+
@@ -1855,10 +1860,10 @@ function multiApply(status){
            status:status, overwrite:'1' }, label + ' 처리 중… (' + (i+1) + '/' + cids.length + ')', function(res){
       if (res && res.result === 'success'){
         if (status === ''){
-          byClass[cid].forEach(function(nm){ delete attend[cid + '|' + nm]; });
+          byClass[cid].forEach(function(nm){ delete attend[attKey(cid, nm)]; });
           total += res.cleared || 0;
         } else {
-          (res.marked || []).forEach(function(nm){ attend[cid + '|' + nm] = { status: status, memo: '' }; });
+          (res.marked || []).forEach(function(nm){ attend[attKey(cid, nm)] = { status: status, memo: '' }; });
           total += (res.marked || []).length;
         }
       }
@@ -1876,13 +1881,13 @@ function bulkAttend(c){
   onceOutThisWeek().forEach(function(o){ if (o.fromId === c.id) away[o.student.replace(/\(.*\)$/, '')] = true; });
   onceInToday().forEach(function(o){ if (o.toId === c.id) temps.push(o.student); });
   var targets = c.students.filter(function(nm){ return !away[nm.replace(/\(.*\)$/, '')]; }).concat(temps);
-  targets = targets.filter(function(nm){ return !attend[c.id + '|' + nm]; });
+  targets = targets.filter(function(nm){ return !attend[attKey(c.id, nm)]; });
   if (!targets.length){ setStatus(c.cls + ' — 모든 학생이 이미 기록되어 있어요.', 'ok'); return; }
   if (!confirm(labelOf(c) + '\n기록 없는 학생 ' + targets.length + '명을 모두 출석 처리할까요?\n(지각·결석 등 기존 기록은 그대로 둡니다)')) return;
   post({ action:'attendSetBulk', book:book, date:todayStr(), classId:c.id, students:targets },
     '일괄 출석 처리 중…', function(res){
       if (res && res.result === 'success'){
-        (res.marked || []).forEach(function(nm){ attend[c.id + '|' + nm] = { status:'출석', memo:'' }; });
+        (res.marked || []).forEach(function(nm){ attend[attKey(c.id, nm)] = { status:'출석', memo:'' }; });
         render();
         setStatus(c.cls + ' — ' + (res.marked || []).length + '명 출석 처리 완료.' +
                   (res.skipped ? ' (기존 기록 ' + res.skipped + '명 유지)' : ''), 'ok');
@@ -1937,11 +1942,11 @@ function submitAttend(cid, nm, status){
     '기록하는 중…', function(res){
       if (res && res.result === 'success'){
         if (mode === 'week'){
-          var wkey = d + '|' + cid + '|' + nm;
+          var wkey = wkAttKey(d, cid, nm);
           if (status) weekAttend[wkey] = { status: status, memo: memo }; else delete weekAttend[wkey];
         }
         if (d === todayStr()){
-          var key = cid + '|' + nm;
+          var key = attKey(cid, nm);
           if (status) attend[key] = { status: status, memo: memo }; else delete attend[key];
         }
         render();
