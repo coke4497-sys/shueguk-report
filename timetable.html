@@ -510,11 +510,11 @@ function keptAttendNames(c, rosterNames, temps, dstr){
   return sortNames(out);
 }
 function keptChip(c, nm, a){
-  var tail = a && a.status==='지각' ? ' · 지각' : '';
   var cls2 = a ? (a.status==='출석'?'at-ok':a.status==='지각'?'at-late':'at-abs') : '';
-  var tp = '반 이동 전에 기록된 출석이에요 — 지금은 이 반 명단에 없는 학생'+((a&&a.memo)?' / '+a.memo:'');
+  var tp = '반 이동 전에 기록된 출석이에요 — 지금은 이 반 명단에 없는 학생'+
+           (a ? ' / '+a.status+(a.memo?' — '+a.memo:'') : '');
   return '<button data-att-cid="'+esc(c.id)+'" data-nm="'+esc(nm)+'" class="'+cls2+' kept" title="'+esc(tp)+'">'+
-         esc(nm.replace(/\(.*\)$/,''))+tail+'<em>이동</em></button>';
+         esc(nm.replace(/\(.*\)$/,''))+'<em>이동</em></button>';
 }
 
 function $(id){ return document.getElementById(id); }
@@ -1041,20 +1041,22 @@ function blockEl(c, forList){
       var away = Object.prototype.hasOwnProperty.call(awayOf, plain);
       var a = attend[c.id + '|' + nm];
       var cls2 = a ? (a.status==='출석'?'at-ok':a.status==='지각'?'at-late':'at-abs') : (note ? 'note' : '');
-      var tail = a && a.status==='지각' ? ' · 지각' : '';
       var tp = [];
       if (note) tp.push(note);
-      if (a && a.memo) tp.push(a.memo); else if (away) tp.push('이 주 1회 이동: ' + awayOf[plain].label);
+      // 지각은 이름 옆 글자 대신 색으로만 구분, 세부는 마우스 호버·출석 창에서 (공간 확보, 2026-08-20 사용자 확정)
+      if (a && a.status==='지각') tp.push('지각' + (a.memo ? ' — ' + a.memo : ''));
+      else if (a && a.memo) tp.push(a.memo);
+      else if (away) tp.push('이 주 1회 이동: ' + awayOf[plain].label);
       if (planOf[plain]) tp.push(planOf[plain]);
       return '<button data-att-cid="'+esc(c.id)+'" data-nm="'+esc(nm)+'" class="'+cls2+(away?' away':'')+(planOf[plain]?' plan-once':'')+'"'+
              (away ? ' data-away-row="'+awayOf[plain].row+'"' : '')+
              (tp.length ? ' title="'+esc(tp.join(' · '))+'"' : '')+'>'+
-             esc(plain)+tail+(away?'<em>1회↗</em>':(planOf[plain]?'<em style="color:#8AA0C8;">예약↗</em>':''))+'</button>';
+             esc(plain)+(away?'<em>1회↗</em>':(planOf[plain]?'<em style="color:#8AA0C8;">예약↗</em>':''))+'</button>';
     }).join('');
     chips += temps.sort(function(a,b){ return a.student.localeCompare(b.student,'ko'); }).map(function(o){
       var a = attend[c.id + '|' + o.student];
       var cls2 = a ? (a.status==='출석'?'at-ok':a.status==='지각'?'at-late':'at-abs') : 'once';
-      return '<button data-att-cid="'+esc(c.id)+'" data-nm="'+esc(o.student)+'" data-once-row="'+o.row+'" class="'+cls2+'" title="1회 이동 · 사유: '+esc(o.reason)+((a&&a.memo)?' / '+esc(a.memo):'')+'">'+esc(o.student)+' · 1회</button>';
+      return '<button data-att-cid="'+esc(c.id)+'" data-nm="'+esc(o.student)+'" data-once-row="'+o.row+'" class="'+cls2+'" title="1회 이동 · 사유: '+esc(o.reason)+((a&&a.status==='지각')?' / 지각'+(a.memo?' — '+esc(a.memo):''):((a&&a.memo)?' / '+esc(a.memo):''))+'">'+esc(o.student)+' · 1회</button>';
     }).join('');
     chips += keptAttendNames(c, sorted, temps).map(function(nm){
       return keptChip(c, nm, attend[c.id + '|' + nm]);
@@ -1334,19 +1336,20 @@ function weekBlockEl(c, dstr, forList){
     var away = Object.prototype.hasOwnProperty.call(awayOf, plain);
     var a = weekAttend[dstr + '|' + c.id + '|' + nm];
     var cls2 = a ? (a.status==='출석'?'at-ok':a.status==='지각'?'at-late':'at-abs') : (note ? 'note' : '');
-    var tail = a && a.status==='지각' ? ' · 지각' : '';
     var tp = [];
     if (note) tp.push(note);
-    if (a && a.memo) tp.push(a.memo); else if (away) tp.push('이 주 1회 이동: ' + awayOf[plain].label);
+    if (a && a.status==='지각') tp.push('지각' + (a.memo ? ' — ' + a.memo : ''));
+    else if (a && a.memo) tp.push(a.memo);
+    else if (away) tp.push('이 주 1회 이동: ' + awayOf[plain].label);
     return '<button data-nm="'+esc(nm)+'" class="'+cls2+(away?' away':'')+'"'+
            (away ? ' data-away-row="'+awayOf[plain].row+'"' : '')+
            (tp.length ? ' title="'+esc(tp.join(' · '))+'"' : '')+'>'+
-           esc(plain)+tail+(away?'<em>1회↗</em>':'')+'</button>';
+           esc(plain)+(away?'<em>1회↗</em>':'')+'</button>';
   }).join('');
   chips += temps.sort(function(a,b){ return a.student.localeCompare(b.student,'ko'); }).map(function(o){
     var a = weekAttend[dstr + '|' + c.id + '|' + o.student];
     var cls2 = a ? (a.status==='출석'?'at-ok':a.status==='지각'?'at-late':'at-abs') : 'once';
-    return '<button data-nm="'+esc(o.student)+'" data-once-row="'+o.row+'" class="'+cls2+'" title="1회 이동 · 사유: '+esc(o.reason)+((a&&a.memo)?' / '+esc(a.memo):'')+'">'+esc(o.student)+' · 1회</button>';
+    return '<button data-nm="'+esc(o.student)+'" data-once-row="'+o.row+'" class="'+cls2+'" title="1회 이동 · 사유: '+esc(o.reason)+((a&&a.status==='지각')?' / 지각'+(a.memo?' — '+esc(a.memo):''):((a&&a.memo)?' / '+esc(a.memo):''))+'">'+esc(o.student)+' · 1회</button>';
   }).join('');
   chips += keptAttendNames(c, c.students, temps, dstr).map(function(nm){
     return keptChip(c, nm, weekAttend[dstr + '|' + c.id + '|' + nm]);
