@@ -106,6 +106,8 @@
   .exs-acts button:hover{color:var(--accent);border-color:var(--accent);}
   .exs-none{font-size:.8rem;color:var(--ink-soft);margin:6px 0;}
   .exs-sub-h{font-size:.8rem;font-weight:700;color:var(--ink-soft);margin:12px 0 6px;}
+  .exs-sub-d{font-size:.78rem;font-weight:700;margin:10px 0 4px;}
+  .exs-sub-d b{color:#B4574E;}   /* 여러 학교 겹치는 날 = 직전보강 몰리는 날 */
   .exs-add{display:flex;gap:8px;margin-top:10px;}
   .exs-add button{font:inherit;font-size:.82rem;font-weight:700;border:1.5px solid var(--line);background:#fff;
     color:var(--accent);border-radius:10px;padding:8px 13px;cursor:pointer;}
@@ -134,6 +136,15 @@
   .exs-tl-bar{font:inherit;font-size:.64rem;font-weight:700;color:var(--ink);border:1px solid rgba(0,0,0,.12);
     border-radius:7px;padding:2px 4px;cursor:pointer;white-space:nowrap;overflow:hidden;height:22px;line-height:1.3;z-index:2;}
   .exs-tl-bar:hover{filter:brightness(.95);}
+  /* 막대 아래 과목 칸 — 시트처럼 그 날짜 칸에 학년·과목, 빈 칸 클릭 = 입력 */
+  .exs-tl-sb{align-self:stretch;background:#fff;border:1px solid var(--line);border-radius:0 0 7px 7px;min-height:16px;}
+  .exs-tl-s{align-self:stretch;display:flex;flex-direction:column;justify-content:center;z-index:1;
+    font-size:.58rem;line-height:1.3;text-align:center;padding:1px 1px 2px;cursor:pointer;color:var(--ink);word-break:keep-all;}
+  .exs-tl-s.has{font-weight:700;}
+  .exs-tl-s.inbox{border-left:1px dashed var(--line-soft);}
+  .exs-tl-s.out{background:#fff;border:1px solid var(--line);border-radius:6px;}
+  .exs-tl-s:hover{background:var(--icon-bg);}
+  .exs-tl-s:not(.has):hover::after{content:'+';color:var(--ink-soft);font-weight:700;}
   .exs-tl-cap{font-size:.76rem;font-weight:700;color:var(--ink-soft);margin:10px 0 4px;}
   .memobox{background:var(--surface);border:1px solid var(--line-soft);border-radius:14px;padding:14px 16px;margin:16px 4px 8px;}
   .memobox .memotitle{font-family:"Gowun Batang",serif;font-weight:700;color:var(--accent);margin:0 0 8px;font-size:.98rem;}
@@ -1109,7 +1120,7 @@ function examSchedSection(){
     }).join('') + '</div>';
     h += '<p class="exs-desc">이 달에 걸친 시험 시즌의 학교별 기간이 전부 보여요' +
          (vMin ? ' (' + exsMd(vMin) + ' ~ ' + exsMd(vMax) + ')' : '') +
-         '. 날짜별 과목을 넣으면 달력 날짜 칸에 칩으로 보여요.</p>';
+         '. 시험 시간표가 나오면 <b>막대 아래 칸을 눌러</b> 그 날짜의 학년·과목을 넣으세요 — 달력 날짜 칸에도 칩으로 보여요.</p>';
     var any = false;
     [['고', '고등학교'], ['중', '중학교'], ['', '기타']].forEach(function(g){
       if (f && g[0] !== f) return;
@@ -1136,14 +1147,24 @@ function examSchedSection(){
     if (!any) h += '<p class="exs-none">이 달에 등록된 시험 기간이 없어요 — 아래에서 추가하세요.</p>';
     var fSubs = subList.filter(function(x){ return !f || schoolLevel(x.school) === f; });
     if (fSubs.length){
-      h += '<p class="exs-sub-h">날짜별 과목 (달력 칸에 표시)</p>' + fSubs.map(function(x){
-        return '<div class="exs-row">' +
-          '<span class="exs-tag" style="background:' + schoolColor(x.school) + '">' + esc(x.school) + '</span>' +
-          '<span class="exs-range">' + exsMd(x.date) + '</span>' +
-          '<span class="exs-note">' + esc(x.text) + '</span>' +
-          '<span class="exs-acts"><button onclick="exsEditSubject(' + x.row + ')">수정</button>' +
-          '<button onclick="exsDel(' + x.row + ',\'' + esc(x.school) + '\')">삭제</button></span></div>';
-      }).join('');
+      // 날짜별로 묶어서 — 한 날짜에 여러 학교가 겹치면 직전보강이 몰리는 날이라 세어서 표시
+      h += '<p class="exs-sub-h">날짜별 과목 (막대 아래 칸·달력에 표시)</p>';
+      var byDate = {};
+      fSubs.forEach(function(x){ (byDate[x.date] = byDate[x.date] || []).push(x); });
+      Object.keys(byDate).sort().forEach(function(dk){
+        var arr = byDate[dk];
+        var nSch = {}; arr.forEach(function(x){ nSch[x.school] = 1; });
+        var nn = Object.keys(nSch).length;
+        h += '<p class="exs-sub-d">' + exsMd(dk) +
+             (nn >= 2 ? ' <b>· ' + nn + '개교 겹침</b>' : '') + '</p>';
+        h += arr.map(function(x){
+          return '<div class="exs-row">' +
+            '<span class="exs-tag" style="background:' + schoolColor(x.school) + '">' + esc(x.school) + '</span>' +
+            '<span class="exs-note">' + esc(x.text) + '</span>' +
+            '<span class="exs-acts"><button onclick="exsEditSubject(' + x.row + ')">수정</button>' +
+            '<button onclick="exsDel(' + x.row + ',\'' + esc(x.school) + '\')">삭제</button></span></div>';
+        }).join('');
+      });
     }
     h += '<div class="exs-add"><button onclick="exsEditPeriod(0)">+ 시험 기간 추가</button>' +
          '<button onclick="exsEditSubject(0)">+ 날짜별 과목 추가</button></div>';
@@ -1165,15 +1186,16 @@ function exsTimeline(ps){
   var idx = {}; days.forEach(function(x,i){ idx[x] = i; });
   var n = days.length, m = ps.length;
   var mirror = m > 8;                    // 막대가 많으면 아래에도 날짜축 반복(아래 줄에선 위 축이 안 보여서)
-  var endLine = mirror ? m + 6 : m + 4;  // 행: 1 월 / 2 날짜 / 3 요일 / 4~ 막대 (+ 아래 요일·날짜)
+  function rowOf(pi){ return 4 + pi * 2; }   // 행: 1 월 / 2 날짜 / 3 요일 / 학교마다 막대 줄+과목 줄
+  var endLine = rowOf(m) + (mirror ? 2 : 0);
   var h = '<div class="exs-tl" style="grid-template-columns:80px repeat(' + n + ',minmax(21px,1fr));">';
   days.forEach(function(x, i){           // 주말·오늘 세로 띠 (막대 뒤에 깔림)
     var wd = mkDayOf(x);
     var cls = x === todayStr() ? 'td' : ((wd === '토' || wd === '일') ? 'we' : '');
     if (cls) h += '<div class="exs-tl-col ' + cls + '" style="grid-row:2 / ' + endLine + ';grid-column:' + (i+2) + ';"></div>';
   });
-  for (var t = 0; t < m; t += 2)         // 격줄 배경
-    h += '<div class="exs-tl-track" style="grid-row:' + (t+4) + ';grid-column:2 / ' + (n+2) + ';"></div>';
+  for (var t = 0; t < m; t += 2)         // 격줄 배경 (학교 한 곳 = 막대 줄+과목 줄 두 행)
+    h += '<div class="exs-tl-track" style="grid-row:' + rowOf(t) + ' / ' + rowOf(t+1) + ';grid-column:2 / ' + (n+2) + ';"></div>';
   h += '<div class="exs-tl-c" style="grid-row:1;grid-column:1;"></div>';
   var ms = 0;                            // 월 표시 줄 (같은 달 날짜들을 하나로 묶음)
   for (var i = 1; i <= n; i++){
@@ -1194,15 +1216,28 @@ function exsTimeline(ps){
   ps.forEach(function(p, pi){
     var s = idx[p.start] != null ? idx[p.start] : 0;
     var e = idx[p.end] != null ? idx[p.end] : n - 1;
+    var r0 = rowOf(pi);
     var label = exsMdN(p.start) + (p.end !== p.start ? '~' + exsMdN(p.end) : '');
     var full = exsMd(p.start) + (p.end !== p.start ? ' ~ ' + exsMd(p.end) : '');
-    h += '<div class="exs-tl-n" style="grid-row:' + (pi+4) + ';grid-column:1;">' + esc(p.school) +
+    h += '<div class="exs-tl-n" style="grid-row:' + r0 + ' / ' + (r0+2) + ';grid-column:1;">' + esc(p.school) +
       '<span class="exs-tl-nd">' + label + '</span></div>' +
-      '<button type="button" class="exs-tl-bar" style="grid-row:' + (pi+4) + ';grid-column:' + (s+2) + ' / ' + (e+3) + ';background:' + schoolColor(p.school) + ';"' +
+      '<button type="button" class="exs-tl-bar" style="grid-row:' + r0 + ';grid-column:' + (s+2) + ' / ' + (e+3) + ';background:' + schoolColor(p.school) + ';"' +
       ' title="' + esc(p.school + ' ' + full + (p.text ? ' · ' + p.text : '') + ' — 누르면 수정') + '"' +
       ' onclick="exsEditPeriod(' + p.row + ')">' + label + '</button>';
+    // 과목 줄 — 시트처럼 막대 바로 아래 칸에 그 날짜의 학년·과목. 빈 칸을 누르면 그 학교·날짜로 바로 입력.
+    h += '<div class="exs-tl-sb" style="grid-row:' + (r0+1) + ';grid-column:' + (s+2) + ' / ' + (e+3) + ';"></div>';
+    for (var c = 0; c < n; c++){
+      var xs = (examSubjects[days[c]] || []).filter(function(x){ return x.school === p.school; });
+      if ((c < s || c > e) && !xs.length) continue;   // 기간 밖 날짜는 과목이 있을 때만
+      h += '<div class="exs-tl-s' + (xs.length ? ' has' : '') + (c > s && c <= e ? ' inbox' : '') + ((c < s || c > e) ? ' out' : '') + '"' +
+        ' style="grid-row:' + (r0+1) + ';grid-column:' + (c+2) + ';"' +
+        ' title="' + esc(p.school + ' ' + exsMd(days[c]) + (xs.length ? ' — 누르면 수정' : ' 과목 입력')) + '"' +
+        ' onclick="' + (xs.length ? 'exsEditSubject(' + xs[0].row + ')'
+                                  : 'exsEditSubject(0,\'' + esc(p.school) + '\',\'' + days[c] + '\')') + '">' +
+        xs.map(function(x){ return esc(x.text); }).join('<br>') + '</div>';
+    }
   });
-  if (mirror) h += axisRow(m + 4, 'w') + axisRow(m + 5, 'd');
+  if (mirror) h += axisRow(rowOf(m), 'w') + axisRow(rowOf(m) + 1, 'd');
   return h + '</div>';
 }
 function exsSchoolInput(val){
@@ -1233,19 +1268,21 @@ function exsEditPeriod(row){
     '<button class="primary" onclick="exsSave(' + (row || 0) + ',\'기간\')">저장</button></div>'
   );
 }
-function exsEditSubject(row){
+function exsEditSubject(row, school, date){   // school·date: 타임라인 막대 아래 칸에서 눌렀을 때 미리 채움
   var x = null;
   if (row){ Object.keys(examSubjects).forEach(function(d){ examSubjects[d].forEach(function(s){ if (s.row === row) x = s; }); }); }
   openModal(
     '<h3>' + (x ? '날짜별 과목 수정' : '날짜별 과목 추가') + '</h3>' +
-    '<p class="mdesc">그 날 시험 보는 과목을 적으면 달력 날짜 칸에 학교색 칩으로 보여요.</p>' +
-    exsSchoolInput(x ? x.school : '') +
-    '<input type="date" id="exs-start" value="' + (x ? x.date : '') + '"' +
+    '<p class="mdesc">그 날 시험 보는 학년·과목을 적으면 막대 아래 칸과 달력 날짜 칸에 보여요.</p>' +
+    exsSchoolInput(x ? x.school : (school || '')) +
+    '<input type="date" id="exs-start" value="' + (x ? x.date : (date || '')) + '"' +
     ' style="width:100%;font:inherit;border:1.5px solid var(--line);border-radius:9px;padding:8px;margin-bottom:8px;">' +
-    '<input id="exs-text" placeholder="과목 (예: 고2 문학, 고3 언매/화작)" value="' + esc(x ? x.text : '') + '"' +
+    '<input id="exs-text" placeholder="학년·과목 (예: 고2 문학, 고3 언매/화작)" value="' + esc(x ? x.text : '') + '"' +
     ' style="width:100%;font:inherit;border:1.5px solid var(--line);border-radius:9px;padding:9px 11px;">' +
     '<p class="merr" id="exs-err"></p>' +
-    '<div class="mbtns"><button onclick="closeModal()">취소</button>' +
+    '<div class="mbtns">' +
+    (x ? '<button style="color:#B4574E;" onclick="exsDel(' + row + ',\'' + esc(x.school) + '\')">삭제</button>' : '') +
+    '<button onclick="closeModal()">취소</button>' +
     '<button class="primary" onclick="exsSave(' + (row || 0) + ',\'과목\')">저장</button></div>'
   );
 }
