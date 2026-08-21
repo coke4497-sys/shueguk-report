@@ -946,7 +946,15 @@ function calLoadAndRender(){
   if (!calMonth){ var n = new Date(); calMonth = new Date(n.getFullYear(), n.getMonth(), 1); }
   var weeks = calWeeks();
   var from = ymdOf(weeks[0][0]), to = ymdOf(weeks[weeks.length-1][6]);
-  loadMemos(from, to, function(){ loadExamSched(from, to, function(){ render(); }); });
+  var r = exsFetchRange();
+  loadMemos(from, to, function(){ loadExamSched(r.from, r.to, function(){ render(); }); });
+}
+/* 지필 일정은 달 앞뒤 60일까지 넉넉히 불러온다 — 시즌이 달에 걸치면 시즌 전체를 보여주기 위해 */
+function exsFetchRange(){
+  var weeks = calWeeks();
+  var f = new Date(weeks[0][0]); f.setDate(f.getDate() - 60);
+  var t = new Date(weeks[weeks.length-1][6]); t.setDate(t.getDate() + 60);
+  return { from: ymdOf(f), to: ymdOf(t) };
 }
 function moveCalMonth(n){
   calMonth = new Date(calMonth.getFullYear(), calMonth.getMonth()+n, 1);
@@ -1021,8 +1029,32 @@ function loadExamSched(from, to, done){
     }).catch(function(){ done(); });
 }
 function exsReload(){
+  var r = exsFetchRange();
+  loadExamSched(r.from, r.to, function(){ render(); });
+}
+function exsAddDays(d, n){ var x = new Date(+d.slice(0,4), +d.slice(5,7)-1, +d.slice(8,10)); x.setDate(x.getDate()+n); return ymdOf(x); }
+/* 보여줄 기간 — 기간들을 시즌(시작일 간격 14일 이내 묶음)으로 묶고,
+ * 시즌 시작 45일 전(내신 대비 기간)부터 시즌이 끝나는 달까지 그 시즌의 모든 학교를 함께 보여준다.
+ * 예) 중간고사 9/17~10/15 → 8·9·10월에 표시, 기말고사 12월 → 10·11·12월에 표시(10월엔 둘 다).
+ * (2026-08-21 사용자 확정) */
+function exsVisiblePeriods(){
+  var ps = examPeriods.slice().sort(function(a,b){ return a.start.localeCompare(b.start) || a.school.localeCompare(b.school,'ko'); });
+  if (!ps.length) return [];
   var weeks = calWeeks();
-  loadExamSched(ymdOf(weeks[0][0]), ymdOf(weeks[weeks.length-1][6]), function(){ render(); });
+  var cf = ymdOf(weeks[0][0]), ct = ymdOf(weeks[weeks.length-1][6]);
+  var clusters = [], cur = null, curEnd = '';
+  ps.forEach(function(p){
+    if (!cur || p.start > exsAddDays(curEnd, 14)){ cur = []; clusters.push(cur); curEnd = p.end; }
+    cur.push(p);
+    if (p.end > curEnd) curEnd = p.end;
+  });
+  var out = [];
+  clusters.forEach(function(cl){
+    var mn = cl[0].start, mx = cl[0].end;
+    cl.forEach(function(p){ if (p.start < mn) mn = p.start; if (p.end > mx) mx = p.end; });
+    if (mx >= cf && exsAddDays(mn, -45) <= ct) out = out.concat(cl);
+  });
+  return out;
 }
 function exsOpen(){ try { return localStorage.getItem('tt_exs_open') === '1'; } catch(e){ return false; } }
 function exsToggle(){ try { localStorage.setItem('tt_exs_open', exsOpen() ? '0' : '1'); } catch(e){} render(); }
@@ -1031,9 +1063,14 @@ function examSchedSection(){
   var box = document.createElement('div');
   box.className = 'memobox';
   var open = exsOpen();
-  var ps = examPeriods.slice().sort(function(a,b){ return a.start.localeCompare(b.start) || a.school.localeCompare(b.school,'ko'); });
+  var ps = exsVisiblePeriods();   // 이 달에 걸친 시즌의 모든 학교 (달이 바뀌어도 시즌 전체가 한눈에)
+  var vMin = '', vMax = '';
+  ps.forEach(function(p){ if (!vMin || p.start < vMin) vMin = p.start; if (!vMax || p.end > vMax) vMax = p.end; });
   var subList = [];
-  Object.keys(examSubjects).sort().forEach(function(d){ examSubjects[d].forEach(function(x){ subList.push(x); }); });
+  Object.keys(examSubjects).sort().forEach(function(d){
+    if (vMin && (d < vMin || d > vMax)) return;
+    examSubjects[d].forEach(function(x){ subList.push(x); });
+  });
   var f = exsFilter();
   var nHi = ps.filter(function(p){ return schoolLevel(p.school) === '고'; }).length;
   var nMi = ps.filter(function(p){ return schoolLevel(p.school) === '중'; }).length;
@@ -1045,7 +1082,9 @@ function examSchedSection(){
     h += '<div class="exs-filter">' + [['', '전체'], ['고', '고등'], ['중', '중등']].map(function(o){
       return '<button type="button" class="' + (f === o[0] ? 'on' : '') + '" onclick="exsSetFilter(\'' + o[0] + '\')">' + o[1] + '</button>';
     }).join('') + '</div>';
-    h += '<p class="exs-desc">이 달과 겹치는 학교별 시험 기간이에요. 날짜별 과목을 넣으면 달력 날짜 칸에 칩으로 보여요.</p>';
+    h += '<p class="exs-desc">이 달에 걸친 시험 시즌의 학교별 기간이 전부 보여요' +
+         (vMin ? ' (' + exsMd(vMin) + ' ~ ' + exsMd(vMax) + ')' : '') +
+         '. 날짜별 과목을 넣으면 달력 날짜 칸에 칩으로 보여요.</p>';
     var any = false;
     [['고', '고등학교'], ['중', '중학교'], ['', '기타']].forEach(function(g){
       if (f && g[0] !== f) return;
