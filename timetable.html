@@ -281,8 +281,39 @@
   .log-item .lk.once{background:#B08A3E;}
   .log-item .lk.minus{background:#B4574E;}
   .log-item .lr{color:var(--ink-soft);font-size:.78rem;margin-top:2px;}
-  .blk.c-g1{background:var(--g1);} .blk.c-g2{background:var(--g2);} .blk.c-g3{background:var(--g3);}
-  .blk.c-mid{background:var(--mid);} .blk.c-etc{background:var(--etc);}
+  .blk.c-g1,.wk-mini.c-g1,.wk-bar.c-g1{background:var(--g1);}
+  .blk.c-g2,.wk-mini.c-g2,.wk-bar.c-g2{background:var(--g2);}
+  .blk.c-g3,.wk-mini.c-g3,.wk-bar.c-g3{background:var(--g3);}
+  .blk.c-mid,.wk-mini.c-mid,.wk-bar.c-mid{background:var(--mid);}
+  .blk.c-etc,.wk-mini.c-etc,.wk-bar.c-etc{background:var(--etc);}
+  .wk-mini.c-b,.wk-bar.c-b{filter:saturate(.35);}
+  /* ── 주차별: 한 페이지 개요 + 요일 확대 (2026-08-21 사용자 확정 시안) ── */
+  .wk-ov{display:grid;grid-template-columns:repeat(7,1fr);gap:8px;align-items:start;}
+  .wk-dayh{width:100%;font:inherit;font-size:.9rem;font-weight:700;color:#fff;background:#5F8377;
+    border:none;border-radius:9px;padding:6px 0 4px;cursor:pointer;text-align:center;}
+  .wk-dayh small{display:block;font-weight:400;font-size:.68rem;opacity:.85;}
+  .wk-dayh.today{background:var(--accent);}
+  .wk-dayh:hover{filter:brightness(.93);}
+  .wk-ov-col{display:flex;flex-direction:column;gap:6px;min-width:0;}
+  .wk-ctr{font-size:.66rem;font-weight:700;color:var(--ink-soft);border-left:3px solid #9DB8AE;padding-left:6px;margin:4px 0 -2px;}
+  .wk-mini{font:inherit;text-align:left;border:1px solid rgba(0,0,0,.05);border-radius:9px;padding:6px 8px;cursor:pointer;display:block;width:100%;}
+  .wk-mini b{font-size:.74rem;display:block;letter-spacing:-.01em;}
+  .wk-mini small{color:var(--ink-soft);font-size:.66rem;display:block;}
+  .wk-mini .sum{display:flex;gap:4px;margin-top:3px;}
+  .wk-mini .sum i{font-style:normal;font-size:.64rem;font-weight:700;color:#fff;border-radius:8px;min-width:17px;text-align:center;padding:0 3px;}
+  .wk-mini .sum i.ok{background:var(--btn);} .wk-mini .sum i.late{background:#B08A3E;}
+  .wk-mini .sum i.abs{background:#B4574E;} .wk-mini .sum i.none{background:#c2ccc7;}
+  .wk-empty{font-size:.7rem;color:var(--ink-soft);text-align:center;padding:10px 0;}
+  .wk-zoom{display:flex;gap:8px;align-items:flex-start;}
+  .wk-slim{width:52px;flex:none;display:flex;flex-direction:column;gap:6px;min-width:0;}
+  .wk-dayh.slim{font-size:.72rem;padding:5px 0 3px;background:#8AA79C;}
+  .wk-bar{height:30px;border-radius:7px;border:1px solid rgba(0,0,0,.05);}
+  .wk-big{flex:1;min-width:0;background:#F7FAF8;border:2px solid var(--accent);border-radius:14px;padding:12px;}
+  .wk-dayh.bigh{text-align:left;padding:8px 12px;background:var(--accent);}
+  .wk-dayh.bigh small{display:inline;margin-left:8px;font-size:.7rem;}
+  .wk-ch{font-size:.8rem;font-weight:700;color:var(--accent);border-left:4px solid var(--accent);padding-left:8px;margin:12px 0 8px;}
+  .wk-big-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px;align-items:start;}
+  @media (max-width:900px){ .wk-ov{grid-template-columns:repeat(4,1fr);} .wk-slim{width:40px;} }
   /* 채도 낮춤 — 정규 '나' 수업, 내신 '확인' 수업 */
   .blk.c-b{filter:saturate(.35);}
   body.moving .blk.droppable{outline:2px dashed var(--btn);outline-offset:1px;cursor:pointer;}
@@ -843,7 +874,8 @@ function render(){
     '<button onclick="moveWeek(1)">다음주</button>';
   host.appendChild(nav);
   if (narrowScreen()) host.appendChild(mviewToggleBtn());
-  host.appendChild(useListView() ? buildWeekList() : buildWeekGrid());
+  host.appendChild(useListView() ? buildWeekList()
+                 : (weekZoomDay ? buildWeekZoom(weekZoomDay) : buildWeekOverview()));
   host.appendChild(weekMemoSection());
 }
 
@@ -1493,121 +1525,132 @@ function buildFullGrid(){
 }
 
 /* 주차별 보기: 그 주의 날짜·출석·1회 이동이 반영된 주간 그리드 */
-function buildWeekGrid(){
+/* ── 주차별 보기: 한 페이지 개요 ↔ 요일 확대 (2026-08-21 사용자 확정 시안) ──
+ * 개요: 월~일 7열, 요일마다 센터(본원→화정센터→민초센터→정리정독) 순으로 묶은 반 요약 카드
+ *       (시간·인원·출석 요약 숫자). 요일 머리글/카드를 누르면 그 요일 확대.
+ * 확대: 그 요일이 센터 섹션으로 펼쳐지고(학생 칩·출석 기록 그대로), 나머지 요일은 옆에 가는 열.
+ *       확대된 요일 머리글을 다시 누르면 개요로 복귀. */
+var weekZoomDay = null;   // null = 개요, '금' = 그 요일 확대
+var WK_LOC_ORDER = ['본원', '화정센터', '민트초코', '정리정독'];
+function wkLocLabel(l){ return l === '민트초코' ? '민초센터' : (l || '기타'); }
+function wkLocRank(l){ var i = WK_LOC_ORDER.indexOf(l); return i < 0 ? 99 : i; }
+function wkDayClasses(dname){
+  return classes.filter(function(c){ return c.day === dname; })
+    .sort(function(a,b){ return (wkLocRank(a.loc)-wkLocRank(b.loc)) || (mins(a.start)-mins(b.start)) || a.cls.localeCompare(b.cls,'ko'); });
+}
+/* 그 날짜·반의 출석 요약 (보존 기록 포함 — weekAttend 키 순회) */
+function wkAttSummary(cid, dstr){
+  var cnt = { '출석':0, '지각':0, '결석':0 }, any = false;
+  var pre = dstr + '|' + cid + '|';
+  Object.keys(weekAttend).forEach(function(k){
+    if (k.indexOf(pre) !== 0) return;
+    var st = weekAttend[k].status;
+    if (cnt[st] != null){ cnt[st]++; any = true; }
+  });
+  return { cnt: cnt, any: any };
+}
+function wkDayHeader(dname, dates, cls, onClick){
+  var dstr = ymdOf(dates[dname]);
+  var h = document.createElement('button');
+  h.type = 'button';
+  h.className = 'wk-dayh' + (cls ? ' ' + cls : '') + (dstr === todayStr() ? ' today' : '');
+  h.innerHTML = esc(dname) + '<small>' + mdOf(dates[dname]) + (dstr === todayStr() ? ' · 오늘' : '') + '</small>';
+  h.addEventListener('click', onClick);
+  return h;
+}
+function buildWeekOverview(){
   var dates = weekDates();
-  var baseCols = [], seenB = {};
-  classes.forEach(function(c){
-    var key = c.loc + '|' + c.teacher;
-    if (!seenB[key]){ seenB[key] = true; baseCols.push({ key:key, loc:c.loc, teacher:c.teacher }); }
-  });
-  baseCols.sort(function(a,b){
-    var ia = TEACHER_ORDER.indexOf(a.teacher), ib = TEACHER_ORDER.indexOf(b.teacher);
-    return (ia<0?99:ia) - (ib<0?99:ib);
-  });
-  if (!baseCols.length) baseCols = [{ key:'-', loc:'', teacher:'' }];
-
-  var lo = 10*60, hi = 22*60;
-  classes.forEach(function(c){
-    lo = Math.min(lo, mins(c.start));
-    hi = Math.max(hi, minsEnd(c));
-  });
-  lo = Math.floor(lo/30)*30; hi = Math.ceil(hi/30)*30;
-  var nrows = Math.round((hi - lo) / 30);
-
-  // 요일별 열: 월·화는 그날 수업(직전보강)만큼만(없으면 한 줄), 수~일은 전체 담당T 열
-  var dayColsOf = {};
-  WEEK_VIEW_ORDER.forEach(function(dname){
-    if (dname === '월' || dname === '화'){
-      var cols = [], seen = {};
-      classes.forEach(function(c){
-        if (c.day !== dname) return;
-        var key = c.loc + '|' + c.teacher;
-        if (!seen[key]){ seen[key] = true; cols.push({ key:key, loc:c.loc, teacher:c.teacher }); }
-      });
-      cols.sort(function(a,b){
-        var ia = TEACHER_ORDER.indexOf(a.teacher), ib = TEACHER_ORDER.indexOf(b.teacher);
-        return (ia<0?99:ia) - (ib<0?99:ib);
-      });
-      dayColsOf[dname] = cols.length ? cols : [{ key:'-', loc:'', teacher:'' }];
-    } else {
-      dayColsOf[dname] = baseCols;
-    }
-  });
-  var colDefs = ['46px'];
-  WEEK_VIEW_ORDER.forEach(function(dname, di){
-    dayColsOf[dname].forEach(function(){ colDefs.push('minmax(96px, 1fr)'); });
-    if (di < WEEK_VIEW_ORDER.length-1) colDefs.push('7px');
-  });
-
-  // 고정 헤더 그리드 (요일+날짜, 담당T)
-  var hg = document.createElement('div');
-  hg.className = 'grid fullgrid';
-  hg.style.gridTemplateColumns = colDefs.join(' ');
-  hg.style.gridTemplateRows = 'auto auto';
-  var corner = document.createElement('div'); corner.style.gridRow='1 / 3'; hg.appendChild(corner);
-  var colPos = 2;
-  var colOfKey = {};
-  WEEK_VIEW_ORDER.forEach(function(dname, di){
-    var dcols = dayColsOf[dname];
-    var dh = document.createElement('div');
-    dh.className = 'dhead';
-    dh.innerHTML = esc(dname) + '<small>' + mdOf(dates[dname]) + '</small>';
-    dh.style.gridColumn = colPos + ' / ' + (colPos + dcols.length);
-    dh.style.gridRow = '1';
-    hg.appendChild(dh);
-    dcols.forEach(function(cinfo, i){
-      var h = document.createElement('div');
-      h.className = 'thead';
-      h.innerHTML = cinfo.teacher ? '<b>' + esc(cinfo.teacher) + '</b>' + esc(cinfo.loc) : '<b>—</b>';
-      h.style.gridColumn = String(colPos + i);
-      h.style.gridRow = '2';
-      hg.appendChild(h);
-      colOfKey[dname + '|' + cinfo.key] = colPos + i;
-    });
-    colPos += dcols.length + (di < WEEK_VIEW_ORDER.length-1 ? 1 : 0);
-  });
-
-  // 본문 그리드
-  var g = document.createElement('div');
-  g.className = 'grid fullgrid';
-  g.style.gridTemplateColumns = colDefs.join(' ');
-  g.style.gridTemplateRows = 'repeat(' + nrows + ', 46px)';
-  for (var r = 0; r < nrows; r++){
-    var lab = document.createElement('div');
-    lab.className = 'tlab stick';
-    lab.textContent = fmtT(lo + r*30);
-    lab.style.gridColumn = '1 / -1';
-    lab.style.gridRow = String(r+1);
-    g.appendChild(lab);
-  }
-  WEEK_VIEW_ORDER.forEach(function(dname){
-    dayColsOf[dname].forEach(function(cinfo){
-      var col = colOfKey[dname + '|' + cinfo.key];
-      for (var r = 0; r < nrows; r++) addCell(g, col, r, dname, cinfo, lo, 1);
-    });
-  });
-  classes.forEach(function(c){
-    var col = colOfKey[c.day + '|' + c.loc + '|' + c.teacher];
-    if (!col) return;
-    var dstr = ymdOf(dates[c.day]);
-    var r0 = Math.floor((mins(c.start)-lo)/30), r1 = Math.ceil((minsEnd(c)-lo)/30);
-    if (r1 <= r0) r1 = r0+1;
-    var b = weekBlockEl(c, dstr);
-    b.style.gridColumn = String(col);
-    b.style.gridRow = (r0+1) + ' / ' + (r1+1);
-    g.appendChild(b);
-  });
-  tuneRowHeight(g, '', nrows);
   var wrap = document.createElement('div');
-  wrap.className = 'scrollwrap';
-  var sh2 = document.createElement('div');
-  sh2.className = 'stickhead';
-  sh2.appendChild(hg);
-  wrap.appendChild(sh2);
-  wrap.appendChild(g);
-  attachTimeSync(wrap, g);
+  wrap.className = 'wk-ov';
+  WEEK_VIEW_ORDER.forEach(function(dname){
+    var col = document.createElement('div');
+    col.className = 'wk-ov-col';
+    var dstr = ymdOf(dates[dname]);
+    col.appendChild(wkDayHeader(dname, dates, '', function(){ weekZoomDay = dname; keepScroll = false; render(); }));
+    var list = wkDayClasses(dname);
+    var lastLoc = null;
+    list.forEach(function(c){
+      if (c.loc !== lastLoc){
+        lastLoc = c.loc;
+        var cl = document.createElement('div');
+        cl.className = 'wk-ctr';
+        cl.textContent = wkLocLabel(c.loc);
+        col.appendChild(cl);
+      }
+      var m = document.createElement('button');
+      m.type = 'button';
+      m.className = 'wk-mini ' + colorOf(c.cls);
+      m.setAttribute('data-cid', c.id);
+      var s = wkAttSummary(c.id, dstr);
+      var att = s.any
+        ? (s.cnt['출석'] ? '<i class="ok">'+s.cnt['출석']+'</i>' : '') +
+          (s.cnt['지각'] ? '<i class="late">'+s.cnt['지각']+'</i>' : '') +
+          (s.cnt['결석'] ? '<i class="abs">'+s.cnt['결석']+'</i>' : '')
+        : '<i class="none">—</i>';
+      m.innerHTML = '<b>'+esc(c.cls)+'</b><small>'+esc(c.start)+'~'+esc(c.end)+' · '+c.students.length+'명</small>'+
+                    '<span class="sum">'+att+'</span>';
+      m.title = esc(c.cls) + ' — 누르면 ' + dname + '요일 확대';
+      m.addEventListener('click', function(){ weekZoomDay = dname; keepScroll = false; render(); });
+      col.appendChild(m);
+    });
+    if (!list.length){
+      var em = document.createElement('div'); em.className = 'wk-empty'; em.textContent = '수업 없음';
+      col.appendChild(em);
+    }
+    wrap.appendChild(col);
+  });
   return wrap;
 }
+function buildWeekZoom(dname){
+  var dates = weekDates();
+  var wrap = document.createElement('div');
+  wrap.className = 'wk-zoom';
+  WEEK_VIEW_ORDER.forEach(function(dy){
+    if (dy !== dname){
+      var slim = document.createElement('div');
+      slim.className = 'wk-slim';
+      slim.appendChild(wkDayHeader(dy, dates, 'slim', function(){ weekZoomDay = dy; keepScroll = false; render(); }));
+      wkDayClasses(dy).forEach(function(c){
+        var b = document.createElement('div');
+        b.className = 'wk-bar ' + colorOf(c.cls);
+        b.title = c.cls + ' ' + c.start + '~' + c.end;
+        slim.appendChild(b);
+      });
+      wrap.appendChild(slim);
+      return;
+    }
+    var big = document.createElement('div');
+    big.className = 'wk-big';
+    var dstr = ymdOf(dates[dy]);
+    var hh = document.createElement('button');
+    hh.type = 'button';
+    hh.className = 'wk-dayh bigh' + (dstr === todayStr() ? ' today' : '');
+    hh.innerHTML = esc(dy) + ' ' + mdOf(dates[dy]) + (dstr === todayStr() ? ' (오늘)' : '') +
+                   '<small>— 누르면 주간 개요로 돌아가요</small>';
+    hh.addEventListener('click', function(){ weekZoomDay = null; keepScroll = false; render(); });
+    big.appendChild(hh);
+    var list = wkDayClasses(dy);
+    if (!list.length){
+      var em = document.createElement('div'); em.className = 'wk-empty'; em.textContent = '이 요일에는 수업이 없어요.';
+      big.appendChild(em);
+    }
+    var lastLoc = null, sec = null;
+    list.forEach(function(c){
+      if (c.loc !== lastLoc){
+        lastLoc = c.loc;
+        var ch = document.createElement('div'); ch.className = 'wk-ch'; ch.textContent = wkLocLabel(c.loc);
+        big.appendChild(ch);
+        sec = document.createElement('div'); sec.className = 'wk-big-grid';
+        big.appendChild(sec);
+      }
+      sec.appendChild(weekBlockEl(c, dstr, true));
+    });
+    wrap.appendChild(big);
+  });
+  requestAnimationFrame(function(){ applySearchHits(); });
+  return wrap;
+}
+
 function onWeekClick(e, c, dstr){
   if (editMode && !moving && !classMoving){ applyEdit(c); return; }
   if (moving && moving.once){
