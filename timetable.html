@@ -114,15 +114,27 @@
   .exs-filter button{font:inherit;font-size:.78rem;border:1px solid var(--line);background:#fff;border-radius:999px;
     padding:4px 13px;cursor:pointer;color:var(--ink-soft);}
   .exs-filter button.on{background:var(--icon-bg);color:var(--accent);font-weight:700;border-color:var(--accent);}
-  /* 시트 형식 타임라인 — 날짜 상단, 학교 막대 (겹침 확인) */
-  .exs-tl{display:grid;gap:3px 2px;align-items:center;margin:4px 0 12px;overflow-x:auto;padding-bottom:2px;}
-  .exs-tl-d{font-size:.6rem;color:var(--ink-soft);text-align:center;white-space:nowrap;}
-  .exs-tl-d.we{color:#C99B94;}
-  .exs-tl-d.td{font-weight:700;color:var(--accent);}
-  .exs-tl-n{font-size:.72rem;font-weight:700;text-align:right;padding-right:8px;white-space:nowrap;}
-  .exs-tl-bar{font:inherit;font-size:.62rem;font-weight:700;color:var(--ink);border:1px solid rgba(0,0,0,.1);
-    border-radius:8px;padding:2px 4px;cursor:pointer;white-space:nowrap;overflow:hidden;height:21px;line-height:1.3;}
+  /* 시트 형식 타임라인 — 월·날짜·요일 축 + 학교 막대, 주말·오늘 세로 띠, 격줄 배경 (겹침 확인) */
+  .exs-tl{display:grid;gap:2px;align-items:center;margin:4px 0 14px;overflow-x:auto;padding-bottom:2px;}
+  .exs-tl-m{font-size:.68rem;font-weight:700;color:var(--accent);white-space:nowrap;text-align:left;
+    align-self:end;padding:0 0 2px 3px;border-bottom:1px solid var(--line);}
+  .exs-tl-m span{position:sticky;left:83px;display:inline-block;}   /* 가로 스크롤에도 달 이름이 시야에 남게 */
+  .exs-tl-d{font-size:.64rem;color:var(--ink-soft);text-align:center;white-space:nowrap;}
+  .exs-tl-w{font-size:.56rem;color:var(--ink-soft);text-align:center;white-space:nowrap;}
+  .exs-tl-d.we,.exs-tl-w.we{color:#C9827A;}
+  .exs-tl-d.td,.exs-tl-w.td{font-weight:700;color:var(--accent);}
+  .exs-tl-col{align-self:stretch;border-radius:5px;}
+  .exs-tl-col.we{background:#FAF3F1;}
+  .exs-tl-col.td{background:#E3EDE6;box-shadow:inset 0 0 0 1px #BCD0C3;}
+  .exs-tl-track{align-self:stretch;background:rgba(76,110,102,.045);border-radius:5px;}
+  .exs-tl-n{font-size:.74rem;font-weight:700;white-space:nowrap;padding:2px 8px 2px 2px;
+    position:sticky;left:0;z-index:3;background:var(--surface);}
+  .exs-tl-nd{display:block;font-size:.6rem;font-weight:400;color:var(--ink-soft);line-height:1.2;}
+  .exs-tl-c{position:sticky;left:0;z-index:3;background:var(--surface);align-self:stretch;}
+  .exs-tl-bar{font:inherit;font-size:.64rem;font-weight:700;color:var(--ink);border:1px solid rgba(0,0,0,.12);
+    border-radius:7px;padding:2px 4px;cursor:pointer;white-space:nowrap;overflow:hidden;height:22px;line-height:1.3;z-index:2;}
   .exs-tl-bar:hover{filter:brightness(.95);}
+  .exs-tl-cap{font-size:.76rem;font-weight:700;color:var(--ink-soft);margin:10px 0 4px;}
   .memobox{background:var(--surface);border:1px solid var(--line-soft);border-radius:14px;padding:14px 16px;margin:16px 4px 8px;}
   .memobox .memotitle{font-family:"Gowun Batang",serif;font-weight:700;color:var(--accent);margin:0 0 8px;font-size:.98rem;}
   .memobox textarea{width:100%;box-sizing:border-box;font:inherit;font-size:.9rem;border:1px solid var(--line);
@@ -1036,8 +1048,8 @@ function exsAddDays(d, n){ var x = new Date(+d.slice(0,4), +d.slice(5,7)-1, +d.s
 /* 보여줄 기간 — 기간들을 시즌(시작일 간격 14일 이내 묶음)으로 묶고,
  * 시즌 시작 45일 전(내신 대비 기간)부터 시즌이 끝나는 달까지 그 시즌의 모든 학교를 함께 보여준다.
  * 예) 중간고사 9/17~10/15 → 8·9·10월에 표시, 기말고사 12월 → 10·11·12월에 표시(10월엔 둘 다).
- * (2026-08-21 사용자 확정) */
-function exsVisiblePeriods(){
+ * 시즌이 여럿 보이면 타임라인도 시즌별로 따로 그린다(석 달을 한 줄에 이어 그리면 못 읽어서). */
+function exsVisibleClusters(){
   var ps = examPeriods.slice().sort(function(a,b){ return a.start.localeCompare(b.start) || a.school.localeCompare(b.school,'ko'); });
   if (!ps.length) return [];
   var weeks = calWeeks();
@@ -1048,22 +1060,27 @@ function exsVisiblePeriods(){
     cur.push(p);
     if (p.end > curEnd) curEnd = p.end;
   });
-  var out = [];
-  clusters.forEach(function(cl){
+  return clusters.filter(function(cl){
     var mn = cl[0].start, mx = cl[0].end;
     cl.forEach(function(p){ if (p.start < mn) mn = p.start; if (p.end > mx) mx = p.end; });
-    if (mx >= cf && exsAddDays(mn, -45) <= ct) out = out.concat(cl);
+    return mx >= cf && exsAddDays(mn, -45) <= ct;
   });
-  return out;
 }
 function exsOpen(){ try { return localStorage.getItem('tt_exs_open') === '1'; } catch(e){ return false; } }
 function exsToggle(){ try { localStorage.setItem('tt_exs_open', exsOpen() ? '0' : '1'); } catch(e){} render(); }
 function exsMd(d){ return d ? d.slice(5).replace(/^0/,'').replace('-0','/').replace('-','/') + '(' + mkDayOf(d) + ')' : ''; }
+function exsMdN(d){ return d ? (+d.slice(5,7)) + '/' + (+d.slice(8,10)) : ''; }   // 요일 없는 짧은 표기 (막대 안)
+function exsDayDiff(a, b){
+  return Math.round((new Date(+b.slice(0,4), +b.slice(5,7)-1, +b.slice(8,10)) -
+                     new Date(+a.slice(0,4), +a.slice(5,7)-1, +a.slice(8,10))) / 864e5);
+}
 function examSchedSection(){
   var box = document.createElement('div');
   box.className = 'memobox';
   var open = exsOpen();
-  var ps = exsVisiblePeriods();   // 이 달에 걸친 시즌의 모든 학교 (달이 바뀌어도 시즌 전체가 한눈에)
+  var clusters = exsVisibleClusters();   // 이 달에 걸친 시즌들 (달이 바뀌어도 시즌 전체가 한눈에)
+  var ps = [];
+  clusters.forEach(function(cl){ ps = ps.concat(cl); });
   var vMin = '', vMax = '';
   ps.forEach(function(p){ if (!vMin || p.start < vMin) vMin = p.start; if (!vMax || p.end > vMax) vMax = p.end; });
   var subList = [];
@@ -1075,8 +1092,16 @@ function examSchedSection(){
   var nHi = ps.filter(function(p){ return schoolLevel(p.school) === '고'; }).length;
   var nMi = ps.filter(function(p){ return schoolLevel(p.school) === '중'; }).length;
   var cnt = ps.length ? ((nHi ? '고등 ' + nHi : '') + (nHi && nMi ? ' · ' : '') + (nMi ? '중등 ' + nMi : '') || ps.length + '개') : '없음';
+  // 접힌 상태에서도 보이는 오늘 기준 안내 — 시험 중이면 '시험 기간 중', 아니면 첫 시험까지 D-일수
+  var td = todayStr(), dday = '';
+  if (ps.some(function(p){ return p.start <= td && td <= p.end; })) dday = '시험 기간 중';
+  else {
+    var nx = '';
+    ps.forEach(function(p){ if (p.start > td && (!nx || p.start < nx)) nx = p.start; });
+    if (nx) dday = '첫 시험 ' + exsMd(nx) + ' · D-' + exsDayDiff(td, nx);
+  }
   var h = '<button type="button" class="exs-head" onclick="exsToggle()">지필고사 일정' +
-    '<span class="exs-cnt">' + cnt + '</span>' +
+    '<span class="exs-cnt">' + cnt + (dday ? ' · ' + dday : '') + '</span>' +
     '<span class="exs-arrow">' + (open ? '▾ 접기' : '▸ 열기') + '</span></button>';
   if (open){
     h += '<div class="exs-filter">' + [['', '전체'], ['고', '고등'], ['중', '중등']].map(function(o){
@@ -1091,7 +1116,22 @@ function examSchedSection(){
       var rows = ps.filter(function(p){ return schoolLevel(p.school) === g[0]; });
       if (!rows.length) return;
       any = true;
-      h += '<p class="exs-sub-h">' + g[1] + ' (' + rows.length + ')</p>' + exsTimeline(rows);
+      h += '<p class="exs-sub-h">' + g[1] + ' (' + rows.length + ')</p>';
+      clusters.forEach(function(cl){   // 시즌별로 타임라인을 따로 — 시즌이 하나면 지금까지와 같은 한 판
+        var rs = cl.filter(function(p){ return schoolLevel(p.school) === g[0]; });
+        if (!rs.length) return;
+        if (clusters.length > 1){
+          var mn = rs[0].start, mx = rs[0].end, tc = {}, nm = '';
+          rs.forEach(function(p){
+            if (p.start < mn) mn = p.start;
+            if (p.end > mx) mx = p.end;
+            var t = (p.text || '').trim();
+            if (t){ tc[t] = (tc[t] || 0) + 1; if (!nm || tc[t] > tc[nm]) nm = t; }
+          });
+          h += '<p class="exs-tl-cap">' + (nm ? esc(nm) + ' · ' : '') + exsMd(mn) + ' ~ ' + exsMd(mx) + '</p>';
+        }
+        h += exsTimeline(rs);
+      });
     });
     if (!any) h += '<p class="exs-none">이 달에 등록된 시험 기간이 없어요 — 아래에서 추가하세요.</p>';
     var fSubs = subList.filter(function(x){ return !f || schoolLevel(x.school) === f; });
@@ -1111,8 +1151,9 @@ function examSchedSection(){
   box.innerHTML = h;
   return box;
 }
-/* 시트와 같은 형식 — 날짜가 맨 위, 학교별 색 막대가 아래로 쌓여 겹치는 일정을 한눈에.
- * 막대를 누르면 수정 창. (2026-08-21 사용자 확정) */
+/* 시트와 같은 형식 — 월·날짜·요일 축이 맨 위, 학교별 색 막대가 아래로 쌓여 겹치는 일정을 한눈에.
+ * 주말·오늘은 세로 띠, 한 줄 건너 격줄 배경으로 학교명과 막대를 눈으로 잇는다. 막대를 누르면 수정 창.
+ * 학교명 열은 가로 스크롤에도 고정, 학교가 많으면 아래에도 날짜축을 한 번 더 그린다. (2026-08-21) */
 function exsTimeline(ps){
   if (!ps.length) return '';
   var min = ps[0].start, max = ps[0].end;
@@ -1122,26 +1163,46 @@ function exsTimeline(ps){
   var endD = new Date(+max.slice(0,4), +max.slice(5,7)-1, +max.slice(8,10));
   while (d <= endD && days.length < 62){ days.push(ymdOf(d)); d.setDate(d.getDate()+1); }
   var idx = {}; days.forEach(function(x,i){ idx[x] = i; });
-  var n = days.length;
-  var h = '<div class="exs-tl" style="grid-template-columns:76px repeat(' + n + ',minmax(20px,1fr));">';
-  h += '<div style="grid-row:1;grid-column:1;"></div>' + days.map(function(x, i){
-    var dd = +x.slice(8,10);
-    var lab = (i === 0 || dd === 1) ? (+x.slice(5,7)) + '/' + dd : String(dd);
+  var n = days.length, m = ps.length;
+  var mirror = m > 8;                    // 막대가 많으면 아래에도 날짜축 반복(아래 줄에선 위 축이 안 보여서)
+  var endLine = mirror ? m + 6 : m + 4;  // 행: 1 월 / 2 날짜 / 3 요일 / 4~ 막대 (+ 아래 요일·날짜)
+  var h = '<div class="exs-tl" style="grid-template-columns:80px repeat(' + n + ',minmax(21px,1fr));">';
+  days.forEach(function(x, i){           // 주말·오늘 세로 띠 (막대 뒤에 깔림)
     var wd = mkDayOf(x);
-    return '<div class="exs-tl-d' + ((wd === '토' || wd === '일') ? ' we' : '') + (x === todayStr() ? ' td' : '') + '"' +
-           ' style="grid-row:1;grid-column:' + (i+2) + ';" title="' + exsMd(x) + '">' + lab + '</div>';
-  }).join('');
-  var r = 2;
-  ps.forEach(function(p){
+    var cls = x === todayStr() ? 'td' : ((wd === '토' || wd === '일') ? 'we' : '');
+    if (cls) h += '<div class="exs-tl-col ' + cls + '" style="grid-row:2 / ' + endLine + ';grid-column:' + (i+2) + ';"></div>';
+  });
+  for (var t = 0; t < m; t += 2)         // 격줄 배경
+    h += '<div class="exs-tl-track" style="grid-row:' + (t+4) + ';grid-column:2 / ' + (n+2) + ';"></div>';
+  h += '<div class="exs-tl-c" style="grid-row:1;grid-column:1;"></div>';
+  var ms = 0;                            // 월 표시 줄 (같은 달 날짜들을 하나로 묶음)
+  for (var i = 1; i <= n; i++){
+    if (i === n || days[i].slice(0,7) !== days[ms].slice(0,7)){
+      h += '<div class="exs-tl-m" style="grid-row:1;grid-column:' + (ms+2) + ' / ' + (i+2) + ';"><span>' + (+days[ms].slice(5,7)) + '월</span></div>';
+      ms = i;
+    }
+  }
+  function axisRow(row, kind){           // kind 'd'=날짜 숫자 줄, 'w'=요일 줄
+    return '<div class="exs-tl-c" style="grid-row:' + row + ';grid-column:1;"></div>' + days.map(function(x, i){
+      var wd = mkDayOf(x);
+      var cls = ((wd === '토' || wd === '일') ? ' we' : '') + (x === todayStr() ? ' td' : '');
+      return '<div class="exs-tl-' + kind + cls + '" style="grid-row:' + row + ';grid-column:' + (i+2) + ';"' +
+             ' title="' + exsMd(x) + '">' + (kind === 'd' ? +x.slice(8,10) : wd) + '</div>';
+    }).join('');
+  }
+  h += axisRow(2, 'd') + axisRow(3, 'w');
+  ps.forEach(function(p, pi){
     var s = idx[p.start] != null ? idx[p.start] : 0;
     var e = idx[p.end] != null ? idx[p.end] : n - 1;
-    var label = exsMd(p.start) + (p.end !== p.start ? '~' + exsMd(p.end) : '');
-    h += '<div class="exs-tl-n" style="grid-row:' + r + ';grid-column:1;">' + esc(p.school) + '</div>' +
-      '<button type="button" class="exs-tl-bar" style="grid-row:' + r + ';grid-column:' + (s+2) + ' / ' + (e+3) + ';background:' + schoolColor(p.school) + ';"' +
-      ' title="' + esc(p.school + ' ' + label + (p.text ? ' · ' + p.text : '') + ' — 누르면 수정') + '"' +
+    var label = exsMdN(p.start) + (p.end !== p.start ? '~' + exsMdN(p.end) : '');
+    var full = exsMd(p.start) + (p.end !== p.start ? ' ~ ' + exsMd(p.end) : '');
+    h += '<div class="exs-tl-n" style="grid-row:' + (pi+4) + ';grid-column:1;">' + esc(p.school) +
+      '<span class="exs-tl-nd">' + label + '</span></div>' +
+      '<button type="button" class="exs-tl-bar" style="grid-row:' + (pi+4) + ';grid-column:' + (s+2) + ' / ' + (e+3) + ';background:' + schoolColor(p.school) + ';"' +
+      ' title="' + esc(p.school + ' ' + full + (p.text ? ' · ' + p.text : '') + ' — 누르면 수정') + '"' +
       ' onclick="exsEditPeriod(' + p.row + ')">' + label + '</button>';
-    r++;
   });
+  if (mirror) h += axisRow(m + 4, 'w') + axisRow(m + 5, 'd');
   return h + '</div>';
 }
 function exsSchoolInput(val){
