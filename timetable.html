@@ -93,6 +93,12 @@
   .cal-exam b{font-size:.66rem;}
   .exs-cnt{font-weight:400;font-size:.78rem;color:var(--ink-soft);font-family:"Gowun Dodum",sans-serif;margin-left:8px;}
   .cal-exam-first{font-weight:700;color:#B4574E;}
+  /* 휴대폰 달력 요약 배지 — 누르면 날짜 팝업으로 상세 */
+  .cal-sum{display:flex;flex-direction:column;gap:2px;margin-top:3px;align-items:flex-start;}
+  .cal-sum span{font-size:.62rem;font-weight:700;border-radius:6px;padding:1px 5px;white-space:nowrap;}
+  .cs-exam{background:var(--icon-bg);color:var(--accent);}
+  .cs-first{background:#F8E8E5;color:#B4574E;}
+  .cs-memo{background:#FAF5DF;color:#8A7B3A;}
   .exs-first{font-size:.72rem;font-weight:700;color:#B4574E;flex:none;}
   .exs-season{display:flex;gap:8px;margin:4px 0 8px;flex-wrap:wrap;}
   .exs-season button{font:inherit;font-size:.85rem;font-weight:700;border:1.5px solid var(--line);background:#fff;
@@ -1017,12 +1023,28 @@ function buildCalendar(){
       var m = memos[ds];
       var hd = HOLIDAYS[ds];
       var subs = examSubjects[ds] || [];
+      var dyName = ['월','화','수','목','금','토','일'][di];
+      var compact = narrowScreen() && (subs.length || m);
+      var body;
+      if (compact){
+        // 휴대폰: 요약 배지(시험 n곳·첫째날 n·메모)만 — 누르면 팝업으로 상세 (2026-08-21 사용자 확정)
+        var schools = {}, firstSch = {};
+        subs.forEach(function(x){
+          schools[x.school] = 1;
+          if (examPeriods.some(function(p){ return p.school === x.school && p.start === x.date; })) firstSch[x.school] = 1;
+        });
+        var nFirst = Object.keys(firstSch).length;
+        body = '<div class="cal-sum">' +
+          (subs.length ? '<span class="cs-exam">시험 ' + Object.keys(schools).length + '곳</span>' : '') +
+          (nFirst ? '<span class="cs-first">첫째날 ' + nFirst + '</span>' : '') +
+          (m ? '<span class="cs-memo">메모</span>' : '') + '</div>';
+      } else {
+        body = subs.map(calExamChip).join('') + (m ? '<div class="cmemo">' + esc(m) + '</div>' : '');
+      }
       h += '<div class="cal-cell' + (d.getMonth() !== calMonth.getMonth() ? ' other' : '') + (ds === todayY ? ' today' : '') + (hd ? ' holiday' : '') + (m ? ' memoed' : '') + '"' +
-        ' onclick="editWeekMemo(\'' + ds + '\',\'' + ['월','화','수','목','금','토','일'][di] + '\')">' +
+        ' onclick="' + (compact ? 'calDayPopup' : 'editWeekMemo') + '(\'' + ds + '\',\'' + dyName + '\')">' +
         '<span class="dnum' + (hd ? ' hd' : '') + '">' + d.getDate() + '</span>' +
-        (hd ? '<span class="hname">' + esc(hd) + '</span>' : '') +
-        subs.map(calExamChip).join('') +
-        (m ? '<div class="cmemo">' + esc(m) + '</div>' : '') + '</div>';
+        (hd ? '<span class="hname">' + esc(hd) + '</span>' : '') + body + '</div>';
     });
   });
   h += '</div>';
@@ -1419,6 +1441,29 @@ function weekMemoSection(){
   });
   box.innerHTML = h;
   return box;
+}
+/* 휴대폰 달력 날짜 팝업 — 그 날의 시험·메모 상세, 여기서 수정으로 이어짐 (2026-08-21 사용자 확정) */
+function calDayPopup(ds, dy){
+  var subs = examSubjects[ds] || [];
+  var m = memos[ds];
+  var hd = HOLIDAYS[ds];
+  var h = '<h3>' + exsMd(ds) + (hd ? ' <span style="color:#B4574E;font-size:.85rem;">' + esc(hd) + '</span>' : '') + '</h3>';
+  if (subs.length){
+    h += '<p class="exs-sub-h" style="margin-top:4px;">시험 (' + subs.length + ')</p>' + subs.map(function(x){
+      var first = examPeriods.some(function(p){ return p.school === x.school && p.start === x.date; });
+      return '<div class="exs-row">' +
+        '<span class="exs-tag" style="background:' + schoolColor(x.school) + '">' + esc(x.school) + '</span>' +
+        (first ? '<span class="exs-first">첫째날</span>' : '') +
+        '<span class="exs-note">' + esc(x.text) + '</span>' +
+        '<span class="exs-acts"><button onclick="exsEditSubject(' + x.row + ')">수정</button></span></div>';
+    }).join('');
+  }
+  h += '<p class="exs-sub-h">메모</p>' +
+    (m ? '<p style="font-size:.86rem;white-space:pre-wrap;margin:2px 0 8px;">' + esc(m) + '</p>'
+       : '<p class="exs-none">메모가 없어요.</p>');
+  h += '<div class="mbtns"><button onclick="closeModal()">닫기</button>' +
+    '<button class="primary" onclick="editWeekMemo(\'' + esc(ds) + '\',\'' + esc(dy) + '\')">' + (m ? '메모 수정' : '메모 쓰기') + '</button></div>';
+  openModal(h);
 }
 function editWeekMemo(ds, dy){
   openModal(
