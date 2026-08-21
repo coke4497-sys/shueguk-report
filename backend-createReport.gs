@@ -76,6 +76,7 @@ var TT_ONCE_DAYS = 8;               // 1회 이동을 시간표에 표시하는 
 var TAB_ATTEND = '출석기록';        // A:날짜(yyyy-MM-dd) B:시간표(정규/내신) C:반ID D:학생 E:상태(출석/지각/결석) F:메모 G:기록일시
 var TAB_TT_MEMO = '시간표메모';     // A:날짜(yyyy-MM-dd) B:메모(오늘의 이슈) C:기록일시
 var TAB_TT_PERIOD = '기간설정';     // A:주차수요일(yyyy-MM-dd) B:구분(정규/내신) C:기록일시 — 슈국 캘린더 주별 기간
+var TAB_EXAM_SCHED = '지필일정';    // A:유형(기간/과목) B:학교 C:시작일(과목은 해당일) D:종료일 E:내용 F:기록일시 — 슈국 캘린더 지필고사 일정
 
 var HWCHECK_ITEMS_KEY = '숙제검사 항목';
 var HWCHECK_DEFAULT_ITEMS = ['숙제 수행', '오답 처리'];
@@ -505,6 +506,11 @@ function doGet(e) {
   if (p.action === 'ttPeriodList') {
     if (String(p.pw || '') !== TEACHER_PW) return json({ result:'error', message:'unauthorized' });
     return getTtPeriodList();
+  }
+  // 지필고사 일정 조회 (슈국 캘린더) — ?action=examSched&pw=&from=yyyy-MM-dd&to=yyyy-MM-dd
+  if (p.action === 'examSched') {
+    if (String(p.pw || '') !== TEACHER_PW) return json({ result:'error', message:'unauthorized' });
+    return getExamSched(p.from, p.to);
   }
   // 오늘의 이슈 메모 조회 (timetable.html) — 비밀번호 필요
   if (p.action === 'ttMemoList') {
@@ -2405,6 +2411,7 @@ function doPost(e) {
     if (data && data.action === 'ttMemoSet')        { return ttMemoSet(data); }
     if (data && data.action === 'naeshinSet')       { return naeshinSet(data); }
     if (data && data.action === 'ttPeriodSet')      { return ttPeriodSet(data); }
+    if (data && data.action === 'examSchedSet')     { return examSchedSet(data); }
     if (data && data.action === 'timetableMoveClass') { return timetableMoveClass(data); }
     if (data && data.action === 'timetableAddClass')  { return timetableAddClass(data); }
     if (data && data.action === 'timetableDeleteClass') { return timetableDeleteClass(data); }
@@ -3469,6 +3476,84 @@ function hwcheckBoot(p) {
                 weekAttend: wk.attend, weekOnce: wk.onceMoves });
 }
 /** 주별 기간 저장. { pw, week(수요일 yyyy-MM-dd), book('정규'|'내신'|'' 빈값=삭제) } */
+/* ── 지필고사 일정 (슈국 캘린더 아래 접이식 메뉴) ──
+ * '지필일정' 탭: A:유형(기간/과목) B:학교 C:시작일(과목은 해당일) D:종료일(기간만) E:내용 F:기록일시
+ * 학교별 시험 기간은 직접 입력(중학교 등 과목 없이 기간만 아는 경우가 많음), 날짜별 과목은 선택 입력. */
+function examSchedSheet_(ss) {
+  var sh = ss.getSheetByName(TAB_EXAM_SCHED);
+  if (!sh) {
+    sh = ss.insertSheet(TAB_EXAM_SCHED);
+    sh.appendRow(['유형', '학교', '시작일', '종료일', '내용', '기록일시']);
+  }
+  return sh;
+}
+function examYmd_(v) {
+  if (v && v.getTime) return Utilities.formatDate(v, 'Asia/Seoul', 'yyyy-MM-dd');
+  var s = String(v || '').trim();
+  return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : '';
+}
+/** 조회 범위와 겹치는 기간·과목. GET action=examSched&pw=&from=&to= */
+function getExamSched(fromStr, toStr) {
+  fromStr = String(fromStr || '').trim(); toStr = String(toStr || '').trim();
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ss.getSheetByName(TAB_EXAM_SCHED);
+  var periods = [], subjects = [];
+  if (sh && sh.getLastRow() > 1) {
+    var v = sh.getDataRange().getValues();
+    for (var i = 1; i < v.length; i++) {
+      var kind = String(v[i][0] || '').trim();
+      var school = String(v[i][1] || '').trim();
+      if (!school) continue;
+      var s = examYmd_(v[i][2]);
+      if (!s) continue;
+      var e = examYmd_(v[i][3]) || s;
+      if (kind === '과목') {
+        if ((fromStr && s < fromStr) || (toStr && s > toStr)) continue;
+        subjects.push({ row: i + 1, school: school, date: s, text: String(v[i][4] || '').trim() });
+      } else {
+        if ((fromStr && e < fromStr) || (toStr && s > toStr)) continue;
+        periods.push({ row: i + 1, school: school, start: s, end: e, text: String(v[i][4] || '').trim() });
+      }
+    }
+  }
+  return json({ result:'success', periods: periods, subjects: subjects });
+}
+/** 지필 일정 추가/수정/삭제. { pw, row?, del?, kind(기간|과목), school, start, end, text }
+ *  row 없으면 추가, row 있으면 그 행 수정, del=1이면 삭제(학교명 일치 확인). */
+function examSchedSet(data) {
+  if (String(data.pw || '') !== TEACHER_PW) return json({ result:'error', message:'unauthorized' });
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = examSchedSheet_(ss);
+  var row = parseInt(data.row, 10) || 0;
+  return withLock_(function () {
+    if (data.del) {
+      if (row < 2 || row > sh.getLastRow()) return json({ result:'error', message:'행을 찾을 수 없어요.' });
+      if (String(sh.getRange(row, 2).getValue() || '').trim() !== String(data.school || '').trim()) {
+        return json({ result:'error', message:'내용이 달라졌어요. 새로고침 후 다시 시도해 주세요.' });
+      }
+      sh.deleteRow(row);
+      return json({ result:'success', deleted: true });
+    }
+    var kind = (String(data.kind || '').trim() === '과목') ? '과목' : '기간';
+    var school = String(data.school || '').trim().slice(0, 20);
+    var start = String(data.start || '').trim();
+    var end = String(data.end || '').trim();
+    var text = String(data.text || '').trim().slice(0, 200);
+    if (!school || !/^\d{4}-\d{2}-\d{2}$/.test(start)) return json({ result:'error', message:'학교와 날짜가 필요합니다.' });
+    if (kind === '기간') {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(end)) end = start;
+      if (end < start) { var t0 = start; start = end; end = t0; }
+    } else {
+      end = '';
+      if (!text) return json({ result:'error', message:'과목 내용을 적어주세요.' });
+    }
+    var target = (row >= 2 && row <= sh.getLastRow()) ? row : sh.getLastRow() + 1;
+    var rg = sh.getRange(target, 1, 1, 6);
+    rg.setNumberFormats([['@','@','@','@','@','yyyy-mm-dd hh:mm']]);
+    rg.setValues([[kind, school, start, end, text, new Date()]]);
+    return json({ result:'success', row: target });
+  });
+}
 function ttPeriodSet(data) {
   if (String(data.pw || '') !== TEACHER_PW) return json({ result:'error', message:'unauthorized' });
   var week = String(data.week || '').trim();
