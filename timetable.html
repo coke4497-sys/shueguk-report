@@ -182,15 +182,8 @@
   .att-btns button.pick-late.on{background:#B08A3E;border-color:#B08A3E;color:#fff;}
   .att-btns button.pick-abs.on{background:#B4574E;border-color:#B4574E;color:#fff;}
   .viewtabs .sp{flex:1;}
-  /* 메인 메뉴 — 보기 탭 한 덩어리(세그먼트) + 출석 기록 묶음 + 새로고침 아이콘 (2026-08-22 사용자 확정 시안) */
-  .viewtabs .seg{display:inline-flex;border:1px solid var(--line);border-radius:11px;overflow:hidden;background:#fff;flex-wrap:wrap;}
-  .viewtabs .seg button{border:none;border-radius:0;border-right:1px solid var(--line-soft);padding:7px 13px;}
-  .viewtabs .seg button:last-child{border-right:none;}
-  /* 모바일: 한 덩어리 세그먼트가 줄바꿈되면 어색해서 개별 알약 버튼으로 (2026-08-22 사용자 피드백) */
-  @media (max-width:760px){
-    .viewtabs .seg{border:none;background:none;border-radius:0;overflow:visible;gap:6px;}
-    .viewtabs .seg button{border:1px solid var(--line);border-radius:10px;padding:6px 12px;}
-  }
+  /* 메인 메뉴 — 보기 탭은 개별 버튼(2026-08-22 사용자 확정: 붙은 세그먼트는 모바일 이어 컴퓨터에서도 분리) */
+  .viewtabs .seg{display:inline-flex;gap:6px;flex-wrap:wrap;}
   .cluster{display:inline-flex;align-items:center;gap:6px;background:#F6F9F7;border:1px solid var(--line-soft);
     border-radius:12px;padding:4px 7px 4px 11px;flex-wrap:wrap;}
   .cluster .clabel{font-size:.76rem;color:var(--ink-soft);font-weight:700;white-space:nowrap;}
