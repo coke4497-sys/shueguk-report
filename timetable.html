@@ -469,7 +469,7 @@
       <button id="v-exs" onclick="setMode('exs')">지필고사 일정</button>
       <span class="sp"></span>
       <button class="reload" onclick="openAttHistory()">학생 출석 이력</button>
-      <button class="reload" onclick="openAttWarn()">경고 대상자 확인</button>
+      <button class="reload" onclick="openAttWarn()">결석/지각자 확인</button>
       <button class="reload" onclick="openMakeup()">결석자 관리</button>
       <button class="reload" onclick="load(true)">다시 불러오기</button>
     </div>
@@ -2465,7 +2465,7 @@ function openAttWarn(){
 }
 function awShell(){
   openModal(
-    '<h3>출석 비성실 경고 대상자 확인</h3>' +
+    '<h3>결석/지각자 확인</h3>' +
     '<p class="mdesc">기간 안의 지각·결석·1회 이동을 학생별로 모아 잦은 학생부터 보여줘요 (정규+내신 모두). 줄을 누르면 날짜별 내역이 펼쳐져요.</p>' +
     '<div class="aw-ctrl">' +
     [2, 4, 8, 12].map(function(w){
