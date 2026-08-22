@@ -1166,17 +1166,27 @@
       });
     },
     timetableRenameStudent: function(b){
-      return legacyPost(b).then(function(res){
-        if (!res || res.result !== 'success') return res;
-        var book = bookOf(b.book), from = String(b.from || '').trim(), to = String(b.to || '').trim();
-        var jobs = [];
+      var book = bookOf(b.book), from = String(b.from || '').trim(), to = String(b.to || '').trim();
+      // 화면(수파베이스) 쪽 표기를 바꾼다. 바꾼 반이 하나라도 있으면 true.
+      function mirror(){
+        var jobs = [], hit = false;
         ((typeof classes !== 'undefined' && classes) || []).forEach(function(c){
           if (c.students.indexOf(from) < 0) return;
+          hit = true;
           jobs.push(setRoster(book, c.id, c.students.map(function(nm){ return nm === from ? to : nm; })));
         });
-        jobs.push(insertLog({ kind:'표기수정', student: from, book: book, reason: from + ' → ' + to }));
-        return Promise.all(jobs).then(function(){ resyncClasses(book); return res; },
-                                      function(e){ console.warn('표기 미러 실패', e); resyncClasses(book); return res; });
+        if (hit) jobs.push(insertLog({ kind:'표기수정', student: from, book: book, reason: from + ' → ' + to }));
+        return Promise.all(jobs).then(function(){ return hit; },
+                                      function(e){ console.warn('표기 미러 실패', e); return hit; });
+      }
+      return legacyPost(b).then(function(res){
+        var okLegacy = !!(res && res.result === 'success');
+        return mirror().then(function(hit){
+          if (okLegacy){ resyncClasses(book); return res; }
+          // 시트엔 이미 반영됐는데 화면에만 옛 표기가 남은 경우(미러 실패 뒤 재시도) — 화면 쪽을 고쳐 자기 치유.
+          // 2026-08-22: 특이사항을 지워도 계속 남던 문제의 원인.
+          return hit ? ok({ healed: true }) : res;
+        });
       });
     },
     timetableAddClass: function(b){
