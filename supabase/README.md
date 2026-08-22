@@ -41,9 +41,31 @@
       **주의: 페이지 교체 전까지 시트에 기록이 계속 쌓이므로, 교체 직전에 재이전(재동기화) 필수.**
       재이전 방법: 백엔드 시트(드라이브 「shueguk 지필고사 분석지 제작(26-1-기말)」,
       id 1_TyraMnur7AhiuB0nVMcDXq2YU2IBeju3lSTkV3Njos)를 xlsx로 받아 파싱 → 테이블 truncate 후 재삽입.
-- [ ] timetable.html 연결부 교체 (재동기화 포함 — 사용자와 시점 협의)
-- [ ] 일일 백업 설정
-- [ ] 영구 이동 시 학생정보 동기화 이중 기록 확인
+- [x] timetable.html 연결부 교체 (2026-08-22, 사용자 승인 "지금이 가장 안정") — 아래 '전환 방식'
+- [x] 전환 직전 델타 재동기화 (2026-08-22 21:30 KST 기록까지 반영)
+- [ ] 일일 백업 설정 (이중 기록이 있는 동안은 시트가 거의 최신 — 급하지 않음)
+
+## 전환 방식 (timetable.html 안의 '수파베이스 연결부' 스크립트)
+기존 액션 API fetch를 가로채는 어댑터 — 호출부 코드는 그대로. 실패 시 자동으로 기존 백엔드 폴백.
+- **읽기 전부 수파베이스**: ttBoot·timetableList·timetableWeek·ttPeriodList·ttMemoList·examSched·
+  attendStudent·attendWarnList·attendAbsentList·timetableLog (미이전 roster 등은 기존 백엔드).
+  1,000행 응답 한도는 어댑터가 자동 페이징.
+- **출석·메모 쓰기 = 수파베이스 먼저 + 시트 이중 기록**(백그라운드 1회 재시도): attendSet·attendSetBulk·
+  attendMakeupSet·ttMemoSet — hwcheck 배지·시트 열람은 이중 기록 덕에 그대로 정확.
+- **반·명단 구조 변경 = 기존 백엔드 먼저 + 수파베이스 미러**: timetableMove(영구/1회)·Add·Remove·
+  RenameStudent·AddClass·DeleteClass·MoveClass·ttPeriodSet — 학생정보 정규가/나 연동·검증 로직은
+  기존 백엔드가 계속 담당. 미러 후 timetableList 재동기화(resyncClasses)로 자기 치유.
+  1회 이동의 결석 보충 자동 완료(mkAutoComplete)는 같은 규칙을 수파베이스에도 재적용.
+- **수파베이스가 원본(행 번호→id)**: examSchedSet(지필일정 편집), timetableOnceEdit/Cancel(1회 이동
+  수정·취소). **시트 '지필일정' 탭은 더 이상 갱신 안 됨**; 1회 이동 취소·수정은 시트에서 같은 행을
+  찾아 최선 노력 미러(실패해도 무방 — hwcheck 배지 표시용).
+- 검증: node 스모크 테스트로 전 GET 핸들러 응답 모양·쓰기 왕복(기록→되읽기→삭제)·검증 오류 경로 확인.
+
+## 재동기화(델타) 방법
+시트가 원본인 데이터가 수파베이스와 어긋났을 때: 백엔드 시트 xlsx 다운로드 →
+`tools/extract_from_xlsx.py`로 추출 → 키 기준 비교(출석 date+book+반+이름, 시간표 book+반ID,
+이동기록 at(절대시간)+kind+학생+from+to — **at은 UTC/KST 차이가 있으니 epoch로 비교**) → 차이만 upsert/insert.
+지필일정은 전환 후 수파베이스가 원본이므로 시트로 덮어쓰지 말 것.
 
 ## SQL 실행 방법 (테이블 생성·변경)
 Personal Access Token(sbp_…)이 있으면 관리 API로 직접 실행:
