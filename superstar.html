@@ -47,11 +47,17 @@
   .sch-list{margin-top:13px;border-top:1px solid var(--line-soft);padding-top:11px;}
   .sch-list .sl-t{font-size:.76rem;font-weight:700;color:var(--ink-soft);margin:0 0 6px;}
   .sch-list .sl-t b{color:var(--accent);}
-  .srow{display:flex;align-items:center;gap:8px;padding:3.5px 0;font-size:13.5px;}
+  .srow{display:flex;align-items:center;gap:8px;padding:3.5px 0;font-size:13.5px;cursor:pointer;}
   .srow .sn{flex:0 0 auto;min-width:0;word-break:keep-all;}
+  .srow:hover .sn{color:var(--accent);}
+  .srow.open .sn{color:var(--accent);font-weight:700;}
   .srow .sbar{flex:1;height:5px;background:#EFF4F1;border-radius:3px;overflow:hidden;}
   .srow .sbar i{display:block;height:100%;background:#BFD3C9;border-radius:3px;}
   .srow .sc2{flex:0 0 auto;font-weight:700;color:var(--ink-soft);font-size:12.5px;}
+  .srow .tg{flex:0 0 auto;color:#9aa6a0;font-size:10px;transition:transform .15s;}
+  .srow.open .tg{transform:rotate(180deg);color:var(--accent);}
+  .sname-box{display:flex;flex-wrap:wrap;gap:5px;padding:5px 2px 10px;margin-bottom:3px;border-bottom:1px dashed var(--line-soft);}
+  .sname-box .nm{font-size:12.5px;background:#EFF4F1;border:1px solid #E2EAE5;border-radius:20px;padding:3px 10px;color:#4C6E66;word-break:keep-all;}
 
   /* 하위 메뉴 탭 — 아이콘은 티쳐스 허브 카드와 동일한 라인 아이콘 */
   .tabs{display:flex;gap:8px;margin:6px 0 18px;}
@@ -535,15 +541,16 @@
     var i = ['중1','중2','중3','고1','고2','고3'].indexOf(k);
     return i >= 0 ? i : 99;
   }
-  var STAT = { gmap:{}, gsmap:{}, gkeys:[], sel:null };
+  var STAT = { gmap:{}, gsmap:{}, gsnames:{}, gkeys:[], sel:null, selSchool:null };
   function renderStats(list){
     if(!list.length){ $('statCard').style.display='none'; return; }
-    STAT.gmap = {}; STAT.gsmap = {};
+    STAT.gmap = {}; STAT.gsmap = {}; STAT.gsnames = {};
     list.forEach(function(s){
       var g = shortGrade(s.grade);
       STAT.gmap[g] = (STAT.gmap[g]||0) + 1;
       var sc = String(s.school||'').trim() || '학교 미입력';
       (STAT.gsmap[g] = STAT.gsmap[g] || {})[sc] = (STAT.gsmap[g][sc]||0) + 1;
+      ((STAT.gsnames[g] = STAT.gsnames[g] || {})[sc] = STAT.gsnames[g][sc] || []).push(String(s.name||'').trim());
     });
     STAT.gkeys = Object.keys(STAT.gmap).sort(function(a,b){ return gradeOrder(a)-gradeOrder(b) || a.localeCompare(b,'ko'); });
     // 처음엔 인원이 가장 많은 학년을 선택
@@ -569,20 +576,34 @@
   function drawStatSchools(){
     var smap = STAT.gsmap[STAT.sel] || {};
     var skeys = Object.keys(smap).sort(function(a,b){ return smap[b]-smap[a] || a.localeCompare(b,'ko'); });
-    $('slTitle').innerHTML = '<b>'+esc(STAT.sel||'')+'</b> 학교별 인원 <span style="font-weight:400;color:#9aa6a0">(막대를 눌러 학년 변경)</span>';
+    $('slTitle').innerHTML = '<b>'+esc(STAT.sel||'')+'</b> 학교별 인원 <span style="font-weight:400;color:#9aa6a0">(막대를 눌러 학년 변경 · 학교를 눌러 명단 보기)</span>';
     if(!skeys.length){ $('schList').innerHTML='<div class="empty" style="padding:8px;">학생이 없어요.</div>'; return; }
+    if(STAT.selSchool && !smap[STAT.selSchool]) STAT.selSchool = null;
     var smax = smap[skeys[0]];
     $('schList').innerHTML = skeys.map(function(k){
       var w = Math.round(smap[k] / smax * 100);
-      return '<div class="srow"><span class="sn">'+esc(k)+'</span>'+
+      var open = (k === STAT.selSchool);
+      var html = '<div class="srow'+(open?' open':'')+'" data-s="'+esc(k)+'"><span class="sn">'+esc(k)+'</span>'+
         '<span class="sbar"><i style="width:'+w+'%"></i></span>'+
-        '<span class="sc2">'+smap[k]+'명</span></div>';
+        '<span class="sc2">'+smap[k]+'명</span><span class="tg">▾</span></div>';
+      if(open){
+        var names = ((STAT.gsnames[STAT.sel]||{})[k]||[]).slice().sort(function(a,b){ return a.localeCompare(b,'ko'); });
+        html += '<div class="sname-box">'+names.map(function(n){ return '<span class="nm">'+esc(n)+'</span>'; }).join('')+'</div>';
+      }
+      return html;
     }).join('');
   }
   $('gradeBars').addEventListener('click', function(e){
     var col = e.target.closest('.vcol'); if(!col) return;
     STAT.sel = col.getAttribute('data-g');
+    STAT.selSchool = null;
     drawStatBars(); drawStatSchools();
+  });
+  $('schList').addEventListener('click', function(e){
+    var row = e.target.closest('.srow'); if(!row) return;
+    var s = row.getAttribute('data-s');
+    STAT.selSchool = (STAT.selSchool === s) ? null : s;
+    drawStatSchools();
   });
   function setReg(m,k){ var s=$('regStatus'); s.textContent=m||''; s.className='status'+(k?' '+k:''); }
   function hideWarn(){ $('warnBox').style.display='none'; }
