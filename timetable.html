@@ -501,6 +501,16 @@
   .wk-tgrid .blk .stus button{font-size:.7rem;padding:1px 6px;letter-spacing:-.01em;}
   .wk-big-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px;align-items:start;}
   @media (max-width:900px){ .wk-ov{grid-template-columns:repeat(4,1fr);} .wk-slim{width:40px;} }
+  /* 모바일 확대 화면 — 옆 요일 열은 위에 한 줄로, 시간 그리드는 전체 폭 + 가로 스크롤 (2026-08-22) */
+  @media (max-width:760px){
+    .wk-zoom{flex-wrap:wrap;gap:5px;}
+    .wk-slim{flex:1 1 0;width:auto;min-width:0;}
+    .wk-slim .wk-bar{height:12px;}
+    .wk-big{order:1;flex:1 0 100%;width:100%;overflow-x:auto;padding:10px;}
+    .wk-dayh.bigh{white-space:nowrap;}
+    .wk-dayh.bigh small{display:block;margin:2px 0 0;}
+    .wk-tgrid{--zcol:112px;}
+  }
   /* 채도 낮춤 — 정규 '나' 수업, 내신 '확인' 수업 */
   body.moving .blk.droppable{outline:2px dashed var(--btn);outline-offset:1px;cursor:pointer;}
   body.moving .blk.droppable:hover{outline-style:solid;background-image:linear-gradient(rgba(98,140,131,.12),rgba(98,140,131,.12));}
@@ -2883,7 +2893,7 @@ function zoomCenterGrids(big, dname, list, makeBlock){
     var n = Math.max(1, Math.round((hi - lo) / 30));
     var g = document.createElement('div');
     g.className = 'wk-tgrid';
-    g.style.gridTemplateColumns = '46px repeat(' + cols.length + ', minmax(0, 1fr))';
+    g.style.gridTemplateColumns = '46px repeat(' + cols.length + ', minmax(var(--zcol, 0px), 1fr))';
     g.style.gridTemplateRows = 'auto repeat(' + n + ', 30px)';
     var corner = document.createElement('div');
     corner.className = 'wk-tcorner';
