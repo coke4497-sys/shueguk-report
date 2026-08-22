@@ -110,6 +110,24 @@
 - 제출시각·클리어는 시트가 날짜로 자동 변환 → API가 ISO UTC로 반환하므로 KST 'yyyy-MM-dd HH:mm'로
   정규화해 저장(페이지 훅·점검 도구 동일 규칙).
 
+## H WORK (2026-08-23)
+- [x] `migrations/007_hwork.sql` — hwork_homeworks(HWORK목록: 과제 JSON+마감일, teacher+code 유일)·
+      hwork_submissions(제출기록) — 둘 다 **H WORK 시트가 원본**
+- [x] 데이터 이전 (2026-08-22): 과제 8건 · 제출 534건 — 시트 xlsx 기준 전수 대조 일치,
+      쓰기 왕복(업서트 due 유지·PATCH·삭제) 확인.
+- 채점(정답 대조)·마감 판정이 서버(Apps Script)에 있으므로 **쓰기는 전부 기존 백엔드 그대로**:
+  - 학생 제출(hwork.html): 채점 성공 시 hwork_submissions에 미러 삽입(ts는 클라이언트 KST 분 단위 —
+    시트 기록과 초 단위가 달라도 일일 점검이 시트 기준으로 맞춘다).
+  - 출제 저장(homework_key.html): 저장 성공 시 hwork_homeworks 업서트(due 미포함 — 기존 마감일 유지).
+  - 과제 관리(hwork_assign.html): 마감일 저장 성공 시 미러 PATCH, 과제 삭제 성공 시
+    미러의 과제+제출 함께 삭제.
+- 어휘 출제(shueguk-voca paper.html)의 saveHomework는 아직 미러 훅 없음 — 일일 점검이 맞춘다
+  (어휘 이전 회차에서 추가 예정).
+- 일일 점검 `--hwork <xlsx>`: H WORK 시트(파일 id 1nFZ2HVAnCyCv_NOoAPXhA1VC_T7BBqwUWNWBta4-qFE)를
+  내려받아 두 표를 시트 기준으로 대조·복구.
+- 주의: hwork_homeworks.data에는 정답이 들어 있다 — 현 공개 수준은 기존과 동일
+  (제출 응답의 정오(JSON)·getReport로 정답이 이미 노출되는 구조).
+
 ## 일일 자동 점검·복구 (2026-08-22 설정)
 - **매일 새벽 3:30(KST) CCR 루틴**: 백엔드 시트 xlsx 다운로드(구글 드라이브,
   파일 id 1_TyraMnur7AhiuB0nVMcDXq2YU2IBeju3lSTkV3Njos) → `tools/audit_heal.py <xlsx> --omr <OMRxlsx> --signup --clinic --heal`.
