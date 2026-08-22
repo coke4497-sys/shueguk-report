@@ -823,15 +823,18 @@ function renderStars(){
 function renderHub(){
   var info = STATE.info;
   var sub = [info.grade, info.school].map(function(x){ return String(x||'').trim(); }).filter(Boolean).join(' ');
-  $('s_name').innerHTML = '<span class="nm">슈국 슈퍼스타 '+esc(info.name||'학생')+'의 페이지</span>' +
+  $('s_name').innerHTML = '<span class="nm">슈퍼스타 '+esc(info.name||'학생')+'의 페이지</span>' +
     (sub ? '<span class="sub">'+esc(sub)+'</span>' : '');
   document.title = (info.name||'학생') + ' · 슈국';
   // 홈 화면 저장 시 아이콘 이름을 학생 이름으로
   var wt = document.querySelector('meta[name="apple-mobile-web-app-title"]');
   if(wt){ wt.setAttribute('content', (info.name||'슈국') + ' 리포트'); }
-  if(info.enrolled && String(info.enrolled).trim()!==''){
+  // '재원생' 배지는 표시하지 않음 — 페이지가 있으면 모두 재원생 (2026-08-22 사용자 확정).
+  // 재원이 아닌 특수 상태 값만 배지로 보여준다.
+  var en = String(info.enrolled||'').trim();
+  if(en && en!=='재원'){
     var b=$('s_badge');
-    b.textContent = (String(info.enrolled).trim()==='재원' ? '재원생' : info.enrolled);
+    b.textContent = en;
     b.style.display='inline-block';
   }
 
