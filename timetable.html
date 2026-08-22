@@ -172,10 +172,10 @@
   .wm-day{flex:none;width:78px;font-size:.85rem;font-weight:700;color:var(--ink-soft);}
   .wm-text{font-size:.88rem;line-height:1.6;white-space:pre-wrap;word-break:break-word;min-width:0;}
   .wm-none{font-size:.85rem;color:var(--ink-soft);opacity:.55;}
-  .blk .stus button.note{background:#E7EEF8;border-color:#8FA8C8;color:#3E5A7E;}
-  .blk .stus button.at-ok{background:var(--btn);border-color:var(--btn);color:#fff;}
-  .blk .stus button.at-late{background:#F5E7C6;border-color:#B08A3E;color:#6B5423;}
-  .blk .stus button.at-abs{background:#F0DBD8;border-color:#C99B94;color:#8A3B33;text-decoration:line-through;}
+  .blk .stus button.note{background:#DFEAF7;color:#3E5A7E;}
+  .blk .stus button.at-ok{background:var(--btn);color:#fff;}
+  .blk .stus button.at-late{background:#F1E2BB;color:#6B5423;}
+  .blk .stus button.at-abs{background:#EFD6D2;color:#8A3B33;text-decoration:line-through;}
   .att-btns{display:flex;gap:8px;margin:10px 0 4px;}
   .att-btns button{flex:1;font:inherit;font-size:.95rem;border-radius:10px;padding:11px 4px;cursor:pointer;border:1.5px solid var(--line);background:#fff;color:var(--ink);}
   .att-btns button.pick-ok.on{background:var(--btn);border-color:var(--btn);color:#fff;}
@@ -304,12 +304,13 @@
   .blk .bt .nm{display:block;font-weight:700;font-size:.8rem;line-height:1.35;word-break:keep-all;}
   .blk .bt small{display:block;font-weight:400;color:var(--ink-soft);font-size:.68rem;white-space:nowrap;}
   .blk .stus{display:flex;flex-wrap:wrap;gap:3px;}
-  .blk .stus button{font:inherit;font-size:.74rem;background:rgba(255,255,255,.75);border:1px solid rgba(0,0,0,.08);
-    border-radius:999px;padding:1px 8px;cursor:pointer;color:var(--ink);line-height:1.5;}
-  .blk .stus button:hover{border-color:var(--accent);}
-  .blk .stus button.sel{background:var(--accent);border-color:var(--accent);color:#fff;}
-  .blk .stus button.once{background:#EFE9F7;border:1px dashed #8A6FA8;color:#5E4A78;font-weight:700;}
-  .blk .stus button.kept{border-style:dashed;opacity:.88;}
+  /* 학생 칩 — 테두리 없는 낮은 사각 태그 (2026-08-22 사용자 확정 시안 B: 알약 테두리가 겹겹이라 정신없음) */
+  .blk .stus button{font:inherit;font-size:.74rem;background:rgba(255,255,255,.62);border:none;
+    border-radius:7px;padding:2px 9px;cursor:pointer;color:var(--ink);line-height:1.5;}
+  .blk .stus button:hover{outline:1.5px solid var(--accent);outline-offset:-1px;}
+  .blk .stus button.sel{background:var(--accent);color:#fff;}
+  .blk .stus button.once{background:#E7DDF3;color:#5E4A78;font-weight:700;}
+  .blk .stus button.kept{outline:1px dashed rgba(0,0,0,.28);outline-offset:-1px;opacity:.88;}
   .blk .stus button.kept em{font-style:normal;font-size:.66rem;margin-left:3px;opacity:.75;}
   .blk .stus button.away{opacity:.5;}
   .blk .stus button.plan-once{border-bottom:2px dotted #8AA0C8;}
