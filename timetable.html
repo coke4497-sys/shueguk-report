@@ -358,6 +358,22 @@
   .aw-det{border:1px solid var(--line-soft);border-top:none;border-radius:0 0 10px 10px;
     margin:0 6px;padding:8px 10px 6px;background:#FBFCFB;}
   .aw-det .ah-row{background:#fff;}
+  /* 이달의 신입생 (전체 시간표 하단) */
+  .ns-card{margin:20px auto 0;background:var(--surface);border:1px solid var(--line-soft);border-radius:14px;
+    padding:14px 16px;max-width:760px;}
+  .ns-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+  .ns-head b{font-family:"Gowun Batang",serif;color:var(--accent);font-size:1rem;}
+  .ns-cnt{color:var(--ink-soft);font-size:.8rem;}
+  .ns-head .sp{flex:1;}
+  .ns-row{display:flex;gap:9px;align-items:baseline;flex-wrap:wrap;border-top:1px dashed var(--line-soft);
+    padding:7px 2px;font-size:.86rem;}
+  .ns-head + .ns-row{border-top:none;margin-top:8px;}
+  .ns-row b{font-family:"Gowun Batang",serif;}
+  .ns-meta{color:var(--ink-soft);font-size:.8rem;}
+  .ns-slot{font-size:.8rem;}
+  .ns-date{margin-left:auto;color:var(--ink-soft);font-size:.76rem;flex:none;}
+  .ns-empty{color:var(--ink-soft);font-size:.84rem;margin:10px 0 2px;}
+  .ns-note{color:var(--ink-soft);font-size:.72rem;margin-top:8px;}
   .modal h3{font-family:"Gowun Batang",serif;color:var(--accent);margin:0 0 4px;font-size:1.05rem;}
   .modal .mdesc{font-size:.85rem;color:var(--ink-soft);margin:0 0 10px;}
   .modal label.radio{display:block;border:1.5px solid var(--line);border-radius:10px;padding:9px 12px;margin:6px 0;cursor:pointer;font-size:.92rem;}
@@ -718,6 +734,7 @@ $('pw').addEventListener('keydown', function(e){ if(e.key==='Enter') tryLogin();
 var loadSeq = 0;   // 기간 전환 등으로 load가 겹칠 때 마지막 요청만 반영
 function load(isReload, cb){
   var seq = ++loadSeq;
+  if (isReload) nsCache = {};   // 다시 불러오기 = 이달의 신입생도 새로 조회
   // 캐시가 있으면 즉시 그려서 바로 보이게 (뒤에서 최신으로 갱신)
   var painted = false;
   if (!isReload){
@@ -974,6 +991,7 @@ function render(){
   if (mode === 'all'){
     if (narrowScreen()) host.appendChild(mviewToggleBtn());
     host.appendChild(useListView() ? buildAllList() : buildFullGrid());
+    host.appendChild(newStuSection());   // 이달의 신입생 (2026-08-22 사용자 요청)
     return;
   }
   if (mode === 'cal'){
@@ -2619,6 +2637,78 @@ function awShow(){
       esc(s.name) + ' 출석 이력 자세히</button></div></div></div>';
   });
   body.innerHTML = h;
+}
+
+/* ── 이달의 신입생 — 전체 시간표 하단 카드 (2026-08-22 사용자 요청)
+ * superstar 신입 등록의 등록일 기준, 기존 newStudents 액션 재사용 (백엔드 변경 없음) */
+var nsCache = {}, nsLoading = {}, nsMonth = '';
+function nsMonthNow(){ var d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'); }
+function newStuSection(){
+  if (!nsMonth) nsMonth = nsMonthNow();
+  var card = document.createElement('div');
+  card.className = 'ns-card';
+  card.id = 'ns-card';
+  nsRender(card);
+  return card;
+}
+function nsMove(n){
+  var p = nsMonth.split('-'), d = new Date(+p[0], +p[1] - 1 + n, 1);
+  nsMonth = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+  var card = $('ns-card');
+  if (card) nsRender(card);
+}
+function nsSlotsTT(st){
+  var parts = [];
+  if (st.classA) parts.push('가 ' + st.classA);
+  if (st.classB) parts.push('나 ' + st.classB);
+  if (st.progress && st.progress !== st.classA) parts.push('진도 ' + st.progress);
+  if (st.checkup && st.checkup !== st.classB) parts.push('확인 ' + st.checkup);
+  return parts.length ? parts.join(' · ') : '시간표 미배정';
+}
+function nsRender(card){
+  var m = nsMonth;
+  var list = nsCache[m];
+  var h = '<div class="ns-head"><b>' + (+m.slice(5)) + '월 신입생</b>' +
+    '<span class="ns-cnt">' + (list && list.length ? list.length + '명' : '') + '</span><span class="sp"></span>' +
+    '<button type="button" class="ah-wk" onclick="nsMove(-1)">◀ 지난달</button>' +
+    '<button type="button" class="ah-wk" onclick="nsMove(1)">다음달 ▶</button></div>';
+  if (!list){
+    card.innerHTML = h + '<p class="ns-empty">' + (list === null
+      ? '목록을 불러오지 못했어요. <button type="button" class="ah-wk" onclick="nsRetry()">다시 시도</button>'
+      : '불러오는 중…') + '</p>';
+    if (list !== null) nsLoad(m);
+    return;
+  }
+  if (!list.length){
+    card.innerHTML = h + '<p class="ns-empty">' + (+m.slice(5)) + '월에 등록한 신입생이 없어요.</p>' +
+      '<p class="ns-note">등록일 기록은 2026-08-19부터예요 — 그 전에 등록한 학생은 표시되지 않아요.</p>';
+    return;
+  }
+  h += list.map(function(st){
+    return '<div class="ns-row"><b>' + esc(st.name) + '</b>' +
+      '<span class="ns-meta">' + esc([st.school, st.grade].filter(Boolean).join(' ')) +
+      (st.teacher ? ' · ' + esc(st.teacher) + 'T' : '') + '</span>' +
+      '<span class="ns-slot">' + esc(nsSlotsTT(st)) + '</span>' +
+      '<span class="ns-date">' + (+st.date.slice(5, 7)) + '/' + (+st.date.slice(8, 10)) + ' 등록</span></div>';
+  }).join('');
+  card.innerHTML = h + '<p class="ns-note">신입 등록·수정은 슈퍼스타 관리의 신입 등록에서 해요 (등록일 기록은 2026-08-19부터).</p>';
+}
+function nsRetry(){
+  delete nsCache[nsMonth];
+  var card = $('ns-card');
+  if (card) nsRender(card);
+}
+function nsLoad(m){
+  if (nsLoading[m]) return;
+  nsLoading[m] = true;
+  fetch(ENDPOINT + '?action=newStudents&pw=' + encodeURIComponent(pw) + '&month=' + m + '&t=' + Date.now())
+    .then(function(r){ return r.json(); }).catch(function(){ return null; })
+    .then(function(d){
+      nsLoading[m] = false;
+      nsCache[m] = (d && d.result === 'success') ? (d.students || []) : null;   // null = 실패 표시
+      var card = $('ns-card');
+      if (card && nsMonth === m) nsRender(card);
+    });
 }
 
 /* ── 모달 ── */
