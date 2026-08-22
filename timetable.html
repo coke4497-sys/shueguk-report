@@ -484,7 +484,10 @@
   .wk-dayh.bigh{text-align:left;padding:8px 12px;background:var(--accent);}
   .wk-dayh.bigh small{display:inline;margin-left:8px;font-size:.7rem;}
   .wk-ch{font-size:.8rem;font-weight:700;color:var(--accent);border-left:4px solid var(--accent);padding-left:8px;margin:12px 0 8px;}
-  .wk-th{font-family:"Gowun Batang",serif;font-size:.82rem;font-weight:700;color:var(--ink-soft);margin:8px 0 6px 4px;}
+  .wk-th{font-family:"Gowun Batang",serif;font-size:.86rem;font-weight:700;color:var(--accent);text-align:center;
+    background:var(--icon-bg);border-radius:8px;padding:4px 0;}
+  .wk-tcols{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px;align-items:start;}
+  .wk-tcol{display:flex;flex-direction:column;gap:10px;min-width:0;}
   .wk-big-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px;align-items:start;}
   @media (max-width:900px){ .wk-ov{grid-template-columns:repeat(4,1fr);} .wk-slim{width:40px;} }
   /* 채도 낮춤 — 정규 '나' 수업, 내신 '확인' 수업 */
@@ -2857,22 +2860,24 @@ function buildAllZoom(dname){
       var em = document.createElement('div'); em.className = 'wk-empty'; em.textContent = '이 요일에는 수업이 없어요.';
       big.appendChild(em);
     }
-    var lastLoc = null, lastT = null, sec = null;
+    var lastLoc = null, lastT = null, tcols = null, tcol = null;
     list.forEach(function(c){
       if (c.loc !== lastLoc){
         lastLoc = c.loc; lastT = null;
         var ch = document.createElement('div'); ch.className = 'wk-ch'; ch.textContent = wkLocLabel(c.loc);
         big.appendChild(ch);
+        tcols = document.createElement('div'); tcols.className = 'wk-tcols';
+        big.appendChild(tcols);
       }
       if (c.teacher !== lastT){
-        // 센터 안에서 강사별로 묶어 강사 이름 아래 정렬 (2026-08-22 사용자 요청)
+        // 강사별 세로 열 — 강사 이름 아래로 반이 세로로 쌓임 (2026-08-22 사용자 요청)
         lastT = c.teacher;
+        tcol = document.createElement('div'); tcol.className = 'wk-tcol';
         var th = document.createElement('div'); th.className = 'wk-th'; th.textContent = c.teacher + 'T';
-        big.appendChild(th);
-        sec = document.createElement('div'); sec.className = 'wk-big-grid';
-        big.appendChild(sec);
+        tcol.appendChild(th);
+        tcols.appendChild(tcol);
       }
-      sec.appendChild(blockEl(c, true));
+      tcol.appendChild(blockEl(c, true));
     });
     wrap.appendChild(big);
   });
@@ -2997,22 +3002,24 @@ function buildWeekZoom(dname){
       var em = document.createElement('div'); em.className = 'wk-empty'; em.textContent = '이 요일에는 수업이 없어요.';
       big.appendChild(em);
     }
-    var lastLoc = null, lastT = null, sec = null;
+    var lastLoc = null, lastT = null, tcols = null, tcol = null;
     list.forEach(function(c){
       if (c.loc !== lastLoc){
         lastLoc = c.loc; lastT = null;
         var ch = document.createElement('div'); ch.className = 'wk-ch'; ch.textContent = wkLocLabel(c.loc);
         big.appendChild(ch);
+        tcols = document.createElement('div'); tcols.className = 'wk-tcols';
+        big.appendChild(tcols);
       }
       if (c.teacher !== lastT){
-        // 센터 안에서 강사별로 묶어 강사 이름 아래 정렬 (2026-08-22 사용자 요청)
+        // 강사별 세로 열 — 강사 이름 아래로 반이 세로로 쌓임 (2026-08-22 사용자 요청)
         lastT = c.teacher;
+        tcol = document.createElement('div'); tcol.className = 'wk-tcol';
         var th = document.createElement('div'); th.className = 'wk-th'; th.textContent = c.teacher + 'T';
-        big.appendChild(th);
-        sec = document.createElement('div'); sec.className = 'wk-big-grid';
-        big.appendChild(sec);
+        tcol.appendChild(th);
+        tcols.appendChild(tcol);
       }
-      sec.appendChild(weekBlockEl(c, dstr, true));
+      tcol.appendChild(weekBlockEl(c, dstr, true));
     });
     wrap.appendChild(big);
   });
