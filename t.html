@@ -268,6 +268,305 @@ body{font-family:'Noto Sans KR',sans-serif; background:var(--sage-fog); color:va
 </div>
 
 <script>
+/* ══ 수파베이스 연결부 (2026-08-22 DB 이전 3단계 — 지필 리포트·성적) ═══════
+ * m.html(시험 등록)·t.html(제출 결과)·r.html(학생 리포트)·analyses.html·stats.html 공용.
+ *  · 읽기: 시험 목록(?list)·시험 정의(?id)·제출 결과(?results)·시간표·내신기록 → 수파베이스
+ *    (제출 결과의 학생 매칭은 students 미러 사용 — 학생정보 시트가 원본)
+ *  · 학생 제출·시험 등록/삭제: 기존 백엔드 먼저(학생 페이지·별 집계가 시트를 읽음) + 수파베이스 미러
+ *  · 선생님 한마디: 수파베이스 id 기반 저장 + 시트에 같은 행을 찾아 최선 미러
+ *  · 분석지 배정(배정 탭)·roster·학생 페이지(getStudent)는 기존 백엔드 그대로
+ * 수파베이스 실패 시 자동으로 기존 백엔드 폴백. */
+(function(){
+  if (window.__sbAdapter) return; window.__sbAdapter = true;
+  var SB = 'https://bangdbhqpphqqdwcledg.supabase.co/rest/v1';
+  var SB_KEY = 'sb_publishable_dE9d1KIbpgYaQkaS2MSrlg_-7SiRJuT';
+  var LEGACY_SIG = 'script.google.com/macros/s/AKfycbzhCncBwn-';   // 리포트 백엔드 exec 주소
+  var rawFetch = window.fetch.bind(window);
+  var PAGE = 1000;
+
+  function hdr(extra){
+    var h = { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY, 'Content-Type': 'application/json' };
+    if (extra) for (var k in extra) h[k] = extra[k];
+    return h;
+  }
+  function sbGet(path, _from, _acc){
+    var from = _from || 0, acc = _acc || [];
+    return rawFetch(SB + path, { headers: hdr({ 'Range-Unit': 'items', 'Range': from + '-' + (from + PAGE - 1) }) })
+      .then(function(r){ if (!r.ok) throw new Error('sb ' + r.status); return r.json(); })
+      .then(function(rows){
+        acc = acc.concat(rows);
+        return rows.length < PAGE ? acc : sbGet(path, from + PAGE, acc);
+      });
+  }
+  function sbWrite(method, path, body, extra){
+    return rawFetch(SB + path, { method: method, headers: hdr(extra), body: body == null ? undefined : JSON.stringify(body) })
+      .then(function(r){
+        if (!r.ok) return r.text().then(function(t){ throw new Error('sb ' + r.status + ' ' + t.slice(0,120)); });
+        return (extra && /representation/.test(extra['Prefer'] || '')) ? r.json() : null;
+      });
+  }
+  function q(v){ return encodeURIComponent(String(v == null ? '' : v)); }
+  function pad2(n){ return String(n).padStart(2, '0'); }
+  function nowIso(){
+    var d = new Date();
+    return d.getFullYear() + '-' + pad2(d.getMonth()+1) + '-' + pad2(d.getDate()) + 'T' +
+           pad2(d.getHours()) + ':' + pad2(d.getMinutes()) + ':' + pad2(d.getSeconds()) + '+09:00';
+  }
+  function fmtAt(iso){
+    // 한국 시간(+9) 고정 표기 — 기기 시간대와 무관하게 기존 백엔드(GMT+9)와 동일
+    if (!iso) return '';
+    var t = Date.parse(iso);
+    if (isNaN(t)) return String(iso);
+    var d = new Date(t + 9 * 3600000);
+    return d.getUTCFullYear() + '-' + pad2(d.getUTCMonth()+1) + '-' + pad2(d.getUTCDate()) + ' ' +
+           pad2(d.getUTCHours()) + ':' + pad2(d.getUTCMinutes());
+  }
+  function ok(o){ o.result = 'success'; return o; }
+  function fake(d){ return { ok: true, status: 200, json: function(){ return Promise.resolve(d); } }; }
+  function legacyPost(url, body){
+    return rawFetch(url, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify(body) })
+      .then(function(r){ return r.json(); });
+  }
+
+  /* ── 읽기 ── */
+  function loadExam(rid){
+    return Promise.all([
+      sbGet('/exams?report_id=eq.' + q(rid)),
+      sbGet('/exam_questions?report_id=eq.' + q(rid) + '&order=seq')
+    ]).then(function(rs){
+      var e = rs[0][0];
+      if (!e) return { result:'error', message: "'" + rid + "' 보고서를 찾을 수 없습니다." };
+      return ok({ title: e.title, scope: e.scope,
+        review: String(e.review || '').split(/\n\s*\n/).map(function(s){ return s.trim(); }).filter(Boolean),
+        questions: rs[1].map(function(x){
+          return { no: x.no, area: x.area, type: x.qtype, lv: x.lv, txt: x.txt,
+                   detail: x.detail, group: x.grp, multi: !!x.multi };
+        }) });
+    });
+  }
+  function baseName(s){ return String(s == null ? '' : s).trim().replace(/[A-Za-z]$/, ''); }
+  function basePick(cands, phone){
+    if (!cands || !cands.length) return null;
+    if (cands.length === 1) return cands[0];
+    for (var i = 0; i < cands.length; i++){ if (phone && cands[i].id === phone) return cands[i]; }
+    return null;
+  }
+  function loadResults(rid){
+    var jobs = [
+      sbGet('/submissions?order=id' + (rid && rid !== 'ALL' ? '' : '')),
+      sbGet('/students?select=student_id,name,code&order=seq'),
+      (rid && rid !== 'ALL') ? sbGet('/exams?report_id=eq.' + q(rid) + '&select=title') : Promise.resolve([])
+    ];
+    return Promise.all(jobs).then(function(rs){
+      var matchTitle = rs[2][0] ? String(rs[2][0].title || '').trim() : '';
+      // 학생 매칭(기존 백엔드 getResults와 동일 규칙): 번호+이름 → 이름 → 접미사 제거 → 번호(1명일 때)
+      var byPhone = {}, byName = {}, byPhoneName = {}, phoneCount = {}, byBase = {};
+      rs[1].forEach(function(s){
+        var sId = String(s.student_id || '').trim(), sNm = String(s.name || '').trim();
+        var code = String(s.code || '').trim();
+        if (sId){
+          phoneCount[sId] = (phoneCount[sId] || 0) + 1;
+          byPhone[sId] = { code: code, id: sId };
+          if (sNm) byPhoneName[sId + '|' + sNm] = { code: code, id: sId };
+        }
+        if (sNm && !byName[sNm]) byName[sNm] = { code: code, id: sId };
+        var bn = baseName(sNm);
+        if (bn && bn !== sNm){ (byBase[bn] = byBase[bn] || []).push({ code: code, id: sId }); }
+      });
+      var students = [];
+      rs[0].forEach(function(row){
+        var examVal = String(row.exam || '').trim();
+        if (rid && rid !== 'ALL' && examVal !== rid && examVal !== matchTitle) return;
+        var nm = String(row.name || '').trim();
+        if (!nm) return;
+        var phone = String(row.parent_phone || '').trim();
+        var roster = (phone && byPhoneName[phone + '|' + nm]) || byName[nm] ||
+                     basePick(byBase[nm], phone) ||
+                     ((phone && phoneCount[phone] === 1) ? byPhone[phone] : null);
+        students.push({
+          rowIndex: row.id,
+          submittedAt: fmtAt(row.submitted_at),
+          title: row.exam, school: row.school, grade: row.grade, name: nm,
+          wrongCount: Number(row.wrong_count) || 0,
+          wrongText: row.wrong_text, vow: row.vow, teacherNote: row.teacher_note,
+          score: row.score, parentPhone: phone,
+          studentId: roster ? roster.id : phone,
+          accessCode: roster ? roster.code : ''
+        });
+      });
+      return ok({ students: students });
+    });
+  }
+  var GETS = {
+    timetableList: function(p){
+      var book = (String(p.get('book') || '').trim() === '내신') ? '내신' : '정규';
+      return sbGet('/tt_classes?book=eq.' + q(book) + '&order=id&select=class_id,day,start_time,end_time,location,teacher,name,roster')
+        .then(function(rows){
+          return ok({ classes: rows.map(function(r){
+            return { id: r.class_id, day: r.day, start: r.start_time, end: r.end_time,
+                     loc: r.location, teacher: r.teacher, cls: r.name,
+                     students: String(r.roster || '').trim().split(/\s+/).filter(String) };
+          }), onceMoves: [] });
+        });
+    },
+    naeshinGet: function(p){
+      var period = (p.get('period') || '').trim(), classId = (p.get('classId') || '').trim();
+      var scopeKey = (p.get('scopeKey') || '').trim();
+      if (!period || !classId) return Promise.resolve({ result:'error', message:'기간과 반이 필요합니다.' });
+      var keys = 'in.(' + q('"' + classId + '"' + (scopeKey ? ',"' + scopeKey + '"' : '')) + ')';
+      return sbGet('/naeshin_records?period=eq.' + q(period) + '&class_key=' + keys).then(function(rows){
+        var scopeShared = null, scopeLegacy = null, weeks = {}, notes = {}, cleared = {}, hwdone = {};
+        rows.forEach(function(r){
+          if (r.kind === '범위'){
+            var sv = { f: r.text1, g: r.text2 };
+            if (scopeKey && r.class_key === scopeKey) scopeShared = sv;
+            else if (r.class_key === classId) scopeLegacy = sv;
+            return;
+          }
+          if (r.class_key !== classId) return;
+          if (r.kind === '주차') weeks[r.week] = { prog: r.text1, hw: r.text2 };
+          else if (r.kind === '학생'){
+            (notes[r.week] = notes[r.week] || {})[r.student] = r.text1;
+            var hj = String(r.text2 || '').trim();
+            if (hj){ try { (hwdone[r.week] = hwdone[r.week] || {})[r.student] = JSON.parse(hj) || []; } catch (e) {} }
+          }
+          else if (r.kind === '클리어'){ try { cleared = JSON.parse(String(r.text1 || '{}')) || {}; } catch (e) {} }
+        });
+        var scope = scopeShared || scopeLegacy || '';
+        var scopeText = '', scopeParts = null;
+        if (scope){
+          if (/^\s*\{/.test(scope.f)){ try { scopeParts = JSON.parse(scope.f); } catch (e) {} }
+          scopeText = scope.g || (scopeParts ? '' : scope.f);
+          if (!scopeText && scopeParts){
+            scopeText = [['교과서', scopeParts.book], ['교과서 내 범위', scopeParts.inRange],
+                         ['추가 자료', scopeParts.extra], ['교과서 외 범위', scopeParts.outRange]]
+              .filter(function(x){ return x[1]; }).map(function(x){ return x[0] + ': ' + x[1]; }).join('\n');
+          }
+        }
+        return ok({ period: period, classId: classId, scope: scopeText, scopeParts: scopeParts,
+                    weeks: weeks, notes: notes, cleared: cleared, hwdone: hwdone });
+      });
+    }
+  };
+
+  /* ── 쓰기 미러 ── */
+  function mirrorExam(b){
+    var id = String(b.id || '').trim();
+    var review = Array.isArray(b.review) ? b.review.join('\n\n') : String(b.review || '');
+    return sbWrite('POST', '/exams?on_conflict=report_id',
+      [{ report_id: id, title: String(b.title || ''), review: review, scope: String(b.scope || ''),
+         school: String(b.school || ''), grade: String(b.grade || ''), at: nowIso() }],
+      { 'Prefer': 'resolution=merge-duplicates,return=minimal' })
+      .then(function(){ return sbWrite('DELETE', '/exam_questions?report_id=eq.' + q(id)); })
+      .then(function(){
+        var qs = (b.questions || []).map(function(x, i){
+          return { report_id: id, seq: i + 1, no: String(x.no || ''), area: String(x.area || ''),
+                   qtype: String(x.type || ''), lv: String(x.lv || ''), txt: String(x.txt || ''),
+                   detail: String(x.detail || ''), grp: String(x.group || ''),
+                   multi: (x.multi === true || x.multi === 'Y' || x.multi === 1) };
+        });
+        return qs.length ? sbWrite('POST', '/exam_questions', qs) : null;
+      });
+  }
+  function mirrorNoteToSheet(url, b, row){
+    // 시트 '제출결과'에서 같은 제출(시험·이름·제출일시)을 찾아 한마디를 함께 기록 (실패해도 무방)
+    rawFetch(url.slice(0, url.indexOf('/exec') + 5) + '?results=' + q(row.exam) + '&t=' + Date.now())
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        if (!d || d.result !== 'success') return;
+        var at = fmtAt(row.submitted_at);
+        var hit = (d.students || []).filter(function(s){
+          return s.name === row.name && s.submittedAt === at;
+        })[0];
+        if (hit) legacyPost(url.slice(0, url.indexOf('/exec') + 5),
+                            { action:'saveTeacherNote', rowIndex: hit.rowIndex, name: b.name, note: b.note })
+                   .catch(function(){});
+      })
+      .catch(function(){});
+  }
+  var POSTS = {
+    createReport: function(b, url){
+      return legacyPost(url, b).then(function(res){
+        if (!res || res.result !== 'success') return res;
+        return mirrorExam(b).then(function(){ return res; },
+          function(e){ console.warn('시험 미러 실패', e); return res; });
+      });
+    },
+    deleteReport: function(b, url){
+      return legacyPost(url, b).then(function(res){
+        if (!res || res.result !== 'success') return res;
+        var id = String(b.id || '').trim();
+        return sbWrite('DELETE', '/exams?report_id=eq.' + q(id))
+          .then(function(){ return sbWrite('DELETE', '/exam_questions?report_id=eq.' + q(id)); })
+          .then(function(){ return res; }, function(e){ console.warn('시험 삭제 미러 실패', e); return res; });
+      });
+    },
+    saveTeacherNote: function(b, url){
+      var id = parseInt(b.rowIndex, 10) || 0;
+      return sbWrite('PATCH', '/submissions?id=eq.' + id + '&name=eq.' + q(String(b.name || '').trim()),
+                     { teacher_note: String(b.note || '') }, { 'Prefer': 'return=representation' })
+        .then(function(rows){
+          if (!rows || !rows.length) return { result:'error', message:'기록을 찾을 수 없어요. 새로고침 후 다시 시도해 주세요.' };
+          mirrorNoteToSheet(url, b, rows[0]);
+          return ok({});
+        });
+    },
+    __submit: function(b, url){
+      // 학생 제출 — 기존 백엔드 먼저(학생 페이지 성적·별 집계가 시트를 읽음), 성공 시 수파베이스 미러
+      return legacyPost(url, b).then(function(res){
+        if (!res || res.result !== 'success') return res;
+        var rec = { submitted_at: nowIso(), exam: String(b.title || ''), school: String(b.school || ''),
+                    grade: String(b.grade || ''), name: String(b.name || ''),
+                    wrong_count: String(b.wrongCount == null ? 0 : b.wrongCount),
+                    wrong_text: String(b.wrongText || ''), vow: String(b.vow || ''),
+                    score: String(b.score || ''), parent_phone: String(b.parentPhone || '') };
+        function put(){ return sbWrite('POST', '/submissions', rec); }
+        put().catch(function(){ setTimeout(function(){ put().catch(function(e){ console.warn('제출 미러 실패', e); }); }, 3000); });
+        return res;
+      });
+    }
+  };
+
+  window.fetch = function(url, opts){
+    try {
+      if (typeof url !== 'string' || url.indexOf(LEGACY_SIG) < 0) return rawFetch(url, opts);
+      if (opts && String(opts.method || '').toUpperCase() === 'POST'){
+        var body;
+        try { body = JSON.parse(opts.body); } catch (e) { return rawFetch(url, opts); }
+        var ph = body && body.action ? POSTS[body.action] : POSTS.__submit;
+        if (!ph) return rawFetch(url, opts);
+        return ph(body, url).then(fake, function(err){
+          console.warn('수파베이스 쓰기 실패 — 기존 백엔드로 폴백', body.action || '제출', err);
+          return rawFetch(url, opts);
+        });
+      }
+      var qs = new URLSearchParams(url.slice(url.indexOf('?') + 1));
+      var job = null;
+      if (qs.get('action')){
+        var gh = GETS[qs.get('action')];
+        if (gh) job = gh(qs);
+      }
+      else if (qs.get('list')) job = sbGet('/exams?order=at,report_id&select=report_id,title,school,grade')
+        .then(function(rows){
+          return ok({ reports: rows.map(function(r){
+            return { id: r.report_id, title: r.title, school: r.school, grade: r.grade };
+          }) });
+        });
+      else if (qs.get('results')) job = loadResults(String(qs.get('results')).trim());
+      else if (qs.get('id')) job = loadExam(String(qs.get('id')).trim());
+      if (!job) return rawFetch(url, opts);
+      return job.then(fake, function(err){
+        console.warn('수파베이스 조회 실패 — 기존 백엔드로 폴백', err);
+        return rawFetch(url, opts);
+      });
+    } catch (e) {
+      return rawFetch(url, opts);
+    }
+  };
+})();
+</script>
+
+<script>
 /* ===== 비밀번호 잠금 ===== */
 var LOCK_KEY = 'shueguk_teacher_unlocked';
 var PASS_ENC = 'c2g='; // 비밀번호를 base64로 보관 (가벼운 잠금)
