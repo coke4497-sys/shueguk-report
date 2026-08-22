@@ -340,6 +340,24 @@
   .ah-badge.a-mk.done{border-color:#9DBD9A;color:#3E6B3C;font-weight:700;}
   .ah-badge.a-mk.todo{border-color:#D9A79F;color:#A2453C;}
   .ah-note{color:var(--ink-soft);font-size:.8rem;}
+  /* 출석 비성실 경고 대상자 모달 */
+  .aw-ctrl{display:flex;gap:7px;flex-wrap:wrap;align-items:center;}
+  .aw-ctrl input[type=date]{font:inherit;font-size:.84rem;border:1.5px solid var(--line);border-radius:9px;padding:7px 9px;margin:0;width:auto;}
+  .aw-sortl{font-size:.78rem;color:var(--ink-soft);font-weight:700;}
+  .aw-item{margin-top:6px;}
+  .aw-row{display:flex;gap:7px;align-items:center;flex-wrap:wrap;border:1px solid var(--line-soft);
+    border-radius:10px;padding:7px 11px;cursor:pointer;font-size:.86rem;background:#fff;}
+  .aw-row:hover{background:var(--icon-bg);}
+  .aw-row.hot{border-color:#D9A79F;background:#FDF6F5;}
+  .aw-rank{font-weight:700;color:var(--ink-soft);min-width:22px;text-align:center;flex:none;font-size:.8rem;}
+  .aw-row.hot .aw-rank{color:#A2453C;}
+  .aw-row b{font-family:"Gowun Batang",serif;}
+  .aw-att{color:var(--ink-soft);font-size:.74rem;}
+  .aw-total{margin-left:auto;font-weight:700;font-size:.8rem;color:#A2453C;flex:none;}
+  .ah-badge.zero{opacity:.3;font-weight:400;}
+  .aw-det{border:1px solid var(--line-soft);border-top:none;border-radius:0 0 10px 10px;
+    margin:0 6px;padding:8px 10px 6px;background:#FBFCFB;}
+  .aw-det .ah-row{background:#fff;}
   .modal h3{font-family:"Gowun Batang",serif;color:var(--accent);margin:0 0 4px;font-size:1.05rem;}
   .modal .mdesc{font-size:.85rem;color:var(--ink-soft);margin:0 0 10px;}
   .modal label.radio{display:block;border:1.5px solid var(--line);border-radius:10px;padding:9px 12px;margin:6px 0;cursor:pointer;font-size:.92rem;}
@@ -451,6 +469,7 @@
       <button id="v-exs" onclick="setMode('exs')">지필고사 일정</button>
       <span class="sp"></span>
       <button class="reload" onclick="openAttHistory()">학생 출석 이력</button>
+      <button class="reload" onclick="openAttWarn()">경고 대상자 확인</button>
       <button class="reload" onclick="openMakeup()">결석자 관리</button>
       <button class="reload" onclick="load(true)">다시 불러오기</button>
     </div>
@@ -2434,6 +2453,171 @@ function ahShow(recs, f, t, loadFail){
     });
   });
   h += '<p class="exs-none" style="margin-top:8px;">조회 기간: ' + exsMd(f) + ' ~ ' + exsMd(t) + ' (다음주 예약 이동 포함)</p>';
+  body.innerHTML = h;
+}
+
+/* ── 출석 비성실 경고 대상자 확인 — 기간 내 지각·결석·1회 이동을 학생별로 모아 잦은 순 랭킹 (2026-08-22 사용자 요청)
+ * 데이터: 전용 액션 attendWarnList(정규+내신 서버 집계, 왕복 1번) — 구버전 백엔드면 timetableWeek 2회로 폴백 */
+var awWeeks = 4, awSort = 'total', awSeq = 0, awData = null;
+function openAttWarn(){
+  awShell();
+  awSetWeeks(awWeeks || 4);   // 직접 날짜를 고친 뒤(awWeeks=0) 다시 열면 기본 4주로
+}
+function awShell(){
+  openModal(
+    '<h3>출석 비성실 경고 대상자 확인</h3>' +
+    '<p class="mdesc">기간 안의 지각·결석·1회 이동을 학생별로 모아 잦은 학생부터 보여줘요 (정규+내신 모두). 줄을 누르면 날짜별 내역이 펼쳐져요.</p>' +
+    '<div class="aw-ctrl">' +
+    [2, 4, 8, 12].map(function(w){
+      return '<button type="button" class="ah-wk" id="aw-w' + w + '" onclick="awSetWeeks(' + w + ')">' + w + '주</button>';
+    }).join('') +
+    '<input type="date" id="aw-from"> ~ <input type="date" id="aw-to">' +
+    '<button type="button" class="ah-go" onclick="awGo()">조회</button></div>' +
+    '<div class="aw-ctrl" style="margin-top:8px;"><span class="aw-sortl">정렬</span>' +
+    [['total', '종합'], ['late', '지각'], ['abs', '결석'], ['move', '이동']].map(function(s){
+      return '<button type="button" class="ah-wk' + (s[0] === awSort ? ' on' : '') + '" id="aw-s-' + s[0] + '" onclick="awSetSort(\'' + s[0] + '\')">' + s[1] + '</button>';
+    }).join('') + '</div>' +
+    '<div id="aw-body"></div>' +
+    '<div class="mbtns"><button onclick="closeModal()">닫기</button></div>',
+    true);
+  ['aw-from', 'aw-to'].forEach(function(id){
+    $(id).addEventListener('change', function(){ awMarkWeeks(0); });
+  });
+}
+function awMarkWeeks(w){
+  awWeeks = w;
+  [2, 4, 8, 12].forEach(function(x){ var b = $('aw-w' + x); if (b) b.classList.toggle('on', x === w); });
+}
+function awSetWeeks(w){
+  awMarkWeeks(w);
+  var from = new Date(weekStart); from.setDate(from.getDate() - 2 - (w - 1) * 7);   // 그 주차의 월요일
+  var to = new Date(weekStart); to.setDate(to.getDate() + 4);                       // 이번 주 일요일
+  $('aw-from').value = ymdOf(from);
+  $('aw-to').value = ymdOf(to);
+  awLoad();
+}
+function awGo(){ awLoad(); }
+function awSetSort(s){
+  awSort = s;
+  ['total', 'late', 'abs', 'move'].forEach(function(x){ var b = $('aw-s-' + x); if (b) b.classList.toggle('on', x === s); });
+  if (awData) awShow();
+}
+function awLoad(){
+  var body = $('aw-body');
+  if (!body) return;
+  var f = $('aw-from').value, t = $('aw-to').value;
+  if (!f || !t){ body.innerHTML = '<p class="exs-none">기간을 골라주세요.</p>'; return; }
+  if (f > t){ var tmp = f; f = t; t = tmp; $('aw-from').value = f; $('aw-to').value = t; }
+  body.innerHTML = '<p class="exs-none">기간 내 기록을 모으는 중…</p>';
+  var qs = '&pw=' + encodeURIComponent(pw) + '&t=' + Date.now();
+  var seq = ++awSeq;
+  // 1차: 전용 액션 attendWarnList — 서버가 학생별로 집계해 줘서 왕복 1번·작은 응답.
+  // 백엔드가 아직 구버전이면 실패하므로 timetableWeek 2회(정규+내신)로 폴백.
+  ahFetch(ENDPOINT + '?action=attendWarnList&from=' + f + '&to=' + t + qs).then(function(d){
+    if (seq !== awSeq || !$('aw-body')) return;   // 다른 조회가 시작됨
+    if (d && d.result === 'success'){
+      awData = { from: f, to: t, list: d.list || [], hasMk: true };
+      awShow();
+      return;
+    }
+    awLoadLegacy(f, t, qs, seq);
+  });
+}
+/* 폴백 — 구버전 백엔드용 timetableWeek 2회 조회 후 화면에서 집계 (영상보충 처리 상태는 없음) */
+function awLoadLegacy(f, t, qs, seq){
+  var body = $('aw-body');
+  if (body) body.innerHTML = '<p class="exs-none">기간 내 기록을 모으는 중… (몇 초 걸릴 수 있어요)</p>';
+  Promise.all([
+    ahFetch(ENDPOINT + '?action=timetableWeek&book=' + encodeURIComponent('정규') + '&from=' + f + '&to=' + t + qs),
+    ahFetch(ENDPOINT + '?action=timetableWeek&book=' + encodeURIComponent('내신') + '&from=' + f + '&to=' + t + qs)
+  ]).then(function(rs){
+    if (seq !== awSeq || !$('aw-body')) return;
+    if ((!rs[0] || rs[0].result !== 'success') && (!rs[1] || rs[1].result !== 'success')){
+      $('aw-body').innerHTML = '<p class="exs-none">기록을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.</p>';
+      return;
+    }
+    var agg = {};
+    function of(nm){ return agg[nm] || (agg[nm] = { name: nm, att: 0, late: 0, abs: 0, absDone: 0, move: 0, items: [] }); }
+    [[rs[0], '정규'], [rs[1], '내신']].forEach(function(pr){
+      if (!pr[0] || pr[0].result !== 'success') return;
+      (pr[0].attend || []).forEach(function(a){
+        var nm = plainName(a.student).trim();
+        if (!nm) return;
+        var s = of(nm);
+        if (a.status === '출석'){ s.att++; return; }
+        if (a.status !== '지각' && a.status !== '결석') return;
+        if (a.status === '지각') s.late++; else s.abs++;
+        s.items.push({ date: a.date, kind: a.status, book: pr[1], classId: a.classId, memo: a.memo });
+      });
+      (pr[0].onceMoves || []).forEach(function(o){
+        var nm = plainName(o.student).trim();
+        if (!nm) return;
+        var s = of(nm);
+        s.move++;
+        s.items.push({ date: o.date, kind: '이동', book: pr[1], fromId: o.fromId, toId: o.toId, reason: o.reason });
+      });
+    });
+    var list = [];
+    for (var k in agg) if (agg[k].late + agg[k].abs + agg[k].move > 0) list.push(agg[k]);
+    awData = { from: f, to: t, list: list, hasMk: false };
+    awShow();
+  });
+}
+function awToggle(i){
+  var det = $('aw-det-' + i);
+  if (det) det.hidden = !det.hidden;
+}
+function awShow(){
+  var body = $('aw-body');
+  if (!body || !awData) return;
+  var list = awData.list.slice();
+  if (!list.length){
+    body.innerHTML = '<p class="exs-none">' + exsMd(awData.from) + ' ~ ' + exsMd(awData.to) + ' 사이 지각·결석·1회 이동 기록이 없어요.</p>';
+    return;
+  }
+  function total(s){ return s.late + s.abs + s.move; }
+  function key(s){ return awSort === 'total' ? total(s) : s[awSort]; }
+  list.sort(function(a, b){
+    return key(b) - key(a) || total(b) - total(a) || b.abs - a.abs || b.late - a.late ||
+           a.name.localeCompare(b.name, 'ko');
+  });
+  if (awSort !== 'total') list = list.filter(function(s){ return key(s) > 0; });
+  if (!list.length){
+    body.innerHTML = '<p class="exs-none">이 기간엔 해당 기록이 없어요.</p>';
+    return;
+  }
+  var h = '<p class="exs-none" style="margin:10px 0 2px;">' + exsMd(awData.from) + ' ~ ' + exsMd(awData.to) +
+    ' · 대상 ' + list.length + '명 (지각·결석·1회 이동이 1건 이상인 학생만)</p>';
+  list.forEach(function(s, i){
+    var tot = total(s);
+    h += '<div class="aw-item"><div class="aw-row' + (tot >= 3 ? ' hot' : '') + '" onclick="awToggle(' + i + ')">' +
+      '<span class="aw-rank">' + (i + 1) + '</span><b>' + esc(s.name) + '</b>' +
+      '<span class="ah-badge a-late' + (s.late ? '' : ' zero') + '">지각 ' + s.late + '</span>' +
+      '<span class="ah-badge a-abs' + (s.abs ? '' : ' zero') + '">결석 ' + s.abs +
+        (awData.hasMk && s.abs ? ' (보충 완료 ' + s.absDone + ')' : '') + '</span>' +
+      '<span class="ah-badge a-move' + (s.move ? '' : ' zero') + '">이동 ' + s.move + '</span>' +
+      '<span class="aw-att">출석 ' + s.att + '</span>' +
+      '<span class="aw-total">합 ' + tot + '</span></div>' +
+      '<div class="aw-det" id="aw-det-' + i + '" hidden>' +
+      s.items.slice().sort(function(a, b){ return a.date.localeCompare(b.date); }).map(function(r){
+        if (r.kind === '이동'){
+          var fi = ahClassInfo(r.book, r.fromId), ti = ahClassInfo(r.book, r.toId);
+          return '<div class="ah-row"><span class="ah-date">' + exsMd(r.date) + '</span>' +
+            '<span class="ah-badge a-move">1회 이동</span>' +
+            '<span class="ah-cls">' + esc(fi.label) + ' → ' + esc(ti.label) + '</span>' +
+            (r.reason ? '<span class="ah-note">사유: ' + esc(r.reason) + '</span>' : '') + '</div>';
+        }
+        var ci = ahClassInfo(r.book, r.classId);
+        return '<div class="ah-row"><span class="ah-date">' + exsMd(r.date) + '</span>' +
+          '<span class="ah-badge ' + (r.kind === '지각' ? 'a-late' : 'a-abs') + '">' + esc(r.kind) + '</span>' +
+          '<span class="ah-cls">' + esc(ci.label) + (r.book === '내신' ? ' (내신)' : '') + '</span>' +
+          (r.kind === '결석' && awData.hasMk ? ahMkBadge(r) : '') +
+          (r.memo ? '<span class="ah-note">' + esc(r.memo) + '</span>' : '') +
+          (r.mkMemo ? '<span class="ah-note">보충메모: ' + esc(r.mkMemo) + '</span>' : '') + '</div>';
+      }).join('') +
+      '<div style="margin:4px 0 2px;"><button type="button" class="ah-wk" onclick="openAttHistory(\'' + esc(s.name) + '\')">' +
+      esc(s.name) + ' 출석 이력 자세히</button></div></div></div>';
+  });
   body.innerHTML = h;
 }
 
