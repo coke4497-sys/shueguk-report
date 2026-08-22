@@ -433,6 +433,28 @@
   /* 시험 기간 접두어 (26-1-중간 등) */
   function periodOf(title){ var m=String(title||'').match(/^(\d{2}-[12]-(?:중간|기말))/); return m?m[1]:''; }
 
+  /* 배정 미러 재동기화 (2026-08-23 DB 이전) — assignList(tool 전체) 응답으로 그 도구의
+   * 미러(assignments)를 통째 교체. 실패 무해(일일 점검이 복구). */
+  function sbResyncAssign(tool, list){
+    try {
+      function ymdN(v){
+        var s = String(v == null ? '' : v).trim();
+        if (!s || /^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+        var tm = Date.parse(s);
+        if (isNaN(tm)) return s;
+        var d = new Date(tm + 9 * 3600000);
+        return d.getUTCFullYear()+'-'+pad2(d.getUTCMonth()+1)+'-'+pad2(d.getUTCDate());
+      }
+      var body = (list||[]).map(function(a){
+        return { seq: a.rowIndex||0, date: ymdN(a.date), tool: String(a.tool||tool), item: String(a.item||''),
+                 type: String(a.type||''), target: String(a.target||''), due: ymdN(a.due), memo: String(a.memo||'') };
+      });
+      sbWrite('DELETE', '/assignments?tool=eq.' + q(tool))
+        .then(function(){ return body.length ? sbWrite('POST', '/assignments', body, { 'Prefer': 'return=minimal' }) : null; })
+        .catch(function(e){ console.warn('배정 미러 재동기화 실패 — 일일 점검이 복구', e); });
+    } catch (e) {}
+  }
+
   /* ===== 목록 로드: 리포트 목록 + 현재 배정 ===== */
   function loadAll(){
     var box=document.getElementById('list');
@@ -447,6 +469,7 @@
       ASSIGN = {};
       if(asg && asg.result==='success' && asg.assignments){
         asg.assignments.forEach(function(a){ if(a.item){ ASSIGN[a.item] = { type:a.type||'', target:a.target||'' }; } });
+        sbResyncAssign('지필고사 분석지', asg.assignments);   // 배정 미러 재동기화 (s.html이 읽음)
       }
       if(!REPORTS.length){ box.innerHTML='<div class="mgr-empty">등록된 리포트가 없어요.<br>먼저 ‘지필고사 리포트 제작’에서 만들어 주세요.</div>'; return; }
       // 시험 기간(26-1-중간 등)별로 묶어 최근 기간부터 표시

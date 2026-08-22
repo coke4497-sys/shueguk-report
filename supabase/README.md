@@ -142,6 +142,27 @@
   서로 다른 키가 되도록 (2026-08-22 실데이터에서 13건 확인).
 - s.html의 vocaTaken(응시 확인)·대시보드 조회(lite/detail/taken)는 기존 백엔드 그대로.
 
+## s.html(학생 페이지) 완전 전환 (2026-08-23)
+- [x] `migrations/009_student_page.sql` — assignments('배정' 탭 미러)·report_config('설정' 탭의
+      어휘 테스트·어휘 주차만 미러) — 둘 다 **리포트 시트가 원본**. 초기 이전: 배정 26건·설정 2키.
+- [x] **s.html '수파베이스 연결부'**: getStudent(학생 허브 조립 — 학생정보·공지·H WORK 배정+제출 여부·
+      분석지·클리닉 내역·모의고사 신청·숙제검사·별 집계·어휘 설정/응시·성적+문항)를 수파베이스에서
+      직접 조립. 매칭 규칙은 backend-createReport.gs의 함수들을 1:1 이식(examRowMatch_·noticeMatches_·
+      readNoticeChecks_·hworkDoneSet_·countVoca_/Mock_/Hwork_/ClinicApps_·sumBonus_·STAR_RULES 등).
+      **실패 시 기존 백엔드(getStudent)로 자동 폴백.** 시각 계산은 전부 KST 고정(기기 시간대 무관).
+- **검증(2026-08-22)**: 재원+퇴원 전 학생 496명 잠금 화면 전수 일치 + 비밀번호 입력 상태(성적·문항 포함)
+      전수 대조 — 어댑터 응답과 실서버 getStudent 응답 완전 동일. 허용한 차이 3가지뿐:
+      ① mockGates는 어댑터가 null(페이지가 기존 직접 조회 폴백), ② 배정 date/due·③ 별 보너스 date를
+      배포 백엔드는 ISO 원시값으로 주지만 어댑터는 KST yyyy-MM-dd (마감일이 하루 이르게 보이던 표기
+      버그가 오히려 고쳐짐).
+- **주의(백엔드 원문과 다른 점 아님, 원문 그대로의 특성)**: 잠금 전 examCount는 countExams_를
+      uniq·grade 인자 없이 부르는 축약 호출이라 별 집계(exam)보다 엄격 — 어댑터도 두 값을 따로 계산.
+- 신선도: 공지 확인(s.html 훅)·배정(clinic_assign/hwork_assign/analyses/m.html의 assignList 재동기화 훅)·
+      어휘 설정(hub voca.html 훅)이 즉시 미러 갱신. **모의고사 응시(OMR)만 일일 점검 주기로 반영**
+      (OMR 화면이 Apps Script 내부라 실시간 미러 불가 — 응시 별은 다음 날 새벽 반영).
+- 쓰기(공지 확인 checkNotice·복기 제출)는 기존 백엔드 그대로 + 미러 즉시 반영.
+- 일일 점검: assignments·report_config 대조가 기본 흐름에 포함됨(리포트 xlsx에서 추출).
+
 ## 일일 자동 점검·복구 (2026-08-22 설정)
 - **매일 새벽 3:30(KST) CCR 루틴**: 백엔드 시트 xlsx 다운로드(구글 드라이브,
   파일 id 1_TyraMnur7AhiuB0nVMcDXq2YU2IBeju3lSTkV3Njos) → `tools/audit_heal.py <xlsx> --omr <OMRxlsx> --signup --clinic --heal`.

@@ -475,10 +475,38 @@ body{font-family:'Noto Sans KR',sans-serif; background:var(--sage-fog); color:va
       })
       .catch(function(){});
   }
+  /* 배정 미러 재동기화 (2026-08-23 DB 이전) — 시험 등록이 '배정' 탭도 쓰므로,
+   * 등록 성공 시 assignList(지필고사 분석지 전체)를 받아 미러(assignments)를 통째 교체. 실패 무해. */
+  function sbResyncAnalysisAssign(url){
+    try {
+      var base = url.slice(0, url.indexOf('/exec') + 5);
+      rawFetch(base + '?action=assignList&tool=' + q('지필고사 분석지') + '&pw=sh&t=' + Date.now())
+        .then(function(r){ return r.json(); })
+        .then(function(d){
+          if (!d || d.result !== 'success') return;
+          function ymdN(v){
+            var s = String(v == null ? '' : v).trim();
+            if (!s || /^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+            var tm = Date.parse(s);
+            if (isNaN(tm)) return s;
+            var dd = new Date(tm + 9 * 3600000);
+            return dd.getUTCFullYear()+'-'+pad2(dd.getUTCMonth()+1)+'-'+pad2(dd.getUTCDate());
+          }
+          var body = (d.assignments || []).map(function(a){
+            return { seq: a.rowIndex||0, date: ymdN(a.date), tool: String(a.tool||'지필고사 분석지'), item: String(a.item||''),
+                     type: String(a.type||''), target: String(a.target||''), due: ymdN(a.due), memo: String(a.memo||'') };
+          });
+          return sbWrite('DELETE', '/assignments?tool=eq.' + q('지필고사 분석지'))
+            .then(function(){ return body.length ? sbWrite('POST', '/assignments', body, { 'Prefer': 'return=minimal' }) : null; });
+        })
+        .catch(function(e){ console.warn('배정 미러 재동기화 실패 — 일일 점검이 복구', e); });
+    } catch (e) {}
+  }
   var POSTS = {
     createReport: function(b, url){
       return legacyPost(url, b).then(function(res){
         if (!res || res.result !== 'success') return res;
+        sbResyncAnalysisAssign(url);
         return mirrorExam(b).then(function(){ return res; },
           function(e){ console.warn('시험 미러 실패', e); return res; });
       });

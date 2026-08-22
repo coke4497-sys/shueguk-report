@@ -693,6 +693,512 @@ function api(extra){
   return fetch(ENDPOINT + q).then(function(r){ return r.json(); });
 }
 
+/* ══ 수파베이스 연결부 (2026-08-23 DB 이전) ══════════════════════
+ * 학생 허브 조립(getStudent)을 수파베이스에서 직접 수행 — 기존 백엔드 응답 모양을 그대로
+ * 재현한다(매칭 규칙은 backend-createReport.gs의 해당 함수와 1:1 이식). 어떤 이유로든
+ * 실패하면 기존 백엔드(getStudent)로 자동 폴백. 쓰기(공지 확인·복기 제출)는 기존 백엔드 그대로.
+ * mockGates만 null로 두어 페이지의 기존 직접 조회 폴백을 쓴다(신청 시트 설정은 미러에 없음). */
+(function(){
+  var SB_REST = 'https://bangdbhqpphqqdwcledg.supabase.co/rest/v1';
+  var SB_KEY = 'sb_publishable_dE9d1KIbpgYaQkaS2MSrlg_-7SiRJuT';
+  function sbGet(path){
+    return fetch(SB_REST + path, { headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY } })
+      .then(function(r){ if(!r.ok) throw new Error('sb ' + r.status); return r.json(); });
+  }
+  function enc(v){ return encodeURIComponent(v); }
+  function tr(v){ return String(v == null ? '' : v).trim(); }
+  function p2(n){ return ('0' + n).slice(-2); }
+
+  /* ── 백엔드 규칙 이식 ── */
+  var STAR_RULES = { exam: 2, clinic: 1, voca: 1, hwork: 1, notice: 1, mock: 1, hwcheck: 1 };
+  function baseName(s){ return tr(s).replace(/[A-Za-z]$/, ''); }
+  function schoolMatch(a, b){
+    a = String(a || '').replace(/\s+/g, ''); b = String(b || '').replace(/\s+/g, '');
+    if (!a || !b) return false;
+    if (a === b) return true;
+    var na = a.replace(/(등학교|고등학교|중학교|학교|고|중)$/, '');
+    var nb = b.replace(/(등학교|고등학교|중학교|학교|고|중)$/, '');
+    if (na && nb && na === nb) return true;
+    return a.indexOf(b) >= 0 || b.indexOf(a) >= 0;
+  }
+  function gradeDigit(s){
+    s = String(s || '').replace(/\s+/g, '');
+    var m = s.match(/([1-3])학년/) || s.match(/고([1-3])/);
+    if (m) return m[1];
+    var a = s.match(/[1-3]/g);
+    return a ? a[a.length - 1] : '';
+  }
+  function normGrade(s){
+    s = tr(s);
+    if (!s) return '';
+    var lv = /고/.test(s) ? '고' : (/중/.test(s) ? '중' : (/초/.test(s) ? '초' : ''));
+    if (!lv) return '';
+    var m = s.match(/([1-6])\s*학년/) || s.match(/(?:고|중|초)\s*([1-6])/);
+    return m ? lv + m[1] : '';
+  }
+  function noticeMatches(type, target, stu){
+    type = tr(type); target = tr(target);
+    if (type.indexOf('전체') >= 0) return true;
+    if (type === '' && target === '') return true;
+    var tokens = target.split(/[,\n;\/·\s]+/).map(tr).filter(Boolean);
+    if (!tokens.length) return false;
+    if (type.indexOf('학년') >= 0) {
+      var g = stu.grade.replace(/\s+/g, '');
+      var sg = (stu.school + stu.grade).replace(/\s+/g, '');
+      var gd = gradeDigit(stu.grade);
+      var ng = normGrade(stu.grade);
+      var lvS = /중/.test(g) ? '중' : (/고/.test(g) ? '고' : '');
+      var gTokens = target.split(/[,\n;\/·]+/).map(tr).filter(Boolean);
+      return gTokens.some(function(t){
+        var tt = t.replace(/\s+/g, '');
+        if (!tt) return false;
+        var td = gradeDigit(tt);
+        if (td && gd && td !== gd) return false;
+        var lvT = /중/.test(tt) ? '중' : (/고/.test(tt) ? '고' : '');
+        if (lvT && lvS && lvT !== lvS) return false;
+        if (ng && normGrade(tt) === ng) return true;
+        return tt === g || sg.indexOf(tt) >= 0 || g.indexOf(tt) >= 0;
+      });
+    }
+    return tokens.some(function(t){
+      if (t.indexOf('|') >= 0) {
+        var p = t.split('|');
+        var tn = tr(p[0]), ts = tr(p[1]), tg = tr(p[2]);
+        if (!tn || tn !== stu.name) return false;
+        if (ts && stu.school && !schoolMatch(ts, stu.school)) return false;
+        if (tg && stu.grade && tg.replace(/\s+/g, '') !== stu.grade.replace(/\s+/g, '')) return false;
+        return true;
+      }
+      return t === stu.name || t === stu.sid || t === stu.code;
+    });
+  }
+  function noticeKeyOf(dateStr, title){ return String(dateStr || '') + '|' + String(title || ''); }
+  function examRowMatch(phone, nm, rsc, rgdRaw, sid, name, strictName, school, uniq, myGd){
+    if (!uniq && phone && sid && phone !== sid) return false;
+    var nameSchoolOk = (nm === name || (nm !== '' && nm === baseName(name))) && (uniq || !rsc || !school || schoolMatch(rsc, school));
+    var match;
+    if (strictName) match = phone ? ((phone === sid && nm === name) || nameSchoolOk) : (nm === name);
+    else match = (phone && phone === sid) || nameSchoolOk;
+    if (!match) return false;
+    if (!(phone && sid && phone === sid) && myGd) {
+      var rGd = gradeDigit(rgdRaw);
+      if (rGd && rGd !== myGd) return false;
+    }
+    return true;
+  }
+  /* 시각 처리 — 전부 KST 고정(기기 시간대 무관). ts 문자열('yyyy-MM-dd ..')은 날짜부만 쓴다. */
+  function fmtTsKST(iso){
+    var t = Date.parse(iso); if (isNaN(t)) return '';
+    var d = new Date(t + 9 * 3600000);
+    return d.getUTCFullYear() + '-' + p2(d.getUTCMonth() + 1) + '-' + p2(d.getUTCDate()) +
+           ' ' + p2(d.getUTCHours()) + ':' + p2(d.getUTCMinutes());
+  }
+  function ymdOf(s){ var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(s || '').trim()); return m ? [+m[1], +m[2], +m[3]] : null; }
+  function isoYmdUTC(d){ return d.getUTCFullYear() + '-' + p2(d.getUTCMonth() + 1) + '-' + p2(d.getUTCDate()); }
+  function weekMonday(s){   // 클리닉 별 집계 주차(월요일) — backend clinicWeekKey_
+    var p = ymdOf(s); if (!p) return String(s || '');
+    var d = new Date(Date.UTC(p[0], p[1] - 1, p[2], 12));
+    d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7));
+    return isoYmdUTC(d);
+  }
+  function weekTuesday(p){  // 주말 신청 주차(화요일) — backend signupWeekKey_. p=[y,m,d]
+    if (!p) return '';
+    var d = new Date(Date.UTC(p[0], p[1] - 1, p[2], 12));
+    d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() - 2 + 7) % 7));
+    return isoYmdUTC(d);
+  }
+  function kstToday(){ var d = new Date(Date.now() + 9 * 3600000); return [d.getUTCFullYear(), d.getUTCMonth() + 1, d.getUTCDate()]; }
+  function signupDateLabel(weekKey, day){
+    var p = ymdOf(weekKey); if (!p) return '';
+    var off = (day === '토요일') ? 4 : (day === '일요일') ? 5 : 0;
+    var d = new Date(Date.UTC(p[0], p[1] - 1, p[2] + off, 12));
+    return (d.getUTCMonth() + 1) + '월 ' + d.getUTCDate() + '일';
+  }
+  /* or=() 필터 — 빈 값 조건은 뺀다 (빈 문자열 일치로 남의 행이 딸려오지 않게) */
+  function orFilter(pairs){
+    var conds = [];
+    pairs.forEach(function(p){ if (tr(p[1])) conds.push(p[0] + '.eq.' + enc(p[1])); });
+    if (!conds.length) return null;
+    return conds.length === 1 ? '&' + conds[0].replace('.eq.', '=eq.') : '&or=(' + conds.join(',') + ')';
+  }
+  function nameOr(name, base){
+    return orFilter(base && base !== name ? [['name', name], ['name', base]] : [['name', name]]);
+  }
+
+  function assemble(qsKey, isId, pw){
+    return sbGet('/students?select=student_id,name,school,grade,teacher,memo,class_a,class_b,naeshin_a,naeshin_b,enrolled,code&order=seq,id').then(function(sv){
+      var me = null;
+      for (var i = 0; i < sv.length; i++) {
+        var hit = isId ? tr(sv[i].student_id) === qsKey : tr(sv[i].code) === qsKey;
+        if (hit) { me = sv[i]; break; }
+      }
+      if (!me) throw new Error('mirror: student not found');
+      var key = isId ? '' : qsKey;
+      var sid = tr(me.student_id);
+      var info = { id: sid, name: tr(me.name), school: String(me.school || ''), grade: String(me.grade || ''),
+                   teacher: String(me.teacher || ''), memo: String(me.memo || ''), classA: String(me.class_a || ''),
+                   classB: String(me.class_b || ''), progress: String(me.naeshin_a || ''), checkup: String(me.naeshin_b || ''),
+                   enrolled: String(me.enrolled || '') };
+      var shareCount = 0, myBase = baseName(info.name), nameDupCount = 0;
+      for (var s2 = 0; s2 < sv.length; s2++) {
+        if (tr(sv[s2].student_id) === sid) shareCount++;
+        var rn = tr(sv[s2].name);
+        if (rn && baseName(rn) === myBase && !/^(퇴원|n|no|off|x|중단|비재원)$/i.test(tr(sv[s2].enrolled))) nameDupCount++;
+      }
+      var siblingShared = shareCount > 1;
+      info.nameDup = nameDupCount > 1;
+      var uniq = !info.nameDup;
+      var pwTried = pw !== '';
+      var authed = pwTried && pw === sid;
+      var name = info.name, base = baseName(name), school = tr(info.school), myGd = gradeDigit(info.grade);
+      var stu = { sid: sid, name: name, grade: tr(info.grade), school: school, code: tr(key) };
+
+      var fName = nameOr(name, base);
+      var jobs = [
+        sbGet('/notices?select=seq,date,type,target,title,body,hidden&order=seq,id'),                                          // 0
+        (function(){ var f = orFilter([['student_id', sid], ['name', name]]);
+          return f ? sbGet('/notice_reads?select=student_id,name,school,notice_key&order=at,id' + f) : Promise.resolve([]); })(), // 1
+        sbGet('/assignments?select=seq,date,tool,item,type,target,due,memo&order=seq,id'),                                     // 2
+        (function(){ var f = orFilter([['token', key], ['student_id', sid]]);
+          return f ? sbGet('/clinic_requests?select=ts,slot,rtype,area,content,qcount,memo,student_id,token&order=id' + f) : Promise.resolve([]); })(), // 3
+        fName ? sbGet('/hwork_submissions?select=teacher,code,name,school,grade&order=id' + fName) : Promise.resolve([]),      // 4
+        fName ? sbGet('/voca_results?select=name,round,grade,school&order=id' + fName) : Promise.resolve([]),                  // 5
+        fName ? sbGet('/omr_responses?select=student_id,name,school,exam,grade&order=id' + fName) : Promise.resolve([]),       // 6
+        tr(key) ? sbGet('/hwcheck_records?select=week,pct,scores,pub,missing&token=eq.' + enc(key) + '&order=week') : Promise.resolve([]), // 7
+        fName ? sbGet('/signup_entries?select=ts,name,school,student_id,day&order=id' + fName) : Promise.resolve([]),          // 8
+        (function(){ var f = orFilter([['student_id', sid], ['name', name]]);
+          return f ? sbGet('/star_bonus?select=at,student_id,name,school,stars,reason,grade&order=at,id' + f) : Promise.resolve([]); })(), // 9
+        sbGet('/report_config?select=key,value'),                                                                              // 10
+        (function(){ var f = orFilter([['parent_phone', sid], ['name', name]].concat(base !== name ? [['name', base]] : []));
+          return f ? sbGet('/submissions?select=id,submitted_at,exam,school,grade,name,wrong_count,wrong_text,vow,teacher_note,score,parent_phone&order=id' + f) : Promise.resolve([]); })(), // 11
+        sbGet('/exams?select=report_id,title,review,scope&order=at,report_id'),                                                // 12
+        authed ? sbGet('/exam_questions?select=report_id,no,area,qtype,lv,txt,detail,grp,multi&order=report_id,seq') : Promise.resolve([]) // 13
+      ];
+      return Promise.all(jobs).then(function(g){
+        var notices = g[0], reads = g[1], assigns = g[2], clinicRows = g[3], hwsub = g[4], voca = g[5],
+            omr = g[6], hwc = g[7], signup = g[8], bonusRows = g[9], cfg = g[10], subs = g[11],
+            examList = g[12], qRows = g[13];
+
+        /* 공지 확인 집합 — readNoticeChecks_ */
+        var checks = {};
+        reads.forEach(function(r){
+          var rid = tr(r.student_id).replace(/^'/, ''), rnm = tr(r.name), rsc = tr(r.school);
+          var match;
+          if (rid) match = (sid && rid === sid) && (!rnm || rnm === name);
+          else { match = (rnm === name); if (match && !uniq && rsc && school) match = schoolMatch(rsc, school); }
+          if (match && tr(r.notice_key)) checks[tr(r.notice_key)] = true;
+        });
+
+        /* 공지 — collectNotices_ */
+        var noticeOut = [];
+        notices.forEach(function(n){
+          var title = tr(n.title), body = tr(n.body);
+          if (!title && !body) return;
+          if (n.hidden) return;
+          if (!noticeMatches(n.type, n.target, stu)) return;
+          noticeOut.push({ date: String(n.date || '').trim(), type: tr(n.type), title: title, body: body, _row: n.seq });
+        });
+        noticeOut.sort(function(a, b){ if (a.date !== b.date) return a.date < b.date ? 1 : -1; return b._row - a._row; });
+        noticeOut.forEach(function(o){ delete o._row; o.key = noticeKeyOf(o.date, o.title); o.checked = !!checks[o.key]; });
+
+        /* 배정 — collectAssignments_(tool) */
+        function collectAssign(tool){
+          var out = [];
+          assigns.forEach(function(a){
+            if (tool && tr(a.tool) !== tool) return;
+            if (!noticeMatches(a.type, a.target, stu)) return;
+            var item = tr(a.item), teacher = '', code = item, idx = item.indexOf(' / ');
+            if (idx >= 0) { teacher = tr(item.slice(0, idx)); code = tr(item.slice(idx + 3)); }
+            out.push({ teacher: teacher, code: code, item: item, due: String(a.due || ''), memo: tr(a.memo),
+                       date: String(a.date || ''), _row: a.seq });
+          });
+          out.sort(function(a, b){ if (a.date !== b.date) return a.date < b.date ? 1 : -1; return b._row - a._row; });
+          out.forEach(function(o){ delete o._row; });
+          return out;
+        }
+        var homework = collectAssign('H WORK');
+
+        /* H WORK 제출 집합 — hworkDoneSet_ */
+        var hwDone = { byKey: {}, byCode: {} };
+        var scNoSp = school.replace(/\s+/g, '');
+        hwsub.forEach(function(r){
+          var rn = tr(r.name);
+          if (rn !== name && rn !== base) return;
+          if (myGd) { var rGd = gradeDigit(r.grade); if (rGd && rGd !== myGd) return; }
+          if (scNoSp) {
+            var rs = String(r.school || '').replace(/\s+/g, '');
+            if (rs && rs.indexOf(scNoSp) < 0 && scNoSp.indexOf(rs) < 0) return;
+          }
+          var t = tr(r.teacher), c = tr(r.code);
+          hwDone.byKey[t + '|' + c] = true;
+          hwDone.byCode[c] = true;
+        });
+        homework.forEach(function(h){
+          var t = tr(h.teacher), c = tr(h.code);
+          h.done = !!(hwDone.byKey[t + '|' + c] || (!t && hwDone.byCode[c]));
+        });
+
+        /* 제출한 시험 집합·개수 — submittedTitles_·countExams_ (제출결과 매칭) */
+        var subMatch = [];
+        subs.forEach(function(r){
+          var nm = tr(r.name);
+          if (!nm) return;
+          r._nm = nm; r._phone = tr(r.parent_phone); r._sc = tr(r.school);
+          subMatch.push(r);
+        });
+        var submittedSet = {};
+        subMatch.forEach(function(r){
+          var m = (r._phone && r._phone === sid) || (r._nm && (r._nm === name || r._nm === base));
+          if (m && tr(r.exam)) submittedSet[tr(r.exam)] = true;
+        });
+        /* 시험 수 — countExams_. 주의: 백엔드의 잠금 전 examCount는 uniq·grade 인자 없이 호출되어
+         * (countExams_(ss,sid,name,siblingShared,school)) 더 엄격하고, 별 집계(collectStars_)는
+         * uniq·grade를 넘겨 완화 — 두 값을 따로 계산해 그대로 재현한다. */
+        function countExamSet(u, gd){
+          var set = {};
+          subMatch.forEach(function(r){
+            if (!examRowMatch(r._phone, r._nm, r._sc, r.grade, sid, name, siblingShared, school, u, gd)) return;
+            var t = String(r.exam || '').replace(/\s+/g, '');
+            set[t || ('r' + r.id)] = true;
+          });
+          return Object.keys(set).length;
+        }
+        var examCount = countExamSet(false, '');        // 잠금 전 안내용 (백엔드와 동일한 축약 호출)
+        var examCountStars = countExamSet(uniq, myGd);  // 별 집계용
+
+        /* 분석지 — collectAnalyses_ */
+        var assigned = {};
+        assigns.forEach(function(a){
+          if (tr(a.tool) !== '지필고사 분석지') return;
+          var itemId = tr(a.item);
+          if (!itemId || assigned[itemId]) return;
+          if (noticeMatches(a.type, a.target, stu)) assigned[itemId] = true;
+        });
+        var titleById = {}, listOrder = {};
+        examList.forEach(function(e, i){ titleById[tr(e.report_id)] = tr(e.title); listOrder[tr(e.report_id)] = i + 1; });
+        var analyses = Object.keys(assigned).map(function(id){
+          var title = titleById[id] || id;
+          return { id: id, title: title, done: !!(submittedSet[id] || (title && submittedSet[title])),
+                   _ord: (typeof listOrder[id] === 'number') ? listOrder[id] : -1 };
+        });
+        analyses.sort(function(a, b){ return b._ord - a._ord; });
+        analyses.forEach(function(o){ delete o._ord; });
+
+        /* 클리닉 — collectClinic_ (토큰 행은 토큰으로만, 토큰 없는 옛 행은 학생ID로) */
+        var clinic = null;
+        if (tr(key) || sid) {
+          var apps = {};
+          clinicRows.forEach(function(r){
+            var tk = tr(r.token), id2 = tr(r.student_id).replace(/^'/, '');
+            var match = tk ? (tr(key) && tk === tr(key)) : (sid && id2 === sid);
+            if (!match) return;
+            var date = String(r.ts || ''), time = tr(r.slot);
+            var k = date + '|' + time;
+            if (!apps[k]) apps[k] = { date: date, time: time, count: 0, requests: [], memo: '' };
+            apps[k].count++;
+            var req = { type: tr(r.rtype), area: tr(r.area), content: tr(r.content), qcount: tr(r.qcount) };
+            if (req.type || req.area || req.content) apps[k].requests.push(req);
+            if (!apps[k].memo && tr(r.memo)) apps[k].memo = tr(r.memo);
+          });
+          var clist = Object.keys(apps).map(function(k){ return apps[k]; });
+          if (clist.length) {
+            clist.sort(function(a, b){ return a.date < b.date ? 1 : (a.date > b.date ? -1 : 0); });
+            clinic = { latest: clist[0], total: clist.length, list: clist.slice(0, 20) };
+          }
+        }
+
+        /* 주말 모의고사 신청 — collectMockSignups_ */
+        var week = weekTuesday(kstToday());
+        var seenDay = {}, mockSignups = [];
+        if (name) signup.forEach(function(r){
+          var rn = tr(r.name);
+          if (rn !== name && rn !== base) return;
+          var rs = tr(r.school);
+          if (school && rs && !schoolMatch(rs, school)) return;
+          var rid = tr(r.student_id).replace(/^'/, '');
+          if (!uniq && rid && sid && rid !== sid) return;
+          if (weekTuesday(ymdOf(r.ts)) !== week) return;
+          var day = tr(r.day);
+          if (day !== '토요일' && day !== '일요일') return;
+          if (seenDay[day]) return;
+          seenDay[day] = true;
+          mockSignups.push({ day: day, date: signupDateLabel(week, day) });
+        });
+
+        /* 숙제 검사 — collectHwchecks_ */
+        var hwcheck = [];
+        if (tr(key)) {
+          var byWeek = {};
+          hwc.forEach(function(r){
+            var wk = String(r.week || '').trim();
+            if (!wk) return;
+            byWeek[wk] = { week: wk, pct: Number(r.pct) || 0, scores: r.scores || {}, pub: tr(r.pub), missing: !!r.missing };
+          });
+          hwcheck = Object.keys(byWeek).sort().reverse().slice(0, 20).map(function(k){ return byWeek[k]; });
+        }
+
+        /* 별 집계 — collectStars_ */
+        var clinicN = 0;
+        (function(){
+          if (!tr(key) && !sid) return;
+          var apps2 = {};
+          clinicRows.forEach(function(r){
+            var tk = tr(r.token), id2 = tr(r.student_id).replace(/^'/, '');
+            var match = tk ? (tr(key) && tk === tr(key)) : (sid && id2 === sid);
+            if (!match) return;
+            apps2[weekMonday(r.ts) + '|' + tr(r.slot)] = true;
+          });
+          clinicN = Object.keys(apps2).length;
+        })();
+        var vocaRounds = {};
+        voca.forEach(function(r){
+          var rn = tr(r.name);
+          if (rn !== name && rn !== base) return;
+          if (!uniq && school) { var rs = tr(r.school); if (rs && !schoolMatch(rs, school)) return; }
+          if (myGd) { var rGd = gradeDigit(r.grade); if (rGd && rGd !== myGd) return; }
+          vocaRounds[tr(r.round)] = true;
+        });
+        var hworkSet = {};
+        hwsub.forEach(function(r, i){
+          var rn = tr(r.name);
+          if (rn !== name && rn !== base) return;
+          if (myGd) { var rGd = gradeDigit(r.grade); if (rGd && rGd !== myGd) return; }
+          if (!uniq && school) {
+            var sc2 = String(r.school || '').replace(/\s+/g, '');
+            if (sc2 && scNoSp && sc2.indexOf(scNoSp) < 0 && scNoSp.indexOf(sc2) < 0) return;
+          }
+          var t = tr(r.code);
+          hworkSet[t ? (tr(r.teacher) + '|' + t) : ('r' + (i + 1))] = true;
+        });
+        var mockSet = {};
+        if (name) omr.forEach(function(r, i){
+          var rn = tr(r.name);
+          if (!rn || (rn !== name && rn !== base)) return;
+          var rs = tr(r.school);
+          if (!uniq && school && rs && !schoolMatch(rs, school)) return;
+          var rid = tr(r.student_id).replace(/^'/, '');
+          if (!uniq && rid && sid && rid !== sid) return;
+          if (!(rid && sid && rid === sid) && myGd) {
+            var rGd = gradeDigit(r.grade);
+            if (rGd && rGd !== myGd) return;
+          }
+          mockSet[tr(r.exam) || String(i + 1)] = true;
+        });
+        var hwPerfect = 0;
+        hwcheck.forEach(function(h){ if (h.pct >= 100) hwPerfect++; });
+        var bonus = { sum: 0, latest: null };
+        bonusRows.forEach(function(r){
+          var rid = tr(r.student_id).replace(/^'/, ''), rnm = tr(r.name), rsc = tr(r.school);
+          var match;
+          if (rid) match = (sid && rid === sid) && (!rnm || rnm === name);
+          else {
+            match = (rnm === name);
+            if (match && !uniq && rsc && school) match = schoolMatch(rsc, school);
+            if (match && !uniq) {
+              var rg = gradeDigit(r.grade), mg = gradeDigit(info.grade);
+              if (rg && mg && rg !== mg) match = false;
+            }
+          }
+          if (!match) return;
+          var n = parseInt(r.stars, 10) || 0;
+          bonus.sum += n;
+          bonus.latest = { stars: n, reason: tr(r.reason), date: fmtTsKST(r.at).slice(0, 10) };
+        });
+        var noticeN = Object.keys(checks).length;
+        var stars = {
+          total: examCountStars * STAR_RULES.exam + clinicN * STAR_RULES.clinic
+               + Object.keys(vocaRounds).length * STAR_RULES.voca + Object.keys(hworkSet).length * STAR_RULES.hwork
+               + Object.keys(mockSet).length * STAR_RULES.mock + hwPerfect * STAR_RULES.hwcheck
+               + noticeN * STAR_RULES.notice + bonus.sum,
+          breakdown: { exam: examCountStars, clinic: clinicN, voca: Object.keys(vocaRounds).length,
+                       hwork: Object.keys(hworkSet).length, mock: Object.keys(mockSet).length,
+                       hwcheck: hwPerfect, notice: noticeN, bonus: bonus.sum },
+          latestBonus: bonus.latest
+        };
+
+        /* 어휘 설정 — configOpen_·configVal_ ('설정' 탭 미러) */
+        var cfgMap = {};
+        cfg.forEach(function(c){ cfgMap[c.key] = String(c.value || '').trim(); });
+        var vocaOpen = true;
+        if (cfgMap['어휘 테스트'] !== undefined && cfgMap['어휘 테스트'] !== '') {
+          var vs = cfgMap['어휘 테스트'].toLowerCase();
+          vocaOpen = !(vs === '중단' || vs === 'off' || vs === 'n' || vs === 'no' || vs === 'x' || vs === '0' || vs === '닫힘' || vs === '꺼짐');
+        }
+        var vocaWeek = cfgMap['어휘 주차'] ? (parseInt(cfgMap['어휘 주차'], 10) || null) : null;
+
+        var resp = { result: 'success', info: info, authed: authed, pwTried: pwTried,
+                     notices: noticeOut, homework: homework, analyses: analyses, clinic: clinic,
+                     mockSignups: mockSignups, hwcheck: hwcheck, stars: stars,
+                     vocaOpen: vocaOpen, vocaWeek: vocaWeek, mockGates: null };
+        if (vocaOpen !== false && vocaWeek) {   // vocaTakenLocal_ — 이름 정확 일치 + 주차
+          var taken = false, rd = String(vocaWeek);
+          for (var v2 = 0; v2 < voca.length; v2++) {
+            if (tr(voca[v2].round) !== rd) continue;
+            if (tr(voca[v2].name) === name) { taken = true; break; }
+          }
+          resp.vocaTaken = taken;
+        }
+
+        if (authed) {
+          /* 성적 — collectExams_ + 보고서 상세(getReportsIndex_) */
+          var byId2 = {}, byTitle2 = {};
+          examList.forEach(function(e){
+            var rec = { id: tr(e.report_id), title: tr(e.title),
+                        review: String(e.review || '').split(/\n\s*\n/).map(tr).filter(Boolean),
+                        scope: String(e.scope || ''), questions: [] };
+            byId2[rec.id] = rec;
+            if (rec.title) byTitle2[rec.title] = rec;
+          });
+          qRows.forEach(function(x){
+            var rec = byId2[tr(x.report_id)];
+            if (!rec) return;
+            rec.questions.push({ no: String(x.no || ''), area: String(x.area || ''), type: String(x.qtype || ''),
+                                 lv: tr(x.lv), txt: String(x.txt || ''), detail: String(x.detail || ''),
+                                 group: String(x.grp || ''), multi: !!x.multi });
+          });
+          var exams = [];
+          subMatch.forEach(function(r){
+            if (!examRowMatch(r._phone, r._nm, r._sc, r.grade, sid, name, siblingShared, school, uniq, myGd)) return;
+            exams.push({ submittedAt: fmtTsKST(r.submitted_at), title: String(r.exam || ''),
+                         school: String(r.school || ''), grade: String(r.grade || ''),
+                         wrongCount: Number(r.wrong_count) || 0, wrongText: String(r.wrong_text || ''),
+                         vow: String(r.vow || ''), teacherNote: String(r.teacher_note || ''),
+                         score: String(r.score || '') });
+          });
+          exams.sort(function(a, b){ return a.submittedAt < b.submittedAt ? 1 : (a.submittedAt > b.submittedAt ? -1 : 0); });
+          exams.forEach(function(x){
+            var k = tr(x.title);
+            var rep = byTitle2[k] || byId2[k] || null;
+            x.scope = rep ? rep.scope : '';
+            x.review = rep ? rep.review : [];
+            x.questions = rep ? rep.questions : [];
+          });
+          resp.exams = exams;
+        } else {
+          resp.examCount = examCount;
+        }
+        return resp;
+      });
+    });
+  }
+
+  function sbStudentApi(extra){
+    var m = /(?:^|[&?])pw=([^&]*)/.exec(extra || '');
+    var pw = m ? decodeURIComponent(m[1]) : '';
+    return assemble(KEY, IS_ID, pw);
+  }
+  // 검증(node 스모크 테스트)용 공개
+  if (typeof window !== 'undefined') window.__sbAssembleStudent = assemble;
+
+  var sbRawApi = api;
+  api = function(extra){
+    return sbStudentApi(extra).catch(function(e){
+      console.warn('수파베이스 학생 허브 조회 실패 — 기존 서버로 폴백', e);
+      return sbRawApi(extra);
+    });
+  };
+})();
+
 function schedTable(title, rows){
   var trs = rows.filter(function(r){ return r[1] && String(r[1]).trim()!==''; });
   if(!trs.length) return '';
@@ -1069,6 +1575,20 @@ function checkNoticeBtn(btn){
       return;
     }
     (STATE.notices||[]).forEach(function(n){ if(n.key===k) n.checked=true; });
+    // 수파베이스 미러 (2026-08-23 DB 이전) — 공지확인 기록도 미러에 즉시 반영 (실패 무해)
+    if(!d.already){
+      try {
+        var si2 = STATE.info || {};
+        fetch('https://bangdbhqpphqqdwcledg.supabase.co/rest/v1/notice_reads', {
+          method:'POST',
+          headers:{ 'apikey':'sb_publishable_dE9d1KIbpgYaQkaS2MSrlg_-7SiRJuT',
+                    'Authorization':'Bearer sb_publishable_dE9d1KIbpgYaQkaS2MSrlg_-7SiRJuT',
+                    'Content-Type':'application/json', 'Prefer':'return=minimal' },
+          body: JSON.stringify([{ at:new Date().toISOString(), student_id:String(si2.id||''),
+            name:String(si2.name||''), school:String(si2.school||'').trim(), notice_key:k }])
+        }).catch(function(){});
+      } catch(e){}
+    }
     var done=document.createElement('span');
     done.className='nchk-done';
     done.textContent = d.already ? '✓ 확인했어요 · 별 +1' : '✓ 확인 완료! 별 1개를 받았어요 ⭐';
