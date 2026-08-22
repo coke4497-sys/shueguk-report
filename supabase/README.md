@@ -45,6 +45,18 @@
 - [x] 전환 직전 델타 재동기화 (2026-08-22 21:30 KST 기록까지 반영)
 - [ ] 일일 백업 설정 (이중 기록이 있는 동안은 시트가 거의 최신 — 급하지 않음)
 
+## 2단계: 숙제 검사 + 내신 피드백 (2026-08-22)
+- [x] `migrations/002_hwcheck_naeshin.sql` — hwcheck_records(주차+접근코드 유일)·naeshin_records(기간+반+구분+주차+학생 유일)
+- [x] 데이터 이전: 숙제검사 128건(중복 키는 뒤 행 우선, 날짜로 변환된 문구는 hwcheckTextStr_ 규칙으로 복원)·내신기록 8건
+- [x] naeshin.html 어댑터: 시간표(내신)·기간·내신기록 읽기+naeshinSet 쓰기 수파베이스(시트 이중 기록 —
+      m.html 지필 리포트의 시험범위 연동은 시트를 읽으므로 유지)
+- [x] hwcheck.html 어댑터: hwcheckBoot는 기존 백엔드(명단·항목)와 수파베이스(검사 기록·시간표·주간
+      출석·1회 이동)를 **동시에** 불러 병합 — 출석 배지가 수파베이스 원본 기준이 됨. hwcheckSave·
+      hwcheckPlanDone·hwcheckPlans는 수파베이스 우선 + 시트 이중 기록(슈퍼스타 별 집계·s.html 숙제
+      이력이 시트를 읽으므로). hwcheckItems(설정 탭)는 기존 백엔드 그대로.
+- 주의: hwcheck_records가 이제 검사 기록의 원본 — 시트에서 수파베이스로 덮어쓰는 재동기화 금지
+  (attendance와 동일). plan_done(N열 완료)은 hwcheckSave 재저장 시 유지된다(열을 안 보냄).
+
 ## 전환 방식 (timetable.html 안의 '수파베이스 연결부' 스크립트)
 기존 액션 API fetch를 가로채는 어댑터 — 호출부 코드는 그대로. 실패 시 자동으로 기존 백엔드 폴백.
 - **읽기 전부 수파베이스**: ttBoot·timetableList·timetableWeek·ttPeriodList·ttMemoList·examSched·

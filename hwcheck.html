@@ -223,6 +223,188 @@
 </main>
 
 <script>
+/* ══ 수파베이스 연결부 (2026-08-22 DB 이전 2단계) ═══════════════════════
+ * 숙제 검사: 검사 기록 읽기·쓰기와 대책 목록을 수파베이스로.
+ *  · hwcheckBoot: 명단·항목은 기존 백엔드에서 그대로 받고(학생정보·설정 탭 미이전),
+ *    검사 기록·시간표·주간 출석·1회 이동은 수파베이스 값으로 교체(1단계 원본).
+ *  · 저장·대책 완료는 수파베이스 먼저 + 시트 이중 기록(슈퍼스타 별 집계·학생 페이지 유지)
+ *  · 검사 항목 변경(hwcheckItems)은 설정 탭이라 기존 백엔드 그대로.
+ * 수파베이스 실패 시 기존 백엔드로 자동 폴백. */
+(function(){
+  if (window.__sbAdapter) return; window.__sbAdapter = true;
+  var SB = 'https://bangdbhqpphqqdwcledg.supabase.co/rest/v1';
+  var SB_KEY = 'sb_publishable_dE9d1KIbpgYaQkaS2MSrlg_-7SiRJuT';
+  var STARS_MAX = 6;
+  var rawFetch = window.fetch.bind(window);
+  var PAGE = 1000;
+
+  function hdr(extra){
+    var h = { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY, 'Content-Type': 'application/json' };
+    if (extra) for (var k in extra) h[k] = extra[k];
+    return h;
+  }
+  function sbGet(path, _from, _acc){
+    var from = _from || 0, acc = _acc || [];
+    return rawFetch(SB + path, { headers: hdr({ 'Range-Unit': 'items', 'Range': from + '-' + (from + PAGE - 1) }) })
+      .then(function(r){ if (!r.ok) throw new Error('sb ' + r.status); return r.json(); })
+      .then(function(rows){
+        acc = acc.concat(rows);
+        return rows.length < PAGE ? acc : sbGet(path, from + PAGE, acc);
+      });
+  }
+  function sbWrite(method, path, body, extra){
+    return rawFetch(SB + path, { method: method, headers: hdr(extra), body: body == null ? undefined : JSON.stringify(body) })
+      .then(function(r){
+        if (!r.ok) return r.text().then(function(t){ throw new Error('sb ' + r.status + ' ' + t.slice(0,120)); });
+        return (extra && /representation/.test(extra['Prefer'] || '')) ? r.json() : null;
+      });
+  }
+  function q(v){ return encodeURIComponent(String(v == null ? '' : v)); }
+  function pad2(n){ return String(n).padStart(2, '0'); }
+  function nowIso(){
+    var d = new Date();
+    return d.getFullYear() + '-' + pad2(d.getMonth()+1) + '-' + pad2(d.getDate()) + 'T' +
+           pad2(d.getHours()) + ':' + pad2(d.getMinutes()) + ':' + pad2(d.getSeconds()) + '+09:00';
+  }
+  function ymdShift(ymd, days){
+    var d = new Date(Date.parse(ymd) + days * 86400000);
+    return d.getFullYear() + '-' + pad2(d.getMonth()+1) + '-' + pad2(d.getDate());
+  }
+  function ok(o){ o.result = 'success'; return o; }
+  function fake(d){ return { ok: true, status: 200, json: function(){ return Promise.resolve(d); } }; }
+  function legacyBg(body){
+    function go(){ return rawFetch(ENDPOINT, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify(body) }); }
+    go().catch(function(){ setTimeout(function(){ go().catch(function(e){ console.warn('시트 이중 기록 실패', body.action, e); }); }, 3000); });
+  }
+  function applyYmdOf(g){ return (g.apply_date && /^\d{4}-\d{2}-\d{2}$/.test(g.apply_date)) ? g.apply_date : String(g.at || '').slice(0,10); }
+
+  var GETS = {
+    hwcheckBoot: function(p, url, opts){
+      var week = (p.get('week') || '').trim();
+      // 명단·항목(기존 백엔드)과 수파베이스 조회를 동시에
+      var pLegacy = rawFetch(url, opts).then(function(r){ return r.json(); });
+      var pSb = null;
+      if (/^\d{4}-\d{2}-\d{2}$/.test(week)){
+        var to = ymdShift(week, 4);
+        pSb = Promise.all([
+          sbGet('/hwcheck_records?week=eq.' + q(week)),
+          sbGet('/tt_classes?book=eq.' + q('정규') + '&order=id&select=class_id,day,start_time,end_time,location,teacher,name,roster'),
+          sbGet('/attendance?date=gte.' + q(week) + '&date=lte.' + q(to) + '&book=eq.' + q('정규') + '&order=date'),
+          sbGet('/tt_log?kind=eq.' + q('1회') + '&book=eq.' + q('정규') + '&at=gte.' + q(new Date(Date.parse(week) - 68 * 86400000).toISOString()))
+        ]).catch(function(e){ console.warn('수파베이스 부팅 조회 실패 — 시트 값 사용', e); return null; });
+      }
+      return Promise.all([pLegacy, pSb || Promise.resolve(null)]).then(function(rs){
+        var L = rs[0], S = rs[1];
+        if (!L || L.result !== 'success' || !S) return L;
+        var records = {};
+        S[0].forEach(function(r){
+          records[r.token] = { scores: r.scores || {}, pct: r.pct || 0, pub: r.pub, priv: r.priv,
+                               missing: !!r.missing, plan: r.plan };
+        });
+        L.records = records;
+        L.classes = S[1].map(function(r){
+          return { id: r.class_id, day: r.day, start: r.start_time, end: r.end_time,
+                   loc: r.location, teacher: r.teacher, cls: r.name,
+                   students: String(r.roster || '').trim().split(/\s+/).filter(String) };
+        });
+        L.weekAttend = S[2].map(function(a){
+          return { date: a.date, classId: a.class_id, student: a.student, status: a.status, memo: a.memo };
+        });
+        var to2 = ymdShift(week, 4);
+        L.weekOnce = S[3].filter(function(g){
+          var a = applyYmdOf(g); return a >= week && a <= to2;
+        }).map(function(g){
+          return { row: g.id, date: applyYmdOf(g), student: g.student,
+                   fromId: g.from_class_id, toId: g.to_class_id, reason: g.reason };
+        });
+        return L;
+      });
+    },
+    hwcheckPlans: function(){
+      return sbGet('/hwcheck_records?or=(missing.is.true,plan.neq.%22%22)&select=week,token,name,school,grade,plan,missing,plan_done')
+        .then(function(rows){
+          var out = rows.map(function(r){
+            return { week: r.week, token: r.token, name: r.name, school: r.school, grade: r.grade,
+                     plan: String(r.plan || '').trim(), missing: !!r.missing, done: !!r.plan_done };
+          }).filter(function(x){ return x.missing || x.plan; });
+          out.sort(function(a, b){ return a.week < b.week ? 1 : (a.week > b.week ? -1 : a.name.localeCompare(b.name, 'ko')); });
+          return ok({ plans: out });
+        });
+    }
+  };
+
+  var POSTS = {
+    hwcheckSave: function(b){
+      var week = String(b.week || '').trim();
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(week)) return Promise.resolve({ result:'error', message:'주차가 올바르지 않습니다.' });
+      var token = String(b.token || '').trim();
+      if (!token) return Promise.resolve({ result:'error', message:'학생 식별 정보(접근코드)가 없습니다.' });
+      var scores = {}, sum = 0, n = 0;
+      var raw = (b.scores && typeof b.scores === 'object') ? b.scores : {};
+      Object.keys(raw).forEach(function(k){
+        var name = String(k).trim(); if (!name) return;
+        var s = parseInt(raw[k], 10); if (isNaN(s)) s = 0;
+        s = Math.max(0, Math.min(STARS_MAX, s));
+        scores[name] = s; sum += s; n++;
+      });
+      if (!n) return Promise.resolve({ result:'error', message:'검사 항목 점수가 없습니다.' });
+      var missing = (b.missing === true || b.missing === '1');
+      var full = n * STARS_MAX;
+      var pct = missing ? 0 : Math.round(sum / full * 100);
+      // plan_done은 보내지 않는다 — 저장 시 기존 완료 표시 유지(기존 백엔드와 동일)
+      return sbWrite('POST', '/hwcheck_records?on_conflict=week,token',
+                     [{ week: week, token: token, name: String(b.name || '').trim(), school: String(b.school || '').trim(),
+                        grade: String(b.grade || '').trim(), scores: scores, max: full, pct: pct,
+                        pub: String(b.pub || ''), priv: String(b.priv || ''),
+                        missing: missing, plan: String(b.plan || ''), at: nowIso() }],
+                     { 'Prefer': 'resolution=merge-duplicates,return=minimal' })
+        .then(function(){
+          legacyBg(b);
+          return ok({ week: week, pct: pct });
+        });
+    },
+    hwcheckPlanDone: function(b){
+      var week = String(b.week || '').trim(), token = String(b.token || '').trim();
+      if (!week || !token) return Promise.resolve({ result:'error', message:'기록 식별 정보가 없습니다.' });
+      return sbWrite('PATCH', '/hwcheck_records?week=eq.' + q(week) + '&token=eq.' + q(token),
+                     { plan_done: String(b.done || '') === '1' }, { 'Prefer': 'return=representation' })
+        .then(function(rows){
+          if (!rows || !rows.length) return { result:'error', message:'기록을 찾을 수 없습니다. 새로고침 후 다시 시도해 주세요.' };
+          legacyBg(b);
+          return ok({});
+        });
+    }
+  };
+
+  window.fetch = function(url, opts){
+    try {
+      if (typeof ENDPOINT === 'undefined' || typeof url !== 'string' || url.indexOf(ENDPOINT) !== 0)
+        return rawFetch(url, opts);
+      if (opts && String(opts.method || '').toUpperCase() === 'POST'){
+        var body;
+        try { body = JSON.parse(opts.body); } catch (e) { return rawFetch(url, opts); }
+        var ph = body && POSTS[body.action];
+        if (!ph) return rawFetch(url, opts);
+        return ph(body).then(fake, function(err){
+          console.warn('수파베이스 쓰기 실패 — 기존 백엔드로 폴백', body.action, err);
+          return rawFetch(url, opts);
+        });
+      }
+      var qs = new URLSearchParams(url.slice(url.indexOf('?') + 1));
+      var gh = GETS[qs.get('action')];
+      if (!gh) return rawFetch(url, opts);
+      return gh(qs, url, opts).then(fake, function(err){
+        console.warn('수파베이스 조회 실패 — 기존 백엔드로 폴백', qs.get('action'), err);
+        return rawFetch(url, opts);
+      });
+    } catch (e) {
+      return rawFetch(url, opts);
+    }
+  };
+})();
+</script>
+
+<script>
 var ENDPOINT = "https://script.google.com/macros/s/AKfycbzhCncBwn-JlqXARC3wfrWUCuNHzlNK2df0bdhx-w78Xr8mzYUcIYZOJdRi9N4bHtsb/exec";
 var STARS_MAX = 6;
 
