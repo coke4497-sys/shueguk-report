@@ -172,10 +172,12 @@
   .wm-day{flex:none;width:78px;font-size:.85rem;font-weight:700;color:var(--ink-soft);}
   .wm-text{font-size:.88rem;line-height:1.6;white-space:pre-wrap;word-break:break-word;min-width:0;}
   .wm-none{font-size:.85rem;color:var(--ink-soft);opacity:.55;}
-  .blk .stus button.note{background:#DFEAF7;color:#3E5A7E;}
-  .blk .stus button.at-ok{background:var(--btn);color:#fff;}
-  .blk .stus button.at-late{background:#F1E2BB;color:#6B5423;}
-  .blk .stus button.at-abs{background:#EFD6D2;color:#8A3B33;text-decoration:line-through;}
+  /* 출석 칩 색 — '나' 수업 블록의 채도 낮춘 필터에서 보이던 부드러운 톤을 전 반 공통으로 (2026-08-22 사용자 확정,
+     saturate(.35) 결과값을 그대로 색으로 고정) */
+  .blk .stus button.note{background:#E5E9EE;color:#4E5864;}
+  .blk .stus button.at-ok{background:#778683;color:#fff;}
+  .blk .stus button.at-late{background:#E8E2D5;color:#5D5544;}
+  .blk .stus button.at-abs{background:#E2D9D8;color:#614643;text-decoration:line-through;}
   .att-btns{display:flex;gap:8px;margin:10px 0 4px;}
   .att-btns button{flex:1;font:inherit;font-size:.95rem;border-radius:10px;padding:11px 4px;cursor:pointer;border:1.5px solid var(--line);background:#fff;color:var(--ink);}
   .att-btns button.pick-ok.on{background:var(--btn);border-color:var(--btn);color:#fff;}
@@ -302,7 +304,7 @@
     border-radius:4px;padding:2px 9px;cursor:pointer;color:var(--ink);line-height:1.5;}
   .blk .stus button:hover{outline:1.5px solid var(--accent);outline-offset:-1px;}
   .blk .stus button.sel{background:var(--accent);color:#fff;}
-  .blk .stus button.once{background:#E7DDF3;color:#5E4A78;font-weight:700;}
+  .blk .stus button.once{background:#E3DFE7;color:#564F5F;font-weight:700;}
   .blk .stus button.kept{outline:1px dashed rgba(0,0,0,.28);outline-offset:-1px;opacity:.88;}
   .blk .stus button.kept em{font-style:normal;font-size:.66rem;margin-left:3px;opacity:.75;}
   .blk .stus button.away{opacity:.5;}
@@ -440,7 +442,12 @@
   .blk.c-g3,.wk-mini.c-g3,.wk-bar.c-g3{background:var(--g3);}
   .blk.c-mid,.wk-mini.c-mid,.wk-bar.c-mid{background:var(--mid);}
   .blk.c-etc,.wk-mini.c-etc,.wk-bar.c-etc{background:var(--etc);}
-  .wk-mini.c-b,.wk-bar.c-b{filter:saturate(.35);}
+  /* '나'·'확인' 수업의 연한 배경 — 필터 대신 색값 지정 (칩 색이 함께 바래지 않도록, 2026-08-22) */
+  .blk.c-b.c-g1,.wk-mini.c-b.c-g1,.wk-bar.c-b.c-g1{background:#F6F3EA;}
+  .blk.c-b.c-g2,.wk-mini.c-b.c-g2,.wk-bar.c-b.c-g2{background:#ECE9EE;}
+  .blk.c-b.c-g3,.wk-mini.c-b.c-g3,.wk-bar.c-b.c-g3{background:#E5E9E7;}
+  .blk.c-b.c-mid,.wk-mini.c-b.c-mid,.wk-bar.c-b.c-mid{background:#ECEDF1;}
+  .blk.c-b.c-etc,.wk-mini.c-b.c-etc,.wk-bar.c-b.c-etc{background:#EEEBE9;}
   /* ── 주차별: 한 페이지 개요 + 요일 확대 (2026-08-21 사용자 확정 시안) ── */
   .wk-ov{display:grid;grid-template-columns:repeat(7,1fr);gap:8px;align-items:start;}
   .wk-dayh{width:100%;font:inherit;font-size:.9rem;font-weight:700;color:#fff;background:#5F8377;
@@ -469,7 +476,6 @@
   .wk-big-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px;align-items:start;}
   @media (max-width:900px){ .wk-ov{grid-template-columns:repeat(4,1fr);} .wk-slim{width:40px;} }
   /* 채도 낮춤 — 정규 '나' 수업, 내신 '확인' 수업 */
-  .blk.c-b{filter:saturate(.35);}
   body.moving .blk.droppable{outline:2px dashed var(--btn);outline-offset:1px;cursor:pointer;}
   body.moving .blk.droppable:hover{outline-style:solid;background-image:linear-gradient(rgba(98,140,131,.12),rgba(98,140,131,.12));}
   body.moving .blk .stus button{pointer-events:none;}
