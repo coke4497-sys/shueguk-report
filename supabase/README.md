@@ -57,6 +57,19 @@
 - 주의: hwcheck_records가 이제 검사 기록의 원본 — 시트에서 수파베이스로 덮어쓰는 재동기화 금지
   (attendance와 동일). plan_done(N열 완료)은 hwcheckSave 재저장 시 유지된다(열을 안 보냄).
 
+## 3단계: 지필 리포트·성적 + 학생정보 미러 (2026-08-22)
+- [x] `migrations/003_reports_students.sql` — exams·exam_questions·submissions·students
+- [x] 데이터 이전: 시험 16·문항 378·제출 295·학생 496 (어댑터 응답을 기존 백엔드 실응답과 전수 대조 —
+      차이는 앞뒤 공백 정리뿐, 내용 동일 확인)
+- [x] m/t/r/analyses/stats 5페이지 공용 어댑터: ?list(목록)·?id(시험 정의)·?results(제출 결과) 읽기와
+      m.html의 timetableList·naeshinGet은 수파베이스. **학생 제출(r.html)·시험 등록/삭제는 기존 백엔드
+      먼저**(학생 페이지 성적·별 집계가 시트를 읽음) **+ 수파베이스 미러**. 선생님 한마디는 수파베이스
+      id 기반 + 시트 같은 행 최선 미러. 분석지 배정(배정 탭)·roster·getStudent는 기존 백엔드 그대로.
+- **students는 시트가 원본인 읽기 미러** — 제출 결과 화면의 학생 매칭(개별 페이지 링크)용.
+  신입 등록·표기 수정(슈퍼스타=기존 백엔드) 후엔 미러가 뒤처질 수 있음(새 학생 제출에 링크만 빠짐).
+  4단계(슈퍼스타 전환) 또는 일일 백업 잡에서 해소 예정. 제출 시각 표기는 기기 시간대와 무관하게 +9 고정.
+- 남은 것(다음 회차): s.html(학생 페이지) 완전 전환 — 별·공지(4단계)와 함께.
+
 ## 전환 방식 (timetable.html 안의 '수파베이스 연결부' 스크립트)
 기존 액션 API fetch를 가로채는 어댑터 — 호출부 코드는 그대로. 실패 시 자동으로 기존 백엔드 폴백.
 - **읽기 전부 수파베이스**: ttBoot·timetableList·timetableWeek·ttPeriodList·ttMemoList·examSched·
