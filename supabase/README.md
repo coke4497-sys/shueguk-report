@@ -35,10 +35,15 @@
 ## 진행 현황
 - [x] 연결 확인 (2026-08-22)
 - [x] 1단계 스키마 설계 (`migrations/001_timetable_attendance.sql`)
-- [ ] 1단계 테이블 생성 (sbp_ 토큰 필요 — 관리 API로 SQL 실행)
-- [ ] 1단계 데이터 이전
-- [ ] timetable.html 연결부 교체
+- [x] 1단계 테이블 생성 (2026-08-22, 관리 API로 SQL 실행)
+- [x] 1단계 데이터 이전 (2026-08-22): tt_classes 220 · attendance 665 · tt_log 85
+      · tt_memo 3 · tt_period 9 · exam_sched 20 — 시트 건수와 전부 일치, 표본 대조 OK.
+      **주의: 페이지 교체 전까지 시트에 기록이 계속 쌓이므로, 교체 직전에 재이전(재동기화) 필수.**
+      재이전 방법: 백엔드 시트(드라이브 「shueguk 지필고사 분석지 제작(26-1-기말)」,
+      id 1_TyraMnur7AhiuB0nVMcDXq2YU2IBeju3lSTkV3Njos)를 xlsx로 받아 파싱 → 테이블 truncate 후 재삽입.
+- [ ] timetable.html 연결부 교체 (재동기화 포함 — 사용자와 시점 협의)
 - [ ] 일일 백업 설정
+- [ ] 영구 이동 시 학생정보 동기화 이중 기록 확인
 
 ## SQL 실행 방법 (테이블 생성·변경)
 Personal Access Token(sbp_…)이 있으면 관리 API로 직접 실행:
