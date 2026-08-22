@@ -50,7 +50,7 @@ body{font-family:'Noto Sans KR',sans-serif; background:var(--sage-fog); color:va
 .panel .desc{font-size:13px; color:var(--ink-mid); margin:0 0 18px; font-family:'Noto Serif KR',serif; line-height:1.7;}
 
 .sec-h{font-size:14px; font-weight:700; color:var(--ink-deep); margin:24px 0 12px; padding-bottom:8px; border-bottom:2px solid var(--sage-soft); display:flex; align-items:center; gap:8px;}
-.sec-h .step{flex:0 0 auto; width:22px; height:22px; border-radius:50%; background:var(--sage-deep); color:#fff; font-size:12px; display:flex; align-items:center; justify-content:center; font-weight:700;}
+.sec-h .step{flex:0 0 auto; width:22px; height:22px; border-radius:50%; background:#E9C4BB; color:#8E5147; font-size:12px; display:flex; align-items:center; justify-content:center; font-weight:700;} /* 지필 리포트 포인트 = 연핑크 (2026-08-22) */
 .sec-h .n{font-size:12px; color:var(--ink-soft); font-weight:500;}
 
 .fld{margin-bottom:14px;}
@@ -68,9 +68,11 @@ body{font-family:'Noto Sans KR',sans-serif; background:var(--sage-fog); color:va
 /* 학년 선택 버튼 */
 .choices{display:flex; gap:8px;}
 .choices button{flex:1; border:1.5px solid var(--line); border-radius:10px; padding:11px 0; font-size:15px; font-family:'Noto Sans KR'; font-weight:500; background:#FBFCFB; color:var(--ink-mid); cursor:pointer;}
-.choices button.on{background:var(--sage-deep); border-color:var(--sage-deep); color:#fff; font-weight:700;}
+.choices button.on{background:#F0CFC7; border-color:#E9C4BB; color:#8E5147; font-weight:700;}
+/* 공유 학생 배정 위젯(student-picker)의 선택 탭도 이 페이지 포인트(연핑크)로 덮어씀 */
+.sp-tab.on{ background:#F0CFC7; border-color:#E9C4BB; color:#8E5147; }
 
-.btn{border:none; border-radius:10px; padding:12px 20px; font-size:15px; font-weight:700; font-family:'Noto Sans KR'; cursor:pointer; background:var(--sage-deep); color:#fff;}
+.btn{border:none; border-radius:10px; padding:12px 20px; font-size:15px; font-weight:700; font-family:'Noto Sans KR'; cursor:pointer; background:#F0CFC7; color:#8E5147;}
 .btn:active{opacity:.85;} .btn.ghost{background:var(--sage-fog); color:var(--ink-mid);}
 .btn:disabled{opacity:.45; cursor:default;}
 .btn.sm{padding:9px 14px; font-size:13.5px; border-radius:9px;}

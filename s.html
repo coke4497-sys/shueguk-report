@@ -92,6 +92,11 @@
   .card.pending:hover{transform:none;box-shadow:none;border-color:var(--line-soft);}
   .tag{margin-top:13px;display:inline-block;font-size:.74rem;color:var(--ink-soft);background:#DCE6E0;border-radius:20px;padding:3px 11px;}
   .card.lock .icon{background:#DCE6E0;color:#5E7A6F;}
+  /* 메뉴 아이콘 포인트 컬러 — 티쳐스 메뉴와 동일 체계 (2026-08-22 사용자 확정) */
+  .card.t-yel .icon{background:#F9EFD0;color:#9B8046;}
+  .card.t-pnk .icon{background:#F7E2DE;color:#B0736A;}
+  .card.t-lav .icon{background:#EDE4F4;color:#8D83A8;}
+  .card.t-sky .icon{background:#E9EDF8;color:#64749E;}
 
   footer{text-align:center;margin-top:46px;color:var(--ink-soft);font-size:.82rem;line-height:2;}
 
@@ -490,10 +495,10 @@ function svg(inner){ return '<svg viewBox="0 0 24 24" fill="none" stroke="curren
 
 /* 나중에 연결할 기능들 — url을 채우면 자동 활성화(토큰 KEY가 ?key=로 붙음) */
 var FEATURES = [
-  { id:'voca',    icon:'book',   title:'어휘 테스트',   desc:'단어 시험 보기',     url:'' },
-  { id:'clinic',  icon:'pulse',  title:'클리닉 신청',   desc:'클리닉 신청·확인',   url:'https://coke4497-sys.github.io/shueguk-clinic/' },
-  { id:'mock',    icon:'paper',  title:'모의고사 신청', desc:'모의고사 응시 신청',  url:'https://coke4497-sys.github.io/shuegukweekendtest/signup.html' },
-  { id:'grammar', icon:'pencil', title:'문법 테스트',   desc:'문법 시험 보기',     url:'' }
+  { id:'voca',    icon:'book',   tone:'yel', title:'어휘 테스트',   desc:'단어 시험 보기',     url:'' },
+  { id:'clinic',  icon:'pulse',  tone:'pnk', title:'클리닉 신청',   desc:'클리닉 신청·확인',   url:'https://coke4497-sys.github.io/shueguk-clinic/' },
+  { id:'mock',    icon:'paper',  tone:'lav', title:'모의고사 신청', desc:'모의고사 응시 신청',  url:'https://coke4497-sys.github.io/shuegukweekendtest/signup.html' },
+  { id:'grammar', icon:'pencil', tone:'yel', title:'문법 테스트',   desc:'문법 시험 보기',     url:'' }
 ];
 
 /* ── 어휘 테스트 연결 설정 ───────────────────────────────────
@@ -1324,15 +1329,18 @@ function renderStars(){
 function renderHub(){
   var info = STATE.info;
   var sub = [info.grade, info.school].map(function(x){ return String(x||'').trim(); }).filter(Boolean).join(' ');
-  $('s_name').innerHTML = '<span class="nm">슈국 슈퍼스타 '+esc(info.name||'학생')+'의 페이지</span>' +
+  $('s_name').innerHTML = '<span class="nm">슈퍼스타 '+esc(info.name||'학생')+'의 페이지</span>' +
     (sub ? '<span class="sub">'+esc(sub)+'</span>' : '');
   document.title = (info.name||'학생') + ' · 슈국';
   // 홈 화면 저장 시 아이콘 이름을 학생 이름으로
   var wt = document.querySelector('meta[name="apple-mobile-web-app-title"]');
   if(wt){ wt.setAttribute('content', (info.name||'슈국') + ' 리포트'); }
-  if(info.enrolled && String(info.enrolled).trim()!==''){
+  // '재원생' 배지는 표시하지 않음 — 페이지가 있으면 모두 재원생 (2026-08-22 사용자 확정).
+  // 재원이 아닌 특수 상태 값만 배지로 보여준다.
+  var en = String(info.enrolled||'').trim();
+  if(en && en!=='재원'){
     var b=$('s_badge');
-    b.textContent = (String(info.enrolled).trim()==='재원' ? '재원생' : info.enrolled);
+    b.textContent = en;
     b.style.display='inline-block';
   }
 
@@ -1364,7 +1372,7 @@ function renderHub(){
   var nDot = nTotal>0 ? '<span class="new-dot">'+(nTotal>9?'9+':nTotal)+'</span>' : '';
   var nDesc = anTodo>0 ? ('지필고사 복기 '+anTodo+'건 입력 필요')
             : (nCnt>0 ? ('확인할 공지 '+nCnt+'건') : '공지 · 지필고사 분석지 확인');
-  html += '<button class="card" onclick="openNotices()">' +
+  html += '<button class="card t-yel" onclick="openNotices()">' +
             '<span class="icon">'+svg(ICON.bell)+nDot+'</span>' +
             '<h3>알려드립니다</h3><p class="desc">'+esc(nDesc)+'</p>' +
             '<span class="go">'+(nTotal>0?'확인 ':'열기 ')+svg(ICON.arrow)+'</span></button>';
@@ -1375,7 +1383,7 @@ function renderHub(){
   var hDesc = hs0.length===0 ? '배정된 과제 없음'
             : (hCnt>0 ? ('풀어야 할 과제 '+hCnt+'건') : '과제 모두 제출 완료');
   var hDot = hCnt>0 ? '<span class="new-dot">'+(hCnt>9?'9+':hCnt)+'</span>' : '';
-  html += '<button class="card" onclick="openHomework()">' +
+  html += '<button class="card t-sky" onclick="openHomework()">' +
             '<span class="icon">'+svg(ICON.clip)+hDot+'</span>' +
             '<h3>H-work</h3><p class="desc">'+esc(hDesc)+'</p>' +
             '<span class="go">'+(hCnt>0?'확인 ':'열기 ')+svg(ICON.arrow)+'</span></button>';
@@ -1385,7 +1393,7 @@ function renderHub(){
   if(hwc.length){
     var latest = hwc[0];
     var hwcDesc = hwcWeekLabel(latest.week) + ' · ' + (latest.missing ? '미제출' : latest.pct + '%');
-    html += '<button class="card" onclick="openHwcheck()">' +
+    html += '<button class="card t-sky" onclick="openHwcheck()">' +
               '<span class="icon">'+svg(ICON.check)+'</span>' +
               '<h3>숙제 검사</h3><p class="desc">'+esc(hwcDesc)+'</p>' +
               '<span class="go">열기 '+svg(ICON.arrow)+'</span></button>';
@@ -1420,12 +1428,13 @@ function renderHub(){
       // 그 외(주차 미설정 등)는 기본 설명 + '준비 중'
     }
     var ic = '<span class="icon">'+svg(ICON[f.icon]||ICON.book)+(vocaBadge?'<span class="new-dot">1</span>':'')+'</span>';
+    var tcl = f.tone ? ' t-'+f.tone : '';
     // 실전 모의고사: 신청·OMR·성적을 하위 메뉴 하나로 묶음
     if(f.id==='mock'){
       // 진행 대상 학년이 아니면 카드 자체를 비활성 (클리닉과 동일 패턴).
       // 이미 이번 주 신청 내역이 있는 학생은 OMR·성적 확인을 위해 그대로 열어 둔다.
       if(!gradeEligible(STATE.mockGrades) && !(STATE.mockSignups && STATE.mockSignups.length)){
-        html += '<div class="card pending">'+ic+
+        html += '<div class="card pending'+tcl+'">'+ic+
                 '<h3>실전 모의고사</h3><p class="desc">이번 주는 해당 학년 실전 모의고사를 운영하지 않아요.</p>'+
                 '<span class="tag">이번 주 운영 안 함</span></div>';
         return;
@@ -1434,7 +1443,7 @@ function renderHub(){
       var mockDesc = (STATE.mockSignups && STATE.mockSignups.length)
         ? '신청함 · ' + STATE.mockSignups.map(mockDayLabel).join(' · ')
         : '신청 · OMR 작성 · 성적 확인';
-      html += '<button class="card" onclick="openMockHub()">'+ic+
+      html += '<button class="card'+tcl+'" onclick="openMockHub()">'+ic+
               '<h3>실전 모의고사</h3><p class="desc">'+esc(mockDesc)+'</p>'+
               '<span class="go">열기 '+svg(ICON.arrow)+'</span></button>';
       return;
@@ -1448,7 +1457,7 @@ function renderHub(){
         html += '<div class="card pending">'+ic+'<h3>'+esc(f.title)+'</h3><p class="desc">이번 주는 클리닉 신청 대상이 아니에요.</p><span class="tag">이번 주 운영 안 함</span></div>';
         return;
       }
-      html += '<button class="card" onclick="openClinic()">'+ic+
+      html += '<button class="card'+tcl+'" onclick="openClinic()">'+ic+
               '<h3>'+esc(f.title)+'</h3><p class="desc">'+esc(desc)+'</p>'+
               '<span class="go">열기 '+svg(ICON.arrow)+'</span></button>';
       return;
@@ -1468,14 +1477,14 @@ function renderHub(){
                 + '&tc='  + encodeURIComponent(STATE.info.teacher || '');
         }
       }
-      html += '<a class="card" href="'+esc(href)+'">'+body+'<span class="go">열기 '+svg(ICON.arrow)+'</span></a>';
+      html += '<a class="card'+tcl+'" href="'+esc(href)+'">'+body+'<span class="go">열기 '+svg(ICON.arrow)+'</span></a>';
     } else {
-      html += '<div class="card pending">'+body+'<span class="tag">준비 중</span></div>';
+      html += '<div class="card pending'+tcl+'">'+body+'<span class="tag">준비 중</span></div>';
     }
   });
   // 지필고사 데이터 (잠금)
   var cntTxt = STATE.examCount>0 ? ('내신 기록 '+STATE.examCount+'건') : '내신 기록';
-  html += '<button class="card lock" onclick="openGrades()">' +
+  html += '<button class="card lock t-pnk" onclick="openGrades()">' +
             '<span class="icon">'+svg(ICON.chart)+'</span>' +
             '<h3>지필고사 데이터</h3><p class="desc">'+esc(cntTxt)+'</p>' +
             '<span class="go">'+svg(ICON.lock)+' 비밀번호 필요</span></button>';
