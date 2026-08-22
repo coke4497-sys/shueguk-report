@@ -486,8 +486,12 @@
   .wk-ch{font-size:.8rem;font-weight:700;color:var(--accent);border-left:4px solid var(--accent);padding-left:8px;margin:12px 0 8px;}
   .wk-th{font-family:"Gowun Batang",serif;font-size:.86rem;font-weight:700;color:var(--accent);text-align:center;
     background:var(--icon-bg);border-radius:8px;padding:4px 0;}
-  .wk-tcols{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px;align-items:start;}
+  /* 강사 열이 나란히 서도록 최소 폭을 줄이고(180px) 열 안 학생 칩을 압축 (2026-08-22 사용자 요청) */
+  .wk-tcols{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;align-items:start;}
   .wk-tcol{display:flex;flex-direction:column;gap:10px;min-width:0;}
+  .wk-tcol .blk{padding:6px 6px;}
+  .wk-tcol .blk .stus{gap:2px;}
+  .wk-tcol .blk .stus button{font-size:.7rem;padding:1px 6px;letter-spacing:-.01em;}
   .wk-big-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px;align-items:start;}
   @media (max-width:900px){ .wk-ov{grid-template-columns:repeat(4,1fr);} .wk-slim{width:40px;} }
   /* 채도 낮춤 — 정규 '나' 수업, 내신 '확인' 수업 */
