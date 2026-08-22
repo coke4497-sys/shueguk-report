@@ -1,7 +1,9 @@
 # 슈국 수파베이스 일일 점검·복구 도구
 #
 # 사용법:
-#   python3 audit_heal.py <백엔드시트.xlsx> [--heal]
+#   python3 audit_heal.py <리포트시트.xlsx> [--omr <OMR시트.xlsx>] [--signup] [--heal]
+#     --omr    : 주말 모의고사 OMR 시트(회차정답·응답)도 대조·동기화
+#     --signup : 주말 신청 데이터를 신청 백엔드 API(action=data)에서 받아 대조·동기화
 #
 # 하는 일:
 #   · 시트(원본/미러 각 방향)와 수파베이스를 표 단위로 전수 대조해 요약을 출력한다.
@@ -174,6 +176,65 @@ def extract(xlsx):
                         'grade': txt(col(r,6))} for r in rows('별') if txt(col(r,2))]
     return d
 
+def extract_omr(xlsx):
+    wb = openpyxl.load_workbook(xlsx, read_only=True, data_only=True)
+    exams = []
+    for r in wb['회차정답'].iter_rows(values_only=True):   # 헤더 없음 — 1행부터 데이터
+        if not r or not txt(r[0]): continue
+        data = txt(r[1] if len(r) > 1 else '')
+        exams.append({'name': txt(r[0]), 'data': data,
+                      'mode': '통합' if re.search(r'"mode"\s*:\s*"통합"', data) else ''})
+    rows = list(wb['응답'].iter_rows(values_only=True))
+    hdr = [txt(c) for c in rows[0]] if rows else []
+    idcol = hdr.index('학생ID') if '학생ID' in hdr else -1
+    resp = []
+    for r in rows[1:]:
+        if not r or not txt(r[3] if len(r) > 3 else None): continue
+        ans = {}
+        for q in range(1, 46):
+            v = txt(r[9+q] if len(r) > 9+q else None)
+            if v: ans[str(q)] = v
+        dt = r[2]
+        dk = f'{dt.month}월 {dt.day}일' if isinstance(dt, (datetime.datetime, datetime.date)) else txt(dt)
+        resp.append({'submitted_at': ts(r[0]), 'exam': txt(r[1]), 'exam_date': dk,
+                     'name': txt(r[3]), 'school': txt(r[4]), 'grade': txt(r[5]), 'subject': txt(r[6]),
+                     'got': txt(r[7]), 'total': txt(r[8]), 'level': txt(r[9]), 'answers': ans,
+                     'student_id': txt(r[idcol] if idcol >= 0 and len(r) > idcol else None)})
+    return {'omr_exams': exams, 'omr_responses': resp}
+
+SIGNUP_EXEC = 'https://script.google.com/macros/s/AKfycbzdqac0xTnCaOo_t_2swJQqdfxjiA14sTo-ThTV8VvwcwaTucM1MQGeJfMfV4lNLM75/exec'
+def fetch_signup():
+    # 신청 백엔드의 교사용 목록 API — 시트 원본 그대로 (pw는 공개 페이지 내장과 동일 수준)
+    import urllib.parse
+    KST = datetime.timezone(datetime.timedelta(hours=9))
+    def ts_norm(v):
+        s = txt(v)
+        if not s: return ''
+        if re.match(r'^\d{4}-\d{2}-\d{2} \d{2}:\d{2}', s): return s[:16]
+        try: return datetime.datetime.fromisoformat(s.replace('Z', '+00:00')).astimezone(KST).strftime('%Y-%m-%d %H:%M')
+        except Exception: return s
+    def date_norm(v):
+        s = txt(v)
+        if not s or ('월' in s and '일' in s): return s
+        try:
+            d = datetime.datetime.fromisoformat(s.replace('Z', '+00:00')).astimezone(KST)
+            return f'{d.month}월 {d.day}일'
+        except Exception: return s
+    url = SIGNUP_EXEC + '?action=data&pw=sh'
+    try:
+        req = urllib.request.Request(url)
+        for _ in range(5):
+            with urllib.request.urlopen(req, context=CTX) as r:
+                if r.status in (301, 302, 303, 307):
+                    req = urllib.request.Request(r.headers['Location']); continue
+                d = json.loads(r.read()); break
+        if d.get('result') != 'success': return None
+    except Exception:
+        return None
+    return [{'ts': ts_norm(r.get('제출시각')), 'name': txt(r.get('이름')), 'school': txt(r.get('학교')),
+             'grade': txt(r.get('학년')), 'student_id': txt(r.get('학생ID')), 'subject': txt(r.get('선택과목')),
+             'day': txt(r.get('응시요일')), 'exam_date': date_norm(r.get('응시일자'))} for r in d.get('rows', [])]
+
 # ── 대조·복구 ─────────────────────────────────────────────
 ISSUES = []
 def report(line): ISSUES.append(line); print('  !', line)
@@ -261,6 +322,27 @@ def main():
         lambda r: (ep(r['at']), r['kind'], r['student'], r['from_class_id'], r['to_class_id']),
         lambda r: (ep(r['at']), r['kind'], r['student'], r['from_class_id'], r['to_class_id']), heal,
         '페이지에서 직접 기록한 이동(1회 취소 등 정상일 수 있음)')
+
+    # ── 주말 모의고사 (선택) — 셋 다 원본이 밖(시트/신청 백엔드)에 있는 미러 ──
+    if '--omr' in sys.argv:
+        omr_x = sys.argv[sys.argv.index('--omr') + 1]
+        o = extract_omr(omr_x)
+        print('· 주말 모의고사 OMR (시트가 원본)')
+        sync_sheet_master('omr_exams', o['omr_exams'], lambda r: r['name'],
+            lambda r: (r['data'], r['mode']), heal, 'name')
+        sync_sheet_master('omr_responses', o['omr_responses'],
+            lambda r: (ep(r['submitted_at']), r['name'], r['exam']),
+            lambda r: (r['exam_date'], r['school'], r['grade'], r['subject'], r['got'], r['total'],
+                       r['level'], json.dumps(r['answers'], sort_keys=True), r['student_id']), heal)
+    if '--signup' in sys.argv:
+        rows = fetch_signup()
+        if rows is None:
+            report('signup_entries: 신청 백엔드 조회 실패 — 대조 못 함')
+        else:
+            print('· 주말 신청 (신청 시트가 원본, API로 대조)')
+            sync_sheet_master('signup_entries', rows,
+                lambda r: (r['ts'], r['name'], r['day'], r['student_id']),
+                lambda r: (r['school'], r['grade'], r['subject'], r['exam_date']), heal)
 
     print()
     if ISSUES:

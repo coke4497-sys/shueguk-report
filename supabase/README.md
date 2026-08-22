@@ -80,6 +80,18 @@
 - 공지 확인(checkNotice, s.html)의 '공지확인' 적립은 기존 백엔드만 기록 → 일일 점검이 미러를 맞춘다.
 - 남은 것: s.html 완전 전환(다음 회차), 별도 프로젝트(클리닉·H WORK·어휘·주말 — 각자 별도 이전).
 
+## 주말 실전 모의고사 (2026-08-23)
+- [x] `migrations/005_weekend_omr.sql` — omr_exams·omr_responses·signup_entries (셋 다 시트/신청 백엔드가 원본)
+- [x] 데이터 이전: 회차 8 · OMR 응답 291 · 신청 313
+- **OMR 학생/교사 화면은 Apps Script 내부(iframe·google.script.run)라 페이지 미러 불가** —
+  응답 미러는 일일 점검이 OMR 시트(파일 id 1hd1huZpppBue5rlBVMZc2-wAbZ91PitFiBGT12Cq7YQ)로 동기화.
+  실시간 미러가 필요해지면 omr_code.gs에 UrlFetchApp 이중 기록 추가(클래스프 배포+소유자 권한 승인 필요).
+- 출제(hub answer_key.html): 저장/삭제 성공 시 omr_exams 즉시 미러.
+- 신청(signup.html): 신청 성공 시 signup_entries에 한 줄 미러. 교사 화면(signup_teacher.html)이
+  목록을 읽을 때마다 신청 백엔드 원본으로 통째 재동기화(삭제·정리 반영). 일일 점검은
+  신청 백엔드 API(action=data)로 대조(--signup).
+- s.html의 모의고사 성적(studentReports)·신청 게이트는 기존 OMR/신청 백엔드 그대로.
+
 ## 일일 자동 점검·복구 (2026-08-22 설정)
 - **매일 새벽 3:30(KST) CCR 루틴**이 새 세션을 열어 수행: 백엔드 시트 xlsx 다운로드(구글 드라이브,
   파일 id 1_TyraMnur7AhiuB0nVMcDXq2YU2IBeju3lSTkV3Njos) → `tools/audit_heal.py <xlsx> --heal`.
