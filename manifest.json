@@ -3,7 +3,7 @@
   "short_name": "SHUEGUK",
   "description": "이수경국어 지필고사 분석 보고서 제작",
   "start_url": "t.html",
-  "scope": "./",
+  "scope": "/",
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#EEF2EF",
