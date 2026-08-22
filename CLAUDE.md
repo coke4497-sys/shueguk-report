@@ -7,6 +7,7 @@
   - 예외: 만점(100%) 표시의 🏆 같은 성취 표시 이모지는 유지 (사용자 확정)
 - **상자 왼쪽에 굵은 세로 강조라인(border-left 색 띠)을 쓰지 않는다** — "AI 느낌"이라 사용자가 거부 (사용자 확정 지침, 2026-08-23). 제목 상자는 흰 바탕 + 둥근 모서리 + 옅은 그림자만으로 구분한다(shuegukweekendtest `omr_student.html`의 `.title-bar`가 기준 모양). 2026-08-23에 같은 저장소 `signup.html`·`index.html`의 5px 라벤더 띠를 제거함.
   - 구분 대상: 표 열 구분선, 그룹 문항 들여쓰기 표시(`r.html`·`m.html`의 `.in-group`)처럼 **뜻이 있는 얇은 선은 해당 없음**. 금지 대상은 장식용 색 띠.
+  - 예외(유지): `timetable.html` 주차별 보기의 센터 라벨 `.wk-ctr`·소제목 `.wk-ch` 왼쪽 선 — 상자가 아니라 글자 옆 얇은 선이고 교사 전용 화면이라 **그대로 두기로 함**(2026-08-23 사용자 확정). 지우지 말 것.
 
 ## 정규 시간표 시스템 (2026-08-14 구축)
 - **티쳐스 페이지 비밀번호 게이트 전부 제거**(2026-08-14 사용자 확정, 접속 지연 간소화) — timetable·hwcheck·superstar·notice·m·t·analyses·stats + 클리닉(shueguk-clinic teacher.html·clinic_assign.html)·주말 신청(shuegukweekendtest signup_teacher.html) 모두 게이트 없이 바로 열림. 백엔드 TEACHER_PW는 유지하고 페이지에 내장(notice.html과 동일한 공개 수준).
