@@ -92,6 +92,22 @@
   신청 백엔드 API(action=data)로 대조(--signup).
 - s.html의 모의고사 성적(studentReports)·신청 게이트는 기존 OMR/신청 백엔드 그대로.
 
+## 클리닉 (2026-08-23)
+- [x] `migrations/006_clinic.sql` — clinic_requests(신청 '응답' 시트 미러)·clinic_settings(Script Properties
+      설정 미러: open/slots/allSlots/teachers/target — 둘 다 **클리닉 시트·백엔드가 원본**)
+- 정원(강사별 9명/시간대·주차)·대상 판정이 서버(Apps Script)에 있으므로 **쓰기는 전부 기존 백엔드 그대로**:
+  - 학생 폼(index.html, JSONP): 신청 성공 시 clinic_requests에 요청 건수만큼 미러 삽입
+    (학년은 백엔드 gradeKey_ 규칙과 동일하게 '중2'/'고3' 형태로 정규화).
+  - 신청 확인(teacher.html): 목록(action=data)을 읽을 때마다 clinic_requests 통째 재동기화
+    (클리어·삭제 반영) + clinic_settings 갱신. 클리어 처리 성공 시에도 재동기화.
+  - 배정(clinic_assign.html): 설정/현황 로드(action=data) 시 동일 재동기화,
+    setTeacherSlots·setTarget 저장 성공 시 teachers 설정 미러 갱신.
+- s.html의 클리닉 카드(amITarget)·학생 폼의 시간대 조회(slots)는 기존 백엔드 그대로
+  (설정·정원 판정이 Script Properties에 있어서 — 완전 전환 때 함께).
+- 일일 점검 `--clinic`: 클리닉 API(action=data)로 신청·설정을 받아 대조·복구.
+- 제출시각·클리어는 시트가 날짜로 자동 변환 → API가 ISO UTC로 반환하므로 KST 'yyyy-MM-dd HH:mm'로
+  정규화해 저장(페이지 훅·점검 도구 동일 규칙).
+
 ## 일일 자동 점검·복구 (2026-08-22 설정)
 - **매일 새벽 3:30(KST) CCR 루틴**이 새 세션을 열어 수행: 백엔드 시트 xlsx 다운로드(구글 드라이브,
   파일 id 1_TyraMnur7AhiuB0nVMcDXq2YU2IBeju3lSTkV3Njos) → `tools/audit_heal.py <xlsx> --heal`.

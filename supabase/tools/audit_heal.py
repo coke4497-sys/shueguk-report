@@ -1,9 +1,10 @@
 # 슈국 수파베이스 일일 점검·복구 도구
 #
 # 사용법:
-#   python3 audit_heal.py <리포트시트.xlsx> [--omr <OMR시트.xlsx>] [--signup] [--heal]
+#   python3 audit_heal.py <리포트시트.xlsx> [--omr <OMR시트.xlsx>] [--signup] [--clinic] [--heal]
 #     --omr    : 주말 모의고사 OMR 시트(회차정답·응답)도 대조·동기화
 #     --signup : 주말 신청 데이터를 신청 백엔드 API(action=data)에서 받아 대조·동기화
+#     --clinic : 클리닉 신청·설정을 클리닉 백엔드 API(action=data)에서 받아 대조·동기화
 #
 # 하는 일:
 #   · 시트(원본/미러 각 방향)와 수파베이스를 표 단위로 전수 대조해 요약을 출력한다.
@@ -235,6 +236,37 @@ def fetch_signup():
              'grade': txt(r.get('학년')), 'student_id': txt(r.get('학생ID')), 'subject': txt(r.get('선택과목')),
              'day': txt(r.get('응시요일')), 'exam_date': date_norm(r.get('응시일자'))} for r in d.get('rows', [])]
 
+CLINIC_EXEC = 'https://script.google.com/macros/s/AKfycbw8e-054e4VUfRRx-PadyuoXRb-jxsKRcdOaq04SJH1oJyFVS_VOh9GUN_pL5cHPPzKVA/exec'
+def fetch_clinic():
+    # 클리닉 백엔드의 교사용 목록 API — '응답' 시트 + Script Properties 설정 (pw는 공개 페이지 내장과 동일 수준)
+    KST = datetime.timezone(datetime.timedelta(hours=9))
+    def ts_norm(v):
+        s = txt(v)
+        if not s: return ''
+        if re.match(r'^\d{4}-\d{2}-\d{2} \d{2}:\d{2}', s): return s[:16]
+        try: return datetime.datetime.fromisoformat(s.replace('Z', '+00:00')).astimezone(KST).strftime('%Y-%m-%d %H:%M')
+        except Exception: return s
+    url = CLINIC_EXEC + '?action=data&pw=sh'
+    try:
+        req = urllib.request.Request(url)
+        for _ in range(5):
+            with urllib.request.urlopen(req, context=CTX) as r:
+                if r.status in (301, 302, 303, 307):
+                    req = urllib.request.Request(r.headers['Location']); continue
+                d = json.loads(r.read()); break
+        if d.get('result') != 'success': return None
+    except Exception:
+        return None
+    rows = [{'ts': ts_norm(r.get('제출시각')), 'name': txt(r.get('이름')), 'school': txt(r.get('학교')),
+             'phone': txt(r.get('전화뒤4')), 'slot': txt(r.get('클리닉시간')), 'rtype': txt(r.get('유형')),
+             'area': txt(r.get('영역')), 'content': txt(r.get('구체내용')), 'qcount': txt(r.get('질문개수')),
+             'memo': txt(r.get('메모')), 'grade': txt(r.get('학년')), 'student_id': txt(r.get('학생ID')),
+             'teacher': txt(r.get('담당강사')), 'token': txt(r.get('토큰')), 'clear': ts_norm(r.get('클리어'))}
+            for r in d.get('rows', [])
+            if txt(r.get('이름')) or txt(r.get('유형')) or txt(r.get('영역')) or txt(r.get('구체내용'))]
+    settings = {k: d.get(k) for k in ('open', 'slots', 'allSlots', 'teachers', 'target') if k in d}
+    return rows, settings
+
 # ── 대조·복구 ─────────────────────────────────────────────
 ISSUES = []
 def report(line): ISSUES.append(line); print('  !', line)
@@ -343,6 +375,28 @@ def main():
             sync_sheet_master('signup_entries', rows,
                 lambda r: (r['ts'], r['name'], r['day'], r['student_id']),
                 lambda r: (r['school'], r['grade'], r['subject'], r['exam_date']), heal)
+    if '--clinic' in sys.argv:
+        res = fetch_clinic()
+        if res is None:
+            report('clinic_requests: 클리닉 백엔드 조회 실패 — 대조 못 함')
+        else:
+            c_rows, c_set = res
+            print('· 클리닉 (클리닉 시트·백엔드 설정이 원본, API로 대조)')
+            sync_sheet_master('clinic_requests', c_rows,
+                lambda r: (r['ts'], r['name'], r['phone'], r['slot'], r['rtype'], r['area'], r['content']),
+                lambda r: (r['school'], r['qcount'], r['memo'], r['grade'], r['student_id'],
+                           r['teacher'], r['token'], r['clear']), heal)
+            cur_set = {r['key']: r['value'] for r in sb_all('clinic_settings')}
+            diff = [k for k, v in c_set.items() if cur_set.get(k) != v]
+            if not diff:
+                print(f'  = clinic_settings: 일치 ({len(c_set)}키)')
+            else:
+                report(f'clinic_settings: 불일치 {", ".join(diff)}')
+                if heal:
+                    sb('POST', '/clinic_settings?on_conflict=key',
+                       [{'key': k, 'value': c_set[k]} for k in diff],
+                       'resolution=merge-duplicates,return=minimal')
+                    print('    → 복구 완료')
 
     print()
     if ISSUES:
