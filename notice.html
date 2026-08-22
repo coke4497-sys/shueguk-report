@@ -148,6 +148,131 @@
 
 <script src="student-picker.js"></script>
 <script>
+/* ══ 수파베이스 미러 연결부 (2026-08-22 DB 이전 4단계a — 공지·별·학생정보) ═══
+ * 이 페이지의 화면·저장은 전부 기존 백엔드 그대로다(시트가 원본).
+ * 다만 저장이 성공하면 수파베이스 미러(students·notices·star_bonus)를 함께
+ * 갱신해, 제출결과 화면의 학생 링크와 앞으로의 학생 페이지 전환이 시트와
+ * 어긋나지 않게 한다. 미러 갱신이 실패해도 화면·저장에는 영향 없고,
+ * 일일 점검 루틴이 다시 맞춘다. */
+(function(){
+  if (window.__sbAdapter) return; window.__sbAdapter = true;
+  var SB = 'https://bangdbhqpphqqdwcledg.supabase.co/rest/v1';
+  var SB_KEY = 'sb_publishable_dE9d1KIbpgYaQkaS2MSrlg_-7SiRJuT';
+  var LEGACY_SIG = 'script.google.com/macros/s/AKfycbzhCncBwn-';
+  var rawFetch = window.fetch.bind(window);
+
+  function hdr(extra){
+    var h = { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY, 'Content-Type': 'application/json' };
+    if (extra) for (var k in extra) h[k] = extra[k];
+    return h;
+  }
+  function sb(method, path, body, extra){
+    return rawFetch(SB + path, { method: method, headers: hdr(extra), body: body == null ? undefined : JSON.stringify(body) })
+      .then(function(r){
+        if (!r.ok) return r.text().then(function(t){ throw new Error('sb ' + r.status + ' ' + t.slice(0,120)); });
+        return r.status === 204 ? null : r.json().catch(function(){ return null; });
+      });
+  }
+  function q(v){ return encodeURIComponent(String(v == null ? '' : v)); }
+  function pad2(n){ return String(n).padStart(2, '0'); }
+  function todayYmd(){ var d = new Date(); return d.getFullYear() + '-' + pad2(d.getMonth()+1) + '-' + pad2(d.getDate()); }
+  function nowIso(){
+    var d = new Date();
+    return todayYmd() + 'T' + pad2(d.getHours()) + ':' + pad2(d.getMinutes()) + ':' + pad2(d.getSeconds()) + '+09:00';
+  }
+  function warn(tag){ return function(e){ console.warn('미러 갱신 실패(' + tag + ') — 일일 점검이 복구', e); }; }
+
+  /* 공지 미러 재동기화 — 기존 백엔드의 최신 목록으로 통째 교체 */
+  function resyncNotices(pw, url){
+    rawFetch(url + '?action=noticeList&pw=' + q(pw) + '&t=' + Date.now())
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        if (!d || d.result !== 'success' || !d.notices) return;
+        var rows = d.notices.map(function(n, i){
+          return { seq: n.rowIndex || (i + 2), date: String(n.date || ''), type: n.type, target: n.target,
+                   title: n.title, body: n.body, hidden: !!n.hidden };
+        });
+        return sb('DELETE', '/notices?id=gt.0').then(function(){
+          return rows.length ? sb('POST', '/notices', rows, { 'Prefer': 'return=minimal' }) : null;
+        });
+      })
+      .catch(warn('공지'));
+  }
+
+  /* 미러 갱신 규칙 — 저장 성공 후에만 호출 */
+  var AFTER = {
+    addNotice: function(b, res, url){ resyncNotices(b.pw, url); },
+    setNoticeShow: function(b, res, url){ resyncNotices(b.pw, url); },
+    deleteNotice: function(b, res, url){ resyncNotices(b.pw, url); },
+    addStudent: function(b, res){
+      if (!res.token) return;
+      sb('GET', '/students?select=seq&order=seq.desc&limit=1').then(function(rows){
+        var seq = (rows && rows[0] ? rows[0].seq : 0) + 1;
+        return sb('POST', '/students', {
+          seq: seq, student_id: String(b.sid || ''), name: String(b.name || '').trim(),
+          school: String(b.school || ''), grade: String(b.grade || ''), teacher: String(b.teacher || ''),
+          memo: String(b.memo || ''), class_a: String(b.classA || ''), class_b: String(b.classB || ''),
+          naeshin_a: String(b.progress || ''), naeshin_b: String(b.checkup || ''),
+          enrolled: '', code: res.token, student_phone: String(b.sphone || ''), reg_date: todayYmd()
+        }, { 'Prefer': 'return=minimal' });
+      }).catch(warn('신입 등록'));
+    },
+    updateStudent: function(b){
+      sb('PATCH', '/students?code=eq.' + q(b.code), {
+        school: String(b.school || ''), grade: String(b.grade || ''), teacher: String(b.teacher || ''),
+        memo: String(b.memo || ''), class_a: String(b.classA || ''), class_b: String(b.classB || ''),
+        naeshin_a: String(b.progress || ''), naeshin_b: String(b.checkup || '')
+      }).catch(warn('학생 수정'));
+    },
+    studentRename: function(b, res){
+      sb('PATCH', '/students?code=eq.' + q(b.code), { name: String(res.to || b.to || '').trim() })
+        .catch(warn('표기 변경'));
+    },
+    exitDelete: function(b){
+      // 학생정보에서 지운 학생만 미러에서도 제거 (별·공지확인 등은 일일 점검이 정리)
+      (b.items || []).forEach(function(it){
+        if (String(it.tab || '') !== '학생정보' || !it.name) return;
+        sb('DELETE', '/students?name=eq.' + q(String(it.name).trim())).catch(warn('퇴원 정리'));
+      });
+    },
+    addStarBonus: function(b){
+      sb('POST', '/star_bonus', {
+        at: nowIso(), student_id: String(b.id || ''), name: String(b.name || '').trim(),
+        school: String(b.school || ''), stars: parseInt(b.stars, 10) || 0,
+        reason: String(b.reason || ''), grade: String(b.grade || '')
+      }, { 'Prefer': 'return=minimal' }).catch(warn('별 보너스'));
+    },
+    deleteStarBonus: function(b){
+      // 같은 학생·별 개수의 가장 최근 기록 하나를 지운다 (모호하면 일일 점검이 정리)
+      var path = '/star_bonus?name=eq.' + q(String(b.name || '').trim()) +
+                 (b.stars ? '&stars=eq.' + (parseInt(b.stars, 10) || 0) : '') +
+                 '&order=at.desc&limit=1&select=id';
+      sb('GET', path).then(function(rows){
+        if (rows && rows[0]) return sb('DELETE', '/star_bonus?id=eq.' + rows[0].id);
+      }).catch(warn('별 삭제'));
+    }
+  };
+
+  window.fetch = function(url, opts){
+    if (typeof url !== 'string' || url.indexOf(LEGACY_SIG) < 0 ||
+        !opts || String(opts.method || '').toUpperCase() !== 'POST')
+      return rawFetch(url, opts);
+    var body = null;
+    try { body = JSON.parse(opts.body); } catch (e) {}
+    var after = body && AFTER[body.action];
+    if (!after) return rawFetch(url, opts);
+    return rawFetch(url, opts).then(function(r){
+      // 응답을 먼저 읽어 성공일 때만 미러 갱신 — 페이지에는 같은 내용의 응답을 돌려준다
+      return r.json().then(function(res){
+        try { if (res && res.result === 'success') after(body, res, url.split('?')[0]); } catch (e) { console.warn('미러 갱신 오류', e); }
+        return { ok: true, status: 200, json: function(){ return Promise.resolve(res); } };
+      }, function(){ return r; });
+    });
+  };
+})();
+</script>
+
+<script>
   /* ===== 설정 ===== */
   var ENDPOINT  = "https://script.google.com/macros/s/AKfycbzhCncBwn-JlqXARC3wfrWUCuNHzlNK2df0bdhx-w78Xr8mzYUcIYZOJdRi9N4bHtsb/exec";
   var SERVER_PW = "sh";          // 백엔드 TEACHER_PW (쓰기/관리 권한)
