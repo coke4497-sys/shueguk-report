@@ -537,6 +537,621 @@
 <div class="modal-bg" id="modal"><div class="modal" id="modal-box"></div></div>
 
 <script>
+/* ══ 수파베이스 연결부 (2026-08-22 DB 이전 1단계) ═══════════════════════
+ * 기존 액션 API 호출(fetch)을 가로채 수파베이스로 보낸다 — 호출부는 그대로.
+ *  · 읽기 전부: 수파베이스 (첫 화면·주차별·이력·랭킹 0.1~0.3초)
+ *  · 출석·메모 쓰기: 수파베이스 먼저(즉시) + 기존 시트에 백그라운드 이중 기록
+ *    (숙제 검사 배지·시트 열람이 시트를 읽는 동안 유지 — 백업 잡 도입 전까지)
+ *  · 반·명단 구조 변경: 기존 백엔드 먼저(학생정보 연동 로직 유지) + 수파베이스 미러
+ *  · 지필일정·1회이동 수정/취소: 수파베이스가 원본(행 번호 대신 id) — 시트 '지필일정'
+ *    탭은 더 이상 갱신되지 않는다(supabase/README.md 참고)
+ *  · 수파베이스 호출이 실패하면 자동으로 기존 백엔드로 폴백한다.
+ * 미이전 액션(roster 등)은 그대로 기존 백엔드로 나간다. */
+(function(){
+  if (window.__sbAdapter) return; window.__sbAdapter = true;
+  var SB = 'https://bangdbhqpphqqdwcledg.supabase.co/rest/v1';
+  var SB_KEY = 'sb_publishable_dE9d1KIbpgYaQkaS2MSrlg_-7SiRJuT';
+  var rawFetch = window.fetch.bind(window);
+
+  function hdr(extra){
+    var h = { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY, 'Content-Type': 'application/json' };
+    if (extra) for (var k in extra) h[k] = extra[k];
+    return h;
+  }
+  var PAGE = 1000;   // 수파베이스 REST 1회 응답 한도 — 넘으면 이어서 받는다
+  function sbGet(path, _from, _acc){
+    var from = _from || 0, acc = _acc || [];
+    return rawFetch(SB + path, { headers: hdr({ 'Range-Unit': 'items', 'Range': from + '-' + (from + PAGE - 1) }) })
+      .then(function(r){
+        if (!r.ok) throw new Error('sb ' + r.status);
+        return r.json();
+      })
+      .then(function(rows){
+        acc = acc.concat(rows);
+        if (rows.length < PAGE) return acc;
+        return sbGet(path, from + PAGE, acc);
+      });
+  }
+  function sbWrite(method, path, body, extra){
+    return rawFetch(SB + path, { method: method, headers: hdr(extra), body: body == null ? undefined : JSON.stringify(body) })
+      .then(function(r){
+        if (!r.ok) return r.text().then(function(t){ throw new Error('sb ' + r.status + ' ' + t.slice(0,120)); });
+        var rep = (extra && /representation/.test(extra['Prefer'] || ''));
+        return rep ? r.json() : null;
+      });
+  }
+  function q(v){ return encodeURIComponent(String(v == null ? '' : v)); }
+  function plain(nm){ return String(nm || '').replace(/\(.*\)$/, '').trim(); }
+  function pad2(n){ return String(n).padStart(2, '0'); }
+  function localYmd(d){ return d.getFullYear() + '-' + pad2(d.getMonth()+1) + '-' + pad2(d.getDate()); }
+  function tYmd(){ return localYmd(new Date()); }
+  function atYmd(iso){ var d = new Date(iso); return isNaN(d) ? String(iso || '').slice(0,10) : localYmd(d); }
+  function nowIso(){
+    var d = new Date();
+    return localYmd(d) + 'T' + pad2(d.getHours()) + ':' + pad2(d.getMinutes()) + ':' + pad2(d.getSeconds()) + '+09:00';
+  }
+  function applyYmdOf(g){ return (g.apply_date && /^\d{4}-\d{2}-\d{2}$/.test(g.apply_date)) ? g.apply_date : atYmd(g.at); }
+  function isoBefore(ymdStr, days){
+    var t = Date.parse(ymdStr || tYmd()); if (isNaN(t)) t = Date.now();
+    return new Date(t - days * 86400000).toISOString();
+  }
+  function ok(o){ o.result = 'success'; return o; }
+  function fake(data){ return { ok: true, status: 200, json: function(){ return Promise.resolve(data); } }; }
+  function bookOf(v){ return String(v || '').trim() === '내신' ? '내신' : '정규'; }
+
+  /* ── 공통 조회 ── */
+  function fetchClasses(book){
+    return sbGet('/tt_classes?book=eq.' + q(book) + '&order=id&select=class_id,day,start_time,end_time,location,teacher,name,roster')
+      .then(function(rows){
+        return rows.map(function(r){
+          return { id: r.class_id, day: r.day, start: r.start_time, end: r.end_time,
+                   loc: r.location, teacher: r.teacher, cls: r.name,
+                   students: String(r.roster || '').trim().split(/\s+/).filter(String) };
+        });
+      });
+  }
+  function fetchOnceLogs(baseYmd){
+    // 기록일 기준 (기준일-68일) 이후의 1회 이동 전체 — 적용일 필터는 호출부에서
+    return sbGet('/tt_log?kind=eq.' + q('1회') + '&at=gte.' + q(isoBefore(baseYmd, 68)) + '&order=at');
+  }
+  function onceListShape(g){
+    return { row: g.id, date: atYmd(g.at), ymd: applyYmdOf(g), student: g.student,
+             fromId: g.from_class_id, toId: g.to_class_id, reason: g.reason };
+  }
+  function onceWeekShape(g){
+    return { row: g.id, date: applyYmdOf(g), student: g.student,
+             fromId: g.from_class_id, toId: g.to_class_id, reason: g.reason };
+  }
+  function fetchAttendRange(from, to, book){
+    var p = '/attendance?date=gte.' + q(from) + '&date=lte.' + q(to) + '&order=date';
+    if (book) p += '&book=eq.' + q(book);
+    return sbGet(p);
+  }
+  function attTodayShape(a){ return { classId: a.class_id, student: a.student, status: a.status, memo: a.memo }; }
+  function attWeekShape(a){ return { date: a.date, classId: a.class_id, student: a.student, status: a.status, memo: a.memo }; }
+
+  /* ── GET 핸들러 ── */
+  var GETS = {
+    ttBoot: function(p){
+      var book = bookOf(p.get('book'));
+      var dateStr = (p.get('date') || '').trim();
+      var mfrom = (p.get('mfrom') || '').trim() || dateStr, mto = (p.get('mto') || '').trim() || mfrom;
+      var wfrom = (p.get('wfrom') || '').trim(), wto = (p.get('wto') || '').trim();
+      var base = [tYmd(), wfrom || tYmd(), mfrom || tYmd()].sort()[0];
+      var jobs = [
+        fetchClasses(book),
+        fetchOnceLogs(base),
+        dateStr ? fetchAttendRange(dateStr, dateStr, book) : Promise.resolve([]),
+        mfrom ? sbGet('/tt_memo?date=gte.' + q(mfrom) + '&date=lte.' + q(mto)) : Promise.resolve([]),
+        sbGet('/tt_period?select=week_wednesday,book'),
+        (wfrom && wto) ? fetchAttendRange(wfrom, wto, book) : Promise.resolve(null)
+      ];
+      return Promise.all(jobs).then(function(rs){
+        var t = tYmd(), span = 8 * 86400000;
+        var once = rs[1].filter(function(g){
+          if (g.book !== book) return false;
+          var am = Date.parse(applyYmdOf(g));
+          return am && Math.abs(am - Date.parse(t)) <= span;
+        }).map(onceListShape);
+        var out = { book: book, date: dateStr,
+          classes: rs[0], onceMoves: once,
+          attend: rs[2].map(attTodayShape),
+          memos: rs[3].filter(function(m){ return String(m.memo || '').trim(); })
+                      .map(function(m){ return { date: m.date, memo: m.memo }; }),
+          periods: rs[4].map(function(x){ return { week: x.week_wednesday, book: x.book }; }) };
+        if (rs[5]){
+          out.week = { attend: rs[5].map(attWeekShape),
+            onceMoves: rs[1].filter(function(g){
+              if (g.book !== book) return false;
+              var a = applyYmdOf(g); return a >= wfrom && a <= wto;
+            }).map(onceWeekShape) };
+        }
+        return ok(out);
+      });
+    },
+    timetableList: function(p){
+      var book = bookOf(p.get('book'));
+      return Promise.all([fetchClasses(book), fetchOnceLogs(tYmd())]).then(function(rs){
+        var t = Date.parse(tYmd()), span = 8 * 86400000;
+        var once = rs[1].filter(function(g){
+          if (g.book !== book) return false;
+          var am = Date.parse(applyYmdOf(g));
+          return am && Math.abs(am - t) <= span;
+        }).map(onceListShape);
+        return ok({ classes: rs[0], onceMoves: once });
+      });
+    },
+    timetableWeek: function(p){
+      var book = bookOf(p.get('book'));
+      var from = (p.get('from') || '').trim(), to = (p.get('to') || '').trim();
+      if (!from || !to) return Promise.resolve({ result:'error', message:'기간이 필요합니다.' });
+      return Promise.all([fetchAttendRange(from, to, book), fetchOnceLogs(from)]).then(function(rs){
+        return ok({ from: from, to: to, attend: rs[0].map(attWeekShape),
+          onceMoves: rs[1].filter(function(g){
+            if (g.book !== book) return false;
+            var a = applyYmdOf(g); return a >= from && a <= to;
+          }).map(onceWeekShape) });
+      });
+    },
+    ttPeriodList: function(){
+      return sbGet('/tt_period?select=week_wednesday,book').then(function(rows){
+        return ok({ periods: rows.map(function(x){ return { week: x.week_wednesday, book: x.book }; }) });
+      });
+    },
+    ttMemoList: function(p){
+      var from = (p.get('from') || '').trim(), to = (p.get('to') || '').trim() || from;
+      if (!from) return Promise.resolve({ result:'error', message:'기간이 필요합니다.' });
+      return sbGet('/tt_memo?date=gte.' + q(from) + '&date=lte.' + q(to) + '&order=date').then(function(rows){
+        return ok({ from: from, to: to,
+          memos: rows.filter(function(m){ return String(m.memo || '').trim(); })
+                     .map(function(m){ return { date: m.date, memo: m.memo }; }) });
+      });
+    },
+    examSched: function(p){
+      var from = (p.get('from') || '').trim(), to = (p.get('to') || '').trim();
+      return sbGet('/exam_sched?order=start_date').then(function(rows){
+        var periods = [], subjects = [];
+        rows.forEach(function(r){
+          var s = r.start_date, e = r.end_date || r.start_date;
+          if (r.kind === '과목'){
+            if ((from && s < from) || (to && s > to)) return;
+            subjects.push({ row: r.id, school: r.school, date: s, text: r.text });
+          } else {
+            if ((from && e < from) || (to && s > to)) return;
+            periods.push({ row: r.id, school: r.school, start: s, end: e, text: r.text });
+          }
+        });
+        return ok({ periods: periods, subjects: subjects });
+      });
+    },
+    attendStudent: function(p){
+      var nm = plain(p.get('name')), from = (p.get('from') || '').trim(), to = (p.get('to') || '').trim();
+      if (!nm || !from || !to) return Promise.resolve({ result:'error', message:'이름과 기간이 필요합니다.' });
+      return Promise.all([
+        sbGet('/attendance?student_plain=eq.' + q(nm) + '&date=gte.' + q(from) + '&date=lte.' + q(to) + '&order=date'),
+        fetchOnceLogs(from)
+      ]).then(function(rs){
+        return ok({ name: nm, from: from, to: to,
+          attend: rs[0].map(function(a){
+            return { date: a.date, book: a.book, classId: a.class_id, status: a.status, memo: a.memo,
+                     plan: a.makeup_plan, done: a.makeup_done === '1', mkMemo: a.makeup_memo };
+          }),
+          once: rs[1].filter(function(g){
+            if (plain(g.student) !== nm) return false;
+            var a = applyYmdOf(g); return a >= from && a <= to;
+          }).map(function(g){
+            return { date: applyYmdOf(g), book: g.book, fromId: g.from_class_id, toId: g.to_class_id, reason: g.reason };
+          }) });
+      });
+    },
+    attendWarnList: function(p){
+      var from = (p.get('from') || '').trim(), to = (p.get('to') || '').trim();
+      if (!from || !to) return Promise.resolve({ result:'error', message:'기간이 필요합니다.' });
+      return Promise.all([fetchAttendRange(from, to, ''), fetchOnceLogs(from)]).then(function(rs){
+        var agg = {};
+        function of_(nm){ return agg[nm] || (agg[nm] = { name: nm, att: 0, late: 0, abs: 0, absDone: 0, move: 0, items: [] }); }
+        rs[0].forEach(function(a){
+          var nm = plain(a.student); if (!nm) return;
+          var s = of_(nm);
+          if (a.status === '출석'){ s.att++; return; }
+          if (a.status !== '지각' && a.status !== '결석') return;
+          var it = { date: a.date, kind: a.status, book: a.book, classId: a.class_id, memo: a.memo };
+          if (a.status === '지각') s.late++;
+          else {
+            s.abs++;
+            it.plan = a.makeup_plan; it.done = a.makeup_done === '1'; it.mkMemo = a.makeup_memo;
+            if (it.done) s.absDone++;
+          }
+          s.items.push(it);
+        });
+        rs[1].forEach(function(g){
+          var a = applyYmdOf(g); if (a < from || a > to) return;
+          var nm = plain(g.student); if (!nm) return;
+          var m = of_(nm); m.move++;
+          m.items.push({ date: a, kind: '이동', book: g.book, fromId: g.from_class_id, toId: g.to_class_id, reason: g.reason });
+        });
+        var list = [];
+        for (var k in agg) if (agg[k].late + agg[k].abs + agg[k].move > 0) list.push(agg[k]);
+        return ok({ from: from, to: to, list: list });
+      });
+    },
+    attendAbsentList: function(p){
+      var book = bookOf(p.get('book'));
+      return sbGet('/attendance?status=eq.' + q('결석') + '&book=eq.' + q(book) + '&order=date').then(function(rows){
+        return ok({ list: rows.map(function(a){
+          return { date: a.date, classId: a.class_id, student: a.student, memo: a.memo,
+                   plan: a.makeup_plan, done: a.makeup_done === '1', mkMemo: a.makeup_memo };
+        }) });
+      });
+    },
+    timetableLog: function(){
+      return sbGet('/tt_log?order=at.desc&limit=100').then(function(rows){
+        return ok({ log: rows.map(function(g){
+          return { row: g.id, date: atYmd(g.at), kind: g.kind, student: g.student,
+                   fromCls: g.from_class, toCls: g.to_class, fromId: g.from_class_id, toId: g.to_class_id,
+                   reason: g.reason, book: g.book };
+        }) });
+      });
+    }
+  };
+
+  /* ── 쓰기 보조 ── */
+  function legacyBg(body){
+    // 시트 이중 기록 (백그라운드, 1회 재시도) — 숙제 검사 배지·시트 열람용
+    function go(){
+      return rawFetch(ENDPOINT, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify(body) });
+    }
+    go().catch(function(){ setTimeout(function(){ go().catch(function(e){ console.warn('시트 이중 기록 실패', body.action, e); }); }, 3000); });
+  }
+  function legacyPost(body){
+    return rawFetch(ENDPOINT, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify(body) })
+      .then(function(r){ return r.json(); });
+  }
+  function attKeyPath(b){
+    return 'date=eq.' + q(b.date) + '&book=eq.' + q(bookOf(b.book)) + '&class_id=eq.' + q(b.classId) +
+           '&student_plain=eq.' + q(plain(b.student));
+  }
+  function upsertAttend(rows){
+    return sbWrite('POST', '/attendance?on_conflict=date,book,class_id,student_plain', rows,
+                   { 'Prefer': 'resolution=merge-duplicates,return=minimal' });
+  }
+  function classRow(book, id){
+    var list = (typeof classes !== 'undefined' && classes) || [];
+    for (var i = 0; i < list.length; i++) if (list[i].id === id) return list[i];
+    return null;
+  }
+  function classLabel(c){ return c ? c.cls : ''; }
+  function setRoster(book, id, students){
+    return sbWrite('PATCH', '/tt_classes?book=eq.' + q(book) + '&class_id=eq.' + q(id),
+                   { roster: students.join(' ') });
+  }
+  function insertLog(rec){
+    rec.at = rec.at || nowIso();
+    ['from_class_id','from_class','to_class_id','to_class','reason'].forEach(function(k){ if (rec[k] == null) rec[k] = ''; });
+    if (!('apply_date' in rec)) rec.apply_date = null;
+    return sbWrite('POST', '/tt_log', rec);
+  }
+  function resyncClasses(book){
+    // 구조 변경 뒤 자기 치유 — 기존 백엔드의 최신 명단으로 수파베이스를 맞춘다
+    rawFetch(ENDPOINT + '?action=timetableList&pw=' + q(typeof pw !== 'undefined' ? pw : 'sh') + '&book=' + q(book) + '&t=' + Date.now())
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        if (!d || d.result !== 'success' || !d.classes) return;
+        var rows = d.classes.map(function(c){
+          return { book: book, class_id: c.id, day: c.day, start_time: c.start, end_time: c.end,
+                   location: c.loc, teacher: c.teacher, name: c.cls, roster: (c.students || []).join(' ') };
+        });
+        var keep = rows.map(function(r){ return r.class_id; }).join(',');
+        return sbWrite('POST', '/tt_classes?on_conflict=book,class_id', rows,
+                       { 'Prefer': 'resolution=merge-duplicates,return=minimal' })
+          .then(function(){
+            return sbWrite('DELETE', '/tt_classes?book=eq.' + q(book) + '&class_id=not.in.(' + keep + ')');
+          });
+      })
+      .catch(function(e){ console.warn('명단 재동기화 실패', e); });
+  }
+  function findLegacyOnceRow(g, cb){
+    // 시트 쪽 같은 1회 이동의 행 번호 찾기(취소·수정 미러용, 실패해도 무방)
+    var lds = applyYmdOf(g);
+    rawFetch(ENDPOINT + '?action=timetableWeek&pw=' + q(typeof pw !== 'undefined' ? pw : 'sh') +
+             '&book=' + q(g.book) + '&from=' + q(lds) + '&to=' + q(lds) + '&t=' + Date.now())
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        if (!d || d.result !== 'success') return;
+        var hit = (d.onceMoves || []).filter(function(o){
+          return o.student === g.student && o.toId === g.to_class_id && o.fromId === g.from_class_id;
+        })[0];
+        if (hit) cb(hit.row);
+      })
+      .catch(function(){});
+  }
+
+  /* ── POST 핸들러 ── */
+  var POSTS = {
+    /* 출석·메모 — 수파베이스 먼저(즉시), 시트 이중 기록 */
+    attendSet: function(b){
+      var status = String(b.status || '').trim(), memo = String(b.memo || '').trim();
+      if (!b.date || !b.classId || !b.student) return Promise.resolve({ result:'error', message:'날짜·반·학생 정보가 필요합니다.' });
+      if (status && ['출석','지각','결석'].indexOf(status) < 0) return Promise.resolve({ result:'error', message:'상태는 출석/지각/결석 중 하나여야 해요.' });
+      if (status === '지각' && !memo) return Promise.resolve({ result:'error', message:'지각은 메모를 적어주세요. (미리 연락 여부, 몇 분 지각 등)' });
+      if (!status){
+        return sbWrite('DELETE', '/attendance?' + attKeyPath(b)).then(function(){
+          legacyBg(b);
+          return ok({ cleared: true });
+        });
+      }
+      return upsertAttend([{ date: b.date, book: bookOf(b.book), class_id: b.classId,
+                             student: String(b.student).trim(), status: status, memo: memo }])
+        .then(function(){
+          legacyBg(b);
+          return ok({ status: status });
+        });
+    },
+    attendSetBulk: function(b){
+      var book = bookOf(b.book), status = String(b.status == null ? '출석' : b.status).trim();
+      var students = (b.students || []).map(function(s){ return String(s || '').trim(); }).filter(String);
+      var overwrite = String(b.overwrite || '') === '1';
+      if (!b.date || !b.classId || !students.length) return Promise.resolve({ result:'error', message:'날짜·반·학생 명단이 필요합니다.' });
+      if (status && ['출석','결석'].indexOf(status) < 0) return Promise.resolve({ result:'error', message:'일괄 처리는 출석/결석/지우기만 가능해요. (지각은 메모가 필요해 개별로)' });
+      var base = '/attendance?date=eq.' + q(b.date) + '&book=eq.' + q(book) + '&class_id=eq.' + q(b.classId);
+      return sbGet(base + '&select=student_plain').then(function(rows){
+        var have = {}; rows.forEach(function(r){ have[r.student_plain] = true; });
+        if (!status){
+          var clearedNames = students.filter(function(nm){ return have[plain(nm)]; });
+          if (!clearedNames.length) return ok({ cleared: 0, clearedNames: [] });
+          var keys = clearedNames.map(function(nm){ return '"' + plain(nm) + '"'; }).join(',');
+          return sbWrite('DELETE', base + '&student_plain=in.(' + encodeURIComponent(keys) + ')').then(function(){
+            legacyBg(b);
+            return ok({ cleared: clearedNames.length, clearedNames: clearedNames });
+          });
+        }
+        var marked = students.filter(function(nm){ return overwrite || !have[plain(nm)]; });
+        if (!marked.length) return ok({ marked: [], skipped: students.length });
+        return upsertAttend(marked.map(function(nm){
+          return { date: b.date, book: book, class_id: b.classId, student: nm, status: status, memo: '' };
+        })).then(function(){
+          legacyBg(b);
+          return ok({ marked: marked, skipped: students.length - marked.length });
+        });
+      });
+    },
+    attendMakeupSet: function(b){
+      return sbWrite('PATCH', '/attendance?' + attKeyPath(b),
+                     { makeup_plan: String(b.plan || ''), makeup_done: String(b.done || ''), makeup_memo: String(b.mkMemo || '') },
+                     { 'Prefer': 'return=representation' })
+        .then(function(rows){
+          if (!rows || !rows.length) return { result:'error', message:'기록을 찾을 수 없어요. 새로고침 후 다시 시도해 주세요.' };
+          legacyBg(b);
+          return ok({});
+        });
+    },
+    ttMemoSet: function(b){
+      var d = String(b.date || '').trim(), memo = String(b.memo || '').trim();
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return Promise.resolve({ result:'error', message:'날짜가 필요합니다.' });
+      var job = memo
+        ? sbWrite('POST', '/tt_memo?on_conflict=date', [{ date: d, memo: memo }], { 'Prefer': 'resolution=merge-duplicates,return=minimal' })
+        : sbWrite('DELETE', '/tt_memo?date=eq.' + q(d));
+      return job.then(function(){
+        legacyBg(b);
+        return ok(memo ? {} : { cleared: true });
+      });
+    },
+
+    /* 지필일정 — 수파베이스가 원본 (id 기반) */
+    examSchedSet: function(b){
+      var row = parseInt(b.row, 10) || 0;
+      if (b.del){
+        if (!row) return Promise.resolve({ result:'error', message:'행을 찾을 수 없어요.' });
+        return sbGet('/exam_sched?id=eq.' + row + '&select=school').then(function(rows){
+          if (!rows.length) return { result:'error', message:'행을 찾을 수 없어요.' };
+          if (String(rows[0].school).trim() !== String(b.school || '').trim())
+            return { result:'error', message:'내용이 달라졌어요. 새로고침 후 다시 시도해 주세요.' };
+          return sbWrite('DELETE', '/exam_sched?id=eq.' + row).then(function(){ return ok({ deleted: true }); });
+        });
+      }
+      var kind = (String(b.kind || '').trim() === '과목') ? '과목' : '기간';
+      var school = String(b.school || '').trim().slice(0, 20);
+      var start = String(b.start || '').trim(), end = String(b.end || '').trim();
+      var text = String(b.text || '').trim().slice(0, 200);
+      if (!school || !/^\d{4}-\d{2}-\d{2}$/.test(start)) return Promise.resolve({ result:'error', message:'학교와 날짜가 필요합니다.' });
+      if (kind === '기간'){
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(end)) end = start;
+        if (end < start){ var t0 = start; start = end; end = t0; }
+      } else end = start;
+      var rec = { kind: kind, school: school, start_date: start, end_date: end, text: text };
+      if (row){
+        return sbWrite('PATCH', '/exam_sched?id=eq.' + row, rec, { 'Prefer': 'return=representation' })
+          .then(function(rows){
+            if (!rows || !rows.length) return { result:'error', message:'행을 찾을 수 없어요.' };
+            return ok({ row: row });
+          });
+      }
+      return sbWrite('POST', '/exam_sched', rec, { 'Prefer': 'return=representation' })
+        .then(function(rows){ return ok({ row: rows[0].id }); });
+    },
+
+    /* 1회 이동 수정·취소 — 수파베이스가 원본, 시트에도 같은 기록을 찾아 미러(실패 무방) */
+    timetableOnceCancel: function(b){
+      var row = parseInt(b.row, 10) || 0;
+      return sbGet('/tt_log?id=eq.' + row).then(function(rows){
+        var g = rows[0];
+        if (!g || g.kind !== '1회' || g.student !== String(b.student || '').trim())
+          return { result:'error', message:'기록이 달라졌어요. 새로고침 후 다시 시도해 주세요.' };
+        return sbWrite('DELETE', '/tt_log?id=eq.' + row).then(function(){
+          findLegacyOnceRow(g, function(shRow){ legacyBg({ action:'timetableOnceCancel', pw: b.pw, row: shRow, student: b.student }); });
+          return ok({});
+        });
+      });
+    },
+    timetableOnceEdit: function(b){
+      var row = parseInt(b.row, 10) || 0, reason = String(b.reason || '').trim();
+      if (!reason) return Promise.resolve({ result:'error', message:'사유를 적어주세요.' });
+      return sbGet('/tt_log?id=eq.' + row).then(function(rows){
+        var g = rows[0];
+        if (!g || g.kind !== '1회' || g.student !== String(b.student || '').trim())
+          return { result:'error', message:'기록이 달라졌어요. 새로고침 후 다시 시도해 주세요.' };
+        return sbWrite('PATCH', '/tt_log?id=eq.' + row, { reason: reason }).then(function(){
+          findLegacyOnceRow(g, function(shRow){ legacyBg({ action:'timetableOnceEdit', pw: b.pw, row: shRow, student: b.student, reason: reason }); });
+          return ok({ reason: reason });
+        });
+      });
+    },
+
+    /* 주별 기간 — 내신 페이지가 시트를 읽으므로 기존 백엔드 먼저, 수파베이스 미러 */
+    ttPeriodSet: function(b){
+      return legacyPost(b).then(function(res){
+        if (res && res.result === 'success'){
+          var bk = String(b.book || '').trim();
+          var job = bk
+            ? sbWrite('POST', '/tt_period?on_conflict=week_wednesday', [{ week_wednesday: b.week, book: bookOf(bk) }],
+                      { 'Prefer': 'resolution=merge-duplicates,return=minimal' })
+            : sbWrite('DELETE', '/tt_period?week_wednesday=eq.' + q(b.week));
+          return job.then(function(){ return res; }, function(e){ console.warn('기간 미러 실패', e); return res; });
+        }
+        return res;
+      });
+    },
+
+    /* 반·명단 구조 변경 — 기존 백엔드 먼저(학생정보 연동), 수파베이스 미러 */
+    timetableMove: function(b){
+      return legacyPost(b).then(function(res){
+        if (!res || res.result !== 'success') return res;
+        var book = bookOf(b.book);
+        var fromC = classRow(book, b.fromId), toC = classRow(book, b.toId);
+        var mirror;
+        if (b.moveType === 'once'){
+          var applyDate = (res.date || b.date || tYmd());
+          mirror = insertLog({ kind:'1회', student: res.moved || b.student, book: book,
+            from_class_id: b.fromId, from_class: classLabel(fromC),
+            to_class_id: b.toId, to_class: classLabel(toC),
+            reason: String(b.reason || ''), apply_date: applyDate })
+            .then(function(){
+              if (!res.makeupDone) return;
+              // 백엔드의 결석 보충 자동 완료를 수파베이스에도 동일 규칙으로 반영
+              return sbGet('/attendance?status=eq.' + q('결석') + '&book=eq.' + q(book) +
+                           '&class_id=eq.' + q(b.fromId) + '&student_plain=eq.' + q(plain(b.student)) +
+                           '&makeup_done=neq.1&select=id,date')
+                .then(function(rows){
+                  var am = Date.parse(applyDate), best = null, gap = 15;
+                  rows.forEach(function(r){
+                    var g2 = Math.abs((Date.parse(r.date) - am) / 86400000);
+                    if (g2 < gap){ gap = g2; best = r; }
+                  });
+                  if (best) return sbWrite('PATCH', '/attendance?id=eq.' + best.id,
+                                           { makeup_plan: res.makeupDone, makeup_done: '1' });
+                });
+            });
+        } else {
+          var moved = res.moved || b.student, jobs = [];
+          if (fromC) jobs.push(setRoster(book, b.fromId, fromC.students.filter(function(nm){ return plain(nm) !== plain(moved); })));
+          if (toC) jobs.push(setRoster(book, b.toId, toC.students.concat([moved])));
+          jobs.push(insertLog({ kind:'영구', student: moved, book: book,
+            from_class_id: b.fromId, from_class: classLabel(fromC),
+            to_class_id: b.toId, to_class: classLabel(toC), reason: String(b.reason || '') }));
+          mirror = Promise.all(jobs);
+        }
+        return mirror.then(function(){ resyncClasses(book); return res; },
+                           function(e){ console.warn('이동 미러 실패', e); resyncClasses(book); return res; });
+      });
+    },
+    timetableAdd: function(b){
+      return legacyPost(b).then(function(res){
+        if (!res || res.result !== 'success') return res;
+        var book = bookOf(b.book), toC = classRow(book, b.toId), added = res.added || b.student;
+        var jobs = [];
+        if (toC) jobs.push(setRoster(book, b.toId, toC.students.concat([added])));
+        jobs.push(insertLog({ kind:'추가', student: added, book: book, to_class_id: b.toId, to_class: classLabel(toC) }));
+        return Promise.all(jobs).then(function(){ resyncClasses(book); return res; },
+                                      function(e){ console.warn('추가 미러 실패', e); resyncClasses(book); return res; });
+      });
+    },
+    timetableRemove: function(b){
+      return legacyPost(b).then(function(res){
+        if (!res || res.result !== 'success') return res;
+        var book = bookOf(b.book), fromC = classRow(book, b.fromId), removed = res.removed || b.student;
+        var jobs = [];
+        if (fromC) jobs.push(setRoster(book, b.fromId, fromC.students.filter(function(nm){ return plain(nm) !== plain(removed); })));
+        jobs.push(insertLog({ kind:'빼기', student: removed, book: book, from_class_id: b.fromId, from_class: classLabel(fromC),
+                              reason: String(b.reason || '') }));
+        return Promise.all(jobs).then(function(){ resyncClasses(book); return res; },
+                                      function(e){ console.warn('빼기 미러 실패', e); resyncClasses(book); return res; });
+      });
+    },
+    timetableRenameStudent: function(b){
+      return legacyPost(b).then(function(res){
+        if (!res || res.result !== 'success') return res;
+        var book = bookOf(b.book), from = String(b.from || '').trim(), to = String(b.to || '').trim();
+        var jobs = [];
+        ((typeof classes !== 'undefined' && classes) || []).forEach(function(c){
+          if (c.students.indexOf(from) < 0) return;
+          jobs.push(setRoster(book, c.id, c.students.map(function(nm){ return nm === from ? to : nm; })));
+        });
+        jobs.push(insertLog({ kind:'표기수정', student: from, book: book, reason: from + ' → ' + to }));
+        return Promise.all(jobs).then(function(){ resyncClasses(book); return res; },
+                                      function(e){ console.warn('표기 미러 실패', e); resyncClasses(book); return res; });
+      });
+    },
+    timetableAddClass: function(b){
+      return legacyPost(b).then(function(res){
+        if (!res || res.result !== 'success' || !res.id) return res;
+        var book = bookOf(b.book);
+        return sbWrite('POST', '/tt_classes', { book: book, class_id: res.id, day: b.day, start_time: b.start,
+                                                end_time: b.end, location: String(b.loc || ''), teacher: String(b.teacher || ''),
+                                                name: b.cls, roster: '' })
+          .then(function(){ return res; }, function(e){ console.warn('반 추가 미러 실패', e); resyncClasses(book); return res; });
+      });
+    },
+    timetableDeleteClass: function(b){
+      return legacyPost(b).then(function(res){
+        if (!res || res.result !== 'success') return res;
+        var book = bookOf(b.book);
+        return sbWrite('DELETE', '/tt_classes?book=eq.' + q(book) + '&class_id=eq.' + q(b.classId))
+          .then(function(){ return res; }, function(e){ console.warn('반 삭제 미러 실패', e); resyncClasses(book); return res; });
+      });
+    },
+    timetableMoveClass: function(b){
+      return legacyPost(b).then(function(res){
+        if (!res || res.result !== 'success') return res;
+        var book = bookOf(b.book);
+        return sbWrite('PATCH', '/tt_classes?book=eq.' + q(book) + '&class_id=eq.' + q(b.classId),
+                       { day: b.day, start_time: b.start, end_time: b.end,
+                         location: String(b.loc || ''), teacher: String(b.teacher || '') })
+          .then(function(){ resyncClasses(book); return res; },
+                function(e){ console.warn('반 이동 미러 실패', e); resyncClasses(book); return res; });
+      });
+    }
+  };
+
+  /* ── fetch 가로채기 ── */
+  window.fetch = function(url, opts){
+    try {
+      if (typeof ENDPOINT === 'undefined' || typeof url !== 'string' || url.indexOf(ENDPOINT) !== 0)
+        return rawFetch(url, opts);
+      if (opts && String(opts.method || '').toUpperCase() === 'POST'){
+        var body;
+        try { body = JSON.parse(opts.body); } catch (e) { return rawFetch(url, opts); }
+        var ph = body && POSTS[body.action];
+        if (!ph) return rawFetch(url, opts);
+        return ph(body).then(fake, function(err){
+          console.warn('수파베이스 쓰기 실패 — 기존 백엔드로 폴백', body.action, err);
+          return rawFetch(url, opts);
+        });
+      }
+      var qs = new URLSearchParams(url.slice(url.indexOf('?') + 1));
+      var gh = GETS[qs.get('action')];
+      if (!gh) return rawFetch(url, opts);
+      return gh(qs).then(fake, function(err){
+        console.warn('수파베이스 조회 실패 — 기존 백엔드로 폴백', qs.get('action'), err);
+        return rawFetch(url, opts);
+      });
+    } catch (e) {
+      return rawFetch(url, opts);
+    }
+  };
+})();
+</script>
+
+<script>
 var ENDPOINT = "https://script.google.com/macros/s/AKfycbzhCncBwn-JlqXARC3wfrWUCuNHzlNK2df0bdhx-w78Xr8mzYUcIYZOJdRi9N4bHtsb/exec";
 var DAYS = ['월', '화', '수', '목', '금', '토', '일'];
 var TEACHER_ORDER = ['슈', '선주', '승연', '주혜', '현정', '연주', '현지', '지원', '덕기', '은지'];
