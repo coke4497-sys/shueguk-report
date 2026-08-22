@@ -91,6 +91,10 @@
   /* 학생 카드 */
   .list{display:flex;flex-direction:column;gap:10px;margin-top:8px;}
   .stu{background:var(--surface);border:1px solid var(--line-soft);border-radius:var(--radius);padding:14px 16px;}
+  /* 이번 주 결석 학생 — 흐리게 + 목록 맨 아래 (마우스를 올리거나 입력하면 또렷해짐) */
+  .stu.away{opacity:.45;}
+  .stu.away:hover,.stu.away:focus-within{opacity:1;}
+  .away-badge{font-size:.72rem;color:#B4574E;border:1px solid #E3C2BE;border-radius:8px;padding:1px 7px;margin-left:8px;vertical-align:2px;white-space:nowrap;}
   .stu .top{display:flex;align-items:baseline;justify-content:space-between;gap:10px;}
   .stu .nm{font-family:"Gowun Batang",serif;font-weight:700;font-size:1.05rem;}
   .stu .nm small{font-family:"Gowun Dodum",sans-serif;font-weight:400;color:var(--ink-soft);font-size:.78rem;margin-left:6px;}
@@ -617,6 +621,26 @@ function ttInfoHtml(s){
   });
   return parts.length ? '<div class="ttinfo">' + parts.join('') + '</div>' : '';
 }
+/* 이번 주 자기 수업(가/나) 출석 기록이 '결석'뿐인 학생 — 목록에서 흐리게 + 맨 아래 (2026-08-22 사용자 확정)
+ * 다른 수업에 출석·지각했으면(=학원에 온 주) 검사 대상이라 내리지 않고,
+ * 영상보충 등으로 뒤늦게 출석이 기록되면 새로고침 때 자동으로 제자리로 돌아온다. */
+function isAwayThisWeek(s){
+  if (!ttClasses) return false;
+  var pn = plainNm(s.name);
+  var mySlots = {};
+  if (s.classA) mySlots[slotNorm(s.classA)] = 1;
+  if (s.classB) mySlots[slotNorm(s.classB)] = 1;
+  var abs = false;
+  for (var i = 0; i < wkAtt.length; i++){
+    var a = wkAtt[i];
+    if (plainNm(a.student) !== pn) continue;
+    var c = ttClasses[a.classId];
+    if (!c || !mySlots[c.slot]) continue;
+    if (a.status === '결석') abs = true;
+    else return false;
+  }
+  return abs;
+}
 
 /* ── 그룹 필터 — 학년 → 학교 → 담당 강사 → 시간대.
  * 앞 단계 선택에 맞는 값만 다음 선택지에 나온다.
@@ -773,6 +797,12 @@ function hasAnyScore(rec){
 function render(){
   updateCidNote();
   var stus = currentStudents();
+  // 이번 주 결석 학생은 순서 유지한 채 맨 아래로
+  var away = {};
+  stus.forEach(function(s){ if (isAwayThisWeek(s)) away[s.code] = 1; });
+  var awayCnt = Object.keys(away).length;
+  if (awayCnt) stus = stus.filter(function(s){ return !away[s.code]; })
+                          .concat(stus.filter(function(s){ return away[s.code]; }));
   var baseSet = {};
   baseStudents().forEach(function(s){ baseSet[s.code] = true; });
   var checked = 0;
@@ -793,8 +823,9 @@ function render(){
     var pctHtml = (rec && rec.missing) ? '<span class="miss-lb">미제출</span>'
       : (showPct == null ? '<span style="font-size:.8rem;">미검사</span>'
         : '<b class="' + (showPct >= 100 ? 'full' : '') + '">' + showPct + '%</b>' + (showPct >= 100 ? ' 🏆' : ''));
-    return '<div class="stu' + (rec && rec.missing ? ' missing' : '') + '" id="stu-' + esc(s.code) + '">' +
+    return '<div class="stu' + (rec && rec.missing ? ' missing' : '') + (away[s.code] ? ' away' : '') + '" id="stu-' + esc(s.code) + '">' +
       '<div class="top"><span class="nm">' + esc(s.name) + '<small>' + esc(s.school) + ' · ' + esc(s.grade) + '</small>' +
+      (away[s.code] ? '<span class="away-badge">이번 주 결석</span>' : '') +
       (extra ? '<span class="extra-badge">추가됨</span><button class="extra-rm" onclick="removeExtra(\'' + esc(s.code) + '\')" title="목록에서 빼기">×</button>' : '') + '</span>' +
       '<span class="pct"><span id="pct-' + esc(s.code) + '">' + pctHtml + '</span>' +
       '<span class="save-dot" id="dot-' + esc(s.code) + '"></span></span></div>' +
@@ -816,7 +847,8 @@ function render(){
     '</div>';
   }).join('');
   $('list').innerHTML = html || '<p class="empty">해당하는 학생이 없어요.</p>';
-  $('count-note').textContent = '검사 ' + checked + '명 / 전체 ' + stus.length + '명';
+  $('count-note').textContent = '검사 ' + checked + '명 / 전체 ' + stus.length + '명' +
+    (awayCnt ? ' · 결석 ' + awayCnt + '명(맨 아래)' : '');
 }
 
 /* ── 입력 → 자동 저장 ── */
