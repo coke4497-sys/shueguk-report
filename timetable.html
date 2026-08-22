@@ -49,8 +49,10 @@
   .viewtabs button.on{background:var(--icon-bg);filter:saturate(1.2);
     color:var(--accent);font-weight:700;
     animation:ppyong .38s cubic-bezier(.34,1.56,.64,1);}
-  .bookwrap{display:inline-flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;margin-right:6px;}
-  .bookwrap button{border:none;border-radius:0;}
+  /* 정규/내신 토글 — 전체 시간표 제목 옆 (2026-08-22 사용자 확정: 메인 메뉴에서 이동) */
+  .bookwrap{display:inline-flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;}
+  .bookwrap button{font:inherit;font-size:.88rem;background:#fff;border:none;border-radius:0;
+    padding:6px 14px;color:var(--ink);cursor:pointer;}
   .bookwrap button.on{background:var(--icon-bg);filter:saturate(1.2);
     color:var(--accent);font-weight:700;
     animation:ppyong .38s cubic-bezier(.34,1.56,.64,1);}
@@ -180,9 +182,33 @@
   .att-btns button.pick-late.on{background:#B08A3E;border-color:#B08A3E;color:#fff;}
   .att-btns button.pick-abs.on{background:#B4574E;border-color:#B4574E;color:#fff;}
   .viewtabs .sp{flex:1;}
-  .viewtabs .reload{font-size:.82rem;background:var(--icon-bg);border:1px solid var(--line-soft);
-    border-radius:9px;padding:6px 12px;color:var(--ink-soft);cursor:pointer;}
-  .attbar{display:none;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:6px;}
+  /* 메인 메뉴 — 보기 탭 한 덩어리(세그먼트) + 출석 기록 묶음 + 새로고침 아이콘 (2026-08-22 사용자 확정 시안) */
+  .viewtabs .seg{display:inline-flex;border:1px solid var(--line);border-radius:11px;overflow:hidden;background:#fff;flex-wrap:wrap;}
+  .viewtabs .seg button{border:none;border-radius:0;border-right:1px solid var(--line-soft);padding:7px 13px;}
+  .viewtabs .seg button:last-child{border-right:none;}
+  /* 모바일: 한 덩어리 세그먼트가 줄바꿈되면 어색해서 개별 알약 버튼으로 (2026-08-22 사용자 피드백) */
+  @media (max-width:760px){
+    .viewtabs .seg{border:none;background:none;border-radius:0;overflow:visible;gap:6px;}
+    .viewtabs .seg button{border:1px solid var(--line);border-radius:10px;padding:6px 12px;}
+  }
+  .cluster{display:inline-flex;align-items:center;gap:6px;background:#F6F9F7;border:1px solid var(--line-soft);
+    border-radius:12px;padding:4px 7px 4px 11px;flex-wrap:wrap;}
+  .cluster .clabel{font-size:.76rem;color:var(--ink-soft);font-weight:700;white-space:nowrap;}
+  .cluster button{font:inherit;font-size:.82rem;background:#fff;border:1px solid var(--line-soft);
+    border-radius:9px;padding:5px 11px;cursor:pointer;color:var(--ink);white-space:nowrap;}
+  .cluster button:hover{color:var(--accent);}
+  .viewtabs .iconbtn{width:34px;height:34px;display:inline-flex;align-items:center;justify-content:center;flex:none;
+    padding:0;background:var(--icon-bg);border:1px solid var(--line-soft);border-radius:10px;color:var(--accent);cursor:pointer;}
+  .viewtabs .iconbtn svg{width:17px;height:17px;}
+  /* 시간표 카드 안 도구줄 */
+  .toolline{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+  .toolline .sp{flex:1;}
+  .sheet-title{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:6px 2px 10px;}
+  .sheet-title b{font-family:"Gowun Batang",serif;font-weight:700;font-size:1.1rem;color:var(--accent);}
+  .sheet-title .sp{flex:1;}
+  .sheet-title .mview-toggle{margin:0;}
+  .attbar{display:none;gap:6px;align-items:center;flex-wrap:wrap;
+    background:#F6F9F7;border:1px solid var(--line-soft);border-radius:12px;padding:6px 10px;}
   .attbar.show{display:flex;}
   .attbar .elabel{font-size:.78rem;color:var(--ink-soft);margin-right:2px;}
   .attbar button{font:inherit;font-size:.84rem;background:var(--icon-bg);border:1px solid var(--line-soft);
@@ -190,7 +216,7 @@
   .attbar button.on{background:var(--icon-bg);filter:saturate(1.2);color:var(--accent);font-weight:700;animation:ppyong .38s cubic-bezier(.34,1.56,.64,1);}
   body.multisel .blk{cursor:pointer;}
   .stus button.msel{outline:2px solid var(--accent);outline-offset:1px;font-weight:700;}
-  .searchbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:6px;}
+  .searchbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
   .searchbar input{font:inherit;font-size:.9rem;padding:6px 12px;border:1.5px solid var(--line);border-radius:10px;width:150px;}
   #searchResults{display:flex;gap:6px;flex-wrap:wrap;font-size:.8rem;align-items:center;color:var(--ink-soft);}
   #searchResults button{font:inherit;font-size:.8rem;background:#fff;border:1px solid var(--line);
@@ -198,12 +224,17 @@
   #searchResults button b{color:var(--accent);}
   .blk.search-blk{outline:2px solid #B08A3E;}
   .stus button.search-hit{background:#B08A3E;border-color:#B08A3E;color:#fff;font-weight:700;}
-  .editbar{display:none;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:6px;}
+  .editbar{display:none;gap:6px;align-items:center;flex-wrap:wrap;
+    background:#F6F9F7;border:1px solid var(--line-soft);border-radius:12px;padding:6px 10px;}
   .editbar.show{display:flex;}
   .editbar .elabel{font-size:.78rem;color:var(--ink-soft);margin-right:2px;}
-  .editbar button{font:inherit;font-size:.84rem;background:var(--icon-bg);border:1px solid var(--line-soft);
+  .editbar button{font:inherit;font-size:.84rem;background:#fff;border:1px solid var(--line-soft);
     border-radius:9px;padding:5px 12px;color:var(--ink);cursor:pointer;}
   .editbar button.on{background:var(--icon-bg);filter:saturate(1.2);color:var(--accent);font-weight:700;animation:ppyong .38s cubic-bezier(.34,1.56,.64,1);}
+  .editbar .efold{font-weight:700;}
+  .editbar .efold.open{border-color:var(--accent);color:var(--accent);}
+  .editset{display:none;gap:6px;align-items:center;flex-wrap:wrap;}
+  .editset.open{display:inline-flex;}
   body.editpick .blk{cursor:pointer;}
   body.editpick .blk:hover{outline:2px solid var(--btn);}
   .daytabs{display:none;gap:6px;flex-wrap:wrap;align-items:center;}
@@ -216,8 +247,9 @@
   .dayhead:first-child{margin-top:2px;}
   .dayhead small{font-family:"Gowun Dodum",sans-serif;font-weight:400;color:var(--ink-soft);font-size:.78rem;margin-left:8px;}
   .day-empty{color:var(--ink-soft);font-size:.82rem;margin:0 4px 10px;}
-  .hint{font-size:.8rem;color:var(--ink-soft);margin:8px 2px 0;}
-  .legend{display:flex;gap:10px;flex-wrap:wrap;font-size:.75rem;color:var(--ink-soft);margin-top:6px;}
+  .hint{font-size:.8rem;color:var(--ink-soft);margin:0;}
+  .hintline{display:flex;gap:14px;align-items:baseline;flex-wrap:wrap;margin:8px 2px 4px;}
+  .legend{display:flex;gap:10px;flex-wrap:wrap;font-size:.75rem;color:var(--ink-soft);margin-left:auto;}
   .legend i{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:4px;vertical-align:-1px;border:1px solid rgba(0,0,0,.06);}
 
   /* 이동 모드 바 */
@@ -233,9 +265,10 @@
   .status.ok{color:#4C8A5C;}
   .status.err{color:#B4574E;}
 
-  /* 시간표 그리드 */
-  .sheet{background:var(--surface);border:1px solid var(--line-soft);border-radius:var(--radius);
-    padding:14px;margin:8px 0;overflow-x:auto;display:none;}
+  /* 시간표 카드(도구줄 + 시간표) */
+  .sheetcard{background:var(--surface);border:1px solid var(--line-soft);border-radius:var(--radius);
+    padding:14px;margin:8px 0;display:none;}
+  .sheet{overflow-x:auto;margin-top:4px;}
   .grid{display:grid;gap:3px;min-width:900px;}
   .grid.fitgrid{min-width:0;}
   .grid.fitgrid .blk{padding:4px 5px;}
@@ -358,6 +391,22 @@
   .aw-det{border:1px solid var(--line-soft);border-top:none;border-radius:0 0 10px 10px;
     margin:0 6px;padding:8px 10px 6px;background:#FBFCFB;}
   .aw-det .ah-row{background:#fff;}
+  /* 이달의 신입생 (전체 시간표 하단) */
+  .ns-card{margin:20px auto 0;background:var(--surface);border:1px solid var(--line-soft);border-radius:14px;
+    padding:14px 16px;max-width:760px;}
+  .ns-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+  .ns-head b{font-family:"Gowun Batang",serif;color:var(--accent);font-size:1rem;}
+  .ns-cnt{color:var(--ink-soft);font-size:.8rem;}
+  .ns-head .sp{flex:1;}
+  .ns-row{display:flex;gap:9px;align-items:baseline;flex-wrap:wrap;border-top:1px dashed var(--line-soft);
+    padding:7px 2px;font-size:.86rem;}
+  .ns-head + .ns-row{border-top:none;margin-top:8px;}
+  .ns-row b{font-family:"Gowun Batang",serif;}
+  .ns-meta{color:var(--ink-soft);font-size:.8rem;}
+  .ns-slot{font-size:.8rem;}
+  .ns-date{margin-left:auto;color:var(--ink-soft);font-size:.76rem;flex:none;}
+  .ns-empty{color:var(--ink-soft);font-size:.84rem;margin:10px 0 2px;}
+  .ns-note{color:var(--ink-soft);font-size:.72rem;margin-top:8px;}
   .modal h3{font-family:"Gowun Batang",serif;color:var(--accent);margin:0 0 4px;font-size:1.05rem;}
   .modal .mdesc{font-size:.85rem;color:var(--ink-soft);margin:0 0 10px;}
   .modal label.radio{display:block;border:1.5px solid var(--line);border-radius:10px;padding:9px 12px;margin:6px 0;cursor:pointer;font-size:.92rem;}
@@ -457,50 +506,27 @@
     <p class="err" id="gate-err"></p>
   </div>
 
-  <!-- 상단 컨트롤 -->
+  <!-- 상단 컨트롤 — 메인 메뉴(화면 이동·기록 조회)만. 시간표 조작 도구는 아래 시간표 카드 안에 (2026-08-22 사용자 확정 시안) -->
   <div class="bar" id="bar">
     <div id="period-badge" class="pbadge"></div>
     <div class="viewtabs">
-      <button id="v-today" onclick="setMode('today')">오늘의 시간표</button>
-      <button id="v-week" onclick="setMode('week')">주차별 시간표</button>
-      <button id="v-all" onclick="setMode('all')">★ 전체 시간표</button>
-      <span class="bookwrap"><button id="b-reg" onclick="setBook('정규')">정규</button><button id="b-exam" onclick="setBook('내신')">내신</button></span>
-      <button id="v-cal" onclick="setMode('cal')">슈국 캘린더</button>
-      <button id="v-exs" onclick="setMode('exs')">지필고사 일정</button>
+      <span class="seg">
+        <button id="v-today" onclick="setMode('today')">오늘의 시간표</button>
+        <button id="v-week" onclick="setMode('week')">주차별 시간표</button>
+        <button id="v-all" onclick="setMode('all')">★ 전체 시간표</button>
+        <button id="v-cal" onclick="setMode('cal')">슈국 캘린더</button>
+        <button id="v-exs" onclick="setMode('exs')">지필고사 일정</button>
+      </span>
       <span class="sp"></span>
-      <button class="reload" onclick="openAttHistory()">학생 출석 이력</button>
-      <button class="reload" onclick="openAttWarn()">결석/지각자 확인</button>
-      <button class="reload" onclick="openMakeup()">결석자 관리</button>
-      <button class="reload" onclick="load(true)">다시 불러오기</button>
-    </div>
-    <div class="editbar" id="editbar">
-      <span class="elabel">편집</span>
-      <button id="e-move" onclick="setEdit('move')">반 이동</button>
-      <button id="e-add" onclick="setEdit('add')">학생 추가</button>
-      <button id="e-del" onclick="setEdit('del')">반 삭제</button>
-      <button onclick="openAddClass()">반 추가</button>
-      <button onclick="openLog()">이동 기록</button>
-    </div>
-    <div class="attbar" id="attbar">
-      <span class="elabel">출석</span>
-      <button id="a-multi" onclick="toggleMulti()">복수 선택</button>
-      <button onclick="multiApply('출석')">선택 출석</button>
-      <button onclick="multiApply('결석')">선택 결석</button>
-      <button onclick="multiApply('')">선택 기록 지우기</button>
-      <span id="multiCnt" class="elabel"></span>
-    </div>
-    <div class="searchbar">
-      <input id="stu-q" placeholder="학생 검색" autocomplete="off" />
-      <span id="searchResults"></span>
-    </div>
-    <p class="hint">학생 이름을 누르면 이동 모드가 켜져요. 옮길 반(다른 요일 포함)을 누르면 이동됩니다.</p>
-    <div class="legend">
-      <span><i style="background:var(--g1)"></i>고1</span>
-      <span><i style="background:var(--g2)"></i>고2</span>
-      <span><i style="background:var(--g3)"></i>고3</span>
-      <span><i style="background:var(--mid)"></i>정리정독(중등)</span>
-      <span><i style="background:var(--etc)"></i>기타</span>
-      <span style="margin-left:2px;"><i style="background:var(--g2);filter:saturate(.35);"></i>나·확인 수업(연한 색)</span>
+      <span class="cluster">
+        <span class="clabel">출석 기록</span>
+        <button onclick="openAttHistory()">학생 이력</button>
+        <button onclick="openAttWarn()">결석/지각자</button>
+        <button onclick="openMakeup()">결석자 관리</button>
+      </span>
+      <button class="iconbtn" onclick="load(true)" title="다시 불러오기" aria-label="다시 불러오기">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
+      </button>
     </div>
   </div>
 
@@ -513,7 +539,46 @@
   </div>
   <p class="status" id="status"></p>
 
-  <div class="sheet" id="sheet"></div>
+  <!-- 시간표 카드 — 그 화면의 작업 도구(출석/편집·검색)가 시간표와 함께 들어감 -->
+  <div class="sheetcard" id="sheetcard">
+    <div class="toolline">
+      <div class="editbar" id="editbar">
+        <button class="efold" id="e-fold" onclick="toggleEditOpen()">편집 도구 <b id="e-arrow">▸</b></button>
+        <span class="editset" id="editset">
+          <button id="e-move" onclick="setEdit('move')">반 이동</button>
+          <button id="e-add" onclick="setEdit('add')">학생 추가</button>
+          <button id="e-del" onclick="setEdit('del')">반 삭제</button>
+          <button onclick="openAddClass()">반 추가</button>
+          <button onclick="openLog()">이동 기록</button>
+        </span>
+      </div>
+      <div class="attbar" id="attbar">
+        <span class="elabel">출석</span>
+        <button id="a-multi" onclick="toggleMulti()">복수 선택</button>
+        <button onclick="multiApply('출석')">선택 출석</button>
+        <button onclick="multiApply('결석')">선택 결석</button>
+        <button onclick="multiApply('')">선택 기록 지우기</button>
+        <span id="multiCnt" class="elabel"></span>
+      </div>
+      <span class="sp"></span>
+      <div class="searchbar">
+        <input id="stu-q" placeholder="학생 검색" autocomplete="off" />
+        <span id="searchResults"></span>
+      </div>
+    </div>
+    <div class="hintline">
+      <p class="hint">학생 이름을 누르면 이동 모드가 켜져요. 옮길 반(다른 요일 포함)을 누르면 이동됩니다.</p>
+      <div class="legend">
+        <span><i style="background:var(--g1)"></i>고1</span>
+        <span><i style="background:var(--g2)"></i>고2</span>
+        <span><i style="background:var(--g3)"></i>고3</span>
+        <span><i style="background:var(--mid)"></i>정리정독(중등)</span>
+        <span><i style="background:var(--etc)"></i>기타</span>
+        <span style="margin-left:2px;"><i style="background:var(--g2);filter:saturate(.35);"></i>나·확인 수업(연한 색)</span>
+      </div>
+    </div>
+    <div class="sheet" id="sheet"></div>
+  </div>
 
   <footer>이수경국어 Shueguk · 슈국 스케쥴</footer>
 </main>
@@ -1323,7 +1388,7 @@ function tryLogin(){
   pw = v;
   $('gate-err').textContent='';
   load(false, function(ok){
-    if (ok){ sessionStorage.setItem('tt_pw', pw); $('gate').style.display='none'; $('bar').style.display='block'; $('sheet').style.display='block'; }
+    if (ok){ sessionStorage.setItem('tt_pw', pw); $('gate').style.display='none'; $('bar').style.display='block'; $('sheetcard').style.display='block'; }
     else { pw=''; $('gate-err').textContent='비밀번호가 맞지 않아요.'; }
   });
 }
@@ -1333,6 +1398,7 @@ $('pw').addEventListener('keydown', function(e){ if(e.key==='Enter') tryLogin();
 var loadSeq = 0;   // 기간 전환 등으로 load가 겹칠 때 마지막 요청만 반영
 function load(isReload, cb){
   var seq = ++loadSeq;
+  if (isReload) nsCache = {};   // 다시 불러오기 = 이달의 신입생도 새로 조회
   // 캐시가 있으면 즉시 그려서 바로 보이게 (뒤에서 최신으로 갱신)
   var painted = false;
   if (!isReload){
@@ -1483,6 +1549,22 @@ function clearEdit(){
   ['e-move','e-add','e-del'].forEach(function(id){ var b=$(id); if(b) b.classList.remove('on'); });
   setStatus('');
 }
+/* 편집 도구 접기 — 평소엔 [편집 도구 ▸] 버튼만, 누르면 도구가 펼쳐짐 (2026-08-22 사용자 확정 시안) */
+var editOpen = sessionStorage.getItem('tt_editopen') === '1';
+function applyEditOpen(){
+  var s = $('editset'), f = $('e-fold'), a = $('e-arrow');
+  if (!s) return;
+  s.classList.toggle('open', editOpen);
+  if (f) f.classList.toggle('open', editOpen);
+  if (a) a.textContent = editOpen ? '▾' : '▸';
+}
+function toggleEditOpen(){
+  editOpen = !editOpen;
+  sessionStorage.setItem('tt_editopen', editOpen ? '1' : '0');
+  if (!editOpen) clearEdit();   // 접으면 진행 중이던 편집 선택도 해제
+  applyEditOpen();
+}
+applyEditOpen();
 function applyEdit(c){
   var m = editMode;
   clearEdit();
@@ -1518,10 +1600,6 @@ function setBook(b){
 }
 function renderTabs(){
   var auto = (mode==='today' || mode==='week');   // 캘린더 기간이 시간표를 결정
-  $('b-reg').style.display = (mode==='all') ? '' : 'none';
-  $('b-exam').style.display = (mode==='all') ? '' : 'none';
-  $('b-reg').classList.toggle('on', book==='정규');
-  $('b-exam').classList.toggle('on', book==='내신');
   var pb = $('period-badge');
   pb.style.display = auto ? 'block' : 'none';
   if (auto){
@@ -1544,7 +1622,7 @@ function renderTabs(){
     : (mode === 'week') ? '그 주의 출석·1회 이동 기록이 함께 보여요. 학생 이름 클릭 = 그 날짜 출석 기록·수정, 출석 창의 [다른 반으로 1회 이동]으로 다음주 이동도 미리 예약할 수 있어요.'
     : (mode === 'cal') ? '주마다 [정규]/[내신]을 골라 그 주에 쓸 시간표를 정하세요. 오늘의 시간표·주차별이 자동으로 따라갑니다. 날짜 칸을 누르면 메모를 적을 수 있어요.'
     : (mode === 'exs') ? '학교별 시험 기간을 등록하고, 시험 시간표가 나오면 막대 아래 날짜 칸을 눌러 학년·과목을 넣으세요. 넣은 과목은 슈국 캘린더 날짜 칸에도 표시돼요.'
-    : '학생 이름을 누르면 이동 모드가 켜져요. 옮길 반(다른 요일 포함)을 누르면 영구 이동됩니다.';
+    : '요일 머리글이나 반 카드를 누르면 그 요일이 크게 열려요. 학생 이름을 누르면 이동 모드가 켜지고, 옮길 반(다른 요일 포함)을 누르면 영구 이동됩니다.';
   $('editbar').classList.toggle('show', mode === 'all' || mode === 'week');
   $('attbar').classList.toggle('show', mode === 'today');
   document.querySelector('.searchbar').style.display = (mode === 'cal' || mode === 'exs') ? 'none' : '';
@@ -1587,8 +1665,25 @@ function render(){
     return;
   }
   if (mode === 'all'){
-    if (narrowScreen()) host.appendChild(mviewToggleBtn());
-    host.appendChild(useListView() ? buildAllList() : buildFullGrid());
+    // 제목 줄: 전체 시간표 + 정규/내신 토글 + (오른쪽) 보기 전환 — 2026-08-22 사용자 확정
+    var trow = document.createElement('div');
+    trow.className = 'sheet-title';
+    trow.innerHTML = '<b>전체 시간표</b>' +
+      '<span class="bookwrap">' +
+      '<button' + (book === '정규' ? ' class="on"' : '') + ' onclick="setBook(\'정규\')">정규</button>' +
+      '<button' + (book === '내신' ? ' class="on"' : '') + ' onclick="setBook(\'내신\')">내신</button></span>' +
+      '<span class="sp"></span>';
+    host.appendChild(trow);
+    if (narrowScreen()) trow.appendChild(mviewToggleBtn());
+    if (useListView()){
+      host.appendChild(buildAllList());
+    } else {
+      // 기본은 주차별과 같은 한 페이지 개요(가로 스크롤 없음), 옛 시간 그리드는 토글로 (2026-08-22 사용자 요청)
+      trow.appendChild(allViewToggleBtn());
+      host.appendChild(allView() === 'grid' ? buildFullGrid()
+                     : (allZoomDay ? buildAllZoom(allZoomDay) : buildAllOverview()));
+    }
+    host.appendChild(newStuSection());   // 이달의 신입생 (2026-08-22 사용자 요청)
     return;
   }
   if (mode === 'cal'){
@@ -2652,6 +2747,118 @@ function buildFullGrid(){
   return wrap;
 }
 
+/* ── 전체 시간표: 한 페이지 개요 ↔ 요일 확대 (2026-08-22 사용자 요청 — 주차별과 같은 방식, 가로 스크롤 없음)
+ * 개요: 월~일 7열, 요일마다 센터 순 반 요약 카드(시간·담당T·인원). 카드/요일 머리글 클릭 = 그 요일 확대.
+ * 확대: 반 블록(학생 칩) 그대로 — 학생 클릭 영구 이동·편집 도구줄 모두 동작.
+ * 반 통째 이동(빈 자리 클릭)만 시간 그리드가 필요해서 [시간 그리드로 보기] 토글로 옛 화면 유지 —
+ * 편집 '반 이동'을 시작하면 자동으로 그리드로 전환, 끝나면 개요로 복귀. */
+var allZoomDay = null;      // null = 개요, '금' = 그 요일 확대
+var allAutoGrid = false;    // 반 이동 때문에 자동으로 그리드로 전환했는지
+function allView(){ return sessionStorage.getItem('tt_allview') || 'ov'; }
+function allViewToggleBtn(){
+  var grid = allView() === 'grid';
+  var tg = document.createElement('button');
+  tg.className = 'mview-toggle';
+  tg.textContent = grid ? '개요로 보기' : '시간 그리드로 보기';
+  tg.onclick = function(){
+    sessionStorage.setItem('tt_allview', grid ? 'ov' : 'grid');
+    allAutoGrid = false;
+    keepScroll = false;
+    render();
+  };
+  return tg;
+}
+function allDayHeader(dname, cls, onClick){
+  var today = dname === todayDay();
+  var h = document.createElement('button');
+  h.type = 'button';
+  h.className = 'wk-dayh' + (cls ? ' ' + cls : '') + (today ? ' today' : '');
+  h.innerHTML = esc(dname) + (today && cls !== 'slim' ? '<small>오늘</small>' : '');
+  h.addEventListener('click', onClick);
+  return h;
+}
+function buildAllOverview(){
+  var wrap = document.createElement('div');
+  wrap.className = 'wk-ov';
+  WEEK_VIEW_ORDER.forEach(function(dname){
+    var col = document.createElement('div');
+    col.className = 'wk-ov-col';
+    col.appendChild(allDayHeader(dname, '', function(){ allZoomDay = dname; keepScroll = false; render(); }));
+    var list = wkDayClasses(dname);
+    var lastLoc = null;
+    list.forEach(function(c){
+      if (c.loc !== lastLoc){
+        lastLoc = c.loc;
+        var cl = document.createElement('div');
+        cl.className = 'wk-ctr';
+        cl.textContent = wkLocLabel(c.loc);
+        col.appendChild(cl);
+      }
+      var m = document.createElement('button');
+      m.type = 'button';
+      m.className = 'wk-mini ' + colorOf(c.cls);
+      m.setAttribute('data-cid', c.id);
+      m.innerHTML = '<b>' + esc(c.cls) + '</b><small>' + esc(c.start) + '~' + esc(c.end) +
+                    ' · ' + esc(c.teacher) + 'T · ' + c.students.length + '명</small>';
+      m.title = esc(c.cls) + ' — 누르면 ' + dname + '요일 확대';
+      m.addEventListener('click', function(){ allZoomDay = dname; keepScroll = false; render(); });
+      col.appendChild(m);
+    });
+    if (!list.length){
+      var em = document.createElement('div'); em.className = 'wk-empty'; em.textContent = '수업 없음';
+      col.appendChild(em);
+    }
+    wrap.appendChild(col);
+  });
+  return wrap;
+}
+function buildAllZoom(dname){
+  var wrap = document.createElement('div');
+  wrap.className = 'wk-zoom';
+  WEEK_VIEW_ORDER.forEach(function(dy){
+    if (dy !== dname){
+      var slim = document.createElement('div');
+      slim.className = 'wk-slim';
+      slim.appendChild(allDayHeader(dy, 'slim', function(){ allZoomDay = dy; keepScroll = false; render(); }));
+      wkDayClasses(dy).forEach(function(c){
+        var b = document.createElement('div');
+        b.className = 'wk-bar ' + colorOf(c.cls);
+        b.title = c.cls + ' ' + c.start + '~' + c.end + ' · ' + c.teacher + 'T';
+        slim.appendChild(b);
+      });
+      wrap.appendChild(slim);
+      return;
+    }
+    var big = document.createElement('div');
+    big.className = 'wk-big';
+    var hh = document.createElement('button');
+    hh.type = 'button';
+    hh.className = 'wk-dayh bigh' + (dy === todayDay() ? ' today' : '');
+    hh.innerHTML = esc(dy) + (dy === todayDay() ? ' (오늘)' : '') + '<small>— 누르면 전체 개요로 돌아가요</small>';
+    hh.addEventListener('click', function(){ allZoomDay = null; keepScroll = false; render(); });
+    big.appendChild(hh);
+    var list = wkDayClasses(dy);
+    if (!list.length){
+      var em = document.createElement('div'); em.className = 'wk-empty'; em.textContent = '이 요일에는 수업이 없어요.';
+      big.appendChild(em);
+    }
+    var lastLoc = null, sec = null;
+    list.forEach(function(c){
+      if (c.loc !== lastLoc){
+        lastLoc = c.loc;
+        var ch = document.createElement('div'); ch.className = 'wk-ch'; ch.textContent = wkLocLabel(c.loc);
+        big.appendChild(ch);
+        sec = document.createElement('div'); sec.className = 'wk-big-grid';
+        big.appendChild(sec);
+      }
+      sec.appendChild(blockEl(c, true));
+    });
+    wrap.appendChild(big);
+  });
+  requestAnimationFrame(function(){ applySearchHits(); });
+  return wrap;
+}
+
 /* 주차별 보기: 그 주의 날짜·출석·1회 이동이 반영된 주간 그리드 */
 /* ── 주차별 보기: 한 페이지 개요 ↔ 요일 확대 (2026-08-21 사용자 확정 시안) ──
  * 개요: 월~일 7열, 요일마다 센터(본원→화정센터→민초센터→정리정독) 순으로 묶은 반 요약 카드
@@ -2861,6 +3068,17 @@ function gotoSearchHit(cid){
     setMode('all');
     requestAnimationFrame(function(){ requestAnimationFrame(function(){ gotoSearchHit(cid); }); });
     return;
+  }
+  // 전체 개요 보기엔 반 블록이 없음 — 그 반의 요일을 확대한 뒤 다시 찾기
+  if (!el && mode === 'all' && !useListView() && allView() !== 'grid'){
+    var c = classes.find(function(x){ return x.id === cid; });
+    if (c && allZoomDay !== c.day){
+      allZoomDay = c.day;
+      keepScroll = false;
+      render();
+      requestAnimationFrame(function(){ requestAnimationFrame(function(){ gotoSearchHit(cid); }); });
+      return;
+    }
   }
   if (!el) return;
   el.scrollIntoView({ block: 'center', inline: 'center', behavior: 'smooth' });
@@ -3236,6 +3454,78 @@ function awShow(){
   body.innerHTML = h;
 }
 
+/* ── 이달의 신입생 — 전체 시간표 하단 카드 (2026-08-22 사용자 요청)
+ * superstar 신입 등록의 등록일 기준, 기존 newStudents 액션 재사용 (백엔드 변경 없음) */
+var nsCache = {}, nsLoading = {}, nsMonth = '';
+function nsMonthNow(){ var d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'); }
+function newStuSection(){
+  if (!nsMonth) nsMonth = nsMonthNow();
+  var card = document.createElement('div');
+  card.className = 'ns-card';
+  card.id = 'ns-card';
+  nsRender(card);
+  return card;
+}
+function nsMove(n){
+  var p = nsMonth.split('-'), d = new Date(+p[0], +p[1] - 1 + n, 1);
+  nsMonth = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+  var card = $('ns-card');
+  if (card) nsRender(card);
+}
+function nsSlotsTT(st){
+  var parts = [];
+  if (st.classA) parts.push('가 ' + st.classA);
+  if (st.classB) parts.push('나 ' + st.classB);
+  if (st.progress && st.progress !== st.classA) parts.push('진도 ' + st.progress);
+  if (st.checkup && st.checkup !== st.classB) parts.push('확인 ' + st.checkup);
+  return parts.length ? parts.join(' · ') : '시간표 미배정';
+}
+function nsRender(card){
+  var m = nsMonth;
+  var list = nsCache[m];
+  var h = '<div class="ns-head"><b>' + (+m.slice(5)) + '월 신입생</b>' +
+    '<span class="ns-cnt">' + (list && list.length ? list.length + '명' : '') + '</span><span class="sp"></span>' +
+    '<button type="button" class="ah-wk" onclick="nsMove(-1)">◀ 지난달</button>' +
+    '<button type="button" class="ah-wk" onclick="nsMove(1)">다음달 ▶</button></div>';
+  if (!list){
+    card.innerHTML = h + '<p class="ns-empty">' + (list === null
+      ? '목록을 불러오지 못했어요. <button type="button" class="ah-wk" onclick="nsRetry()">다시 시도</button>'
+      : '불러오는 중…') + '</p>';
+    if (list !== null) nsLoad(m);
+    return;
+  }
+  if (!list.length){
+    card.innerHTML = h + '<p class="ns-empty">' + (+m.slice(5)) + '월에 등록한 신입생이 없어요.</p>' +
+      '<p class="ns-note">등록일 기록은 2026-08-19부터예요 — 그 전에 등록한 학생은 표시되지 않아요.</p>';
+    return;
+  }
+  h += list.map(function(st){
+    return '<div class="ns-row"><b>' + esc(st.name) + '</b>' +
+      '<span class="ns-meta">' + esc([st.school, st.grade].filter(Boolean).join(' ')) +
+      (st.teacher ? ' · ' + esc(st.teacher) + 'T' : '') + '</span>' +
+      '<span class="ns-slot">' + esc(nsSlotsTT(st)) + '</span>' +
+      '<span class="ns-date">' + (+st.date.slice(5, 7)) + '/' + (+st.date.slice(8, 10)) + ' 등록</span></div>';
+  }).join('');
+  card.innerHTML = h + '<p class="ns-note">신입 등록·수정은 슈퍼스타 관리의 신입 등록에서 해요 (등록일 기록은 2026-08-19부터).</p>';
+}
+function nsRetry(){
+  delete nsCache[nsMonth];
+  var card = $('ns-card');
+  if (card) nsRender(card);
+}
+function nsLoad(m){
+  if (nsLoading[m]) return;
+  nsLoading[m] = true;
+  fetch(ENDPOINT + '?action=newStudents&pw=' + encodeURIComponent(pw) + '&month=' + m + '&t=' + Date.now())
+    .then(function(r){ return r.json(); }).catch(function(){ return null; })
+    .then(function(d){
+      nsLoading[m] = false;
+      nsCache[m] = (d && d.result === 'success') ? (d.students || []) : null;   // null = 실패 표시
+      var card = $('ns-card');
+      if (card && nsMonth === m) nsRender(card);
+    });
+}
+
 /* ── 모달 ── */
 function openModal(html, wide){
   $('modal-box').innerHTML = html;
@@ -3307,12 +3597,18 @@ function cancelMove(){
   $('movebar').classList.remove('on');
   document.querySelectorAll('.stus button.sel').forEach(function(b){ b.classList.remove('sel'); });
   setStatus('');
+  if (wasClass && allAutoGrid){ sessionStorage.setItem('tt_allview', 'ov'); allAutoGrid = false; }   // 반 이동 끝 → 개요 복귀
   if (wasClass || wasOnce) render();
 }
 
 /* ── 반 통째 이동 ── */
 function startClassMove(c){
   classMoving = { id: c.id };
+  // 빈 자리 클릭엔 시간 그리드가 필요 — 개요 보기였으면 자동 전환, 끝나면(cancelMove) 개요로 복귀
+  if (mode === 'all' && !useListView() && allView() !== 'grid'){
+    sessionStorage.setItem('tt_allview', 'grid');
+    allAutoGrid = true;
+  }
   document.body.classList.add('classmoving');
   $('movebar').classList.add('on');
   $('mv-name').textContent = c.cls;
@@ -4112,7 +4408,7 @@ function openLog(){
 /* ── 시작 ── */
 $('gate').style.display = 'none';
 $('bar').style.display = 'block';
-$('sheet').style.display = 'block';
+$('sheetcard').style.display = 'block';
 /* 캐시된 주별 기간을 먼저 적용해 시작 시간표를 정확히 고른다 */
 var cachedPeriods = cacheGet('periods');
 if (cachedPeriods){ periods = {}; cachedPeriods.forEach(function(p){ periods[p.week] = p.book; }); }
