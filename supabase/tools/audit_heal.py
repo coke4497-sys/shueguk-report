@@ -178,6 +178,27 @@ def extract(xlsx):
     d['star_bonus'] = [{'at': ts(col(r,0)), 'student_id': txt(col(r,1)), 'name': txt(col(r,2)),
                         'school': txt(col(r,3)), 'stars': int(col(r,4) or 0), 'reason': txt(col(r,5)),
                         'grade': txt(col(r,6))} for r in rows('별') if txt(col(r,2))]
+    # '배정' 탭 — seq = 시트 행 번호(assignList rowIndex와 동일). 빈 행도 행 번호를 차지하므로
+    # rows() 필터를 쓰지 않고 원본 위치 그대로 센다.
+    asg = []
+    if '배정' in wb.sheetnames:
+        it = wb['배정'].iter_rows(values_only=True); next(it, None)
+        rn = 1
+        for r in it:
+            rn += 1
+            if not r: continue
+            tool_, item_, tgt_ = txt(col(r,1)), txt(col(r,2)), txt(col(r,4))
+            if not tool_ and not item_ and not tgt_: continue
+            asg.append({'seq': rn, 'date': ymd(col(r,0)), 'tool': tool_, 'item': item_,
+                        'type': txt(col(r,3)), 'target': tgt_, 'due': ymd(col(r,5)), 'memo': txt(col(r,6))})
+    d['assignments'] = asg
+    d['report_config'] = []
+    seen_cfg = set()
+    for r in rows('설정'):
+        k = txt(col(r,0))
+        if k in ('어휘 테스트', '어휘 주차') and k not in seen_cfg:
+            seen_cfg.add(k)
+            d['report_config'].append({'key': k, 'value': txt(col(r,1))})
     return d
 
 def extract_omr(xlsx):
@@ -379,6 +400,17 @@ def main():
         lambda r: (r['title'], r['review'], r['scope'], r['school'], r['grade']), heal, 'report_id')
     sync_sheet_master('exam_questions', d['exam_questions'], lambda r: (r['report_id'], r['seq']),
         lambda r: (r['no'], r['area'], r['qtype'], r['lv'], r['txt'], r['detail'], r['grp'], r['multi']), heal)
+    sync_sheet_master('assignments', d['assignments'], lambda r: r['seq'],
+        lambda r: (r['date'], r['tool'], r['item'], r['type'], r['target'], r['due'], r['memo']), heal)
+    cfg_cur = {r['key']: r['value'] for r in sb_all('report_config')}
+    cfg_diff = [c for c in d['report_config'] if cfg_cur.get(c['key']) != c['value']]
+    if not cfg_diff:
+        print(f"  = report_config: 일치 ({len(d['report_config'])}키)")
+    else:
+        report('report_config: 불일치 ' + ', '.join(c['key'] for c in cfg_diff))
+        if heal:
+            sb('POST', '/report_config?on_conflict=key', cfg_diff, 'resolution=merge-duplicates,return=minimal')
+            print('    → 복구 완료')
 
     print('· 수파베이스가 원본인 표 (시트에만 있는 행 추가 / DB에만 있는 행은 보고)')
     insert_missing('attendance', d['attendance'],
