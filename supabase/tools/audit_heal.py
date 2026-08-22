@@ -1,9 +1,11 @@
 # 슈국 수파베이스 일일 점검·복구 도구
 #
 # 사용법:
-#   python3 audit_heal.py <리포트시트.xlsx> [--omr <OMR시트.xlsx>] [--hwork <HWORK시트.xlsx>] [--signup] [--clinic] [--heal]
+#   python3 audit_heal.py <리포트시트.xlsx> [--omr <OMR시트.xlsx>] [--hwork <HWORK시트.xlsx>]
+#                         [--voca <어휘시트.xlsx>] [--signup] [--clinic] [--heal]
 #     --omr    : 주말 모의고사 OMR 시트(회차정답·응답)도 대조·동기화
 #     --hwork  : H WORK 시트(HWORK목록·제출기록)도 대조·동기화
+#     --voca   : 어휘 결과 시트(첫 탭)도 대조·동기화
 #     --signup : 주말 신청 데이터를 신청 백엔드 API(action=data)에서 받아 대조·동기화
 #     --clinic : 클리닉 신청·설정을 클리닉 백엔드 API(action=data)에서 받아 대조·동기화
 #
@@ -264,6 +266,20 @@ def extract_hwork(xlsx):
             for r in rows('제출기록') if txt(col(r,1)) and txt(col(r,2))]
     return {'hwork_homeworks': hw, 'hwork_submissions': subs}
 
+def extract_voca(xlsx):
+    # 어휘 결과 시트 첫 탭 — 실제 사용 열: A타임스탬프 B이름 C학교 D학년 F점수 I phone4 J round K details
+    wb = openpyxl.load_workbook(xlsx, read_only=True, data_only=True)
+    ws = wb[wb.sheetnames[0]]
+    it = ws.iter_rows(values_only=True); next(it, None)
+    def tsmin(v):
+        if isinstance(v, datetime.datetime): return v.strftime('%Y-%m-%d %H:%M')
+        s = txt(v)
+        return s[:16] if re.match(r'^\d{4}-\d{2}-\d{2} \d{2}:\d{2}', s) else s
+    def col(r, i): return r[i] if len(r) > i else None
+    return [{'ts': tsmin(col(r,0)), 'name': txt(col(r,1)), 'school': txt(col(r,2)), 'grade': txt(col(r,3)),
+             'score': txt(col(r,5)), 'phone4': txt(col(r,8)), 'round': txt(col(r,9)), 'details': txt(col(r,10))}
+            for r in it if r and txt(col(r,1))]
+
 CLINIC_EXEC = 'https://script.google.com/macros/s/AKfycbw8e-054e4VUfRRx-PadyuoXRb-jxsKRcdOaq04SJH1oJyFVS_VOh9GUN_pL5cHPPzKVA/exec'
 def fetch_clinic():
     # 클리닉 백엔드의 교사용 목록 API — '응답' 시트 + Script Properties 설정 (pw는 공개 페이지 내장과 동일 수준)
@@ -405,6 +421,14 @@ def main():
             lambda r: (r['ts'], r['name'], r['code'], json.dumps(r['answers'], sort_keys=True)),
             lambda r: (r['teacher'], r['school'], r['grade'], r['got'], r['total'],
                        json.dumps(r['detail'], sort_keys=True), json.dumps(r['questions'], sort_keys=True)), heal)
+    if '--voca' in sys.argv:
+        vx = sys.argv[sys.argv.index('--voca') + 1]
+        v = extract_voca(vx)
+        print('· 어휘 테스트 (시트가 원본)')
+        # 키에 점수·상세 포함 — 같은 분에 재제출한 중복 행(전송 재시도·재응시)이 서로 다른 키가 되도록
+        sync_sheet_master('voca_results', v,
+            lambda r: (r['ts'], r['name'], r['round'], r['score'], r['details']),
+            lambda r: (r['school'], r['grade'], r['phone4']), heal)
     if '--signup' in sys.argv:
         rows = fetch_signup()
         if rows is None:
