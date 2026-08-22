@@ -99,6 +99,16 @@
 - 준비 상태: 페이지↔백엔드가 액션 단위 API로 분리되어 있어 연결부 교체 방식으로 이전 가능. 이 구조를 유지할 것.
 - 그 전까지의 속도 대책(적용 완료): 병렬 로딩 + localStorage 캐시(즉시 표시 후 갱신) — timetable.html·hwcheck.html.
 
+### 수파베이스(Supabase) 준비 상태 (2026-08-22)
+- **DB는 Supabase로 확정**(주변 추천 + 표 기반이라 시트 구조 그대로 이전 가능). 이전 시기는 여전히 사용자가 한가한 때 지시.
+- **계정·프로젝트 생성 완료**: 깃허브(coke4497-sys) 로그인으로 가입. 로그인은 항상 "Sign in with GitHub"만 쓸 것(다른 방식 누르면 별개 계정이 생김).
+- 프로젝트 `shueguk` / Region: Northeast Asia (Seoul) / **URL: `https://bangdbhqpphqqdwcledg.supabase.co`**
+- 생성 옵션: Data API 켬, 새 테이블 자동 노출 켬, **automatic RLS 켬**(새 표는 기본 잠금 — 학생 개인정보 보호. 접근은 정책으로 열어줄 것).
+- **publishable key**(공개 가능, 학생 페이지에 넣는 용): `sb_publishable_dE9d1KIbpgYaQkaS2MSrlg_-7SiRJuT`
+- **secret key·DB 비밀번호는 저장소에 절대 기록하지 않는다.** 필요할 때마다 사용자에게 요청: 대시보드 ⚙️ Project Settings → API Keys → Secret keys(default) → 눈 아이콘으로 표시 후 복사해 세션에 붙여넣어 달라고 안내(사용자가 한 번 해봐서 익숙함). DB 비밀번호는 사용자가 별도 보관.
+- **네트워크 미해결(2026-08-22)**: 이 원격 환경의 프록시가 `*.supabase.co` CONNECT를 403으로 거부 — 환경 허용 도메인에 **`*.supabase.co`**(REST)와 **`api.supabase.com`**(관리 API) 추가 필요. 사용자에게 추가를 요청함. **도메인 추가는 그 이후 시작한 새 세션부터 적용**(기존 세션은 그대로 막혀 있음).
+- 다음 단계(새 세션에서): 연결 확인 → 표 설계(시트 탭 구조 미러) → 기존 데이터 자동 이전 → 페이지 한 장씩 연결부 교체(문제 시 즉시 구방식 복귀 가능하게) → DB→시트 일일 자동 백업.
+
 ## 🚀 Apps Script(.gs) 재배포 방법 — 클로드(Claude)용 메모
 
 이 계정(coke4497)의 Apps Script 백엔드는 **clasp**(구글 공식 CLI)로 명령줄에서 재배포할 수 있다.
