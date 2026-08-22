@@ -1,8 +1,9 @@
 # 슈국 수파베이스 일일 점검·복구 도구
 #
 # 사용법:
-#   python3 audit_heal.py <리포트시트.xlsx> [--omr <OMR시트.xlsx>] [--signup] [--clinic] [--heal]
+#   python3 audit_heal.py <리포트시트.xlsx> [--omr <OMR시트.xlsx>] [--hwork <HWORK시트.xlsx>] [--signup] [--clinic] [--heal]
 #     --omr    : 주말 모의고사 OMR 시트(회차정답·응답)도 대조·동기화
+#     --hwork  : H WORK 시트(HWORK목록·제출기록)도 대조·동기화
 #     --signup : 주말 신청 데이터를 신청 백엔드 API(action=data)에서 받아 대조·동기화
 #     --clinic : 클리닉 신청·설정을 클리닉 백엔드 API(action=data)에서 받아 대조·동기화
 #
@@ -236,6 +237,33 @@ def fetch_signup():
              'grade': txt(r.get('학년')), 'student_id': txt(r.get('학생ID')), 'subject': txt(r.get('선택과목')),
              'day': txt(r.get('응시요일')), 'exam_date': date_norm(r.get('응시일자'))} for r in d.get('rows', [])]
 
+def extract_hwork(xlsx):
+    # H WORK 시트 — HWORK목록(A강사 B제목 C데이터JSON D마감일)·제출기록(11열)
+    wb = openpyxl.load_workbook(xlsx, read_only=True, data_only=True)
+    def rows(name):
+        if name not in wb.sheetnames: return []
+        it = wb[name].iter_rows(values_only=True); next(it, None)
+        return [r for r in it if r and any(c is not None and str(c).strip() != '' for c in r)]
+    def col(r, i): return r[i] if len(r) > i else None
+    def jload(v):
+        try: return json.loads(txt(v) or '{}')
+        except Exception: return {}
+    def tsmin(v):
+        if isinstance(v, datetime.datetime): return v.strftime('%Y-%m-%d %H:%M')
+        s = txt(v)
+        return s[:16] if re.match(r'^\d{4}-\d{2}-\d{2} \d{2}:\d{2}', s) else s
+    def num(v):
+        try: return int(float(txt(v) or 0))
+        except Exception: return 0
+    hw = [{'teacher': txt(col(r,0)), 'code': txt(col(r,1)), 'data': jload(col(r,2)), 'due': ymd(col(r,3))}
+          for r in rows('HWORK목록') if txt(col(r,0)) and txt(col(r,1))]
+    subs = [{'ts': tsmin(col(r,0)), 'teacher': txt(col(r,1)), 'code': txt(col(r,2)),
+             'school': txt(col(r,3)), 'grade': txt(col(r,4)), 'name': txt(col(r,5)),
+             'got': num(col(r,6)), 'total': num(col(r,7)), 'answers': jload(col(r,8)),
+             'detail': jload(col(r,9)), 'questions': jload(col(r,10))}
+            for r in rows('제출기록') if txt(col(r,1)) and txt(col(r,2))]
+    return {'hwork_homeworks': hw, 'hwork_submissions': subs}
+
 CLINIC_EXEC = 'https://script.google.com/macros/s/AKfycbw8e-054e4VUfRRx-PadyuoXRb-jxsKRcdOaq04SJH1oJyFVS_VOh9GUN_pL5cHPPzKVA/exec'
 def fetch_clinic():
     # 클리닉 백엔드의 교사용 목록 API — '응답' 시트 + Script Properties 설정 (pw는 공개 페이지 내장과 동일 수준)
@@ -366,6 +394,17 @@ def main():
             lambda r: (ep(r['submitted_at']), r['name'], r['exam']),
             lambda r: (r['exam_date'], r['school'], r['grade'], r['subject'], r['got'], r['total'],
                        r['level'], json.dumps(r['answers'], sort_keys=True), r['student_id']), heal)
+    if '--hwork' in sys.argv:
+        hx = sys.argv[sys.argv.index('--hwork') + 1]
+        h = extract_hwork(hx)
+        print('· H WORK (시트가 원본)')
+        sync_sheet_master('hwork_homeworks', h['hwork_homeworks'],
+            lambda r: (r['teacher'], r['code']),
+            lambda r: (json.dumps(r['data'], sort_keys=True), r['due']), heal)
+        sync_sheet_master('hwork_submissions', h['hwork_submissions'],
+            lambda r: (r['ts'], r['name'], r['code'], json.dumps(r['answers'], sort_keys=True)),
+            lambda r: (r['teacher'], r['school'], r['grade'], r['got'], r['total'],
+                       json.dumps(r['detail'], sort_keys=True), json.dumps(r['questions'], sort_keys=True)), heal)
     if '--signup' in sys.argv:
         rows = fetch_signup()
         if rows is None:
