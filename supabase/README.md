@@ -95,6 +95,8 @@
 ## 클리닉 (2026-08-23)
 - [x] `migrations/006_clinic.sql` — clinic_requests(신청 '응답' 시트 미러)·clinic_settings(Script Properties
       설정 미러: open/slots/allSlots/teachers/target — 둘 다 **클리닉 시트·백엔드가 원본**)
+- [x] 데이터 이전 (2026-08-22): 신청 103건·설정 5키 — API(action=data) 기준 전수 대조 일치,
+      publishable 키 쓰기 왕복(기록→되읽기→삭제) 확인.
 - 정원(강사별 9명/시간대·주차)·대상 판정이 서버(Apps Script)에 있으므로 **쓰기는 전부 기존 백엔드 그대로**:
   - 학생 폼(index.html, JSONP): 신청 성공 시 clinic_requests에 요청 건수만큼 미러 삽입
     (학년은 백엔드 gradeKey_ 규칙과 동일하게 '중2'/'고3' 형태로 정규화).
@@ -109,8 +111,11 @@
   정규화해 저장(페이지 훅·점검 도구 동일 규칙).
 
 ## 일일 자동 점검·복구 (2026-08-22 설정)
-- **매일 새벽 3:30(KST) CCR 루틴**이 새 세션을 열어 수행: 백엔드 시트 xlsx 다운로드(구글 드라이브,
-  파일 id 1_TyraMnur7AhiuB0nVMcDXq2YU2IBeju3lSTkV3Njos) → `tools/audit_heal.py <xlsx> --heal`.
+- **매일 새벽 3:30(KST) CCR 루틴**: 백엔드 시트 xlsx 다운로드(구글 드라이브,
+  파일 id 1_TyraMnur7AhiuB0nVMcDXq2YU2IBeju3lSTkV3Njos) → `tools/audit_heal.py <xlsx> --omr <OMRxlsx> --signup --clinic --heal`.
+- 루틴은 2026-08-22에 클리닉 세션(session_015eDefdq8GuGq697xnyEUA7)으로 이전됨
+  (trig_015MGEd2Ug72RWde7PRoNBmH — 옛 세션 바인딩 루틴은 프롬프트 수정이 불가해 삭제 후 재생성,
+  --clinic 추가). 다시 옮기려면 같은 방법(delete_trigger 후 create_trigger).
 - 도구가 14개 표를 전수 대조하고 안전한 방향으로만 복구한다(파일 상단 주석 참고):
   시트-원본 표는 시트에 맞추고, 수파베이스-원본 표는 시트에만 있는 행 추가만.
   DB에만 있는 행(이중 기록 실패 의심)은 보고만 — 반복되면 사용자에게 알림.
