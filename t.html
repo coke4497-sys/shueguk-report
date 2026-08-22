@@ -39,6 +39,10 @@ body{font-family:'Noto Sans KR',sans-serif; background:var(--sage-fog); color:va
 
 /* 선생님 조작 영역 (인쇄 시 숨김) */
 .panel{max-width:680px; margin:0 auto; padding:20px; }
+.back{display:inline-flex;align-items:center;gap:6px;margin:0 0 12px;color:var(--ink-soft,#6b7a72);text-decoration:none;font-size:14px;}
+.back svg{width:16px;height:16px;}
+.back:hover{color:var(--accent,#4C8A5C);}
+
 .panel-card{background:#fff; border-radius:14px; padding:20px; box-shadow:0 2px 12px rgba(46,61,56,.06); margin-bottom:18px;}
 .link-box{margin-top:16px; padding:14px 16px; background:var(--sage-fog); border-radius:12px;}
 .link-label{display:block; font-size:13px; font-weight:700; color:var(--sage-deep); margin-bottom:9px;}
@@ -139,6 +143,10 @@ body{font-family:'Noto Sans KR',sans-serif; background:var(--sage-fog); color:va
 
 <!-- 선생님 조작 패널 (인쇄 안 됨) -->
 <div class="panel" id="panel">
+  <a class="back" href="https://coke4497-sys.github.io/shueguk-hub/report.html">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M11 18l-6-6 6-6"/></svg>
+    지필고사 리포트로 가기
+  </a>
   <div class="panel-card">
     <h1>SHUEGUK 지필고사 REPORT 제작</h1>
     <p class="desc">시험을 고르고 학생을 선택하면, 학생이 제출한 분석에 '선생님의 한 마디'를 더해 학부모용 보고서가 만들어집니다. PDF로 저장해 공유하세요.</p>
