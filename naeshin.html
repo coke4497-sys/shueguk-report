@@ -164,6 +164,163 @@
 <div class="status" id="status"></div>
 
 <script>
+/* ══ 수파베이스 연결부 (2026-08-22 DB 이전 2단계) ═══════════════════════
+ * 내신 피드백: 시간표(내신)·주별 기간·내신기록 읽기와 기록 저장을 수파베이스로.
+ * 저장은 시트에도 백그라운드 이중 기록(지필 리포트 제작의 시험범위 연동 유지).
+ * 수파베이스 실패 시 기존 백엔드로 자동 폴백. */
+(function(){
+  if (window.__sbAdapter) return; window.__sbAdapter = true;
+  var SB = 'https://bangdbhqpphqqdwcledg.supabase.co/rest/v1';
+  var SB_KEY = 'sb_publishable_dE9d1KIbpgYaQkaS2MSrlg_-7SiRJuT';
+  var rawFetch = window.fetch.bind(window);
+  var PAGE = 1000;
+
+  function hdr(extra){
+    var h = { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY, 'Content-Type': 'application/json' };
+    if (extra) for (var k in extra) h[k] = extra[k];
+    return h;
+  }
+  function sbGet(path, _from, _acc){
+    var from = _from || 0, acc = _acc || [];
+    return rawFetch(SB + path, { headers: hdr({ 'Range-Unit': 'items', 'Range': from + '-' + (from + PAGE - 1) }) })
+      .then(function(r){ if (!r.ok) throw new Error('sb ' + r.status); return r.json(); })
+      .then(function(rows){
+        acc = acc.concat(rows);
+        return rows.length < PAGE ? acc : sbGet(path, from + PAGE, acc);
+      });
+  }
+  function sbWrite(method, path, body){
+    return rawFetch(SB + path, { method: method, headers: hdr(method === 'POST' ? { 'Prefer': 'resolution=merge-duplicates,return=minimal' } : null),
+                                 body: body == null ? undefined : JSON.stringify(body) })
+      .then(function(r){ if (!r.ok) return r.text().then(function(t){ throw new Error('sb ' + r.status + ' ' + t.slice(0,120)); }); });
+  }
+  function q(v){ return encodeURIComponent(String(v == null ? '' : v)); }
+  function pad2(n){ return String(n).padStart(2, '0'); }
+  function nowIso(){
+    var d = new Date();
+    return d.getFullYear() + '-' + pad2(d.getMonth()+1) + '-' + pad2(d.getDate()) + 'T' +
+           pad2(d.getHours()) + ':' + pad2(d.getMinutes()) + ':' + pad2(d.getSeconds()) + '+09:00';
+  }
+  function ok(o){ o.result = 'success'; return o; }
+  function fake(d){ return { ok: true, status: 200, json: function(){ return Promise.resolve(d); } }; }
+  function legacyBg(body){
+    function go(){ return rawFetch(ENDPOINT, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify(body) }); }
+    go().catch(function(){ setTimeout(function(){ go().catch(function(e){ console.warn('시트 이중 기록 실패', body.action, e); }); }, 3000); });
+  }
+
+  var GETS = {
+    timetableList: function(p){
+      var book = (String(p.get('book') || '').trim() === '내신') ? '내신' : '정규';
+      return sbGet('/tt_classes?book=eq.' + q(book) + '&order=id&select=class_id,day,start_time,end_time,location,teacher,name,roster')
+        .then(function(rows){
+          return ok({ classes: rows.map(function(r){
+            return { id: r.class_id, day: r.day, start: r.start_time, end: r.end_time,
+                     loc: r.location, teacher: r.teacher, cls: r.name,
+                     students: String(r.roster || '').trim().split(/\s+/).filter(String) };
+          }), onceMoves: [] });
+        });
+    },
+    ttPeriodList: function(){
+      return sbGet('/tt_period?select=week_wednesday,book').then(function(rows){
+        return ok({ periods: rows.map(function(x){ return { week: x.week_wednesday, book: x.book }; }) });
+      });
+    },
+    naeshinGet: function(p){
+      var period = (p.get('period') || '').trim(), classId = (p.get('classId') || '').trim();
+      var scopeKey = (p.get('scopeKey') || '').trim();
+      if (!period || !classId) return Promise.resolve({ result:'error', message:'기간과 반이 필요합니다.' });
+      var keys = 'in.(' + q('"' + classId + '"' + (scopeKey ? ',"' + scopeKey + '"' : '')) + ')';
+      return sbGet('/naeshin_records?period=eq.' + q(period) + '&class_key=' + keys).then(function(rows){
+        var scopeShared = null, scopeLegacy = null, weeks = {}, notes = {}, cleared = {}, hwdone = {};
+        rows.forEach(function(r){
+          if (r.kind === '범위'){
+            var sv = { f: r.text1, g: r.text2 };
+            if (scopeKey && r.class_key === scopeKey) scopeShared = sv;
+            else if (r.class_key === classId) scopeLegacy = sv;
+            return;
+          }
+          if (r.class_key !== classId) return;
+          if (r.kind === '주차') weeks[r.week] = { prog: r.text1, hw: r.text2 };
+          else if (r.kind === '학생'){
+            (notes[r.week] = notes[r.week] || {})[r.student] = r.text1;
+            var hj = String(r.text2 || '').trim();
+            if (hj){ try { (hwdone[r.week] = hwdone[r.week] || {})[r.student] = JSON.parse(hj) || []; } catch (e) {} }
+          }
+          else if (r.kind === '클리어'){ try { cleared = JSON.parse(String(r.text1 || '{}')) || {}; } catch (e) {} }
+        });
+        var scope = scopeShared || scopeLegacy || '';
+        var scopeText = '', scopeParts = null;
+        if (scope){
+          if (/^\s*\{/.test(scope.f)){ try { scopeParts = JSON.parse(scope.f); } catch (e) {} }
+          scopeText = scope.g || (scopeParts ? '' : scope.f);
+          if (!scopeText && scopeParts){
+            scopeText = [['교과서', scopeParts.book], ['교과서 내 범위', scopeParts.inRange],
+                         ['추가 자료', scopeParts.extra], ['교과서 외 범위', scopeParts.outRange]]
+              .filter(function(x){ return x[1]; }).map(function(x){ return x[0] + ': ' + x[1]; }).join('\n');
+          }
+        }
+        return ok({ period: period, classId: classId, scope: scopeText, scopeParts: scopeParts,
+                    weeks: weeks, notes: notes, cleared: cleared, hwdone: hwdone });
+      });
+    }
+  };
+
+  var POSTS = {
+    naeshinSet: function(b){
+      var period = String(b.period || '').trim(), classId = String(b.classId || '').trim();
+      var kind = String(b.kind || '').trim();
+      if (kind === '범위' && String(b.scopeKey || '').trim()) classId = String(b.scopeKey).trim();
+      var week = String(b.week || '').trim(), student = String(b.student || '').trim();
+      var t1 = String(b.text1 == null ? '' : b.text1).trim();
+      var t2 = String(b.text2 == null ? '' : b.text2).trim();
+      if (!period || !classId) return Promise.resolve({ result:'error', message:'기간과 반이 필요합니다.' });
+      if (['범위','주차','학생','클리어'].indexOf(kind) < 0) return Promise.resolve({ result:'error', message:'구분이 올바르지 않습니다.' });
+      var needWeek = (kind === '주차' || kind === '학생');
+      if (needWeek && !week) return Promise.resolve({ result:'error', message:'주차가 필요합니다.' });
+      if (kind === '학생' && !student) return Promise.resolve({ result:'error', message:'학생 이름이 필요합니다.' });
+      var keyPath = 'period=eq.' + q(period) + '&class_key=eq.' + q(classId) + '&kind=eq.' + q(kind) +
+                    '&week=eq.' + q(needWeek ? week : '') + '&student=eq.' + q(kind === '학생' ? student : '');
+      var job = (!t1 && !t2)
+        ? sbWrite('DELETE', '/naeshin_records?' + keyPath)
+        : sbWrite('POST', '/naeshin_records?on_conflict=period,class_key,kind,week,student',
+                  [{ period: period, class_key: classId, kind: kind, week: needWeek ? week : '',
+                     student: kind === '학생' ? student : '', text1: t1, text2: t2, at: nowIso() }]);
+      return job.then(function(){
+        legacyBg(b);
+        return ok((!t1 && !t2) ? { cleared: true } : {});
+      });
+    }
+  };
+
+  window.fetch = function(url, opts){
+    try {
+      if (typeof ENDPOINT === 'undefined' || typeof url !== 'string' || url.indexOf(ENDPOINT) !== 0)
+        return rawFetch(url, opts);
+      if (opts && String(opts.method || '').toUpperCase() === 'POST'){
+        var body;
+        try { body = JSON.parse(opts.body); } catch (e) { return rawFetch(url, opts); }
+        var ph = body && POSTS[body.action];
+        if (!ph) return rawFetch(url, opts);
+        return ph(body).then(fake, function(err){
+          console.warn('수파베이스 쓰기 실패 — 기존 백엔드로 폴백', body.action, err);
+          return rawFetch(url, opts);
+        });
+      }
+      var qs = new URLSearchParams(url.slice(url.indexOf('?') + 1));
+      var gh = GETS[qs.get('action')];
+      if (!gh) return rawFetch(url, opts);
+      return gh(qs).then(fake, function(err){
+        console.warn('수파베이스 조회 실패 — 기존 백엔드로 폴백', qs.get('action'), err);
+        return rawFetch(url, opts);
+      });
+    } catch (e) {
+      return rawFetch(url, opts);
+    }
+  };
+})();
+</script>
+
+<script>
 var ENDPOINT = "https://script.google.com/macros/s/AKfycbzhCncBwn-JlqXARC3wfrWUCuNHzlNK2df0bdhx-w78Xr8mzYUcIYZOJdRi9N4bHtsb/exec";
 var PW = "sh";
 var PERIODS = ['26-2-중간','26-2-기말'];   // 연말에 27년 기간 추가
