@@ -212,7 +212,11 @@
   body.multisel .blk{cursor:pointer;}
   .stus button.msel{outline:2px solid var(--accent);outline-offset:1px;font-weight:700;}
   .searchbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
-  .searchbar input{font:inherit;font-size:.9rem;padding:6px 12px;border:1.5px solid var(--line);border-radius:10px;width:150px;}
+  /* 검색창 — 길게 + 세이지 라인 돋보기 아이콘 (2026-08-22 사용자 요청 "작아요") */
+  .searchbar .searchbox{position:relative;display:inline-flex;align-items:center;max-width:100%;}
+  .searchbar .searchbox svg{position:absolute;left:12px;width:16px;height:16px;color:var(--accent);pointer-events:none;}
+  .searchbar input{font:inherit;font-size:.9rem;padding:7px 12px 7px 36px;border:1.5px solid var(--line);border-radius:10px;width:290px;max-width:100%;}
+  .searchbar input:focus{outline:none;border-color:var(--accent);}
   #searchResults{display:flex;gap:6px;flex-wrap:wrap;font-size:.8rem;align-items:center;color:var(--ink-soft);}
   #searchResults button{font:inherit;font-size:.8rem;background:#fff;border:1px solid var(--line);
     border-radius:999px;padding:3px 11px;cursor:pointer;color:var(--ink);}
@@ -562,7 +566,10 @@
       </div>
       <span class="sp"></span>
       <div class="searchbar">
-        <input id="stu-q" placeholder="학생 검색" autocomplete="off" />
+        <span class="searchbox">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+          <input id="stu-q" placeholder="학생 검색" autocomplete="off" />
+        </span>
         <span id="searchResults"></span>
       </div>
     </div>
