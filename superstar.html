@@ -540,7 +540,216 @@
     }
   };
 
+  /* ══ 별 순위 계산 (2026-08-23) — 백엔드 starRankingData_를 그대로 이식 ═══════
+   * 서버가 시트 5개를 통째로 읽어 496명과 대조하느라 9초+ 걸리고 가끔 실패해서,
+   * 같은 규칙을 이 페이지에서 수파베이스 데이터로 직접 계산한다(교사 화면이라 전교생
+   * 기록을 다뤄도 되는 곳). 상위 30명은 star_ranking 표에 저장해 학생 화면 TOP30이
+   * 개인정보 없이 즉시 읽게 한다. 계산이 실패하면 기존 백엔드로 자동 폴백. */
+  var STAR_RULES = { exam: 2, clinic: 1, voca: 1, hwork: 1, notice: 1, mock: 1, hwcheck: 1 };
+  var SB_PAGE = 1000;
+  function sbAll(path, _from, _acc){          // PostgREST 1,000행 한도 자동 페이징
+    var from = _from || 0, acc = _acc || [];
+    return rawFetch(SB + path, { headers: hdr({ 'Range-Unit': 'items', 'Range': from + '-' + (from + SB_PAGE - 1) }) })
+      .then(function(r){ if (!r.ok) throw new Error('sb ' + r.status); return r.json(); })
+      .then(function(rows){
+        acc = acc.concat(rows);
+        return rows.length < SB_PAGE ? acc : sbAll(path, from + SB_PAGE, acc);
+      });
+  }
+  function tr_(v){ return String(v == null ? '' : v).trim(); }
+  function baseNm_(s){ return tr_(s).replace(/[A-Za-z]$/, ''); }
+  function schMatch_(a, b){
+    a = String(a || '').replace(/\s+/g, ''); b = String(b || '').replace(/\s+/g, '');
+    if (!a || !b) return false;
+    if (a === b) return true;
+    var na = a.replace(/(등학교|고등학교|중학교|학교|고|중)$/, '');
+    var nb = b.replace(/(등학교|고등학교|중학교|학교|고|중)$/, '');
+    if (na && nb && na === nb) return true;
+    return a.indexOf(b) >= 0 || b.indexOf(a) >= 0;
+  }
+  function gradeD_(s){
+    s = String(s || '').replace(/\s+/g, '');
+    var m = s.match(/([1-3])학년/) || s.match(/고([1-3])/);
+    if (m) return m[1];
+    var a = s.match(/[1-3]/g);
+    return a ? a[a.length - 1] : '';
+  }
+  // 기록 시각 → epoch. 미러의 'yyyy-MM-dd HH:mm'은 KST 표기이므로 +09:00을 붙여 해석한다
+  // (기기 시간대가 달라도 백엔드와 같은 순간이 되도록).
+  function tsOf_(v){
+    var s = tr_(v);
+    if (!s) return 0;
+    if (/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}/.test(s) && !/([Zz]|[+-]\d{2}:?\d{2})$/.test(s)) s = s.replace(' ', 'T') + '+09:00';
+    var t = Date.parse(s);
+    return isNaN(t) ? 0 : t;
+  }
+  function clinicWk_(v){                      // 클리닉 별 단위 = 신청 주(월요일)
+    var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(tr_(v));
+    if (!m) return tr_(v);
+    var d = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3], 12));
+    d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7));
+    return d.getUTCFullYear() + '-' + pad2(d.getUTCMonth() + 1) + '-' + pad2(d.getUTCDate());
+  }
+
+  function computeRanking(){
+    return Promise.all([
+      sbAll('/students?select=student_id,name,school,grade,enrolled,code&order=seq,id'),
+      sbAll('/submissions?select=id,submitted_at,exam,school,grade,name,parent_phone&order=id'),
+      sbAll('/clinic_requests?select=id,ts,slot,student_id,token,name&order=id'),
+      sbAll('/voca_results?select=id,ts,name,round,grade,school&order=id'),
+      sbAll('/hwork_submissions?select=id,ts,teacher,code,name,school,grade&order=id'),
+      sbAll('/omr_responses?select=id,submitted_at,student_id,name,school,exam,grade&order=id'),
+      sbAll('/star_bonus?select=id,at,student_id,name,school,stars,grade&order=id'),
+      sbAll('/notice_reads?select=id,at,student_id,name,school,notice_key&order=id'),
+      sbAll('/hwcheck_records?select=id,at,week,token,pct&pct=gte.100&order=id')
+    ]).then(function(g){
+      var sv = g[0], subs = g[1], clin = g[2], voca = g[3], hwk = g[4], omr = g[5], bonus = g[6], reads = g[7], hwc = g[8];
+      var stus = [], byIdName = {}, byName = {}, byBase = {}, byId = {}, idCount = {}, byToken = {};
+      sv.forEach(function(r){
+        var nm = tr_(r.name);
+        if (!nm) return;
+        if (/^(퇴원|n|no|off|x|중단|비재원)$/i.test(tr_(r.enrolled))) return;
+        var id = tr_(r.student_id), k = stus.length;
+        stus.push({ id: id, name: nm, school: tr_(r.school), grade: tr_(r.grade),
+                    exam: {}, clinic: {}, voca: {}, hwork: {}, mock: {}, notice: {}, hwcheck: {}, bonus: 0, bonusTs: 0 });
+        if (id) { idCount[id] = (idCount[id] || 0) + 1; byId[id] = k; byIdName[id + '|' + nm] = k; }
+        (byName[nm] = byName[nm] || []).push(k);
+        var bn = baseNm_(nm);
+        if (bn && bn !== nm) (byBase[bn] = byBase[bn] || []).push(k);
+        var tk = tr_(r.code);
+        if (tk) byToken[tk] = k;
+      });
+      function resolve(id, nm, school, grade){
+        id = tr_(id).replace(/^'/, ''); nm = tr_(nm); school = tr_(school);
+        if (id && nm && byIdName[id + '|' + nm] != null) return byIdName[id + '|' + nm];
+        var gd = gradeD_(grade);
+        var cands = nm ? (byName[nm] || []).concat(byBase[nm] || []) : [];
+        if (cands.length === 1) {
+          var kg = gradeD_(stus[cands[0]].grade);
+          if (!(gd && kg && gd !== kg)) return cands[0];
+        }
+        if (cands.length > 1) {
+          for (var j1 = 0; j1 < cands.length; j1++) if (id && stus[cands[j1]].id === id) return cands[j1];
+          function idClash(k){ return id && stus[k].id && stus[k].id !== id; }
+          if (gd) for (var j3 = 0; j3 < cands.length; j3++) {
+            if (idClash(cands[j3])) continue;
+            if (school && stus[cands[j3]].school && schMatch_(stus[cands[j3]].school, school) && gradeD_(stus[cands[j3]].grade) === gd) return cands[j3];
+          }
+          for (var j2 = 0; j2 < cands.length; j2++) {
+            if (idClash(cands[j2])) continue;
+            if (school && stus[cands[j2]].school && schMatch_(stus[cands[j2]].school, school)) {
+              var kg2 = gradeD_(stus[cands[j2]].grade);
+              if (!(gd && kg2 && gd !== kg2)) return cands[j2];
+            }
+          }
+        }
+        if (id && byId[id] != null && idCount[id] === 1) return byId[id];
+        return -1;
+      }
+      function mark_(set, key, ts){ if (set[key] == null || ts < set[key]) set[key] = ts; }
+
+      subs.forEach(function(r, i){                       // 지필 제출 (시험명 단위)
+        if (!tr_(r.name)) return;
+        var k = resolve(r.parent_phone, r.name, r.school, r.grade);
+        if (k >= 0) mark_(stus[k].exam, String(r.exam || '').replace(/\s+/g, '') || ('r' + i), tsOf_(r.submitted_at));
+      });
+      clin.forEach(function(r){                          // 클리닉 신청 (주+시간대 단위)
+        var k = -1, tk = tr_(r.token);
+        if (tk && byToken[tk] != null) k = byToken[tk];
+        if (k < 0) k = resolve(r.student_id, r.name, '');
+        if (k < 0) return;
+        mark_(stus[k].clinic, clinicWk_(r.ts) + '|' + String(r.slot || ''), tsOf_(r.ts));
+      });
+      voca.forEach(function(r, i){                       // 어휘 (주차 단위)
+        var k = resolve('', r.name, r.school, r.grade);
+        if (k >= 0) mark_(stus[k].voca, tr_(r.round) || String(i), tsOf_(r.ts));
+      });
+      hwk.forEach(function(r, i){                        // H WORK (강사|제목 단위)
+        var k = resolve('', r.name, r.school, r.grade);
+        if (k < 0) return;
+        var t = tr_(r.code);
+        mark_(stus[k].hwork, t ? (tr_(r.teacher) + '|' + t) : ('r' + i), tsOf_(r.ts));
+      });
+      omr.forEach(function(r, i){                        // 모의고사 (회차 단위)
+        if (!tr_(r.name)) return;
+        var k = resolve(r.student_id, r.name, r.school, r.grade);
+        if (k >= 0) mark_(stus[k].mock, tr_(r.exam) || String(i), tsOf_(r.submitted_at));
+      });
+      bonus.forEach(function(r){                         // 깜짝 보너스
+        var k = resolve(r.student_id, r.name, r.school, r.grade);
+        if (k < 0) return;
+        stus[k].bonus += (parseInt(r.stars, 10) || 0);
+        var bt = tsOf_(r.at);
+        if (bt > stus[k].bonusTs) stus[k].bonusTs = bt;
+      });
+      reads.forEach(function(r, i){                      // 공지 확인 (공지키 단위)
+        var k = resolve(r.student_id, r.name, r.school);
+        if (k >= 0) mark_(stus[k].notice, tr_(r.notice_key) || ('r' + i), tsOf_(r.at));
+      });
+      hwc.forEach(function(r, i){                        // 숙제 검사 만점 주차 (접근코드 매칭)
+        var tk = tr_(r.token);
+        if (!tk || byToken[tk] == null) return;
+        mark_(stus[byToken[tk]].hwcheck, tr_(r.week) || ('r' + i), tsOf_(r.at));
+      });
+
+      function setMax_(set, m){ for (var k in set) if (set[k] > m) m = set[k]; return m; }
+      var out = stus.map(function(s){
+        var earnedAt = s.bonusTs;
+        earnedAt = setMax_(s.exam, earnedAt); earnedAt = setMax_(s.clinic, earnedAt);
+        earnedAt = setMax_(s.voca, earnedAt); earnedAt = setMax_(s.hwork, earnedAt);
+        earnedAt = setMax_(s.mock, earnedAt); earnedAt = setMax_(s.notice, earnedAt);
+        earnedAt = setMax_(s.hwcheck, earnedAt);
+        var bd = { exam: Object.keys(s.exam).length, clinic: Object.keys(s.clinic).length,
+                   voca: Object.keys(s.voca).length, hwork: Object.keys(s.hwork).length,
+                   mock: Object.keys(s.mock).length, notice: Object.keys(s.notice).length,
+                   hwcheck: Object.keys(s.hwcheck).length, bonus: s.bonus };
+        return { name: s.name, school: s.school, grade: s.grade, earnedAt: earnedAt, breakdown: bd,
+          total: bd.exam * STAR_RULES.exam + bd.clinic * STAR_RULES.clinic
+               + bd.voca * STAR_RULES.voca + bd.hwork * STAR_RULES.hwork
+               + bd.mock * STAR_RULES.mock + bd.hwcheck * STAR_RULES.hwcheck
+               + bd.notice * STAR_RULES.notice + bd.bonus };
+      });
+      out.sort(function(a, b){ return b.total - a.total || a.earnedAt - b.earnedAt || a.name.localeCompare(b.name, 'ko'); });
+      return out;
+    });
+  }
+
+  if (typeof window !== 'undefined') window.__sbComputeRanking = computeRanking;   // 검증(대조 테스트)용
+
+  /* 계산 + 학생 화면용 캐시(star_ranking) 갱신 */
+  function rankingWithCache(){
+    return computeRanking().then(function(out){
+      var rows = out.slice(0, 30).map(function(s, i){
+        return { rank: i + 1, name: s.name, school: s.school, grade: s.grade, total: s.total, updated_at: nowIso() };
+      });
+      sb('DELETE', '/star_ranking?rank=gte.0')
+        .then(function(){ return rows.length ? sb('POST', '/star_ranking', rows, { 'Prefer': 'return=minimal' }) : null; })
+        .catch(warn('순위 캐시'));
+      return out;
+    });
+  }
+
   window.fetch = function(url, opts){
+    // 별 순위 조회(starBoot·starRank)는 수파베이스 계산으로 대체 — 실패 시 기존 서버 폴백
+    if (typeof url === 'string' && url.indexOf(LEGACY_SIG) >= 0 &&
+        (!opts || String(opts.method || 'GET').toUpperCase() === 'GET') &&
+        (url.indexOf('action=starBoot') >= 0 || url.indexOf('action=starRank&') >= 0 || /action=starRank$/.test(url))) {
+      var isBoot = url.indexOf('action=starBoot') >= 0;
+      var base = url.split('?')[0];
+      var pwm = /[?&]pw=([^&]*)/.exec(url);
+      var logJob = isBoot
+        ? rawFetch(base + '?action=starLog&pw=' + (pwm ? pwm[1] : '') + '&t=' + Date.now())
+            .then(function(r){ return r.json(); }).catch(function(){ return null; })
+        : Promise.resolve(null);
+      return Promise.all([rankingWithCache(), logJob]).then(function(rs){
+        var res = { result: 'success', top: rs[0].slice(0, 30) };
+        if (isBoot) res.log = (rs[1] && rs[1].log) || [];
+        return { ok: true, status: 200, json: function(){ return Promise.resolve(res); } };
+      }, function(e){
+        console.warn('별 순위 계산 실패 — 기존 서버로 폴백', e);
+        return rawFetch(url, opts);
+      });
+    }
     if (typeof url !== 'string' || url.indexOf(LEGACY_SIG) < 0 ||
         !opts || String(opts.method || '').toUpperCase() !== 'POST')
       return rawFetch(url, opts);
