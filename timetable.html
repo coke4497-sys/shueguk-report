@@ -484,6 +484,21 @@
   .wk-dayh.bigh{text-align:left;padding:8px 12px;background:var(--accent);}
   .wk-dayh.bigh small{display:inline;margin-left:8px;font-size:.7rem;}
   .wk-ch{font-size:.8rem;font-weight:700;color:var(--accent);border-left:4px solid var(--accent);padding-left:8px;margin:12px 0 8px;}
+  .wk-th{font-family:"Gowun Batang",serif;font-size:.84rem;font-weight:700;color:var(--accent);text-align:center;
+    background:var(--icon-bg);border-radius:7px;padding:3px 0;grid-row:1;}
+  /* 확대 화면 = 센터별 시간 그리드 (2026-08-22 사용자 확정 시안 A — 타임라인 한눈에)
+     왼쪽 시간 눈금 + 강사 열, 카드는 실제 시작·끝 위치와 길이대로. 센터마다 열이 적어 가로 스크롤 없음. */
+  .wk-tgrid{display:grid;gap:2px;}
+  .wk-tcorner{grid-column:1;grid-row:1;}
+  .wk-tlab{font-size:.62rem;color:var(--ink-soft);text-align:right;padding:1px 5px 0 0;
+    white-space:nowrap;border-top:1px dotted #BFCFC9;}
+  .wk-tgrid .cell{border-top:1px dotted #BFCFC9;}
+  .wk-tgrid .blk{padding:5px 6px;}
+  .wk-tgrid .blk .bt{margin-bottom:2px;}
+  .wk-tgrid .blk .bt .nm{font-size:.76rem;}
+  .wk-tgrid .blk .bt small{font-size:.63rem;}
+  .wk-tgrid .blk .stus{gap:2px;}
+  .wk-tgrid .blk .stus button{font-size:.7rem;padding:1px 6px;letter-spacing:-.01em;}
   .wk-big-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px;align-items:start;}
   @media (max-width:900px){ .wk-ov{grid-template-columns:repeat(4,1fr);} .wk-slim{width:40px;} }
   /* 채도 낮춤 — 정규 '나' 수업, 내신 '확인' 수업 */
@@ -2826,6 +2841,82 @@ function buildAllOverview(){
   });
   return wrap;
 }
+/* 확대 화면 — 센터별 시간 그리드로 그린다 (2026-08-22 사용자 확정 시안 A).
+ * 왼쪽 30분 눈금 + 강사 열, 카드는 실제 시작·끝 위치/길이대로 → 동시에 도는 수업이 한눈에.
+ * 빈 칸은 반 이동(classMoving) 시 그대로 드롭 자리로 쓰인다. */
+function zoomTuneRows(g, nrows){
+  requestAnimationFrame(function(){
+    var per = 30;
+    g.querySelectorAll('.blk').forEach(function(b){
+      var gr = String(b.style.gridRow).split('/');
+      var span = Math.max(1, (parseInt(gr[1], 10) - parseInt(gr[0], 10)) || 1);
+      var need = Math.ceil((b.scrollHeight + 2 - (span - 1) * 2) / span);
+      if (need > per) per = need;
+    });
+    per = Math.min(per, 120);
+    g.style.gridTemplateRows = 'auto repeat(' + nrows + ', ' + per + 'px)';
+    applySearchHits();
+    applyMultiSel();
+  });
+}
+function zoomCenterGrids(big, dname, list, makeBlock){
+  var order = [], byLoc = {};
+  list.forEach(function(c){
+    if (!byLoc[c.loc]){ byLoc[c.loc] = []; order.push(c.loc); }
+    byLoc[c.loc].push(c);
+  });
+  order.forEach(function(loc){
+    var cl = byLoc[loc];
+    var ch = document.createElement('div');
+    ch.className = 'wk-ch';
+    ch.textContent = wkLocLabel(loc);
+    big.appendChild(ch);
+    var cols = [], seen = {};
+    cl.forEach(function(c){ if (!seen[c.teacher]){ seen[c.teacher] = true; cols.push(c.teacher); } });
+    cols.sort(function(a, b){
+      var ia = TEACHER_ORDER.indexOf(a), ib = TEACHER_ORDER.indexOf(b);
+      return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
+    });
+    var lo = 24 * 60, hi = 0;
+    cl.forEach(function(c){ lo = Math.min(lo, mins(c.start)); hi = Math.max(hi, minsEnd(c)); });
+    lo = Math.floor(lo / 30) * 30; hi = Math.ceil(hi / 30) * 30;
+    var n = Math.max(1, Math.round((hi - lo) / 30));
+    var g = document.createElement('div');
+    g.className = 'wk-tgrid';
+    g.style.gridTemplateColumns = '46px repeat(' + cols.length + ', minmax(0, 1fr))';
+    g.style.gridTemplateRows = 'auto repeat(' + n + ', 30px)';
+    var corner = document.createElement('div');
+    corner.className = 'wk-tcorner';
+    g.appendChild(corner);
+    cols.forEach(function(t){
+      var th = document.createElement('div');
+      th.className = 'wk-th';
+      th.textContent = t + 'T';
+      g.appendChild(th);
+    });
+    for (var r = 0; r < n; r++){
+      var lab = document.createElement('div');
+      lab.className = 'wk-tlab';
+      lab.textContent = fmtT(lo + r * 30);
+      lab.style.gridColumn = '1';
+      lab.style.gridRow = String(r + 2);
+      g.appendChild(lab);
+      for (var j = 0; j < cols.length; j++){
+        addCell(g, j + 2, r, dname, { key: loc + '|' + cols[j], loc: loc, teacher: cols[j] }, lo, 2);
+      }
+    }
+    cl.forEach(function(c){
+      var r0 = Math.floor((mins(c.start) - lo) / 30), r1 = Math.ceil((minsEnd(c) - lo) / 30);
+      if (r1 <= r0) r1 = r0 + 1;
+      var b = makeBlock(c);
+      b.style.gridColumn = String(cols.indexOf(c.teacher) + 2);
+      b.style.gridRow = (r0 + 2) + ' / ' + (r1 + 2);
+      g.appendChild(b);
+    });
+    big.appendChild(g);
+    zoomTuneRows(g, n);
+  });
+}
 function buildAllZoom(dname){
   var wrap = document.createElement('div');
   wrap.className = 'wk-zoom';
@@ -2851,22 +2942,12 @@ function buildAllZoom(dname){
     hh.innerHTML = esc(dy) + (dy === todayDay() ? ' (오늘)' : '') + '<small>— 누르면 전체 개요로 돌아가요</small>';
     hh.addEventListener('click', function(){ allZoomDay = null; keepScroll = false; render(); });
     big.appendChild(hh);
-    var list = wkDayClasses(dy);
+    var list = wkZoomSorted(dy);
     if (!list.length){
       var em = document.createElement('div'); em.className = 'wk-empty'; em.textContent = '이 요일에는 수업이 없어요.';
       big.appendChild(em);
     }
-    var lastLoc = null, sec = null;
-    list.forEach(function(c){
-      if (c.loc !== lastLoc){
-        lastLoc = c.loc;
-        var ch = document.createElement('div'); ch.className = 'wk-ch'; ch.textContent = wkLocLabel(c.loc);
-        big.appendChild(ch);
-        sec = document.createElement('div'); sec.className = 'wk-big-grid';
-        big.appendChild(sec);
-      }
-      sec.appendChild(blockEl(c, true));
-    });
+    zoomCenterGrids(big, dy, list, function(c){ return blockEl(c); });
     wrap.appendChild(big);
   });
   requestAnimationFrame(function(){ applySearchHits(); });
@@ -2883,6 +2964,13 @@ var weekZoomDay = null;   // null = 개요, '금' = 그 요일 확대
 var WK_LOC_ORDER = ['본원', '화정센터', '민트초코', '정리정독'];
 function wkLocLabel(l){ return l === '민트초코' ? '민초센터' : (l || '기타'); }
 function wkLocRank(l){ var i = WK_LOC_ORDER.indexOf(l); return i < 0 ? 99 : i; }
+/* 확대 화면용 정렬 — 센터 → 강사(TEACHER_ORDER) → 시간 순 (강사별 묶음 표시, 2026-08-22 사용자 요청) */
+function wkTeacherRank(t){ var i = TEACHER_ORDER.indexOf(t); return i < 0 ? 99 : i; }
+function wkZoomSorted(dname){
+  return classes.filter(function(c){ return c.day === dname; })
+    .sort(function(a,b){ return (wkLocRank(a.loc)-wkLocRank(b.loc)) || (wkTeacherRank(a.teacher)-wkTeacherRank(b.teacher)) ||
+                                (mins(a.start)-mins(b.start)) || a.cls.localeCompare(b.cls,'ko'); });
+}
 function wkDayClasses(dname){
   return classes.filter(function(c){ return c.day === dname; })
     .sort(function(a,b){ return (wkLocRank(a.loc)-wkLocRank(b.loc)) || (mins(a.start)-mins(b.start)) || a.cls.localeCompare(b.cls,'ko'); });
@@ -2978,22 +3066,12 @@ function buildWeekZoom(dname){
                    '<small>— 누르면 주간 개요로 돌아가요</small>';
     hh.addEventListener('click', function(){ weekZoomDay = null; keepScroll = false; render(); });
     big.appendChild(hh);
-    var list = wkDayClasses(dy);
+    var list = wkZoomSorted(dy);
     if (!list.length){
       var em = document.createElement('div'); em.className = 'wk-empty'; em.textContent = '이 요일에는 수업이 없어요.';
       big.appendChild(em);
     }
-    var lastLoc = null, sec = null;
-    list.forEach(function(c){
-      if (c.loc !== lastLoc){
-        lastLoc = c.loc;
-        var ch = document.createElement('div'); ch.className = 'wk-ch'; ch.textContent = wkLocLabel(c.loc);
-        big.appendChild(ch);
-        sec = document.createElement('div'); sec.className = 'wk-big-grid';
-        big.appendChild(sec);
-      }
-      sec.appendChild(weekBlockEl(c, dstr, true));
-    });
+    zoomCenterGrids(big, dy, list, function(c){ return weekBlockEl(c, dstr); });
     wrap.appendChild(big);
   });
   requestAnimationFrame(function(){ applySearchHits(); });
