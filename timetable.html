@@ -2283,7 +2283,7 @@ function ahFetch(url){ return fetch(url).then(function(r){ return r.json(); }).c
 function ahLoad(){
   var body = $('ah-body');
   if (!body) return;
-  body.innerHTML = '<p class="exs-none">' + esc(ahName) + ' 학생의 기록을 불러오는 중… (몇 초 걸릴 수 있어요)</p>';
+  body.innerHTML = '<p class="exs-none">' + esc(ahName) + ' 학생의 기록을 불러오는 중…</p>';
   var from = new Date(weekStart); from.setDate(from.getDate() - 2 - (ahWeeks - 1) * 7);   // 옛 주차의 월요일
   var to = new Date(weekStart); to.setDate(to.getDate() + 11);                            // 다음주 일요일 (예약 이동 포함)
   var f = ymdOf(from), t = ymdOf(to);
@@ -2291,15 +2291,41 @@ function ahLoad(){
   var other = (book === '정규') ? '내신' : '정규';
   var needOther = !cacheGet('list:' + other);
   var seq = ++ahSeq;
+  // 1차: 전용 액션 attendStudent — 서버가 그 학생 것만 걸러 줘서 왕복 1번·작은 응답 (지연 최소화, 2026-08-22).
+  // 백엔드가 아직 구버전이면 실패하므로 기존 4회 조회로 폴백.
+  Promise.all([
+    ahFetch(ENDPOINT + '?action=attendStudent&name=' + encodeURIComponent(ahName) + '&from=' + f + '&to=' + t + qs),
+    needOther ? ahFetch(ENDPOINT + '?action=timetableList&book=' + encodeURIComponent(other) + qs) : Promise.resolve(null)
+  ]).then(function(rs){
+    if (seq !== ahSeq || !$('ah-body')) return;   // 다른 조회가 시작됨
+    if (rs[1] && rs[1].result === 'success') cacheSet('list:' + other, { classes: rs[1].classes || [], onceMoves: rs[1].onceMoves || [] });
+    var d = rs[0];
+    if (d && d.result === 'success'){
+      var recs = [];
+      (d.attend || []).forEach(function(a){
+        recs.push({ kind: 'att', date: a.date, bk: a.book, cid: a.classId, status: a.status, memo: a.memo,
+                    mk: a.status === '결석' ? { plan: a.plan, done: a.done, mkMemo: a.mkMemo } : null });
+      });
+      (d.once || []).forEach(function(o){
+        recs.push({ kind: 'once', date: o.date, bk: o.book, fromId: o.fromId, toId: o.toId, reason: o.reason });
+      });
+      ahShow(recs, f, t, false);
+      return;
+    }
+    ahLoadLegacy(f, t, qs, seq);
+  });
+}
+/* 폴백 — 구버전 백엔드용 기존 4회 조회 (timetableWeek 정규+내신, attendAbsentList 정규+내신) */
+function ahLoadLegacy(f, t, qs, seq){
+  var body = $('ah-body');
+  if (body) body.innerHTML = '<p class="exs-none">' + esc(ahName) + ' 학생의 기록을 불러오는 중… (몇 초 걸릴 수 있어요)</p>';
   Promise.all([
     ahFetch(ENDPOINT + '?action=timetableWeek&book=' + encodeURIComponent('정규') + '&from=' + f + '&to=' + t + qs),
     ahFetch(ENDPOINT + '?action=timetableWeek&book=' + encodeURIComponent('내신') + '&from=' + f + '&to=' + t + qs),
     ahFetch(ENDPOINT + '?action=attendAbsentList&book=' + encodeURIComponent('정규') + qs),
-    ahFetch(ENDPOINT + '?action=attendAbsentList&book=' + encodeURIComponent('내신') + qs),
-    needOther ? ahFetch(ENDPOINT + '?action=timetableList&book=' + encodeURIComponent(other) + qs) : Promise.resolve(null)
+    ahFetch(ENDPOINT + '?action=attendAbsentList&book=' + encodeURIComponent('내신') + qs)
   ]).then(function(rs){
-    if (seq !== ahSeq || !$('ah-body')) return;   // 다른 조회가 시작됨
-    if (rs[4] && rs[4].result === 'success') cacheSet('list:' + other, { classes: rs[4].classes || [], onceMoves: rs[4].onceMoves || [] });
+    if (seq !== ahSeq || !$('ah-body')) return;
     ahRender(rs, f, t);
   });
 }
@@ -2344,7 +2370,13 @@ function ahRender(rs, f, t){
       recs.push({ kind: 'once', date: o.date, bk: pr[1], fromId: o.fromId, toId: o.toId, reason: o.reason });
     });
   });
+  ahShow(recs, f, t, loadFail);
+}
+/* 이력 그리기 — 전용 액션·폴백 조회가 공통으로 사용 */
+function ahShow(recs, f, t, loadFail){
+  var nm = ahName;
   var body = $('ah-body');
+  if (!body) return;
   if (loadFail && !recs.length){
     body.innerHTML = '<p class="exs-none">기록을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.</p>';
     return;

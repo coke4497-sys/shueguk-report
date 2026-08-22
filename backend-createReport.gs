@@ -497,6 +497,11 @@ function doGet(e) {
     if (String(p.pw || '') !== TEACHER_PW) return json({ result:'error', message:'unauthorized' });
     return getAttendList(p.date, p.book);
   }
+  // 학생 한 명의 출석 이력 (timetable.html 학생 출석 이력) — 정규+내신·보충 처리·1회 이동을 왕복 1번에
+  if (p.action === 'attendStudent') {
+    if (String(p.pw || '') !== TEACHER_PW) return json({ result:'error', message:'unauthorized' });
+    return getAttendStudent(p.name, p.from, p.to);
+  }
   // 주차 조회 (timetable.html 주차별 시간표) — 비밀번호 필요
   if (p.action === 'timetableWeek') {
     if (String(p.pw || '') !== TEACHER_PW) return json({ result:'error', message:'unauthorized' });
@@ -3235,6 +3240,46 @@ function getAttendList(dateStr, book) {
   dateStr = String(dateStr || '').trim();
   if (!dateStr) return json({ result:'error', message:'날짜가 필요합니다.' });
   return json({ result:'success', date: dateStr, attend: attendListData_(dateStr, book) });
+}
+/** 학생 한 명의 출석 이력 — 기간 내 출석 기록(H~J 보충 처리 포함)과 1회 이동을 정규+내신 함께.
+ *  GET action=attendStudent&pw=&name=&from=yyyy-MM-dd&to=yyyy-MM-dd
+ *  이름은 괄호(특이사항) 제거 후 정확 일치. 시트 꼬리만 읽고 서버에서 걸러 응답이 작다 —
+ *  학생 출석 이력 조회가 왕복 1번에 끝난다 (2026-08-22 지연 최소화). */
+function getAttendStudent(name, fromStr, toStr) {
+  var nm = String(name || '').replace(/\(.*\)$/, '').trim();
+  fromStr = String(fromStr || '').trim(); toStr = String(toStr || '').trim();
+  if (!nm || !fromStr || !toStr) return json({ result:'error', message:'이름과 기간이 필요합니다.' });
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var attend = [];
+  var ash = ss.getSheetByName(TAB_ATTEND);
+  if (ash) {
+    var av = sheetTail_(ash, 6, daysAgoMs_(fromStr, 14)).rows;   // G기록일시 기준 최근분만
+    for (var i = 0; i < av.length; i++) {
+      if (String(av[i][3] || '').replace(/\(.*\)$/, '').trim() !== nm) continue;
+      var d = av[i][0];
+      var ds = (d && d.getTime) ? Utilities.formatDate(d, 'Asia/Seoul', 'yyyy-MM-dd') : String(d || '').trim();
+      if (ds < fromStr || ds > toStr) continue;
+      attend.push({ date: ds, book: ttBook_(av[i][1]), classId: String(av[i][2] || '').trim(),
+                    status: String(av[i][4] || '').trim(), memo: String(av[i][5] || '').trim(),
+                    plan: String(av[i].length > 7 ? av[i][7] || '' : '').trim(),
+                    done: String(av[i].length > 8 ? av[i][8] || '' : '').trim() === '1',
+                    mkMemo: String(av[i].length > 9 ? av[i][9] || '' : '').trim() });
+    }
+  }
+  var once = [];
+  var lsh = ss.getSheetByName(TAB_TT_LOG);
+  if (lsh) {
+    var lv = sheetTail_(lsh, 0, daysAgoMs_(fromStr, 60)).rows;   // 예약 이동 여유 60일
+    for (var j = 0; j < lv.length; j++) {
+      if (String(lv[j][1] || '').trim() !== '1회') continue;
+      if (String(lv[j][2] || '').replace(/\(.*\)$/, '').trim() !== nm) continue;
+      var lds = ttApplyYmd_(lv[j]);   // 적용일(J열) 우선
+      if (lds < fromStr || lds > toStr) continue;
+      once.push({ date: lds, book: ttBook_(lv[j][8]), fromId: String(lv[j][3] || '').trim(),
+                  toId: String(lv[j][5] || '').trim(), reason: String(lv[j][7] || '').trim() });
+    }
+  }
+  return json({ result:'success', name: nm, from: fromStr, to: toStr, attend: attend, once: once });
 }
 /** 주차 조회 — 기간 내 출석 기록 + 1회 이동. GET action=timetableWeek&pw=&book=&from=yyyy-MM-dd&to=yyyy-MM-dd */
 function ttWeekData_(fromStr, toStr, book) {
