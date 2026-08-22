@@ -946,7 +946,7 @@ function renderTabs(){
     : (mode === 'week') ? '그 주의 출석·1회 이동 기록이 함께 보여요. 학생 이름 클릭 = 그 날짜 출석 기록·수정, 출석 창의 [다른 반으로 1회 이동]으로 다음주 이동도 미리 예약할 수 있어요.'
     : (mode === 'cal') ? '주마다 [정규]/[내신]을 골라 그 주에 쓸 시간표를 정하세요. 오늘의 시간표·주차별이 자동으로 따라갑니다. 날짜 칸을 누르면 메모를 적을 수 있어요.'
     : (mode === 'exs') ? '학교별 시험 기간을 등록하고, 시험 시간표가 나오면 막대 아래 날짜 칸을 눌러 학년·과목을 넣으세요. 넣은 과목은 슈국 캘린더 날짜 칸에도 표시돼요.'
-    : '학생 이름을 누르면 이동 모드가 켜져요. 옮길 반(다른 요일 포함)을 누르면 영구 이동됩니다.';
+    : '요일 머리글이나 반 카드를 누르면 그 요일이 크게 열려요. 학생 이름을 누르면 이동 모드가 켜지고, 옮길 반(다른 요일 포함)을 누르면 영구 이동됩니다.';
   $('editbar').classList.toggle('show', mode === 'all' || mode === 'week');
   $('attbar').classList.toggle('show', mode === 'today');
   document.querySelector('.searchbar').style.display = (mode === 'cal' || mode === 'exs') ? 'none' : '';
@@ -990,7 +990,14 @@ function render(){
   }
   if (mode === 'all'){
     if (narrowScreen()) host.appendChild(mviewToggleBtn());
-    host.appendChild(useListView() ? buildAllList() : buildFullGrid());
+    if (useListView()){
+      host.appendChild(buildAllList());
+    } else {
+      // 기본은 주차별과 같은 한 페이지 개요(가로 스크롤 없음), 옛 시간 그리드는 토글로 (2026-08-22 사용자 요청)
+      host.appendChild(allViewToggleBtn());
+      host.appendChild(allView() === 'grid' ? buildFullGrid()
+                     : (allZoomDay ? buildAllZoom(allZoomDay) : buildAllOverview()));
+    }
     host.appendChild(newStuSection());   // 이달의 신입생 (2026-08-22 사용자 요청)
     return;
   }
@@ -2055,6 +2062,118 @@ function buildFullGrid(){
   return wrap;
 }
 
+/* ── 전체 시간표: 한 페이지 개요 ↔ 요일 확대 (2026-08-22 사용자 요청 — 주차별과 같은 방식, 가로 스크롤 없음)
+ * 개요: 월~일 7열, 요일마다 센터 순 반 요약 카드(시간·담당T·인원). 카드/요일 머리글 클릭 = 그 요일 확대.
+ * 확대: 반 블록(학생 칩) 그대로 — 학생 클릭 영구 이동·편집 도구줄 모두 동작.
+ * 반 통째 이동(빈 자리 클릭)만 시간 그리드가 필요해서 [시간 그리드로 보기] 토글로 옛 화면 유지 —
+ * 편집 '반 이동'을 시작하면 자동으로 그리드로 전환, 끝나면 개요로 복귀. */
+var allZoomDay = null;      // null = 개요, '금' = 그 요일 확대
+var allAutoGrid = false;    // 반 이동 때문에 자동으로 그리드로 전환했는지
+function allView(){ return sessionStorage.getItem('tt_allview') || 'ov'; }
+function allViewToggleBtn(){
+  var grid = allView() === 'grid';
+  var tg = document.createElement('button');
+  tg.className = 'mview-toggle';
+  tg.textContent = grid ? '개요로 보기' : '시간 그리드로 보기';
+  tg.onclick = function(){
+    sessionStorage.setItem('tt_allview', grid ? 'ov' : 'grid');
+    allAutoGrid = false;
+    keepScroll = false;
+    render();
+  };
+  return tg;
+}
+function allDayHeader(dname, cls, onClick){
+  var today = dname === todayDay();
+  var h = document.createElement('button');
+  h.type = 'button';
+  h.className = 'wk-dayh' + (cls ? ' ' + cls : '') + (today ? ' today' : '');
+  h.innerHTML = esc(dname) + (today && cls !== 'slim' ? '<small>오늘</small>' : '');
+  h.addEventListener('click', onClick);
+  return h;
+}
+function buildAllOverview(){
+  var wrap = document.createElement('div');
+  wrap.className = 'wk-ov';
+  WEEK_VIEW_ORDER.forEach(function(dname){
+    var col = document.createElement('div');
+    col.className = 'wk-ov-col';
+    col.appendChild(allDayHeader(dname, '', function(){ allZoomDay = dname; keepScroll = false; render(); }));
+    var list = wkDayClasses(dname);
+    var lastLoc = null;
+    list.forEach(function(c){
+      if (c.loc !== lastLoc){
+        lastLoc = c.loc;
+        var cl = document.createElement('div');
+        cl.className = 'wk-ctr';
+        cl.textContent = wkLocLabel(c.loc);
+        col.appendChild(cl);
+      }
+      var m = document.createElement('button');
+      m.type = 'button';
+      m.className = 'wk-mini ' + colorOf(c.cls);
+      m.setAttribute('data-cid', c.id);
+      m.innerHTML = '<b>' + esc(c.cls) + '</b><small>' + esc(c.start) + '~' + esc(c.end) +
+                    ' · ' + esc(c.teacher) + 'T · ' + c.students.length + '명</small>';
+      m.title = esc(c.cls) + ' — 누르면 ' + dname + '요일 확대';
+      m.addEventListener('click', function(){ allZoomDay = dname; keepScroll = false; render(); });
+      col.appendChild(m);
+    });
+    if (!list.length){
+      var em = document.createElement('div'); em.className = 'wk-empty'; em.textContent = '수업 없음';
+      col.appendChild(em);
+    }
+    wrap.appendChild(col);
+  });
+  return wrap;
+}
+function buildAllZoom(dname){
+  var wrap = document.createElement('div');
+  wrap.className = 'wk-zoom';
+  WEEK_VIEW_ORDER.forEach(function(dy){
+    if (dy !== dname){
+      var slim = document.createElement('div');
+      slim.className = 'wk-slim';
+      slim.appendChild(allDayHeader(dy, 'slim', function(){ allZoomDay = dy; keepScroll = false; render(); }));
+      wkDayClasses(dy).forEach(function(c){
+        var b = document.createElement('div');
+        b.className = 'wk-bar ' + colorOf(c.cls);
+        b.title = c.cls + ' ' + c.start + '~' + c.end + ' · ' + c.teacher + 'T';
+        slim.appendChild(b);
+      });
+      wrap.appendChild(slim);
+      return;
+    }
+    var big = document.createElement('div');
+    big.className = 'wk-big';
+    var hh = document.createElement('button');
+    hh.type = 'button';
+    hh.className = 'wk-dayh bigh' + (dy === todayDay() ? ' today' : '');
+    hh.innerHTML = esc(dy) + (dy === todayDay() ? ' (오늘)' : '') + '<small>— 누르면 전체 개요로 돌아가요</small>';
+    hh.addEventListener('click', function(){ allZoomDay = null; keepScroll = false; render(); });
+    big.appendChild(hh);
+    var list = wkDayClasses(dy);
+    if (!list.length){
+      var em = document.createElement('div'); em.className = 'wk-empty'; em.textContent = '이 요일에는 수업이 없어요.';
+      big.appendChild(em);
+    }
+    var lastLoc = null, sec = null;
+    list.forEach(function(c){
+      if (c.loc !== lastLoc){
+        lastLoc = c.loc;
+        var ch = document.createElement('div'); ch.className = 'wk-ch'; ch.textContent = wkLocLabel(c.loc);
+        big.appendChild(ch);
+        sec = document.createElement('div'); sec.className = 'wk-big-grid';
+        big.appendChild(sec);
+      }
+      sec.appendChild(blockEl(c, true));
+    });
+    wrap.appendChild(big);
+  });
+  requestAnimationFrame(function(){ applySearchHits(); });
+  return wrap;
+}
+
 /* 주차별 보기: 그 주의 날짜·출석·1회 이동이 반영된 주간 그리드 */
 /* ── 주차별 보기: 한 페이지 개요 ↔ 요일 확대 (2026-08-21 사용자 확정 시안) ──
  * 개요: 월~일 7열, 요일마다 센터(본원→화정센터→민초센터→정리정독) 순으로 묶은 반 요약 카드
@@ -2264,6 +2383,17 @@ function gotoSearchHit(cid){
     setMode('all');
     requestAnimationFrame(function(){ requestAnimationFrame(function(){ gotoSearchHit(cid); }); });
     return;
+  }
+  // 전체 개요 보기엔 반 블록이 없음 — 그 반의 요일을 확대한 뒤 다시 찾기
+  if (!el && mode === 'all' && !useListView() && allView() !== 'grid'){
+    var c = classes.find(function(x){ return x.id === cid; });
+    if (c && allZoomDay !== c.day){
+      allZoomDay = c.day;
+      keepScroll = false;
+      render();
+      requestAnimationFrame(function(){ requestAnimationFrame(function(){ gotoSearchHit(cid); }); });
+      return;
+    }
   }
   if (!el) return;
   el.scrollIntoView({ block: 'center', inline: 'center', behavior: 'smooth' });
@@ -2782,12 +2912,18 @@ function cancelMove(){
   $('movebar').classList.remove('on');
   document.querySelectorAll('.stus button.sel').forEach(function(b){ b.classList.remove('sel'); });
   setStatus('');
+  if (wasClass && allAutoGrid){ sessionStorage.setItem('tt_allview', 'ov'); allAutoGrid = false; }   // 반 이동 끝 → 개요 복귀
   if (wasClass || wasOnce) render();
 }
 
 /* ── 반 통째 이동 ── */
 function startClassMove(c){
   classMoving = { id: c.id };
+  // 빈 자리 클릭엔 시간 그리드가 필요 — 개요 보기였으면 자동 전환, 끝나면(cancelMove) 개요로 복귀
+  if (mode === 'all' && !useListView() && allView() !== 'grid'){
+    sessionStorage.setItem('tt_allview', 'grid');
+    allAutoGrid = true;
+  }
   document.body.classList.add('classmoving');
   $('movebar').classList.add('on');
   $('mv-name').textContent = c.cls;
