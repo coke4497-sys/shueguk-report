@@ -121,12 +121,26 @@
   - 출제 저장(homework_key.html): 저장 성공 시 hwork_homeworks 업서트(due 미포함 — 기존 마감일 유지).
   - 과제 관리(hwork_assign.html): 마감일 저장 성공 시 미러 PATCH, 과제 삭제 성공 시
     미러의 과제+제출 함께 삭제.
-- 어휘 출제(shueguk-voca paper.html)의 saveHomework는 아직 미러 훅 없음 — 일일 점검이 맞춘다
-  (어휘 이전 회차에서 추가 예정).
+- 어휘 출제(shueguk-voca paper.html)의 saveHomework도 hwork_homeworks 업서트 훅 있음(어휘 이전 때 추가).
 - 일일 점검 `--hwork <xlsx>`: H WORK 시트(파일 id 1nFZ2HVAnCyCv_NOoAPXhA1VC_T7BBqwUWNWBta4-qFE)를
   내려받아 두 표를 시트 기준으로 대조·복구.
 - 주의: hwork_homeworks.data에는 정답이 들어 있다 — 현 공개 수준은 기존과 동일
   (제출 응답의 정오(JSON)·getReport로 정답이 이미 노출되는 구조).
+
+## 어휘 테스트 (2026-08-23)
+- [x] `migrations/008_voca.sql` — voca_results(어휘 결과 시트 첫 탭 미러 — **시트가 원본**)
+- [x] 데이터 이전 (2026-08-22): 결과 2,301건 — 시트 xlsx 기준 전수 대조 일치, 쓰기 왕복 확인.
+- 열린 주차 판정(vocaStatus 연동)·삭제 검증(_row/_sig)이 서버에 있으므로 **쓰기는 기존 백엔드 그대로**:
+  - 학생 테스트(test.html): 전송 성공 시 voca_results에 미러 삽입 — ts는 페이지가 보내는
+    'yyyy-MM-dd HH:mm' 문자열 그대로라 시트와 정확히 일치. 제출은 no-cors라 백엔드 거절
+    (wrong_week 등)을 페이지가 알 수 없음 — 그 경우 미러에만 남은 행은 일일 점검이 삭제.
+  - 대시보드(shueguk-teacher-dashboard.html): 선택 삭제 성공 시(건너뜀 0일 때만) 미러에서도
+    ts+이름+주차로 같은 행 삭제. 건너뜀이 있으면 일일 점검에 맡김.
+  - 시트의 열 구조는 폼 시절 혼합(실사용 열 A이름~K details) — extract_voca가 고정 열로 추출.
+- 일일 점검 `--voca <xlsx>`: 어휘 시트(파일 id 1AVDyKpBj9kSW5hzSzOieVIZpV6FnIpcFMjsjUyuGAbE)를
+  내려받아 대조·복구. **키에 점수·상세 포함** — 같은 분 재제출(전송 재시도·재응시) 중복 행이
+  서로 다른 키가 되도록 (2026-08-22 실데이터에서 13건 확인).
+- s.html의 vocaTaken(응시 확인)·대시보드 조회(lite/detail/taken)는 기존 백엔드 그대로.
 
 ## 일일 자동 점검·복구 (2026-08-22 설정)
 - **매일 새벽 3:30(KST) CCR 루틴**: 백엔드 시트 xlsx 다운로드(구글 드라이브,
