@@ -653,6 +653,50 @@
   .as-sugg{display:flex;gap:6px;flex-wrap:wrap;margin-top:9px;}
   .as-warn{background:#FDF7F0;border:1px solid #EBD9C4;border-radius:10px;padding:9px 12px;font-size:.8rem;
     color:#7A5A2E;margin-bottom:10px;}
+  /* 결석·지각 목록 — 옛 [결석/지각 확인]과 같은 확인 */
+  .as-wlist{display:flex;flex-direction:column;gap:6px;}
+  .as-wrow{border:1px solid var(--line-soft);border-radius:10px;background:#fff;overflow:hidden;}
+  .as-wrow.hot{border-color:#D9A79F;background:#FDF7F6;}
+  .as-wrow.on{border-color:var(--btn);}
+  .as-wbtn{all:unset;display:flex;align-items:center;gap:7px;flex-wrap:wrap;width:100%;box-sizing:border-box;
+    padding:8px 11px;cursor:pointer;font-size:.85rem;}
+  .as-wbtn:focus-visible{outline:2px solid var(--btn);outline-offset:-2px;}
+  .as-wrank{min-width:22px;text-align:center;font-size:.78rem;font-weight:700;color:var(--ink-soft);
+    font-variant-numeric:tabular-nums;}
+  .as-wrow.hot .as-wrank{color:#A2453C;}
+  .as-watt{color:var(--ink-soft);font-size:.74rem;}
+  .as-wsum{margin-left:auto;font-weight:700;font-size:.8rem;color:#A2453C;font-variant-numeric:tabular-nums;}
+  .as-wrow .as-det{border-top:1px solid var(--line-soft);border-radius:0;}
+
+  /* 기록부 표 — 구글시트 「주차별 기록부」 형식 (주차마다 진도/확인/보충 세 칸) */
+  table.as-bk{font-size:.78rem;}
+  table.as-bk th,table.as-bk td{border-right:1px solid var(--line-soft);text-align:center;vertical-align:middle;}
+  .as-no{position:sticky;left:0;z-index:2;background:var(--surface);width:38px;min-width:38px;
+    font-size:.74rem;color:var(--ink-soft);font-variant-numeric:tabular-nums;}
+  thead .as-no{z-index:5;background:#F4F8F6;}
+  table.as-bk .as-cn{left:38px;min-width:96px;}
+  .as-wkh{background:#EEF4F1 !important;font-size:.76rem;color:var(--accent);padding:6px 8px !important;
+    border-bottom:1px solid var(--line) !important;}
+  .as-wkh small{display:block;font-weight:400;color:var(--ink-soft);font-size:.68rem;margin-top:1px;
+    font-variant-numeric:tabular-nums;}
+  .as-sh{font-size:.7rem;padding:5px 4px !important;min-width:86px;}
+  .as-sc{padding:5px 6px !important;min-width:86px;line-height:1.35;}
+  .as-line + .as-line{margin-top:3px;padding-top:3px;border-top:1px dotted var(--line-soft);}
+  .as-sc b{font-size:.79rem;font-variant-numeric:tabular-nums;}
+  .as-ok2{color:var(--ink);}                 /* 제 시간에 출석 */
+  .as-late2{color:#8A6D1F;}                  /* 지각 */
+  .as-abs2{color:#BC4438;}                   /* 결석 */
+  .as-mv2{color:#3D6FA8;}                    /* 다른 반으로 1회 이동 */
+  .as-todo{color:#B6C2BC;font-variant-numeric:tabular-nums;}   /* 아직 체크 안 함 */
+  .as-sub2{display:block;font-size:.68rem;color:var(--ink-soft);margin-top:1px;word-break:keep-all;}
+  .as-sub2.mk{color:#7A5A2E;}
+  .as-sub2.jb{color:#2F7A55;font-weight:700;}   /* 직전보강 */
+  .as-jb{color:#2F7A55;}
+  .as-once1{color:#9AA8A1;font-size:.74rem;}    /* 그 주에 한 번만 등원 */
+  @media (max-width:760px){
+    .as-sh,.as-sc{min-width:74px;}
+    table.as-bk .as-cn{min-width:84px;}
+  }
   @media (max-width:760px){
     .as-cn{min-width:94px;}
     .as-stack{height:76px;}
@@ -2052,7 +2096,6 @@ function syncWeekClassRosters(){
   });
 }
 function render(){
-  syncWeekClassRosters();
   var host = $('sheet');
   var prevSw = host.querySelector('.scrollwrap');
   pendingScroll = (keepScroll && prevSw) ? { top: prevSw.scrollTop, left: prevSw.scrollLeft } : null;
@@ -3725,26 +3768,43 @@ function asLoad(force){
 }
 
 /* 반 정보 — 정규·내신 양쪽에서 찾는다 */
+function asClassList(bk){
+  if (bk === book && classes && classes.length) return classes;
+  var c = (cacheGet('list:' + bk) || {}).classes;
+  return (c && c.length) ? c : (classes || []);
+}
 function asClassOf(bk, cid){
-  var list = (bk === book) ? classes : ((cacheGet('list:' + bk) || {}).classes || []);
+  var list = asClassList(bk);
   var hit = null;
   (list || []).forEach(function(c){ if (c.id === cid) hit = c; });
   return hit;
 }
 
+/* 학생이 그 시간표에서 듣는 두 수업을 진도/확인 칸으로 가른다.
+ * 내신 = 진도반 / 확인반, 정규 = 가 / 나. 단일 수업(정리정독·고3 등)은 진도 칸. */
+function asSlotOf(bk, c){
+  var n = String(c.cls || '').replace(/\s+$/, '');
+  if (bk === '내신') return (n.indexOf('확인') >= 0) ? 1 : 0;
+  if (/나$/.test(n)) return 1;
+  if (/가$/.test(n)) return 0;
+  return 0;
+}
+function asSlotLabel(bk){ return (bk === '내신') ? ['진도', '확인'] : ['정규 가', '정규 나']; }
+/* 반 시간 표기 — 시트와 같은 '일2:00' 형태 */
+function asSlotTime(c){ return c ? (c.day + c.start) : ''; }
+/* 시험 직전 주에는 기존 수업이 사라지고 직전보강으로 바뀐다 (2026-08-23 사용자 설명).
+ * 아직 그런 반이 시간표에 없어서, 반이름에 '직보'·'직전'·'보강'이 들어오면 자동으로 잡힌다. */
+function asIsJikbo(c){ return !!c && /직보|직전|보강/.test(String(c.cls || '')); }
+/* 그 주에서 그 요일의 날짜 */
+var AS_DOW = ['월','화','수','목','금','토','일'];
+function asDateOf(wk, day){
+  var i = AS_DOW.indexOf(day); if (i < 0) return '';
+  var d = new Date(+wk.mon.slice(0,4), +wk.mon.slice(5,7) - 1, +wk.mon.slice(8,10) + i);
+  return ymdOf(d);
+}
+
 function asBuild(weeks, reg, nae, absLists){
-  var by = {};
-  function of(nm){
-    if (!by[nm]){
-      var r = (asRoster && asRoster[nm]) || null;
-      var w = []; for (var i = 0; i < weeks.length; i++) w.push([0,0,0,0]);
-      by[nm] = { n: nm, s: r ? r.school : '', g: r ? asGrade(r.grade) : '', t: r ? r.teacher : '',
-                 known: !!r, w: w, i: [], ex: 0 };
-    }
-    return by[nm];
-  }
-  // 결석 보충 처리 상태 (결석자 관리와 같은 데이터)
-  var mk = {};
+  var att = {}, once = {}, mk = {};
   [[absLists[0], '정규'], [absLists[1], '내신']].forEach(function(pr){
     if (!pr[0] || pr[0].result !== 'success') return;
     (pr[0].list || []).forEach(function(x){
@@ -3755,46 +3815,224 @@ function asBuild(weeks, reg, nae, absLists){
     var d = pr[0], bk = pr[1];
     if (!d || d.result !== 'success') return;
     (d.attend || []).forEach(function(a){
-      var nm = plainName(a.student).trim(); if (!nm) return;
-      var wi = asWeekIndex(weeks, a.date); if (wi < 0) return;
-      var c = asClassOf(bk, a.classId);
-      var st = of(nm);
-      if (asIsNonsul(c)){ st.ex++; return; }        // 일요일 논술 특강 제외
-      if (a.status === '출석'){ st.w[wi][0]++; return; }
-      if (a.status !== '지각' && a.status !== '결석') return;
-      st.w[wi][a.status === '지각' ? 1 : 2]++;
-      var it = { d: a.date, k: a.status, bk: bk, c: c ? labelOf(c) : a.classId, m: a.memo || '' };
-      if (a.status === '결석'){
-        var m = mk[bk + '|' + a.date + '|' + a.classId + '|' + nm];
-        if (m){ it.plan = m.plan || ''; it.done = !!m.done; it.mkMemo = m.mkMemo || ''; }
-      }
-      st.i.push(it);
+      att[bk + '|' + a.date + '|' + a.classId + '|' + plainName(a.student).trim()] = a;
     });
     (d.onceMoves || []).forEach(function(o){
-      var nm = plainName(o.student).trim(); if (!nm) return;
-      var wi = asWeekIndex(weeks, o.date); if (wi < 0) return;
-      var st = of(nm);
-      st.w[wi][3]++;
-      var f = asClassOf(bk, o.fromId), t = asClassOf(bk, o.toId);
-      st.i.push({ d: o.date, k: '이동', bk: bk, c: (f ? labelOf(f) : o.fromId) + ' → ' + (t ? labelOf(t) : o.toId),
-                  m: o.reason || '' });
+      var nm = plainName(o.student).trim();
+      (once[bk + '|' + nm] = once[bk + '|' + nm] || []).push(o);
     });
   });
-  // 기록이 아직 없는 재원생도 명단에 넣어 '전체 학생' 화면이 되게
-  if (asRoster) Object.keys(asRoster).forEach(function(nm){ of(nm); });
-  var list = Object.keys(by).map(function(k){ return by[k]; });
-  list.forEach(function(st){
-    st.i.sort(function(a, b){ return a.d.localeCompare(b.d); });
-    var t = { att:0, late:0, abs:0, move:0, done:0 };
-    st.w.forEach(function(w){ t.att += w[0]; t.late += w[1]; t.abs += w[2]; t.move += w[3]; });
-    st.i.forEach(function(x){ if (x.k === '결석' && x.done) t.done++; });
+  // 학생별 소속 반 (시간표별로 진도/확인 두 칸)
+  var belong = {};
+  ['정규', '내신'].forEach(function(bk){
+    var list = asClassList(bk);
+    (list || []).forEach(function(c){
+      if (asIsNonsul(c)) return;                      // 일요일 논술 특강은 집계에서 뺀다
+      (c.students || []).forEach(function(s){
+        var nm = plainName(s).trim(); if (!nm) return;
+        var key = bk + '|' + nm;
+        belong[key] = belong[key] || [[], []];
+        belong[key][asSlotOf(bk, c)].push(c);   // 확인반이 없는 중3·고3은 확인 칸이 빈 채로 남는다
+      });
+    });
+  });
+
+  var names = {};
+  Object.keys(belong).forEach(function(k){ names[k.split('|')[1]] = 1; });
+  Object.keys(att).forEach(function(k){ names[k.split('|')[3]] = 1; });
+  if (asRoster) Object.keys(asRoster).forEach(function(n){ names[n] = 1; });
+
+  var list = Object.keys(names).map(function(nm){
+    var r = (asRoster && (asRoster[nm] || (/A$/.test(nm) ? asRoster[nm.slice(0, -1)] : null))) || null;
+    var inTT = !!(belong['정규|' + nm] || belong['내신|' + nm]);
+    var st = { n: nm, s: r ? r.school : '', g: r ? asGrade(r.grade) : '', t: r ? r.teacher : '',
+               known: !!r, inTT: inTT, left: (!r && !inTT), wk: [], i: [], ex: 0,
+               t2: { att:0, late:0, abs:0, move:0, done:0 } };
+    weeks.forEach(function(wk){
+      var bk = periods[wk.k] || '정규';
+      var cs = belong[bk + '|' + nm] || [[], []];
+      var cell = { bk: bk, slots: [[], []], extra: [] };
+      var wkMoves = (once[bk + '|' + nm] || []).filter(function(o){ return o.date >= wk.mon && o.date <= wk.sun; });
+      cs.forEach(function(group, gi){ group.forEach(function(c){
+        var ds = asDateOf(wk, c.day);
+        var a = att[bk + '|' + ds + '|' + c.id + '|' + nm] || null;
+        var s = { c: c, date: ds, time: asSlotTime(c), status: a ? a.status : '', memo: a ? a.memo : '' };
+        // 이 반에서 다른 반으로 1회 이동했으면 그 칸에 옮겨 간 시간을 보여준다
+        wkMoves.forEach(function(o){
+          if (o.fromId !== c.id) return;
+          var t = asClassOf(bk, o.toId);
+          s.moved = { to: t, time: asSlotTime(t), date: o.date, reason: o.reason || '' };
+          o._shown = true;   // 그 칸에 표시했으니 보충란에서는 뺀다
+          var ta = att[bk + '|' + o.date + '|' + o.toId + '|' + nm];
+          if (ta){ s.status = ta.status; s.memo = ta.memo || ''; }
+        });
+        if (a && a.status === '결석'){
+          var m = mk[bk + '|' + ds + '|' + c.id + '|' + nm];
+          if (m){ s.plan = m.plan || ''; s.done = !!m.done; }
+        }
+        if (a){
+          if (a.status === '출석') st.t2.att++;
+          else if (a.status === '지각'){ st.t2.late++; st.i.push({ d: ds, k:'지각', bk:bk, c: labelOf(c), m: a.memo || '' }); }
+          else if (a.status === '결석'){
+            st.t2.abs++;
+            if (s.done) st.t2.done++;
+            st.i.push({ d: ds, k:'결석', bk:bk, c: labelOf(c), m: a.memo || '', plan: s.plan, done: s.done });
+          }
+        }
+        cell.slots[gi].push(s);
+      }); });
+      // 그 주의 1회 이동 — 보충 및 이동 칸
+      wkMoves.forEach(function(o){
+        var f = asClassOf(bk, o.fromId), t = asClassOf(bk, o.toId);
+        if (!o._shown) cell.extra.push({ kind:'이동', date:o.date, from:f, to:t, reason:o.reason || '' });
+        st.t2.move++;
+        st.i.push({ d:o.date, k:'이동', bk:bk,
+                    c:(f?labelOf(f):o.fromId) + ' → ' + (t?labelOf(t):o.toId), m:o.reason || '' });
+      });
+      st.wk.push(cell);
+    });
+    st.i.sort(function(a,b){ return a.d.localeCompare(b.d); });
+    var t = st.t2;
     t.base = t.att + t.late + t.abs;
     t.rate = t.base ? Math.round(t.att / t.base * 1000) / 10 : null;
     t.issue = t.late + t.abs * 2 + t.move * 0.5;
     st.t = t;
+    st.w = st.wk.map(function(cell){
+      var a=0,l=0,ab=0,mv=cell.extra.length;
+      cell.slots.forEach(function(g){ g.forEach(function(s){
+        if (!s.status) return;
+        if (s.status === '출석') a++; else if (s.status === '지각') l++; else if (s.status === '결석') ab++;
+      }); });
+      return [a,l,ab,mv];
+    });
+    return st;
   });
+  // 퇴원생(시간표·명단 어디에도 없음)은 그 기간에 기록이 남아 있을 때만 보여준다
+  list = list.filter(function(st){ return !st.left || st.t.base > 0 || st.t.move > 0; });
   return { weeks: weeks, list: list };
 }
+
+/* ── 결석·지각 목록 — 옛 [결석/지각 확인] 모달과 같은 확인을 그대로 (2026-08-23 사용자 요청)
+ * 기간 안에 지각·결석·1회 이동이 있는 학생만 잦은 순으로 세운다. 줄을 누르면 날짜별 내역. */
+function asWarnSorted(list){
+  var k = asS.wsort || 'total';
+  var pick = function(t){
+    return k === 'late' ? t.late : k === 'abs' ? t.abs : k === 'move' ? t.move : (t.late + t.abs + t.move);
+  };
+  return list.filter(function(x){ return (x.t.late + x.t.abs + x.t.move) > 0; })
+    .sort(function(a, b){ return pick(b.t) - pick(a.t) || (b.t.abs - a.t.abs) || a.n.localeCompare(b.n, 'ko'); });
+}
+function asWarnBadge(n, cls, lab){
+  return '<span class="ah-badge ' + cls + (n ? '' : ' zero') + '">' + lab + ' ' + n + '</span>';
+}
+function asWarnHtml(list){
+  var rows = asWarnSorted(list);
+  var sorts = [{v:'total',t:'종합'},{v:'late',t:'지각'},{v:'abs',t:'결석'},{v:'move',t:'1회 이동'}];
+  var head = '<p class="as-h">' + esc(asScope()) + ' 결석·지각 목록 ' +
+    '<small>지각·결석·1회 이동이 있는 학생만 잦은 순으로. 줄을 누르면 날짜별 내역이 펼쳐져요</small></p>' +
+    '<div class="as-ctrls" style="margin-bottom:8px"><span class="as-grp"><span class="as-lab">기준</span>' +
+    sorts.map(function(o){
+      return '<button type="button" class="as-pill' + (o.v === (asS.wsort || 'total') ? ' on' : '') +
+             '" onclick="asSet(\'wsort\',\'' + o.v + '\')">' + o.t + '</button>';
+    }).join('') + '</span></div>';
+  if (!rows.length)
+    return head + '<p class="as-none">이 기간에 지각·결석·1회 이동이 있는 학생이 없어요.</p>';
+  var body = rows.map(function(st, i){
+    var t = st.t, sum = t.late + t.abs + t.move;
+    var open = asS.open[st.n];
+    return '<div class="as-wrow' + (sum >= 3 ? ' hot' : '') + (open ? ' on' : '') + '">' +
+      '<button class="as-wbtn" type="button" onclick="asToggle(\'' + esc(st.n) + '\')">' +
+        '<span class="as-wrank">' + (i + 1) + '</span>' +
+        '<b class="as-nm">' + esc(st.n) + '</b>' +
+        '<span class="as-meta">' + esc(st.known ? (st.s + ' ' + st.g) : (st.left ? '퇴원' : '미등록생')) + '</span>' +
+        asWarnBadge(t.late, 'a-late', '지각') +
+        asWarnBadge(t.abs, 'a-abs', '결석') +
+        (t.abs ? '<span class="ah-badge a-mk' + (t.done >= t.abs ? ' done' : ' todo') + '">보충 ' + t.done + '/' + t.abs + '</span>' : '') +
+        asWarnBadge(t.move, 'a-move', '이동') +
+        '<span class="as-watt">출석 ' + t.att + '회</span>' +
+        '<span class="as-wsum">' + sum + '건</span>' +
+      '</button>' +
+      (open ? '<div class="as-det">' + asDetail(st) + '</div>' : '') + '</div>';
+  }).join('');
+  return head + '<div class="as-wlist">' + body + '</div>';
+}
+
+/* ── 기록부 표 (구글시트 「주차별 기록부」 형식) ── */
+function asBookHead(){
+  var w = asData.weeks;
+  var top = '<tr><th class="as-no" rowspan="2">No</th><th class="as-cn" rowspan="2">이름</th>' +
+    w.map(function(x, i){
+      var bk = periods[x.k] || '정규';
+      return '<th class="as-wkh" colspan="3">' + (i + 1) + '주 <small>' + esc(x.r) + ' · ' + bk + '</small></th>';
+    }).join('') + '</tr>';
+  var sub = '<tr>' + w.map(function(x){
+    var lb = asSlotLabel(periods[x.k] || '정규');
+    return '<th class="as-sh">' + lb[0] + '</th><th class="as-sh">' + lb[1] + '</th><th class="as-sh">보충 및 이동</th>';
+  }).join('') + '</tr>';
+  return '<thead>' + top + sub + '</thead>';
+}
+function asSlotOne(s){
+  var t = esc(s.time);
+  var jb = asIsJikbo(s.c) ? '<span class="as-sub2 jb">' + esc(String(s.c.cls).replace(/\s*\(.*\)\s*$/, '')) + '</span>' : '';
+  if (s.moved){
+    var mt = esc(s.moved.time || '');
+    var tail = (s.status === '결석') ? '<span class="as-sub2">이동한 반 결석</span>'
+             : (s.status === '지각' && s.memo) ? '<span class="as-sub2">(' + esc(s.memo) + ')</span>' : '';
+    return '<b class="as-mv2" title="' + esc(s.time + ' → ' + (s.moved.time || '') +
+           (s.moved.reason ? ' · ' + s.moved.reason : '')) + '">' + mt + '</b>' +
+           '<span class="as-sub2">1회 이동' + (s.moved.reason ? ' · ' + esc(s.moved.reason) : '') + '</span>' + tail;
+  }
+  if (!s.status) return '<span class="' + (jb ? 'as-jb' : 'as-todo') + '" title="아직 출석 체크 안 함">' + t + '</span>' + jb;
+  if (s.status === '출석') return '<b class="' + (jb ? 'as-jb' : 'as-ok2') + '">' + t + '</b>' + jb;
+  if (s.status === '지각')
+    return '<b class="as-late2">' + t + '</b>' + jb + (s.memo ? '<span class="as-sub2">(' + esc(s.memo) + ')</span>' : '');
+  var plan = s.plan ? (s.done ? esc(s.plan) + ' 완료' : esc(s.plan)) : '';
+  return '<b class="as-abs2">결석</b>' + (s.memo ? '<span class="as-sub2">(' + esc(s.memo) + ')</span>' : '') +
+         (plan ? '<span class="as-sub2 mk">' + plan + '</span>' : '');
+}
+/* 확인반이 없는 중3·고3은 이 칸이 그냥 빈칸으로 남는다 (2026-08-23 사용자 확정) */
+function asSlotCell(group, once1){
+  if (!group || !group.length) return '<td class="as-sc"></td>';
+  // 주2회 수업인데 그 주에 한 번만 등원한 경우 — 기록이 아예 없는 쪽에 표시
+  if (once1 && !group.some(function(s){ return !!s.status; }))
+    return '<td class="as-sc"><span class="as-once1" title="이 주에는 한 번만 등원했어요">1회등원</span></td>';
+  return '<td class="as-sc">' + group.map(function(s){ return '<div class="as-line">' + asSlotOne(s) + '</div>'; }).join('') + '</td>';
+}
+function asExtraCell(cell){
+  var out = [];
+  cell.extra.forEach(function(x){
+    out.push('<div class="as-line"><b class="as-mv2">' + esc(asSlotTime(x.to)) + '</b>' +
+      '<span class="as-sub2">' + esc(exsMdN(x.date)) + ' ' + esc(x.from ? x.from.cls : '') + ' → 이동' +
+      (x.reason ? ' · ' + esc(x.reason) : '') + '</span></div>');
+  });
+  // 그 주 결석의 보충 계획
+  cell.slots.forEach(function(g){ g.forEach(function(s){
+    if (s.status !== '결석' || !s.plan) return;
+    out.push('<div class="as-line"><span class="as-sub2 mk">' + esc(s.plan) + (s.done ? ' 완료' : '') + '</span></div>');
+  }); });
+  return '<td class="as-sc">' + out.join('') + '</td>';
+}
+function asBookRow(st, no){
+  var open = asS.open[st.n];
+  var today = todayStr();
+  var cells = st.wk.map(function(cell, i){
+    var wk = asData.weeks[i];
+    var passed = wk.sun < today;                       // 지나간 주에서만 판정
+    var h0 = cell.slots[0].some(function(s){ return !!s.status; });
+    var h1 = cell.slots[1].some(function(s){ return !!s.status; });
+    var both = cell.slots[0].length && cell.slots[1].length;
+    return asSlotCell(cell.slots[0], passed && both && h1 && !h0) +
+           asSlotCell(cell.slots[1], passed && both && h0 && !h1) +
+           asExtraCell(cell);
+  }).join('');
+  return '<tr class="' + (open ? 'sel' : '') + '">' +
+    '<td class="as-no">' + no + '</td>' +
+    '<td class="as-cn"><button class="as-row" type="button" onclick="asToggle(\'' + esc(st.n) + '\')">' +
+      '<span class="as-nm">' + esc(st.n) + '</span><div class="as-meta">' +
+      esc(st.known ? (st.s + ' ' + st.g) : (st.left ? '퇴원' : '미등록생')) + '</div></button></td>' + cells + '</tr>' +
+    (open ? '<tr><td class="as-det" colspan="' + (asS.weeks * 3 + 2) + '">' + asDetail(st) + '</td></tr>' : '');
+}
+
 function asGrade(g){
   var s = String(g || '').replace(/20\d{2}/, '');
   var lv = s.indexOf('중') >= 0 ? '중' : (s.indexOf('고') >= 0 ? '고' : '');
@@ -3862,8 +4100,9 @@ function asRender(){
     '<span class="as-grp"><span class="as-lab">기간</span>' +
       asPills([{v:4,t:'4주'},{v:8,t:'8주'},{v:12,t:'12주'}], asS.weeks, 'weeks') + '</span>' +
     '<span class="as-grp"><span class="as-lab">보기</span>' +
-      asPills([{v:'all',t:'전체'},{v:'grade',t:'학년별'},{v:'school',t:'학교별'},{v:'person',t:'개인'}], asS.view, 'view') + '</span>' +
-    (asS.view === 'person' ? '' :
+      asPills([{v:'all',t:'전체'},{v:'grade',t:'학년별'},{v:'school',t:'학교별'},{v:'person',t:'개인'},
+               {v:'warn',t:'결석·지각'}], asS.view, 'view') + '</span>' +
+    (asS.view === 'person' || asS.view === 'warn' ? '' :
       '<span class="as-grp"><span class="as-lab">정렬</span>' +
       asPills([{v:'issue',t:'문제 많은 순'},{v:'rate',t:'출석률 낮은 순'},{v:'name',t:'이름순'}], asS.sort, 'sort') + '</span>') +
     '<span class="as-grp"><span class="as-lab">검색</span>' +
@@ -3883,7 +4122,9 @@ function asRender(){
       '</span></div>';
   }
   h += asTiles(scope, only) + asTrend(scope);
-  h += (asS.view === 'person') ? asPersonHtml(list, only) : asMatrix(list);
+  h += (asS.view === 'person') ? asPersonHtml(list, only)
+     : (asS.view === 'warn') ? asWarnHtml(list)
+     : asMatrix(list);
   h += '</div>';
   host.innerHTML = h;
 
@@ -4013,11 +4254,11 @@ function asGroupRow(key, list, worst){
   var bw = worst ? Math.max(3, per / worst * 100) : 0;
   var lw = (T.late + T.abs) ? T.late / (T.late + T.abs) * 100 : 0;
   var closed = asS.gclosed[key];
-  return '<tr class="as-g' + (closed ? ' closed' : '') + '"><th class="as-cn" style="text-align:left">' +
+  return '<tr class="as-g' + (closed ? ' closed' : '') + '"><td class="as-no"></td><th class="as-cn" style="text-align:left">' +
     '<button class="as-gbtn" type="button" onclick="asGToggle(\'' + esc(key) + '\')">' +
     '<svg class="as-car" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>' +
     esc(key) + '<span class="as-gcnt">' + list.length + '명</span></button></th>' +
-    '<td colspan="' + asS.weeks + '" style="padding:7px 10px"><div style="display:flex;align-items:center;gap:9px;flex-wrap:wrap">' +
+    '<td colspan="' + (asS.weeks * 3) + '" style="padding:7px 10px"><div style="display:flex;align-items:center;gap:9px;flex-wrap:wrap">' +
     '<span class="as-gbar" title="' + esc('수업 100회당 지각·결석 ' + per.toFixed(1) + '건') + '">' +
     '<i style="width:' + (bw * lw / 100) + '%;background:#D18F1E"></i>' +
     '<i style="width:' + (bw * (100 - lw) / 100) + '%;background:#BC4438"></i></span>' +
@@ -4032,8 +4273,8 @@ function asMatrix(list){
   if ((asS.view === 'grade' || asS.view === 'school') && !asS.sub){
     // 재원 명단에 없는 학생은 아직 등록 전인 미등록생 — 학년·학교를 알 수 없어 따로 묶는다
     var keyf = (asS.view === 'grade')
-      ? function(x){ return x.known ? (x.g || '(학년 미상)') : '(미등록생)'; }
-      : function(x){ return x.known ? (x.s || '(학교 미상)') : '(미등록생)'; };
+      ? function(x){ return x.known ? (x.g || '(학년 미상)') : (x.left ? '(퇴원)' : '(미등록생)'); }
+      : function(x){ return x.known ? (x.s || '(학교 미상)') : (x.left ? '(퇴원)' : '(미등록생)'); };
     var groups = {};
     list.forEach(function(x){ (groups[keyf(x)] = groups[keyf(x)] || []).push(x); });
     var keys = Object.keys(groups);
@@ -4041,7 +4282,8 @@ function asMatrix(list){
       var ord = ['고1','고2','고3','중2','중3'];
       keys.sort(function(a, b){ return (ord.indexOf(a) + 1 || 99) - (ord.indexOf(b) + 1 || 99); });
     } else keys.sort(function(a, b){ return groups[b].length - groups[a].length; });
-    keys.sort(function(a, b){ return (a === '(미등록생)' ? 1 : 0) - (b === '(미등록생)' ? 1 : 0); });
+    var tailG = { '(미등록생)':1, '(퇴원)':2 };
+    keys.sort(function(a, b){ return (tailG[a] || 0) - (tailG[b] || 0); });
     var worst = 0;
     keys.forEach(function(k){
       var T = { att:0, late:0, abs:0 };
@@ -4052,21 +4294,21 @@ function asMatrix(list){
     keys.forEach(function(k){
       body += asGroupRow(k, groups[k], worst);
       if (asS.gclosed[k]) return;
-      asSort(groups[k]).slice(0, 6).forEach(function(x){ body += asRowHtml(x); });
+      asSort(groups[k]).slice(0, 6).forEach(function(x, i){ body += asBookRow(x, i + 1); });
       if (groups[k].length > 6)
         body += '<tr><td class="as-cn" style="padding:5px 9px !important"><span class="as-meta">외 ' +
                 (groups[k].length - 6) + '명 — 위에서 ' + esc(k) + ' 을 고르면 전부 보여요</span></td>' +
-                '<td colspan="' + (asS.weeks + 1) + '"></td></tr>';
+                '<td colspan="' + (asS.weeks * 3) + '"></td></tr>';
     });
   } else {
     var sorted = asSort(list);
     var shown = Math.min(asS.limit, sorted.length);
-    sorted.slice(0, shown).forEach(function(x){ body += asRowHtml(x); });
+    sorted.slice(0, shown).forEach(function(x, i){ body += asBookRow(x, i + 1); });
     if (sorted.length > shown)
       tail = '<button class="as-more" type="button" onclick="asMore()">' + shown + ' / ' + sorted.length + '명 표시 중 · 40명 더 보기</button>';
   }
-  return '<p class="as-h">' + esc(asScope()) + ' 주차별 출석 <small>학생 줄을 누르면 그 학생 상세 기록이 펼쳐져요</small></p>' +
-    '<div class="as-mwrap"><table class="as-mx">' + asHead() + '<tbody>' + body + '</tbody></table></div>' +
+  return '<p class="as-h">' + esc(asScope()) + ' 주차별 기록부 <small>칸의 시간 = 그 주에 들은 수업. 이름을 누르면 상세가 펼쳐져요</small></p>' +
+    '<div class="as-mwrap"><table class="as-mx as-bk">' + asBookHead() + '<tbody>' + body + '</tbody></table></div>' +
     asLegend() + tail;
 }
 function asLegend(){
@@ -4093,12 +4335,8 @@ function asPersonHtml(list, st){
       }).join('') + '</div>' : '<p class="as-none">찾는 학생이 없어요.</p>');
   }
   var w = asData.weeks;
-  var cells = st.w.map(function(v, i){ return '<td class="as-wk"><div class="as-cell">' + asCell(v, w[i]) + '</div></td>'; }).join('');
-  return '<p class="as-h">주차별 한 줄 보기 <small>초록 칸이 이어지면 꾸준히 나온 주</small></p>' +
-    '<div class="as-mwrap"><table class="as-mx">' + asHead() + '<tbody><tr>' +
-    '<td class="as-cn"><span class="as-nm">' + esc(st.n) + '</span><div class="as-meta">' + esc(st.g) + '</div></td>' +
-    cells + '<td class="as-cs"><div class="as-rate">' + (st.t.rate == null ? '—' : st.t.rate + '%') + '</div></td>' +
-    '</tr></tbody></table></div>' + asLegend() +
+  return '<p class="as-h">주차별 기록부 <small>칸의 시간 = 그 주에 들은 수업</small></p>' +
+    '<div class="as-mwrap"><table class="as-mx as-bk">' + asBookHead() + '<tbody>' + asBookRow(st, 1) + '</tbody></table></div>' + asLegend() +
     '<p class="as-h">상세 기록</p><div class="as-det" style="border-radius:12px">' + asDetail(st) + '</div>';
 }
 
