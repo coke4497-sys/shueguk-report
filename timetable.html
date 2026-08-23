@@ -600,15 +600,20 @@
   .as-h{font-family:"Gowun Batang",serif;font-size:.95rem;color:var(--accent);margin:18px 0 7px;font-weight:700;
     display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;}
   .as-h small{font-family:"Gowun Dodum",sans-serif;font-weight:400;color:var(--ink-soft);font-size:.75rem;}
-  .as-trend{display:flex;gap:5px;align-items:flex-end;overflow-x:auto;padding-bottom:2px;}
-  .as-tcol{flex:1 0 34px;display:flex;flex-direction:column;align-items:center;gap:4px;}
-  .as-stack{width:100%;max-width:26px;height:92px;display:flex;flex-direction:column;justify-content:flex-end;gap:2px;}
-  .as-seg{border-radius:2px;}
-  .as-stack .as-seg:first-child{border-radius:4px 4px 2px 2px;}
-  .as-zero{height:3px;background:var(--line);border-radius:2px;}
-  .as-tnum{font-size:.71rem;font-weight:700;color:var(--ink-soft);font-variant-numeric:tabular-nums;}
-  .as-tlab{font-size:.67rem;color:var(--ink-soft);white-space:nowrap;font-variant-numeric:tabular-nums;}
-  .as-tcol.now .as-tlab{color:var(--accent);font-weight:700;}
+  /* 주차별 숫자 표 (막대 그래프 대신 — 2026-08-23 사용자 요청 "표(숫자)로") */
+  .as-twrap{overflow-x:auto;}
+  .as-tbl{border-collapse:collapse;font-size:.8rem;font-variant-numeric:tabular-nums;}
+  .as-tbl th,.as-tbl td{border:1px solid var(--line);padding:5px 10px;text-align:center;white-space:nowrap;}
+  .as-tbl .as-tk{text-align:left;color:var(--ink-soft);font-weight:600;background:#F7F9F7;min-width:64px;}
+  .as-tbl .as-th{color:var(--ink-soft);font-weight:600;background:#F7F9F7;}
+  .as-tbl .as-th.now{color:var(--accent);font-weight:700;}
+  .as-tbl .as-tn{font-weight:700;}
+  .as-tbl .as-tn.zero{color:#C3D0CA;font-weight:400;}
+  .as-tbl .as-tn.as-tl{color:#8A6D1F;}
+  .as-tbl .as-tn.as-ta{color:#BC4438;}
+  .as-tbl .as-tn.as-tm{color:#5D4A86;}
+  .as-tbl .as-tt{background:#F7F9F7;font-weight:700;}
+  .as-tbl .as-tsum td,.as-tbl .as-tsum .as-tk{background:#F7F9F7;font-weight:700;}
   .as-lg{display:flex;gap:12px;flex-wrap:wrap;margin-top:8px;font-size:.74rem;color:var(--ink-soft);}
   .as-lg i{width:10px;height:10px;border-radius:3px;display:inline-block;vertical-align:-1px;margin-right:5px;}
   .as-mwrap{overflow-x:auto;border:1px solid var(--line-soft);border-radius:12px;background:var(--surface);}
@@ -626,14 +631,7 @@
   .as-row{all:unset;display:block;width:100%;cursor:pointer;}
   .as-nm{font-family:"Gowun Batang",serif;font-weight:700;font-size:.87rem;}
   .as-meta{font-size:.67rem;color:var(--ink-soft);margin-top:1px;}
-  td.as-wk{text-align:center;padding:3px 2px !important;min-width:36px;}
-  .as-cell{display:flex;gap:2px;justify-content:center;align-items:center;min-height:22px;flex-wrap:wrap;}
-  .as-ok{width:15px;height:15px;border-radius:4px;background:#DDEFD9;}
   .as-non{color:#C3D0CA;font-size:.8rem;}
-  .as-mk{font-size:.66rem;font-weight:700;border-radius:4px;padding:1px 3px;min-width:15px;display:inline-block;line-height:1.5;}
-  .as-mk.l{background:#FBF0C8;color:#8A6D1F;}
-  .as-mk.a{background:#F6D9D7;color:#A2453C;}
-  .as-mk.m{background:#E6DCF2;color:#5D4A86;}
   .as-rate{font-weight:700;font-size:.81rem;font-variant-numeric:tabular-nums;}
   .as-rate.warn{color:#A2453C;}
   .as-sub{font-size:.67rem;color:var(--ink-soft);white-space:nowrap;font-variant-numeric:tabular-nums;}
@@ -699,7 +697,6 @@
   }
   @media (max-width:760px){
     .as-cn{min-width:94px;}
-    .as-stack{height:76px;}
   }
 </style>
 </head>
@@ -4163,59 +4160,24 @@ function asTrend(list){
   var w = asData.weeks, n = w.length, agg = [];
   for (var i = 0; i < n; i++) agg.push({ l:0, a:0, m:0 });
   list.forEach(function(x){ x.w.forEach(function(v, i){ agg[i].l += v[1]; agg[i].a += v[2]; agg[i].m += v[3]; }); });
-  var max = 1; agg.forEach(function(g){ max = Math.max(max, g.l + g.a + g.m); });
-  var bars = agg.map(function(g, i){
-    var sum = g.l + g.a + g.m, seg = '';
-    if (!sum) seg = '<div class="as-zero"></div>';
-    else [['m',g.m,'#6A55AD','1회 이동'],['a',g.a,'#BC4438','결석'],['l',g.l,'#D18F1E','지각']].forEach(function(p){
-      if (!p[1]) return;
-      seg += '<div class="as-seg" style="height:' + Math.max(3, p[1] / max * 92) + 'px;background:' + p[2] + '"' +
-             ' title="' + esc(w[i].r + ' · ' + p[3] + ' ' + p[1] + '건') + '"></div>';
-    });
-    return '<div class="as-tcol' + (i === n - 1 ? ' now' : '') + '"><div class="as-tnum">' + (sum || '') + '</div>' +
-           '<div class="as-stack" title="' + esc(w[i].r + ' · 합계 ' + sum + '건') + '">' + seg + '</div>' +
-           '<div class="as-tlab">' + esc(w[i].l) + '</div></div>';
+  var tot = { l:0, a:0, m:0 };
+  agg.forEach(function(g){ tot.l += g.l; tot.a += g.a; tot.m += g.m; });
+  var num = function(v, cls){ return '<td class="as-tn' + (v ? ' ' + cls : ' zero') + '">' + (v || '·') + '</td>'; };
+  var rows = [['지각','l','as-tl'], ['결석','a','as-ta'], ['1회 이동','m','as-tm']].map(function(r){
+    return '<tr><th class="as-tk">' + r[0] + '</th>' +
+      agg.map(function(g){ return num(g[r[1]], r[2]); }).join('') +
+      '<td class="as-tt">' + (tot[r[1]] || '·') + '</td></tr>';
   }).join('');
+  var sums = agg.map(function(g){ return g.l + g.a + g.m; });
+  var head = '<tr><th class="as-tk"></th>' + w.map(function(x, i){
+      return '<th class="as-th' + (i === n - 1 ? ' now' : '') + '" title="' + esc(x.r) + '">' + esc(x.l) + '</th>';
+    }).join('') + '<th class="as-th as-tt">합계</th></tr>';
+  var foot = '<tr class="as-tsum"><th class="as-tk">합</th>' +
+    sums.map(function(v){ return '<td class="as-tn' + (v ? '' : ' zero') + '">' + (v || '·') + '</td>'; }).join('') +
+    '<td class="as-tt">' + (tot.l + tot.a + tot.m) + '</td></tr>';
   return '<p class="as-h">주차별 지각 · 결석 · 1회 이동 <small>' +
-    (list.length === 1 ? '이 학생이 어느 주에 흔들렸는지 봐요' : '막대가 높은 주 = 그 주에 문제가 몰린 주') + '</small></p>' +
-    '<div class="as-trend">' + bars + '</div>' +
-    '<div class="as-lg"><span><i style="background:#D18F1E"></i>지각</span>' +
-    '<span><i style="background:#BC4438"></i>결석</span><span><i style="background:#6A55AD"></i>1회 이동</span></div>';
-}
-
-function asHead(){
-  return '<thead><tr><th class="as-cn">학생</th>' +
-    asData.weeks.map(function(x, i){
-      return '<th' + (i === asS.weeks - 1 ? ' style="color:var(--accent)"' : '') + ' title="' + esc(x.r) + '">' + esc(x.l) + '</th>';
-    }).join('') + '<th class="as-cs">기간 합계</th></tr></thead>';
-}
-function asCell(v, wk){
-  if (!v[0] && !v[1] && !v[2] && !v[3]) return '<span class="as-non" title="' + esc(wk.r + ' · 기록 없음') + '">·</span>';
-  var h = '';
-  if (v[1]) h += '<span class="as-mk l" title="' + esc(wk.r + ' · 지각 ' + v[1] + '회') + '">지' + (v[1] > 1 ? v[1] : '') + '</span>';
-  if (v[2]) h += '<span class="as-mk a" title="' + esc(wk.r + ' · 결석 ' + v[2] + '회') + '">결' + (v[2] > 1 ? v[2] : '') + '</span>';
-  if (v[3]) h += '<span class="as-mk m" title="' + esc(wk.r + ' · 1회 이동 ' + v[3] + '회') + '">이' + (v[3] > 1 ? v[3] : '') + '</span>';
-  if (v[0]) h += '<span class="as-ok" title="' + esc(wk.r + ' · 출석 ' + v[0] + '회') + '"></span>';
-  return h;
-}
-function asRowHtml(st){
-  var w = asData.weeks, t = st.t;
-  var cells = st.w.map(function(v, i){ return '<td class="as-wk"><div class="as-cell">' + asCell(v, w[i]) + '</div></td>'; }).join('');
-  var bits = [];
-  if (t.late) bits.push('지' + t.late);
-  if (t.abs) bits.push('결' + t.abs);
-  if (t.move) bits.push('이' + t.move);
-  var key = st.n;
-  var open = asS.open[key];
-  return '<tr class="' + (open ? 'sel' : '') + '">' +
-    '<td class="as-cn"><button class="as-row" type="button" onclick="asToggle(\'' + esc(key) + '\')">' +
-      '<span class="as-nm">' + esc(st.n) + '</span><div class="as-meta">' +
-      esc(st.known ? (st.s + ' ' + st.g) : '미등록생') + '</div></button></td>' +
-    cells +
-    '<td class="as-cs"><div class="as-rate' + (t.rate != null && t.rate < 85 ? ' warn' : '') + '">' +
-      (t.rate == null ? '—' : t.rate + '%') + '</div>' +
-      '<div class="as-sub">' + (bits.length ? bits.join(' ') : (t.att ? '문제 없음' : '기록 없음')) + '</div></td></tr>' +
-    (open ? '<tr><td class="as-det" colspan="' + (asS.weeks + 2) + '">' + asDetail(st) + '</td></tr>' : '');
+    (list.length === 1 ? '이 학생이 어느 주에 흔들렸는지 봐요' : '숫자가 큰 주 = 그 주에 문제가 몰린 주') + '</small></p>' +
+    '<div class="as-twrap"><table class="as-tbl"><thead>' + head + '</thead><tbody>' + rows + foot + '</tbody></table></div>';
 }
 function asToggle(k){ asS.open[k] = !asS.open[k]; asRender(); }
 function asGToggle(k){ asS.gclosed[k] = !asS.gclosed[k]; asRender(); }
