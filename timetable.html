@@ -172,16 +172,15 @@
   .wm-day{flex:none;width:78px;font-size:.85rem;font-weight:700;color:var(--ink-soft);}
   .wm-text{font-size:.88rem;line-height:1.6;white-space:pre-wrap;word-break:break-word;min-width:0;}
   .wm-none{font-size:.85rem;color:var(--ink-soft);opacity:.55;}
-  /* 출석 칩 색 — 출석 연하늘 · 지각 연노랑 · 결석 연핑크 · 1회 이동 연보라 (2026-08-23 사용자 확정).
-     넷 다 옅은 톤이라 컴퓨터/모바일을 나눌 이유가 없어져, 옛 saturate(.35)/(.75) 분리는 없앴다.
-     특이사항은 출석 상태가 아니라 이름에 붙은 메모 표시라 옅은 회색 (출석 연하늘과 겹치지 않게 — 사용자 확정). */
-  .blk .stus button.note{background:#C4CDC7;color:#414B45;}
-  .blk .stus button.at-ok{background:#B4D5EE;color:#1F5175;}
-  .blk .stus button.at-late{background:#E9D189;color:#5F4E14;}
-  .blk .stus button.at-abs{background:#EAB6C2;color:#7E2B3D;text-decoration:line-through;}
+  /* 출석 칩 색 — '나' 수업 블록의 채도 낮춘 필터에서 보이던 부드러운 톤을 전 반 공통으로 (2026-08-22 사용자 확정).
+     컴퓨터 = saturate(.35) 톤, 모바일(<760px) = saturate(.75) 톤 — 폰에선 낮은 채도가 지나치게 흐려 보여 분리 (사용자 확정) */
+  .blk .stus button.note{background:#E5E9EE;color:#4E5864;}
+  .blk .stus button.at-ok{background:#778683;color:#fff;}
+  .blk .stus button.at-late{background:#E8E2D5;color:#5D5544;}
+  .blk .stus button.at-abs{background:#E2D9D8;color:#614643;text-decoration:line-through;}
   .att-btns{display:flex;gap:8px;margin:10px 0 4px;}
   .att-btns button{flex:1;font:inherit;font-size:.95rem;border-radius:10px;padding:11px 4px;cursor:pointer;border:1.5px solid var(--line);background:#fff;color:var(--ink);}
-  .att-btns button.pick-ok.on{background:#37769F;border-color:#37769F;color:#fff;}
+  .att-btns button.pick-ok.on{background:var(--btn);border-color:var(--btn);color:#fff;}
   .att-btns button.pick-late.on{background:#B08A3E;border-color:#B08A3E;color:#fff;}
   .att-btns button.pick-abs.on{background:#B4574E;border-color:#B4574E;color:#fff;}
   .viewtabs .sp{flex:1;}
@@ -309,7 +308,14 @@
     border-radius:4px;padding:2px 9px;cursor:pointer;color:var(--ink);line-height:1.5;}
   .blk .stus button:hover{outline:1.5px solid var(--accent);outline-offset:-1px;}
   .blk .stus button.sel{background:var(--accent);color:#fff;}
-  .blk .stus button.once{background:#C4A9E4;color:#43307A;font-weight:700;}
+  .blk .stus button.once{background:#E3DFE7;color:#564F5F;font-weight:700;}
+  @media (max-width:760px){
+    .blk .stus button.note{background:#E1EAF3;color:#445974;}
+    .blk .stus button.at-ok{background:#6A8A83;}
+    .blk .stus button.at-late{background:#EDE2C5;color:#665430;}
+    .blk .stus button.at-abs{background:#EAD7D4;color:#7A3F39;}
+    .blk .stus button.once{background:#E5DEEE;color:#5B4C6E;}
+  }
   .blk .stus button.kept{outline:1px dashed rgba(0,0,0,.28);outline-offset:-1px;opacity:.88;}
   .blk .stus button.kept em{font-style:normal;font-size:.66rem;margin-left:3px;opacity:.75;}
   .blk .stus button.away{opacity:.5;}
@@ -366,10 +372,10 @@
   .ah-date{font-weight:700;flex:none;}
   .ah-cls{color:var(--ink-soft);font-size:.8rem;}
   .ah-badge{font-size:.76rem;font-weight:700;border-radius:999px;padding:2px 9px;flex:none;}
-  .ah-badge.a-att{background:#B4D5EE;color:#1F5175;}
-  .ah-badge.a-late{background:#E9D189;color:#5F4E14;}
-  .ah-badge.a-abs{background:#EAB6C2;color:#7E2B3D;}
-  .ah-badge.a-move{background:#C4A9E4;color:#43307A;}
+  .ah-badge.a-att{background:#DDEFD9;color:#3E6B3C;}
+  .ah-badge.a-late{background:#FBF0C8;color:#8A6D1F;}
+  .ah-badge.a-abs{background:#F6D9D7;color:#A2453C;}
+  .ah-badge.a-move{background:#E6DCF2;color:#5D4A86;}
   .ah-badge.a-mk{background:#fff;border:1px solid var(--line);color:var(--ink-soft);font-weight:400;}
   .ah-badge.a-mk.done{border-color:#9DBD9A;color:#3E6B3C;font-weight:700;}
   .ah-badge.a-mk.todo{border-color:#D9A79F;color:#A2453C;}
