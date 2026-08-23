@@ -421,8 +421,9 @@
   .modal label.radio small{display:block;color:var(--ink-soft);font-size:.76rem;}
   .modal textarea,.modal input[type=text]{width:100%;font:inherit;font-size:.92rem;border:1.5px solid var(--line);border-radius:10px;padding:8px 10px;margin-top:6px;}
   .modal textarea{min-height:54px;resize:vertical;}
-  .modal .mbtns{display:flex;gap:8px;margin-top:14px;}
-  .modal .mbtns button{flex:1;font:inherit;font-size:.95rem;border-radius:10px;padding:10px;cursor:pointer;border:1px solid var(--line);background:#fff;color:var(--ink);}
+  .modal .mbtns{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;}
+  /* 버튼이 넷까지 늘어나도 글자가 중간에서 잘리지 않게 (2026-08-23) */
+  .modal .mbtns button{flex:1 1 auto;min-width:96px;white-space:nowrap;font:inherit;font-size:.95rem;border-radius:10px;padding:10px 12px;cursor:pointer;border:1px solid var(--line);background:#fff;color:var(--ink);}
   .modal .mbtns .primary{background:var(--btn);border-color:var(--btn);color:#fff;}
   .modal .merr{color:#B4574E;font-size:.8rem;min-height:1.1em;margin:6px 0 0;}
   .modal .subnote{font-size:.76rem;color:var(--ink-soft);margin-top:8px;}
@@ -442,12 +443,10 @@
   .mk-sec{font-size:.8rem;color:var(--ink-soft);margin:12px 0 2px;font-weight:700;}
   .mk-item .mk-alt{font-size:.76rem;color:var(--ink-soft);white-space:nowrap;}
   .mk-item .mk-plan{font-size:.82rem;color:var(--accent);margin-top:5px;}
-  .log-list{display:flex;flex-direction:column;gap:8px;margin-top:10px;}
-  .log-item{border:1px solid var(--line-soft);border-radius:10px;padding:8px 10px;font-size:.84rem;}
-  .log-item .lk{display:inline-block;font-size:.7rem;border-radius:6px;padding:0 6px;margin-right:6px;color:#fff;background:var(--btn);}
-  .log-item .lk.once{background:#B08A3E;}
-  .log-item .lk.minus{background:#B4574E;}
-  .log-item .lr{color:var(--ink-soft);font-size:.78rem;margin-top:2px;}
+  /* 변경사항 항목의 구분 배지 (옛 이동 기록 모달에서 옮겨 옴 — 모달은 오른쪽 패널로 대체) */
+  .ch-item .lk{display:inline-block;font-size:.7rem;border-radius:6px;padding:0 6px;margin-right:6px;color:#fff;background:var(--btn);}
+  .ch-item .lk.once{background:#B08A3E;}
+  .ch-item .lk.minus{background:#B4574E;}
   .blk.c-g1,.wk-mini.c-g1,.wk-bar.c-g1{background:var(--g1);}
   .blk.c-g2,.wk-mini.c-g2,.wk-bar.c-g2{background:var(--g2);}
   .blk.c-g3,.wk-mini.c-g3,.wk-bar.c-g3{background:var(--g3);}
@@ -521,6 +520,57 @@
   .tip{text-align:center; font-size:12px; color:#65726B; background:#EBF0ED;
     border:1px solid #E5EDE8; border-radius:10px; padding:7px 12px; margin:22px auto 8px; max-width:560px; line-height:1.55;}
   .tip b{color:#4C6E66;}
+
+  .hint b{color:var(--accent);}
+  .hint-x{color:var(--ink-soft);opacity:.85;}
+
+  /* 변경사항 패널 — 주차별·전체 시간표 오른쪽에 접었다 폈다 (2026-08-23 사용자 요청) */
+  .chpanel{position:fixed;top:96px;bottom:18px;right:0;width:330px;max-width:88vw;z-index:60;
+    display:flex;align-items:flex-start;transition:transform .22s ease;}
+  @media (min-width:1100px){
+    body.ch-on main.wrap{padding-right:376px;max-width:100%;transition:padding-right .22s ease;}
+  }
+  .chpanel[hidden]{display:none;}
+  .chpanel.closed{transform:translateX(100%);}
+  .ch-tab{position:absolute;left:-34px;top:0;width:34px;font:inherit;font-size:.72rem;font-weight:700;
+    line-height:1.25;letter-spacing:.02em;color:var(--accent);background:var(--surface);
+    border:1px solid var(--line-soft);border-right:none;border-radius:12px 0 0 12px;
+    padding:11px 5px;cursor:pointer;box-shadow:-2px 2px 8px rgba(42,51,47,.09);}
+  .ch-tab:hover{background:var(--icon-bg);}
+  .ch-tab:focus-visible{outline:2px solid var(--btn);outline-offset:2px;}
+  .ch-tab .chev{display:block;margin:0 auto 4px;transition:transform .22s;}
+  .chpanel.closed .ch-tab .chev{transform:rotate(180deg);}
+  .ch-inner{flex:1;min-width:0;height:100%;display:flex;flex-direction:column;background:var(--surface);
+    border:1px solid var(--line-soft);border-right:none;border-radius:14px 0 0 14px;
+    box-shadow:-3px 3px 14px rgba(42,51,47,.12);overflow:hidden;}
+  .ch-head{display:flex;align-items:center;gap:7px;padding:11px 13px 8px;border-bottom:1px solid var(--line-soft);}
+  .ch-head b{font-family:"Gowun Batang",serif;color:var(--accent);font-size:.95rem;}
+  .ch-sub{font-size:.72rem;color:var(--ink-soft);}
+  .ch-head .sp{flex:1;}
+  .ch-ico{font:inherit;border:1px solid var(--line);background:#fff;border-radius:8px;
+    padding:4px 6px;cursor:pointer;color:var(--ink-soft);display:inline-flex;}
+  .ch-ico:hover{border-color:var(--btn);color:var(--accent);}
+  /* 패널 안 검색 — 이름·반·사유로 좁혀 보기 (2026-08-23 사용자 요청) */
+  .ch-find{padding:8px 11px;border-bottom:1px solid var(--line-soft);}
+  .ch-find .searchbox{position:relative;display:flex;align-items:center;width:100%;}
+  .ch-find .searchbox svg{position:absolute;left:10px;width:14px;height:14px;color:var(--accent);pointer-events:none;}
+  .ch-find input{font:inherit;font-size:.82rem;width:100%;padding:6px 10px 6px 30px;
+    border:1.5px solid var(--line);border-radius:9px;color:var(--ink);}
+  .ch-find input:focus{outline:none;border-color:var(--accent);}
+  .ch-kinds{display:flex;gap:5px;flex-wrap:wrap;margin-top:6px;}
+  .ch-kinds button{font:inherit;font-size:.75rem;border:1.5px solid var(--line);background:#fff;
+    border-radius:8px;padding:2px 9px;cursor:pointer;color:var(--ink-soft);}
+  .ch-kinds button.on{border-color:var(--accent);color:var(--accent);background:var(--icon-bg);font-weight:700;}
+  .ch-list{flex:1;overflow-y:auto;padding:9px 11px 12px;}
+  .ch-item{border-bottom:1px dashed var(--line-soft);padding:7px 1px;font-size:.82rem;}
+  .ch-item:last-child{border-bottom:none;}
+  .ch-item b{font-family:"Gowun Batang",serif;}
+  .ch-item .lr{color:var(--ink-soft);font-size:.74rem;margin-top:2px;}
+  .ch-none{color:var(--ink-soft);font-size:.82rem;padding:14px 2px;}
+  @media (max-width:760px){
+    .chpanel{top:72px;bottom:10px;width:300px;}
+    .ch-tab{padding:9px 4px;font-size:.68rem;}
+  }
 </style>
 </head>
 <body>
@@ -585,7 +635,7 @@
           <button id="e-add" onclick="setEdit('add')">학생 추가</button>
           <button id="e-del" onclick="setEdit('del')">반 삭제</button>
           <button onclick="openAddClass()">반 추가</button>
-          <button onclick="openLog()">이동 기록</button>
+          <button onclick="chOpenFromBar()">변경사항</button>
         </span>
       </div>
       <div class="attbar" id="attbar">
@@ -621,6 +671,33 @@
 
   <footer>이수경국어 Shueguk · 슈국 스케쥴</footer>
 </main>
+
+<!-- 변경사항 — 주차별·전체 시간표에서만 보이는 오른쪽 접이식 패널 -->
+<aside class="chpanel closed" id="chpanel" hidden>
+  <button class="ch-tab" id="ch-tab" onclick="chToggle()" aria-expanded="false" aria-controls="ch-inner">
+    <svg class="chev" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+    변<br>경<br>사<br>항
+  </button>
+  <div class="ch-inner" id="ch-inner">
+    <div class="ch-head">
+      <b>변경사항</b><span class="ch-sub" id="ch-sub"></span><span class="sp"></span>
+      <button class="ch-ico" onclick="chLoad(true)" title="다시 불러오기" aria-label="다시 불러오기">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 3v6h-6"/></svg>
+      </button>
+      <button class="ch-ico" onclick="chToggle()" aria-label="접기">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </div>
+    <div class="ch-find">
+      <span class="searchbox">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+        <input id="ch-q" placeholder="이름 · 반 · 사유 검색" autocomplete="off" oninput="chRender()">
+      </span>
+      <div class="ch-kinds" id="ch-kinds"></div>
+    </div>
+    <div class="ch-list" id="ch-list"><span class="ch-none">불러오는 중…</span></div>
+  </div>
+</aside>
 
 <div class="modal-bg" id="modal"><div class="modal" id="modal-box"></div></div>
 
@@ -1666,12 +1743,16 @@ function renderTabs(){
   $('v-week').classList.toggle('on', mode==='week');
   $('v-cal').classList.toggle('on', mode==='cal');
   $('v-exs').classList.toggle('on', mode==='exs');
-  document.querySelector('.hint').textContent =
-    (mode === 'today') ? '학생 이름을 누르면 출석·지각·결석 기록 창이 떠요. 그 창 아래 [다른 반으로 1회 이동] 버튼으로 1회 이동도 할 수 있어요.'
-    : (mode === 'week') ? '그 주의 출석·1회 이동 기록이 함께 보여요. 학생 이름 클릭 = 그 날짜 출석 기록·수정, 출석 창의 [다른 반으로 1회 이동]으로 다음주 이동도 미리 예약할 수 있어요.'
+  document.querySelector('.hint').innerHTML =
+    (mode === 'today') ? '<b>여기서는 출석 체크만 합니다.</b> 학생 이름을 누르면 출석·지각·결석 창이 떠요. '
+        + '<span class="hint-x">1회 이동은 주차별 시간표에서, 영구 이동은 전체 시간표에서 하세요.</span>'
+    : (mode === 'week') ? '<b>여기서는 지난 날짜 출석 수정과 1회 이동을 합니다.</b> 학생 이름을 누르면 그 날짜의 출석 창이 떠요. 같은 창의 [다른 반으로 1회 이동]을 누른 뒤 옮겨 갈 반을 누르면 그 반 요일의 날짜로 기록돼요 (다음주로 넘겨 미리 예약도 가능). '
+        + '<span class="hint-x">오늘 출석은 오늘의 시간표에서, 영구 이동은 전체 시간표에서 하세요.</span>'
     : (mode === 'cal') ? '주마다 [정규]/[내신]을 골라 그 주에 쓸 시간표를 정하세요. 오늘의 시간표·주차별이 자동으로 따라갑니다. 날짜 칸을 누르면 메모를 적을 수 있어요.'
     : (mode === 'exs') ? '학교별 시험 기간을 등록하고, 시험 시간표가 나오면 막대 아래 날짜 칸을 눌러 학년·과목을 넣으세요. 넣은 과목은 슈국 캘린더 날짜 칸에도 표시돼요.'
-    : '요일 머리글이나 반 카드를 누르면 그 요일이 크게 열려요. 학생 이름을 누르면 이동 모드가 켜지고, 옮길 반(다른 요일 포함)을 누르면 영구 이동됩니다.';
+    : '<b>여기서는 영구 이동만 합니다.</b> 요일 머리글이나 반 카드를 누르면 그 요일이 크게 열려요. 학생 이름을 누르면 이동 모드가 켜지고, 옮길 반(다른 요일 포함)을 누르면 영구 이동됩니다. '
+        + '<span class="hint-x">출석 체크는 오늘의 시간표에서, 1회 이동은 주차별 시간표에서 하세요.</span>';
+  chSync();
   $('editbar').classList.toggle('show', mode === 'all' || mode === 'week');
   $('attbar').classList.toggle('show', mode === 'today');
   document.querySelector('.searchbar').style.display = (mode === 'cal' || mode === 'exs') ? 'none' : '';
@@ -3111,12 +3192,22 @@ function onWeekClick(e, c, dstr){
   var chip = e.target.closest('button[data-nm]');
   if (!chip) return;
   var nm = chip.getAttribute('data-nm');
+  // 이미 1회 이동한 학생은 사유 확인·수정·취소
   if (chip.hasAttribute('data-once-row')){ openOnceManage(c, nm, parseInt(chip.getAttribute('data-once-row'),10), 'in', dstr); return; }
   if (chip.hasAttribute('data-away-row')){ openOnceManage(c, nm, parseInt(chip.getAttribute('data-away-row'),10), 'out', dstr); return; }
+  // 그 밖의 학생을 누르면 그 날짜의 출석 창 — 지난 날짜 출석도 여기서 고친다
+  // (창 안의 [다른 반으로 1회 이동] 버튼으로 1회 이동 시작)
   openAttend(c, nm, dstr);
 }
 
 /* ── 서버 요청 공통 ── */
+var CH_ACTIONS = { timetableMove:1, timetableOnce:1, timetableOnceEdit:1, timetableOnceCancel:1,
+                   timetableAdd:1, timetableRemove:1, timetableClassMove:1, timetableClassAdd:1,
+                   timetableClassDel:1, timetableRenameStudent:1 };
+function chOpenFromBar(){
+  if (!chOpen) chToggle();
+  else chLoad(true);
+}
 function post(body, busyMsg, done){
   setStatus(busyMsg || '저장하는 중…');
   body.pw = pw;
@@ -3125,7 +3216,11 @@ function post(body, busyMsg, done){
     body: JSON.stringify(body)
   })
   .then(function(r){ return r.json(); })
-  .then(function(res){ done(res); })
+  .then(function(res){
+    // 시간표를 바꾸는 저장이 성공하면 변경사항 패널을 새로 불러온다
+    if (res && res.result === 'success' && CH_ACTIONS[body.action]) chDirty();
+    done(res);
+  })
   .catch(function(){ setStatus('전송에 실패했어요. 인터넷을 확인해 주세요.', 'err'); });
 }
 function rosterNote(res){
@@ -3661,17 +3756,11 @@ function onBlockClick(e, c){
       return;
     }
     var chip0 = e.target.closest('button[data-nm]');
-    if (moving && moving.once){
-      // 1회 이동 대상 반 선택 중
-      if (chip0 && chip0.classList.contains('sel')){ cancelMove(); return; }
-      if (c.id === moving.fromId) return;
-      openOnceModal(c);
-      return;
-    }
     if (!chip0) return;
     var nm0 = chip0.getAttribute('data-nm');
     if (chip0.hasAttribute('data-once-row')){ openOnceManage(c, nm0, parseInt(chip0.getAttribute('data-once-row'),10), 'in'); return; }
     if (chip0.hasAttribute('data-away-row')){ openOnceManage(c, nm0, parseInt(chip0.getAttribute('data-away-row'),10), 'out'); return; }
+    if (moving){ return; }
     openAttend(c, nm0);
     return;
   }
@@ -3879,14 +3968,11 @@ function openAttend(c, nm, dateStr){
     '<p class="merr" id="att-err"></p>'+
     '<div class="mbtns">'+
     (cur ? '<button onclick="submitAttend(\''+esc(c.id)+'\',\''+esc(nm)+'\',\'\')">기록 지우기</button>' : '')+
+    // 1회 이동은 주차별에서만 — 오늘의 시간표는 출석 체크 전용 (2026-08-23 사용자 확정)
+    (mode === 'week' ? '<button onclick="startOnceMoveById(\''+esc(c.id)+'\',\''+esc(nm)+'\')">다른 반으로 1회 이동</button>' : '')+
     '<button onclick="openNoteEdit(\''+esc(nm)+'\')">특이사항</button>'+
-    ((mode === 'today' || mode === 'week') ? '<button onclick="startOnceMoveById(\''+esc(c.id)+'\',\''+esc(nm)+'\')">다른 반으로 1회 이동</button>' : '')+
     '<button onclick="closeModal()">닫기</button></div>'
   );
-}
-function startOnceMoveById(cid, nm){
-  var c = classes.find(function(x){ return x.id===cid; });
-  if (c) startOnceMove(c, nm);
 }
 function submitAttend(cid, nm, status){
   var memo = ($('att-memo') ? $('att-memo').value : '').trim();
@@ -4011,6 +4097,11 @@ function openNoteFromMove(){
 }
 
 /* ── 1회 이동 (오늘의 시간표 전용) ── */
+/* 출석 창의 [다른 반으로 1회 이동] — 반 id로 찾아 이동 모드 시작 */
+function startOnceMoveById(cid, nm){
+  var c = classes.find(function(x){ return x.id === cid; });
+  if (c) startOnceMove(c, nm);
+}
 function startOnceMove(c, nm){
   closeModal();
   moving = { name: nm, fromId: c.id, fromLabel: labelOf(c), once: true };
@@ -4021,9 +4112,7 @@ function startOnceMove(c, nm){
   $('mv-name').textContent = plainName(nm);
   $('mv-from').textContent = moving.fromLabel + ' 에서 1회 이동 — 옮길 반을 누르세요';
   render();
-  setStatus(mode === 'week'
-    ? '이 주 시간표에서 옮겨 갈 반을 누르세요. 누른 반의 요일 날짜로 기록돼요. (지난주/다음주로 이동해 미리 예약도 가능)'
-    : '오늘 수업 중 옮겨 갈 반을 누르세요.');
+  setStatus('이 주 시간표에서 옮겨 갈 반을 누르세요. 누른 반의 요일 날짜로 기록돼요. (지난주/다음주로 넘겨 미리 예약도 가능)');
 }
 function openOnceModal(target){
   var m = moving; if (!m) return;
@@ -4068,6 +4157,8 @@ function openOnceManage(c, nm, row, dir, dateStr){
   var from = classes.find(function(x){ return x.id===o.fromId; });
   var to = classes.find(function(x){ return x.id===o.toId; });
   var cur = attendAt(attDate, c.id, nm);
+  var isToday = (mode === 'today');
+  // 이동해 온 학생의 출석은 오늘·주차별 모두에서 — 주차별은 지난 날짜 수정용 (2026-08-23)
   var attSec = (dir === 'in')
     ? '<div class="att-btns">'+
       '<button class="pick-ok'+(cur&&cur.status==='출석'?' on':'')+'" onclick="submitAttend(\''+esc(c.id)+'\',\''+esc(nm)+'\',\'출석\')">출석</button>'+
@@ -4078,17 +4169,21 @@ function openOnceManage(c, nm, row, dir, dateStr){
       '<p class="merr" id="att-err"></p>'
     : '';
   openModal(
-    '<h3>1회 이동 학생</h3>'+
+    '<h3>'+(dir === 'in' ? '출석 체크 — 1회 이동 학생' : '1회 이동 학생')+'</h3>'+
     '<p class="mdesc"><b>'+esc(plainName(nm))+'</b> ('+esc(o.date)+')<br>'+
     esc(from ? labelOf(from) : '') + ' → ' + esc(to ? labelOf(to) : '') +
-    (dir==='out' ? '<br>오늘은 이동한 반에서 수업해요. 출석 체크도 그 반에서 해주세요.' : '')+'</p>'+
+    (dir==='out' ? '<br>이 날은 이동한 반에서 수업해요. 출석 체크도 그 반에서 해주세요.' : '')+'</p>'+
+    (o.reason ? '<p class="mdesc" style="background:var(--icon-bg);border-radius:9px;padding:8px 10px;">이동 사유 — '+esc(o.reason)+'</p>' : '')+
     attSec +
-    '<label style="font-size:.8rem;color:var(--ink-soft);display:block;margin-top:8px;">이동 사유 메모</label>'+
-    '<textarea id="om-reason">'+esc(o.reason)+'</textarea>'+
+    (isToday
+      ? '<p class="mdesc hint-x">사유를 고치거나 이동을 취소하려면 <b>주차별 시간표</b>에서 해주세요.</p>'
+      : '<label style="font-size:.8rem;color:var(--ink-soft);display:block;margin-top:8px;">이동 사유 메모</label>'+
+        '<textarea id="om-reason">'+esc(o.reason)+'</textarea>')+
     '<p class="merr" id="om-err"></p>'+
     '<div class="mbtns">'+
-    '<button onclick="onceCancel('+row+',\''+esc(nm)+'\')">1회 이동 취소</button>'+
-    '<button onclick="onceEditReason('+row+',\''+esc(nm)+'\')">사유 저장</button>'+
+    (isToday ? ''
+      : '<button onclick="onceCancel('+row+',\''+esc(nm)+'\')">1회 이동 취소</button>'+
+        '<button onclick="onceEditReason('+row+',\''+esc(nm)+'\')">사유 저장</button>')+
     '<button onclick="closeModal()">닫기</button></div>'
   );
 }
@@ -4522,23 +4617,92 @@ function openMakeupMove(i){
 }
 
 /* 이동 기록 */
-function openLog(){
-  openModal('<h3>이동 기록</h3><div class="log-list" id="log-list"><span class="subnote">불러오는 중…</span></div>'+
-            '<div class="mbtns"><button onclick="closeModal()">닫기</button></div>');
+/* ── 변경사항 패널 — 주차별·전체 시간표 오른쪽에 접었다 폈다 (2026-08-23 사용자 요청)
+ * 옛 [이동 기록] 모달을 대체한다. 이동·빼기·추가 기록이 저장될 때마다 자동 갱신. */
+var chOpen = sessionStorage.getItem('tt_chopen') === '1';
+var chLoaded = false, chBusy = false;
+var chRows = [], chKind = '';   // 받아 둔 기록 전체 + 고른 종류(빈 값이면 전체)
+
+function chSync(){
+  var el = $('chpanel'); if (!el) return;
+  var show = (mode === 'all' || mode === 'week');
+  el.hidden = !show;
+  if (!show){ document.body.classList.remove('ch-on'); return; }
+  el.classList.toggle('closed', !chOpen);
+  document.body.classList.toggle('ch-on', chOpen);
+  var tab = $('ch-tab');
+  if (tab) tab.setAttribute('aria-expanded', chOpen ? 'true' : 'false');
+  if (chOpen && !chLoaded) chLoad();
+}
+function chToggle(){
+  chOpen = !chOpen;
+  sessionStorage.setItem('tt_chopen', chOpen ? '1' : '0');
+  chSync();
+}
+/* 기록이 바뀌면 다음에 열 때 새로 불러오도록 표시 — 열려 있으면 즉시 갱신 */
+function chDirty(){
+  chLoaded = false;
+  if (chOpen && !$('chpanel').hidden) chLoad();
+}
+function chLoad(force){
+  var list = $('ch-list'); if (!list) return;
+  if (chBusy) return;
+  if (chLoaded && !force) return;
+  chBusy = true;
+  list.innerHTML = '<span class="ch-none">불러오는 중…</span>';
   fetch(ENDPOINT + '?action=timetableLog&pw=' + encodeURIComponent(pw) + '&t=' + Date.now())
     .then(function(r){ return r.json(); })
     .then(function(d){
-      if (!d || d.result !== 'success'){ $('log-list').innerHTML = '<span class="subnote">불러오지 못했어요.</span>'; return; }
-      if (!d.log.length){ $('log-list').innerHTML = '<span class="subnote">아직 기록이 없어요.</span>'; return; }
-      $('log-list').innerHTML = d.log.map(function(g){
-        var kcls = g.kind === '1회' ? ' once' : (g.kind === '빼기' ? ' minus' : '');
-        var path = g.fromCls && g.toCls ? esc(g.fromCls)+' → '+esc(g.toCls)
-                 : (g.toCls ? '→ '+esc(g.toCls) : esc(g.fromCls)+' 에서');
-        return '<div class="log-item"><span class="lk'+kcls+'">'+esc(g.kind)+'</span>'+(g.book==='내신'?'<span class="lk" style="background:#8A6FA8;">내신</span>':'')+'<b>'+esc(g.student)+'</b> '+path+
-               '<div class="lr">'+esc(g.date)+(g.reason ? ' · '+esc(g.reason) : '')+'</div></div>';
-      }).join('');
+      chBusy = false;
+      if (!d || d.result !== 'success'){ list.innerHTML = '<span class="ch-none">불러오지 못했어요.</span>'; return; }
+      chLoaded = true;
+      chRows = d.log || [];
+      chKinds();
+      chRender();
     })
-    .catch(function(){ $('log-list').innerHTML = '<span class="subnote">불러오지 못했어요.</span>'; });
+    .catch(function(){ chBusy = false; list.innerHTML = '<span class="ch-none">불러오지 못했어요.</span>'; });
+}
+/* 종류 칩 — 실제 기록에 있는 종류(이동·1회·빼기·추가·표기수정)만 만든다 */
+function chKinds(){
+  var box = $('ch-kinds'); if (!box) return;
+  var ks = [], seen = {};
+  chRows.forEach(function(g){
+    var k = String(g.kind || '').trim();
+    if (k && !seen[k]){ seen[k] = true; ks.push(k); }
+  });
+  if (chKind && !seen[chKind]) chKind = '';
+  box.innerHTML = ks.length < 2 ? '' : [''].concat(ks).map(function(k){
+    return '<button type="button"' + (k === chKind ? ' class="on"' : '') +
+           ' onclick="chSetKind(' + JSON.stringify(k).replace(/"/g, '&quot;') + ')">' +
+           (k ? esc(k) : '전체') + '</button>';
+  }).join('');
+}
+function chSetKind(k){ chKind = (chKind === k) ? '' : k; chKinds(); chRender(); }
+/* 검색어(이름·반·사유·날짜)와 종류로 걸러 다시 그린다 */
+function chRender(){
+  var list = $('ch-list'); if (!list || !chLoaded) return;
+  var q = ($('ch-q') ? $('ch-q').value : '').trim().toLowerCase();
+  var rows = chRows.filter(function(g){
+    if (chKind && String(g.kind || '').trim() !== chKind) return false;
+    if (!q) return true;
+    return [g.student, g.fromCls, g.toCls, g.reason, g.date, g.kind, g.book]
+      .map(function(x){ return String(x == null ? '' : x).toLowerCase(); })
+      .join(' ').indexOf(q) >= 0;
+  });
+  var sub = $('ch-sub');
+  if (sub) sub.textContent = !chRows.length ? ''
+    : (rows.length < chRows.length ? rows.length + ' / ' + chRows.length + '건' : chRows.length + '건');
+  if (!chRows.length){ list.innerHTML = '<span class="ch-none">아직 기록이 없어요.</span>'; return; }
+  if (!rows.length){ list.innerHTML = '<span class="ch-none">찾는 기록이 없어요.</span>'; return; }
+  list.innerHTML = rows.map(function(g){
+    var kcls = g.kind === '1회' ? ' once' : (g.kind === '빼기' ? ' minus' : '');
+    var path = g.fromCls && g.toCls ? esc(g.fromCls) + ' → ' + esc(g.toCls)
+             : (g.toCls ? '→ ' + esc(g.toCls) : esc(g.fromCls) + ' 에서');
+    return '<div class="ch-item"><span class="lk' + kcls + '">' + esc(g.kind) + '</span>' +
+           (g.book === '내신' ? '<span class="lk" style="background:#8A6FA8;">내신</span>' : '') +
+           '<b>' + esc(g.student) + '</b> ' + path +
+           '<div class="lr">' + esc(g.date) + (g.reason ? ' · ' + esc(g.reason) : '') + '</div></div>';
+  }).join('');
 }
 
 /* ── 시작 ── */
@@ -4559,6 +4723,7 @@ if (mode === 'cal'){
   calLoadAndRender();
   loadPeriods(function(){ renderTabs(); render(); });
 }
+chSync();      // 변경사항 패널 — 주차별·전체에서만 보이고, 접힘 상태는 세션에 기억
 load(false);   // ttBoot 한 번에 시간표·출석·메모·기간이 함께 온다 (기간이 다르면 안에서 다시 불러옴)
 </script>
 

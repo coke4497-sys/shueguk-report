@@ -600,6 +600,7 @@ function loadGradeGates(){
     // 조회 실패(null)는 이전 값을 지우지 않는다 — 성공했던 표시가 실패한 재조회에 덮여
     // '신청함'이 사라지던 문제 방지. 유효한 응답을 받은 항목만 갱신.
     if (g[0] && g[0].grades) STATE.mockGrades = g[0].grades;
+    if (g[0] && typeof g[0].open !== 'undefined') STATE.mockOpen = !!g[0].open;   // 신청받기 중단 여부
     if (g[1] && g[1].result==='success' && typeof g[1].eligible !== 'undefined') STATE.clinicEligible = !!g[1].eligible;
     if (wantVoca && g[2] && typeof g[2].taken !== 'undefined') STATE.vocaTaken = !!g[2].taken;
     if (g[3] && g[3].result==='success' && g[3].signups) STATE.mockSignups = g[3].signups;
@@ -646,6 +647,9 @@ function refreshOnReturn(){
     STATE.hwcheck  = d.hwcheck  || null;
     // 잠금 상태(authed·exams)는 건드리지 않는다 — 비밀번호 재입력 방지
     if ($('hubView').style.display !== 'none') renderHub();
+    // 신청 페이지에 다녀와 이 응답으로 신청 내역이 갱신됐어도 모의고사 메뉴는 다시 그리지
+    // 않아 '신청 완료' 표시가 한 박자 늦던 문제 수정 (loadGradeGates와 같은 처리)
+    if ($('mockHubView').style.display === 'block') renderMockHub();
     if ($('clinicView').style.display === 'block') renderClinic();
   }).catch(function(){});
 }
@@ -684,7 +688,7 @@ function hide(id){ $(id).style.display='none'; }
 
 var KEY = '';        // 접근코드(토큰) — 없으면 테스트용 id
 var IS_ID = false;
-var STATE = { info:null, authed:false, exams:null, examCount:0, notices:null, homework:null, analyses:null, clinic:null, stars:null, vocaOpen:null, vocaWeek:null, mockGrades:null, clinicEligible:null, vocaTaken:null, mockSignups:null, mockFromServer:false, mockGatesFromServer:false, vocaFromServer:false, hwcheck:null };
+var STATE = { info:null, authed:false, exams:null, examCount:0, notices:null, homework:null, analyses:null, clinic:null, stars:null, vocaOpen:null, vocaWeek:null, mockGrades:null, mockOpen:null, clinicEligible:null, vocaTaken:null, mockSignups:null, mockFromServer:false, mockGatesFromServer:false, vocaFromServer:false, hwcheck:null };
 
 function showError(title, msg){
   hide('loadBox'); hide('hubView'); $('gradeView').style.display='none'; $('mockHubView').style.display='none'; $('mockView').style.display='none'; $('clinicView').style.display='none'; $('hwcheckView').style.display='none';
@@ -1476,9 +1480,15 @@ function renderHub(){
         return;
       }
       // 신청했으면 응시 날짜·요일을 표시 (클리닉 카드와 동일한 형식)
-      var mockDesc = (STATE.mockSignups && STATE.mockSignups.length)
-        ? '신청함 · ' + STATE.mockSignups.map(mockDayLabel).join(' · ')
-        : '신청 · OMR 작성 · 성적 확인';
+      // 신청받기가 중단된 주에는 설명에서 '신청'을 빼고, 카드는 OMR·성적 확인용으로 열어 둔다.
+      var mockDesc;
+      if(STATE.mockSignups && STATE.mockSignups.length){
+        mockDesc = '신청함 · ' + STATE.mockSignups.map(mockDayLabel).join(' · ');
+      } else if(STATE.mockOpen === false){
+        mockDesc = 'OMR 작성 · 성적 확인';
+      } else {
+        mockDesc = '신청 · OMR 작성 · 성적 확인';
+      }
       html += '<button class="card'+tcl+'" onclick="openMockHub()">'+ic+
               '<h3>실전 모의고사</h3><p class="desc">'+esc(mockDesc)+'</p>'+
               '<span class="go">열기 '+svg(ICON.arrow)+'</span></button>';
@@ -2065,9 +2075,8 @@ function renderMockHub(){
   // ① 모의고사 신청 — 이번 주 신청 내역 표시 + 학년 게이팅 유지
   var sgn = STATE.mockSignups || [];
   if(sgn.length){
-    var sgnTxt = '이번 주 신청 완료 ✓ · ' + sgn.map(function(x){
-      return x.day + (x.date ? ' ('+x.date+')' : '');
-    }).join(' · ');
+    // 날짜 표기는 메인 메뉴 카드와 같은 '8/22 (토)' 형식으로 통일
+    var sgnTxt = '이번 주 신청 완료 ✓ · ' + sgn.map(mockDayLabel).join(' · ');
     html += '<a class="card" href="'+esc(su)+'"><span class="icon">'+svg(ICON.check)+'</span>'+
             '<h3>모의고사 신청</h3><p class="desc">'+esc(sgnTxt)+'</p>'+
             '<span class="go">열기 '+svg(ICON.arrow)+'</span></a>';
@@ -2075,6 +2084,11 @@ function renderMockHub(){
     html += '<div class="card pending"><span class="icon">'+svg(ICON.paper)+'</span>'+
             '<h3>모의고사 신청</h3><p class="desc">이번 주는 해당 학년 실전 모의고사를 운영하지 않아요.</p>'+
             '<span class="tag">이번 주 운영 안 함</span></div>';
+  } else if(STATE.mockOpen === false){
+    // 선생님이 신청받기를 중단한 상태 — 눌러도 신청 페이지에서 마감 안내를 받으므로 미리 알린다.
+    html += '<div class="card pending"><span class="icon">'+svg(ICON.paper)+'</span>'+
+            '<h3>모의고사 신청</h3><p class="desc">지금은 신청을 받지 않아요.</p>'+
+            '<span class="tag">신청 마감</span></div>';
   } else {
     html += '<a class="card" href="'+esc(su)+'"><span class="icon">'+svg(ICON.paper)+'</span>'+
             '<h3>모의고사 신청</h3><p class="desc">모의고사 응시 신청</p>'+
@@ -2217,7 +2231,10 @@ function boot(){
       STATE.vocaOpen=d.vocaOpen;   // true/false/undefined(=열림)
       STATE.vocaWeek=d.vocaWeek;   // 교사가 연 주차(없으면 null → 준비 중)
       // 접속 지연 대책: 리포트가 함께 담아준 값이 있으면 그걸 쓰고 별도 조회 생략
-      if (d.mockGates && d.mockGates.grades){ STATE.mockGrades = d.mockGates.grades; STATE.mockGatesFromServer = true; }
+      if (d.mockGates && d.mockGates.grades){
+        STATE.mockGrades = d.mockGates.grades; STATE.mockGatesFromServer = true;
+        if (typeof d.mockGates.open !== 'undefined') STATE.mockOpen = !!d.mockGates.open;
+      }
       if (typeof d.vocaTaken === 'boolean'){ STATE.vocaTaken = d.vocaTaken; STATE.vocaFromServer = true; }
       STATE.hwcheck=d.hwcheck||null;   // 숙제 검사 주차별 기록 (기록 없으면 카드 숨김)
       if(d.exams){ STATE.exams=d.exams; }
