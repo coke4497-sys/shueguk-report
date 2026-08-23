@@ -3616,9 +3616,17 @@ function rosterNote(res){
 }
 
 /* ── 학생 검색 ── */
-function plainName(nm){ return String(nm || '').replace(/\(.*\)$/, ''); }
+/* 이름에서 괄호 표기를 떼어 낸 '진짜 이름'.
+ * 뒤 괄호(특이사항 "김현우(8/23부터)")뿐 아니라 앞 괄호(내신 확인반 학교 구분 "(화정)심지후")도 뗀다
+ * — 앞 괄호를 남기면 재원 명단과 대조가 안 돼 '미등록생'으로 잘못 잡힌다 (2026-08-23) */
+function plainName(nm){ return String(nm || '').replace(/^\s*\([^)]*\)\s*/, '').replace(/\(.*\)$/, ''); }
 /* 이름 뒤 괄호 특이사항(신입 시작일·입테 등) — "김현우(8/23부터)" → "8/23부터" */
-function nameNote(nm){ var m = String(nm || '').match(/\((.+)\)\s*$/); return m ? m[1] : ''; }
+function nameNote(nm){
+  var s = String(nm || ''), m = s.match(/\((.+)\)\s*$/);
+  if (m) return m[1];
+  m = s.match(/^\s*\(([^)]*)\)/);            // 앞 괄호로 적힌 학교 구분도 특이사항으로 읽는다
+  return m ? m[1] : '';
+}
 function searchStudent(){
   var q = $('stu-q').value.trim();
   var box = $('searchResults');

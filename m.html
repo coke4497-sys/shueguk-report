@@ -1112,7 +1112,7 @@ function maybeNaeshinPrefill(){
         var key=(function(){ var m=String(c.cls||'').match(/^([중고][1-3])\s+([가-힣]+)/); return m ? '공유:'+m[1]+'|'+m[2] : c.id; })();
         if(key!==nsKey) return;
         (c.students||[]).forEach(function(raw){
-          var plain=String(raw).replace(/\(.*\)$/,'');
+          var plain=String(raw).replace(/^\s*\([^)]*\)\s*/,'').replace(/\(.*\)$/,'');
           names[plain]=1;
           var h=(String(raw).match(/\(([가-힣]+)\)/)||[])[1];
           if(h) hints[plain]=h;
