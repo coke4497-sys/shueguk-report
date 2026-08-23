@@ -2312,6 +2312,11 @@ function logConfig_(ss, label, value) {
 }
 
 /** 머리글 행에서 label과 일치하는 열 인덱스를 찾고, 없으면 fallback 인덱스를 반환. */
+/** 날짜 칸을 'yyyy-MM-dd' 문자열로 — 시트가 날짜 값으로 바꿔둔 경우까지 읽는다 */
+function ymdCell_(v) {
+  if (v && v.getTime) return Utilities.formatDate(v, 'Asia/Seoul', 'yyyy-MM-dd');
+  return String(v == null ? '' : v).replace(/^'/, '').trim();
+}
 function findHeaderCol_(headerRow, label, fallback) {
   if (headerRow) {
     for (var c = 0; c < headerRow.length; c++) {
@@ -2554,6 +2559,7 @@ function studentLinksData_() {
   var v = tabValues_(ss, TAB_STUDENTS);   // 60초 캐시 — 숙제 검사 등에서 자주 불려 캐시 사용
   if (!v) return null;
   var codeCol = findHeaderCol_(v[0], '접근코드', STU_CODE_COL);
+  var regCol = findHeaderCol_(v[0], '등록일', -1);
   var out = [];
   for (var i = 1; i < v.length; i++) {
     var name = String(v[i][1] || '').trim();
@@ -2570,7 +2576,8 @@ function studentLinksData_() {
       classB:  String(v[i][7] || '').trim(),
       progress:String(v[i][8] || '').trim(),
       checkup: String(v[i][9] || '').trim(),
-      code:   String(v[i][codeCol] || '').trim()   // 빈칸이면 assignAccessCodes() 미실행 학생
+      code:   String(v[i][codeCol] || '').trim(),  // 빈칸이면 assignAccessCodes() 미실행 학생
+      regDate: (regCol >= 0) ? ymdCell_(v[i][regCol]) : ''   // '이번 달 신입 슈스' 기준일
     });
   }
   return out;
@@ -2582,7 +2589,9 @@ function getStudentLinks() {
 }
 
 /** 재원생 정보 수정 (superstar.html 슈스 링크 탭). 접근코드로 행을 찾아
- *  학교·학년·담당교사·메모·시간표(정규가/나·내신진도/확인)만 갱신 — 이름·8자리·재원여부는 건드리지 않음. */
+ *  학교·학년·담당교사·메모·시간표(정규가/나·내신진도/확인)만 갱신 — 이름·8자리·재원여부는 건드리지 않음.
+ *  regDate(등록일)는 보낸 경우에만 갱신 — 이미 명단에 있던 학생을 '이번 달 신입'으로 잡기 위해
+ *  (2026-08-23 사용자 요청: 반 배정만 한 학생은 신입 목록에 안 떠서). */
 /** 학생 이름 표기 변경 (동명이인 A/B 구분 등). { pw, code(접근코드), to(새 이름) }
  *  '학생정보' 탭 B열만 바꾼다 — 접근코드·8자리·시간표 열은 그대로라 학생 개인 페이지 링크는 유지된다.
  *  시간표의 이름은 timetableRenameStudent로 따로 바꿔야 한다(명단과 맞춰둘 것). */
@@ -2642,6 +2651,21 @@ function updateStudent(data) {
       String(data.classA || '').trim(), String(data.classB || '').trim(),
       String(data.progress || '').trim(), String(data.checkup || '').trim()
     ]]);
+    if (data.regDate !== undefined && data.regDate !== null) {
+      var rd = String(data.regDate).trim();
+      if (rd && !/^\d{4}-\d{2}-\d{2}$/.test(rd)) {
+        return json({ result: 'error', message: '등록일은 2026-08-23 형태로 적어주세요.' });
+      }
+      var regCol = findHeaderCol_(v[0], '등록일', -1);
+      if (regCol < 0) {   // 열이 아직 없으면 만든다 (addStudent와 같은 규칙)
+        regCol = v[0].length;
+        sh.getRange(1, regCol + 1).setValue('등록일');
+      }
+      // 시트가 날짜 값으로 바꾸면 목록이 못 읽으므로 텍스트로 강제
+      var rc = sh.getRange(row, regCol + 1);
+      rc.setNumberFormat('@');
+      rc.setValue(rd);
+    }
     dropTab_(TAB_STUDENTS);
     return json({ result: 'success' });
   } finally {

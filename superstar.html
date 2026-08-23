@@ -160,6 +160,9 @@
   .lwrap.editing .ledit{display:block;}
   .ledit label{margin:10px 0 5px;font-size:12px;}
   .ledit input{padding:10px 11px;font-size:14px;background:#fff;}
+  .ledit .etoday{padding:10px 12px;border:1px solid #d7e3dd;border-radius:10px;background:#fff;
+    font:inherit;font-size:13px;color:#4C6E66;cursor:pointer;white-space:nowrap;}
+  .ledit .etoday:hover{border-color:#628C83;}
   .ledit .esave{width:100%;margin-top:12px;padding:12px;border:none;border-radius:10px;background:#F0CFC7;
     color:#8E5147;font-family:"Gowun Batang",serif;font-size:14.5px;font-weight:700;cursor:pointer;}
   .ledit .esave:disabled{background:#9fb3aa;}
@@ -505,11 +508,13 @@
       }).catch(warn('신입 등록'));
     },
     updateStudent: function(b){
-      sb('PATCH', '/students?code=eq.' + q(b.code), {
+      var patch = {
         school: String(b.school || ''), grade: String(b.grade || ''), teacher: String(b.teacher || ''),
         memo: String(b.memo || ''), class_a: String(b.classA || ''), class_b: String(b.classB || ''),
         naeshin_a: String(b.progress || ''), naeshin_b: String(b.checkup || '')
-      }).catch(warn('학생 수정'));
+      };
+      if (b.regDate !== undefined) patch.reg_date = String(b.regDate || '');
+      sb('PATCH', '/students?code=eq.' + q(b.code), patch).catch(warn('학생 수정'));
     },
     studentRename: function(b, res){
       sb('PATCH', '/students?code=eq.' + q(b.code), { name: String(res.to || b.to || '').trim() })
@@ -1125,13 +1130,19 @@
       '<div class="row2"><div><label>내신 진도</label><input type="text" class="e-progress" value="'+esc(s.progress||'')+'" /></div>'+
       '<div><label>내신 확인</label><input type="text" class="e-checkup" value="'+esc(s.checkup||'')+'" /></div></div>'+
       '<label>메모</label><input type="text" class="e-memo" maxlength="80" value="'+esc(s.memo||'')+'" />'+
+      '<label>등록일 <span style="font-weight:400;color:#7a8a82;">— 이 달 신입 목록에 뜨는 기준. 비우면 신입으로 안 뜸</span></label>'+
+      '<div class="row2"><input type="text" class="e-regdate" placeholder="2026-08-23" value="'+esc(s.regDate||'')+'" />'+
+      '<button type="button" class="etoday">오늘로 넣기</button></div>'+
       '<button type="button" class="esave">저장</button><div class="estat"></div>';
   }
   function saveEdit(wrap, s){
     var g=function(cls){ return wrap.querySelector('.'+cls).value.trim(); };
     var payload={ action:'updateStudent', pw:SERVER_PW, code:s.code,
       school:g('e-school'), grade:g('e-grade'), teacher:g('e-teacher'), memo:g('e-memo'),
-      classA:g('e-classA'), classB:g('e-classB'), progress:g('e-progress'), checkup:g('e-checkup') };
+      classA:g('e-classA'), classB:g('e-classB'), progress:g('e-progress'), checkup:g('e-checkup'),
+      regDate:g('e-regdate') };
+    if(payload.regDate && !/^\d{4}-\d{2}-\d{2}$/.test(payload.regDate)){
+      setE(wrap,'등록일은 2026-08-23 형태로 적어주세요.','err'); return; }
     if(!payload.school || !payload.grade){ setE(wrap,'학교와 학년은 비울 수 없어요.','err'); return; }
     var btn=wrap.querySelector('.esave'); btn.disabled=true; setE(wrap,'저장하는 중…');
     fetch(ENDPOINT, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify(payload) })
@@ -1141,6 +1152,7 @@
         if(!d || d.result!=='success'){ setE(wrap,'저장 실패: '+((d&&d.message)||'오류'),'err'); return; }
         s.school=payload.school; s.grade=payload.grade; s.teacher=payload.teacher; s.memo=payload.memo;
         s.classA=payload.classA; s.classB=payload.classB; s.progress=payload.progress; s.checkup=payload.checkup;
+        s.regDate=payload.regDate;
         setE(wrap,'✓ 저장되었어요','ok');
         setTimeout(function(){ renderLinks(); }, 700);
       })
@@ -1366,6 +1378,14 @@
       });
       wrap.querySelector('.ledit').innerHTML = editFormHtml(st);
       wrap.classList.add('editing'); eb.textContent='닫기';
+      return;
+    }
+    // 등록일 오늘로
+    var td=e.target.closest('button.etoday');
+    if(td){
+      var wt=td.closest('.ledit'); var inp=wt&&wt.querySelector('.e-regdate');
+      if(inp){ var n=new Date();
+        inp.value=n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0')+'-'+String(n.getDate()).padStart(2,'0'); }
       return;
     }
     // 저장
