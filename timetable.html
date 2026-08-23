@@ -864,6 +864,12 @@
     var m = /^w(\d{2})(\d{2})(\d{2})/.exec(String(id || ''));
     return m ? ('20' + m[1] + '-' + m[2] + '-' + m[3]) : '';
   }
+  /* 반 전체 이동·보강 기록에서 복사본이 열리는 날짜(반ID에 든 날짜).
+   * 다른 주로 당기거나 미룬 경우 숨는 날짜(apply_date)와 다른 주에 있어서,
+   * 두 날짜 중 하나만 보고 거르면 반대쪽 주 화면에서 기록이 빠진다. */
+  function copyClassYmdOf(g){
+    return (g.kind === '주간반이동' || g.kind === '주간반보강') ? weekClassYmd(g.to_class_id) : '';
+  }
   function fetchClasses(book){
     return sbGet('/tt_classes?book=eq.' + q(book) + '&order=id&select=class_id,day,start_time,end_time,location,teacher,name,roster')
       .then(function(rows){
@@ -877,13 +883,15 @@
   /* 그 주에만 적용되는 명단 변경 — 1회 이동과 같은 기록(tt_log)에 종류만 다르게 쌓는다.
    * '주간추가'(to만) · '주간빼기'(from만) — 정규 명단은 건드리지 않으므로 다른 주차엔 영향이 없다. */
   var WEEK_KINDS = ['1회', '주간추가', '주간빼기', '주간반이동', '주간반보강'];
-  function fetchOnceLogs(baseYmd, kinds){
-    // 기록일 기준 (기준일-68일) 이후의 기록 — 적용일 필터는 호출부에서.
+  function fetchOnceLogs(baseYmd, kinds, days){
+    // 기록일 기준 (기준일-days일, 기본 68일) 이후의 기록 — 적용일 필터는 호출부에서.
     // 기준일이 오늘보다 뒤면(먼 미래 주차를 볼 때) 오늘을 기준으로 잡는다 —
     // 기록은 '오늘' 쌓이므로 미래 날짜를 기준으로 자르면 방금 넣은 예약이 안 보인다.
+    // 주간 기록(WEEK_KINDS) 조회는 120일 — 반 전체 이동을 최대 15주 앞서 예약할 수 있어서
+    // (기록한 날 ~ 그 주를 보는 날 사이가 68일을 넘을 수 있다).
     var base = (String(baseYmd || '') > tYmd()) ? tYmd() : baseYmd;
     var ks = (kinds || ['1회']).map(q).join(',');
-    return sbGet('/tt_log?kind=in.(' + ks + ')&at=gte.' + q(isoBefore(base, 68)) + '&order=at');
+    return sbGet('/tt_log?kind=in.(' + ks + ')&at=gte.' + q(isoBefore(base, days || 68)) + '&order=at');
   }
   function onceListShape(g){
     return { row: g.id, kind: g.kind, date: atYmd(g.at), ymd: applyYmdOf(g), student: g.student,
@@ -911,7 +919,7 @@
       var base = [tYmd(), wfrom || tYmd(), mfrom || tYmd()].sort()[0];
       var jobs = [
         fetchClasses(book),
-        fetchOnceLogs(base, WEEK_KINDS),
+        fetchOnceLogs(base, WEEK_KINDS, 120),
         dateStr ? fetchAttendRange(dateStr, dateStr, book) : Promise.resolve([]),
         mfrom ? sbGet('/tt_memo?date=gte.' + q(mfrom) + '&date=lte.' + q(mto)) : Promise.resolve([]),
         sbGet('/tt_period?select=week_wednesday,book'),
@@ -921,8 +929,11 @@
         var t = tYmd(), span = 8 * 86400000;
         var once = rs[1].filter(function(g){
           if (g.book !== book) return false;
-          var am = Date.parse(applyYmdOf(g));
-          return am && Math.abs(am - Date.parse(t)) <= span;
+          // 반 전체 이동·보강은 복사본이 열리는 날짜도 본다 — 다른 주로 당긴 경우
+          // 적용일(원래 주에 숨는 날)만 보면 여는 주의 오늘 화면에서 명단 동기화가 빠진다.
+          var am = Date.parse(applyYmdOf(g)), cm = Date.parse(copyClassYmdOf(g) || '');
+          return (am && Math.abs(am - Date.parse(t)) <= span) ||
+                 (cm && Math.abs(cm - Date.parse(t)) <= span);
         }).map(onceListShape);
         var out = { book: book, date: dateStr,
           classes: rs[0], onceMoves: once,
@@ -934,7 +945,8 @@
           out.week = { attend: rs[5].map(attWeekShape),
             onceMoves: rs[1].filter(function(g){
               if (g.book !== book) return false;
-              var a = applyYmdOf(g); return a >= wfrom && a <= wto;
+              var a = applyYmdOf(g), c = copyClassYmdOf(g);
+              return (a >= wfrom && a <= wto) || (c && c >= wfrom && c <= wto);
             }).map(onceWeekShape) };
         }
         return ok(out);
@@ -956,11 +968,14 @@
       var book = bookOf(p.get('book'));
       var from = (p.get('from') || '').trim(), to = (p.get('to') || '').trim();
       if (!from || !to) return Promise.resolve({ result:'error', message:'기간이 필요합니다.' });
-      return Promise.all([fetchAttendRange(from, to, book), fetchOnceLogs(from, WEEK_KINDS)]).then(function(rs){
+      return Promise.all([fetchAttendRange(from, to, book), fetchOnceLogs(from, WEEK_KINDS, 120)]).then(function(rs){
         return ok({ from: from, to: to, attend: rs[0].map(attWeekShape),
           onceMoves: rs[1].filter(function(g){
             if (g.book !== book) return false;
-            var a = applyYmdOf(g); return a >= from && a <= to;
+            // 반 전체 이동·보강은 숨는 날짜(적용일)와 복사본이 열리는 날짜 중
+            // 하나라도 이 주에 들면 포함 — 다른 주로 당긴 기록이 양쪽 주에 다 보이게.
+            var a = applyYmdOf(g), c = copyClassYmdOf(g);
+            return (a >= from && a <= to) || (c && c >= from && c <= to);
           }).map(onceWeekShape) });
       });
     },
@@ -1652,16 +1667,18 @@ function weekStartOf(d){
 var weekStart = weekStartOf(new Date());
 function ymdOf(d){ return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'); }
 function mdOf(d){ return (d.getMonth()+1) + '/' + d.getDate(); }
-function weekDates(){
+function weekDatesOf(wed){
   // 월(-2)·화(-1)는 수요일 직전 날짜 — 월화수목금토일 날짜가 순서대로 이어짐
   var off = { '월':-2, '화':-1, '수':0, '목':1, '금':2, '토':3, '일':4 };
   var out = {};
   WEEK_VIEW_ORDER.forEach(function(dy){
-    var d = new Date(weekStart); d.setDate(d.getDate() + off[dy]);
+    var d = new Date(wed.getFullYear(), wed.getMonth(), wed.getDate()); d.setDate(d.getDate() + off[dy]);
     out[dy] = d;
   });
   return out;
 }
+function weekDates(){ return weekDatesOf(weekStart); }
+function wedOfYmd(ymd){ return new Date(+ymd.slice(0,4), +ymd.slice(5,7)-1, +ymd.slice(8,10)); }
 function moveWeek(n){
   weekStart.setDate(weekStart.getDate() + 7*n);
   renderTabs();
@@ -4547,6 +4564,27 @@ function wkDayLabel(dstr){
   var d = new Date(+dstr.slice(0,4), +dstr.slice(5,7)-1, +dstr.slice(8,10));
   return mdOf(d) + ' (' + ['일','월','화','수','목','금','토'][d.getDay()] + ')';
 }
+/* '옮길 주' 선택 — 이번 주부터 15주 뒤까지(지금 보는 주가 그 밖이면 거기까지 이어서).
+ * 값은 그 주 수요일(yyyy-MM-dd). 시간표 구분(정규/내신)이 지금 화면과 다른 주는
+ * 그 주 화면에 이 시간표가 나타나지 않으므로 고를 수 없게 잠근다.
+ * (10/5주차 수업을 8/24주차에 당겨서 하기 — 2026-08-23 사용자 요청) */
+function weekSelHtml(id, defWed){
+  var cur = weekStartOf(new Date());
+  var first = (defWed < cur) ? new Date(defWed) : new Date(cur);
+  var defY = ymdOf(defWed), curY = ymdOf(cur);
+  var opts = [], w = new Date(first.getFullYear(), first.getMonth(), first.getDate());
+  for (var i = 0; i < 40; i++){
+    var wy = ymdOf(w), ds = weekDatesOf(w), bk = periodOf(w);
+    var label = mdOf(ds['월']) + '~' + mdOf(ds['일']) + ' 주 · ' + bk +
+      (wy === defY ? ' — 지금 보는 주' : (wy === curY ? ' — 이번 주' : ''));
+    opts.push('<option value="' + wy + '"' + (wy === defY ? ' selected' : '') +
+              (bk !== book ? ' disabled' : '') + '>' + label + '</option>');
+    if (i >= 15 && wy >= defY) break;
+    w.setDate(w.getDate() + 7);
+  }
+  return '<select id="' + id + '" style="font:inherit;font-size:.92rem;border:1.5px solid var(--line);border-radius:10px;padding:8px 10px;width:100%;margin-top:6px;">' +
+    opts.join('') + '</select>';
+}
 /* 이 주만 있는 반 만들기 — 그 주의 그 요일 하루만 시간표에 나타난다 */
 function openAddWeekClass(){
   var dates = weekDates();
@@ -4664,7 +4702,11 @@ function openWeekClassMove(c, dstr){
     '<p class="mdesc"><b>'+esc(c.cls)+'</b> ('+c.students.length+'명)<br>'+
     '지금: '+esc(wkDayLabel(d))+' '+esc(c.start)+'~'+esc(c.end)+
     (c.teacher ? ' · '+esc(c.teacher)+'T' : '')+(c.loc ? ' · '+esc(c.loc) : '')+'</p>'+
-    '<p class="mdesc hint-x">이 주에만 옮겨져요. 원래 시간의 수업은 이 주에만 사라지고, 다음 주부터는 그대로예요.</p>'+
+    '<p class="mdesc hint-x">한 번만 옮겨져요 — 원래 시간의 수업은 이 주에서만 사라지고, 다른 주차는 그대로예요. '+
+    '옮길 주를 다른 주로 고르면 이 주 수업을 그 주로 당기거나 미룰 수 있어요 (예: 시험 주 수업을 미리 하기).</p>'+
+    '<label style="font-size:.8rem;color:var(--ink-soft);">옮길 주</label>'+
+    weekSelHtml('nc-week', weekStart)+
+    '<div style="margin-top:8px;"></div>'+
     classFormHtml('')+
     '<label style="font-size:.8rem;color:var(--ink-soft);display:block;margin-top:8px;">사유 메모 (선택)</label>'+
     '<textarea id="nc-reason" placeholder="예: 학교 행사로 하루 당김, 공휴일 보강"></textarea>'+
@@ -4689,16 +4731,24 @@ function submitWeekClassMove(cid, d){
   var st0 = mins(st), en0 = mins(en);
   if (en0 <= st0) en0 += 12*60;
   if (en0 > 22*60){ $('nc-err').textContent = '끝 시간이 시작보다 빨라요. (수업은 밤 10시까지)'; return; }
-  var nd = ymdOf(weekDates()[day]);
-  if (day === c.day && st === c.start && en === c.end && loc === (c.loc||'') && teacher === (c.teacher||'')){
-    $('nc-err').textContent = '바뀐 것이 없어요. 요일이나 시간을 고쳐주세요.'; return;
+  // 옮길 주 — 기본은 지금 보는 주. 다른 주를 고르면 그 주로 당기거나 미룬다(2026-08-23 사용자 요청).
+  var tw = $('nc-week') ? wedOfYmd($('nc-week').value) : new Date(weekStart);
+  var sameWeek = ymdOf(tw) === ymdOf(weekStart);
+  if (periodOf(tw) !== book){
+    $('nc-err').textContent = '그 주는 ' + periodOf(tw) + ' 기간이라 이 ' + book + ' 시간표가 나타나지 않아요. 슈국 캘린더에서 기간을 먼저 확인해 주세요.'; return;
+  }
+  var nd = ymdOf(weekDatesOf(tw)[day]);
+  if (sameWeek && day === c.day && st === c.start && en === c.end && loc === (c.loc||'') && teacher === (c.teacher||'')){
+    $('nc-err').textContent = '바뀐 것이 없어요. 옮길 주나 요일·시간을 고쳐주세요.'; return;
   }
   closeModal();
   post({ action:'timetableWeekClassMove', book:book, fromId:cid, date:d, newDate:nd,
          day:day, start:st, end:en, loc:loc, teacher:teacher, reason:reason },
     '옮기는 중…', function(res){
       if (res && res.result === 'success'){
-        setStatus(c.cls + ' — ' + wkDayLabel(nd) + ' ' + st + '~' + en + ' 으로 이 주만 옮겼어요.', 'ok');
+        setStatus(sameWeek
+          ? c.cls + ' — ' + wkDayLabel(nd) + ' ' + st + '~' + en + ' 으로 이 주만 옮겼어요.'
+          : c.cls + ' — ' + wkDayLabel(nd) + ' ' + st + '~' + en + ' 으로 옮겼어요. 이 주(' + wkDayLabel(d) + ') 수업은 열리지 않아요.', 'ok');
         load(true);
       } else setStatus('이동 실패: ' + ((res && res.message) || '오류'), 'err');
     });
@@ -4707,10 +4757,15 @@ function submitWeekClassMove(cid, d){
 /* 이 주만 있는 반 — 학생 넣기·반 지우기 */
 function openWeekClassManage(c, dstr){
   var d = dstr || c.wk;
+  var mv = wkMovedFrom(c.id);
+  // 다른 주에서 당기거나 미뤄 온 수업이면 원래 수업일을 함께 보여준다
+  var origin = (mv && mv.kind === '주간반이동' && mv.date && mv.date !== d)
+    ? '<p class="mdesc hint-x">' + esc(wkDayLabel(mv.date)) + ' 수업을 이 날로 옮겨 온 거예요.</p>' : '';
   openModal(
     '<h3>이 주만 있는 반</h3>'+
     '<p class="mdesc"><b>'+esc(c.cls)+'</b><br>'+esc(wkDayLabel(d))+' '+esc(c.start)+'~'+esc(c.end)+
     (c.teacher ? ' · '+esc(c.teacher)+'T' : '')+(c.loc ? ' · '+esc(c.loc) : '')+'</p>'+
+    origin+
     '<p class="mdesc hint-x">이 날 하루만 있는 반이에요. 정규 시간표와 다른 주차에는 나타나지 않아요.</p>'+
     '<div class="mbtns">'+
     '<button onclick="closeModal(); openWeekAdd(classes.find(function(x){return x.id===\''+esc(c.id)+'\';}), \''+esc(d)+'\')">학생 넣기</button>'+
