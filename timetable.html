@@ -2141,6 +2141,7 @@ function syncWeekClassRosters(){
   });
 }
 function render(){
+  syncWeekClassRosters();   // 옮긴·보충 반의 명단을 원본 반과 맞춘 뒤 그린다 (지우면 학생이 안 따라온다)
   var host = $('sheet');
   var prevSw = host.querySelector('.scrollwrap');
   pendingScroll = (keepScroll && prevSw) ? { top: prevSw.scrollTop, left: prevSw.scrollLeft } : null;
@@ -4884,12 +4885,30 @@ function weekSelHtml(id, defWed){
     opts.join('') + '</select>';
 }
 /* 이 주만 있는 반 만들기 — 그 주의 그 요일 하루만 시간표에 나타난다 */
+/* 기존 반 고르기 — 병렬 반이 이름이 같아 요일·시간을 붙여 구분한다 */
+function wkSrcOptions(){
+  return classes.filter(function(c){ return !c.wk; })
+    .slice().sort(function(a,b){ return a.cls.localeCompare(b.cls,'ko') || (mins(a.start)-mins(b.start)); })
+    .map(function(c){
+      return '<option value="'+esc(c.id)+'">'+esc(c.cls)+' · '+esc(c.day)+' '+esc(c.start)+
+             (c.teacher ? ' · '+esc(c.teacher)+'T' : '')+' ('+c.students.length+'명)</option>';
+    }).join('');
+}
 function openAddWeekClass(){
   var dates = weekDates();
   var defDay = weekZoomDay || weekListDay || todayDay();
   openModal(
     '<h3>이 주만 반 추가</h3>'+
     '<p class="mdesc">고른 요일 하루만 생기는 반이에요. 정규 시간표와 다른 주차에는 나타나지 않아요.</p>'+
+    '<label style="font-size:.8rem;color:var(--ink-soft);">어느 반 수업인가요?</label>'+
+    '<select id="nc-src" onchange="wkAddSrcChange()" style="font:inherit;font-size:.92rem;border:1.5px solid var(--line);border-radius:10px;padding:8px 10px;width:100%;margin-top:6px;">'+
+      '<option value="">새 반 만들기 — 학생은 따로 넣어요</option>'+ wkSrcOptions() +'</select>'+
+    '<div id="nc-srcopt" style="display:none;margin-top:8px;">'+
+      '<p class="mdesc hint-x" style="margin:0 0 6px;"><b>이 반 학생 전원이 그대로 따라와요.</b> 전체 시간표에서 학생을 넣거나 빼면 이 수업에도 바로 반영됩니다.</p>'+
+      '<label style="font-size:.8rem;color:var(--ink-soft);display:block;">원래 수업은 어떻게 할까요?</label>'+
+      '<label style="display:block;font-size:.9rem;margin-top:6px;"><input type="radio" name="nc-mode" value="extra" checked> 원래 수업도 그대로 — 이번만 한 번 더 (보충)</label>'+
+      '<label style="display:block;font-size:.9rem;margin-top:4px;"><input type="radio" name="nc-mode" value="move"> 원래 수업은 이 주에 안 함 — 시간만 옮김</label>'+
+    '</div>'+
     classFormHtml('')+
     '<label style="font-size:.8rem;color:var(--ink-soft);display:block;margin-top:8px;">사유 메모 (선택)</label>'+
     '<textarea id="nc-reason" placeholder="예: 시험 대비 보충, 휴일 보강"></textarea>'+
@@ -4898,6 +4917,22 @@ function openAddWeekClass(){
     '<button class="primary" onclick="submitAddWeekClass()">이 주만 만들기</button></div>'
   );
   if ($('nc-day')) $('nc-day').value = defDay;
+}
+/* 원본 반을 고르면 이름·시간·담당·위치를 그 반 값으로 채운다 (반이름은 잠금 — 같은 반 수업이므로) */
+function wkAddSrcChange(){
+  var id = $('nc-src') ? $('nc-src').value : '';
+  var c = id ? classes.find(function(x){ return x.id === id; }) : null;
+  if ($('nc-srcopt')) $('nc-srcopt').style.display = c ? '' : 'none';
+  var nm = $('nc-cls');
+  if (!c){
+    if (nm){ nm.readOnly = false; nm.style.background = ''; nm.value = ''; }
+    return;
+  }
+  if ($('nc-start')) $('nc-start').value = c.start;
+  if ($('nc-end')) $('nc-end').value = c.end;
+  if ($('nc-loc')) $('nc-loc').value = c.loc || '';
+  if ($('nc-teacher')) $('nc-teacher').value = c.teacher || '';
+  if (nm){ nm.value = c.cls; nm.readOnly = true; nm.style.background = 'var(--icon-bg)'; }
 }
 function submitAddWeekClass(){
   var d = $('nc-day').value, st = $('nc-start').value, en = $('nc-end').value;
@@ -4908,6 +4943,30 @@ function submitAddWeekClass(){
   if (en0 <= st0) en0 += 12*60;
   if (en0 > 22*60){ $('nc-err').textContent = '끝 시간이 시작보다 빨라요. (수업은 밤 10시까지)'; return; }
   var dstr = ymdOf(weekDates()[d]);
+  // 기존 반을 고른 경우 — 그 반의 복사본으로 열어 명단이 그대로 따라오게 한다
+  var srcId = $('nc-src') ? $('nc-src').value : '';
+  var src = srcId ? classes.find(function(x){ return x.id === srcId; }) : null;
+  if (src){
+    var modeEl = document.querySelector('input[name="nc-mode"]:checked');
+    var isMove = modeEl && modeEl.value === 'move';
+    var srcDate = ymdOf(weekDates()[src.day]);   // 원래 수업이 있는 이 주의 날짜
+    if (isMove && srcDate === dstr && st === src.start){
+      $('nc-err').textContent = '원래 수업과 같은 요일·시간이에요. 옮길 시간을 골라주세요.'; return;
+    }
+    closeModal();
+    post({ action: isMove ? 'timetableWeekClassMove' : 'timetableWeekClassExtra',
+           book:book, fromId:src.id, date:srcDate, newDate:dstr,
+           day:d, start:st, end:en, loc:loc, teacher:teacher, reason:reason },
+      '반을 만드는 중…', function(res){
+        if (res && res.result === 'success'){
+          setStatus(src.cls + ' — ' + wkDayLabel(dstr) + ' ' + st + '~' + en + ' 에 열었어요. 학생 ' +
+                    src.students.length + '명이 그대로 따라왔어요.' +
+                    (isMove ? ' 원래 수업(' + wkDayLabel(srcDate) + ')은 이 주에 열리지 않아요.' : ' 원래 수업도 그대로예요.'), 'ok');
+          load(true);
+        } else setStatus('반 추가 실패: ' + ((res && res.message) || '오류'), 'err');
+      });
+    return;
+  }
   closeModal();
   post({ action:'timetableWeekClass', book:book, date:dstr, day:d, start:st, end:en,
          loc:loc, teacher:teacher, cls:cls, reason:reason },
@@ -5118,6 +5177,7 @@ function openWeekClassManage(c, dstr){
     '<p class="mdesc hint-x">이 날 하루만 있는 반이에요. 정규 시간표와 다른 주차에는 나타나지 않아요.</p>'+
     '<div class="mbtns">'+
     '<button onclick="closeModal(); openWeekAdd(classes.find(function(x){return x.id===\''+esc(c.id)+'\';}), \''+esc(d)+'\')">학생 넣기</button>'+
+    '<button onclick="closeModal(); openWeekBulkAdd(classes.find(function(x){return x.id===\''+esc(c.id)+'\';}), \''+esc(d)+'\')">다른 반 학생 한꺼번에 넣기</button>'+
     '<button onclick="delWeekClass(\''+esc(c.id)+'\',\''+esc(c.cls)+'\')">'+
       ((wkMovedFrom(c.id) || {}).kind === '주간반이동' ? '원래 시간으로 되돌리기'
         : (wkMovedFrom(c.id) ? '이 보충 지우기' : '반 지우기'))+'</button>'+
@@ -5125,6 +5185,57 @@ function openWeekClassManage(c, dstr){
   );
 }
 
+/* 다른 반 학생을 한꺼번에 넣기 — 이미 만들어 둔 '이 주만' 반을 뒤늦게 채울 때
+ * (한 명씩 넣던 수고를 덜기 위해 — 2026-08-23 사용자 지적 "학생들이 따라오지 않아요") */
+function openWeekBulkAdd(c, dstr){
+  if (!c) return;
+  var d = dstr || c.wk || ymdOf(weekDates()[c.day]);
+  openModal(
+    '<h3>다른 반 학생 한꺼번에 넣기</h3>'+
+    '<p class="mdesc"><b>'+esc(c.cls)+'</b> — '+esc(wkDayLabel(d))+' 이 반에 넣어요.</p>'+
+    '<p class="mdesc hint-x">고른 반의 학생 전원이 이 날 하루만 이 반에 들어와요. 정규 명단·다른 주차는 그대로예요.</p>'+
+    '<label style="font-size:.8rem;color:var(--ink-soft);">어느 반 학생인가요?</label>'+
+    '<select id="wb-src" style="font:inherit;font-size:.92rem;border:1.5px solid var(--line);border-radius:10px;padding:8px 10px;width:100%;margin-top:6px;">'+
+      wkSrcOptions() +'</select>'+
+    '<label style="font-size:.8rem;color:var(--ink-soft);display:block;margin-top:8px;">사유 메모 (선택)</label>'+
+    '<textarea id="wb-reason" placeholder="예: 시험 대비 보충"></textarea>'+
+    '<p class="merr" id="wb-err"></p>'+
+    '<div class="mbtns"><button onclick="closeModal()">취소</button>'+
+    '<button class="primary" onclick="submitWeekBulkAdd(\''+esc(c.id)+'\',\''+esc(d)+'\')">전원 넣기</button></div>'
+  );
+}
+function submitWeekBulkAdd(cid, d){
+  var c = classes.find(function(x){ return x.id === cid; }); if (!c) return;
+  var srcId = $('wb-src') ? $('wb-src').value : '';
+  var src = srcId ? classes.find(function(x){ return x.id === srcId; }) : null;
+  if (!src){ $('wb-err').textContent = '반을 골라주세요.'; return; }
+  var reason = ($('wb-reason') ? $('wb-reason').value : '').trim();
+  // 이미 그 날 이 반에 들어와 있는 학생은 건너뛴다
+  var have = {};
+  c.students.forEach(function(nm){ have[plainName(nm)] = 1; });
+  weekOnce.forEach(function(o){
+    if (o.kind === '주간추가' && o.toId === cid && (o.date === d || o.ymd === d)) have[plainName(o.student)] = 1;
+  });
+  var list = src.students.filter(function(nm){ return !have[plainName(nm)]; });
+  if (!list.length){ $('wb-err').textContent = '넣을 학생이 없어요 (이미 다 들어와 있어요).'; return; }
+  if (!confirm(src.cls + ' 학생 ' + list.length + '명을 ' + wkDayLabel(d) + ' ' + c.cls + ' 에 넣을까요?')) return;
+  closeModal();
+  var okN = 0, failN = 0;
+  (function step(i){
+    if (i >= list.length){
+      setStatus(okN + '명을 ' + wkDayLabel(d) + ' ' + c.cls + ' 에 넣었어요.' +
+                (failN ? ' (' + failN + '명 실패 — 다시 시도해 주세요)' : ''), failN ? 'err' : 'ok');
+      load(true);
+      return;
+    }
+    setStatus('학생을 넣는 중… (' + (i + 1) + '/' + list.length + ')');
+    post({ action:'timetableWeekAdd', book:book, student:list[i], toId:cid, date:d, reason:reason },
+      '학생을 넣는 중… (' + (i + 1) + '/' + list.length + ')', function(res){
+        if (res && res.result === 'success') okN++; else failN++;
+        step(i + 1);
+      });
+  })(0);
+}
 /* 이 주만 학생 추가 — 명단 검색은 영구 추가와 같은 목록 사용 */
 function openWeekAdd(c, dstr){
   var d = dstr || ymdOf(weekDates()[c.day]);
