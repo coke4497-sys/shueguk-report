@@ -724,8 +724,8 @@
           </span>
           <!-- 주차별 = 그 주에만 적용되는 변경 -->
           <span class="eset-grp" id="eset-week">
-            <button id="e-wadd" onclick="setEdit('wadd')">이 주만 학생 추가</button>
-            <button id="e-wcls" onclick="openAddWeekClass()">이 주만 반 추가</button>
+            <button id="e-wadd" onclick="setEdit('wadd')">1회 학생 추가</button>
+            <button id="e-wcls" onclick="openAddWeekClass()">1회 보강</button>
           </span>
           <button onclick="chOpenFromBar()">변경사항</button>
         </span>
@@ -1920,7 +1920,7 @@ function setEdit(m){
   if (cur) cur.classList.add('on');
   setStatus(m === 'move' ? '이동할 반을 누르세요. 누른 뒤 옮길 빈 자리를 누르면 반 전체가 이동해요.'
           : m === 'add'  ? '학생을 추가할 반을 누르세요.'
-          : m === 'wadd' ? '이 주에만 학생을 넣을 반을 누르세요. 정규 명단과 다른 주차는 그대로예요.'
+          : m === 'wadd' ? '1회로 학생을 넣을 반을 누르세요. 그 날 하루만 들어와요.'
                          : '삭제할 반을 누르세요. (빈 반만 삭제할 수 있어요)');
 }
 function clearEdit(){
@@ -2004,7 +2004,7 @@ function renderTabs(){
   document.querySelector('.hint').innerHTML =
     (mode === 'today') ? '<b>여기서는 출석 체크만 합니다.</b> 학생 이름을 누르면 출석·지각·결석 창이 떠요. '
         + '<span class="hint-x">1회 이동은 주차별 시간표에서, 영구 이동은 전체 시간표에서 하세요.</span>'
-    : (mode === 'week') ? '<b>여기서 한 변경은 그 주에만 적용돼요.</b> 학생 이름을 누르면 그 날짜의 출석 창이 떠요 — 출석 수정, [이 주만 빼기], [다른 반으로 1회 이동]을 그 창에서 합니다. 편집 도구의 [이 주만 학생 추가]·[이 주만 반 추가]도 그 주에만 생겨요. '
+    : (mode === 'week') ? '<b>여기서 한 변경은 그 주에만 적용돼요.</b> 학생 이름을 누르면 그 날짜의 출석 창이 떠요 — 출석 수정, [1회 학생 빼기], [다른 반으로 1회 이동]을 그 창에서 합니다. 반 이름을 누르면 [1회 이동]으로 반 전체를 옮길 수 있고, 편집 도구의 [1회 학생 추가]·[1회 보강]도 그 주에만 생겨요. '
         + '<span class="hint-x">정규 명단·다른 주차·학생 개별 페이지는 그대로예요. 영구 변경은 전체 시간표에서 하세요.</span>'
     : (mode === 'att') ? '<b>기간·보기·정렬</b>을 골라 전체 학생의 주차별 출석을 한눈에 봐요. 학생 줄을 누르면 그 학생 상세 기록이 펼쳐져요. '
         + '<span class="hint-x">출석 체크는 오늘의 시간표에서 합니다.</span>'
@@ -2688,7 +2688,7 @@ function blockEl(c, forList){
       var t = classes.find(function(x){ return x.id===o.toId; });
       var md = o.ymd ? o.ymd.slice(5).replace(/^0/, '').replace('-0', '/').replace('-', '/') : '';
       awayOf[o.student.replace(/\(.*\)$/,'')] = { row: o.row, kind: o.kind || '1회', reason: o.reason,
-        label: (o.kind === '주간빼기') ? '이 주만 빠짐' : ((t ? labelOf(t) : '') + (md ? ' · ' + md + ' 보충' : '')) };
+        label: (o.kind === '주간빼기') ? '1회 빼기' : ((t ? labelOf(t) : '') + (md ? ' · ' + md + ' 보충' : '')) };
     });
     onceInToday().forEach(function(o){ if (o.toId === c.id) temps.push(o); });
   }
@@ -2719,13 +2719,13 @@ function blockEl(c, forList){
       if (a && a.status==='지각') tp.push('지각' + (a.memo ? ' — ' + a.memo : ''));
       else if (a && a.memo) tp.push(a.memo);
       else if (away) tp.push(awayOf[plain].kind === '주간빼기'
-        ? ('이 주만 빠짐' + (awayOf[plain].reason ? ' — ' + awayOf[plain].reason : ''))
+        ? ('1회 빼기' + (awayOf[plain].reason ? ' — ' + awayOf[plain].reason : ''))
         : ('이 주 1회 이동: ' + awayOf[plain].label));
       if (planOf[plain]) tp.push(planOf[plain]);
       return '<button data-att-cid="'+esc(c.id)+'" data-nm="'+esc(nm)+'" class="'+cls2+(away?' away':'')+(planOf[plain]?' plan-once':'')+'"'+
              (away ? ' data-away-row="'+awayOf[plain].row+'"' : '')+
              (tp.length ? ' title="'+esc(tp.join(' · '))+'"' : '')+'>'+
-             esc(plain)+(away ? (awayOf[plain].kind === '주간빼기' ? '<em>이 주 빠짐</em>' : '<em>1회↗</em>')
+             esc(plain)+(away ? (awayOf[plain].kind === '주간빼기' ? '<em>빠짐</em>' : '<em>1회↗</em>')
                                : (planOf[plain]?'<em style="color:#8AA0C8;">예약↗</em>':''))+'</button>';
     }).join('');
     chips += temps.sort(function(a,b){ return a.student.localeCompare(b.student,'ko'); }).map(function(o){
@@ -2733,9 +2733,9 @@ function blockEl(c, forList){
       var cls2 = a ? (a.status==='출석'?'at-ok':a.status==='지각'?'at-late':'at-abs') : 'once';
       var wk = (o.kind === '주간추가');
       return '<button data-att-cid="'+esc(c.id)+'" data-nm="'+esc(o.student)+'" data-once-row="'+o.row+'" class="'+cls2+'" title="'+
-             (wk ? '이 주만 추가' : '1회 이동') + (o.reason ? ' · 사유: '+esc(o.reason) : '')+
+             (wk ? '1회 학생 추가' : '1회 이동') + (o.reason ? ' · 사유: '+esc(o.reason) : '')+
              ((a&&a.status==='지각')?' / 지각'+(a.memo?' — '+esc(a.memo):''):((a&&a.memo)?' / '+esc(a.memo):''))+'">'+
-             esc(o.student)+(wk ? ' · 이 주' : ' · 1회')+'</button>';
+             esc(o.student)+(wk ? ' · 추가' : ' · 1회')+'</button>';
     }).join('');
     chips += keptAttendNames(c, sorted, temps).map(function(nm){
       return keptChip(c, nm, attend[attKey(c.id, nm)]);
@@ -2768,7 +2768,7 @@ function blockEl(c, forList){
   var meta = esc(c.start)+'~'+esc(c.end)+
              (forList ? ' · '+esc(c.teacher)+'T'+(c.loc ? ' · '+esc(c.loc) : '') : '')+
              ' · '+cntLabel;
-  b.innerHTML = '<div class="bt"><span class="nm">'+esc(c.cls)+(c.wk ? ' <em class="wkflag">이 주만</em>' : '')+'</span>'+
+  b.innerHTML = '<div class="bt"><span class="nm">'+esc(c.cls)+(c.wk ? ' <em class="wkflag">1회</em>' : '')+'</span>'+
                 '<small>'+meta+'</small></div>'+
                 btnRow +
                 '<div class="stus">'+chips+'</div>';
@@ -3028,21 +3028,21 @@ function weekBlockEl(c, dstr, forList){
     if (a && a.status==='지각') tp.push('지각' + (a.memo ? ' — ' + a.memo : ''));
     else if (a && a.memo) tp.push(a.memo);
     else if (away) tp.push(awayOf[plain].kind === '주간빼기'
-      ? ('이 주만 빠짐' + (awayOf[plain].reason ? ' — ' + awayOf[plain].reason : ''))
+      ? ('1회 빼기' + (awayOf[plain].reason ? ' — ' + awayOf[plain].reason : ''))
       : ('이 주 1회 이동: ' + awayOf[plain].label));
     return '<button data-nm="'+esc(nm)+'" class="'+cls2+(away?' away':'')+'"'+
            (away ? ' data-away-row="'+awayOf[plain].row+'"' : '')+
            (tp.length ? ' title="'+esc(tp.join(' · '))+'"' : '')+'>'+
-           esc(plain)+(away ? (awayOf[plain].kind === '주간빼기' ? '<em>이 주 빠짐</em>' : '<em>1회↗</em>') : '')+'</button>';
+           esc(plain)+(away ? (awayOf[plain].kind === '주간빼기' ? '<em>빠짐</em>' : '<em>1회↗</em>') : '')+'</button>';
   }).join('');
   chips += temps.sort(function(a,b){ return a.student.localeCompare(b.student,'ko'); }).map(function(o){
     var a = weekAttend[wkAttKey(dstr, c.id, o.student)];
     var cls2 = a ? (a.status==='출석'?'at-ok':a.status==='지각'?'at-late':'at-abs') : 'once';
     var wk = (o.kind === '주간추가');
     return '<button data-nm="'+esc(o.student)+'" data-once-row="'+o.row+'" class="'+cls2+'" title="'+
-           (wk ? '이 주만 추가' : '1회 이동') + (o.reason ? ' · 사유: '+esc(o.reason) : '')+
+           (wk ? '1회 학생 추가' : '1회 이동') + (o.reason ? ' · 사유: '+esc(o.reason) : '')+
            ((a&&a.status==='지각')?' / 지각'+(a.memo?' — '+esc(a.memo):''):((a&&a.memo)?' / '+esc(a.memo):''))+'">'+
-           esc(o.student)+(wk ? ' · 이 주' : ' · 1회')+'</button>';
+           esc(o.student)+(wk ? ' · 추가' : ' · 1회')+'</button>';
   }).join('');
   chips += keptAttendNames(c, c.students, temps, dstr).map(function(nm){
     return keptChip(c, nm, weekAttend[wkAttKey(dstr, c.id, nm)]);
@@ -3051,7 +3051,7 @@ function weekBlockEl(c, dstr, forList){
   var meta = esc(c.start)+'~'+esc(c.end)+
              (forList ? ' · '+esc(c.teacher)+'T'+(c.loc ? ' · '+esc(c.loc) : '') : '')+
              ' · '+countLabel(c, awayOf, temps);
-  b.innerHTML = '<div class="bt"><span class="nm">'+esc(c.cls)+(c.wk ? ' <em class="wkflag">이 주만</em>' : '')+'</span>'+
+  b.innerHTML = '<div class="bt"><span class="nm">'+esc(c.cls)+(c.wk ? ' <em class="wkflag">1회</em>' : '')+'</span>'+
                 '<small>'+meta+'</small></div>'+
                 '<div class="stus">'+chips+'</div>';
   b.addEventListener('click', function(e){ onWeekClick(e, c, dstr); });
@@ -3519,8 +3519,8 @@ function onWeekClick(e, c, dstr){
   }
   var chip = e.target.closest('button[data-nm]');
   if (!chip){
-    if (c.wk) openWeekClassManage(c, dstr);   // 이 주만 있는 반 — 학생 넣기·지우기
-    else openWeekClassMenu(c, dstr);          // 보통 반 — 이 주만 시간 옮기기·학생 넣기
+    if (c.wk) openWeekClassManage(c, dstr);   // 1회로 만든 반 — 학생 넣기·지우기
+    else openWeekClassMenu(c, dstr);          // 보통 반 — 1회 이동·1회 학생 추가
     return;
   }
   var nm = chip.getAttribute('data-nm');
@@ -4396,7 +4396,7 @@ function openAttend(c, nm, dateStr){
     (cur ? '<button onclick="submitAttend(\''+esc(c.id)+'\',\''+esc(nm)+'\',\'\')">기록 지우기</button>' : '')+
     // 그 주만 바꾸는 일은 주차별에서만 — 오늘의 시간표는 출석 체크 전용 (2026-08-23 사용자 확정)
     (mode === 'week'
-      ? '<button onclick="openWeekRemove(\''+esc(c.id)+'\',\''+esc(nm)+'\',\''+esc(attDate)+'\')">이 주만 빼기</button>'+
+      ? '<button onclick="openWeekRemove(\''+esc(c.id)+'\',\''+esc(nm)+'\',\''+esc(attDate)+'\')">1회 학생 빼기</button>'+
         '<button onclick="startOnceMoveById(\''+esc(c.id)+'\',\''+esc(nm)+'\')">다른 반으로 1회 이동</button>'
       : '')+
     '<button onclick="openNoteEdit(\''+esc(nm)+'\')">특이사항</button>'+
@@ -4532,19 +4532,19 @@ function wkDayLabel(dstr){
   var d = new Date(+dstr.slice(0,4), +dstr.slice(5,7)-1, +dstr.slice(8,10));
   return mdOf(d) + ' (' + ['일','월','화','수','목','금','토'][d.getDay()] + ')';
 }
-/* 이 주만 있는 반 만들기 — 그 주의 그 요일 하루만 시간표에 나타난다 */
+/* 1회 보강 — 그 주의 그 요일 하루만 시간표에 나타나는 반 */
 function openAddWeekClass(){
   var dates = weekDates();
   var defDay = weekZoomDay || weekListDay || todayDay();
   openModal(
-    '<h3>이 주만 반 추가</h3>'+
+    '<h3>1회 보강</h3>'+
     '<p class="mdesc">고른 요일 하루만 생기는 반이에요. 정규 시간표와 다른 주차에는 나타나지 않아요.</p>'+
     classFormHtml('')+
     '<label style="font-size:.8rem;color:var(--ink-soft);display:block;margin-top:8px;">사유 메모 (선택)</label>'+
     '<textarea id="nc-reason" placeholder="예: 시험 대비 보충, 휴일 보강"></textarea>'+
     '<p class="merr" id="nc-err"></p>'+
     '<div class="mbtns"><button onclick="closeModal()">취소</button>'+
-    '<button class="primary" onclick="submitAddWeekClass()">이 주만 만들기</button></div>'
+    '<button class="primary" onclick="submitAddWeekClass()">1회 보강 만들기</button></div>'
   );
   if ($('nc-day')) $('nc-day').value = defDay;
 }
@@ -4562,16 +4562,16 @@ function submitAddWeekClass(){
          loc:loc, teacher:teacher, cls:cls, reason:reason },
     '반을 만드는 중…', function(res){
       if (res && res.result === 'success'){
-        setStatus(cls + ' — ' + wkDayLabel(dstr) + ' 하루만 만들었어요. [이 주만 학생 추가]로 학생을 넣어주세요.', 'ok');
+        setStatus(cls + ' — ' + wkDayLabel(dstr) + ' 하루만 만들었어요. [1회 학생 추가]로 학생을 넣어주세요.', 'ok');
         load(true);
       } else setStatus('반 추가 실패: ' + ((res && res.message) || '오류'), 'err');
     });
 }
 function delWeekClass(cid, cls){
-  if (!confirm(cls + '\n\n이 주만 있는 이 반을 지울까요?')) return;
+  if (!confirm(cls + '\n\n1회로 만든 이 반을 지울까요?')) return;
   closeModal();
   post({ action:'timetableWeekClassDel', book:book, classId:cid, cls:cls }, '지우는 중…', function(res){
-    if (res && res.result === 'success'){ setStatus('이 주만 있던 반을 지웠어요.', 'ok'); load(true); }
+    if (res && res.result === 'success'){ setStatus('1회로 만든 반을 지웠어요.', 'ok'); load(true); }
     else setStatus('삭제 실패: ' + ((res && res.message) || '오류'), 'err');
   });
 }
@@ -4585,8 +4585,8 @@ function openWeekClassMenu(c, dstr){
     (c.teacher ? ' · '+esc(c.teacher)+'T' : '')+(c.loc ? ' · '+esc(c.loc) : '')+' · '+c.students.length+'명</p>'+
     '<p class="mdesc hint-x">정규 시간표와 다른 주차는 그대로예요.</p>'+
     '<div class="mbtns">'+
-    '<button onclick="closeModal(); openWeekClassMove(classes.find(function(x){return x.id===\''+esc(c.id)+'\';}), \''+esc(d)+'\')">이 주만 시간 옮기기</button>'+
-    '<button onclick="closeModal(); openWeekAdd(classes.find(function(x){return x.id===\''+esc(c.id)+'\';}), \''+esc(d)+'\')">이 주만 학생 넣기</button>'+
+    '<button onclick="closeModal(); openWeekClassMove(classes.find(function(x){return x.id===\''+esc(c.id)+'\';}), \''+esc(d)+'\')">1회 이동</button>'+
+    '<button onclick="closeModal(); openWeekAdd(classes.find(function(x){return x.id===\''+esc(c.id)+'\';}), \''+esc(d)+'\')">1회 학생 추가</button>'+
     '<button onclick="closeModal()">닫기</button></div>'
   );
 }
@@ -4595,7 +4595,7 @@ function openWeekClassMove(c, dstr){
   if (!c) return;
   var d = dstr || ymdOf(weekDates()[c.day]);
   openModal(
-    '<h3>이 주만 시간 옮기기</h3>'+
+    '<h3>1회 이동 — 반 전체</h3>'+
     '<p class="mdesc"><b>'+esc(c.cls)+'</b> ('+c.students.length+'명)<br>'+
     '지금: '+esc(wkDayLabel(d))+' '+esc(c.start)+'~'+esc(c.end)+
     (c.teacher ? ' · '+esc(c.teacher)+'T' : '')+(c.loc ? ' · '+esc(c.loc) : '')+'</p>'+
@@ -4605,7 +4605,7 @@ function openWeekClassMove(c, dstr){
     '<textarea id="nc-reason" placeholder="예: 학교 행사로 하루 당김, 공휴일 보강"></textarea>'+
     '<p class="merr" id="nc-err"></p>'+
     '<div class="mbtns"><button onclick="closeModal()">취소</button>'+
-    '<button class="primary" onclick="submitWeekClassMove(\''+esc(c.id)+'\',\''+esc(d)+'\')">이 주만 옮기기</button></div>'
+    '<button class="primary" onclick="submitWeekClassMove(\''+esc(c.id)+'\',\''+esc(d)+'\')">1회 이동</button></div>'
   );
   // 지금 값으로 채워 두기 — 바꿀 칸만 고치면 된다
   if ($('nc-day')) $('nc-day').value = c.day;
@@ -4633,17 +4633,17 @@ function submitWeekClassMove(cid, d){
          day:day, start:st, end:en, loc:loc, teacher:teacher, reason:reason },
     '옮기는 중…', function(res){
       if (res && res.result === 'success'){
-        setStatus(c.cls + ' — ' + wkDayLabel(nd) + ' ' + st + '~' + en + ' 으로 이 주만 옮겼어요.', 'ok');
+        setStatus(c.cls + ' — ' + wkDayLabel(nd) + ' ' + st + '~' + en + ' 으로 1회 이동했어요.', 'ok');
         load(true);
       } else setStatus('이동 실패: ' + ((res && res.message) || '오류'), 'err');
     });
 }
 
-/* 이 주만 있는 반 — 학생 넣기·반 지우기 */
+/* 1회로 만든 반(보강·반 전체 이동) — 학생 넣기·지우기 */
 function openWeekClassManage(c, dstr){
   var d = dstr || c.wk;
   openModal(
-    '<h3>이 주만 있는 반</h3>'+
+    '<h3>1회 보강 · 1회 이동 온 반</h3>'+
     '<p class="mdesc"><b>'+esc(c.cls)+'</b><br>'+esc(wkDayLabel(d))+' '+esc(c.start)+'~'+esc(c.end)+
     (c.teacher ? ' · '+esc(c.teacher)+'T' : '')+(c.loc ? ' · '+esc(c.loc) : '')+'</p>'+
     '<p class="mdesc hint-x">이 날 하루만 있는 반이에요. 정규 시간표와 다른 주차에는 나타나지 않아요.</p>'+
@@ -4654,11 +4654,11 @@ function openWeekClassManage(c, dstr){
   );
 }
 
-/* 이 주만 학생 추가 — 명단 검색은 영구 추가와 같은 목록 사용 */
+/* 1회 학생 추가 — 명단 검색은 영구 추가와 같은 목록 사용 */
 function openWeekAdd(c, dstr){
   var d = dstr || ymdOf(weekDates()[c.day]);
   openModal(
-    '<h3>이 주만 학생 추가</h3>'+
+    '<h3>1회 학생 추가</h3>'+
     '<p class="mdesc"><b>'+esc(labelOf(c))+'</b><br>'+esc(wkDayLabel(d))+' 하루만 이 반에 들어와요.</p>'+
     '<p class="mdesc hint-x">정규 명단과 다른 주차는 그대로예요. 아주 옮기려면 전체 시간표에서 하세요.</p>'+
     '<input type="text" id="add-q" placeholder="이름 검색" autocomplete="off">'+
@@ -4679,17 +4679,17 @@ function openWeekAdd(c, dstr){
       });
   });
 }
-/* 이 주만 빼기 — 그 날짜의 출석 창에서 부른다 */
+/* 1회 학생 빼기 — 그 날짜의 출석 창에서 부른다 */
 function openWeekRemove(cid, nm, dstr){
   var c = classes.find(function(x){ return x.id === cid; }); if (!c) return;
   var d = dstr || attDate || ymdOf(weekDates()[c.day]);
   openModal(
-    '<h3>이 주만 빼기</h3>'+
+    '<h3>1회 학생 빼기</h3>'+
     '<p class="mdesc"><b>'+esc(plainName(nm))+'</b> — '+esc(labelOf(c))+'<br>'+esc(wkDayLabel(d))+' 하루만 이 반에서 빠져요.</p>'+
     '<p class="mdesc hint-x">정규 명단·다른 주차·학생 개별 페이지는 그대로예요. 아주 빼려면 전체 시간표에서 하세요.</p>'+
     '<textarea id="wr-reason" placeholder="사유 메모 (선택) — 예: 학교 행사, 가족 여행"></textarea>'+
     '<div class="mbtns"><button onclick="closeModal()">취소</button>'+
-    '<button class="primary" onclick="submitWeekRemove(\''+esc(cid)+'\',\''+esc(nm)+'\',\''+esc(d)+'\')">이 주만 빼기</button></div>'
+    '<button class="primary" onclick="submitWeekRemove(\''+esc(cid)+'\',\''+esc(nm)+'\',\''+esc(d)+'\')">1회 학생 빼기</button></div>'
   );
 }
 function submitWeekRemove(cid, nm, d){
@@ -4846,7 +4846,7 @@ function openWeekManage(c, nm, o, dir){
       '<p class="merr" id="att-err"></p>'
     : '';
   openModal(
-    '<h3>'+(added ? '이 주만 추가된 학생' : '이 주만 빠진 학생')+'</h3>'+
+    '<h3>'+(added ? '1회 추가된 학생' : '1회 빼기 한 학생')+'</h3>'+
     '<p class="mdesc"><b>'+esc(plainName(nm))+'</b> — '+esc(labelOf(c))+'<br>'+esc(wkDayLabel(o.date || attDate))+' 하루만 적용돼요.</p>'+
     (o.reason ? '<p class="mdesc" style="background:var(--icon-bg);border-radius:9px;padding:8px 10px;">사유 — '+esc(o.reason)+'</p>' : '')+
     attSec +
@@ -4926,7 +4926,7 @@ function openAdd(c){
 }
 
 /* 반 추가 */
-/* 반 만들기 폼 조각 — 영구 반 추가와 '이 주만 반 추가'가 함께 쓴다 */
+/* 반 만들기 폼 조각 — 영구 '반 추가'와 '1회 보강'이 함께 쓴다 */
 function classFormHtml(dayFixed){
   // 시작: 오전 10:00 ~ 밤 9:30 / 끝: 오전 10:30 ~ 밤 10:00
   // ("10:00" 끝은 밤 10시 — 끝이 시작보다 이르면 오후로 해석(minsEnd)하므로 정상 표시·저장)
