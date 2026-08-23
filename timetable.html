@@ -796,11 +796,14 @@
   }
   /* 그 주에만 적용되는 명단 변경 — 1회 이동과 같은 기록(tt_log)에 종류만 다르게 쌓는다.
    * '주간추가'(to만) · '주간빼기'(from만) — 정규 명단은 건드리지 않으므로 다른 주차엔 영향이 없다. */
-  var WEEK_KINDS = ['1회', '주간추가', '주간빼기'];
+  var WEEK_KINDS = ['1회', '주간추가', '주간빼기', '주간반이동'];
   function fetchOnceLogs(baseYmd, kinds){
-    // 기록일 기준 (기준일-68일) 이후의 기록 — 적용일 필터는 호출부에서
+    // 기록일 기준 (기준일-68일) 이후의 기록 — 적용일 필터는 호출부에서.
+    // 기준일이 오늘보다 뒤면(먼 미래 주차를 볼 때) 오늘을 기준으로 잡는다 —
+    // 기록은 '오늘' 쌓이므로 미래 날짜를 기준으로 자르면 방금 넣은 예약이 안 보인다.
+    var base = (String(baseYmd || '') > tYmd()) ? tYmd() : baseYmd;
     var ks = (kinds || ['1회']).map(q).join(',');
-    return sbGet('/tt_log?kind=in.(' + ks + ')&at=gte.' + q(isoBefore(baseYmd, 68)) + '&order=at');
+    return sbGet('/tt_log?kind=in.(' + ks + ')&at=gte.' + q(isoBefore(base, 68)) + '&order=at');
   }
   function onceListShape(g){
     return { row: g.id, kind: g.kind, date: atYmd(g.at), ymd: applyYmdOf(g), student: g.student,
@@ -1221,10 +1224,44 @@
             });
         });
     },
+    /* 반 전체를 그 주만 다른 시간으로 — 원본 반은 그대로 두고,
+     * 같은 이름·명단의 복사본을 새 시간에 만든 뒤 원본은 그 날짜에만 숨긴다. */
+    timetableWeekClassMove: function(b){
+      var book = bookOf(b.book), from = classRow(book, b.fromId);
+      var d = String(b.date || '').trim();          // 원래 수업이 있던 그 주의 날짜
+      var nd = String(b.newDate || '').trim() || d; // 옮겨 갈 날짜
+      if (!from || !d) return Promise.resolve({ result:'error', message:'옮길 반과 날짜가 필요합니다.' });
+      var pre = 'w' + nd.slice(2).replace(/-/g, '');
+      return sbGet('/tt_classes?book=eq.' + q(book) + '&class_id=like.' + q(pre + '*') + '&select=class_id')
+        .then(function(rows){
+          var used = {};
+          (rows || []).forEach(function(r){ used[r.class_id.slice(pre.length)] = 1; });
+          var sfx = '';
+          for (var i = 0; i < 26; i++){ var ch = String.fromCharCode(97 + i); if (!used[ch]){ sfx = ch; break; } }
+          if (!sfx) return { result:'error', message:'그 날짜에는 더 만들 수 없어요.' };
+          var id = pre + sfx;
+          return sbWrite('POST', '/tt_classes', { book: book, class_id: id, day: String(b.day || from.day),
+                           start_time: String(b.start || from.start), end_time: String(b.end || from.end),
+                           location: String(b.loc || from.loc), teacher: String(b.teacher || from.teacher),
+                           name: from.cls, roster: (from.students || []).join(' ') })
+            .then(function(){
+              return insertLog({ kind:'주간반이동', student:'', book: book,
+                                 from_class_id: b.fromId, from_class: from.cls,
+                                 to_class_id: id, to_class: from.cls,
+                                 reason: String(b.reason || ''), apply_date: d })
+                .then(function(){ return ok({ id: id, date: d, newDate: nd }); });
+            });
+        });
+    },
     timetableWeekClassDel: function(b){
       var book = bookOf(b.book), id = String(b.classId || '').trim();
       if (!/^w\d{6}/.test(id)) return Promise.resolve({ result:'error', message:'그 주에만 있는 반이 아니에요.' });
       return sbWrite('DELETE', '/tt_classes?book=eq.' + q(book) + '&class_id=eq.' + q(id))
+        .then(function(){
+          // 반 전체 1회 이동으로 만들어진 복사본이면, 원본을 다시 보이게 기록도 지운다
+          return sbWrite('DELETE', '/tt_log?kind=eq.' + q('주간반이동') + '&to_class_id=eq.' + q(id))
+            .catch(function(){});
+        })
         .then(function(){
           return insertLog({ kind:'주간반삭제', student:'', book: book, from_class_id: id,
                              from_class: String(b.cls || ''), apply_date: weekClassYmd(id) })
@@ -3232,8 +3269,27 @@ function wkLocLabel(l){ return l === '민트초코' ? '민초센터' : (l || '�
 function wkLocRank(l){ var i = WK_LOC_ORDER.indexOf(l); return i < 0 ? 99 : i; }
 /* 확대 화면용 정렬 — 센터 → 강사(TEACHER_ORDER) → 시간 순 (강사별 묶음 표시, 2026-08-22 사용자 요청) */
 function wkTeacherRank(t){ var i = TEACHER_ORDER.indexOf(t); return i < 0 ? 99 : i; }
-/* 주간 전용 반('w…')은 그 날짜에만 — 날짜를 안 주면(전체 시간표) 숨긴다 */
-function wkVisible(c, dstr){ return !c.wk || (!!dstr && c.wk === dstr); }
+/* 주간 전용 반('w…')은 그 날짜에만 — 날짜를 안 주면(전체 시간표) 숨긴다.
+ * 반 전체를 그 주만 옮긴 경우, 원본 반은 그 날짜에만 숨긴다. */
+/* 이 반이 '반 전체 1회 이동'으로 만들어진 복사본인지 */
+function wkMovedFrom(cid){
+  var src = (mode === 'week') ? weekOnce : onceMoves;
+  for (var i = 0; i < src.length; i++) if (src[i].kind === '주간반이동' && src[i].toId === cid) return src[i];
+  return null;
+}
+function wkMovedAway(cid, dstr){
+  if (!dstr) return null;
+  var src = (mode === 'week') ? weekOnce : onceMoves;
+  for (var i = 0; i < src.length; i++){
+    var o = src[i];
+    if (o.kind === '주간반이동' && o.fromId === cid && (o.date === dstr || o.ymd === dstr)) return o;
+  }
+  return null;
+}
+function wkVisible(c, dstr){
+  if (c.wk) return !!dstr && c.wk === dstr;
+  return !wkMovedAway(c.id, dstr);
+}
 function wkZoomSorted(dname, dstr){
   return classes.filter(function(c){ return c.day === dname && wkVisible(c, dstr); })
     .sort(function(a,b){ return (wkLocRank(a.loc)-wkLocRank(b.loc)) || (wkTeacherRank(a.teacher)-wkTeacherRank(b.teacher)) ||
@@ -3359,6 +3415,7 @@ function onWeekClick(e, c, dstr){
   var chip = e.target.closest('button[data-nm]');
   if (!chip){
     if (c.wk) openWeekClassManage(c, dstr);   // 이 주만 있는 반 — 학생 넣기·지우기
+    else openWeekClassMenu(c, dstr);          // 보통 반 — 이 주만 시간 옮기기·학생 넣기
     return;
   }
   var nm = chip.getAttribute('data-nm');
@@ -4321,6 +4378,69 @@ function delWeekClass(cid, cls){
   });
 }
 
+/* 보통 반을 주차별에서 눌렀을 때 — 그 주에만 하는 일 */
+function openWeekClassMenu(c, dstr){
+  var d = dstr || ymdOf(weekDates()[c.day]);
+  openModal(
+    '<h3>이 주만 바꾸기</h3>'+
+    '<p class="mdesc"><b>'+esc(c.cls)+'</b><br>'+esc(wkDayLabel(d))+' '+esc(c.start)+'~'+esc(c.end)+
+    (c.teacher ? ' · '+esc(c.teacher)+'T' : '')+(c.loc ? ' · '+esc(c.loc) : '')+' · '+c.students.length+'명</p>'+
+    '<p class="mdesc hint-x">정규 시간표와 다른 주차는 그대로예요.</p>'+
+    '<div class="mbtns">'+
+    '<button onclick="closeModal(); openWeekClassMove(classes.find(function(x){return x.id===\''+esc(c.id)+'\';}), \''+esc(d)+'\')">이 주만 시간 옮기기</button>'+
+    '<button onclick="closeModal(); openWeekAdd(classes.find(function(x){return x.id===\''+esc(c.id)+'\';}), \''+esc(d)+'\')">이 주만 학생 넣기</button>'+
+    '<button onclick="closeModal()">닫기</button></div>'
+  );
+}
+/* 반 전체를 그 주만 다른 시간으로 */
+function openWeekClassMove(c, dstr){
+  if (!c) return;
+  var d = dstr || ymdOf(weekDates()[c.day]);
+  openModal(
+    '<h3>이 주만 시간 옮기기</h3>'+
+    '<p class="mdesc"><b>'+esc(c.cls)+'</b> ('+c.students.length+'명)<br>'+
+    '지금: '+esc(wkDayLabel(d))+' '+esc(c.start)+'~'+esc(c.end)+
+    (c.teacher ? ' · '+esc(c.teacher)+'T' : '')+(c.loc ? ' · '+esc(c.loc) : '')+'</p>'+
+    '<p class="mdesc hint-x">이 주에만 옮겨져요. 원래 시간의 수업은 이 주에만 사라지고, 다음 주부터는 그대로예요.</p>'+
+    classFormHtml('')+
+    '<label style="font-size:.8rem;color:var(--ink-soft);display:block;margin-top:8px;">사유 메모 (선택)</label>'+
+    '<textarea id="nc-reason" placeholder="예: 학교 행사로 하루 당김, 공휴일 보강"></textarea>'+
+    '<p class="merr" id="nc-err"></p>'+
+    '<div class="mbtns"><button onclick="closeModal()">취소</button>'+
+    '<button class="primary" onclick="submitWeekClassMove(\''+esc(c.id)+'\',\''+esc(d)+'\')">이 주만 옮기기</button></div>'
+  );
+  // 지금 값으로 채워 두기 — 바꿀 칸만 고치면 된다
+  if ($('nc-day')) $('nc-day').value = c.day;
+  if ($('nc-start')) $('nc-start').value = c.start;
+  if ($('nc-end')) $('nc-end').value = c.end;
+  if ($('nc-loc')) $('nc-loc').value = c.loc || '';
+  if ($('nc-teacher')) $('nc-teacher').value = c.teacher || '';
+  var nm = $('nc-cls');
+  if (nm){ nm.value = c.cls; nm.readOnly = true; nm.style.background = 'var(--icon-bg)'; }
+}
+function submitWeekClassMove(cid, d){
+  var c = classes.find(function(x){ return x.id === cid; }); if (!c) return;
+  var day = $('nc-day').value, st = $('nc-start').value, en = $('nc-end').value;
+  var loc = $('nc-loc').value.trim(), teacher = $('nc-teacher').value.trim();
+  var reason = ($('nc-reason') ? $('nc-reason').value : '').trim();
+  var st0 = mins(st), en0 = mins(en);
+  if (en0 <= st0) en0 += 12*60;
+  if (en0 > 22*60){ $('nc-err').textContent = '끝 시간이 시작보다 빨라요. (수업은 밤 10시까지)'; return; }
+  var nd = ymdOf(weekDates()[day]);
+  if (day === c.day && st === c.start && en === c.end && loc === (c.loc||'') && teacher === (c.teacher||'')){
+    $('nc-err').textContent = '바뀐 것이 없어요. 요일이나 시간을 고쳐주세요.'; return;
+  }
+  closeModal();
+  post({ action:'timetableWeekClassMove', book:book, fromId:cid, date:d, newDate:nd,
+         day:day, start:st, end:en, loc:loc, teacher:teacher, reason:reason },
+    '옮기는 중…', function(res){
+      if (res && res.result === 'success'){
+        setStatus(c.cls + ' — ' + wkDayLabel(nd) + ' ' + st + '~' + en + ' 으로 이 주만 옮겼어요.', 'ok');
+        load(true);
+      } else setStatus('이동 실패: ' + ((res && res.message) || '오류'), 'err');
+    });
+}
+
 /* 이 주만 있는 반 — 학생 넣기·반 지우기 */
 function openWeekClassManage(c, dstr){
   var d = dstr || c.wk;
@@ -4331,7 +4451,7 @@ function openWeekClassManage(c, dstr){
     '<p class="mdesc hint-x">이 날 하루만 있는 반이에요. 정규 시간표와 다른 주차에는 나타나지 않아요.</p>'+
     '<div class="mbtns">'+
     '<button onclick="closeModal(); openWeekAdd(classes.find(function(x){return x.id===\''+esc(c.id)+'\';}), \''+esc(d)+'\')">학생 넣기</button>'+
-    '<button onclick="delWeekClass(\''+esc(c.id)+'\',\''+esc(c.cls)+'\')">반 지우기</button>'+
+    '<button onclick="delWeekClass(\''+esc(c.id)+'\',\''+esc(c.cls)+'\')">'+(wkMovedFrom(c.id) ? '원래 시간으로 되돌리기' : '반 지우기')+'</button>'+
     '<button onclick="closeModal()">닫기</button></div>'
   );
 }
@@ -5029,7 +5149,7 @@ function chRender(){
   if (!chRows.length){ list.innerHTML = '<span class="ch-none">아직 기록이 없어요.</span>'; return; }
   if (!rows.length){ list.innerHTML = '<span class="ch-none">찾는 기록이 없어요.</span>'; return; }
   list.innerHTML = rows.map(function(g){
-    var kcls = (g.kind === '1회' || g.kind === '주간추가' || g.kind === '주간반추가') ? ' once'
+    var kcls = (g.kind === '1회' || g.kind === '주간추가' || g.kind === '주간반추가' || g.kind === '주간반이동') ? ' once'
              : (g.kind === '빼기' || g.kind === '주간빼기' || g.kind === '주간반삭제') ? ' minus' : '';
     var path = g.fromCls && g.toCls ? esc(g.fromCls) + ' → ' + esc(g.toCls)
              : (g.toCls ? '→ ' + esc(g.toCls) : esc(g.fromCls) + ' 에서');
