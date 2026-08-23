@@ -83,10 +83,11 @@
   /* 시간표 연동 배지 (그 주 출석·1회 이동) */
   .ttinfo{display:flex;flex-wrap:wrap;gap:4px;margin:6px 0 2px;}
   .tt-chip{font-size:.7rem;border-radius:999px;padding:2px 8px;border:1px solid transparent;}
-  .tt-chip.ok{background:#E3EFE7;color:#2F5D51;border-color:#BAD6C6;}
-  .tt-chip.late{background:#F5E7C6;color:#6B5423;border-color:#DFC98F;}
-  .tt-chip.abs{background:#F0DBD8;color:#8A3B33;border-color:#DEB6B0;}
-  .tt-chip.once{background:#EFE9F7;color:#5E4A78;border-color:#D4C5E8;}
+  /* 출석 연하늘 · 지각 연노랑 · 결석 연핑크 · 1회 이동 연보라 — 시간표 학생 칩과 같은 색 (2026-08-23 사용자 확정) */
+  .tt-chip.ok{background:#DCEBF8;color:#2C5F86;border-color:#B6D4EA;}
+  .tt-chip.late{background:#F5E7BE;color:#7A6222;border-color:#DFC98F;}
+  .tt-chip.abs{background:#F4D9DE;color:#9E3D50;border-color:#E2B8C1;}
+  .tt-chip.once{background:#E7DDF3;color:#5D4A86;border-color:#D4C5E8;}
 
   /* 학생 카드 */
   .list{display:flex;flex-direction:column;gap:10px;margin-top:8px;}
