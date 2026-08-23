@@ -421,8 +421,9 @@
   .modal label.radio small{display:block;color:var(--ink-soft);font-size:.76rem;}
   .modal textarea,.modal input[type=text]{width:100%;font:inherit;font-size:.92rem;border:1.5px solid var(--line);border-radius:10px;padding:8px 10px;margin-top:6px;}
   .modal textarea{min-height:54px;resize:vertical;}
-  .modal .mbtns{display:flex;gap:8px;margin-top:14px;}
-  .modal .mbtns button{flex:1;font:inherit;font-size:.95rem;border-radius:10px;padding:10px;cursor:pointer;border:1px solid var(--line);background:#fff;color:var(--ink);}
+  .modal .mbtns{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;}
+  /* 버튼이 넷까지 늘어나도 글자가 중간에서 잘리지 않게 (2026-08-23) */
+  .modal .mbtns button{flex:1 1 auto;min-width:96px;white-space:nowrap;font:inherit;font-size:.95rem;border-radius:10px;padding:10px 12px;cursor:pointer;border:1px solid var(--line);background:#fff;color:var(--ink);}
   .modal .mbtns .primary{background:var(--btn);border-color:var(--btn);color:#fff;}
   .modal .merr{color:#B4574E;font-size:.8rem;min-height:1.1em;margin:6px 0 0;}
   .modal .subnote{font-size:.76rem;color:var(--ink-soft);margin-top:8px;}
@@ -1745,8 +1746,8 @@ function renderTabs(){
   document.querySelector('.hint').innerHTML =
     (mode === 'today') ? '<b>여기서는 출석 체크만 합니다.</b> 학생 이름을 누르면 출석·지각·결석 창이 떠요. '
         + '<span class="hint-x">1회 이동은 주차별 시간표에서, 영구 이동은 전체 시간표에서 하세요.</span>'
-    : (mode === 'week') ? '<b>여기서는 1회 이동만 기록합니다.</b> 학생 이름을 누르면 이동 모드가 켜지고, 옮겨 갈 반을 누르면 그 반 요일의 날짜로 기록돼요 (다음주로 넘겨 미리 예약도 가능). '
-        + '<span class="hint-x">출석 체크는 오늘의 시간표에서, 영구 이동은 전체 시간표에서 하세요.</span>'
+    : (mode === 'week') ? '<b>여기서는 지난 날짜 출석 수정과 1회 이동을 합니다.</b> 학생 이름을 누르면 그 날짜의 출석 창이 떠요. 같은 창의 [다른 반으로 1회 이동]을 누른 뒤 옮겨 갈 반을 누르면 그 반 요일의 날짜로 기록돼요 (다음주로 넘겨 미리 예약도 가능). '
+        + '<span class="hint-x">오늘 출석은 오늘의 시간표에서, 영구 이동은 전체 시간표에서 하세요.</span>'
     : (mode === 'cal') ? '주마다 [정규]/[내신]을 골라 그 주에 쓸 시간표를 정하세요. 오늘의 시간표·주차별이 자동으로 따라갑니다. 날짜 칸을 누르면 메모를 적을 수 있어요.'
     : (mode === 'exs') ? '학교별 시험 기간을 등록하고, 시험 시간표가 나오면 막대 아래 날짜 칸을 눌러 학년·과목을 넣으세요. 넣은 과목은 슈국 캘린더 날짜 칸에도 표시돼요.'
     : '<b>여기서는 영구 이동만 합니다.</b> 요일 머리글이나 반 카드를 누르면 그 요일이 크게 열려요. 학생 이름을 누르면 이동 모드가 켜지고, 옮길 반(다른 요일 포함)을 누르면 영구 이동됩니다. '
@@ -3194,8 +3195,9 @@ function onWeekClick(e, c, dstr){
   // 이미 1회 이동한 학생은 사유 확인·수정·취소
   if (chip.hasAttribute('data-once-row')){ openOnceManage(c, nm, parseInt(chip.getAttribute('data-once-row'),10), 'in', dstr); return; }
   if (chip.hasAttribute('data-away-row')){ openOnceManage(c, nm, parseInt(chip.getAttribute('data-away-row'),10), 'out', dstr); return; }
-  // 그 밖의 학생을 누르면 1회 이동 시작 (주차별은 1회 이동 전용 화면)
-  startOnceMove(c, nm);
+  // 그 밖의 학생을 누르면 그 날짜의 출석 창 — 지난 날짜 출석도 여기서 고친다
+  // (창 안의 [다른 반으로 1회 이동] 버튼으로 1회 이동 시작)
+  openAttend(c, nm, dstr);
 }
 
 /* ── 서버 요청 공통 ── */
@@ -3966,6 +3968,8 @@ function openAttend(c, nm, dateStr){
     '<p class="merr" id="att-err"></p>'+
     '<div class="mbtns">'+
     (cur ? '<button onclick="submitAttend(\''+esc(c.id)+'\',\''+esc(nm)+'\',\'\')">기록 지우기</button>' : '')+
+    // 1회 이동은 주차별에서만 — 오늘의 시간표는 출석 체크 전용 (2026-08-23 사용자 확정)
+    (mode === 'week' ? '<button onclick="startOnceMoveById(\''+esc(c.id)+'\',\''+esc(nm)+'\')">다른 반으로 1회 이동</button>' : '')+
     '<button onclick="openNoteEdit(\''+esc(nm)+'\')">특이사항</button>'+
     '<button onclick="closeModal()">닫기</button></div>'
   );
@@ -4093,6 +4097,11 @@ function openNoteFromMove(){
 }
 
 /* ── 1회 이동 (오늘의 시간표 전용) ── */
+/* 출석 창의 [다른 반으로 1회 이동] — 반 id로 찾아 이동 모드 시작 */
+function startOnceMoveById(cid, nm){
+  var c = classes.find(function(x){ return x.id === cid; });
+  if (c) startOnceMove(c, nm);
+}
 function startOnceMove(c, nm){
   closeModal();
   moving = { name: nm, fromId: c.id, fromLabel: labelOf(c), once: true };
@@ -4149,8 +4158,8 @@ function openOnceManage(c, nm, row, dir, dateStr){
   var to = classes.find(function(x){ return x.id===o.toId; });
   var cur = attendAt(attDate, c.id, nm);
   var isToday = (mode === 'today');
-  // 오늘 = 출석 체크만, 주차별 = 1회 이동 관리만 (2026-08-23 사용자 확정)
-  var attSec = (dir === 'in' && isToday)
+  // 이동해 온 학생의 출석은 오늘·주차별 모두에서 — 주차별은 지난 날짜 수정용 (2026-08-23)
+  var attSec = (dir === 'in')
     ? '<div class="att-btns">'+
       '<button class="pick-ok'+(cur&&cur.status==='출석'?' on':'')+'" onclick="submitAttend(\''+esc(c.id)+'\',\''+esc(nm)+'\',\'출석\')">출석</button>'+
       '<button class="pick-late'+(cur&&cur.status==='지각'?' on':'')+'" onclick="submitAttend(\''+esc(c.id)+'\',\''+esc(nm)+'\',\'지각\')">지각</button>'+
@@ -4160,7 +4169,7 @@ function openOnceManage(c, nm, row, dir, dateStr){
       '<p class="merr" id="att-err"></p>'
     : '';
   openModal(
-    '<h3>'+(isToday ? '출석 체크 — 1회 이동 학생' : '1회 이동 학생')+'</h3>'+
+    '<h3>'+(dir === 'in' ? '출석 체크 — 1회 이동 학생' : '1회 이동 학생')+'</h3>'+
     '<p class="mdesc"><b>'+esc(plainName(nm))+'</b> ('+esc(o.date)+')<br>'+
     esc(from ? labelOf(from) : '') + ' → ' + esc(to ? labelOf(to) : '') +
     (dir==='out' ? '<br>이 날은 이동한 반에서 수업해요. 출석 체크도 그 반에서 해주세요.' : '')+'</p>'+
