@@ -996,7 +996,7 @@
     if (!('apply_date' in rec)) rec.apply_date = null;
     return sbWrite('POST', '/tt_log', rec);
   }
-  function resyncClasses(book){
+  function resyncClasses(book, syncNames){
     // 구조 변경 뒤 자기 치유 — 기존 백엔드의 최신 명단으로 수파베이스를 맞춘다
     rawFetch(ENDPOINT + '?action=timetableList&pw=' + q(typeof pw !== 'undefined' ? pw : 'sh') + '&book=' + q(book) + '&t=' + Date.now())
       .then(function(r){ return r.json(); })
@@ -1011,9 +1011,45 @@
                        { 'Prefer': 'resolution=merge-duplicates,return=minimal' })
           .then(function(){
             return sbWrite('DELETE', '/tt_classes?book=eq.' + q(book) + '&class_id=not.in.(' + keep + ')');
-          });
+          })
+          .then(function(){ return syncStudentSlots(book, syncNames, d.classes); });
       })
       .catch(function(e){ console.warn('명단 재동기화 실패', e); });
+  }
+  /* 반이름 → 학생정보 반영 종류 (백엔드 ttKind_와 같은 규칙) */
+  function slotKind(cls){
+    var c = String(cls || '').trim();
+    if (/논술/.test(c)) return '';
+    if (/가$/.test(c)) return 'A';
+    if (/나$/.test(c)) return 'B';
+    return 'S';
+  }
+  /* 학생 개별 페이지(s.html)가 읽는 students 미러의 정규가/나를 바뀐 시간표에 맞춘다.
+   * 시트 '학생정보'는 기존 백엔드가 갱신하지만 미러는 밤 점검 때까지 옛 반이 남아
+   * 학생 페이지 시간표가 하루 뒤처졌다 (2026-08-23 사용자 지적).
+   * 내신은 원래 학생정보에 반영하지 않는 규칙이라 건드리지 않는다. */
+  function syncStudentSlots(book, names, fresh){
+    if (bookOf(book) !== '정규' || !names || !names.length) return Promise.resolve();
+    var list = fresh || [];
+    var seen = {}, jobs = [];
+    names.forEach(function(nm){
+      var p = plain(nm);
+      if (!p || seen[p]) return;
+      seen[p] = true;
+      var slot = { A: '', B: '' };
+      list.forEach(function(c){
+        var k = slotKind(c.cls);
+        if (!k) return;
+        var has = (c.students || []).some(function(s){ return plain(s) === p; });
+        if (has) slot[k === 'B' ? 'B' : 'A'] = String(c.day || '') + String(c.start || '');
+      });
+      // 이름이 유일할 때만 — 백엔드 ttRosterSet_와 같은 안전 규칙
+      jobs.push(sbGet('/students?name=eq.' + q(p) + '&select=id').then(function(rows){
+        if (!rows || rows.length !== 1) return;
+        return sbWrite('PATCH', '/students?id=eq.' + rows[0].id, { class_a: slot.A, class_b: slot.B });
+      }));
+    });
+    return Promise.all(jobs).catch(function(e){ console.warn('학생 시간표 미러 실패', e); });
   }
   function findLegacyOnceRow(g, cb){
     // 시트 쪽 같은 1회 이동의 행 번호 찾기(취소·수정 미러용, 실패해도 무방)
@@ -1215,8 +1251,9 @@
             to_class_id: b.toId, to_class: classLabel(toC), reason: String(b.reason || '') }));
           mirror = Promise.all(jobs);
         }
-        return mirror.then(function(){ resyncClasses(book); return res; },
-                           function(e){ console.warn('이동 미러 실패', e); resyncClasses(book); return res; });
+        var names = (b.moveType === 'once') ? null : [res.moved || b.student];
+        return mirror.then(function(){ resyncClasses(book, names); return res; },
+                           function(e){ console.warn('이동 미러 실패', e); resyncClasses(book, names); return res; });
       });
     },
     timetableAdd: function(b){
@@ -1226,8 +1263,8 @@
         var jobs = [];
         if (toC) jobs.push(setRoster(book, b.toId, toC.students.concat([added])));
         jobs.push(insertLog({ kind:'추가', student: added, book: book, to_class_id: b.toId, to_class: classLabel(toC) }));
-        return Promise.all(jobs).then(function(){ resyncClasses(book); return res; },
-                                      function(e){ console.warn('추가 미러 실패', e); resyncClasses(book); return res; });
+        return Promise.all(jobs).then(function(){ resyncClasses(book, [added]); return res; },
+                                      function(e){ console.warn('추가 미러 실패', e); resyncClasses(book, [added]); return res; });
       });
     },
     timetableRemove: function(b){
@@ -1238,8 +1275,8 @@
         if (fromC) jobs.push(setRoster(book, b.fromId, fromC.students.filter(function(nm){ return plain(nm) !== plain(removed); })));
         jobs.push(insertLog({ kind:'빼기', student: removed, book: book, from_class_id: b.fromId, from_class: classLabel(fromC),
                               reason: String(b.reason || '') }));
-        return Promise.all(jobs).then(function(){ resyncClasses(book); return res; },
-                                      function(e){ console.warn('빼기 미러 실패', e); resyncClasses(book); return res; });
+        return Promise.all(jobs).then(function(){ resyncClasses(book, [removed]); return res; },
+                                      function(e){ console.warn('빼기 미러 실패', e); resyncClasses(book, [removed]); return res; });
       });
     },
     timetableRenameStudent: function(b){
@@ -1285,14 +1322,16 @@
       });
     },
     timetableMoveClass: function(b){
+      var wasC = classRow(bookOf(b.book), b.classId);
+      var members = wasC ? wasC.students.slice() : [];   // 반이 옮겨지면 소속 학생 전원의 시간이 바뀐다
       return legacyPost(b).then(function(res){
         if (!res || res.result !== 'success') return res;
         var book = bookOf(b.book);
         return sbWrite('PATCH', '/tt_classes?book=eq.' + q(book) + '&class_id=eq.' + q(b.classId),
                        { day: b.day, start_time: b.start, end_time: b.end,
                          location: String(b.loc || ''), teacher: String(b.teacher || '') })
-          .then(function(){ resyncClasses(book); return res; },
-                function(e){ console.warn('반 이동 미러 실패', e); resyncClasses(book); return res; });
+          .then(function(){ resyncClasses(book, members); return res; },
+                function(e){ console.warn('반 이동 미러 실패', e); resyncClasses(book, members); return res; });
       });
     }
   };
