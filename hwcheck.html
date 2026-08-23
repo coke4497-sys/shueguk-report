@@ -495,9 +495,9 @@ var urlCid = new URLSearchParams(location.search).get('cid') || '';
 function cidMembers_(){
   if (!urlCid || !ttClasses || !ttClasses[urlCid] || !ttClasses[urlCid].students) return null;
   var m = {};
-  ttClasses[urlCid].students.forEach(function(nm){ m[String(nm).replace(/\(.*\)$/,'')] = true; });
+  ttClasses[urlCid].students.forEach(function(nm){ m[String(nm).replace(/^\s*\([^)]*\)\s*/,'').replace(/\(.*\)$/,'')] = true; });
   // 이번 주 1회 이동으로 이 반에 온 학생도 포함
-  (wkOnce || []).forEach(function(o){ if (o.toId === urlCid) m[String(o.student || '').replace(/\(.*\)$/,'')] = true; });
+  (wkOnce || []).forEach(function(o){ if (o.toId === urlCid) m[String(o.student || '').replace(/^\s*\([^)]*\)\s*/,'').replace(/\(.*\)$/,'')] = true; });
   return m;
 }
 function updateCidNote(){
@@ -596,7 +596,7 @@ var plansTimerSet = false;
 /* ── 시간표 연동: 그 주의 출석·1회 이동을 학생 카드에 표시 ── */
 var ttClasses = null;   // 반ID -> {slot('금5:30'), label}
 var wkAtt = [], wkOnce = [];
-function plainNm(n){ return String(n || '').replace(/\(.*\)$/, '').trim(); }
+function plainNm(n){ return String(n || '').replace(/^\s*\([^)]*\)\s*/, '').replace(/\(.*\)$/, '').trim(); }
 function ttInfoHtml(s){
   if (!ttClasses) return '';
   var pn = plainNm(s.name);
@@ -664,7 +664,7 @@ function pickVal(id){ return $(id) ? $(id).value : ''; }
 function matchBase_(s, upTo){
   // upTo 단계 '직전'까지의 선택으로 학생을 거른다 (선택지 목록 생성을 위해)
   var mem = cidMembers_();   // 시간표에서 반 단위로 넘어온 경우 — 그 반 명단만
-  if (mem && !mem[String(s.name || '').replace(/\(.*\)$/,'')]) return false;
+  if (mem && !mem[String(s.name || '').replace(/^\s*\([^)]*\)\s*/,'').replace(/\(.*\)$/,'')]) return false;
   var g = pickVal('f-grade'), sc = pickVal('f-school'), tc = pickVal('f-teacher'), sl = pickVal('f-slot');
   if (upTo !== 'grade'   && g  && s.grade !== g) return false;
   if (upTo === 'grade') return true;
