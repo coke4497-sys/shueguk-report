@@ -549,6 +549,17 @@
   .ch-ico{font:inherit;border:1px solid var(--line);background:#fff;border-radius:8px;
     padding:4px 6px;cursor:pointer;color:var(--ink-soft);display:inline-flex;}
   .ch-ico:hover{border-color:var(--btn);color:var(--accent);}
+  /* 패널 안 검색 — 이름·반·사유로 좁혀 보기 (2026-08-23 사용자 요청) */
+  .ch-find{padding:8px 11px;border-bottom:1px solid var(--line-soft);}
+  .ch-find .searchbox{position:relative;display:flex;align-items:center;width:100%;}
+  .ch-find .searchbox svg{position:absolute;left:10px;width:14px;height:14px;color:var(--accent);pointer-events:none;}
+  .ch-find input{font:inherit;font-size:.82rem;width:100%;padding:6px 10px 6px 30px;
+    border:1.5px solid var(--line);border-radius:9px;color:var(--ink);}
+  .ch-find input:focus{outline:none;border-color:var(--accent);}
+  .ch-kinds{display:flex;gap:5px;flex-wrap:wrap;margin-top:6px;}
+  .ch-kinds button{font:inherit;font-size:.75rem;border:1.5px solid var(--line);background:#fff;
+    border-radius:8px;padding:2px 9px;cursor:pointer;color:var(--ink-soft);}
+  .ch-kinds button.on{border-color:var(--accent);color:var(--accent);background:var(--icon-bg);font-weight:700;}
   .ch-list{flex:1;overflow-y:auto;padding:9px 11px 12px;}
   .ch-item{border-bottom:1px dashed var(--line-soft);padding:7px 1px;font-size:.82rem;}
   .ch-item:last-child{border-bottom:none;}
@@ -675,6 +686,13 @@
       <button class="ch-ico" onclick="chToggle()" aria-label="접기">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
       </button>
+    </div>
+    <div class="ch-find">
+      <span class="searchbox">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+        <input id="ch-q" placeholder="이름 · 반 · 사유 검색" autocomplete="off" oninput="chRender()">
+      </span>
+      <div class="ch-kinds" id="ch-kinds"></div>
     </div>
     <div class="ch-list" id="ch-list"><span class="ch-none">불러오는 중…</span></div>
   </div>
@@ -4570,6 +4588,7 @@ function openMakeupMove(i){
  * 옛 [이동 기록] 모달을 대체한다. 이동·빼기·추가 기록이 저장될 때마다 자동 갱신. */
 var chOpen = sessionStorage.getItem('tt_chopen') === '1';
 var chLoaded = false, chBusy = false;
+var chRows = [], chKind = '';   // 받아 둔 기록 전체 + 고른 종류(빈 값이면 전체)
 
 function chSync(){
   var el = $('chpanel'); if (!el) return;
@@ -4604,20 +4623,53 @@ function chLoad(force){
       chBusy = false;
       if (!d || d.result !== 'success'){ list.innerHTML = '<span class="ch-none">불러오지 못했어요.</span>'; return; }
       chLoaded = true;
-      var log = d.log || [];
-      var sub = $('ch-sub'); if (sub) sub.textContent = log.length ? log.length + '건' : '';
-      if (!log.length){ list.innerHTML = '<span class="ch-none">아직 기록이 없어요.</span>'; return; }
-      list.innerHTML = log.map(function(g){
-        var kcls = g.kind === '1회' ? ' once' : (g.kind === '빼기' ? ' minus' : '');
-        var path = g.fromCls && g.toCls ? esc(g.fromCls) + ' → ' + esc(g.toCls)
-                 : (g.toCls ? '→ ' + esc(g.toCls) : esc(g.fromCls) + ' 에서');
-        return '<div class="ch-item"><span class="lk' + kcls + '">' + esc(g.kind) + '</span>' +
-               (g.book === '내신' ? '<span class="lk" style="background:#8A6FA8;">내신</span>' : '') +
-               '<b>' + esc(g.student) + '</b> ' + path +
-               '<div class="lr">' + esc(g.date) + (g.reason ? ' · ' + esc(g.reason) : '') + '</div></div>';
-      }).join('');
+      chRows = d.log || [];
+      chKinds();
+      chRender();
     })
     .catch(function(){ chBusy = false; list.innerHTML = '<span class="ch-none">불러오지 못했어요.</span>'; });
+}
+/* 종류 칩 — 실제 기록에 있는 종류(이동·1회·빼기·추가·표기수정)만 만든다 */
+function chKinds(){
+  var box = $('ch-kinds'); if (!box) return;
+  var ks = [], seen = {};
+  chRows.forEach(function(g){
+    var k = String(g.kind || '').trim();
+    if (k && !seen[k]){ seen[k] = true; ks.push(k); }
+  });
+  if (chKind && !seen[chKind]) chKind = '';
+  box.innerHTML = ks.length < 2 ? '' : [''].concat(ks).map(function(k){
+    return '<button type="button"' + (k === chKind ? ' class="on"' : '') +
+           ' onclick="chSetKind(' + JSON.stringify(k).replace(/"/g, '&quot;') + ')">' +
+           (k ? esc(k) : '전체') + '</button>';
+  }).join('');
+}
+function chSetKind(k){ chKind = (chKind === k) ? '' : k; chKinds(); chRender(); }
+/* 검색어(이름·반·사유·날짜)와 종류로 걸러 다시 그린다 */
+function chRender(){
+  var list = $('ch-list'); if (!list || !chLoaded) return;
+  var q = ($('ch-q') ? $('ch-q').value : '').trim().toLowerCase();
+  var rows = chRows.filter(function(g){
+    if (chKind && String(g.kind || '').trim() !== chKind) return false;
+    if (!q) return true;
+    return [g.student, g.fromCls, g.toCls, g.reason, g.date, g.kind, g.book]
+      .map(function(x){ return String(x == null ? '' : x).toLowerCase(); })
+      .join(' ').indexOf(q) >= 0;
+  });
+  var sub = $('ch-sub');
+  if (sub) sub.textContent = !chRows.length ? ''
+    : (rows.length < chRows.length ? rows.length + ' / ' + chRows.length + '건' : chRows.length + '건');
+  if (!chRows.length){ list.innerHTML = '<span class="ch-none">아직 기록이 없어요.</span>'; return; }
+  if (!rows.length){ list.innerHTML = '<span class="ch-none">찾는 기록이 없어요.</span>'; return; }
+  list.innerHTML = rows.map(function(g){
+    var kcls = g.kind === '1회' ? ' once' : (g.kind === '빼기' ? ' minus' : '');
+    var path = g.fromCls && g.toCls ? esc(g.fromCls) + ' → ' + esc(g.toCls)
+             : (g.toCls ? '→ ' + esc(g.toCls) : esc(g.fromCls) + ' 에서');
+    return '<div class="ch-item"><span class="lk' + kcls + '">' + esc(g.kind) + '</span>' +
+           (g.book === '내신' ? '<span class="lk" style="background:#8A6FA8;">내신</span>' : '') +
+           '<b>' + esc(g.student) + '</b> ' + path +
+           '<div class="lr">' + esc(g.date) + (g.reason ? ' · ' + esc(g.reason) : '') + '</div></div>';
+  }).join('');
 }
 
 /* ── 시작 ── */
