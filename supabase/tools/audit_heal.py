@@ -336,9 +336,12 @@ def fetch_clinic():
 ISSUES = []
 def report(line): ISSUES.append(line); print('  !', line)
 
-def sync_sheet_master(table, sheet_rows, keyf, valf, heal, id_field='id'):
-    """시트가 원본 — 수파베이스를 시트에 맞춘다."""
+def sync_sheet_master(table, sheet_rows, keyf, valf, heal, id_field='id', keep=None):
+    """시트가 원본 — 수파베이스를 시트에 맞춘다.
+    keep(row)=True 인 행은 '시트에 없어도 지우지 않는다' — 시트에 대응이 없는
+    수파베이스 전용 데이터(주간 전용 반 등)를 이 도구가 지우지 않게 하는 안전장치."""
     cur = sb_all(table)
+    if keep: cur = [r for r in cur if not keep(r)]
     curmap = {}
     for r in cur: curmap.setdefault(keyf(r), []).append(r)
     smap = {}
@@ -383,8 +386,11 @@ def main():
     print(f'[audit] {datetime.datetime.now().isoformat()} heal={heal}')
 
     print('· 시트가 원본인 표')
+    # 주간 전용 반(w+yyMMdd+글자 — '이 주만' 수업)은 시트에 대응 행이 없다.
+    # 페이지의 resyncClasses도 같은 이유로 정리 대상에서 뺀다(class_id=not.like.w*).
     sync_sheet_master('tt_classes', d['tt_classes'], lambda r: (r['book'], r['class_id']),
-        lambda r: (r['day'], r['start_time'], r['end_time'], r['location'], r['teacher'], r['name'], r['roster']), heal)
+        lambda r: (r['day'], r['start_time'], r['end_time'], r['location'], r['teacher'], r['name'], r['roster']), heal,
+        keep=lambda r: re.match(r'^w\d{6}', str(r.get('class_id') or '')) is not None)
     sync_sheet_master('tt_period', d['tt_period'], lambda r: r['week_wednesday'], lambda r: r['book'], heal, 'week_wednesday')
     sync_sheet_master('students', d['students'], lambda r: (r['student_id'], r['name']),
         lambda r: (r['school'], r['grade'], r['teacher'], r['memo'], r['class_a'], r['class_b'],
