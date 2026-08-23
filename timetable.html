@@ -1243,7 +1243,9 @@
           return sbWrite('POST', '/tt_classes', { book: book, class_id: id, day: String(b.day || from.day),
                            start_time: String(b.start || from.start), end_time: String(b.end || from.end),
                            location: String(b.loc || from.loc), teacher: String(b.teacher || from.teacher),
-                           name: from.cls, roster: (from.students || []).join(' ') })
+                           // 명단은 넣지 않는다 — 화면이 원본 반의 지금 명단을 그대로 따라간다
+                           // (베껴 두면 옮긴 뒤 정규 명단이 바뀌어도 안 따라와서, 2026-08-23 사용자 확정)
+                           name: from.cls, roster: '' })
             .then(function(){
               return insertLog({ kind:'주간반이동', student:'', book: book,
                                  from_class_id: b.fromId, from_class: from.cls,
@@ -1936,7 +1938,25 @@ function renderTabs(){
   document.querySelector('.searchbar').style.display = (mode === 'cal' || mode === 'exs') ? 'none' : '';
   document.querySelector('.legend').style.display = (mode === 'cal' || mode === 'exs') ? 'none' : '';
 }
+/* 반 전체를 그 주만 옮긴 반의 명단은 늘 원본 반과 같게 맞춘다.
+ * (옮길 때 베껴 두면 그 뒤 전체 시간표에서 학생을 넣거나 빼도 안 따라온다 —
+ *  2026-08-23 사용자 확정 "반 전체를 옮기는 경우 명단이 전체 시간표와 동일해야 해요") */
+function syncWeekClassRosters(){
+  var src = (onceMoves || []).concat(weekOnce || []);
+  var done = {};
+  src.forEach(function(o){
+    if (o.kind !== '주간반이동' || done[o.toId]) return;
+    done[o.toId] = 1;
+    var copy = null, from = null;
+    for (var i = 0; i < classes.length; i++){
+      if (classes[i].id === o.toId) copy = classes[i];
+      if (classes[i].id === o.fromId) from = classes[i];
+    }
+    if (copy && from) copy.students = from.students.slice();
+  });
+}
 function render(){
+  syncWeekClassRosters();
   var host = $('sheet');
   var prevSw = host.querySelector('.scrollwrap');
   pendingScroll = (keepScroll && prevSw) ? { top: prevSw.scrollTop, left: prevSw.scrollLeft } : null;
