@@ -524,6 +524,10 @@
   .hint b{color:var(--accent);}
   /* 그 주에만 있는 반 — 점선 테두리 + 작은 표시 (2026-08-23) */
   .blk.wkonly{border-style:dashed;border-width:1.5px;border-color:var(--btn);}
+  /* 이 주만 휴강 — 수업이 없는 날임을 한눈에 (되돌릴 수 있게 카드는 남긴다) */
+  .blk.wkoff{opacity:.62;border-style:dashed;border-width:1.5px;border-color:var(--btn);}
+  .blk.wkoff .bt .nm{text-decoration:line-through;text-decoration-thickness:1px;}
+  .blk.wkoff .wkflag{text-decoration:none;}
   .blk .wkflag{font-style:normal;font-size:.66rem;font-weight:700;color:var(--accent);
     background:var(--icon-bg);border-radius:5px;padding:0 5px;margin-left:4px;vertical-align:1px;}
   .eset-grp{display:inline-flex;gap:6px;flex-wrap:wrap;}
@@ -923,7 +927,7 @@
   }
   /* 그 주에만 적용되는 명단 변경 — 1회 이동과 같은 기록(tt_log)에 종류만 다르게 쌓는다.
    * '주간추가'(to만) · '주간빼기'(from만) — 정규 명단은 건드리지 않으므로 다른 주차엔 영향이 없다. */
-  var WEEK_KINDS = ['1회', '주간추가', '주간빼기', '주간반이동', '주간반보강'];
+  var WEEK_KINDS = ['1회', '주간추가', '주간빼기', '주간반이동', '주간반보강', '주간반휴강'];
   function fetchOnceLogs(baseYmd, kinds, days){
     // 기록일 기준 (기준일-days일, 기본 68일) 이후의 기록 — 적용일 필터는 호출부에서.
     // 기준일이 오늘보다 뒤면(먼 미래 주차를 볼 때) 오늘을 기준으로 잡는다 —
@@ -1402,6 +1406,25 @@
     timetableWeekClassMove: function(b){
       return weekClassCopy(b, '주간반이동');
     },
+    /* 보통 반을 그 주에만 없애기(휴강) — 반은 그대로 두고 그 날짜에만 숨긴다.
+     * 옮기기(주간반이동)에서 복사본만 안 만드는 형태 (2026-08-23 사용자 요청 "이 주만 삭제"). */
+    timetableWeekClassOff: function(b){
+      var book = bookOf(b.book), id = String(b.classId || '').trim();
+      var d = String(b.date || '').trim(), from = classRow(book, id);
+      if (!id || !d) return Promise.resolve({ result:'error', message:'반과 날짜가 필요합니다.' });
+      return insertLog({ kind:'주간반휴강', student:'', book: book,
+                         from_class_id: id, from_class: (from ? from.cls : String(b.cls || '')),
+                         reason: String(b.reason || ''), apply_date: d })
+        .then(function(){ return ok({ date: d }); });
+    },
+    /* 휴강 되돌리기 — 그 날짜의 휴강 기록을 지운다 */
+    timetableWeekClassOn: function(b){
+      var book = bookOf(b.book), id = String(b.classId || '').trim(), d = String(b.date || '').trim();
+      if (!id || !d) return Promise.resolve({ result:'error', message:'반과 날짜가 필요합니다.' });
+      return sbWrite('DELETE', '/tt_log?kind=eq.' + q('주간반휴강') + '&book=eq.' + q(book) +
+                     '&from_class_id=eq.' + q(id) + '&apply_date=eq.' + q(d))
+        .then(function(){ return ok({}); });
+    },
     timetableWeekClassDel: function(b){
       var book = bookOf(b.book), id = String(b.classId || '').trim();
       if (!/^w\d{6}/.test(id)) return Promise.resolve({ result:'error', message:'그 주에만 있는 반이 아니에요.' });
@@ -1690,13 +1713,21 @@ function thisWeekRange(){
   var sun = new Date(ws); sun.setDate(sun.getDate() + 4);
   return { from: ymdOf(mon), to: ymdOf(sun) };
 }
+/* 기록 중 '학생 한 명'에 대한 것만 (1회 이동·주간추가·주간빼기).
+ * 반 단위 기록(주간반이동·주간반보강 등)은 student가 비어 있고 from/to에 반ID만 있어서,
+ * 걸러내지 않으면 옮겨 간 반에 이름 없는 '· 1회' 칩이 생기고 인원수도 '5-1명'으로 어긋난다
+ * (2026-08-23 브라우저 테스트에서 발견). */
+var STUDENT_KINDS = { '1회':1, '주간추가':1, '주간빼기':1 };
+function isStudentLog(o){
+  return !!String(o && o.student || '').trim() && (!o.kind || STUDENT_KINDS[o.kind]);
+}
 function onceOutThisWeek(){
   var w = thisWeekRange(), t = todayStr();
-  return onceMoves.filter(function(o){ return !o.ymd ? true : (o.ymd >= w.from && o.ymd <= w.to); });
+  return onceMoves.filter(function(o){ return isStudentLog(o) && (!o.ymd ? true : (o.ymd >= w.from && o.ymd <= w.to)); });
 }
 function onceInToday(){
   var t = todayStr();
-  return onceMoves.filter(function(o){ return !o.ymd || o.ymd === t; });
+  return onceMoves.filter(function(o){ return isStudentLog(o) && (!o.ymd || o.ymd === t); });
 }
 function todayDay(){ return ['일','월','화','수','목','금','토'][new Date().getDay()]; }
 function weekStartOf(d){
@@ -2742,9 +2773,20 @@ function countLabel(c, awayOf, temps){
 function blockEl(c, forList){
   var b = document.createElement('div');
   var todayDrop = (mode==='today' && moving && moving.once) ? 'droppable ' : '';
+  var offToday = (mode === 'today') ? wkOffAt(c.id, todayStr()) : null;   // 오늘 휴강인 반
   b.className = 'blk ' + (mode==='today' ? todayDrop : 'droppable ') + colorOf(c.cls) +
-                (c.wk ? ' wkonly' : '') + (classMoving && classMoving.id===c.id ? ' moving-src' : '');
+                (c.wk ? ' wkonly' : '') + (offToday ? ' wkoff' : '') +
+                (classMoving && classMoving.id===c.id ? ' moving-src' : '');
   b.setAttribute('data-cid', c.id);
+  if (offToday){
+    // 오늘은 수업이 없는 반 — 출석 대상이 아니므로 학생 칩 없이 휴강만 알린다
+    b.innerHTML = '<div class="bt"><span class="nm">'+esc(c.cls)+' <em class="wkflag">오늘 휴강</em></span>'+
+                  '<small>'+esc(c.start)+'~'+esc(c.end)+
+                  (forList ? ' · '+esc(c.teacher)+'T'+(c.loc ? ' · '+esc(c.loc) : '') : '')+'</small></div>'+
+                  '<div class="stus"><span class="empty-note">오늘은 수업이 없어요'+
+                  (offToday.reason ? ' — '+esc(offToday.reason) : '')+'</span></div>';
+    return b;
+  }
   var awayOf = {};   // 이 반에서 1회 이동으로 빠진 학생 → {label, row}
   var temps = [];    // 이 반으로 1회 이동해 온 학생
   // 오늘 보기는 '오늘 적용되는' 이동만 반영 (미래 예약 이동은 그 날짜에 나타남).
@@ -3076,10 +3118,21 @@ function buildWeekList(){
 /* 주차별 반 카드 — 그리드·목록 공용 (그 날짜의 출석·1회 이동·보존 기록 칩 포함) */
 function weekBlockEl(c, dstr, forList){
   var b = document.createElement('div');
-  b.className = 'blk ' + colorOf(c.cls) + (c.wk ? ' wkonly' : '');
+  var off = wkOffAt(c.id, dstr);   // 이 주만 휴강
+  b.className = 'blk ' + colorOf(c.cls) + (c.wk ? ' wkonly' : '') + (off ? ' wkoff' : '');
   b.setAttribute('data-cid', c.id);
+  if (off){
+    b.innerHTML = '<div class="bt"><span class="nm">'+esc(c.cls)+' <em class="wkflag">이 주 휴강</em></span>'+
+                  '<small>'+esc(c.start)+'~'+esc(c.end)+
+                  (forList ? ' · '+esc(c.teacher)+'T'+(c.loc ? ' · '+esc(c.loc) : '') : '')+'</small></div>'+
+                  '<div class="stus"><span class="empty-note">이 주는 수업이 없어요'+
+                  (off.reason ? ' — '+esc(off.reason) : '')+'</span></div>';
+    b.addEventListener('click', function(){ openWeekClassOffManage(c, dstr, off); });
+    return b;
+  }
   var awayOf = {}, temps = [];
   weekOnce.forEach(function(o){
+    if (!isStudentLog(o)) return;   // 반 단위 기록(주간반이동·보강)은 학생 칩이 아니다
     if (o.fromId === c.id){
       var t = classes.find(function(x){ return x.id===o.toId; });
       awayOf[o.student.replace(/\(.*\)$/,'')] = { label: t ? labelOf(t) : '', row: o.row, kind: o.kind || '1회', reason: o.reason };
@@ -3463,8 +3516,19 @@ function wkMovedAway(cid, dstr){
   }
   return null;
 }
+/* 이 주만 휴강(수업 없음)으로 표시된 반 — 2026-08-23 사용자 요청 "이 반을 이 주만 삭제" */
+function wkOffAt(cid, dstr){
+  if (!dstr) return null;
+  var src = (mode === 'week') ? weekOnce : onceMoves;
+  for (var i = 0; i < src.length; i++){
+    var o = src[i];
+    if (o.kind === '주간반휴강' && o.fromId === cid && (o.date === dstr || o.ymd === dstr)) return o;
+  }
+  return null;
+}
 function wkVisible(c, dstr){
   if (c.wk) return !!dstr && c.wk === dstr;
+  // 휴강은 감추지 않고 '이 주 휴강' 카드로 남긴다 — 왜 수업이 없는지 보이고, 되돌릴 수 있다
   return !wkMovedAway(c.id, dstr);
 }
 function wkZoomSorted(dname, dstr){
@@ -3608,7 +3672,9 @@ function onWeekClick(e, c, dstr){
 var CH_ACTIONS = { timetableMove:1, timetableOnce:1, timetableOnceEdit:1, timetableOnceCancel:1,
                    timetableWeekAdd:1, timetableWeekRemove:1, timetableWeekCancel:1, timetableWeekClass:1,
                    timetableAdd:1, timetableRemove:1, timetableClassMove:1, timetableClassAdd:1,
-                   timetableClassDel:1, timetableRenameStudent:1 };
+                   timetableClassDel:1, timetableRenameStudent:1,
+                   timetableWeekClassMove:1, timetableWeekClassExtra:1, timetableWeekClassDel:1,
+                   timetableWeekClassOff:1, timetableWeekClassOn:1 };
 function chOpenFromBar(){
   if (!chOpen) chToggle();
   else chLoad(true);
@@ -4873,8 +4939,59 @@ function openWeekClassMenu(c, dstr){
     '<button onclick="closeModal(); openWeekClassMove(classes.find(function(x){return x.id===\''+esc(c.id)+'\';}), \''+esc(d)+'\')">이 주만 시간 옮기기</button>'+
     '<button onclick="closeModal(); openWeekClassExtra(classes.find(function(x){return x.id===\''+esc(c.id)+'\';}), \''+esc(d)+'\')">이 주만 보충 추가</button>'+
     '<button onclick="closeModal(); openWeekAdd(classes.find(function(x){return x.id===\''+esc(c.id)+'\';}), \''+esc(d)+'\')">이 주만 학생 넣기</button>'+
+    '<button onclick="closeModal(); openWeekClassOff(classes.find(function(x){return x.id===\''+esc(c.id)+'\';}), \''+esc(d)+'\')">이 주만 휴강</button>'+
     '<button onclick="closeModal()">닫기</button></div>'
   );
+}
+/* 이 주만 휴강 — 반은 그대로 두고 그 날짜에만 수업을 없앤다 (2026-08-23 사용자 요청) */
+function openWeekClassOff(c, dstr){
+  if (!c) return;
+  var d = dstr || ymdOf(weekDates()[c.day]);
+  openModal(
+    '<h3>이 주만 휴강</h3>'+
+    '<p class="mdesc"><b>'+esc(c.cls)+'</b> ('+c.students.length+'명)<br>'+
+    esc(wkDayLabel(d))+' '+esc(c.start)+'~'+esc(c.end)+
+    (c.teacher ? ' · '+esc(c.teacher)+'T' : '')+(c.loc ? ' · '+esc(c.loc) : '')+'</p>'+
+    '<p class="mdesc hint-x">이 날 수업만 없어져요. 정규 시간표와 다른 주차는 그대로이고, 언제든 되돌릴 수 있어요.</p>'+
+    '<textarea id="wo-reason" placeholder="사유 메모 (선택) — 예: 공휴일, 학교 행사"></textarea>'+
+    '<div class="mbtns"><button onclick="closeModal()">취소</button>'+
+    '<button class="primary" onclick="submitWeekClassOff(\''+esc(c.id)+'\',\''+esc(d)+'\')">이 주만 휴강</button></div>'
+  );
+}
+function submitWeekClassOff(cid, d){
+  var c = classes.find(function(x){ return x.id === cid; }); if (!c) return;
+  var reason = ($('wo-reason') ? $('wo-reason').value : '').trim();
+  closeModal();
+  post({ action:'timetableWeekClassOff', book:book, classId:cid, cls:c.cls, date:d, reason:reason },
+    '휴강으로 바꾸는 중…', function(res){
+      if (res && res.result === 'success'){
+        setStatus(c.cls + ' — ' + wkDayLabel(d) + ' 수업을 이 주만 휴강으로 했어요.', 'ok');
+        load(true);
+      } else setStatus('휴강 처리 실패: ' + ((res && res.message) || '오류'), 'err');
+    });
+}
+/* 휴강 카드 클릭 — 되돌리기 */
+function openWeekClassOffManage(c, dstr, off){
+  openModal(
+    '<h3>이 주 휴강</h3>'+
+    '<p class="mdesc"><b>'+esc(c.cls)+'</b><br>'+esc(wkDayLabel(dstr))+' '+esc(c.start)+'~'+esc(c.end)+
+    (c.teacher ? ' · '+esc(c.teacher)+'T' : '')+(c.loc ? ' · '+esc(c.loc) : '')+'</p>'+
+    ((off && off.reason) ? '<p class="mdesc hint-x">사유: '+esc(off.reason)+'</p>' : '')+
+    '<p class="mdesc hint-x">이 날만 수업이 없어요. 다른 주차는 그대로예요.</p>'+
+    '<div class="mbtns"><button onclick="closeModal()">닫기</button>'+
+    '<button class="primary" onclick="submitWeekClassOn(\''+esc(c.id)+'\',\''+esc(dstr)+'\')">휴강 되돌리기</button></div>'
+  );
+}
+function submitWeekClassOn(cid, d){
+  var c = classes.find(function(x){ return x.id === cid; });
+  closeModal();
+  post({ action:'timetableWeekClassOn', book:book, classId:cid, date:d },
+    '되돌리는 중…', function(res){
+      if (res && res.result === 'success'){
+        setStatus(((c && c.cls) || '반') + ' — ' + wkDayLabel(d) + ' 수업을 되살렸어요.', 'ok');
+        load(true);
+      } else setStatus('되돌리기 실패: ' + ((res && res.message) || '오류'), 'err');
+    });
 }
 /* 반 전체 보충 — 원래 수업은 그대로 두고 그 주에 한 번 더 (2026-08-23 사용자 요청) */
 function openWeekClassExtra(c, dstr){
@@ -5741,7 +5858,8 @@ function chRender(){
   list.innerHTML = rows.map(function(g){
     var kcls = (g.kind === '1회' || g.kind === '주간추가' || g.kind === '주간반추가' ||
                g.kind === '주간반이동' || g.kind === '주간반보강') ? ' once'
-             : (g.kind === '빼기' || g.kind === '주간빼기' || g.kind === '주간반삭제') ? ' minus' : '';
+             : (g.kind === '빼기' || g.kind === '주간빼기' || g.kind === '주간반삭제' ||
+                g.kind === '주간반휴강') ? ' minus' : '';
     var fromL = chClsLabel(g.fromId, g.fromCls), toL = chClsLabel(g.toId, g.toCls);
     var path = fromL && toL ? fromL + ' → ' + toL : (toL ? '→ ' + toL : fromL + ' 에서');
     return '<div class="ch-item"><span class="lk' + kcls + '">' + esc(g.kind) + '</span>' +
