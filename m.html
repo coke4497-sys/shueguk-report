@@ -393,7 +393,8 @@ body{font-family:'Noto Sans KR',sans-serif; background:var(--sage-fog); color:va
   var GETS = {
     timetableList: function(p){
       var book = (String(p.get('book') || '').trim() === '내신') ? '내신' : '정규';
-      return sbGet('/tt_classes?book=eq.' + q(book) + '&order=id&select=class_id,day,start_time,end_time,location,teacher,name,roster')
+      return sbGet('/tt_classes?book=eq.' + q(book) + '&class_id=not.like.w*' +
+                  '&order=id&select=class_id,day,start_time,end_time,location,teacher,name,roster')   // w… = 그 주에만 있는 반(시간표 페이지 전용)
         .then(function(rows){
           return ok({ classes: rows.map(function(r){
             return { id: r.class_id, day: r.day, start: r.start_time, end: r.end_time,

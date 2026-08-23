@@ -292,7 +292,8 @@
         var to = ymdShift(week, 4);
         pSb = Promise.all([
           sbGet('/hwcheck_records?week=eq.' + q(week)),
-          sbGet('/tt_classes?book=eq.' + q('정규') + '&order=id&select=class_id,day,start_time,end_time,location,teacher,name,roster'),
+          sbGet('/tt_classes?book=eq.' + q('정규') + '&class_id=not.like.w*' +
+                '&order=id&select=class_id,day,start_time,end_time,location,teacher,name,roster')   // w… = 그 주에만 있는 반(시간표 페이지 전용),
           sbGet('/attendance?date=gte.' + q(week) + '&date=lte.' + q(to) + '&book=eq.' + q('정규') + '&order=date'),
           sbGet('/tt_log?kind=eq.' + q('1회') + '&book=eq.' + q('정규') + '&at=gte.' + q(new Date(Date.parse(week) - 68 * 86400000).toISOString()))
         ]).catch(function(e){ console.warn('수파베이스 부팅 조회 실패 — 시트 값 사용', e); return null; });

@@ -522,6 +522,11 @@
   .tip b{color:#4C6E66;}
 
   .hint b{color:var(--accent);}
+  /* 그 주에만 있는 반 — 점선 테두리 + 작은 표시 (2026-08-23) */
+  .blk.wkonly{border-style:dashed;border-width:1.5px;border-color:var(--btn);}
+  .blk .wkflag{font-style:normal;font-size:.66rem;font-weight:700;color:var(--accent);
+    background:var(--icon-bg);border-radius:5px;padding:0 5px;margin-left:4px;vertical-align:1px;}
+  .eset-grp{display:inline-flex;gap:6px;flex-wrap:wrap;}
   .hint-x{color:var(--ink-soft);opacity:.85;}
 
   /* 변경사항 패널 — 주차별·전체 시간표 오른쪽에 접었다 폈다 (2026-08-23 사용자 요청) */
@@ -631,10 +636,18 @@
       <div class="editbar" id="editbar">
         <button class="efold" id="e-fold" onclick="toggleEditOpen()">편집 도구 <b id="e-arrow">▸</b></button>
         <span class="editset" id="editset">
-          <button id="e-move" onclick="setEdit('move')">반 이동</button>
-          <button id="e-add" onclick="setEdit('add')">학생 추가</button>
-          <button id="e-del" onclick="setEdit('del')">반 삭제</button>
-          <button onclick="openAddClass()">반 추가</button>
+          <!-- 전체 시간표 = 영구 변경 -->
+          <span class="eset-grp" id="eset-all">
+            <button id="e-move" onclick="setEdit('move')">반 이동</button>
+            <button id="e-add" onclick="setEdit('add')">학생 추가</button>
+            <button id="e-del" onclick="setEdit('del')">반 삭제</button>
+            <button onclick="openAddClass()">반 추가</button>
+          </span>
+          <!-- 주차별 = 그 주에만 적용되는 변경 -->
+          <span class="eset-grp" id="eset-week">
+            <button id="e-wadd" onclick="setEdit('wadd')">이 주만 학생 추가</button>
+            <button id="e-wcls" onclick="openAddWeekClass()">이 주만 반 추가</button>
+          </span>
           <button onclick="chOpenFromBar()">변경사항</button>
         </span>
       </div>
@@ -765,26 +778,36 @@
   function bookOf(v){ return String(v || '').trim() === '내신' ? '내신' : '정규'; }
 
   /* ── 공통 조회 ── */
+  /* 그 주에만 있는 반은 반ID로 구분한다 — 'w' + yyMMdd + 한 글자 (예: w260819a).
+   * 시트(기존 백엔드)에는 없고 수파베이스에만 있으며, 그 날짜에만 화면에 나타난다. */
+  function weekClassYmd(id){
+    var m = /^w(\d{2})(\d{2})(\d{2})/.exec(String(id || ''));
+    return m ? ('20' + m[1] + '-' + m[2] + '-' + m[3]) : '';
+  }
   function fetchClasses(book){
     return sbGet('/tt_classes?book=eq.' + q(book) + '&order=id&select=class_id,day,start_time,end_time,location,teacher,name,roster')
       .then(function(rows){
         return rows.map(function(r){
           return { id: r.class_id, day: r.day, start: r.start_time, end: r.end_time,
-                   loc: r.location, teacher: r.teacher, cls: r.name,
+                   loc: r.location, teacher: r.teacher, cls: r.name, wk: weekClassYmd(r.class_id),
                    students: String(r.roster || '').trim().split(/\s+/).filter(String) };
         });
       });
   }
-  function fetchOnceLogs(baseYmd){
-    // 기록일 기준 (기준일-68일) 이후의 1회 이동 전체 — 적용일 필터는 호출부에서
-    return sbGet('/tt_log?kind=eq.' + q('1회') + '&at=gte.' + q(isoBefore(baseYmd, 68)) + '&order=at');
+  /* 그 주에만 적용되는 명단 변경 — 1회 이동과 같은 기록(tt_log)에 종류만 다르게 쌓는다.
+   * '주간추가'(to만) · '주간빼기'(from만) — 정규 명단은 건드리지 않으므로 다른 주차엔 영향이 없다. */
+  var WEEK_KINDS = ['1회', '주간추가', '주간빼기'];
+  function fetchOnceLogs(baseYmd, kinds){
+    // 기록일 기준 (기준일-68일) 이후의 기록 — 적용일 필터는 호출부에서
+    var ks = (kinds || ['1회']).map(q).join(',');
+    return sbGet('/tt_log?kind=in.(' + ks + ')&at=gte.' + q(isoBefore(baseYmd, 68)) + '&order=at');
   }
   function onceListShape(g){
-    return { row: g.id, date: atYmd(g.at), ymd: applyYmdOf(g), student: g.student,
+    return { row: g.id, kind: g.kind, date: atYmd(g.at), ymd: applyYmdOf(g), student: g.student,
              fromId: g.from_class_id, toId: g.to_class_id, reason: g.reason };
   }
   function onceWeekShape(g){
-    return { row: g.id, date: applyYmdOf(g), student: g.student,
+    return { row: g.id, kind: g.kind, date: applyYmdOf(g), student: g.student,
              fromId: g.from_class_id, toId: g.to_class_id, reason: g.reason };
   }
   function fetchAttendRange(from, to, book){
@@ -805,7 +828,7 @@
       var base = [tYmd(), wfrom || tYmd(), mfrom || tYmd()].sort()[0];
       var jobs = [
         fetchClasses(book),
-        fetchOnceLogs(base),
+        fetchOnceLogs(base, WEEK_KINDS),
         dateStr ? fetchAttendRange(dateStr, dateStr, book) : Promise.resolve([]),
         mfrom ? sbGet('/tt_memo?date=gte.' + q(mfrom) + '&date=lte.' + q(mto)) : Promise.resolve([]),
         sbGet('/tt_period?select=week_wednesday,book'),
@@ -850,7 +873,7 @@
       var book = bookOf(p.get('book'));
       var from = (p.get('from') || '').trim(), to = (p.get('to') || '').trim();
       if (!from || !to) return Promise.resolve({ result:'error', message:'기간이 필요합니다.' });
-      return Promise.all([fetchAttendRange(from, to, book), fetchOnceLogs(from)]).then(function(rs){
+      return Promise.all([fetchAttendRange(from, to, book), fetchOnceLogs(from, WEEK_KINDS)]).then(function(rs){
         return ok({ from: from, to: to, attend: rs[0].map(attWeekShape),
           onceMoves: rs[1].filter(function(g){
             if (g.book !== book) return false;
@@ -996,7 +1019,7 @@
     if (!('apply_date' in rec)) rec.apply_date = null;
     return sbWrite('POST', '/tt_log', rec);
   }
-  function resyncClasses(book){
+  function resyncClasses(book, syncNames){
     // 구조 변경 뒤 자기 치유 — 기존 백엔드의 최신 명단으로 수파베이스를 맞춘다
     rawFetch(ENDPOINT + '?action=timetableList&pw=' + q(typeof pw !== 'undefined' ? pw : 'sh') + '&book=' + q(book) + '&t=' + Date.now())
       .then(function(r){ return r.json(); })
@@ -1010,10 +1033,47 @@
         return sbWrite('POST', '/tt_classes?on_conflict=book,class_id', rows,
                        { 'Prefer': 'resolution=merge-duplicates,return=minimal' })
           .then(function(){
-            return sbWrite('DELETE', '/tt_classes?book=eq.' + q(book) + '&class_id=not.in.(' + keep + ')');
-          });
+            // 'w…' 주간 전용 반은 시트에 없으니 삭제 대상에서 빼 둔다
+            return sbWrite('DELETE', '/tt_classes?book=eq.' + q(book) + '&class_id=not.in.(' + keep + ')&class_id=not.like.w*');
+          })
+          .then(function(){ return syncStudentSlots(book, syncNames, d.classes); });
       })
       .catch(function(e){ console.warn('명단 재동기화 실패', e); });
+  }
+  /* 반이름 → 학생정보 반영 종류 (백엔드 ttKind_와 같은 규칙) */
+  function slotKind(cls){
+    var c = String(cls || '').trim();
+    if (/논술/.test(c)) return '';
+    if (/가$/.test(c)) return 'A';
+    if (/나$/.test(c)) return 'B';
+    return 'S';
+  }
+  /* 학생 개별 페이지(s.html)가 읽는 students 미러의 정규가/나를 바뀐 시간표에 맞춘다.
+   * 시트 '학생정보'는 기존 백엔드가 갱신하지만 미러는 밤 점검 때까지 옛 반이 남아
+   * 학생 페이지 시간표가 하루 뒤처졌다 (2026-08-23 사용자 지적).
+   * 내신은 원래 학생정보에 반영하지 않는 규칙이라 건드리지 않는다. */
+  function syncStudentSlots(book, names, fresh){
+    if (bookOf(book) !== '정규' || !names || !names.length) return Promise.resolve();
+    var list = fresh || [];
+    var seen = {}, jobs = [];
+    names.forEach(function(nm){
+      var p = plain(nm);
+      if (!p || seen[p]) return;
+      seen[p] = true;
+      var slot = { A: '', B: '' };
+      list.forEach(function(c){
+        var k = slotKind(c.cls);
+        if (!k) return;
+        var has = (c.students || []).some(function(s){ return plain(s) === p; });
+        if (has) slot[k === 'B' ? 'B' : 'A'] = String(c.day || '') + String(c.start || '');
+      });
+      // 이름이 유일할 때만 — 백엔드 ttRosterSet_와 같은 안전 규칙
+      jobs.push(sbGet('/students?name=eq.' + q(p) + '&select=id').then(function(rows){
+        if (!rows || rows.length !== 1) return;
+        return sbWrite('PATCH', '/students?id=eq.' + rows[0].id, { class_a: slot.A, class_b: slot.B });
+      }));
+    });
+    return Promise.all(jobs).catch(function(e){ console.warn('학생 시간표 미러 실패', e); });
   }
   function findLegacyOnceRow(g, cb){
     // 시트 쪽 같은 1회 이동의 행 번호 찾기(취소·수정 미러용, 실패해도 무방)
@@ -1136,6 +1196,77 @@
     },
 
     /* 1회 이동 수정·취소 — 수파베이스가 원본, 시트에도 같은 기록을 찾아 미러(실패 무방) */
+    /* 그 주에만 있는 반 만들기 — 수파베이스에만 넣고 시트는 건드리지 않는다 */
+    timetableWeekClass: function(b){
+      var book = bookOf(b.book), d = String(b.date || '').trim();
+      var cls = String(b.cls || '').trim();
+      if (!d || !cls) return Promise.resolve({ result:'error', message:'날짜와 반 이름이 필요합니다.' });
+      var pre = 'w' + d.slice(2).replace(/-/g, '');
+      return sbGet('/tt_classes?book=eq.' + q(book) + '&class_id=like.' + q(pre + '*') + '&select=class_id')
+        .then(function(rows){
+          var used = {};
+          (rows || []).forEach(function(r){ used[r.class_id.slice(pre.length)] = 1; });
+          var sfx = '';
+          for (var i = 0; i < 26; i++){ var ch = String.fromCharCode(97 + i); if (!used[ch]){ sfx = ch; break; } }
+          if (!sfx) return { result:'error', message:'그 날짜에는 더 만들 수 없어요.' };
+          var id = pre + sfx;
+          return sbWrite('POST', '/tt_classes', { book: book, class_id: id, day: String(b.day || ''),
+                           start_time: String(b.start || ''), end_time: String(b.end || ''),
+                           location: String(b.loc || ''), teacher: String(b.teacher || ''),
+                           name: cls, roster: '' })
+            .then(function(){
+              return insertLog({ kind:'주간반추가', student:'', book: book, to_class_id: id, to_class: cls,
+                                 reason: String(b.reason || ''), apply_date: d })
+                .then(function(){ return ok({ id: id, date: d }); }, function(){ return ok({ id: id, date: d }); });
+            });
+        });
+    },
+    timetableWeekClassDel: function(b){
+      var book = bookOf(b.book), id = String(b.classId || '').trim();
+      if (!/^w\d{6}/.test(id)) return Promise.resolve({ result:'error', message:'그 주에만 있는 반이 아니에요.' });
+      return sbWrite('DELETE', '/tt_classes?book=eq.' + q(book) + '&class_id=eq.' + q(id))
+        .then(function(){
+          return insertLog({ kind:'주간반삭제', student:'', book: book, from_class_id: id,
+                             from_class: String(b.cls || ''), apply_date: weekClassYmd(id) })
+            .then(function(){ return ok({}); }, function(){ return ok({}); });
+        });
+    },
+    /* ── 그 주에만 적용되는 명단 변경 (2026-08-23 사용자 요청) ────────────
+     * 정규/내신 명단(tt_classes)은 건드리지 않고 tt_log에만 쌓는다 —
+     * 다른 주차·전체 시간표·학생 개별 페이지에는 영향이 없다. */
+    timetableWeekAdd: function(b){
+      var book = bookOf(b.book), nm = String(b.student || '').trim().replace(/\s+/g, '');
+      var toC = classRow(book, b.toId), d = String(b.date || '').trim();
+      if (!nm || !b.toId || !d) return Promise.resolve({ result:'error', message:'학생·반·날짜가 필요합니다.' });
+      return sbGet('/tt_log?kind=eq.' + q('주간추가') + '&apply_date=eq.' + q(d) +
+                   '&to_class_id=eq.' + q(b.toId) + '&select=id,student').then(function(rows){
+        var dup = (rows || []).some(function(g){ return plain(g.student) === plain(nm); });
+        if (dup) return { result:'error', message:'이미 그 날짜에 추가된 학생이에요.' };
+        return insertLog({ kind:'주간추가', student: nm, book: book,
+                           to_class_id: b.toId, to_class: classLabel(toC),
+                           reason: String(b.reason || ''), apply_date: d })
+          .then(function(){ return ok({ added: nm, date: d }); });
+      });
+    },
+    timetableWeekRemove: function(b){
+      var book = bookOf(b.book), nm = String(b.student || '').trim();
+      var fromC = classRow(book, b.fromId), d = String(b.date || '').trim();
+      if (!nm || !b.fromId || !d) return Promise.resolve({ result:'error', message:'학생·반·날짜가 필요합니다.' });
+      return insertLog({ kind:'주간빼기', student: nm, book: book,
+                         from_class_id: b.fromId, from_class: classLabel(fromC),
+                         reason: String(b.reason || ''), apply_date: d })
+        .then(function(){ return ok({ removed: nm, date: d }); });
+    },
+    /* 주간 변경 되돌리기 — 기록 한 줄만 지운다 */
+    timetableWeekCancel: function(b){
+      var row = parseInt(b.row, 10) || 0;
+      return sbGet('/tt_log?id=eq.' + row).then(function(rows){
+        var g = rows[0];
+        if (!g || (g.kind !== '주간추가' && g.kind !== '주간빼기'))
+          return { result:'error', message:'기록이 달라졌어요. 새로고침 후 다시 시도해 주세요.' };
+        return sbWrite('DELETE', '/tt_log?id=eq.' + row).then(function(){ return ok({ kind: g.kind }); });
+      });
+    },
     timetableOnceCancel: function(b){
       var row = parseInt(b.row, 10) || 0;
       return sbGet('/tt_log?id=eq.' + row).then(function(rows){
@@ -1215,8 +1346,9 @@
             to_class_id: b.toId, to_class: classLabel(toC), reason: String(b.reason || '') }));
           mirror = Promise.all(jobs);
         }
-        return mirror.then(function(){ resyncClasses(book); return res; },
-                           function(e){ console.warn('이동 미러 실패', e); resyncClasses(book); return res; });
+        var names = (b.moveType === 'once') ? null : [res.moved || b.student];
+        return mirror.then(function(){ resyncClasses(book, names); return res; },
+                           function(e){ console.warn('이동 미러 실패', e); resyncClasses(book, names); return res; });
       });
     },
     timetableAdd: function(b){
@@ -1226,8 +1358,8 @@
         var jobs = [];
         if (toC) jobs.push(setRoster(book, b.toId, toC.students.concat([added])));
         jobs.push(insertLog({ kind:'추가', student: added, book: book, to_class_id: b.toId, to_class: classLabel(toC) }));
-        return Promise.all(jobs).then(function(){ resyncClasses(book); return res; },
-                                      function(e){ console.warn('추가 미러 실패', e); resyncClasses(book); return res; });
+        return Promise.all(jobs).then(function(){ resyncClasses(book, [added]); return res; },
+                                      function(e){ console.warn('추가 미러 실패', e); resyncClasses(book, [added]); return res; });
       });
     },
     timetableRemove: function(b){
@@ -1238,8 +1370,8 @@
         if (fromC) jobs.push(setRoster(book, b.fromId, fromC.students.filter(function(nm){ return plain(nm) !== plain(removed); })));
         jobs.push(insertLog({ kind:'빼기', student: removed, book: book, from_class_id: b.fromId, from_class: classLabel(fromC),
                               reason: String(b.reason || '') }));
-        return Promise.all(jobs).then(function(){ resyncClasses(book); return res; },
-                                      function(e){ console.warn('빼기 미러 실패', e); resyncClasses(book); return res; });
+        return Promise.all(jobs).then(function(){ resyncClasses(book, [removed]); return res; },
+                                      function(e){ console.warn('빼기 미러 실패', e); resyncClasses(book, [removed]); return res; });
       });
     },
     timetableRenameStudent: function(b){
@@ -1285,14 +1417,16 @@
       });
     },
     timetableMoveClass: function(b){
+      var wasC = classRow(bookOf(b.book), b.classId);
+      var members = wasC ? wasC.students.slice() : [];   // 반이 옮겨지면 소속 학생 전원의 시간이 바뀐다
       return legacyPost(b).then(function(res){
         if (!res || res.result !== 'success') return res;
         var book = bookOf(b.book);
         return sbWrite('PATCH', '/tt_classes?book=eq.' + q(book) + '&class_id=eq.' + q(b.classId),
                        { day: b.day, start_time: b.start, end_time: b.end,
                          location: String(b.loc || ''), teacher: String(b.teacher || '') })
-          .then(function(){ resyncClasses(book); return res; },
-                function(e){ console.warn('반 이동 미러 실패', e); resyncClasses(book); return res; });
+          .then(function(){ resyncClasses(book, members); return res; },
+                function(e){ console.warn('반 이동 미러 실패', e); resyncClasses(book, members); return res; });
       });
     }
   };
@@ -1663,16 +1797,18 @@ function setEdit(m){
   if (moving || classMoving) cancelMove();
   editMode = m;
   document.body.classList.add('editpick');
-  ['e-move','e-add','e-del'].forEach(function(id){ $(id).classList.remove('on'); });
-  $('e-' + m).classList.add('on');
+  EDIT_BTNS.forEach(function(id){ var b = $(id); if (b) b.classList.remove('on'); });
+  var cur = $('e-' + (m === 'wadd' ? 'wadd' : m));
+  if (cur) cur.classList.add('on');
   setStatus(m === 'move' ? '이동할 반을 누르세요. 누른 뒤 옮길 빈 자리를 누르면 반 전체가 이동해요.'
           : m === 'add'  ? '학생을 추가할 반을 누르세요.'
+          : m === 'wadd' ? '이 주에만 학생을 넣을 반을 누르세요. 정규 명단과 다른 주차는 그대로예요.'
                          : '삭제할 반을 누르세요. (빈 반만 삭제할 수 있어요)');
 }
 function clearEdit(){
   editMode = null;
   document.body.classList.remove('editpick');
-  ['e-move','e-add','e-del'].forEach(function(id){ var b=$(id); if(b) b.classList.remove('on'); });
+  EDIT_BTNS.forEach(function(id){ var b=$(id); if(b) b.classList.remove('on'); });
   setStatus('');
 }
 /* 편집 도구 접기 — 평소엔 [편집 도구 ▸] 버튼만, 누르면 도구가 펼쳐짐 (2026-08-22 사용자 확정 시안) */
@@ -1691,11 +1827,13 @@ function toggleEditOpen(){
   applyEditOpen();
 }
 applyEditOpen();
-function applyEdit(c){
+var EDIT_BTNS = ['e-move','e-add','e-del','e-wadd'];
+function applyEdit(c, dstr){
   var m = editMode;
   clearEdit();
   if (m === 'move'){ startClassMove(c); return; }
   if (m === 'add'){ openAdd(c); return; }
+  if (m === 'wadd'){ openWeekAdd(c, dstr); return; }
   if (m === 'del'){
     if (c.students.length){ alert('학생이 남아 있는 반은 삭제할 수 없어요.\n먼저 학생을 다른 반으로 이동하거나 빼주세요. (' + c.students.length + '명)'); return; }
     if (!confirm(labelOf(c) + '\n\n이 빈 반을 삭제할까요?')) return;
@@ -1746,14 +1884,17 @@ function renderTabs(){
   document.querySelector('.hint').innerHTML =
     (mode === 'today') ? '<b>여기서는 출석 체크만 합니다.</b> 학생 이름을 누르면 출석·지각·결석 창이 떠요. '
         + '<span class="hint-x">1회 이동은 주차별 시간표에서, 영구 이동은 전체 시간표에서 하세요.</span>'
-    : (mode === 'week') ? '<b>여기서는 지난 날짜 출석 수정과 1회 이동을 합니다.</b> 학생 이름을 누르면 그 날짜의 출석 창이 떠요. 같은 창의 [다른 반으로 1회 이동]을 누른 뒤 옮겨 갈 반을 누르면 그 반 요일의 날짜로 기록돼요 (다음주로 넘겨 미리 예약도 가능). '
-        + '<span class="hint-x">오늘 출석은 오늘의 시간표에서, 영구 이동은 전체 시간표에서 하세요.</span>'
+    : (mode === 'week') ? '<b>여기서 한 변경은 그 주에만 적용돼요.</b> 학생 이름을 누르면 그 날짜의 출석 창이 떠요 — 출석 수정, [이 주만 빼기], [다른 반으로 1회 이동]을 그 창에서 합니다. 편집 도구의 [이 주만 학생 추가]·[이 주만 반 추가]도 그 주에만 생겨요. '
+        + '<span class="hint-x">정규 명단·다른 주차·학생 개별 페이지는 그대로예요. 영구 변경은 전체 시간표에서 하세요.</span>'
     : (mode === 'cal') ? '주마다 [정규]/[내신]을 골라 그 주에 쓸 시간표를 정하세요. 오늘의 시간표·주차별이 자동으로 따라갑니다. 날짜 칸을 누르면 메모를 적을 수 있어요.'
     : (mode === 'exs') ? '학교별 시험 기간을 등록하고, 시험 시간표가 나오면 막대 아래 날짜 칸을 눌러 학년·과목을 넣으세요. 넣은 과목은 슈국 캘린더 날짜 칸에도 표시돼요.'
     : '<b>여기서는 영구 이동만 합니다.</b> 요일 머리글이나 반 카드를 누르면 그 요일이 크게 열려요. 학생 이름을 누르면 이동 모드가 켜지고, 옮길 반(다른 요일 포함)을 누르면 영구 이동됩니다. '
         + '<span class="hint-x">출석 체크는 오늘의 시간표에서, 1회 이동은 주차별 시간표에서 하세요.</span>';
   chSync();
   $('editbar').classList.toggle('show', mode === 'all' || mode === 'week');
+  // 전체 = 영구 변경 도구, 주차별 = 그 주만 바꾸는 도구 (2026-08-23 사용자 확정)
+  $('eset-all').style.display  = (mode === 'week') ? 'none' : '';
+  $('eset-week').style.display = (mode === 'week') ? '' : 'none';
   $('attbar').classList.toggle('show', mode === 'today');
   document.querySelector('.searchbar').style.display = (mode === 'cal' || mode === 'exs') ? 'none' : '';
   document.querySelector('.legend').style.display = (mode === 'cal' || mode === 'exs') ? 'none' : '';
@@ -1768,7 +1909,7 @@ function render(){
   host.innerHTML = '';
   if (mode === 'today'){
     var td = todayDay();
-    var list = classes.filter(function(c){ return c.day===td; });
+    var list = classes.filter(function(c){ return c.day===td && wkVisible(c, todayStr()); });
     var head = document.createElement('p');
     head.className = 'today-head';
     var dt = new Date();
@@ -2390,7 +2531,8 @@ function countLabel(c, awayOf, temps){
 function blockEl(c, forList){
   var b = document.createElement('div');
   var todayDrop = (mode==='today' && moving && moving.once) ? 'droppable ' : '';
-  b.className = 'blk ' + (mode==='today' ? todayDrop : 'droppable ') + colorOf(c.cls) + (classMoving && classMoving.id===c.id ? ' moving-src' : '');
+  b.className = 'blk ' + (mode==='today' ? todayDrop : 'droppable ') + colorOf(c.cls) +
+                (c.wk ? ' wkonly' : '') + (classMoving && classMoving.id===c.id ? ' moving-src' : '');
   b.setAttribute('data-cid', c.id);
   var awayOf = {};   // 이 반에서 1회 이동으로 빠진 학생 → {label, row}
   var temps = [];    // 이 반으로 1회 이동해 온 학생
@@ -2399,9 +2541,12 @@ function blockEl(c, forList){
   if (mode === 'today'){
     onceOutThisWeek().forEach(function(o){
       if (o.fromId !== c.id) return;
+      // 주간빼기는 그 날짜에만 — 1회 이동처럼 주 전체로 넓히지 않는다
+      if (o.kind === '주간빼기' && o.ymd && o.ymd !== todayStr()) return;
       var t = classes.find(function(x){ return x.id===o.toId; });
       var md = o.ymd ? o.ymd.slice(5).replace(/^0/, '').replace('-0', '/').replace('-', '/') : '';
-      awayOf[o.student.replace(/\(.*\)$/,'')] = { label: (t ? labelOf(t) : '') + (md ? ' · ' + md + ' 보충' : ''), row: o.row };
+      awayOf[o.student.replace(/\(.*\)$/,'')] = { row: o.row, kind: o.kind || '1회', reason: o.reason,
+        label: (o.kind === '주간빼기') ? '이 주만 빠짐' : ((t ? labelOf(t) : '') + (md ? ' · ' + md + ' 보충' : '')) };
     });
     onceInToday().forEach(function(o){ if (o.toId === c.id) temps.push(o); });
   }
@@ -2410,7 +2555,7 @@ function blockEl(c, forList){
   if (mode === 'today'){
     var wkTo = thisWeekRange().to;
     onceMoves.forEach(function(o){
-      if (o.fromId !== c.id || !o.ymd || o.ymd <= wkTo) return;
+      if ((o.kind && o.kind !== '1회') || o.fromId !== c.id || !o.ymd || o.ymd <= wkTo) return;
       var tt = classes.find(function(x){ return x.id === o.toId; });
       var md = o.ymd.slice(5).replace(/^0/, '').replace('-0', '/').replace('-', '/');
       planOf[o.student.replace(/\(.*\)$/,'')] =
@@ -2431,17 +2576,24 @@ function blockEl(c, forList){
       // 지각은 이름 옆 글자 대신 색으로만 구분, 세부는 마우스 호버·출석 창에서 (공간 확보, 2026-08-20 사용자 확정)
       if (a && a.status==='지각') tp.push('지각' + (a.memo ? ' — ' + a.memo : ''));
       else if (a && a.memo) tp.push(a.memo);
-      else if (away) tp.push('이 주 1회 이동: ' + awayOf[plain].label);
+      else if (away) tp.push(awayOf[plain].kind === '주간빼기'
+        ? ('이 주만 빠짐' + (awayOf[plain].reason ? ' — ' + awayOf[plain].reason : ''))
+        : ('이 주 1회 이동: ' + awayOf[plain].label));
       if (planOf[plain]) tp.push(planOf[plain]);
       return '<button data-att-cid="'+esc(c.id)+'" data-nm="'+esc(nm)+'" class="'+cls2+(away?' away':'')+(planOf[plain]?' plan-once':'')+'"'+
              (away ? ' data-away-row="'+awayOf[plain].row+'"' : '')+
              (tp.length ? ' title="'+esc(tp.join(' · '))+'"' : '')+'>'+
-             esc(plain)+(away?'<em>1회↗</em>':(planOf[plain]?'<em style="color:#8AA0C8;">예약↗</em>':''))+'</button>';
+             esc(plain)+(away ? (awayOf[plain].kind === '주간빼기' ? '<em>이 주 빠짐</em>' : '<em>1회↗</em>')
+                               : (planOf[plain]?'<em style="color:#8AA0C8;">예약↗</em>':''))+'</button>';
     }).join('');
     chips += temps.sort(function(a,b){ return a.student.localeCompare(b.student,'ko'); }).map(function(o){
       var a = attend[attKey(c.id, o.student)];
       var cls2 = a ? (a.status==='출석'?'at-ok':a.status==='지각'?'at-late':'at-abs') : 'once';
-      return '<button data-att-cid="'+esc(c.id)+'" data-nm="'+esc(o.student)+'" data-once-row="'+o.row+'" class="'+cls2+'" title="1회 이동 · 사유: '+esc(o.reason)+((a&&a.status==='지각')?' / 지각'+(a.memo?' — '+esc(a.memo):''):((a&&a.memo)?' / '+esc(a.memo):''))+'">'+esc(o.student)+' · 1회</button>';
+      var wk = (o.kind === '주간추가');
+      return '<button data-att-cid="'+esc(c.id)+'" data-nm="'+esc(o.student)+'" data-once-row="'+o.row+'" class="'+cls2+'" title="'+
+             (wk ? '이 주만 추가' : '1회 이동') + (o.reason ? ' · 사유: '+esc(o.reason) : '')+
+             ((a&&a.status==='지각')?' / 지각'+(a.memo?' — '+esc(a.memo):''):((a&&a.memo)?' / '+esc(a.memo):''))+'">'+
+             esc(o.student)+(wk ? ' · 이 주' : ' · 1회')+'</button>';
     }).join('');
     chips += keptAttendNames(c, sorted, temps).map(function(nm){
       return keptChip(c, nm, attend[attKey(c.id, nm)]);
@@ -2461,7 +2613,7 @@ function blockEl(c, forList){
              esc(plain)+(away?'<em>1회↗</em>':'')+'</button>';
     }).join('');
     chips += temps.map(function(o){
-      return '<button class="once" data-once-row="'+o.row+'" data-nm="'+esc(o.student)+'" title="사유: '+esc(o.reason)+' ('+esc(o.date)+') — 수정은 오늘의 시간표에서">'+esc(o.student)+' · 1회</button>';
+      return '<button class="once" data-once-row="'+o.row+'" data-nm="'+esc(o.student)+'" title="사유: '+esc(o.reason)+' ('+esc(o.date)+') — 수정은 주차별 시간표에서">'+esc(o.student)+' · 1회</button>';
     }).join('');
   }
   if (!chips) chips = '<span class="empty-note">비어 있음</span>';
@@ -2474,7 +2626,7 @@ function blockEl(c, forList){
   var meta = esc(c.start)+'~'+esc(c.end)+
              (forList ? ' · '+esc(c.teacher)+'T'+(c.loc ? ' · '+esc(c.loc) : '') : '')+
              ' · '+cntLabel;
-  b.innerHTML = '<div class="bt"><span class="nm">'+esc(c.cls)+'</span>'+
+  b.innerHTML = '<div class="bt"><span class="nm">'+esc(c.cls)+(c.wk ? ' <em class="wkflag">이 주만</em>' : '')+'</span>'+
                 '<small>'+meta+'</small></div>'+
                 btnRow +
                 '<div class="stus">'+chips+'</div>';
@@ -2675,7 +2827,7 @@ function buildAllList(){
   var wrap = document.createElement('div');
   wrap.appendChild(dayTabsEl(allListDay, function(dy){ return esc(dy); },
     function(dy){ allListDay = dy; keepScroll = false; render(); }));
-  var list = classes.filter(function(c){ return c.day === allListDay; });
+  var list = classes.filter(function(c){ return c.day === allListDay && wkVisible(c, null); });
   if (!list.length){
     var em = document.createElement('p');
     em.className = 'day-empty';
@@ -2699,7 +2851,7 @@ function buildWeekList(){
     function(dy){ return esc(dy) + '<small>' + mdOf(days[dy]) + '</small>'; },
     function(dy){ weekListDay = dy; keepScroll = false; render(); }));
   var dstr = ymdOf(days[weekListDay]);
-  var list = classes.filter(function(c){ return c.day === weekListDay; });
+  var list = classes.filter(function(c){ return c.day === weekListDay && wkVisible(c, dstr); });
   if (!list.length){
     var em = document.createElement('p');
     em.className = 'day-empty';
@@ -2713,11 +2865,14 @@ function buildWeekList(){
 /* 주차별 반 카드 — 그리드·목록 공용 (그 날짜의 출석·1회 이동·보존 기록 칩 포함) */
 function weekBlockEl(c, dstr, forList){
   var b = document.createElement('div');
-  b.className = 'blk ' + colorOf(c.cls);
+  b.className = 'blk ' + colorOf(c.cls) + (c.wk ? ' wkonly' : '');
   b.setAttribute('data-cid', c.id);
   var awayOf = {}, temps = [];
   weekOnce.forEach(function(o){
-    if (o.fromId === c.id){ var t = classes.find(function(x){ return x.id===o.toId; }); awayOf[o.student.replace(/\(.*\)$/,'')] = { label: t ? labelOf(t) : '', row: o.row }; }
+    if (o.fromId === c.id){
+      var t = classes.find(function(x){ return x.id===o.toId; });
+      awayOf[o.student.replace(/\(.*\)$/,'')] = { label: t ? labelOf(t) : '', row: o.row, kind: o.kind || '1회', reason: o.reason };
+    }
     if (o.toId === c.id) temps.push(o);
   });
   var chips = sortNames(c.students).map(function(nm){
@@ -2730,16 +2885,22 @@ function weekBlockEl(c, dstr, forList){
     if (note) tp.push(note);
     if (a && a.status==='지각') tp.push('지각' + (a.memo ? ' — ' + a.memo : ''));
     else if (a && a.memo) tp.push(a.memo);
-    else if (away) tp.push('이 주 1회 이동: ' + awayOf[plain].label);
+    else if (away) tp.push(awayOf[plain].kind === '주간빼기'
+      ? ('이 주만 빠짐' + (awayOf[plain].reason ? ' — ' + awayOf[plain].reason : ''))
+      : ('이 주 1회 이동: ' + awayOf[plain].label));
     return '<button data-nm="'+esc(nm)+'" class="'+cls2+(away?' away':'')+'"'+
            (away ? ' data-away-row="'+awayOf[plain].row+'"' : '')+
            (tp.length ? ' title="'+esc(tp.join(' · '))+'"' : '')+'>'+
-           esc(plain)+(away?'<em>1회↗</em>':'')+'</button>';
+           esc(plain)+(away ? (awayOf[plain].kind === '주간빼기' ? '<em>이 주 빠짐</em>' : '<em>1회↗</em>') : '')+'</button>';
   }).join('');
   chips += temps.sort(function(a,b){ return a.student.localeCompare(b.student,'ko'); }).map(function(o){
     var a = weekAttend[wkAttKey(dstr, c.id, o.student)];
     var cls2 = a ? (a.status==='출석'?'at-ok':a.status==='지각'?'at-late':'at-abs') : 'once';
-    return '<button data-nm="'+esc(o.student)+'" data-once-row="'+o.row+'" class="'+cls2+'" title="1회 이동 · 사유: '+esc(o.reason)+((a&&a.status==='지각')?' / 지각'+(a.memo?' — '+esc(a.memo):''):((a&&a.memo)?' / '+esc(a.memo):''))+'">'+esc(o.student)+' · 1회</button>';
+    var wk = (o.kind === '주간추가');
+    return '<button data-nm="'+esc(o.student)+'" data-once-row="'+o.row+'" class="'+cls2+'" title="'+
+           (wk ? '이 주만 추가' : '1회 이동') + (o.reason ? ' · 사유: '+esc(o.reason) : '')+
+           ((a&&a.status==='지각')?' / 지각'+(a.memo?' — '+esc(a.memo):''):((a&&a.memo)?' / '+esc(a.memo):''))+'">'+
+           esc(o.student)+(wk ? ' · 이 주' : ' · 1회')+'</button>';
   }).join('');
   chips += keptAttendNames(c, c.students, temps, dstr).map(function(nm){
     return keptChip(c, nm, weekAttend[wkAttKey(dstr, c.id, nm)]);
@@ -2748,7 +2909,7 @@ function weekBlockEl(c, dstr, forList){
   var meta = esc(c.start)+'~'+esc(c.end)+
              (forList ? ' · '+esc(c.teacher)+'T'+(c.loc ? ' · '+esc(c.loc) : '') : '')+
              ' · '+countLabel(c, awayOf, temps);
-  b.innerHTML = '<div class="bt"><span class="nm">'+esc(c.cls)+'</span>'+
+  b.innerHTML = '<div class="bt"><span class="nm">'+esc(c.cls)+(c.wk ? ' <em class="wkflag">이 주만</em>' : '')+'</span>'+
                 '<small>'+meta+'</small></div>'+
                 '<div class="stus">'+chips+'</div>';
   b.addEventListener('click', function(e){ onWeekClick(e, c, dstr); });
@@ -2758,7 +2919,9 @@ function weekBlockEl(c, dstr, forList){
 /* 전체 보기: 월~일이 가로축 — 모든 요일에 전체 담당T 열(본원 포함)을 항상 표시 */
 function buildFullGrid(){
   var baseCols = [], seenB = {};
+  // 전체 시간표는 '기본값' — 그 주에만 있는 반은 넣지 않는다
   classes.forEach(function(c){
+    if (c.wk) return;
     var key = c.loc + '|' + c.teacher;
     if (!seenB[key]){ seenB[key] = true; baseCols.push({ key:key, loc:c.loc, teacher:c.teacher }); }
   });
@@ -2772,7 +2935,7 @@ function buildFullGrid(){
     if (dname === '월' || dname === '화'){
       var cols = [], seen = {};
       classes.forEach(function(c){
-        if (c.day !== dname) return;
+        if (c.day !== dname || c.wk) return;
         var key = c.loc + '|' + c.teacher;
         if (!seen[key]){ seen[key] = true; cols.push({ key:key, loc:c.loc, teacher:c.teacher }); }
       });
@@ -2789,6 +2952,7 @@ function buildFullGrid(){
   // 통합 시간축: 10:00 ~ 10:00(22시), 수업이 벗어나면 확장
   var lo = 10*60, hi = 22*60;
   classes.forEach(function(c){
+    if (c.wk) return;
     lo = Math.min(lo, mins(c.start));
     hi = Math.max(hi, minsEnd(c));
   });
@@ -2855,6 +3019,7 @@ function buildFullGrid(){
     if (di < DAYS.length-1) gcol++;
   });
   classes.forEach(function(c){
+    if (c.wk) return;
     var col = colOfKey[c.day + '|' + c.loc + '|' + c.teacher];
     if (!col) return;
     var r0 = Math.floor((mins(c.start)-lo)/30), r1 = Math.ceil((minsEnd(c)-lo)/30);
@@ -3067,13 +3232,15 @@ function wkLocLabel(l){ return l === '민트초코' ? '민초센터' : (l || '�
 function wkLocRank(l){ var i = WK_LOC_ORDER.indexOf(l); return i < 0 ? 99 : i; }
 /* 확대 화면용 정렬 — 센터 → 강사(TEACHER_ORDER) → 시간 순 (강사별 묶음 표시, 2026-08-22 사용자 요청) */
 function wkTeacherRank(t){ var i = TEACHER_ORDER.indexOf(t); return i < 0 ? 99 : i; }
-function wkZoomSorted(dname){
-  return classes.filter(function(c){ return c.day === dname; })
+/* 주간 전용 반('w…')은 그 날짜에만 — 날짜를 안 주면(전체 시간표) 숨긴다 */
+function wkVisible(c, dstr){ return !c.wk || (!!dstr && c.wk === dstr); }
+function wkZoomSorted(dname, dstr){
+  return classes.filter(function(c){ return c.day === dname && wkVisible(c, dstr); })
     .sort(function(a,b){ return (wkLocRank(a.loc)-wkLocRank(b.loc)) || (wkTeacherRank(a.teacher)-wkTeacherRank(b.teacher)) ||
                                 (mins(a.start)-mins(b.start)) || a.cls.localeCompare(b.cls,'ko'); });
 }
-function wkDayClasses(dname){
-  return classes.filter(function(c){ return c.day === dname; })
+function wkDayClasses(dname, dstr){
+  return classes.filter(function(c){ return c.day === dname && wkVisible(c, dstr); })
     .sort(function(a,b){ return (wkLocRank(a.loc)-wkLocRank(b.loc)) || (mins(a.start)-mins(b.start)) || a.cls.localeCompare(b.cls,'ko'); });
 }
 /* 그 날짜·반의 출석 요약 (보존 기록 포함 — weekAttend 키 순회) */
@@ -3105,7 +3272,7 @@ function buildWeekOverview(){
     col.className = 'wk-ov-col';
     var dstr = ymdOf(dates[dname]);
     col.appendChild(wkDayHeader(dname, dates, '', function(){ weekZoomDay = dname; keepScroll = false; render(); }));
-    var list = wkDayClasses(dname);
+    var list = wkDayClasses(dname, dstr);
     var lastLoc = null;
     list.forEach(function(c){
       if (c.loc !== lastLoc){
@@ -3148,7 +3315,7 @@ function buildWeekZoom(dname){
       var slim = document.createElement('div');
       slim.className = 'wk-slim';
       slim.appendChild(wkDayHeader(dy, dates, 'slim', function(){ weekZoomDay = dy; keepScroll = false; render(); }));
-      wkDayClasses(dy).forEach(function(c){
+      wkDayClasses(dy, ymdOf(dates[dy])).forEach(function(c){
         var b = document.createElement('div');
         b.className = 'wk-bar ' + colorOf(c.cls);
         b.title = c.cls + ' ' + c.start + '~' + c.end;
@@ -3167,7 +3334,7 @@ function buildWeekZoom(dname){
                    '<small>— 누르면 주간 개요로 돌아가요</small>';
     hh.addEventListener('click', function(){ weekZoomDay = null; keepScroll = false; render(); });
     big.appendChild(hh);
-    var list = wkZoomSorted(dy);
+    var list = wkZoomSorted(dy, dstr);
     if (!list.length){
       var em = document.createElement('div'); em.className = 'wk-empty'; em.textContent = '이 요일에는 수업이 없어요.';
       big.appendChild(em);
@@ -3180,7 +3347,7 @@ function buildWeekZoom(dname){
 }
 
 function onWeekClick(e, c, dstr){
-  if (editMode && !moving && !classMoving){ applyEdit(c); return; }
+  if (editMode && !moving && !classMoving){ applyEdit(c, dstr); return; }
   if (moving && moving.once){
     // 주차별 1회 이동: 옮겨 갈 반을 누르면 그 반 요일의 날짜로 기록
     var selChip = e.target.closest('button[data-nm]');
@@ -3190,7 +3357,10 @@ function onWeekClick(e, c, dstr){
     return;
   }
   var chip = e.target.closest('button[data-nm]');
-  if (!chip) return;
+  if (!chip){
+    if (c.wk) openWeekClassManage(c, dstr);   // 이 주만 있는 반 — 학생 넣기·지우기
+    return;
+  }
   var nm = chip.getAttribute('data-nm');
   // 이미 1회 이동한 학생은 사유 확인·수정·취소
   if (chip.hasAttribute('data-once-row')){ openOnceManage(c, nm, parseInt(chip.getAttribute('data-once-row'),10), 'in', dstr); return; }
@@ -3202,6 +3372,7 @@ function onWeekClick(e, c, dstr){
 
 /* ── 서버 요청 공통 ── */
 var CH_ACTIONS = { timetableMove:1, timetableOnce:1, timetableOnceEdit:1, timetableOnceCancel:1,
+                   timetableWeekAdd:1, timetableWeekRemove:1, timetableWeekCancel:1, timetableWeekClass:1,
                    timetableAdd:1, timetableRemove:1, timetableClassMove:1, timetableClassAdd:1,
                    timetableClassDel:1, timetableRenameStudent:1 };
 function chOpenFromBar(){
@@ -3825,7 +3996,7 @@ function dropClass(dname, cinfo, startMin){
   var s = startMin, e2 = startMin + dur;
   // 겹침 확인 (같은 요일·같은 열)
   var clash = classes.find(function(x){
-    return x.id !== c.id && x.day === dname && x.loc === cinfo.loc && x.teacher === cinfo.teacher &&
+    return x.id !== c.id && !x.wk && x.day === dname && x.loc === cinfo.loc && x.teacher === cinfo.teacher &&
            mins(x.start) < e2 && s < minsEnd(x);
   });
   if (clash){ setStatus('그 자리엔 이미 ' + clash.cls + ' 수업이 있어요. 다른 빈 자리를 눌러주세요.', 'err'); return; }
@@ -3968,8 +4139,11 @@ function openAttend(c, nm, dateStr){
     '<p class="merr" id="att-err"></p>'+
     '<div class="mbtns">'+
     (cur ? '<button onclick="submitAttend(\''+esc(c.id)+'\',\''+esc(nm)+'\',\'\')">기록 지우기</button>' : '')+
-    // 1회 이동은 주차별에서만 — 오늘의 시간표는 출석 체크 전용 (2026-08-23 사용자 확정)
-    (mode === 'week' ? '<button onclick="startOnceMoveById(\''+esc(c.id)+'\',\''+esc(nm)+'\')">다른 반으로 1회 이동</button>' : '')+
+    // 그 주만 바꾸는 일은 주차별에서만 — 오늘의 시간표는 출석 체크 전용 (2026-08-23 사용자 확정)
+    (mode === 'week'
+      ? '<button onclick="openWeekRemove(\''+esc(c.id)+'\',\''+esc(nm)+'\',\''+esc(attDate)+'\')">이 주만 빼기</button>'+
+        '<button onclick="startOnceMoveById(\''+esc(c.id)+'\',\''+esc(nm)+'\')">다른 반으로 1회 이동</button>'
+      : '')+
     '<button onclick="openNoteEdit(\''+esc(nm)+'\')">특이사항</button>'+
     '<button onclick="closeModal()">닫기</button></div>'
   );
@@ -4096,6 +4270,157 @@ function openNoteFromMove(){
   openNoteEdit(moving.name);
 }
 
+/* ── 그 주에만 적용되는 명단 변경 (2026-08-23 사용자 요청) ─────────────
+ * 정규 명단은 그대로 두고 기록만 남긴다 — 다른 주차·전체 시간표·학생 페이지에 영향 없음. */
+function wkDayLabel(dstr){
+  if (!dstr) return '';
+  var d = new Date(+dstr.slice(0,4), +dstr.slice(5,7)-1, +dstr.slice(8,10));
+  return mdOf(d) + ' (' + ['일','월','화','수','목','금','토'][d.getDay()] + ')';
+}
+/* 이 주만 있는 반 만들기 — 그 주의 그 요일 하루만 시간표에 나타난다 */
+function openAddWeekClass(){
+  var dates = weekDates();
+  var defDay = weekZoomDay || weekListDay || todayDay();
+  openModal(
+    '<h3>이 주만 반 추가</h3>'+
+    '<p class="mdesc">고른 요일 하루만 생기는 반이에요. 정규 시간표와 다른 주차에는 나타나지 않아요.</p>'+
+    classFormHtml('')+
+    '<label style="font-size:.8rem;color:var(--ink-soft);display:block;margin-top:8px;">사유 메모 (선택)</label>'+
+    '<textarea id="nc-reason" placeholder="예: 시험 대비 보충, 휴일 보강"></textarea>'+
+    '<p class="merr" id="nc-err"></p>'+
+    '<div class="mbtns"><button onclick="closeModal()">취소</button>'+
+    '<button class="primary" onclick="submitAddWeekClass()">이 주만 만들기</button></div>'
+  );
+  if ($('nc-day')) $('nc-day').value = defDay;
+}
+function submitAddWeekClass(){
+  var d = $('nc-day').value, st = $('nc-start').value, en = $('nc-end').value;
+  var loc = $('nc-loc').value.trim(), teacher = $('nc-teacher').value.trim(), cls = $('nc-cls').value.trim();
+  var reason = ($('nc-reason') ? $('nc-reason').value : '').trim();
+  if (!cls){ $('nc-err').textContent = '반이름을 입력해 주세요.'; return; }
+  var st0 = mins(st), en0 = mins(en);
+  if (en0 <= st0) en0 += 12*60;
+  if (en0 > 22*60){ $('nc-err').textContent = '끝 시간이 시작보다 빨라요. (수업은 밤 10시까지)'; return; }
+  var dstr = ymdOf(weekDates()[d]);
+  closeModal();
+  post({ action:'timetableWeekClass', book:book, date:dstr, day:d, start:st, end:en,
+         loc:loc, teacher:teacher, cls:cls, reason:reason },
+    '반을 만드는 중…', function(res){
+      if (res && res.result === 'success'){
+        setStatus(cls + ' — ' + wkDayLabel(dstr) + ' 하루만 만들었어요. [이 주만 학생 추가]로 학생을 넣어주세요.', 'ok');
+        load(true);
+      } else setStatus('반 추가 실패: ' + ((res && res.message) || '오류'), 'err');
+    });
+}
+function delWeekClass(cid, cls){
+  if (!confirm(cls + '\n\n이 주만 있는 이 반을 지울까요?')) return;
+  closeModal();
+  post({ action:'timetableWeekClassDel', book:book, classId:cid, cls:cls }, '지우는 중…', function(res){
+    if (res && res.result === 'success'){ setStatus('이 주만 있던 반을 지웠어요.', 'ok'); load(true); }
+    else setStatus('삭제 실패: ' + ((res && res.message) || '오류'), 'err');
+  });
+}
+
+/* 이 주만 있는 반 — 학생 넣기·반 지우기 */
+function openWeekClassManage(c, dstr){
+  var d = dstr || c.wk;
+  openModal(
+    '<h3>이 주만 있는 반</h3>'+
+    '<p class="mdesc"><b>'+esc(c.cls)+'</b><br>'+esc(wkDayLabel(d))+' '+esc(c.start)+'~'+esc(c.end)+
+    (c.teacher ? ' · '+esc(c.teacher)+'T' : '')+(c.loc ? ' · '+esc(c.loc) : '')+'</p>'+
+    '<p class="mdesc hint-x">이 날 하루만 있는 반이에요. 정규 시간표와 다른 주차에는 나타나지 않아요.</p>'+
+    '<div class="mbtns">'+
+    '<button onclick="closeModal(); openWeekAdd(classes.find(function(x){return x.id===\''+esc(c.id)+'\';}), \''+esc(d)+'\')">학생 넣기</button>'+
+    '<button onclick="delWeekClass(\''+esc(c.id)+'\',\''+esc(c.cls)+'\')">반 지우기</button>'+
+    '<button onclick="closeModal()">닫기</button></div>'
+  );
+}
+
+/* 이 주만 학생 추가 — 명단 검색은 영구 추가와 같은 목록 사용 */
+function openWeekAdd(c, dstr){
+  var d = dstr || ymdOf(weekDates()[c.day]);
+  openModal(
+    '<h3>이 주만 학생 추가</h3>'+
+    '<p class="mdesc"><b>'+esc(labelOf(c))+'</b><br>'+esc(wkDayLabel(d))+' 하루만 이 반에 들어와요.</p>'+
+    '<p class="mdesc hint-x">정규 명단과 다른 주차는 그대로예요. 아주 옮기려면 전체 시간표에서 하세요.</p>'+
+    '<input type="text" id="add-q" placeholder="이름 검색" autocomplete="off">'+
+    '<div class="pick-list" id="add-list"></div>'+
+    '<label style="font-size:.8rem;color:var(--ink-soft);display:block;margin-top:8px;">사유 메모 (선택)</label>'+
+    '<textarea id="wa-reason" placeholder="예: 결석 보충, 시험 대비 추가 수업"></textarea>'+
+    '<p class="merr" id="add-err"></p>'+
+    '<div class="mbtns"><button onclick="closeModal()">닫기</button></div>'
+  );
+  pickStudent(function(nm){
+    var reason = ($('wa-reason') ? $('wa-reason').value : '').trim();
+    if (!confirm(nm + ' 을(를) ' + wkDayLabel(d) + ' ' + labelOf(c) + ' 에만 추가할까요?')) return;
+    closeModal();
+    post({ action:'timetableWeekAdd', book:book, student:nm, toId:c.id, date:d, reason:reason },
+      '추가하는 중…', function(res){
+        if (res && res.result === 'success'){ setStatus(nm + ' — ' + wkDayLabel(d) + ' 하루만 추가했어요.', 'ok'); loadWeek(); }
+        else setStatus('추가 실패: ' + ((res && res.message) || '오류'), 'err');
+      });
+  });
+}
+/* 이 주만 빼기 — 그 날짜의 출석 창에서 부른다 */
+function openWeekRemove(cid, nm, dstr){
+  var c = classes.find(function(x){ return x.id === cid; }); if (!c) return;
+  var d = dstr || attDate || ymdOf(weekDates()[c.day]);
+  openModal(
+    '<h3>이 주만 빼기</h3>'+
+    '<p class="mdesc"><b>'+esc(plainName(nm))+'</b> — '+esc(labelOf(c))+'<br>'+esc(wkDayLabel(d))+' 하루만 이 반에서 빠져요.</p>'+
+    '<p class="mdesc hint-x">정규 명단·다른 주차·학생 개별 페이지는 그대로예요. 아주 빼려면 전체 시간표에서 하세요.</p>'+
+    '<textarea id="wr-reason" placeholder="사유 메모 (선택) — 예: 학교 행사, 가족 여행"></textarea>'+
+    '<div class="mbtns"><button onclick="closeModal()">취소</button>'+
+    '<button class="primary" onclick="submitWeekRemove(\''+esc(cid)+'\',\''+esc(nm)+'\',\''+esc(d)+'\')">이 주만 빼기</button></div>'
+  );
+}
+function submitWeekRemove(cid, nm, d){
+  var reason = ($('wr-reason') ? $('wr-reason').value : '').trim();
+  closeModal();
+  post({ action:'timetableWeekRemove', book:book, student:nm, fromId:cid, date:d, reason:reason },
+    '빼는 중…', function(res){
+      if (res && res.result === 'success'){ setStatus(plainName(nm) + ' — ' + wkDayLabel(d) + ' 하루만 뺐어요.', 'ok'); loadWeek(); }
+      else setStatus('실패: ' + ((res && res.message) || '오류'), 'err');
+    });
+}
+/* 주간 변경 되돌리기 */
+function weekEditCancel(row, nm, kind){
+  if (!confirm(plainName(nm) + ' 의 ' + (kind === '주간추가' ? '이 주 추가' : '이 주 빼기') + ' 를 되돌릴까요?')) return;
+  closeModal();
+  post({ action:'timetableWeekCancel', row:row }, '되돌리는 중…', function(res){
+    if (res && res.result === 'success'){ setStatus('되돌렸어요.', 'ok'); loadWeek(); load(true); }
+    else setStatus('실패: ' + ((res && res.message) || '오류'), 'err');
+  });
+}
+/* 학생 검색 목록 — 영구 추가·주간 추가 공용 (roster 캐시 사용) */
+function pickStudent(onPick){
+  var renderList = function(q){
+    q = (q||'').trim();
+    var rows = (roster||[]).filter(function(s){ return !q || s.name.indexOf(q)>=0 || (s.school||'').indexOf(q)>=0; }).slice(0, 40);
+    $('add-list').innerHTML = rows.length
+      ? rows.map(function(s){
+          return '<button data-add-nm="'+esc(s.name)+'">'+esc(s.name)+'<small>'+esc(s.school||'')+' '+esc((s.grade||'').replace('2026 ',''))+'</small></button>';
+        }).join('')
+      : '<span class="subnote">검색 결과가 없어요.</span>';
+  };
+  var wire = function(){
+    $('add-q').addEventListener('input', function(){ renderList(this.value); });
+    $('add-list').addEventListener('click', function(e){
+      var b = e.target.closest('button[data-add-nm]'); if (!b) return;
+      onPick(b.getAttribute('data-add-nm'));
+    });
+    renderList('');
+  };
+  if (roster) { wire(); }
+  else {
+    $('add-list').innerHTML = '<span class="subnote">명단을 불러오는 중…</span>';
+    fetch(ENDPOINT + '?action=roster&t=' + Date.now())
+      .then(function(r){ return r.json(); })
+      .then(function(d){ roster = (d && d.students) || []; wire(); })
+      .catch(function(){ if ($('add-err')) $('add-err').textContent = '명단을 불러오지 못했어요.'; });
+  }
+}
+
 /* ── 1회 이동 (오늘의 시간표 전용) ── */
 /* 출석 창의 [다른 반으로 1회 이동] — 반 id로 찾아 이동 모드 시작 */
 function startOnceMoveById(cid, nm){
@@ -4154,6 +4479,8 @@ function openOnceManage(c, nm, row, dir, dateStr){
   attDate = dateStr || todayStr();
   var o = onceMoves.find(function(x){ return x.row === row; }) || weekOnce.find(function(x){ return x.row === row; });
   if (!o){ load(true); return; }
+  // 그 주에만 적용된 추가·빼기는 따로 (되돌리기 + 추가된 학생은 출석 체크)
+  if (o.kind && o.kind !== '1회'){ openWeekManage(c, nm, o, dir); return; }
   var from = classes.find(function(x){ return x.id===o.fromId; });
   var to = classes.find(function(x){ return x.id===o.toId; });
   var cur = attendAt(attDate, c.id, nm);
@@ -4184,6 +4511,32 @@ function openOnceManage(c, nm, row, dir, dateStr){
     (isToday ? ''
       : '<button onclick="onceCancel('+row+',\''+esc(nm)+'\')">1회 이동 취소</button>'+
         '<button onclick="onceEditReason('+row+',\''+esc(nm)+'\')">사유 저장</button>')+
+    '<button onclick="closeModal()">닫기</button></div>'
+  );
+}
+/* 그 주만 추가·빼기 기록 관리 — 출석 체크(추가된 학생)와 되돌리기 */
+function openWeekManage(c, nm, o, dir){
+  var added = (o.kind === '주간추가');
+  var cur = attendAt(attDate, c.id, nm);
+  var attSec = added
+    ? '<div class="att-btns">'+
+      '<button class="pick-ok'+(cur&&cur.status==='출석'?' on':'')+'" onclick="submitAttend(\''+esc(c.id)+'\',\''+esc(nm)+'\',\'출석\')">출석</button>'+
+      '<button class="pick-late'+(cur&&cur.status==='지각'?' on':'')+'" onclick="submitAttend(\''+esc(c.id)+'\',\''+esc(nm)+'\',\'지각\')">지각</button>'+
+      '<button class="pick-abs'+(cur&&cur.status==='결석'?' on':'')+'" onclick="submitAttend(\''+esc(c.id)+'\',\''+esc(nm)+'\',\'결석\')">결석</button>'+
+      '</div>'+
+      '<textarea id="att-memo" placeholder="출석 메모 — 지각은 꼭 적어주세요">'+esc(cur ? cur.memo : '')+'</textarea>'+
+      '<p class="merr" id="att-err"></p>'
+    : '';
+  openModal(
+    '<h3>'+(added ? '이 주만 추가된 학생' : '이 주만 빠진 학생')+'</h3>'+
+    '<p class="mdesc"><b>'+esc(plainName(nm))+'</b> — '+esc(labelOf(c))+'<br>'+esc(wkDayLabel(o.date || attDate))+' 하루만 적용돼요.</p>'+
+    (o.reason ? '<p class="mdesc" style="background:var(--icon-bg);border-radius:9px;padding:8px 10px;">사유 — '+esc(o.reason)+'</p>' : '')+
+    attSec +
+    '<p class="mdesc hint-x">정규 명단·다른 주차·학생 개별 페이지는 그대로예요.</p>'+
+    '<div class="mbtns">'+
+    (mode === 'week'
+      ? '<button onclick="weekEditCancel('+o.row+',\''+esc(nm)+'\',\''+esc(o.kind)+'\')">되돌리기</button>'
+      : '')+
     '<button onclick="closeModal()">닫기</button></div>'
   );
 }
@@ -4244,41 +4597,19 @@ function openAdd(c){
     '<p class="merr" id="add-err"></p>'+
     '<div class="mbtns"><button onclick="closeModal()">닫기</button></div>'
   );
-  var renderList = function(q){
-    q = (q||'').trim();
-    var rows = (roster||[]).filter(function(s){ return !q || s.name.indexOf(q)>=0 || (s.school||'').indexOf(q)>=0; }).slice(0, 40);
-    $('add-list').innerHTML = rows.length
-      ? rows.map(function(s){
-          return '<button data-add-nm="'+esc(s.name)+'">'+esc(s.name)+'<small>'+esc(s.school||'')+' '+esc((s.grade||'').replace('2026 ',''))+'</small></button>';
-        }).join('')
-      : '<span class="subnote">검색 결과가 없어요.</span>';
-  };
-  var wire = function(){
-    $('add-q').addEventListener('input', function(){ renderList(this.value); });
-    $('add-list').addEventListener('click', function(e){
-      var b = e.target.closest('button[data-add-nm]'); if (!b) return;
-      var nm = b.getAttribute('data-add-nm');
-      if (!confirm(nm + ' 을(를) ' + labelOf(c) + ' 에 추가할까요?')) return;
-      closeModal();
-      post({ action:'timetableAdd', book:book, student:nm, toId:c.id }, '추가하는 중…', function(res){
-        if (res && res.result === 'success'){ setStatus((res.added||'') + ' 추가 완료.' + rosterNote(res), 'ok'); load(true); }
-        else setStatus('추가 실패: ' + ((res && res.message) || '오류'), 'err');
-      });
+  pickStudent(function(nm){
+    if (!confirm(nm + ' 을(를) ' + labelOf(c) + ' 에 추가할까요?')) return;
+    closeModal();
+    post({ action:'timetableAdd', book:book, student:nm, toId:c.id }, '추가하는 중…', function(res){
+      if (res && res.result === 'success'){ setStatus((res.added||'') + ' 추가 완료.' + rosterNote(res), 'ok'); load(true); }
+      else setStatus('추가 실패: ' + ((res && res.message) || '오류'), 'err');
     });
-    renderList('');
-  };
-  if (roster) { wire(); }
-  else {
-    $('add-list').innerHTML = '<span class="subnote">명단을 불러오는 중…</span>';
-    fetch(ENDPOINT + '?action=roster&t=' + Date.now())
-      .then(function(r){ return r.json(); })
-      .then(function(d){ roster = (d && d.students) || []; wire(); })
-      .catch(function(){ $('add-err').textContent = '명단을 불러오지 못했어요.'; });
-  }
+  });
 }
 
 /* 반 추가 */
-function openAddClass(){
+/* 반 만들기 폼 조각 — 영구 반 추가와 '이 주만 반 추가'가 함께 쓴다 */
+function classFormHtml(dayFixed){
   // 시작: 오전 10:00 ~ 밤 9:30 / 끝: 오전 10:30 ~ 밤 10:00
   // ("10:00" 끝은 밤 10시 — 끝이 시작보다 이르면 오후로 해석(minsEnd)하므로 정상 표시·저장)
   var startOpts = [], endOpts = [];
@@ -4291,11 +4622,9 @@ function openAddClass(){
   var locs = [];
   classes.forEach(function(c){ if (c.loc && locs.indexOf(c.loc) < 0) locs.push(c.loc); });
   if (!locs.length) locs = ['본원','민트초코','화정센터','정리정독'];
-  openModal(
-    '<h3>반 추가 — '+esc(book)+' 시간표</h3>'+
-    '<div style="display:flex;gap:8px;"><div style="flex:1;"><label style="font-size:.8rem;color:var(--ink-soft);">요일</label>'+
-    '<select id="nc-day" style="font:inherit;font-size:.92rem;border:1.5px solid var(--line);border-radius:10px;padding:8px 10px;width:100%;margin-top:6px;">'+
-    DAYS.map(function(d){ return '<option>'+d+'</option>'; }).join('')+'</select></div>'+
+  return '<div style="display:flex;gap:8px;"><div style="flex:1;"><label style="font-size:.8rem;color:var(--ink-soft);">요일</label>'+
+    '<select id="nc-day"'+(dayFixed ? ' disabled' : '')+' style="font:inherit;font-size:.92rem;border:1.5px solid var(--line);border-radius:10px;padding:8px 10px;width:100%;margin-top:6px;">'+
+    DAYS.map(function(d){ return '<option'+(dayFixed===d?' selected':'')+'>'+d+'</option>'; }).join('')+'</select></div>'+
     '<div style="flex:1;"><label style="font-size:.8rem;color:var(--ink-soft);">시작</label>'+timeSel('nc-start','5:30',startOpts)+'</div>'+
     '<div style="flex:1;"><label style="font-size:.8rem;color:var(--ink-soft);">끝</label>'+timeSel('nc-end','7:00',endOpts)+'</div></div>'+
     '<div style="display:flex;gap:8px;margin-top:8px;"><div style="flex:1;"><label style="font-size:.8rem;color:var(--ink-soft);">위치</label>'+
@@ -4305,7 +4634,12 @@ function openAddClass(){
     '<input type="text" id="nc-teacher" list="nc-ts" placeholder="예) 주혜"><datalist id="nc-ts">'+
     TEACHER_ORDER.map(function(t){ return '<option>'+t+'</option>'; }).join('')+'</datalist></div></div>'+
     '<label style="font-size:.8rem;color:var(--ink-soft);display:block;margin-top:8px;">반이름</label>'+
-    '<input type="text" id="nc-cls" placeholder="예) 고1 가 · 정리정독 중2 · 내신 화정고">'+
+    '<input type="text" id="nc-cls" placeholder="예) 고1 가 · 정리정독 중2 · 내신 화정고">';
+}
+function openAddClass(){
+  openModal(
+    '<h3>반 추가 — '+esc(book)+' 시간표</h3>'+
+    classFormHtml('')+
     '<p class="subnote">반이름이 \'가/나\'로 끝나면 학생 이동 시 리포트의 정규 가/나 칸에 연결돼요.</p>'+
     '<p class="merr" id="nc-err"></p>'+
     '<div class="mbtns"><button onclick="closeModal()">취소</button>'+
@@ -4695,12 +5029,13 @@ function chRender(){
   if (!chRows.length){ list.innerHTML = '<span class="ch-none">아직 기록이 없어요.</span>'; return; }
   if (!rows.length){ list.innerHTML = '<span class="ch-none">찾는 기록이 없어요.</span>'; return; }
   list.innerHTML = rows.map(function(g){
-    var kcls = g.kind === '1회' ? ' once' : (g.kind === '빼기' ? ' minus' : '');
+    var kcls = (g.kind === '1회' || g.kind === '주간추가' || g.kind === '주간반추가') ? ' once'
+             : (g.kind === '빼기' || g.kind === '주간빼기' || g.kind === '주간반삭제') ? ' minus' : '';
     var path = g.fromCls && g.toCls ? esc(g.fromCls) + ' → ' + esc(g.toCls)
              : (g.toCls ? '→ ' + esc(g.toCls) : esc(g.fromCls) + ' 에서');
     return '<div class="ch-item"><span class="lk' + kcls + '">' + esc(g.kind) + '</span>' +
            (g.book === '내신' ? '<span class="lk" style="background:#8A6FA8;">내신</span>' : '') +
-           '<b>' + esc(g.student) + '</b> ' + path +
+           (g.student ? '<b>' + esc(g.student) + '</b> ' : '') + path +
            '<div class="lr">' + esc(g.date) + (g.reason ? ' · ' + esc(g.reason) : '') + '</div></div>';
   }).join('');
 }
