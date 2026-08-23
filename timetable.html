@@ -3728,7 +3728,7 @@ function asWeekIndex(weeks, ymd){
 }
 
 function openAttStatus(nm){
-  if (nm){ asS.view = 'person'; asS.person = plainName(nm).trim(); asS.q = ''; }
+  if (nm){ asS.view = 'person'; asS.person = asKey(nm); asS.q = ''; }
   setMode('att');
 }
 
@@ -3808,22 +3808,34 @@ function asDateOf(wk, day){
   return ymdOf(d);
 }
 
+/* 이름을 명단 기준 하나로 모은다.
+ * 동명이인 표기가 어긋나 시간표는 첫 사람도 '양지우A', 명단은 '양지우'로 적혀 있어서
+ * 그대로 두면 한 사람이 두 줄로 갈라지고 대상 학생 수도 부풀려진다
+ * (2026-08-23 사용자 질문 "496명이라고 되어있었는데 왜 500명이에요?").
+ * B·C는 명단에도 그대로 있으므로 끝의 A만 뗀다. */
+function asKey(nm){
+  var n = plainName(nm).trim();
+  if (!n || !asRoster) return n;
+  if (asRoster[n]) return n;
+  if (/A$/.test(n) && asRoster[n.slice(0, -1)]) return n.slice(0, -1);
+  return n;
+}
 function asBuild(weeks, reg, nae, absLists){
   var att = {}, once = {}, mk = {};
   [[absLists[0], '정규'], [absLists[1], '내신']].forEach(function(pr){
     if (!pr[0] || pr[0].result !== 'success') return;
     (pr[0].list || []).forEach(function(x){
-      mk[pr[1] + '|' + x.date + '|' + x.classId + '|' + plainName(x.student).trim()] = x;
+      mk[pr[1] + '|' + x.date + '|' + x.classId + '|' + asKey(x.student)] = x;
     });
   });
   [[reg, '정규'], [nae, '내신']].forEach(function(pr){
     var d = pr[0], bk = pr[1];
     if (!d || d.result !== 'success') return;
     (d.attend || []).forEach(function(a){
-      att[bk + '|' + a.date + '|' + a.classId + '|' + plainName(a.student).trim()] = a;
+      att[bk + '|' + a.date + '|' + a.classId + '|' + asKey(a.student)] = a;
     });
     (d.onceMoves || []).forEach(function(o){
-      var nm = plainName(o.student).trim();
+      var nm = asKey(o.student);
       (once[bk + '|' + nm] = once[bk + '|' + nm] || []).push(o);
     });
   });
@@ -3834,7 +3846,7 @@ function asBuild(weeks, reg, nae, absLists){
     (list || []).forEach(function(c){
       if (asIsNonsul(c)) return;                      // 일요일 논술 특강은 집계에서 뺀다
       (c.students || []).forEach(function(s){
-        var nm = plainName(s).trim(); if (!nm) return;
+        var nm = asKey(s); if (!nm) return;
         var key = bk + '|' + nm;
         belong[key] = belong[key] || [[], []];
         belong[key][asSlotOf(bk, c)].push(c);   // 확인반이 없는 중3·고3은 확인 칸이 빈 채로 남는다
@@ -3848,9 +3860,9 @@ function asBuild(weeks, reg, nae, absLists){
   if (asRoster) Object.keys(asRoster).forEach(function(n){ names[n] = 1; });
 
   var list = Object.keys(names).map(function(nm){
-    var r = (asRoster && (asRoster[nm] || (/A$/.test(nm) ? asRoster[nm.slice(0, -1)] : null))) || null;
+    var r = (asRoster && asRoster[nm]) || null;
     var inTT = !!(belong['정규|' + nm] || belong['내신|' + nm]);
-    var st = { n: nm, s: r ? r.school : '', g: r ? asGrade(r.grade) : '', t: r ? r.teacher : '',
+    var st = { n: nm, s: r ? r.school : '', g: r ? asGrade(r.grade) : '', tc: r ? r.teacher : '',
                known: !!r, inTT: inTT, left: (!r && !inTT), wk: [], i: [], ex: 0,
                t2: { att:0, late:0, abs:0, move:0, done:0 } };
     weeks.forEach(function(wk){
@@ -4146,14 +4158,26 @@ function asTile(k, v, sub, cls){
   return '<div class="as-tile ' + (cls || '') + '"><div class="k">' + esc(k) + '</div>' +
          '<div class="v">' + esc(v) + '</div>' + (sub ? '<div class="s">' + esc(sub) + '</div>' : '') + '</div>';
 }
+/* 재원 명단(예: 496명)보다 수가 큰 이유를 타일에 적어 준다 —
+ * 아직 등록 전인 미등록생과, 명단에서 빠졌지만 그 기간에 기록이 남은 퇴원생이 함께 세어진다
+ * (2026-08-23 사용자 질문 "496명이라고 되어있었는데 왜 500명이에요?") */
+function asCntNote(list){
+  var nu = 0, lf = 0;
+  list.forEach(function(x){ if (x.known) return; if (x.left) lf++; else nu++; });
+  if (!nu && !lf) return '';
+  var b = ['재원 ' + (list.length - nu - lf)];
+  if (nu) b.push('미등록 ' + nu);
+  if (lf) b.push('퇴원 ' + lf);
+  return ' · ' + b.join(' · ');
+}
 function asTiles(list, only){
   var T = { att:0, late:0, abs:0, move:0, done:0, ex:0 };
   list.forEach(function(x){ T.att += x.t.att; T.late += x.t.late; T.abs += x.t.abs; T.move += x.t.move; T.done += x.t.done; T.ex += x.ex; });
   var base = T.att + T.late + T.abs;
   var risk = list.filter(function(x){ return x.t.abs >= 2 || x.t.late >= 3; }).length;
   var h = '<div class="as-tiles">' +
-    (only ? asTile('학생', only.n, (only.s ? only.s + ' ' : '') + only.g + (only.t ? ' · ' + only.t + 'T' : ''), 'hero')
-          : asTile('대상 학생', list.length + '명', asScope(), 'hero')) +
+    (only ? asTile('학생', only.n, (only.s ? only.s + ' ' : '') + only.g + (only.tc ? ' · ' + only.tc + 'T' : ''), 'hero')
+          : asTile('대상 학생', list.length + '명', asScope() + asCntNote(list), 'hero')) +
     asTile('출석률', base ? (T.att / base * 100).toFixed(1) + '%' : '—', base ? '출석 ' + T.att + '회' : '기록 없음', 'hero') +
     asTile('지각', T.late + '회', '') +
     asTile('결석', T.abs + '회', T.abs ? '보충 완료 ' + T.done + ' · 미완 ' + (T.abs - T.done) : '') +
