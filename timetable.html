@@ -3877,7 +3877,7 @@ function asRowHtml(st){
   return '<tr class="' + (open ? 'sel' : '') + '">' +
     '<td class="as-cn"><button class="as-row" type="button" onclick="asToggle(\'' + esc(key) + '\')">' +
       '<span class="as-nm">' + esc(st.n) + '</span><div class="as-meta">' +
-      esc(st.known ? (st.s + ' ' + st.g) : '명단에 없음') + '</div></button></td>' +
+      esc(st.known ? (st.s + ' ' + st.g) : '미등록생') + '</div></button></td>' +
     cells +
     '<td class="as-cs"><div class="as-rate' + (t.rate != null && t.rate < 85 ? ' warn' : '') + '">' +
       (t.rate == null ? '—' : t.rate + '%') + '</div>' +
@@ -3938,7 +3938,10 @@ function asMatrix(list){
   if (!list.length) return '<p class="as-none">조건에 맞는 학생이 없어요.</p>';
   var body = '', tail = '';
   if ((asS.view === 'grade' || asS.view === 'school') && !asS.sub){
-    var keyf = (asS.view === 'grade') ? function(x){ return x.g || '(학년 미상)'; } : function(x){ return x.s || '(학교 미상)'; };
+    // 재원 명단에 없는 학생은 아직 등록 전인 미등록생 — 학년·학교를 알 수 없어 따로 묶는다
+    var keyf = (asS.view === 'grade')
+      ? function(x){ return x.known ? (x.g || '(학년 미상)') : '(미등록생)'; }
+      : function(x){ return x.known ? (x.s || '(학교 미상)') : '(미등록생)'; };
     var groups = {};
     list.forEach(function(x){ (groups[keyf(x)] = groups[keyf(x)] || []).push(x); });
     var keys = Object.keys(groups);
@@ -3946,6 +3949,7 @@ function asMatrix(list){
       var ord = ['고1','고2','고3','중2','중3'];
       keys.sort(function(a, b){ return (ord.indexOf(a) + 1 || 99) - (ord.indexOf(b) + 1 || 99); });
     } else keys.sort(function(a, b){ return groups[b].length - groups[a].length; });
+    keys.sort(function(a, b){ return (a === '(미등록생)' ? 1 : 0) - (b === '(미등록생)' ? 1 : 0); });
     var worst = 0;
     keys.forEach(function(k){
       var T = { att:0, late:0, abs:0 };
