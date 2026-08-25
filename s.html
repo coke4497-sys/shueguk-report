@@ -723,10 +723,8 @@ function api(extra){
 (function(){
   var SB_REST = 'https://bangdbhqpphqqdwcledg.supabase.co/rest/v1';
   var SB_KEY = 'sb_publishable_dE9d1KIbpgYaQkaS2MSrlg_-7SiRJuT';
-  function sbGet(path){
-    return fetch(SB_REST + path, { headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY } })
-      .then(function(r){ if(!r.ok) throw new Error('sb ' + r.status); return r.json(); });
-  }
+  /* 표를 직접 읽는 함수는 두지 않는다 — 학생 화면은 아래 sbRpc 로 DB 함수만 부른다.
+   * (공개 키에 표 권한이 없으므로 표를 조회하면 어차피 막힌다, 2026-08-25) */
   /* DB 함수 호출 — 학생 화면은 표를 직접 읽지 않고 이걸 쓴다(012 마이그레이션) */
   function sbRpc(fn, args){
     return fetch(SB_REST + '/rpc/' + fn, {
@@ -1268,7 +1266,7 @@ function api(extra){
    * 전교생 기록을 내려받지 않게 하려는 구조(공개 항목: 이름·학교·학년·별 수).
    * 표가 비어 있으면(아직 한 번도 계산 안 됨) 기존 백엔드로 폴백. */
   window.sbTop30 = function(){
-    return sbGet('/star_ranking?select=rank,name,school,grade,total,updated_at&order=rank&limit=30')
+    return sbRpc('star_top30', {})
       .then(function(rows){
         if (!rows || !rows.length) throw new Error('star_ranking empty');
         // 캐시가 6시간 넘게 오래됐으면(선생님이 한동안 슈퍼스타 관리를 안 연 경우)
@@ -1700,13 +1698,14 @@ function checkNoticeBtn(btn){
     if(!d.already){
       try {
         var si2 = STATE.info || {};
-        fetch('https://bangdbhqpphqqdwcledg.supabase.co/rest/v1/notice_reads', {
+        // 표에 직접 넣지 않고 '넣기 전용' 함수로 — 학생 페이지라 표 권한을 열어 둘 수 없다
+        fetch('https://bangdbhqpphqqdwcledg.supabase.co/rest/v1/rpc/mirror_notice_read', {
           method:'POST',
           headers:{ 'apikey':'sb_publishable_dE9d1KIbpgYaQkaS2MSrlg_-7SiRJuT',
                     'Authorization':'Bearer sb_publishable_dE9d1KIbpgYaQkaS2MSrlg_-7SiRJuT',
-                    'Content-Type':'application/json', 'Prefer':'return=minimal' },
-          body: JSON.stringify([{ at:new Date().toISOString(), student_id:String(si2.id||''),
-            name:String(si2.name||''), school:String(si2.school||'').trim(), notice_key:k }])
+                    'Content-Type':'application/json' },
+          body: JSON.stringify({ p: { at:new Date().toISOString(), student_id:String(si2.id||''),
+            name:String(si2.name||''), school:String(si2.school||'').trim(), notice_key:k } })
         }).catch(function(){});
       } catch(e){}
     }
