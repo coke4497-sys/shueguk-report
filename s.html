@@ -727,6 +727,14 @@ function api(extra){
     return fetch(SB_REST + path, { headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY } })
       .then(function(r){ if(!r.ok) throw new Error('sb ' + r.status); return r.json(); });
   }
+  /* DB 함수 호출 — 학생 화면은 표를 직접 읽지 않고 이걸 쓴다(012 마이그레이션) */
+  function sbRpc(fn, args){
+    return fetch(SB_REST + '/rpc/' + fn, {
+      method: 'POST',
+      headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY, 'Content-Type': 'application/json' },
+      body: JSON.stringify(args || {})
+    }).then(function(r){ if(!r.ok) throw new Error('sb rpc ' + r.status); return r.json(); });
+  }
   function enc(v){ return encodeURIComponent(v); }
   function tr(v){ return String(v == null ? '' : v).trim(); }
   function p2(n){ return ('0' + n).slice(-2); }
@@ -900,11 +908,16 @@ function api(extra){
     /* 본인 행만 조회 — 전교생 명단(학생ID=비밀번호·접근코드)을 화면으로 내려받지 않는다.
      * 형제 수(같은 학생ID)·동명이인 수는 필요한 범위만 따로 세어 백엔드와 같은 판정을 만든다.
      * (동명이인 후보는 접미사만 다른 이름이므로 baseName으로 시작하는 이름만 받으면 충분) */
-    var STU_COLS = 'student_id,name,school,grade,teacher,memo,class_a,class_b,naeshin_a,naeshin_b,enrolled,code';
-    var meQ = isId ? ('/students?student_id=eq.' + enc(qsKey)) : ('/students?code=eq.' + enc(qsKey));
-    return sbGet(meQ + '&select=' + STU_COLS + '&order=seq,id&limit=1').then(function(rows){
-      var me = rows && rows[0];
-      if (!me) throw new Error('mirror: student not found');
+    /* 2026-08-25(3단계): 표를 직접 조회하지 않고 DB 함수 하나만 부른다.
+     * 그전에는 본인 행 + 관련 표 16개를 각각 조회했는데(왕복 3파), 그러려면 공개 키에
+     * 표 읽기 권한이 열려 있어야 했다. 그 키는 학생 496명이 여는 이 페이지 안에 있으므로
+     * 주소창에서 `/students?select=*` 를 부르면 전교생의 학생ID(=비밀번호)와 접근코드가
+     * 읽혔다. 이제 함수가 접근코드에 해당하는 학생 몫만 조립해 돌려준다.
+     * 조회 조건은 그대로 함수 안으로 옮겼고(012 마이그레이션), 아래 조립 규칙은 안 바꿨다.
+     * 덤으로 왕복이 16번 → 1번이 된다. 함수 호출이 실패하면 기존 백엔드로 폴백한다. */
+    return sbRpc('student_bundle', { p_key: qsKey, p_is_id: !!isId, p_pw: pw || '' }).then(function(B){
+      if (!B || B.found !== true) throw new Error('mirror: student not found');
+      var me = B.me || {};
       var key = isId ? '' : qsKey;
       var sid = tr(me.student_id);
       var info = { id: sid, name: tr(me.name), school: String(me.school || ''), grade: String(me.grade || ''),
@@ -912,15 +925,7 @@ function api(extra){
                    classB: String(me.class_b || ''), progress: String(me.naeshin_a || ''), checkup: String(me.naeshin_b || ''),
                    enrolled: String(me.enrolled || '') };
       var myBase = baseName(info.name);
-      return Promise.all([
-        sbGet('/students?student_id=eq.' + enc(sid) + '&select=student_id'),
-        sbGet('/students?name=like.' + enc(myBase + '*') + '&select=name,enrolled')
-      ]).then(function(cnts){
-      var shareCount = (cnts[0] || []).length, nameDupCount = 0;
-      (cnts[1] || []).forEach(function(r){
-        var rn = tr(r.name);
-        if (rn && baseName(rn) === myBase && !/^(퇴원|n|no|off|x|중단|비재원)$/i.test(tr(r.enrolled))) nameDupCount++;
-      });
+      var shareCount = B.share_count || 0, nameDupCount = B.name_dup_count || 0;
       var siblingShared = shareCount > 1;
       info.nameDup = nameDupCount > 1;
       var uniq = !info.nameDup;
@@ -929,33 +934,12 @@ function api(extra){
       var name = info.name, base = baseName(name), school = tr(info.school), myGd = gradeDigit(info.grade);
       var stu = { sid: sid, name: name, grade: tr(info.grade), school: school, code: tr(key) };
 
-      var fName = nameOr(name, base);
-      var jobs = [
-        sbGet('/notices?select=seq,date,type,target,title,body,hidden&order=seq,id'),                                          // 0
-        (function(){ var f = orFilter([['student_id', sid], ['name', name]]);
-          return f ? sbGet('/notice_reads?select=student_id,name,school,notice_key&order=at,id' + f) : Promise.resolve([]); })(), // 1
-        sbGet('/assignments?select=seq,date,tool,item,type,target,due,memo&order=seq,id'),                                     // 2
-        (function(){ var f = orFilter([['token', key], ['student_id', sid]]);
-          return f ? sbGet('/clinic_requests?select=ts,slot,rtype,area,content,qcount,memo,student_id,token&order=id' + f) : Promise.resolve([]); })(), // 3
-        fName ? sbGet('/hwork_submissions?select=teacher,code,name,school,grade&order=id' + fName) : Promise.resolve([]),      // 4
-        fName ? sbGet('/voca_results?select=name,round,grade,school&order=id' + fName) : Promise.resolve([]),                  // 5
-        fName ? sbGet('/omr_responses?select=student_id,name,school,exam,grade&order=id' + fName) : Promise.resolve([]),       // 6
-        tr(key) ? sbGet('/hwcheck_records?select=week,pct,scores,pub,missing&token=eq.' + enc(key) + '&order=week') : Promise.resolve([]), // 7
-        fName ? sbGet('/signup_entries?select=ts,name,school,student_id,day&order=id' + fName) : Promise.resolve([]),          // 8
-        (function(){ var f = orFilter([['student_id', sid], ['name', name]]);
-          return f ? sbGet('/star_bonus?select=at,student_id,name,school,stars,reason,grade&order=at,id' + f) : Promise.resolve([]); })(), // 9
-        sbGet('/report_config?select=key,value'),                                                                              // 10
-        (function(){ var f = orFilter([['parent_phone', sid], ['name', name]].concat(base !== name ? [['name', base]] : []));
-          return f ? sbGet('/submissions?select=id,submitted_at,exam,school,grade,name,wrong_count,wrong_text,vow,teacher_note,score,parent_phone&order=id' + f) : Promise.resolve([]); })(), // 11
-        sbGet('/exams?select=report_id,title,review,scope&order=at,report_id'),                                                // 12
-        authed ? sbGet('/exam_questions?select=report_id,no,area,qtype,lv,txt,detail,grp,multi&order=report_id,seq') : Promise.resolve([]), // 13
-        sbGet('/clinic_settings?select=key,value').catch(function(){ return null; }),                                          // 14
-        sbGet('/signup_settings?select=key,value').catch(function(){ return null; })                                           // 15
-      ];
-      return Promise.all(jobs).then(function(g){
-        var notices = g[0], reads = g[1], assigns = g[2], clinicRows = g[3], hwsub = g[4], voca = g[5],
-            omr = g[6], hwc = g[7], signup = g[8], bonusRows = g[9], cfg = g[10], subs = g[11],
-            examList = g[12], qRows = g[13], clinicSet = g[14], signupSet = g[15];
+      var notices = B.notices || [], reads = B.notice_reads || [], assigns = B.assignments || [],
+          clinicRows = B.clinic_requests || [], hwsub = B.hwork_submissions || [], voca = B.voca_results || [],
+          omr = B.omr_responses || [], hwc = B.hwcheck_records || [], signup = B.signup_entries || [],
+          bonusRows = B.star_bonus || [], cfg = B.report_config || [], subs = B.submissions || [],
+          examList = B.exams || [], qRows = B.exam_questions || [],
+          clinicSet = B.clinic_settings || [], signupSet = B.signup_settings || [];
 
         /* 공지 확인 집합 — readNoticeChecks_ */
         var checks = {};
@@ -1276,8 +1260,6 @@ function api(extra){
           resp.examCount = examCount;
         }
         return resp;
-      });
-      });
     });
   }
 
