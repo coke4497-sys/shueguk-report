@@ -901,7 +901,14 @@
     return new Date(t - days * 86400000).toISOString();
   }
   function ok(o){ o.result = 'success'; return o; }
-  function fake(data){ return { ok: true, status: 200, json: function(){ return Promise.resolve(data); } }; }
+  /* 가짜 응답 — 페이지가 json()으로 읽든 text()로 읽든 되게 둘 다 준다
+   * (다른 페이지에서 text()만 있고 json()이 없어 '전송 실패'가 뜨던 문제와 같은 자리, 2026-08-25) */
+  function fake(data){
+    var body = JSON.stringify(data);
+    return { ok: true, status: 200,
+             json: function(){ return Promise.resolve(data); },
+             text: function(){ return Promise.resolve(body); } };
+  }
   function bookOf(v){ return String(v || '').trim() === '내신' ? '내신' : '정규'; }
 
   /* ── 공통 조회 ── */
