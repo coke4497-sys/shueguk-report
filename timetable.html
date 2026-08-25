@@ -1250,6 +1250,13 @@
     });
     return Promise.all(jobs).catch(function(e){ console.warn('학생 시간표 미러 실패', e); });
   }
+  /* 중3·고3 짝 반(정규↔내신)은 백엔드가 두 시간표를 함께 고친다(twinBook).
+   * 화면이 읽는 수파베이스도 짝 시간표까지 다시 맞춰 준다 —
+   * 안 그러면 밤 점검 전까지 짝 쪽 화면에 옛 명단이 남는다. */
+  function syncTwin(res, names){
+    if (res && res.twinBook) resyncClasses(bookOf(res.twinBook), names || null);
+    return res;
+  }
   function findLegacyOnceRow(g, cb){
     // 시트 쪽 같은 1회 이동의 행 번호 찾기(취소·수정 미러용, 실패해도 무방)
     var lds = applyYmdOf(g);
@@ -1556,8 +1563,8 @@
           mirror = Promise.all(jobs);
         }
         var names = (b.moveType === 'once') ? null : [res.moved || b.student];
-        return mirror.then(function(){ resyncClasses(book, names); return res; },
-                           function(e){ console.warn('이동 미러 실패', e); resyncClasses(book, names); return res; });
+        return mirror.then(function(){ resyncClasses(book, names); return syncTwin(res, names); },
+                           function(e){ console.warn('이동 미러 실패', e); resyncClasses(book, names); return syncTwin(res, names); });
       });
     },
     timetableAdd: function(b){
@@ -1567,8 +1574,8 @@
         var jobs = [];
         if (toC) jobs.push(setRoster(book, b.toId, toC.students.concat([added])));
         jobs.push(insertLog({ kind:'추가', student: added, book: book, to_class_id: b.toId, to_class: classLabel(toC) }));
-        return Promise.all(jobs).then(function(){ resyncClasses(book, [added]); return res; },
-                                      function(e){ console.warn('추가 미러 실패', e); resyncClasses(book, [added]); return res; });
+        return Promise.all(jobs).then(function(){ resyncClasses(book, [added]); return syncTwin(res, [added]); },
+                                      function(e){ console.warn('추가 미러 실패', e); resyncClasses(book, [added]); return syncTwin(res, [added]); });
       });
     },
     timetableRemove: function(b){
@@ -1579,8 +1586,8 @@
         if (fromC) jobs.push(setRoster(book, b.fromId, fromC.students.filter(function(nm){ return plain(nm) !== plain(removed); })));
         jobs.push(insertLog({ kind:'빼기', student: removed, book: book, from_class_id: b.fromId, from_class: classLabel(fromC),
                               reason: String(b.reason || '') }));
-        return Promise.all(jobs).then(function(){ resyncClasses(book, [removed]); return res; },
-                                      function(e){ console.warn('빼기 미러 실패', e); resyncClasses(book, [removed]); return res; });
+        return Promise.all(jobs).then(function(){ resyncClasses(book, [removed]); return syncTwin(res, [removed]); },
+                                      function(e){ console.warn('빼기 미러 실패', e); resyncClasses(book, [removed]); return syncTwin(res, [removed]); });
       });
     },
     timetableRenameStudent: function(b){
@@ -1600,7 +1607,7 @@
       return legacyPost(b).then(function(res){
         var okLegacy = !!(res && res.result === 'success');
         return mirror().then(function(hit){
-          if (okLegacy){ resyncClasses(book); return res; }
+          if (okLegacy){ resyncClasses(book); return syncTwin(res); }
           // 시트엔 이미 반영됐는데 화면에만 옛 표기가 남은 경우(미러 실패 뒤 재시도) — 화면 쪽을 고쳐 자기 치유.
           // 2026-08-22: 특이사항을 지워도 계속 남던 문제의 원인.
           return hit ? ok({ healed: true }) : res;
@@ -1634,8 +1641,8 @@
         return sbWrite('PATCH', '/tt_classes?book=eq.' + q(book) + '&class_id=eq.' + q(b.classId),
                        { day: b.day, start_time: b.start, end_time: b.end,
                          location: String(b.loc || ''), teacher: String(b.teacher || '') })
-          .then(function(){ resyncClasses(book, members); return res; },
-                function(e){ console.warn('반 이동 미러 실패', e); resyncClasses(book, members); return res; });
+          .then(function(){ resyncClasses(book, members); return syncTwin(res, members); },
+                function(e){ console.warn('반 이동 미러 실패', e); resyncClasses(book, members); return syncTwin(res, members); });
       });
     }
   };
@@ -3696,8 +3703,11 @@ function post(body, busyMsg, done){
   .catch(function(){ setStatus('전송에 실패했어요. 인터넷을 확인해 주세요.', 'err'); });
 }
 function rosterNote(res){
-  return res.rosterUpdated ? ' 리포트·학생 페이지에도 반영됐어요.' : (res.rosterMsg ? ' (' + res.rosterMsg + ')' : '');
+  var base = res.rosterUpdated ? ' 리포트·학생 페이지에도 반영됐어요.' : (res.rosterMsg ? ' (' + res.rosterMsg + ')' : '');
+  return base + twinNote(res);
 }
+/* 중3·고3은 정규·내신이 같은 반이라 짝 시간표도 함께 바뀐다 — 무엇이 같이 바뀌었는지 알려 준다 */
+function twinNote(res){ return (res && res.twinMsg) ? ' ' + res.twinMsg : ''; }
 
 /* ── 학생 검색 ── */
 /* 이름에서 괄호 표기를 떼어 낸 '진짜 이름'.
@@ -4594,7 +4604,7 @@ function dropClass(dname, cinfo, startMin){
     if (res && res.result === 'success'){
       cancelMove();
       var extra = (book==='정규') ? ' 학생 ' + (res.rosterUpdated||0) + '명 리포트 반영' + (res.rosterSkipped && res.rosterSkipped.length ? ' (미반영: ' + res.rosterSkipped.join(', ') + ')' : '') : '';
-      setStatus('반 이동 완료.' + extra, 'ok');
+      setStatus('반 이동 완료.' + extra + twinNote(res), 'ok');
       load(true);
     } else { setStatus('반 이동 실패: ' + ((res && res.message) || '오류'), 'err'); }
   });
@@ -4846,7 +4856,7 @@ function submitNoteEdit(nm){
   if (moving) cancelMove();
   post({ action:'timetableRenameStudent', book:book, from:nm, to:to }, '특이사항을 저장하는 중…', function(res){
     if (res && res.result === 'success'){
-      setStatus(plainName(nm) + (v ? ' — 특이사항을 저장했어요.' : ' — 특이사항 표기를 지웠어요.'), 'ok');
+      setStatus(plainName(nm) + (v ? ' — 특이사항을 저장했어요.' : ' — 특이사항 표기를 지웠어요.') + twinNote(res), 'ok');
       load(true);
     } else setStatus('저장 실패: ' + ((res && res.message) || '오류'), 'err');
   });

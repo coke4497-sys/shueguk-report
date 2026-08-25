@@ -2700,6 +2700,84 @@ function ttKind_(cls) {
   if (/나$/.test(c)) return 'B';
   return 'S';
 }
+/* ── 정규 ↔ 내신 짝 반 (중3·고3) ───────────────────────────────────────────
+ * 중3·고3은 정규 기간이든 내신 기간이든 같은 반으로 움직인다(사용자 확정, 2026-08-25).
+ * 그런데 두 시간표는 반ID가 달라(r### / n###) 명단이 서로 남남이라, 한쪽에서 옮기면
+ * 다른 쪽엔 옛 명단이 그대로 남았다 — 8/20 전민성 영구 이동(고3파이널A→E)이
+ * 내신에 안 들어가 내신 주에 엉뚱한 반에 이름이 남아 있었다.
+ * 그래서 명단·반 시간을 바꾸는 저장은 짝 반에도 같이 적용한다.
+ *
+ * 짝 판단은 '반이름 + 요일 + 시작시간'. 담당T·위치는 시트 기준으로 서로 다른 경우가
+ * 있어(정리정독 중3 금8:00 = 정규 은지 / 내신 선주) 짝 조건에 넣지 않고, 같은 이름·시간의
+ * 병렬 반이 둘 이상일 때 가려내는 데만 쓴다. 그래도 못 가리면 건드리지 않는다.
+ * 고1·고2·중2는 내신 반이름이 아예 달라('고1 가' ↔ '고1 확인') 짝이 잡히지 않는다. */
+function ttTwinBook_(book) { return (ttBook_(book) === '내신') ? '정규' : '내신'; }
+/** 짝 시간표의 시트와 값 — 호출부에서 한 번만 읽어 돌려 쓴다 */
+function ttTwinCtx_(ss, book) {
+  var tb = ttTwinBook_(book), tsh = ensureTimetableSheet_(ss, tb);
+  return { book: tb, sh: tsh, v: tsh.getDataRange().getValues() };
+}
+/** 원본 시간표의 row(0-based)에 해당하는 짝 반 행. 없거나 못 가리면 -1 */
+function ttTwinRowOf_(t, v, row) {
+  if (row < 0) return -1;
+  var cls = String(v[row][6] || '').trim(), day = String(v[row][1] || '').trim();
+  var start = ttTime_(v[row][2]), teacher = String(v[row][5] || '').trim();
+  if (!cls || !day || !start) return -1;
+  var hits = [];
+  for (var i = 1; i < t.v.length; i++) {
+    var id = String(t.v[i][0] || '').trim();
+    if (!id || id.charAt(0) === 'w') continue;          // '이 주만' 반은 짝 대상이 아니다
+    if (String(t.v[i][6] || '').trim() === cls &&
+        String(t.v[i][1] || '').trim() === day &&
+        ttTime_(t.v[i][2]) === start) hits.push(i);
+  }
+  if (hits.length === 1) return hits[0];
+  if (hits.length > 1) {
+    var byT = [];
+    for (var k = 0; k < hits.length; k++) if (String(t.v[hits[k]][5] || '').trim() === teacher) byT.push(hits[k]);
+    if (byT.length === 1) return byT[0];
+  }
+  return -1;
+}
+function ttListAt_(v, row) { return String(v[row][7] || '').trim().split(/\s+/).filter(String); }
+function ttWriteRoster_(sh, v, row, list) {
+  var rg = sh.getRange(row + 1, 8);
+  rg.setNumberFormat('@');
+  rg.setValue(list.join(' '));
+  v[row][7] = list.join(' ');
+}
+/** 명단에서 같은 학생의 자리(괄호 표기가 달라도 매칭). 없으면 -1 */
+function ttIdxOf_(list, name) {
+  var p = String(name || '').replace(/\(.*\)$/, '');
+  for (var i = 0; i < list.length; i++) {
+    if (list[i] === name || list[i].replace(/\(.*\)$/, '') === p) return i;
+  }
+  return -1;
+}
+/** 짝 반 명단 동기화. fromRow/toRow는 원본 시간표의 행(0-based, 없으면 -1).
+ *  돌려주는 값: { book, synced, msg } — msg가 있으면 화면에 그대로 보여 준다. */
+function ttTwinRoster_(ss, book, v, fromRow, toRow, name) {
+  var out = { book: '', synced: false, msg: '' };
+  var t = ttTwinCtx_(ss, book);
+  var fr = ttTwinRowOf_(t, v, fromRow), tr = ttTwinRowOf_(t, v, toRow);
+  if (fr < 0 && tr < 0) return out;                    // 짝이 없는 반(고1·고2·중2) — 정상
+  if ((fromRow >= 0 && fr < 0) || (toRow >= 0 && tr < 0)) {
+    // 한쪽만 짝이 있으면 반쪽만 고쳐 어긋나므로 손대지 않는다
+    out.msg = t.book + ' 시간표에는 짝 반이 없어 반영하지 못했어요 — ' + t.book + '에서 직접 옮겨 주세요.';
+    return out;
+  }
+  if (fr >= 0) {
+    var fl = ttListAt_(t.v, fr), fi = ttIdxOf_(fl, name);
+    if (fi >= 0) { fl.splice(fi, 1); ttWriteRoster_(t.sh, t.v, fr, fl); out.synced = true; }
+  }
+  if (tr >= 0) {
+    var tl = ttListAt_(t.v, tr);
+    if (ttIdxOf_(tl, name) < 0) { tl.push(name); ttWriteRoster_(t.sh, t.v, tr, tl); out.synced = true; }
+  }
+  if (out.synced) { out.book = t.book; out.msg = t.book + ' 시간표에도 함께 반영했어요.'; }
+  return out;
+}
+
 function ensureTtLogSheet_(ss) {
   var sh = ss.getSheetByName(TAB_TT_LOG);
   if (!sh) {
@@ -2887,7 +2965,10 @@ function timetableMove(data) {
     } else {
       rosterMsg = (book === '내신') ? '' : '논술 수업은 리포트 시간표에 반영하지 않아요.';
     }
-    return json({ result:'success', moved: moved, rosterUpdated: rosterUpdated, rosterMsg: rosterMsg });
+    // 중3·고3은 정규·내신이 같은 반 — 짝 반 명단도 함께 옮긴다
+    var twin = ttTwinRoster_(ss, book, v, fromRow, toRow, moved);
+    return json({ result:'success', moved: moved, rosterUpdated: rosterUpdated, rosterMsg: rosterMsg,
+                  twinBook: twin.book, twinMsg: twin.msg });
   } finally {
     try { lock.releaseLock(); } catch (e) {}
   }
@@ -2937,7 +3018,9 @@ function timetableAdd(data) {
     var slot = String(v[toRow][1] || '').trim() + ttTime_(v[toRow][2]);
     var r = (book === '내신') ? { updated:false, msg:'' } : ttRosterSet_(ss, plain, tk, slot);
     ttLog_(ss, '추가', name, '', '', toId, String(v[toRow][6] || ''), String(data.reason || ''), book);
-    return json({ result:'success', added: name, rosterUpdated: r.updated, rosterMsg: r.msg });
+    var twin = ttTwinRoster_(ss, book, v, -1, toRow, name);
+    return json({ result:'success', added: name, rosterUpdated: r.updated, rosterMsg: r.msg,
+                  twinBook: twin.book, twinMsg: twin.msg });
   } finally {
     try { lock.releaseLock(); } catch (e) {}
   }
@@ -2970,7 +3053,9 @@ function timetableRemove(data) {
     var fk = (book === '내신') ? '' : ttKind_(v[fromRow][6]);
     var r = (book === '내신') ? { updated:false, msg:'' } : ttRosterSet_(ss, plain, fk, '');   // 해당 열 비우기
     ttLog_(ss, '빼기', removed, fromId, String(v[fromRow][6] || ''), '', '', String(data.reason || ''), book);
-    return json({ result:'success', removed: removed, rosterUpdated: r.updated, rosterMsg: r.msg });
+    var twin = ttTwinRoster_(ss, book, v, fromRow, -1, removed);
+    return json({ result:'success', removed: removed, rosterUpdated: r.updated, rosterMsg: r.msg,
+                  twinBook: twin.book, twinMsg: twin.msg });
   } finally {
     try { lock.releaseLock(); } catch (e) {}
   }
@@ -2990,7 +3075,7 @@ function timetableRenameStudent(data) {
   try { lock.waitLock(10000); } catch (e) { return json({ result:'error', message:'잠시 후 다시 시도해 주세요.' }); }
   try {
     var v = sh.getDataRange().getValues();
-    var changed = 0;
+    var changed = 0, hitRows = [];
     for (var i = 1; i < v.length; i++) {
       var list = String(v[i][7] || '').trim().split(/\s+/).filter(String);
       var hit = false;
@@ -3000,9 +3085,23 @@ function timetableRenameStudent(data) {
         rg.setNumberFormat('@');
         rg.setValue(list.join(' '));
         changed++;
+        hitRows.push(i);
       }
     }
     if (!changed) return json({ result:'error', message:'그 이름을 명단에서 찾지 못했어요. 새로고침 후 다시 시도해 주세요.' });
+    // 중3·고3 짝 반(정규↔내신)은 같은 반이므로 표기도 함께 바꾼다.
+    // 짝 쪽 표기가 이미 어긋나 있어도(옛 특이사항이 남아 있어도) 이름으로 찾아 맞춘다.
+    var twin = ttTwinCtx_(ss, book), twinRows = 0, twinIds = {};
+    for (var h = 0; h < hitRows.length; h++) {
+      var trow = ttTwinRowOf_(twin, v, hitRows[h]);
+      if (trow < 0) continue;
+      var tlist = ttListAt_(twin.v, trow), ti = ttIdxOf_(tlist, from);
+      if (ti < 0 || tlist[ti] === to) continue;
+      tlist[ti] = to;
+      ttWriteRoster_(twin.sh, twin.v, trow, tlist);
+      twinRows++;
+      twinIds[String(twin.v[trow][0] || '').trim()] = true;
+    }
     // 최근 출석 기록(60일 꼬리)의 이름도 함께 바꿔 기록이 학생을 따라가게 한다
     // (출석부에는 표기와 무관하게 출석 기록이 보여야 함 — 2026-08-21 사용자 확정)
     var fromPlain = from.replace(/\(.*\)$/, '');
@@ -3022,8 +3121,26 @@ function timetableRenameStudent(data) {
         }
       }
     }
+    // 짝 반 쪽 출석 기록도 같은 학생이므로 함께 바꾼다 (바꾼 짝 반의 기록만)
+    if (twinRows && ash) {
+      var ttail = sheetTail_(ash, 6, Date.now() - 60 * 24 * 3600 * 1000);
+      var tv2 = ttail.rows;
+      for (var b2 = 0; b2 < tv2.length; b2++) {
+        if (ttBook_(tv2[b2][1]) !== twin.book) continue;
+        if (!twinIds[String(tv2[b2][2] || '').trim()]) continue;
+        var tok2 = String(tv2[b2][3] || '').trim();
+        if (tok2 === from || tok2.replace(/\(.*\)$/, '') === fromPlain) {
+          var tcell = ash.getRange(ttail.start + b2, 4);
+          tcell.setNumberFormat('@');
+          tcell.setValue(to);
+          attFixed++;
+        }
+      }
+    }
     ttLog_(ss, '표기수정', from, '', '', '', '', from + ' → ' + to, book);
-    return json({ result:'success', classes: changed, attendFixed: attFixed });
+    return json({ result:'success', classes: changed, attendFixed: attFixed,
+                  twinBook: twinRows ? twin.book : '',
+                  twinMsg: twinRows ? (twin.book + ' 시간표에도 함께 반영했어요.') : '' });
   } finally {
     try { lock.releaseLock(); } catch (e) {}
   }
@@ -3049,6 +3166,8 @@ function timetableMoveClass(data) {
     for (var i = 1; i < v.length; i++) if (String(v[i][0] || '').trim() === classId) { row = i; break; }
     if (row < 0) return json({ result:'error', message:'반을 찾을 수 없어요. 새로고침 후 다시 시도해 주세요.' });
     var oldLabel = String(v[row][6] || '') + ' (' + String(v[row][1] || '') + ttTime_(v[row][2]) + ')';
+    // 짝 반은 옮기기 '전' 요일·시간으로 찾아 둔다 (옮기고 나면 짝 조건이 달라져 못 찾는다)
+    var twin = ttTwinCtx_(ss, book), twinRow = ttTwinRowOf_(twin, v, row);
     var rg = sh.getRange(row + 1, 2, 1, 5);
     rg.setNumberFormat('@');
     rg.setValues([[newDay, newStart, newEnd, newLoc, newTeacher]]);
@@ -3064,9 +3183,28 @@ function timetableMoveClass(data) {
         if (r.updated) updated++; else skipped.push(plain);
       }
     }
+    // 중3·고3 짝 반은 같은 수업이므로 시간도 함께 옮긴다.
+    // 위치·담당T는 시간표마다 다르게 두는 경우가 있어(정리정독 중3 금8:00) 그대로 둔다.
+    var twinMsg = '', twinBook = '';
+    if (twinRow >= 0) {
+      var trg = twin.sh.getRange(twinRow + 1, 2, 1, 3);
+      trg.setNumberFormat('@');
+      trg.setValues([[newDay, newStart, newEnd]]);
+      twinBook = twin.book;
+      twinMsg = twin.book + ' 시간표의 같은 반도 함께 옮겼어요.';
+      // 짝이 정규 시간표면 그 반 학생들의 리포트 시간(정규가/나)도 새 시간으로
+      var tkind = (twin.book === '내신') ? '' : ttKind_(twin.v[twinRow][6]);
+      if (tkind) {
+        var tnames = ttListAt_(twin.v, twinRow);
+        for (var tn = 0; tn < tnames.length; tn++) {
+          ttRosterSet_(ss, tnames[tn].replace(/\(.*\)$/, ''), tkind, newDay + newStart);
+        }
+      }
+    }
     ttLog_(ss, '반이동', '(반 전체 ' + String(v[row][7] || '').split(/\s+/).filter(String).length + '명)',
            classId, oldLabel, classId, String(v[row][6] || '') + ' (' + newDay + newStart + ')', String(data.reason || ''), book);
-    return json({ result:'success', rosterUpdated: updated, rosterSkipped: skipped });
+    return json({ result:'success', rosterUpdated: updated, rosterSkipped: skipped,
+                  twinBook: twinBook, twinMsg: twinMsg });
   } finally {
     try { lock.releaseLock(); } catch (e) {}
   }
