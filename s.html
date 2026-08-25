@@ -630,12 +630,12 @@ function refreshOnReturn(){
   var now = Date.now();
   if(now - GATE_LAST < 20000) return;
   GATE_LAST = now;
-  // 복귀 갱신은 최신이 중요(방금 응시·신청했을 수 있음). 신청 설정·클리닉 대상은 아래
-  // api('')가 미러에서 다시 받아오므로 직접 조회하지 않는다. 어휘 응시만 예외 —
-  // 어휘 미러는 아직 서버가 못 넣는 상태라(외부 요청 권한 미승인, 2단계에서 해소)
-  // 방금 본 시험이 미러에 없을 수 있어 직접 조회를 남긴다.
-  STATE.vocaFromServer = false;
-  loadGradeGates();                                // 어휘 응시(+ 남은 폴백)
+  // 복귀 갱신은 최신이 중요(방금 응시·신청했을 수 있음). 신청 설정·클리닉 대상·어휘 응시는
+  // 모두 아래 api('')가 미러에서 다시 받아오므로 직접 조회하지 않는다.
+  // (2026-08-25 2단계: 어휘 미러를 어휘 서버가 제출 직후 직접 넣게 되어 — 외부 요청 권한
+  //  승인 완료 — 방금 본 시험도 곧바로 미러에 있다. 그전에는 여기서 직접 조회했다.)
+  // 어댑터가 실패해 기존 백엔드로 폴백한 경우에는 플래그가 서지 않아 아래가 직접 조회한다.
+  loadGradeGates();                                // 폴백일 때만 실제 조회가 나간다
   api('').then(function(d){                        // 클리닉 내역·공지·H WORK·별 갱신
     if(!d || d.result!=='success') return;
     STATE.notices  = d.notices  || [];
@@ -655,6 +655,7 @@ function refreshOnReturn(){
       if (typeof d.mockGates.open !== 'undefined') STATE.mockOpen = !!d.mockGates.open;
     }
     if (typeof d.clinicEligible === 'boolean'){ STATE.clinicEligible = d.clinicEligible; STATE.clinicFromServer = true; }
+    if (typeof d.vocaTaken === 'boolean'){ STATE.vocaTaken = d.vocaTaken; STATE.vocaFromServer = true; }
     // 잠금 상태(authed·exams)는 건드리지 않는다 — 비밀번호 재입력 방지
     if ($('hubView').style.display !== 'none') renderHub();
     // 신청 페이지에 다녀와 이 응답으로 신청 내역이 갱신됐어도 모의고사 메뉴는 다시 그리지
