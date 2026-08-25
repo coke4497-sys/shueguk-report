@@ -2774,7 +2774,22 @@ function ttTwinRoster_(ss, book, v, fromRow, toRow, name) {
     var tl = ttListAt_(t.v, tr);
     if (ttIdxOf_(tl, name) < 0) { tl.push(name); ttWriteRoster_(t.sh, t.v, tr, tl); out.synced = true; }
   }
-  if (out.synced) { out.book = t.book; out.msg = t.book + ' 시간표에도 함께 반영했어요.'; }
+  if (out.synced) {
+    out.book = t.book;
+    out.msg = t.book + ' 시간표에도 함께 반영했어요.';
+    // 짝이 정규 시간표면 그 학생의 리포트 시간(학생정보 정규가/나)도 따라가야 한다
+    // — 내신 시간표에서 옮겼을 때 이 경로로만 갱신된다.
+    if (t.book === '정규') {
+      var pn = String(name || '').replace(/\(.*\)$/, '');
+      if (tr >= 0) {
+        var tk = ttKind_(t.v[tr][6]);
+        if (tk) ttRosterSet_(ss, pn, tk, String(t.v[tr][1] || '').trim() + ttTime_(t.v[tr][2]));
+      } else if (fr >= 0) {
+        var fk = ttKind_(t.v[fr][6]);
+        if (fk) ttRosterSet_(ss, pn, fk, '');
+      }
+    }
+  }
   return out;
 }
 

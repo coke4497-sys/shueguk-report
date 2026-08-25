@@ -48,6 +48,8 @@ r=J(fns.timetableMove({pw:'sh',book:'내신',student:'전민성',fromId:'n015',t
 eq('twinBook',r.twinBook,'정규');
 eq('정규 r009',roster('정규시간표','r009'),'김지윤 허민');
 eq('정규 r046',roster('정규시간표','r046'),'김은수 최희재 전민성');
+// 짝이 정규면 그 학생의 리포트 시간(학생정보 정규가)도 새 반 시간으로 따라가야 한다
+eq('학생정보 전민성 정규가',SHEETS['학생정보'].find(x=>x[1]==='전민성')[6],'일11:00');
 
 console.log('3) 짝이 없는 반(고1)은 건드리지 않는다');
 reset();
