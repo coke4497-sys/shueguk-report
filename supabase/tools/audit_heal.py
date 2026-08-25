@@ -369,10 +369,13 @@ def fetch_clinic():
 ISSUES = []
 def report(line): ISSUES.append(line); print('  !', line)
 
-def sync_sheet_master(table, sheet_rows, keyf, valf, heal, id_field='id', keep=None):
+def sync_sheet_master(table, sheet_rows, keyf, valf, heal, id_field='id', keep=None,
+                      patch_fields=None, soft_valf=None, soft_label=''):
     """시트가 원본 — 수파베이스를 시트에 맞춘다.
     keep(row)=True 인 행은 '시트에 없어도 지우지 않는다' — 시트에 대응이 없는
-    수파베이스 전용 데이터(주간 전용 반 등)를 이 도구가 지우지 않게 하는 안전장치."""
+    수파베이스 전용 데이터(주간 전용 반 등)를 이 도구가 지우지 않게 하는 안전장치.
+    patch_fields: 갱신할 때 이 열만 쓴다(수파베이스가 원본인 열을 덮어쓰지 않으려고).
+    soft_valf: 이 값이 다르면 보고만 하고 고치지 않는다(수파베이스가 원본인 열)."""
     cur = sb_all(table)
     if keep: cur = [r for r in cur if not keep(r)]
     curmap = {}
@@ -382,15 +385,24 @@ def sync_sheet_master(table, sheet_rows, keyf, valf, heal, id_field='id', keep=N
     to_add = [r for k, r in smap.items() if k not in curmap]
     to_del = [r for k, rs in curmap.items() if k not in smap for r in rs]
     to_upd = [(r, curmap[k][0]) for k, r in smap.items() if k in curmap and valf(r) != valf(curmap[k][0])]
+    soft = [k for k, r in smap.items()
+            if soft_valf and k in curmap and soft_valf(r) != soft_valf(curmap[k][0])]
     n = len(to_add) + len(to_del) + len(to_upd)
     tag = f'{table}: 추가 {len(to_add)} · 갱신 {len(to_upd)} · 삭제 {len(to_del)}'
-    if n == 0:
+    if n == 0 and not soft:
         print(f'  = {table}: 일치 ({len(sheet_rows)}행)')
         return
+    if soft:
+        report(f'{table}: 시트와 다른 행 {len(soft)} — {soft_label}')
+        for k in soft[:10]:
+            print(f'      · {k}  시트={soft_valf(smap[k])!r}  DB={soft_valf(curmap[k][0])!r}')
+    if n == 0: return
     report(tag)
     if not heal: return
     for r in to_add: sb('POST', f'/{table}', [r], 'return=minimal')
-    for r, c in to_upd: sb('PATCH', f'/{table}?{id_field}=eq.{c[id_field]}', r)
+    for r, c in to_upd:
+        body = {k: r[k] for k in patch_fields} if patch_fields else r
+        sb('PATCH', f'/{table}?{id_field}=eq.{c[id_field]}', body)
     for c in to_del: sb('DELETE', f'/{table}?{id_field}=eq.{c[id_field]}')
     print(f'    → 복구 완료')
 
@@ -421,9 +433,15 @@ def main():
     print('· 시트가 원본인 표')
     # 주간 전용 반(w+yyMMdd+글자 — '이 주만' 수업)은 시트에 대응 행이 없다.
     # 페이지의 resyncClasses도 같은 이유로 정리 대상에서 뺀다(class_id=not.like.w*).
+    # 명단(roster)은 2026-08-25부터 수파베이스가 원본 — 시트는 페이지가 뒤에서 함께 기록한다.
+    # 그래서 요일·시간·위치·담당T·반이름만 시트 기준으로 고치고, 명단이 다르면 보고만 한다
+    # (여기서 시트 명단으로 덮어쓰면 방금 저장한 이동이 밤새 되돌아간다).
     sync_sheet_master('tt_classes', d['tt_classes'], lambda r: (r['book'], r['class_id']),
-        lambda r: (r['day'], r['start_time'], r['end_time'], r['location'], r['teacher'], r['name'], r['roster']), heal,
-        keep=lambda r: re.match(r'^w\d{6}', str(r.get('class_id') or '')) is not None)
+        lambda r: (r['day'], r['start_time'], r['end_time'], r['location'], r['teacher'], r['name']), heal,
+        keep=lambda r: re.match(r'^w\d{6}', str(r.get('class_id') or '')) is not None,
+        patch_fields=('day', 'start_time', 'end_time', 'location', 'teacher', 'name'),
+        soft_valf=lambda r: ' '.join(str(r.get('roster') or '').split()),
+        soft_label='명단은 수파베이스가 원본 — 시트 이중 기록이 빠졌을 수 있음(보고만, 반복되면 확인)')
     sync_sheet_master('tt_period', d['tt_period'], lambda r: r['week_wednesday'], lambda r: r['book'], heal, 'week_wednesday')
     sync_sheet_master('students', d['students'], lambda r: (r['student_id'], r['name']),
         lambda r: (r['school'], r['grade'], r['teacher'], r['memo'], r['class_a'], r['class_b'],

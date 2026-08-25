@@ -1237,10 +1237,6 @@
     return null;
   }
   function classLabel(c){ return c ? c.cls : ''; }
-  function setRoster(book, id, students){
-    return sbWrite('PATCH', '/tt_classes?book=eq.' + q(book) + '&class_id=eq.' + q(id),
-                   { roster: students.join(' ') });
-  }
   function insertLog(rec){
     rec.at = rec.at || nowIso();
     ['from_class_id','from_class','to_class_id','to_class','reason'].forEach(function(k){ if (rec[k] == null) rec[k] = ''; });
@@ -1279,26 +1275,86 @@
           });
       });
   }
-  function resyncClasses(book, syncNames){
-    // 구조 변경 뒤 자기 치유 — 기존 백엔드의 최신 명단으로 수파베이스를 맞춘다
-    rawFetch(ENDPOINT + '?action=timetableList&pw=' + q(typeof pw !== 'undefined' ? pw : 'sh') + '&book=' + q(book) + '&t=' + Date.now())
-      .then(function(r){ return r.json(); })
-      .then(function(d){
-        if (!d || d.result !== 'success' || !d.classes) return;
-        var rows = d.classes.map(function(c){
-          return { book: book, class_id: c.id, day: c.day, start_time: c.start, end_time: c.end,
-                   location: c.loc, teacher: c.teacher, name: c.cls, roster: (c.students || []).join(' ') };
-        });
-        var keep = rows.map(function(r){ return r.class_id; }).join(',');
-        return sbWrite('POST', '/tt_classes?on_conflict=book,class_id', rows,
-                       { 'Prefer': 'resolution=merge-duplicates,return=minimal' })
-          .then(function(){
-            // 'w…' 주간 전용 반은 시트에 없으니 삭제 대상에서 빼 둔다
-            return sbWrite('DELETE', '/tt_classes?book=eq.' + q(book) + '&class_id=not.in.(' + keep + ')&class_id=not.like.w*');
-          })
-          .then(function(){ return syncStudentSlots(book, syncNames, d.classes); });
-      })
-      .catch(function(e){ console.warn('명단 재동기화 실패', e); });
+  /* ── 명단 편집 — 수파베이스가 원본 (2026-08-25) ────────────────────────────
+   * 예전엔 시트에 먼저 쓰고 성공하면 수파베이스에 미러했다(그래서 명단의 원본은 시트였고,
+   * 화면이 앱스스크립트 응답 2~4초를 기다렸다). 이제 수파베이스에 먼저 쓰고 시트에는 같은
+   * 액션을 뒤에서 보낸다 — 학생 개별 페이지·리포트·숙제 검사가 아직 시트 '학생정보' 탭을
+   * 읽으므로 시트 기록 자체는 유지한다.
+   * 옛 resyncClasses(시트 기준 통째 재동기화)는 지웠다 — 이제 시트가 원본이 아니라서
+   * 그걸 돌리면 방금 저장한 명단이 옛 시트 값으로 되돌아간다.
+   *
+   * 명단은 한 칸에 공백으로 이어 붙인 문자열이라 통째로 덮어쓰는데, 두 조교가 같은 반을
+   * 동시에 고치면 뒤에 쓴 쪽이 앞사람 것을 지운다. 그래서 **읽은 값 그대로일 때만 쓴다**
+   * (roster=eq.<옛 값> 조건 — compare-and-swap). 어긋나면 다시 읽어 최대 3번 재시도. */
+  function rosterCas(book, id, edit, _try){
+    return sbGet('/tt_classes?book=eq.' + q(book) + '&class_id=eq.' + q(id) + '&select=roster')
+      .then(function(rows){
+        if (!rows || !rows.length) return { err: '반을 찾을 수 없어요. 새로고침 후 다시 시도해 주세요.' };
+        var old = String(rows[0].roster || '');
+        var next = edit(old.trim().split(/\s+/).filter(String));
+        if (!next) return { skipped: true };          // 손댈 것 없음
+        if (next.err) return next;
+        var str = next.join(' ');
+        if (str === old) return { list: next };
+        return sbWrite('PATCH', '/tt_classes?book=eq.' + q(book) + '&class_id=eq.' + q(id) +
+                       '&roster=eq.' + q(old), { roster: str }, { 'Prefer': 'return=representation' })
+          .then(function(got){
+            if (got && got.length) return { list: next };
+            if ((_try || 0) >= 2) return { err: '다른 사람이 같은 반을 고치고 있어요. 새로고침 후 다시 시도해 주세요.' };
+            return rosterCas(book, id, edit, (_try || 0) + 1);
+          });
+      });
+  }
+  /* 명단에서 같은 학생의 자리 — 괄호 표기가 달라도 같은 사람으로 본다 */
+  function nameIdx(list, name){
+    var p = plain(name);
+    for (var i = 0; i < list.length; i++) if (list[i] === name || plain(list[i]) === p) return i;
+    return -1;
+  }
+  /* 명단 넣기/빼기를 차례로 적용 — 하나라도 어긋나면 거기서 멈춘다.
+   * ops: [{ book?, id, add|del, soft? }] · soft = 이미 반영돼 있으면 조용히 넘어감(짝 반) */
+  function rosterOps(book, ops){
+    var i = 0;
+    function step(){
+      if (i >= ops.length) return Promise.resolve({ ok: true });
+      var op = ops[i++];
+      return rosterCas(bookOf(op.book || book), op.id, function(list){
+        if (op.del){
+          var k = nameIdx(list, op.del);
+          if (k < 0) return op.soft ? null : { err: op.miss || '그 반에 없는 학생이에요. 새로고침 후 다시 시도해 주세요.' };
+          return list.slice(0, k).concat(list.slice(k + 1));
+        }
+        if (nameIdx(list, op.add) >= 0) return op.soft ? null : { err: '이미 그 반에 있는 학생이에요.' };
+        return list.concat([op.add]);
+      }).then(function(r){
+        if (r.err) return { ok: false, message: r.err };
+        return step();
+      });
+    }
+    return step();
+  }
+  /* ── 중3·고3 짝 반 (정규 ↔ 내신) ──────────────────────────────────────────
+   * 백엔드 ttTwinRowOf_와 같은 규칙 — 반이름+요일+시작시간이 같은 반대쪽 시간표의 반.
+   * 담당T·위치는 시트 기준으로 서로 다를 수 있어(정리정독 중3 금8:00) 짝 조건에 넣지 않고,
+   * 같은 이름·시간의 병렬 반이 둘 이상일 때 가려내는 데만 쓴다. 못 가리면 건드리지 않는다. */
+  function twinBookOf(book){ return bookOf(book) === '내신' ? '정규' : '내신'; }
+  function twinOf(src, twinClasses){
+    if (!src) return null;
+    var hits = (twinClasses || []).filter(function(c){
+      return !c.wk && c.cls === src.cls && c.day === src.day && c.start === src.start;
+    });
+    if (hits.length === 1) return hits[0];
+    if (hits.length > 1){
+      var byT = hits.filter(function(c){ return c.teacher === src.teacher; });
+      if (byT.length === 1) return byT[0];
+    }
+    return null;
+  }
+  function twinDoneMsg(tb){ return tb + ' 시간표에도 함께 반영했어요.'; }
+  function twinNoneMsg(tb){ return tb + ' 시간표에는 짝 반이 없어 반영하지 못했어요 — ' + tb + '에서 직접 옮겨 주세요.'; }
+  function byId(list, id){
+    for (var i = 0; i < (list || []).length; i++) if (list[i].id === id) return list[i];
+    return null;
   }
   /* 반이름 → 학생정보 반영 종류 (백엔드 ttKind_와 같은 규칙) */
   function slotKind(cls){
@@ -1313,7 +1369,8 @@
    * 학생 페이지 시간표가 하루 뒤처졌다 (2026-08-23 사용자 지적).
    * 내신은 원래 학생정보에 반영하지 않는 규칙이라 건드리지 않는다. */
   function syncStudentSlots(book, names, fresh){
-    if (bookOf(book) !== '정규' || !names || !names.length) return Promise.resolve();
+    var out = { updated: 0, msg: '' };
+    if (bookOf(book) !== '정규' || !names || !names.length) return Promise.resolve(out);
     var list = fresh || [];
     var seen = {}, jobs = [];
     names.forEach(function(nm){
@@ -1329,18 +1386,40 @@
       });
       // 이름이 유일할 때만 — 백엔드 ttRosterSet_와 같은 안전 규칙
       jobs.push(sbGet('/students?name=eq.' + q(p) + '&select=id').then(function(rows){
-        if (!rows || rows.length !== 1) return;
-        return sbWrite('PATCH', '/students?id=eq.' + rows[0].id, { class_a: slot.A, class_b: slot.B });
+        if (!rows || !rows.length){
+          out.msg = out.msg || '학생정보 명단에 없는 이름이라 리포트에는 반영되지 않았어요.';
+          return;
+        }
+        if (rows.length > 1){
+          out.msg = out.msg || '같은 이름이 여러 명이라 리포트에는 반영되지 않았어요. 슈스 링크 탭에서 직접 확인해 주세요.';
+          return;
+        }
+        return sbWrite('PATCH', '/students?id=eq.' + rows[0].id, { class_a: slot.A, class_b: slot.B })
+          .then(function(){ out.updated++; });
       }));
     });
-    return Promise.all(jobs).catch(function(e){ console.warn('학생 시간표 미러 실패', e); });
+    return Promise.all(jobs).then(function(){ return out; },
+                                  function(e){ console.warn('학생 시간표 미러 실패', e); return out; });
   }
-  /* 중3·고3 짝 반(정규↔내신)은 백엔드가 두 시간표를 함께 고친다(twinBook).
-   * 화면이 읽는 수파베이스도 짝 시간표까지 다시 맞춰 준다 —
-   * 안 그러면 밤 점검 전까지 짝 쪽 화면에 옛 명단이 남는다. */
-  function syncTwin(res, names){
-    if (res && res.twinBook) resyncClasses(bookOf(res.twinBook), names || null);
-    return res;
+  /* 명단이 바뀐 뒤 학생정보(정규가/나) 반영 — 시트 쪽은 뒤에서 보낸 액션이 갱신하고,
+   * 여기서는 수파베이스 students 미러를 갱신하면서 반영 여부를 함께 돌려준다(화면 안내문용).
+   * 내신에서 바꿔도 짝 반을 통해 정규 명단이 같이 바뀌므로 언제나 정규 기준으로 다시 센다. */
+  function applySlots(names, cls){
+    if (cls != null && !slotKind(cls))
+      return Promise.resolve({ updated: 0, msg: '논술 수업은 리포트 시간표에 반영하지 않아요.' });
+    return fetchClasses('정규').then(function(cs){ return syncStudentSlots('정규', names, cs); },
+                                    function(){ return { updated: 0, msg: '' }; });
+  }
+  /* 표기 수정 — 최근 60일 출석 기록의 이름도 학생을 따라가게 (백엔드와 같은 규칙).
+   * student_plain은 생성 열이라 student만 고치면 함께 따라온다. */
+  function renameAttend(book, tb, from, to, twinIds){
+    var since = isoBefore(tYmd(), 60).slice(0, 10);
+    var jobs = [ sbWrite('PATCH', '/attendance?book=eq.' + q(book) + '&student_plain=eq.' + q(plain(from)) +
+                         '&date=gte.' + q(since), { student: to }) ];
+    if (twinIds && twinIds.length)
+      jobs.push(sbWrite('PATCH', '/attendance?book=eq.' + q(tb) + '&student_plain=eq.' + q(plain(from)) +
+                        '&date=gte.' + q(since) + '&class_id=in.(' + twinIds.map(q).join(',') + ')', { student: to }));
+    return Promise.all(jobs).catch(function(e){ console.warn('출석 표기 미러 실패', e); });
   }
   function findLegacyOnceRow(g, cb){
     // 시트 쪽 같은 1회 이동의 행 번호 찾기(취소·수정 미러용, 실패해도 무방)
@@ -1609,24 +1688,32 @@
       });
     },
 
-    /* 반·명단 구조 변경 — 기존 백엔드 먼저(학생정보 연동), 수파베이스 미러 */
+    /* ── 명단 변경 — 수파베이스 먼저(즉시), 시트에는 같은 액션을 뒤에서 ──────────
+     * 중3·고3 짝 반은 정규·내신을 함께 고친다(백엔드 ttTwinRoster_와 같은 규칙 —
+     * 시트 쪽은 뒤에서 보낸 액션을 받은 백엔드가 똑같이 처리한다). */
     timetableMove: function(b){
-      return legacyPost(b).then(function(res){
-        if (!res || res.result !== 'success') return res;
-        var book = bookOf(b.book);
-        var fromC = classRow(book, b.fromId), toC = classRow(book, b.toId);
-        var mirror;
-        if (b.moveType === 'once'){
+      var book = bookOf(b.book);
+      var fromId = String(b.fromId || '').trim(), toId = String(b.toId || '').trim();
+      var nm = String(b.student || '').trim();
+      if (!nm || !fromId || !toId) return Promise.resolve({ result:'error', message:'이동 정보가 부족합니다.' });
+      if (fromId === toId) return Promise.resolve({ result:'error', message:'같은 반입니다.' });
+
+      /* 1회 이동은 명단을 건드리지 않고, 결석 보충 자동 완료 판정이 백엔드에 있어
+       * 예전 그대로 기존 백엔드 먼저 → 수파베이스 미러. */
+      if (b.moveType === 'once'){
+        return legacyPost(b).then(function(res){
+          if (!res || res.result !== 'success') return res;
+          var fromC = classRow(book, fromId), toC = classRow(book, toId);
           var applyDate = (res.date || b.date || tYmd());
-          mirror = insertLog({ kind:'1회', student: res.moved || b.student, book: book,
-            from_class_id: b.fromId, from_class: classLabel(fromC),
-            to_class_id: b.toId, to_class: classLabel(toC),
-            reason: String(b.reason || ''), apply_date: applyDate })
+          return insertLog({ kind:'1회', student: res.moved || nm, book: book,
+              from_class_id: fromId, from_class: classLabel(fromC),
+              to_class_id: toId, to_class: classLabel(toC),
+              reason: String(b.reason || ''), apply_date: applyDate })
             .then(function(){
               if (!res.makeupDone) return;
               // 백엔드의 결석 보충 자동 완료를 수파베이스에도 동일 규칙으로 반영
               return sbGet('/attendance?status=eq.' + q('결석') + '&book=eq.' + q(book) +
-                           '&class_id=eq.' + q(b.fromId) + '&student_plain=eq.' + q(plain(b.student)) +
+                           '&class_id=eq.' + q(fromId) + '&student_plain=eq.' + q(plain(nm)) +
                            '&makeup_done=neq.1&select=id,date')
                 .then(function(rows){
                   var am = Date.parse(applyDate), best = null, gap = 15;
@@ -1637,68 +1724,131 @@
                   if (best) return sbWrite('PATCH', '/attendance?id=eq.' + best.id,
                                            { makeup_plan: res.makeupDone, makeup_done: '1' });
                 });
+            })
+            .then(function(){ return res; }, function(e){ console.warn('1회 이동 미러 실패', e); return res; });
+        });
+      }
+
+      var tb = twinBookOf(book);
+      return Promise.all([fetchClasses(book), fetchClasses(tb)]).then(function(rs){
+        var fromC = byId(rs[0], fromId), toC = byId(rs[0], toId);
+        if (!fromC || !toC) return { result:'error', message:'반을 찾을 수 없어요. 새로고침 후 다시 시도해 주세요.' };
+        var k = nameIdx(fromC.students, nm);
+        if (k < 0) return { result:'error', message:'이동할 학생이 원래 반에 없어요. 새로고침 후 다시 시도해 주세요.' };
+        if (nameIdx(toC.students, nm) >= 0) return { result:'error', message:'이미 그 반에 있는 학생이에요.' };
+        var moved = fromC.students[k];
+        var ops = [{ id: fromId, del: moved, miss:'이동할 학생이 원래 반에 없어요. 새로고침 후 다시 시도해 주세요.' },
+                   { id: toId, add: moved }];
+        var tf = twinOf(fromC, rs[1]), tt = twinOf(toC, rs[1]), twinMsg = '';
+        if (tf && tt){
+          ops.push({ book: tb, id: tf.id, del: moved, soft: true }, { book: tb, id: tt.id, add: moved, soft: true });
+          twinMsg = twinDoneMsg(tb);
+        } else if (tf || tt) twinMsg = twinNoneMsg(tb);
+        return rosterOps(book, ops).then(function(r){
+          if (!r.ok) return { result:'error', message: r.message };
+          legacyBg(b);                                   // 시트·학생정보는 뒤에서
+          insertLog({ kind:'영구', student: moved, book: book,
+                      from_class_id: fromId, from_class: fromC.cls,
+                      to_class_id: toId, to_class: toC.cls, reason: String(b.reason || '') })
+            .catch(function(e){ console.warn('이동 기록 실패', e); });
+          return applySlots([moved], (bookOf(book) === '정규' ? toC.cls : (tt ? tt.cls : null)))
+            .then(function(sl){
+              return ok({ moved: moved, rosterUpdated: sl.updated, rosterMsg: sl.msg, twinMsg: twinMsg });
             });
-        } else {
-          var moved = res.moved || b.student, jobs = [];
-          if (fromC) jobs.push(setRoster(book, b.fromId, fromC.students.filter(function(nm){ return plain(nm) !== plain(moved); })));
-          if (toC) jobs.push(setRoster(book, b.toId, toC.students.concat([moved])));
-          jobs.push(insertLog({ kind:'영구', student: moved, book: book,
-            from_class_id: b.fromId, from_class: classLabel(fromC),
-            to_class_id: b.toId, to_class: classLabel(toC), reason: String(b.reason || '') }));
-          mirror = Promise.all(jobs);
-        }
-        var names = (b.moveType === 'once') ? null : [res.moved || b.student];
-        return mirror.then(function(){ resyncClasses(book, names); return syncTwin(res, names); },
-                           function(e){ console.warn('이동 미러 실패', e); resyncClasses(book, names); return syncTwin(res, names); });
+        });
       });
     },
     timetableAdd: function(b){
-      return legacyPost(b).then(function(res){
-        if (!res || res.result !== 'success') return res;
-        var book = bookOf(b.book), toC = classRow(book, b.toId), added = res.added || b.student;
-        var jobs = [];
-        if (toC) jobs.push(setRoster(book, b.toId, toC.students.concat([added])));
-        jobs.push(insertLog({ kind:'추가', student: added, book: book, to_class_id: b.toId, to_class: classLabel(toC) }));
-        return Promise.all(jobs).then(function(){ resyncClasses(book, [added]); return syncTwin(res, [added]); },
-                                      function(e){ console.warn('추가 미러 실패', e); resyncClasses(book, [added]); return syncTwin(res, [added]); });
+      var book = bookOf(b.book), nm = String(b.student || '').trim().replace(/\s+/g, '');
+      var toId = String(b.toId || '').trim();
+      if (!nm || !toId) return Promise.resolve({ result:'error', message:'학생 이름과 반이 필요합니다.' });
+      var tb = twinBookOf(book);
+      return Promise.all([fetchClasses(book), fetchClasses(tb)]).then(function(rs){
+        var toC = byId(rs[0], toId);
+        if (!toC) return { result:'error', message:'반을 찾을 수 없어요. 새로고침 후 다시 시도해 주세요.' };
+        if (nameIdx(toC.students, nm) >= 0) return { result:'error', message:'이미 그 반에 있는 학생이에요.' };
+        var ops = [{ id: toId, add: nm }], tt = twinOf(toC, rs[1]), twinMsg = '';
+        if (tt){ ops.push({ book: tb, id: tt.id, add: nm, soft: true }); twinMsg = twinDoneMsg(tb); }
+        return rosterOps(book, ops).then(function(r){
+          if (!r.ok) return { result:'error', message: r.message };
+          legacyBg(b);
+          insertLog({ kind:'추가', student: nm, book: book, to_class_id: toId, to_class: toC.cls,
+                      reason: String(b.reason || '') })
+            .catch(function(e){ console.warn('추가 기록 실패', e); });
+          return applySlots([nm], (bookOf(book) === '정규' ? toC.cls : (tt ? tt.cls : null)))
+            .then(function(sl){
+              return ok({ added: nm, rosterUpdated: sl.updated, rosterMsg: sl.msg, twinMsg: twinMsg });
+            });
+        });
       });
     },
     timetableRemove: function(b){
-      return legacyPost(b).then(function(res){
-        if (!res || res.result !== 'success') return res;
-        var book = bookOf(b.book), fromC = classRow(book, b.fromId), removed = res.removed || b.student;
-        var jobs = [];
-        if (fromC) jobs.push(setRoster(book, b.fromId, fromC.students.filter(function(nm){ return plain(nm) !== plain(removed); })));
-        jobs.push(insertLog({ kind:'빼기', student: removed, book: book, from_class_id: b.fromId, from_class: classLabel(fromC),
-                              reason: String(b.reason || '') }));
-        return Promise.all(jobs).then(function(){ resyncClasses(book, [removed]); return syncTwin(res, [removed]); },
-                                      function(e){ console.warn('빼기 미러 실패', e); resyncClasses(book, [removed]); return syncTwin(res, [removed]); });
+      var book = bookOf(b.book), nm = String(b.student || '').trim();
+      var fromId = String(b.fromId || '').trim();
+      if (!nm || !fromId) return Promise.resolve({ result:'error', message:'학생 이름과 반이 필요합니다.' });
+      var tb = twinBookOf(book);
+      return Promise.all([fetchClasses(book), fetchClasses(tb)]).then(function(rs){
+        var fromC = byId(rs[0], fromId);
+        if (!fromC) return { result:'error', message:'반을 찾을 수 없어요. 새로고침 후 다시 시도해 주세요.' };
+        var k = nameIdx(fromC.students, nm);
+        if (k < 0) return { result:'error', message:'그 반에 없는 학생이에요. 새로고침 후 다시 시도해 주세요.' };
+        var removed = fromC.students[k];
+        var ops = [{ id: fromId, del: removed }], tf = twinOf(fromC, rs[1]), twinMsg = '';
+        if (tf){ ops.push({ book: tb, id: tf.id, del: removed, soft: true }); twinMsg = twinDoneMsg(tb); }
+        return rosterOps(book, ops).then(function(r){
+          if (!r.ok) return { result:'error', message: r.message };
+          legacyBg(b);
+          insertLog({ kind:'빼기', student: removed, book: book, from_class_id: fromId, from_class: fromC.cls,
+                      reason: String(b.reason || '') })
+            .catch(function(e){ console.warn('빼기 기록 실패', e); });
+          return applySlots([removed], (bookOf(book) === '정규' ? fromC.cls : (tf ? tf.cls : null)))
+            .then(function(sl){
+              return ok({ removed: removed, rosterUpdated: sl.updated, rosterMsg: sl.msg, twinMsg: twinMsg });
+            });
+        });
       });
     },
     timetableRenameStudent: function(b){
-      var book = bookOf(b.book), from = String(b.from || '').trim(), to = String(b.to || '').trim();
-      // 화면(수파베이스) 쪽 표기를 바꾼다. 바꾼 반이 하나라도 있으면 true.
-      function mirror(){
-        var jobs = [], hit = false;
-        ((typeof classes !== 'undefined' && classes) || []).forEach(function(c){
-          if (c.students.indexOf(from) < 0) return;
-          hit = true;
-          jobs.push(setRoster(book, c.id, c.students.map(function(nm){ return nm === from ? to : nm; })));
+      var book = bookOf(b.book), from = String(b.from || '').trim();
+      var to = String(b.to || '').trim().replace(/\s+/g, '');
+      if (!from || !to) return Promise.resolve({ result:'error', message:'수정할 이름이 필요합니다.' });
+      var tb = twinBookOf(book);
+      return Promise.all([fetchClasses(book), fetchClasses(tb)]).then(function(rs){
+        var hits = rs[0].filter(function(c){ return c.students.indexOf(from) >= 0; });
+        if (!hits.length) return { result:'error', message:'그 이름을 명단에서 찾지 못했어요. 새로고침 후 다시 시도해 주세요.' };
+        var jobs = hits.map(function(c){
+          return rosterCas(book, c.id, function(list){
+            var hit = false;
+            var out = list.map(function(x){ if (x === from){ hit = true; return to; } return x; });
+            return hit ? out : null;
+          });
         });
-        if (hit) jobs.push(insertLog({ kind:'표기수정', student: from, book: book, reason: from + ' → ' + to }));
-        return Promise.all(jobs).then(function(){ return hit; },
-                                      function(e){ console.warn('표기 미러 실패', e); return hit; });
-      }
-      return legacyPost(b).then(function(res){
-        var okLegacy = !!(res && res.result === 'success');
-        return mirror().then(function(hit){
-          if (okLegacy){ resyncClasses(book); return syncTwin(res); }
-          // 시트엔 이미 반영됐는데 화면에만 옛 표기가 남은 경우(미러 실패 뒤 재시도) — 화면 쪽을 고쳐 자기 치유.
-          // 2026-08-22: 특이사항을 지워도 계속 남던 문제의 원인.
-          return hit ? ok({ healed: true }) : res;
+        // 짝 반은 표기가 이미 어긋나 있어도(옛 특이사항이 남아 있어도) 이름으로 찾아 맞춘다
+        var twinIds = [];
+        hits.forEach(function(c){
+          var t = twinOf(c, rs[1]);
+          if (!t) return;
+          twinIds.push(t.id);
+          jobs.push(rosterCas(tb, t.id, function(list){
+            var k = nameIdx(list, from);
+            if (k < 0 || list[k] === to) return null;
+            var out = list.slice();
+            out[k] = to;
+            return out;
+          }));
+        });
+        return Promise.all(jobs).then(function(){
+          legacyBg(b);
+          insertLog({ kind:'표기수정', student: from, book: book, reason: from + ' → ' + to })
+            .catch(function(e){ console.warn('표기수정 기록 실패', e); });
+          return renameAttend(book, tb, from, to, twinIds).then(function(){
+            return ok({ classes: hits.length, twinMsg: twinIds.length ? twinDoneMsg(tb) : '' });
+          });
         });
       });
     },
+    /* 반 자체를 만들고 지우고 옮기는 것은 기존 백엔드 먼저 — 반ID를 백엔드가 매기고,
+     * 자주 하는 일이 아니라 굳이 판정 로직을 화면으로 옮기지 않았다. 짝 반 처리도 백엔드가 한다. */
     timetableAddClass: function(b){
       return legacyPost(b).then(function(res){
         if (!res || res.result !== 'success' || !res.id) return res;
@@ -1706,7 +1856,7 @@
         return sbWrite('POST', '/tt_classes', { book: book, class_id: res.id, day: b.day, start_time: b.start,
                                                 end_time: b.end, location: String(b.loc || ''), teacher: String(b.teacher || ''),
                                                 name: b.cls, roster: '' })
-          .then(function(){ return res; }, function(e){ console.warn('반 추가 미러 실패', e); resyncClasses(book); return res; });
+          .then(function(){ return res; }, function(e){ console.warn('반 추가 미러 실패', e); return res; });
       });
     },
     timetableDeleteClass: function(b){
@@ -1714,20 +1864,29 @@
         if (!res || res.result !== 'success') return res;
         var book = bookOf(b.book);
         return sbWrite('DELETE', '/tt_classes?book=eq.' + q(book) + '&class_id=eq.' + q(b.classId))
-          .then(function(){ return res; }, function(e){ console.warn('반 삭제 미러 실패', e); resyncClasses(book); return res; });
+          .then(function(){ return res; }, function(e){ console.warn('반 삭제 미러 실패', e); return res; });
       });
     },
     timetableMoveClass: function(b){
-      var wasC = classRow(bookOf(b.book), b.classId);
-      var members = wasC ? wasC.students.slice() : [];   // 반이 옮겨지면 소속 학생 전원의 시간이 바뀐다
+      var book = bookOf(b.book), cid = String(b.classId || '').trim();
       return legacyPost(b).then(function(res){
         if (!res || res.result !== 'success') return res;
-        var book = bookOf(b.book);
-        return sbWrite('PATCH', '/tt_classes?book=eq.' + q(book) + '&class_id=eq.' + q(b.classId),
+        return Promise.all([fetchClasses(book), fetchClasses(twinBookOf(book))]).then(function(rs){
+          var was = byId(rs[0], cid);
+          var members = was ? was.students.slice() : [];
+          var tw = twinOf(was, rs[1]), tb = twinBookOf(book);
+          var jobs = [ sbWrite('PATCH', '/tt_classes?book=eq.' + q(book) + '&class_id=eq.' + q(cid),
                        { day: b.day, start_time: b.start, end_time: b.end,
-                         location: String(b.loc || ''), teacher: String(b.teacher || '') })
-          .then(function(){ resyncClasses(book, members); return syncTwin(res, members); },
-                function(e){ console.warn('반 이동 미러 실패', e); resyncClasses(book, members); return syncTwin(res, members); });
+                         location: String(b.loc || ''), teacher: String(b.teacher || '') }) ];
+          // 짝 반은 요일·시간만 함께 (위치·담당T는 시간표마다 다르게 둘 수 있다 — 백엔드와 같은 규칙)
+          if (tw) jobs.push(sbWrite('PATCH', '/tt_classes?book=eq.' + q(tb) + '&class_id=eq.' + q(tw.id),
+                                    { day: b.day, start_time: b.start, end_time: b.end }));
+          return Promise.all(jobs).then(function(){
+            applySlots(members, was ? was.cls : null);
+            res.twinMsg = tw ? (tb + ' 시간표의 같은 반도 함께 옮겼어요.') : (res.twinMsg || '');
+            return res;
+          }, function(e){ console.warn('반 이동 미러 실패', e); return res; });
+        });
       });
     }
   };
