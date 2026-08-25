@@ -584,7 +584,9 @@ function loadGradeGates(){
     + '&id='     + encodeURIComponent(si.id || '')
     + '&uniq='   + uniqFlag);
   // 클리닉: 이 학생이 신청 대상인지 백엔드가 직접 판단 (전체/학년/개인/일부 모두 동일 규칙)
-  var clinicJob = jsonpRetry(CLINIC_API + '?action=amITarget'
+  // ※ 리포트 서버(수파베이스 연결부)가 대상 판정을 담아줬으면 이 직접 조회는 생략
+  var clinicJob = STATE.clinicFromServer ? Promise.resolve(null)
+    : jsonpRetry(CLINIC_API + '?action=amITarget'
     + '&name='   + encodeURIComponent(si.name || '')
     + '&school=' + encodeURIComponent(si.school || '')
     + '&grade='  + encodeURIComponent(levelGrade(si.grade) || '')
@@ -628,10 +630,12 @@ function refreshOnReturn(){
   var now = Date.now();
   if(now - GATE_LAST < 20000) return;
   GATE_LAST = now;
-  // 복귀 갱신은 최신이 중요(방금 응시·신청했을 수 있음) — 서버 제공값 대신 직접 조회
-  STATE.mockGatesFromServer = false;
-  STATE.vocaFromServer = false;
-  loadGradeGates();                                // 모의고사 신청·클리닉 대상·어휘 응시
+  // 복귀 갱신은 최신이 중요(방금 응시·신청했을 수 있음). 신청 설정·클리닉 대상·어휘 응시는
+  // 모두 아래 api('')가 미러에서 다시 받아오므로 직접 조회하지 않는다.
+  // (2026-08-25 2단계: 어휘 미러를 어휘 서버가 제출 직후 직접 넣게 되어 — 외부 요청 권한
+  //  승인 완료 — 방금 본 시험도 곧바로 미러에 있다. 그전에는 여기서 직접 조회했다.)
+  // 어댑터가 실패해 기존 백엔드로 폴백한 경우에는 플래그가 서지 않아 아래가 직접 조회한다.
+  loadGradeGates();                                // 폴백일 때만 실제 조회가 나간다
   api('').then(function(d){                        // 클리닉 내역·공지·H WORK·별 갱신
     if(!d || d.result!=='success') return;
     STATE.notices  = d.notices  || [];
@@ -645,6 +649,13 @@ function refreshOnReturn(){
     STATE.vocaOpen = d.vocaOpen;
     STATE.vocaWeek = d.vocaWeek;
     STATE.hwcheck  = d.hwcheck  || null;
+    // 신청 게이트·클리닉 대상도 이 응답으로 갱신 (별도 서버 조회 없이 최신 유지)
+    if (d.mockGates && d.mockGates.grades){
+      STATE.mockGrades = d.mockGates.grades; STATE.mockGatesFromServer = true;
+      if (typeof d.mockGates.open !== 'undefined') STATE.mockOpen = !!d.mockGates.open;
+    }
+    if (typeof d.clinicEligible === 'boolean'){ STATE.clinicEligible = d.clinicEligible; STATE.clinicFromServer = true; }
+    if (typeof d.vocaTaken === 'boolean'){ STATE.vocaTaken = d.vocaTaken; STATE.vocaFromServer = true; }
     // 잠금 상태(authed·exams)는 건드리지 않는다 — 비밀번호 재입력 방지
     if ($('hubView').style.display !== 'none') renderHub();
     // 신청 페이지에 다녀와 이 응답으로 신청 내역이 갱신됐어도 모의고사 메뉴는 다시 그리지
@@ -688,7 +699,7 @@ function hide(id){ $(id).style.display='none'; }
 
 var KEY = '';        // 접근코드(토큰) — 없으면 테스트용 id
 var IS_ID = false;
-var STATE = { info:null, authed:false, exams:null, examCount:0, notices:null, homework:null, analyses:null, clinic:null, stars:null, vocaOpen:null, vocaWeek:null, mockGrades:null, mockOpen:null, clinicEligible:null, vocaTaken:null, mockSignups:null, mockFromServer:false, mockGatesFromServer:false, vocaFromServer:false, hwcheck:null };
+var STATE = { info:null, authed:false, exams:null, examCount:0, notices:null, homework:null, analyses:null, clinic:null, stars:null, vocaOpen:null, vocaWeek:null, mockGrades:null, mockOpen:null, clinicEligible:null, vocaTaken:null, mockSignups:null, mockFromServer:false, mockGatesFromServer:false, vocaFromServer:false, clinicFromServer:false, hwcheck:null };
 
 function showError(title, msg){
   hide('loadBox'); hide('hubView'); $('gradeView').style.display='none'; $('mockHubView').style.display='none'; $('mockView').style.display='none'; $('clinicView').style.display='none'; $('hwcheckView').style.display='none';
@@ -706,13 +717,21 @@ function api(extra){
  * 학생 허브 조립(getStudent)을 수파베이스에서 직접 수행 — 기존 백엔드 응답 모양을 그대로
  * 재현한다(매칭 규칙은 backend-createReport.gs의 해당 함수와 1:1 이식). 어떤 이유로든
  * 실패하면 기존 백엔드(getStudent)로 자동 폴백. 쓰기(공지 확인·복기 제출)는 기존 백엔드 그대로.
- * mockGates만 null로 두어 페이지의 기존 직접 조회 폴백을 쓴다(신청 시트 설정은 미러에 없음). */
+ * 2026-08-25(1단계): 모의고사 신청 게이트(signup_settings)와 클리닉 신청 대상(clinic_settings)도
+ * 여기서 담아 준다 — 학생 페이지가 열릴 때마다 신청·클리닉 앱스스크립트를 부르던 것(각 4~19초)을
+ * 없애기 위함. 설정 미러가 아직 없으면 그 항목만 빼고 보내 페이지가 옛 직접 조회로 폴백한다. */
 (function(){
   var SB_REST = 'https://bangdbhqpphqqdwcledg.supabase.co/rest/v1';
   var SB_KEY = 'sb_publishable_dE9d1KIbpgYaQkaS2MSrlg_-7SiRJuT';
-  function sbGet(path){
-    return fetch(SB_REST + path, { headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY } })
-      .then(function(r){ if(!r.ok) throw new Error('sb ' + r.status); return r.json(); });
+  /* 표를 직접 읽는 함수는 두지 않는다 — 학생 화면은 아래 sbRpc 로 DB 함수만 부른다.
+   * (공개 키에 표 권한이 없으므로 표를 조회하면 어차피 막힌다, 2026-08-25) */
+  /* DB 함수 호출 — 학생 화면은 표를 직접 읽지 않고 이걸 쓴다(012 마이그레이션) */
+  function sbRpc(fn, args){
+    return fetch(SB_REST + '/rpc/' + fn, {
+      method: 'POST',
+      headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY, 'Content-Type': 'application/json' },
+      body: JSON.stringify(args || {})
+    }).then(function(r){ if(!r.ok) throw new Error('sb rpc ' + r.status); return r.json(); });
   }
   function enc(v){ return encodeURIComponent(v); }
   function tr(v){ return String(v == null ? '' : v).trim(); }
@@ -744,6 +763,55 @@ function api(extra){
     if (!lv) return '';
     var m = s.match(/([1-6])\s*학년/) || s.match(/(?:고|중|초)\s*([1-6])/);
     return m ? lv + m[1] : '';
+  }
+  /* ── 클리닉 신청 대상 판정 — clinic Code.gs의 gradeKey_·eligibleForTarget_·effectiveTarget_ 이식.
+   * 설정(대상·강사별 대상·시간대)이 clinic_settings 미러에 그대로 있어 페이지에서 판정할 수 있다.
+   * 학교 느슨 비교는 위 schoolMatch가 clinic의 schoolLoose_와 같은 규칙이라 그대로 쓴다. */
+  function clinicGradeKey(v){
+    var t = String(v || '');
+    var lv = t.indexOf('중') >= 0 ? '중' : (t.indexOf('고') >= 0 ? '고' : '');
+    var m = t.replace(/20\d{2}/, '').match(/[1-3]/);
+    return { lv: lv, d: m ? m[0] : '' };
+  }
+  function clinicEligible(sel, stu){
+    if (!sel || !sel.type || sel.type.indexOf('전체') >= 0) return true;
+    var tokens = String(sel.target || '').split(/\s*[,\n]\s*/).map(tr).filter(Boolean);
+    if (!tokens.length) return true;
+    var nm = tr(stu.name), sc = tr(stu.school), gk = clinicGradeKey(stu.grade);
+    if (sel.type.indexOf('학년') >= 0) {
+      if (!gk.d) return false;
+      var glv = gk.lv || '고';
+      return tokens.some(function(t){
+        var k = clinicGradeKey(t);
+        return k.d && k.d === gk.d && (k.lv || '고') === glv;
+      });
+    }
+    return tokens.some(function(t){          // 개인·일부: 이름 또는 '이름|학교|학년'
+      if (t.indexOf('|') >= 0) {
+        var pr = t.split('|'), tn = tr(pr[0]), ts = tr(pr[1]), tg = tr(pr[2]);
+        if (!tn || tn !== nm) return false;
+        if (ts && sc && !schoolMatch(ts, sc)) return false;
+        var tk = clinicGradeKey(tg);
+        if (tk.d && gk.d && (tk.d !== gk.d || (tk.lv && gk.lv && tk.lv !== gk.lv))) return false;
+        return true;
+      }
+      return t === nm;
+    });
+  }
+  /* 이 강사 클리닉의 대상 — 강사별 대상이 있으면 그것, 없으면 공통 대상.
+   * 둘 다 없으면 null을 돌려 페이지가 기존 클리닉 서버 조회로 폴백하게 둔다
+   * (백엔드는 그 경우 옛 '신청 가능 학년' 설정을 이어받는데 그 값은 미러에 없다). */
+  function clinicTargetOf(setMap, teacher){
+    var list = setMap.teachers;
+    if (Array.isArray(list)) {
+      var nmT = tr(teacher);
+      for (var i = 0; i < list.length; i++) {
+        var e = list[i];
+        if (e && tr(e.teacher) === nmT && e.target && e.target.type) return e.target;
+      }
+    }
+    var g = setMap.target;
+    return (g && g.type) ? g : null;
   }
   function noticeMatches(type, target, stu){
     type = tr(type); target = tr(target);
@@ -838,11 +906,16 @@ function api(extra){
     /* 본인 행만 조회 — 전교생 명단(학생ID=비밀번호·접근코드)을 화면으로 내려받지 않는다.
      * 형제 수(같은 학생ID)·동명이인 수는 필요한 범위만 따로 세어 백엔드와 같은 판정을 만든다.
      * (동명이인 후보는 접미사만 다른 이름이므로 baseName으로 시작하는 이름만 받으면 충분) */
-    var STU_COLS = 'student_id,name,school,grade,teacher,memo,class_a,class_b,naeshin_a,naeshin_b,enrolled,code';
-    var meQ = isId ? ('/students?student_id=eq.' + enc(qsKey)) : ('/students?code=eq.' + enc(qsKey));
-    return sbGet(meQ + '&select=' + STU_COLS + '&order=seq,id&limit=1').then(function(rows){
-      var me = rows && rows[0];
-      if (!me) throw new Error('mirror: student not found');
+    /* 2026-08-25(3단계): 표를 직접 조회하지 않고 DB 함수 하나만 부른다.
+     * 그전에는 본인 행 + 관련 표 16개를 각각 조회했는데(왕복 3파), 그러려면 공개 키에
+     * 표 읽기 권한이 열려 있어야 했다. 그 키는 학생 496명이 여는 이 페이지 안에 있으므로
+     * 주소창에서 `/students?select=*` 를 부르면 전교생의 학생ID(=비밀번호)와 접근코드가
+     * 읽혔다. 이제 함수가 접근코드에 해당하는 학생 몫만 조립해 돌려준다.
+     * 조회 조건은 그대로 함수 안으로 옮겼고(012 마이그레이션), 아래 조립 규칙은 안 바꿨다.
+     * 덤으로 왕복이 16번 → 1번이 된다. 함수 호출이 실패하면 기존 백엔드로 폴백한다. */
+    return sbRpc('student_bundle', { p_key: qsKey, p_is_id: !!isId, p_pw: pw || '' }).then(function(B){
+      if (!B || B.found !== true) throw new Error('mirror: student not found');
+      var me = B.me || {};
       var key = isId ? '' : qsKey;
       var sid = tr(me.student_id);
       var info = { id: sid, name: tr(me.name), school: String(me.school || ''), grade: String(me.grade || ''),
@@ -850,15 +923,7 @@ function api(extra){
                    classB: String(me.class_b || ''), progress: String(me.naeshin_a || ''), checkup: String(me.naeshin_b || ''),
                    enrolled: String(me.enrolled || '') };
       var myBase = baseName(info.name);
-      return Promise.all([
-        sbGet('/students?student_id=eq.' + enc(sid) + '&select=student_id'),
-        sbGet('/students?name=like.' + enc(myBase + '*') + '&select=name,enrolled')
-      ]).then(function(cnts){
-      var shareCount = (cnts[0] || []).length, nameDupCount = 0;
-      (cnts[1] || []).forEach(function(r){
-        var rn = tr(r.name);
-        if (rn && baseName(rn) === myBase && !/^(퇴원|n|no|off|x|중단|비재원)$/i.test(tr(r.enrolled))) nameDupCount++;
-      });
+      var shareCount = B.share_count || 0, nameDupCount = B.name_dup_count || 0;
       var siblingShared = shareCount > 1;
       info.nameDup = nameDupCount > 1;
       var uniq = !info.nameDup;
@@ -867,31 +932,12 @@ function api(extra){
       var name = info.name, base = baseName(name), school = tr(info.school), myGd = gradeDigit(info.grade);
       var stu = { sid: sid, name: name, grade: tr(info.grade), school: school, code: tr(key) };
 
-      var fName = nameOr(name, base);
-      var jobs = [
-        sbGet('/notices?select=seq,date,type,target,title,body,hidden&order=seq,id'),                                          // 0
-        (function(){ var f = orFilter([['student_id', sid], ['name', name]]);
-          return f ? sbGet('/notice_reads?select=student_id,name,school,notice_key&order=at,id' + f) : Promise.resolve([]); })(), // 1
-        sbGet('/assignments?select=seq,date,tool,item,type,target,due,memo&order=seq,id'),                                     // 2
-        (function(){ var f = orFilter([['token', key], ['student_id', sid]]);
-          return f ? sbGet('/clinic_requests?select=ts,slot,rtype,area,content,qcount,memo,student_id,token&order=id' + f) : Promise.resolve([]); })(), // 3
-        fName ? sbGet('/hwork_submissions?select=teacher,code,name,school,grade&order=id' + fName) : Promise.resolve([]),      // 4
-        fName ? sbGet('/voca_results?select=name,round,grade,school&order=id' + fName) : Promise.resolve([]),                  // 5
-        fName ? sbGet('/omr_responses?select=student_id,name,school,exam,grade&order=id' + fName) : Promise.resolve([]),       // 6
-        tr(key) ? sbGet('/hwcheck_records?select=week,pct,scores,pub,missing&token=eq.' + enc(key) + '&order=week') : Promise.resolve([]), // 7
-        fName ? sbGet('/signup_entries?select=ts,name,school,student_id,day&order=id' + fName) : Promise.resolve([]),          // 8
-        (function(){ var f = orFilter([['student_id', sid], ['name', name]]);
-          return f ? sbGet('/star_bonus?select=at,student_id,name,school,stars,reason,grade&order=at,id' + f) : Promise.resolve([]); })(), // 9
-        sbGet('/report_config?select=key,value'),                                                                              // 10
-        (function(){ var f = orFilter([['parent_phone', sid], ['name', name]].concat(base !== name ? [['name', base]] : []));
-          return f ? sbGet('/submissions?select=id,submitted_at,exam,school,grade,name,wrong_count,wrong_text,vow,teacher_note,score,parent_phone&order=id' + f) : Promise.resolve([]); })(), // 11
-        sbGet('/exams?select=report_id,title,review,scope&order=at,report_id'),                                                // 12
-        authed ? sbGet('/exam_questions?select=report_id,no,area,qtype,lv,txt,detail,grp,multi&order=report_id,seq') : Promise.resolve([]) // 13
-      ];
-      return Promise.all(jobs).then(function(g){
-        var notices = g[0], reads = g[1], assigns = g[2], clinicRows = g[3], hwsub = g[4], voca = g[5],
-            omr = g[6], hwc = g[7], signup = g[8], bonusRows = g[9], cfg = g[10], subs = g[11],
-            examList = g[12], qRows = g[13];
+      var notices = B.notices || [], reads = B.notice_reads || [], assigns = B.assignments || [],
+          clinicRows = B.clinic_requests || [], hwsub = B.hwork_submissions || [], voca = B.voca_results || [],
+          omr = B.omr_responses || [], hwc = B.hwcheck_records || [], signup = B.signup_entries || [],
+          bonusRows = B.star_bonus || [], cfg = B.report_config || [], subs = B.submissions || [],
+          examList = B.exams || [], qRows = B.exam_questions || [],
+          clinicSet = B.clinic_settings || [], signupSet = B.signup_settings || [];
 
         /* 공지 확인 집합 — readNoticeChecks_ */
         var checks = {};
@@ -1140,10 +1186,30 @@ function api(extra){
         }
         var vocaWeek = cfgMap['어휘 주차'] ? (parseInt(cfgMap['어휘 주차'], 10) || null) : null;
 
+        /* 모의고사 신청 게이트 — 신청 백엔드 설정의 미러(signup_settings).
+         * 아직 미러가 없으면(표 미생성·한 번도 저장 안 됨) null → 페이지가 기존 직접 조회로 폴백. */
+        var mockGates = null;
+        try {
+          var ssMap = {};
+          (signupSet || []).forEach(function(c){ ssMap[c.key] = c.value; });
+          var gArr = ssMap['grades'];
+          if (Array.isArray(gArr) && gArr.length) {
+            mockGates = { open: ssMap['open'] !== false, grades: gArr.map(String) };
+          }
+        } catch (e) { mockGates = null; }
+
         var resp = { result: 'success', info: info, authed: authed, pwTried: pwTried,
                      notices: noticeOut, homework: homework, analyses: analyses, clinic: clinic,
                      mockSignups: mockSignups, hwcheck: hwcheck, stars: stars,
-                     vocaOpen: vocaOpen, vocaWeek: vocaWeek, mockGates: null };
+                     vocaOpen: vocaOpen, vocaWeek: vocaWeek, mockGates: mockGates };
+
+        /* 클리닉 신청 대상 — 설정이 미러에 있으면 여기서 판정(클리닉 서버 호출 생략) */
+        try {
+          var csMap = {};
+          (clinicSet || []).forEach(function(c){ csMap[c.key] = c.value; });
+          var selT = clinicTargetOf(csMap, info.teacher);
+          if (selT) resp.clinicEligible = clinicEligible(selT, { name: name, school: school, grade: info.grade });
+        } catch (e) {}
         if (vocaOpen !== false && vocaWeek) {   // vocaTakenLocal_ — 이름 정확 일치 + 주차
           var taken = false, rd = String(vocaWeek);
           for (var v2 = 0; v2 < voca.length; v2++) {
@@ -1192,8 +1258,6 @@ function api(extra){
           resp.examCount = examCount;
         }
         return resp;
-      });
-      });
     });
   }
 
@@ -1202,7 +1266,7 @@ function api(extra){
    * 전교생 기록을 내려받지 않게 하려는 구조(공개 항목: 이름·학교·학년·별 수).
    * 표가 비어 있으면(아직 한 번도 계산 안 됨) 기존 백엔드로 폴백. */
   window.sbTop30 = function(){
-    return sbGet('/star_ranking?select=rank,name,school,grade,total,updated_at&order=rank&limit=30')
+    return sbRpc('star_top30', {})
       .then(function(rows){
         if (!rows || !rows.length) throw new Error('star_ranking empty');
         // 캐시가 6시간 넘게 오래됐으면(선생님이 한동안 슈퍼스타 관리를 안 연 경우)
@@ -1634,13 +1698,14 @@ function checkNoticeBtn(btn){
     if(!d.already){
       try {
         var si2 = STATE.info || {};
-        fetch('https://bangdbhqpphqqdwcledg.supabase.co/rest/v1/notice_reads', {
+        // 표에 직접 넣지 않고 '넣기 전용' 함수로 — 학생 페이지라 표 권한을 열어 둘 수 없다
+        fetch('https://bangdbhqpphqqdwcledg.supabase.co/rest/v1/rpc/mirror_notice_read', {
           method:'POST',
           headers:{ 'apikey':'sb_publishable_dE9d1KIbpgYaQkaS2MSrlg_-7SiRJuT',
                     'Authorization':'Bearer sb_publishable_dE9d1KIbpgYaQkaS2MSrlg_-7SiRJuT',
-                    'Content-Type':'application/json', 'Prefer':'return=minimal' },
-          body: JSON.stringify([{ at:new Date().toISOString(), student_id:String(si2.id||''),
-            name:String(si2.name||''), school:String(si2.school||'').trim(), notice_key:k }])
+                    'Content-Type':'application/json' },
+          body: JSON.stringify({ p: { at:new Date().toISOString(), student_id:String(si2.id||''),
+            name:String(si2.name||''), school:String(si2.school||'').trim(), notice_key:k } })
         }).catch(function(){});
       } catch(e){}
     }
@@ -2236,6 +2301,8 @@ function boot(){
         if (typeof d.mockGates.open !== 'undefined') STATE.mockOpen = !!d.mockGates.open;
       }
       if (typeof d.vocaTaken === 'boolean'){ STATE.vocaTaken = d.vocaTaken; STATE.vocaFromServer = true; }
+      // 클리닉 대상 판정도 리포트 응답에 담겨 오면 클리닉 서버 조회를 생략한다
+      if (typeof d.clinicEligible === 'boolean'){ STATE.clinicEligible = d.clinicEligible; STATE.clinicFromServer = true; }
       STATE.hwcheck=d.hwcheck||null;   // 숙제 검사 주차별 기록 (기록 없으면 카드 숨김)
       if(d.exams){ STATE.exams=d.exams; }
       renderHub();
