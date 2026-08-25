@@ -8,6 +8,7 @@
 #     --voca   : 어휘 결과 시트(첫 탭)도 대조·동기화
 #     --signup : 주말 신청 데이터를 신청 백엔드 API(action=data)에서 받아 대조·동기화
 #     --clinic : 클리닉 신청·설정을 클리닉 백엔드 API(action=data)에서 받아 대조·동기화
+#                (--signup 은 신청 설정 signup_settings 도 함께 맞춘다)
 #
 # 하는 일:
 #   · 시트(원본/미러 각 방향)와 수파베이스를 표 단위로 전수 대조해 요약을 출력한다.
@@ -196,7 +197,7 @@ def extract(xlsx):
     seen_cfg = set()
     for r in rows('설정'):
         k = txt(col(r,0))
-        if k in ('어휘 테스트', '어휘 주차') and k not in seen_cfg:
+        if k in ('어휘 테스트', '어휘 주차', '숙제검사 항목') and k not in seen_cfg:
             seen_cfg.add(k)
             d['report_config'].append({'key': k, 'value': txt(col(r,1))})
     return d
@@ -256,9 +257,15 @@ def fetch_signup():
         if d.get('result') != 'success': return None
     except Exception:
         return None
-    return [{'ts': ts_norm(r.get('제출시각')), 'name': txt(r.get('이름')), 'school': txt(r.get('학교')),
+    rows = [{'ts': ts_norm(r.get('제출시각')), 'name': txt(r.get('이름')), 'school': txt(r.get('학교')),
              'grade': txt(r.get('학년')), 'student_id': txt(r.get('학생ID')), 'subject': txt(r.get('선택과목')),
              'day': txt(r.get('응시요일')), 'exam_date': date_norm(r.get('응시일자'))} for r in d.get('rows', [])]
+    # 신청받기·신청 가능 학년 — 학생 개별 페이지가 이 두 값 때문에 신청 백엔드를 부르지
+    # 않도록 미러(signup_settings)에 둔다. 원본은 이 백엔드다.
+    settings = {'open': bool(d.get('open'))}
+    if isinstance(d.get('grades'), list):
+        settings['grades'] = [str(g) for g in d['grades']]
+    return rows, settings
 
 def extract_hwork(xlsx):
     # H WORK 시트 — HWORK목록(A강사 B제목 C데이터JSON D마감일)·제출기록(11열)
@@ -468,14 +475,31 @@ def main():
             lambda r: (r['ts'], r['name'], r['round'], r['score'], r['details']),
             lambda r: (r['school'], r['grade'], r['phone4']), heal)
     if '--signup' in sys.argv:
-        rows = fetch_signup()
-        if rows is None:
+        res = fetch_signup()
+        if res is None:
             report('signup_entries: 신청 백엔드 조회 실패 — 대조 못 함')
         else:
-            print('· 주말 신청 (신청 시트가 원본, API로 대조)')
+            rows, s_set = res
+            print('· 주말 신청 (신청 시트·백엔드 설정이 원본, API로 대조)')
             sync_sheet_master('signup_entries', rows,
                 lambda r: (r['ts'], r['name'], r['day'], r['student_id']),
                 lambda r: (r['school'], r['grade'], r['subject'], r['exam_date']), heal)
+            try:
+                cur_ss = {r['key']: r['value'] for r in sb_all('signup_settings')}
+            except Exception as e:      # 표가 아직 없으면(마이그레이션 전) 보고만 하고 넘어간다
+                report(f'signup_settings: 조회 실패 — {e}')
+                cur_ss = None
+            if cur_ss is not None:
+                ss_diff = [k for k, v in s_set.items() if cur_ss.get(k) != v]
+                if not ss_diff:
+                    print(f'  = signup_settings: 일치 ({len(s_set)}키)')
+                else:
+                    report(f'signup_settings: 불일치 {", ".join(ss_diff)}')
+                    if heal:
+                        sb('POST', '/signup_settings?on_conflict=key',
+                           [{'key': k, 'value': s_set[k]} for k in ss_diff],
+                           'resolution=merge-duplicates,return=minimal')
+                        print('    → 복구 완료')
     if '--clinic' in sys.argv:
         res = fetch_clinic()
         if res is None:

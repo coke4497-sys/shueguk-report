@@ -885,6 +885,8 @@
   }
   function q(v){ return encodeURIComponent(String(v == null ? '' : v)); }
   function plain(nm){ return String(nm || '').replace(/\(.*\)$/, '').trim(); }
+  // 재원여부(K열)가 이 값이면 퇴원 처리 — 백엔드 getRoster·studentLinksData_와 같은 규칙
+  var LEFT_RE = /^(퇴원|n|no|off|x|중단|비재원)$/i;
   function pad2(n){ return String(n).padStart(2, '0'); }
   function localYmd(d){ return d.getFullYear() + '-' + pad2(d.getMonth()+1) + '-' + pad2(d.getDate()); }
   function tYmd(){ return localYmd(new Date()); }
@@ -1122,6 +1124,18 @@
                    fromCls: g.from_class, toCls: g.to_class, fromId: g.from_class_id, toId: g.to_class_id,
                    reason: g.reason, book: g.book };
         }) });
+      });
+    },
+    /* 재원생 명단 — 시트 '학생정보'의 읽기 미러(students)에서. 백엔드 getRoster와 같은 규칙:
+     * 이름이 있고 재원여부가 퇴원류가 아닌 학생만, 시트 행 순서(seq)대로. */
+    roster: function(){
+      return sbGet('/students?select=name,school,grade,teacher,enrolled&order=seq,id').then(function(rows){
+        return ok({ students: rows.filter(function(r){
+            return String(r.name || '').trim() && !LEFT_RE.test(String(r.enrolled || '').trim());
+          }).map(function(r){
+            return { name: String(r.name || '').trim(), school: String(r.school || '').trim(),
+                     grade: String(r.grade || '').trim(), teacher: String(r.teacher || '').trim() };
+          }) });
       });
     }
   };

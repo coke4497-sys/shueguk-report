@@ -584,7 +584,9 @@ function loadGradeGates(){
     + '&id='     + encodeURIComponent(si.id || '')
     + '&uniq='   + uniqFlag);
   // 클리닉: 이 학생이 신청 대상인지 백엔드가 직접 판단 (전체/학년/개인/일부 모두 동일 규칙)
-  var clinicJob = jsonpRetry(CLINIC_API + '?action=amITarget'
+  // ※ 리포트 서버(수파베이스 연결부)가 대상 판정을 담아줬으면 이 직접 조회는 생략
+  var clinicJob = STATE.clinicFromServer ? Promise.resolve(null)
+    : jsonpRetry(CLINIC_API + '?action=amITarget'
     + '&name='   + encodeURIComponent(si.name || '')
     + '&school=' + encodeURIComponent(si.school || '')
     + '&grade='  + encodeURIComponent(levelGrade(si.grade) || '')
@@ -628,10 +630,12 @@ function refreshOnReturn(){
   var now = Date.now();
   if(now - GATE_LAST < 20000) return;
   GATE_LAST = now;
-  // 복귀 갱신은 최신이 중요(방금 응시·신청했을 수 있음) — 서버 제공값 대신 직접 조회
-  STATE.mockGatesFromServer = false;
+  // 복귀 갱신은 최신이 중요(방금 응시·신청했을 수 있음). 신청 설정·클리닉 대상은 아래
+  // api('')가 미러에서 다시 받아오므로 직접 조회하지 않는다. 어휘 응시만 예외 —
+  // 어휘 미러는 아직 서버가 못 넣는 상태라(외부 요청 권한 미승인, 2단계에서 해소)
+  // 방금 본 시험이 미러에 없을 수 있어 직접 조회를 남긴다.
   STATE.vocaFromServer = false;
-  loadGradeGates();                                // 모의고사 신청·클리닉 대상·어휘 응시
+  loadGradeGates();                                // 어휘 응시(+ 남은 폴백)
   api('').then(function(d){                        // 클리닉 내역·공지·H WORK·별 갱신
     if(!d || d.result!=='success') return;
     STATE.notices  = d.notices  || [];
@@ -645,6 +649,12 @@ function refreshOnReturn(){
     STATE.vocaOpen = d.vocaOpen;
     STATE.vocaWeek = d.vocaWeek;
     STATE.hwcheck  = d.hwcheck  || null;
+    // 신청 게이트·클리닉 대상도 이 응답으로 갱신 (별도 서버 조회 없이 최신 유지)
+    if (d.mockGates && d.mockGates.grades){
+      STATE.mockGrades = d.mockGates.grades; STATE.mockGatesFromServer = true;
+      if (typeof d.mockGates.open !== 'undefined') STATE.mockOpen = !!d.mockGates.open;
+    }
+    if (typeof d.clinicEligible === 'boolean'){ STATE.clinicEligible = d.clinicEligible; STATE.clinicFromServer = true; }
     // 잠금 상태(authed·exams)는 건드리지 않는다 — 비밀번호 재입력 방지
     if ($('hubView').style.display !== 'none') renderHub();
     // 신청 페이지에 다녀와 이 응답으로 신청 내역이 갱신됐어도 모의고사 메뉴는 다시 그리지
@@ -688,7 +698,7 @@ function hide(id){ $(id).style.display='none'; }
 
 var KEY = '';        // 접근코드(토큰) — 없으면 테스트용 id
 var IS_ID = false;
-var STATE = { info:null, authed:false, exams:null, examCount:0, notices:null, homework:null, analyses:null, clinic:null, stars:null, vocaOpen:null, vocaWeek:null, mockGrades:null, mockOpen:null, clinicEligible:null, vocaTaken:null, mockSignups:null, mockFromServer:false, mockGatesFromServer:false, vocaFromServer:false, hwcheck:null };
+var STATE = { info:null, authed:false, exams:null, examCount:0, notices:null, homework:null, analyses:null, clinic:null, stars:null, vocaOpen:null, vocaWeek:null, mockGrades:null, mockOpen:null, clinicEligible:null, vocaTaken:null, mockSignups:null, mockFromServer:false, mockGatesFromServer:false, vocaFromServer:false, clinicFromServer:false, hwcheck:null };
 
 function showError(title, msg){
   hide('loadBox'); hide('hubView'); $('gradeView').style.display='none'; $('mockHubView').style.display='none'; $('mockView').style.display='none'; $('clinicView').style.display='none'; $('hwcheckView').style.display='none';
@@ -706,7 +716,9 @@ function api(extra){
  * 학생 허브 조립(getStudent)을 수파베이스에서 직접 수행 — 기존 백엔드 응답 모양을 그대로
  * 재현한다(매칭 규칙은 backend-createReport.gs의 해당 함수와 1:1 이식). 어떤 이유로든
  * 실패하면 기존 백엔드(getStudent)로 자동 폴백. 쓰기(공지 확인·복기 제출)는 기존 백엔드 그대로.
- * mockGates만 null로 두어 페이지의 기존 직접 조회 폴백을 쓴다(신청 시트 설정은 미러에 없음). */
+ * 2026-08-25(1단계): 모의고사 신청 게이트(signup_settings)와 클리닉 신청 대상(clinic_settings)도
+ * 여기서 담아 준다 — 학생 페이지가 열릴 때마다 신청·클리닉 앱스스크립트를 부르던 것(각 4~19초)을
+ * 없애기 위함. 설정 미러가 아직 없으면 그 항목만 빼고 보내 페이지가 옛 직접 조회로 폴백한다. */
 (function(){
   var SB_REST = 'https://bangdbhqpphqqdwcledg.supabase.co/rest/v1';
   var SB_KEY = 'sb_publishable_dE9d1KIbpgYaQkaS2MSrlg_-7SiRJuT';
@@ -744,6 +756,55 @@ function api(extra){
     if (!lv) return '';
     var m = s.match(/([1-6])\s*학년/) || s.match(/(?:고|중|초)\s*([1-6])/);
     return m ? lv + m[1] : '';
+  }
+  /* ── 클리닉 신청 대상 판정 — clinic Code.gs의 gradeKey_·eligibleForTarget_·effectiveTarget_ 이식.
+   * 설정(대상·강사별 대상·시간대)이 clinic_settings 미러에 그대로 있어 페이지에서 판정할 수 있다.
+   * 학교 느슨 비교는 위 schoolMatch가 clinic의 schoolLoose_와 같은 규칙이라 그대로 쓴다. */
+  function clinicGradeKey(v){
+    var t = String(v || '');
+    var lv = t.indexOf('중') >= 0 ? '중' : (t.indexOf('고') >= 0 ? '고' : '');
+    var m = t.replace(/20\d{2}/, '').match(/[1-3]/);
+    return { lv: lv, d: m ? m[0] : '' };
+  }
+  function clinicEligible(sel, stu){
+    if (!sel || !sel.type || sel.type.indexOf('전체') >= 0) return true;
+    var tokens = String(sel.target || '').split(/\s*[,\n]\s*/).map(tr).filter(Boolean);
+    if (!tokens.length) return true;
+    var nm = tr(stu.name), sc = tr(stu.school), gk = clinicGradeKey(stu.grade);
+    if (sel.type.indexOf('학년') >= 0) {
+      if (!gk.d) return false;
+      var glv = gk.lv || '고';
+      return tokens.some(function(t){
+        var k = clinicGradeKey(t);
+        return k.d && k.d === gk.d && (k.lv || '고') === glv;
+      });
+    }
+    return tokens.some(function(t){          // 개인·일부: 이름 또는 '이름|학교|학년'
+      if (t.indexOf('|') >= 0) {
+        var pr = t.split('|'), tn = tr(pr[0]), ts = tr(pr[1]), tg = tr(pr[2]);
+        if (!tn || tn !== nm) return false;
+        if (ts && sc && !schoolMatch(ts, sc)) return false;
+        var tk = clinicGradeKey(tg);
+        if (tk.d && gk.d && (tk.d !== gk.d || (tk.lv && gk.lv && tk.lv !== gk.lv))) return false;
+        return true;
+      }
+      return t === nm;
+    });
+  }
+  /* 이 강사 클리닉의 대상 — 강사별 대상이 있으면 그것, 없으면 공통 대상.
+   * 둘 다 없으면 null을 돌려 페이지가 기존 클리닉 서버 조회로 폴백하게 둔다
+   * (백엔드는 그 경우 옛 '신청 가능 학년' 설정을 이어받는데 그 값은 미러에 없다). */
+  function clinicTargetOf(setMap, teacher){
+    var list = setMap.teachers;
+    if (Array.isArray(list)) {
+      var nmT = tr(teacher);
+      for (var i = 0; i < list.length; i++) {
+        var e = list[i];
+        if (e && tr(e.teacher) === nmT && e.target && e.target.type) return e.target;
+      }
+    }
+    var g = setMap.target;
+    return (g && g.type) ? g : null;
   }
   function noticeMatches(type, target, stu){
     type = tr(type); target = tr(target);
@@ -886,12 +947,14 @@ function api(extra){
         (function(){ var f = orFilter([['parent_phone', sid], ['name', name]].concat(base !== name ? [['name', base]] : []));
           return f ? sbGet('/submissions?select=id,submitted_at,exam,school,grade,name,wrong_count,wrong_text,vow,teacher_note,score,parent_phone&order=id' + f) : Promise.resolve([]); })(), // 11
         sbGet('/exams?select=report_id,title,review,scope&order=at,report_id'),                                                // 12
-        authed ? sbGet('/exam_questions?select=report_id,no,area,qtype,lv,txt,detail,grp,multi&order=report_id,seq') : Promise.resolve([]) // 13
+        authed ? sbGet('/exam_questions?select=report_id,no,area,qtype,lv,txt,detail,grp,multi&order=report_id,seq') : Promise.resolve([]), // 13
+        sbGet('/clinic_settings?select=key,value').catch(function(){ return null; }),                                          // 14
+        sbGet('/signup_settings?select=key,value').catch(function(){ return null; })                                           // 15
       ];
       return Promise.all(jobs).then(function(g){
         var notices = g[0], reads = g[1], assigns = g[2], clinicRows = g[3], hwsub = g[4], voca = g[5],
             omr = g[6], hwc = g[7], signup = g[8], bonusRows = g[9], cfg = g[10], subs = g[11],
-            examList = g[12], qRows = g[13];
+            examList = g[12], qRows = g[13], clinicSet = g[14], signupSet = g[15];
 
         /* 공지 확인 집합 — readNoticeChecks_ */
         var checks = {};
@@ -1140,10 +1203,30 @@ function api(extra){
         }
         var vocaWeek = cfgMap['어휘 주차'] ? (parseInt(cfgMap['어휘 주차'], 10) || null) : null;
 
+        /* 모의고사 신청 게이트 — 신청 백엔드 설정의 미러(signup_settings).
+         * 아직 미러가 없으면(표 미생성·한 번도 저장 안 됨) null → 페이지가 기존 직접 조회로 폴백. */
+        var mockGates = null;
+        try {
+          var ssMap = {};
+          (signupSet || []).forEach(function(c){ ssMap[c.key] = c.value; });
+          var gArr = ssMap['grades'];
+          if (Array.isArray(gArr) && gArr.length) {
+            mockGates = { open: ssMap['open'] !== false, grades: gArr.map(String) };
+          }
+        } catch (e) { mockGates = null; }
+
         var resp = { result: 'success', info: info, authed: authed, pwTried: pwTried,
                      notices: noticeOut, homework: homework, analyses: analyses, clinic: clinic,
                      mockSignups: mockSignups, hwcheck: hwcheck, stars: stars,
-                     vocaOpen: vocaOpen, vocaWeek: vocaWeek, mockGates: null };
+                     vocaOpen: vocaOpen, vocaWeek: vocaWeek, mockGates: mockGates };
+
+        /* 클리닉 신청 대상 — 설정이 미러에 있으면 여기서 판정(클리닉 서버 호출 생략) */
+        try {
+          var csMap = {};
+          (clinicSet || []).forEach(function(c){ csMap[c.key] = c.value; });
+          var selT = clinicTargetOf(csMap, info.teacher);
+          if (selT) resp.clinicEligible = clinicEligible(selT, { name: name, school: school, grade: info.grade });
+        } catch (e) {}
         if (vocaOpen !== false && vocaWeek) {   // vocaTakenLocal_ — 이름 정확 일치 + 주차
           var taken = false, rd = String(vocaWeek);
           for (var v2 = 0; v2 < voca.length; v2++) {
@@ -2236,6 +2319,8 @@ function boot(){
         if (typeof d.mockGates.open !== 'undefined') STATE.mockOpen = !!d.mockGates.open;
       }
       if (typeof d.vocaTaken === 'boolean'){ STATE.vocaTaken = d.vocaTaken; STATE.vocaFromServer = true; }
+      // 클리닉 대상 판정도 리포트 응답에 담겨 오면 클리닉 서버 조회를 생략한다
+      if (typeof d.clinicEligible === 'boolean'){ STATE.clinicEligible = d.clinicEligible; STATE.clinicFromServer = true; }
       STATE.hwcheck=d.hwcheck||null;   // 숙제 검사 주차별 기록 (기록 없으면 카드 숨김)
       if(d.exams){ STATE.exams=d.exams; }
       renderHub();
