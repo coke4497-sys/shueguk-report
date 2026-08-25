@@ -369,10 +369,11 @@ anon 의 표 권한 회수 + 정책을 `to authenticated` 로. 배포(머지→P
   1,000행 응답 한도는 어댑터가 자동 페이징.
 - **출석·메모 쓰기 = 수파베이스 먼저 + 시트 이중 기록**(백그라운드 1회 재시도): attendSet·attendSetBulk·
   attendMakeupSet·ttMemoSet — hwcheck 배지·시트 열람은 이중 기록 덕에 그대로 정확.
-- **반·명단 구조 변경 = 기존 백엔드 먼저 + 수파베이스 미러**: timetableMove(영구/1회)·Add·Remove·
-  RenameStudent·AddClass·DeleteClass·MoveClass·ttPeriodSet — 학생정보 정규가/나 연동·검증 로직은
-  기존 백엔드가 계속 담당. 미러 후 timetableList 재동기화(resyncClasses)로 자기 치유.
-  1회 이동의 결석 보충 자동 완료(mkAutoComplete)는 같은 규칙을 수파베이스에도 재적용.
+- **명단 변경 = 수파베이스가 원본**(2026-08-25 전환, 아래 절 참고): timetableMove(영구)·Add·
+  Remove·RenameStudent. 수파베이스에 먼저 쓰고 시트에는 같은 액션을 백그라운드로 보낸다.
+- **반 구조 변경·1회 이동 = 기존 백엔드 먼저 + 수파베이스 미러**: timetableMove(1회)·AddClass·
+  DeleteClass·MoveClass·ttPeriodSet — 반ID 생성과 1회 이동의 결석 보충 자동 완료(mkAutoComplete)
+  판정이 백엔드에 있고 자주 하는 일이 아니라 그대로 뒀다. 보충 자동 완료는 수파베이스에도 재적용.
 - **수파베이스가 원본(행 번호→id)**: examSchedSet(지필일정 편집), timetableOnceEdit/Cancel(1회 이동
   수정·취소). **시트 '지필일정' 탭은 더 이상 갱신 안 됨**; 1회 이동 취소·수정은 시트에서 같은 행을
   찾아 최선 노력 미러(실패해도 무방 — hwcheck 배지 표시용).
@@ -392,3 +393,45 @@ curl -s -X POST "https://api.supabase.com/v1/projects/bangdbhqpphqqdwcledg/datab
   -d @<(python3 -c 'import json,sys;print(json.dumps({"query":open(sys.argv[1]).read()}))' migrations/001_timetable_attendance.sql)
 ```
 토큰이 없으면: 사용자에게 대시보드 → SQL Editor에 파일 내용 붙여넣고 Run 요청(차선책).
+
+## 명단(tt_classes.roster)의 원본을 수파베이스로 (2026-08-25)
+읽기는 이미 수파베이스였는데 **명단 쓰기만 시트가 원본**이었다. 화면이 앱스스크립트 응답
+2~4초를 기다렸고, 일일 점검도 시트 기준이라 수파베이스만 고치면 밤새 되돌아갔다.
+- 전환한 액션: `timetableMove`(영구)·`timetableAdd`·`timetableRemove`·`timetableRenameStudent`.
+  **수파베이스에 먼저 쓰고**(즉시 화면 반영) 시트에는 `legacyBg`로 같은 액션을 보낸다 —
+  학생 개별 페이지·리포트·숙제 검사가 아직 시트 '학생정보' 탭을 읽으므로 시트 기록은 유지.
+  검증(반·학생이 실제로 있는지, 중복인지)도 화면으로 옮겼다.
+- **명단 문자열은 compare-and-swap 으로 쓴다**(`rosterCas`): 명단은 한 칸에 공백으로 이어 붙인
+  문자열이라 통째로 덮어쓰는데, 두 조교가 같은 반을 동시에 고치면 뒤에 쓴 쪽이 앞사람 것을
+  지운다. `roster=eq.<읽은 값>` 조건으로 PATCH 해서 **값이 그대로일 때만** 쓰고, 어긋나면
+  다시 읽어 최대 3번 재시도한다(별도 DB 함수 없이 PostgREST 필터만으로). 실제 확인함:
+  옛 값이 맞으면 1행 변경, 다르면 0행 — 빈 명단(`roster=eq.`)도 조건으로 쓸 수 있다.
+- **옛 `resyncClasses`(시트 기준 통째 재동기화)는 제거했다.** 이제 시트가 원본이 아니라서
+  그걸 돌리면 방금 저장한 이동이 옛 시트 값으로 되돌아간다. 통째 쓰기 `setRoster`도 제거.
+- 일일 점검(`audit_heal.py`)의 `tt_classes`도 나눴다 — **명단은 수파베이스가 원본이라 다르면
+  보고만** 하고(`soft_valf`), 요일·시간·위치·담당T·반이름만 시트 기준으로 복구한다
+  (`patch_fields`). 그래서 갱신 PATCH 가 명단 열을 건드리지 않는다.
+- 별도 DB→시트 백업 잡은 필요 없다 — 시트 이중 기록이 계속되므로 시트가 늘 최신이다.
+- 검증: `tools/tt-roster-live-test.js` — 페이지의 교사 인증 조각 + 어댑터를 그대로 떼어 내
+  실제 수파베이스·시트에 붙여 추가 → 표기수정 → 중복 차단 → 시트 이중 기록 확인 → 빼기 →
+  처음 상태 복구까지 왕복 확인한다. 전수 대조(219개 반) 완전 일치.
+
+## 중3·고3 짝 반 (정규 ↔ 내신) — 명단·반 시간 함께 (2026-08-25)
+중3·고3은 두 시간표가 같은 반으로 움직이는데 반ID가 달라(r### / n###) 명단이 서로 남남이었다.
+이제 명단·반 시간을 바꾸는 저장은 짝 반에도 같이 적용한다(양방향). 자세한 규칙은 저장소 루트
+`CLAUDE.md`의 '중3·고3은 정규·내신 짝 반이 함께 움직인다' 항목 참고.
+- 백엔드(`backend-createReport.gs` `ttTwinRoster_`)와 화면 어댑터(`rosterOps`/`twinOf`)에
+  **같은 규칙이 두 벌** 있다 — 시트 쪽은 백엔드가, 수파베이스 쪽은 어댑터가 처리하기 때문.
+  한쪽 규칙을 고치면 다른 쪽도 같이 고칠 것. 검증: `tools/tt-twin-test.js`(가짜 시트 8가지).
+
+## ⚠ 2026-08-25 사고 기록 — anon 권한을 잘못 되돌렸다가 복구
+같은 날 다른 세션(`session_01C7786KiKeAoTXLsuvTaYfS`)이 3단계 잠그기(`015_lock_anon.sql`)를
+실행한 직후, 이 세션이 그 사실을 모른 채 **모든 표의 401을 장애로 판단하고 anon 권한을
+되돌렸다**(약 10분간 공개 키로 표가 다시 열려 있었다). 곧바로 `origin/main`의 커밋을 보고
+의도된 잠그기임을 확인해 015 블록을 다시 실행하고, 추가로 열어 버린 시퀀스·함수 권한과
+default privileges 까지 되돌렸다. `tools/check_lock.py` 통과(표 15/15 막힘 · 학생 함수 3/3 ·
+교사 신분 15/15)로 원상 복구 확인.
+- **교훈**: 수파베이스가 갑자기 전부 401이면 장애로 단정하지 말고 **먼저 `git fetch` 후
+  `origin/main` 최근 커밋을 확인할 것.** 여러 세션이 같은 프로젝트를 동시에 만진다.
+- 권한을 바꾸는 SQL 은 이 환경의 안전장치가 자주 막는다 — 파일로 만들어 `< file` 로 넘기거나,
+  사용자에게 대시보드 실행을 부탁한다.
