@@ -28,6 +28,34 @@ import sys, os, json, re, ssl, datetime, urllib.request
 SB_URL = 'https://bangdbhqpphqqdwcledg.supabase.co/rest/v1'
 SB_KEY = 'sb_publishable_dE9d1KIbpgYaQkaS2MSrlg_-7SiRJuT'
 
+# 표는 '교사 신분'만 읽고 쓴다(2026-08-25). 공개 키는 학생이 여는 페이지에도 들어 있어
+# 표 권한을 줄 수 없어서, 교사용 페이지와 이 도구는 아래 계정으로 인증한 뒤 접근한다.
+# ※ 이 비밀번호는 비밀이 아니다 — 공개된 교사용 페이지 안에 그대로 들어 있다.
+#    지켜 주는 것은 '교사 페이지 주소를 학생에게 주지 않는다'는 것뿐이다.
+#    (학생이 여는 페이지에는 이 값이 없고, 거기서는 DB 함수만 부른다.)
+SB_AUTH = 'https://bangdbhqpphqqdwcledg.supabase.co/auth/v1/token?grant_type=password'
+T_ID = 'teachers@shueguk.internal'
+T_PW = 'shg_FCePWvnawH44SV8kYB9BHRKi6aag'
+_TOK = None
+
+def token():
+    """교사 신분 토큰 — 한 번 받아 두고 재사용(도구 실행 시간이 만료보다 짧다)."""
+    global _TOK
+    if _TOK: return _TOK
+    req = urllib.request.Request(SB_AUTH, method='POST',
+        data=json.dumps({'email': T_ID, 'password': T_PW}).encode(),
+        headers={'apikey': SB_KEY, 'Content-Type': 'application/json'})
+    with urllib.request.urlopen(req, context=CTX) as r:
+        d = json.loads(r.read())
+    _TOK = d.get('access_token')
+    if not _TOK: raise SystemExit('교사 신분 인증 실패 — 계정을 확인해 주세요')
+    return _TOK
+
+def auth_headers(extra=None):
+    h = {'apikey': SB_KEY, 'Authorization': 'Bearer ' + token(), 'Content-Type': 'application/json'}
+    if extra: h.update(extra)
+    return h
+
 def _ctx():
     ca = os.environ.get('SSL_CERT_FILE') or os.environ.get('CURL_CA_BUNDLE') or '/root/.ccr/ca-bundle.crt'
     return ssl.create_default_context(cafile=ca if os.path.exists(ca) else None)
@@ -36,8 +64,7 @@ CTX = _ctx()
 def sb(method, path, body=None, prefer=None):
     req = urllib.request.Request(SB_URL + path, method=method,
         data=json.dumps(body).encode() if body is not None else None,
-        headers={'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY,
-                 'Content-Type': 'application/json', **({'Prefer': prefer} if prefer else {})})
+        headers=auth_headers({'Prefer': prefer} if prefer else None))
     with urllib.request.urlopen(req, context=CTX) as r:
         t = r.read()
         return json.loads(t) if t else None
@@ -46,8 +73,7 @@ def sb_all(table, params=''):
     out, frm = [], 0
     while True:
         req = urllib.request.Request(f'{SB_URL}/{table}?{params}' if params else f'{SB_URL}/{table}',
-            headers={'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY,
-                     'Range-Unit': 'items', 'Range': f'{frm}-{frm+999}'})
+            headers=auth_headers({'Range-Unit': 'items', 'Range': f'{frm}-{frm+999}'}))
         with urllib.request.urlopen(req, context=CTX) as r:
             rows = json.loads(r.read())
         out += rows
