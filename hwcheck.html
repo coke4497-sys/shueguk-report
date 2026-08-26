@@ -777,13 +777,17 @@ function isAwayThisWeek(s){
 function uniq(a){ return Array.from(new Set(a.filter(Boolean))); }
 function slotNorm(v){ return String(v||'').replace(/\s+/g,''); }   // '토 6:00' ↔ '토6:00' 표기 차이 흡수
 // 시간대 정렬 — 요일 순서(수목금토일, 정규 수업 주 기준) 먼저, 같은 요일은 이른 시간부터
-// (1~8시는 오후 수업으로 보고 13~20시로 계산)
+// (1~9시는 오후 수업으로 보고 13~21시로 계산, '오전'·'밤' 접두 표기는 그대로 해석)
 function slotSortKey(v){
-  var d = '수목금토일월화'.indexOf(String(v||'').charAt(0));
+  var s = String(v||'');
+  var d = '수목금토일월화'.indexOf(s.charAt(0));
   if (d < 0) d = 9;
-  var m = String(v||'').match(/(\d{1,2}):?(\d{2})?/);
+  var m = s.match(/(\d{1,2}):?(\d{2})?/);
   var h = m ? +m[1] : 0, mm = (m && m[2]) ? +m[2] : 0;
-  if (h >= 1 && h <= 8) h += 12;
+  // '오전7:00'(아침)·'밤10:00'(22시 이후) 접두 표기(시간표의 timeValOf)도 제 순서로
+  if (s.indexOf('오전') >= 0) { if (h === 12) h = 0; }
+  else if (s.indexOf('밤') >= 0) { if (h !== 12) h += 12; else h = 24; }
+  else if (h >= 1 && h <= 9) h += 12;   // 시간표 규칙(10시 미만=오후)과 동일 — 9:00·9:30도 밤 수업
   return d * 10000 + h * 100 + mm;
 }
 var extras = [];   // 그룹에 수동으로 추가한 학생(접근코드) — 이동해 온 친구 검사용
