@@ -296,10 +296,12 @@
           <datalist id="gradeList"></datalist>
         </div>
       </div>
-      <label>부모님 연락처 8자리</label>
-      <input type="text" id="f-sid" inputmode="numeric" maxlength="8" placeholder="숫자 8자리 (성적 확인 비밀번호)" autocomplete="off" />
-      <label>학생 연락처 8자리 <span class="opt">(선택)</span></label>
-      <input type="text" id="f-sphone" inputmode="numeric" maxlength="8" placeholder="숫자 8자리 (학생 본인 번호)" autocomplete="off" />
+      <label>학생 휴대폰</label>
+      <input type="text" id="f-pstu" inputmode="numeric" placeholder="01012345678 (학생 본인 번호)" autocomplete="off" />
+      <label>학부모1 휴대폰 <span class="opt">— 뒤 8자리가 성적 확인 비밀번호가 돼요</span></label>
+      <input type="text" id="f-pp1" inputmode="numeric" placeholder="01012345678 (주로 어머님 번호)" autocomplete="off" />
+      <label>학부모2 휴대폰 <span class="opt">(선택)</span></label>
+      <input type="text" id="f-pp2" inputmode="numeric" placeholder="비워 두어도 돼요" autocomplete="off" />
       <label>담당 교사 <span class="opt">(선택)</span></label>
       <input type="text" id="f-teacher" list="teacherList" placeholder="예) 남주혜" autocomplete="off" />
       <datalist id="teacherList"></datalist>
@@ -833,7 +835,8 @@
         return { result:'success', students: stuActive(rows).map(function(r){
           return { name: tr_(r.name), sid: tr_(r.student_id), school: tr_(r.school), grade: tr_(r.grade),
                    teacher: tr_(r.teacher), memo: tr_(r.memo), classA: tr_(r.class_a), classB: tr_(r.class_b),
-                   progress: tr_(r.naeshin_a), checkup: tr_(r.naeshin_b), code: tr_(r.code), regDate: tr_(r.reg_date) };
+                   progress: tr_(r.naeshin_a), checkup: tr_(r.naeshin_b), code: tr_(r.code), regDate: tr_(r.reg_date),
+                   phoneStu: tr_(r.phone_student), phone1: tr_(r.phone_parent1), phone2: tr_(r.phone_parent2) };
         }) };
       });
     },
@@ -874,6 +877,12 @@
       return sb('PATCH', '/students?code=eq.' + q(code), patch, { 'Prefer': 'return=representation' })
         .then(function(r){
           if (!r || !r.length) return { result:'error', message:'학생을 찾을 수 없어요. 새로고침 후 다시 시도해 주세요.' };
+          // 연락처는 따로 쓴다 — 018 마이그레이션 전이어도 본 수정은 성공하게 (실패는 경고만)
+          if (b.phoneStu !== undefined || b.phone1 !== undefined || b.phone2 !== undefined){
+            sb('PATCH', '/students?code=eq.' + q(code),
+               { phone_student: tr_(b.phoneStu), phone_parent1: tr_(b.phone1), phone_parent2: tr_(b.phone2) })
+              .catch(function(e){ console.warn('연락처 저장 실패(018 마이그레이션 전이면 정상)', e); });
+          }
           return { result:'success' };
         });
     },
@@ -1206,12 +1215,16 @@
 
   function submitStudent(force){
     var name=$('f-name').value.trim(), school=$('f-school').value.trim(),
-        grade=$('f-grade').value.trim(), sid=$('f-sid').value.trim(),
-        sphone=$('f-sphone').value.trim();
+        grade=$('f-grade').value.trim();
+    // 연락처는 전체 번호로 받는다(2026-08-26 사용자 요청) — 학생·학부모1 필수, 학부모2 선택.
+    // 성적 확인 비밀번호(학생ID)는 종전 규칙 그대로 학부모1 번호의 뒤 8자리.
+    var pstu=$('f-pstu').value.replace(/\D/g,''), pp1=$('f-pp1').value.replace(/\D/g,''), pp2=$('f-pp2').value.replace(/\D/g,'');
     if(!name){ setReg('이름을 입력해 주세요.','err'); return; }
     if(!school || !grade){ setReg('학교와 학년을 입력해 주세요.','err'); return; }
-    if(!/^\d{8}$/.test(sid)){ setReg('부모님 연락처 8자리는 숫자 8개여야 해요.','err'); return; }
-    if(sphone && !/^\d{8}$/.test(sphone)){ setReg('학생 연락처는 숫자 8개여야 해요. (없으면 비워두세요)','err'); return; }
+    if(pstu.length<8 || pstu.length>11){ setReg('학생 휴대폰 번호를 확인해 주세요. (숫자 8~11자리)','err'); return; }
+    if(pp1.length<8 || pp1.length>11){ setReg('학부모1 휴대폰 번호를 확인해 주세요. (숫자 8~11자리)','err'); return; }
+    if(pp2 && (pp2.length<8 || pp2.length>11)){ setReg('학부모2 휴대폰 번호를 확인해 주세요. (없으면 비워두세요)','err'); return; }
+    var sid=pp1.slice(-8), sphone=pstu.slice(-8);
     hideWarn();
     // 반 선택 → 학생정보에는 종전처럼 '요일+시작' 시간 문구로 저장 (예: 토6:00)
     var pA=ttPick('f-classA'), pB=ttPick('f-classB'), pP=ttPick('f-progress'), pC=ttPick('f-checkup');
@@ -1248,6 +1261,17 @@
       $('doneLink').textContent = link;
       $('doneLink').setAttribute('data-link', link);
       window.scrollTo(0,0);
+      // 연락처(전체 번호)를 students에 저장 — 미러 행이 방금 만들어지는 중일 수 있어 잠깐 기다렸다 재시도
+      (function savePhones(tryN){
+        sbx('PATCH','/students?code=eq.'+encodeURIComponent(d.token),
+            { phone_student: pstu, phone_parent1: pp1, phone_parent2: pp2 },
+            { 'Prefer':'return=representation' })
+          .then(function(r){
+            if ((!r || !r.length) && tryN < 4) setTimeout(function(){ savePhones(tryN+1); }, 900);
+            else if (!r || !r.length) console.warn('연락처 저장 실패 — 슈스 링크 [수정]에서 다시 넣어주세요');
+          })
+          .catch(function(e){ console.warn('연락처 저장 실패(018 마이그레이션 전이면 정상)', e); });
+      })(0);
       // 고른 반이 있으면 전체 시간표 명단에도 넣는다 (등록된 이름 기준 — 동명이인 접미사 포함)
       var picks = [pA, pB, pP, pC].filter(Boolean);
       var tEl = $('doneTT');
@@ -1273,7 +1297,7 @@
     }
   }
   function resetForm(){
-    ['f-name','f-school','f-grade','f-sid','f-sphone','f-teacher','f-memo','f-classA','f-classB','f-progress','f-checkup']
+    ['f-name','f-school','f-grade','f-pstu','f-pp1','f-pp2','f-teacher','f-memo','f-classA','f-classB','f-progress','f-checkup']
       .forEach(function(id){ $(id).value=''; });
     $('copyStatus').textContent='';
     $('doneCard').style.display='none';
@@ -1498,6 +1522,9 @@
       '<div><label>정규 나 수업</label><input type="text" class="e-classB" value="'+esc(s.classB||'')+'" /></div></div>'+
       '<div class="row2"><div><label>내신 진도</label><input type="text" class="e-progress" value="'+esc(s.progress||'')+'" /></div>'+
       '<div><label>내신 확인</label><input type="text" class="e-checkup" value="'+esc(s.checkup||'')+'" /></div></div>'+
+      '<label>학생 휴대폰</label><input type="text" class="e-pstu" inputmode="numeric" placeholder="01012345678" value="'+esc(s.phoneStu||'')+'" />'+
+      '<div class="row2"><div><label>학부모1 휴대폰</label><input type="text" class="e-pp1" inputmode="numeric" placeholder="01012345678" value="'+esc(s.phone1||'')+'" /></div>'+
+      '<div><label>학부모2 휴대폰 <span style="font-weight:400;color:#7a8a82;">(선택)</span></label><input type="text" class="e-pp2" inputmode="numeric" value="'+esc(s.phone2||'')+'" /></div></div>'+
       '<label>메모</label><input type="text" class="e-memo" maxlength="80" value="'+esc(s.memo||'')+'" />'+
       '<label>등록일 <span style="font-weight:400;color:#7a8a82;">— 이 달 신입 목록에 뜨는 기준. 비우면 신입으로 안 뜸</span></label>'+
       '<div class="row2"><input type="text" class="e-regdate" placeholder="2026-08-23" value="'+esc(s.regDate||'')+'" />'+
@@ -1506,13 +1533,17 @@
   }
   function saveEdit(wrap, s){
     var g=function(cls){ return wrap.querySelector('.'+cls).value.trim(); };
+    var dg=function(cls){ return g(cls).replace(/\D/g,''); };
     var payload={ action:'updateStudent', pw:SERVER_PW, code:s.code,
       school:g('e-school'), grade:g('e-grade'), teacher:g('e-teacher'), memo:g('e-memo'),
       classA:g('e-classA'), classB:g('e-classB'), progress:g('e-progress'), checkup:g('e-checkup'),
-      regDate:g('e-regdate') };
+      regDate:g('e-regdate'),
+      phoneStu:dg('e-pstu'), phone1:dg('e-pp1'), phone2:dg('e-pp2') };
     if(payload.regDate && !/^\d{4}-\d{2}-\d{2}$/.test(payload.regDate)){
       setE(wrap,'등록일은 2026-08-23 형태로 적어주세요.','err'); return; }
     if(!payload.school || !payload.grade){ setE(wrap,'학교와 학년은 비울 수 없어요.','err'); return; }
+    var badPhone=[payload.phoneStu,payload.phone1,payload.phone2].some(function(p){ return p && (p.length<8||p.length>11); });
+    if(badPhone){ setE(wrap,'휴대폰 번호는 숫자 8~11자리로 적어주세요. (없으면 비워두세요)','err'); return; }
     var btn=wrap.querySelector('.esave'); btn.disabled=true; setE(wrap,'저장하는 중…');
     fetch(ENDPOINT, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify(payload) })
       .then(function(r){ return r.json(); })
@@ -1522,6 +1553,7 @@
         s.school=payload.school; s.grade=payload.grade; s.teacher=payload.teacher; s.memo=payload.memo;
         s.classA=payload.classA; s.classB=payload.classB; s.progress=payload.progress; s.checkup=payload.checkup;
         s.regDate=payload.regDate;
+        s.phoneStu=payload.phoneStu; s.phone1=payload.phone1; s.phone2=payload.phone2;
         setE(wrap,'✓ 저장되었어요','ok');
         setTimeout(function(){ renderLinks(); }, 700);
       })
