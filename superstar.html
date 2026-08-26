@@ -816,7 +816,103 @@
     });
   }
 
+  /* ── 학생정보 원본 전환 (2026-08-26, 명단(roster) 전환과 같은 패턴) ──────────
+   * 읽기(studentLinks·newStudents·roster)는 students 표에서 직접 — 시트 통째 읽기(2~23초)가
+   * 0.2~0.5초가 된다. 수정(updateStudent)·표기 변경(studentRename)은 수파베이스에 먼저 쓰고
+   * 시트에는 같은 액션을 뒤에서 보낸다(학생 페이지 폴백·별 집계 레거시가 아직 시트를 읽어서).
+   * 신입 등록(addStudent)·아웃(exitDelete)은 접근코드 발급·행 삭제가 백엔드에 있어 종전대로
+   * 백엔드 먼저 + 즉시 미러(AFTER 훅) — 등록 직후에도 미러가 바로 맞는 구조는 이미 있다. */
+  var LEFT_RE = /^(퇴원|n|no|off|x|중단|비재원)$/i;
+  function stuAll(){ return sbAll('/students?select=*&order=seq,id'); }
+  function stuActive(rows){
+    return rows.filter(function(r){ return tr_(r.name) && !LEFT_RE.test(tr_(r.enrolled)); });
+  }
+  var SGETS = {
+    studentLinks: function(){
+      return stuAll().then(function(rows){
+        return { result:'success', students: stuActive(rows).map(function(r){
+          return { name: tr_(r.name), sid: tr_(r.student_id), school: tr_(r.school), grade: tr_(r.grade),
+                   teacher: tr_(r.teacher), memo: tr_(r.memo), classA: tr_(r.class_a), classB: tr_(r.class_b),
+                   progress: tr_(r.naeshin_a), checkup: tr_(r.naeshin_b), code: tr_(r.code), regDate: tr_(r.reg_date) };
+        }) };
+      });
+    },
+    newStudents: function(month){
+      if (!/^\d{4}-\d{2}$/.test(String(month || ''))) month = new Date(Date.now() + 9*3600e3).toISOString().slice(0, 7);
+      return stuAll().then(function(rows){
+        var out = stuActive(rows).filter(function(r){ return tr_(r.reg_date).slice(0, 7) === month; })
+          .map(function(r){
+            return { date: tr_(r.reg_date), name: tr_(r.name), school: tr_(r.school), grade: tr_(r.grade),
+                     teacher: tr_(r.teacher), classA: tr_(r.class_a), classB: tr_(r.class_b),
+                     progress: tr_(r.naeshin_a), checkup: tr_(r.naeshin_b) };
+          })
+          .sort(function(a, b){ return a.date < b.date ? 1 : -1; });
+        return { result:'success', month: month, students: out };
+      });
+    },
+    roster: function(){
+      return stuAll().then(function(rows){
+        return { result:'success', students: stuActive(rows).map(function(r){
+          return { name: tr_(r.name), school: tr_(r.school), grade: tr_(r.grade), teacher: tr_(r.teacher) };
+        }) };
+      });
+    }
+  };
+  /* 쓰기 — 수파베이스 먼저. 검증은 백엔드 규칙 1:1 (updateStudent·studentRename) */
+  var PRE = {
+    updateStudent: function(b){
+      var code = tr_(b.code);
+      if (!code) return Promise.resolve({ result:'error', message:'학생 식별 정보(접근코드)가 없습니다.' });
+      if (!tr_(b.school) || !tr_(b.grade)) return Promise.resolve({ result:'error', message:'학교와 학년은 비울 수 없어요.' });
+      var patch = { school: tr_(b.school), grade: tr_(b.grade), teacher: tr_(b.teacher), memo: tr_(b.memo),
+                    class_a: tr_(b.classA), class_b: tr_(b.classB), naeshin_a: tr_(b.progress), naeshin_b: tr_(b.checkup) };
+      if (b.regDate !== undefined && b.regDate !== null){
+        var rd = tr_(b.regDate);
+        if (rd && !/^\d{4}-\d{2}-\d{2}$/.test(rd)) return Promise.resolve({ result:'error', message:'등록일은 2026-08-23 형태로 적어주세요.' });
+        patch.reg_date = rd;
+      }
+      return sb('PATCH', '/students?code=eq.' + q(code), patch, { 'Prefer': 'return=representation' })
+        .then(function(r){
+          if (!r || !r.length) return { result:'error', message:'학생을 찾을 수 없어요. 새로고침 후 다시 시도해 주세요.' };
+          return { result:'success' };
+        });
+    },
+    studentRename: function(b){
+      var code = tr_(b.code), to = tr_(b.to).replace(/\s+/g, '');
+      if (!code) return Promise.resolve({ result:'error', message:'학생 식별 정보(접근코드)가 없습니다.' });
+      if (!to) return Promise.resolve({ result:'error', message:'새 이름이 필요합니다.' });
+      return sb('GET', '/students?name=eq.' + q(to) + '&select=code').then(function(dups){
+        if ((dups || []).some(function(d){ return tr_(d.code) !== code; }))
+          return { result:'error', message: "'" + to + "' 이름이 이미 있어요. 다른 표기를 써주세요." };
+        return sb('GET', '/students?code=eq.' + q(code) + '&select=name').then(function(rows){
+          if (!rows || !rows.length) return { result:'error', message:'학생을 찾을 수 없어요.' };
+          var from = tr_(rows[0].name);
+          return sb('PATCH', '/students?code=eq.' + q(code), { name: to })
+            .then(function(){ return { result:'success', from: from, to: to }; });
+        });
+      });
+    }
+  };
+  function fakeRes(res){
+    return { ok: true, status: 200,
+             json: function(){ return Promise.resolve(res); },
+             text: function(){ return Promise.resolve(JSON.stringify(res)); } };
+  }
+
   window.fetch = function(url, opts){
+    // 학생정보 조회 — students 표에서 직접 (실패 시 기존 서버 폴백)
+    if (typeof url === 'string' && url.indexOf(LEGACY_SIG) >= 0 &&
+        (!opts || String(opts.method || 'GET').toUpperCase() === 'GET')) {
+      var am = /[?&]action=([^&]*)/.exec(url);
+      var gh = am && SGETS[am[1]];
+      if (gh){
+        var mm = /[?&]month=([^&]*)/.exec(url);
+        return gh(mm ? decodeURIComponent(mm[1]) : '').then(fakeRes, function(e){
+          console.warn('학생정보 조회 실패 — 기존 서버로 폴백', e);
+          return rawFetch(url, opts);
+        });
+      }
+    }
     // 별 순위 조회(starBoot·starRank)는 수파베이스 계산으로 대체 — 실패 시 기존 서버 폴백
     if (typeof url === 'string' && url.indexOf(LEGACY_SIG) >= 0 &&
         (!opts || String(opts.method || 'GET').toUpperCase() === 'GET') &&
@@ -842,6 +938,23 @@
       return rawFetch(url, opts);
     var body = null;
     try { body = JSON.parse(opts.body); } catch (e) {}
+    // 학생정보 쓰기 — 수파베이스 먼저(즉시 반영), 성공하면 시트에는 같은 액션을 뒤에서 보낸다.
+    // 수파베이스가 실패하면 종전대로 백엔드 먼저 + AFTER 미러로 폴백.
+    var pre = body && PRE[body.action];
+    if (pre){
+      return pre(body).then(function(res){
+        if (res && res.result === 'success') rawFetch(url, opts).catch(function(){});   // 시트 이중 기록
+        return fakeRes(res);
+      }, function(e){
+        console.warn('수파베이스 쓰기 실패 — 기존 백엔드로 폴백', body.action, e);
+        return rawFetch(url, opts).then(function(r){
+          return r.json().then(function(res){
+            try { if (res && res.result === 'success' && AFTER[body.action]) AFTER[body.action](body, res, url.split('?')[0]); } catch (e2) {}
+            return fakeRes(res);
+          }, function(){ return r; });
+        });
+      });
+    }
     var after = body && AFTER[body.action];
     if (!after) return rawFetch(url, opts);
     return rawFetch(url, opts).then(function(r){

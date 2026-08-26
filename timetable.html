@@ -1242,6 +1242,25 @@
         }), more: rows.length >= lim });
       });
     },
+    /* 이달의 신입생 카드 — students에서 직접 (학생정보 원본 전환, 2026-08-26). 백엔드 getNewStudents와 같은 규칙. */
+    newStudents: function(qs){
+      var month = String((qs && qs.get && qs.get('month')) || '').trim();
+      if (!/^\d{4}-\d{2}$/.test(month)) month = new Date(Date.now() + 9*3600e3).toISOString().slice(0, 7);
+      return sbGet('/students?select=name,school,grade,teacher,class_a,class_b,naeshin_a,naeshin_b,enrolled,reg_date&order=seq,id')
+        .then(function(rows){
+          var out = rows.filter(function(r){
+              return String(r.name || '').trim() && !LEFT_RE.test(String(r.enrolled || '').trim()) &&
+                     String(r.reg_date || '').slice(0, 7) === month;
+            }).map(function(r){
+              return { date: String(r.reg_date || '').trim(), name: String(r.name || '').trim(),
+                       school: String(r.school || '').trim(), grade: String(r.grade || '').trim(),
+                       teacher: String(r.teacher || '').trim(), classA: String(r.class_a || '').trim(),
+                       classB: String(r.class_b || '').trim(), progress: String(r.naeshin_a || '').trim(),
+                       checkup: String(r.naeshin_b || '').trim() };
+            }).sort(function(a, b){ return a.date < b.date ? 1 : -1; });
+          return ok({ month: month, students: out });
+        });
+    },
     /* 재원생 명단 — 시트 '학생정보'의 읽기 미러(students)에서. 백엔드 getRoster와 같은 규칙:
      * 이름이 있고 재원여부가 퇴원류가 아닌 학생만, 시트 행 순서(seq)대로. */
     roster: function(){
