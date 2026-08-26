@@ -78,11 +78,12 @@
   .card .sub{color:var(--ink-soft);font-size:.84rem;margin:0 0 14px;}
   label{display:block;font-size:13px;color:var(--ink-soft);margin:14px 0 7px;font-weight:700;}
   label .opt{font-weight:400;color:#9aa6a0;}
-  input[type=text]{
+  input[type=text],details.extra select{
     width:100%;padding:12px 13px;border:1.5px solid var(--line);border-radius:10px;
     font:inherit;font-size:15px;background:#fafbfa;color:var(--ink);
   }
-  input:focus{outline:none;border-color:var(--accent);background:#fff;}
+  details.extra select{font-size:14px;padding:11px 10px;}
+  input:focus,details.extra select:focus{outline:none;border-color:var(--accent);background:#fff;}
   .row2{display:flex;gap:10px;}
   .row2>div{flex:1;min-width:0;}
   details.extra{margin-top:16px;border:1px solid var(--line-soft);border-radius:12px;padding:12px 14px;}
@@ -304,14 +305,15 @@
       <datalist id="teacherList"></datalist>
 
       <details class="extra">
-        <summary>시간표·메모 입력 (선택) ▾</summary>
+        <summary>시간표 배정·메모 (선택) ▾</summary>
+        <p class="opt" style="margin:8px 0 2px;">반을 고르면 등록과 함께 <b>전체 시간표 명단에도 바로 들어가요.</b> 중3·고3은 정규 반을 고르면 내신 짝 반에도 함께 반영돼요.</p>
         <div class="row2">
-          <div><label>정규 가 수업</label><input type="text" id="f-classA" placeholder="예) 토6:00" /></div>
-          <div><label>정규 나 수업</label><input type="text" id="f-classB" placeholder="예) 목5:30" /></div>
+          <div><label>정규 가 반</label><select id="f-classA"><option value="">배정 안 함</option></select></div>
+          <div><label>정규 나 반</label><select id="f-classB"><option value="">배정 안 함</option></select></div>
         </div>
         <div class="row2">
-          <div><label>내신 진도</label><input type="text" id="f-progress" placeholder="예) 토6:00" /></div>
-          <div><label>내신 확인</label><input type="text" id="f-checkup" placeholder="예) 목5:30" /></div>
+          <div><label>내신 진도반</label><select id="f-progress"><option value="">배정 안 함</option></select></div>
+          <div><label>내신 확인반</label><select id="f-checkup"><option value="">배정 안 함</option></select></div>
         </div>
         <label>메모</label>
         <input type="text" id="f-memo" maxlength="80" placeholder="메모 (학생 페이지에는 안 보여요)" />
@@ -339,6 +341,7 @@
       </div>
       <p class="tip">📌 이 링크를 학생·학부모님께 보내주세요. 성적 확인은 부모님 8자리로 잠겨 있어요.<br>
       링크를 잃어버리면 티쳐스의 <b>'학생 페이지 링크'</b> 메뉴에서 언제든 다시 찾을 수 있습니다.</p>
+      <div class="status" id="doneTT"></div>
       <div class="status" id="copyStatus"></div>
     </section>
 
@@ -863,7 +866,7 @@
   function $(id){ return document.getElementById(id); }
 
   (function(){ unlock(); })();   // 티쳐스 페이지 비밀번호 제거(접속 간소화, 2026-08-14)
-  function unlock(){ document.body.classList.remove('locked'); loadRoster(); loadNewList(); }
+  function unlock(){ document.body.classList.remove('locked'); loadRoster(); loadNewList(); ttPickerFill(); }
   function checkLock(){
     var v=$('lockInput').value, ok=false;
     try{ ok=(btoa(v)===PASS_ENC); }catch(e){ ok=false; }
@@ -1011,6 +1014,83 @@
   function setReg(m,k){ var s=$('regStatus'); s.textContent=m||''; s.className='status'+(k?' '+k:''); }
   function hideWarn(){ $('warnBox').style.display='none'; }
 
+  /* ── 신입 등록 → 전체 시간표 배정 (2026-08-26 사용자 요청 "신입 등록시 전체 시간표에 추가") ──
+   * 시간표 칸이 자유 입력에서 반 선택으로 바뀌었다. 반을 고르면 등록 성공 후 그 반 명단에도 넣는다:
+   * 수파베이스(원본)에 CAS로 붙이고, 중3·고3 짝 반(반이름+요일+시작 동일, 병렬 반은 담당T로 구분)에도
+   * 함께 붙인 뒤, tt_log '추가' 기록 + 시트 백엔드 timetableAdd(뒤에서 — 학생정보 정규가/나·시트 짝 반은
+   * 백엔드가 처리, 실패해도 수파베이스가 원본). '이 주만' 반(w*)은 목록에서 제외. */
+  var TTC = null;
+  function ttLoadClasses(){
+    if (TTC) return Promise.resolve(TTC);
+    return sbx('GET','/tt_classes?class_id=not.like.w*&select=book,class_id,name,day,start_time,teacher')
+      .then(function(rows){
+        TTC = (rows||[]).sort(function(a,b){
+          return String(a.name).localeCompare(String(b.name),'ko') || String(a.start_time).localeCompare(String(b.start_time));
+        });
+        return TTC;
+      });
+  }
+  function ttPickerFill(){
+    ttLoadClasses().then(function(rows){
+      [['f-classA','정규'],['f-classB','정규'],['f-progress','내신'],['f-checkup','내신']].forEach(function(p){
+        var el = $(p[0]); if (!el || el.tagName !== 'SELECT') return;
+        var cur = el.value;
+        el.innerHTML = '<option value="">배정 안 함</option>' + rows.filter(function(r){ return r.book === p[1]; })
+          .map(function(r){
+            return '<option value="'+esc(r.class_id)+'">'+esc(r.name)+' · '+esc(r.day)+' '+esc(r.start_time)+
+                   (r.teacher ? ' · '+esc(r.teacher)+'T' : '')+'</option>';
+          }).join('');
+        el.value = cur;
+      });
+    }).catch(function(e){ console.warn('시간표 반 목록 조회 실패 — 반 배정 없이 등록은 그대로 가능', e); });
+  }
+  function ttPick(id){
+    var v = $(id) ? $(id).value : '';
+    if (!v || !TTC) return null;
+    return TTC.find(function(r){ return r.class_id === v; }) || null;
+  }
+  /* 중3·고3 짝 반 — 반이름+요일+시작 동일(timetable.html twinOf와 같은 규칙), 못 가리면 안 건드림 */
+  function ttTwinCls(c){
+    if (!c) return null;
+    var other = (c.book === '정규') ? '내신' : '정규';
+    var hits = (TTC||[]).filter(function(r){ return r.book === other && r.name === c.name && r.day === c.day && r.start_time === c.start_time; });
+    if (hits.length === 1) return hits[0];
+    if (hits.length > 1){ var t = hits.filter(function(r){ return r.teacher === c.teacher; }); if (t.length === 1) return t[0]; }
+    return null;
+  }
+  function ttAppend(nm, c){   // 한 반 명단에 붙이기 — 이미 있으면 통과 (값 그대로일 때만 씀)
+    return sbx('GET','/tt_classes?book=eq.'+encodeURIComponent(c.book)+'&class_id=eq.'+encodeURIComponent(c.class_id)+'&select=roster')
+      .then(function(rows){
+        if (!rows || !rows.length) throw new Error('반을 찾을 수 없어요');
+        var old = String(rows[0].roster||''), toks = old.split(/\s+/).filter(String);
+        var plain = function(t){ return String(t).replace(/^\s*\([^)]*\)\s*/,'').replace(/\(.*\)$/,''); };
+        if (toks.some(function(t){ return plain(t) === nm; })) return 'had';
+        return sbx('PATCH','/tt_classes?book=eq.'+encodeURIComponent(c.book)+'&class_id=eq.'+encodeURIComponent(c.class_id)+
+                   '&roster=eq.'+encodeURIComponent(old), { roster: (old.trim() ? old.trim()+' ' : '') + nm },
+                   { 'Prefer':'return=representation' })
+          .then(function(r){ if (!r || !r.length) throw new Error('다른 저장과 겹쳤어요'); return 'ok'; });
+      });
+  }
+  function ttAssign(nm, picks){
+    var okL = [], failL = [], chain = Promise.resolve();
+    picks.forEach(function(c){
+      if (!c) return;
+      chain = chain.then(function(){
+        return ttAppend(nm, c).then(function(){
+          okL.push(c.name);
+          sbx('POST','/tt_log', { kind:'추가', student:nm, book:c.book, to_class_id:c.class_id, to_class:c.name,
+              reason:'신입 등록' }, { 'Prefer':'return=minimal' }).catch(function(){});
+          fetch(ENDPOINT, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
+            body: JSON.stringify({ action:'timetableAdd', pw:SERVER_PW, book:c.book, student:nm, toId:c.class_id }) })
+            .catch(function(){});
+          var tw = ttTwinCls(c);
+          return tw ? ttAppend(nm, tw).then(function(){}, function(){}) : null;
+        }, function(e){ console.warn('시간표 배정 실패', c.name, e); failL.push(c.name); });
+      });
+    });
+    return chain.then(function(){ return { ok: okL, fail: failL }; });
+  }
+
   function submitStudent(force){
     var name=$('f-name').value.trim(), school=$('f-school').value.trim(),
         grade=$('f-grade').value.trim(), sid=$('f-sid').value.trim(),
@@ -1020,6 +1100,9 @@
     if(!/^\d{8}$/.test(sid)){ setReg('부모님 연락처 8자리는 숫자 8개여야 해요.','err'); return; }
     if(sphone && !/^\d{8}$/.test(sphone)){ setReg('학생 연락처는 숫자 8개여야 해요. (없으면 비워두세요)','err'); return; }
     hideWarn();
+    // 반 선택 → 학생정보에는 종전처럼 '요일+시작' 시간 문구로 저장 (예: 토6:00)
+    var pA=ttPick('f-classA'), pB=ttPick('f-classB'), pP=ttPick('f-progress'), pC=ttPick('f-checkup');
+    var slot=function(c){ return c ? String(c.day)+String(c.start_time) : ''; };
     var btn=$('regBtn'); btn.disabled=true; setReg('등록하는 중…');
     fetch(ENDPOINT, {
       method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
@@ -1027,8 +1110,8 @@
         action:'addStudent', pw:SERVER_PW, force: force ? '1' : '',
         name:name, school:school, grade:grade, sid:sid, sphone:sphone,
         teacher:$('f-teacher').value.trim(), memo:$('f-memo').value.trim(),
-        classA:$('f-classA').value.trim(), classB:$('f-classB').value.trim(),
-        progress:$('f-progress').value.trim(), checkup:$('f-checkup').value.trim()
+        classA:slot(pA), classB:slot(pB),
+        progress:slot(pP), checkup:slot(pC)
       })
     })
     .then(function(r){ return r.json(); })
@@ -1052,6 +1135,17 @@
       $('doneLink').textContent = link;
       $('doneLink').setAttribute('data-link', link);
       window.scrollTo(0,0);
+      // 고른 반이 있으면 전체 시간표 명단에도 넣는다 (등록된 이름 기준 — 동명이인 접미사 포함)
+      var picks = [pA, pB, pP, pC].filter(Boolean);
+      var tEl = $('doneTT');
+      if (picks.length && tEl){
+        tEl.textContent = '시간표에 넣는 중…'; tEl.className = 'status';
+        ttAssign(String(d.name || name).trim(), picks).then(function(r){
+          tEl.textContent = (r.ok.length ? '✓ 시간표 배정 완료: ' + r.ok.join(', ') : '') +
+            (r.fail.length ? ' — 실패: ' + r.fail.join(', ') + ' (전체 시간표에서 [학생 추가]로 넣어주세요)' : '');
+          tEl.className = 'status' + (r.fail.length ? ' err' : ' ok');
+        });
+      } else if (tEl){ tEl.textContent = ''; }
     })
     .catch(function(){ btn.disabled=false; setReg('연결 실패 — 인터넷을 확인해 주세요. (재배포 전이면 아직 사용할 수 없어요)','err'); });
   }
