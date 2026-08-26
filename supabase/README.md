@@ -192,6 +192,26 @@
 - s.html의 클리닉 카드(amITarget)·신청 확인(teacher.html action=data)·배정 화면 읽기는 기존
   백엔드 그대로(다음 단계).
 
+## H WORK 제출 — 수파베이스가 원본 (2026-08-26 전환)
+- [ ] `migrations/020_hwork_origin.sql` — 채점·마감 판정(shueguk-h-work Code.gs)을 1:1로 옮긴
+  SECURITY DEFINER 함수를 anon에 연다(016·019와 같은 방식). **사용자 SQL Editor 실행 대기.**
+  - `hwork_list()` — 학생 폼 과제 목록(action=list와 같은 모양: teacher/code/due/closed)
+  - `hwork_meta(p)` — 문항 구성(action=meta — **정답은 절대 내보내지 않는다**, 유형만)
+  - `hwork_submit(p)` — 마감 판정(마감일 밤 11:59 KST까지) 후 채점해 hwork_submissions에 기록.
+    서술형 채점(쉼표=모두 포함·빗금=택일·2글자 이상 부분 포함)까지 `hwork_text_ok_`로 동일.
+  - `hwork_grade_(data, answers)` — 채점만(기록 없음), **교사 인증 전용** — 채점 일치 검증용.
+- **쓰기 흐름**: 학생 제출(hwork.html) = `hwork_submit` 먼저 → 성공 시 옛 백엔드에도 같은 제출을
+  뒤에서 보내 **시트 사본**을 맞춘다(응답 무시, 이때 mirror_hwork_submission은 부르지 않음 —
+  이중 삽입 방지). 함수 호출 실패 시엔 옛 경로 폴백(그쪽 성공이 종전대로 미러 삽입).
+  마감 등 **판정 거절은 폴백하지 않는다**(옛 백엔드도 같은 판정이라).
+- **과제(HWORK목록)의 원본은 여전히 H WORK 시트** — 출제 저장(homework_key)·마감·삭제
+  (hwork_assign)가 백엔드 먼저 + hwork_homeworks 미러 갱신, 여기 함수는 미러를 읽는다.
+  일일 점검이 미러를 시트 기준으로 복구(종전 그대로).
+- **일일 점검 --hwork: hwork_submissions는 대조·보고만**(자동 수정 없음 — ts는 원본·사본이
+  각자 찍어 키에서 빼고 대조). 과제 삭제 시 제출도 함께 지우는 hwork_assign 흐름은 미러
+  삭제가 곧 원본 삭제가 되어 그대로 유효.
+- 교사 확인(hwork_teacher.html action=responses/report)은 기존 백엔드(시트) 그대로 — 다음 단계.
+
 ## H WORK (2026-08-23)
 - [x] `migrations/007_hwork.sql` — hwork_homeworks(HWORK목록: 과제 JSON+마감일, teacher+code 유일)·
       hwork_submissions(제출기록) — 둘 다 **H WORK 시트가 원본**

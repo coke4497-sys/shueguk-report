@@ -563,14 +563,17 @@ def main():
     if '--hwork' in sys.argv:
         hx = sys.argv[sys.argv.index('--hwork') + 1]
         h = extract_hwork(hx)
-        print('· H WORK (시트가 원본)')
+        print('· H WORK (과제는 시트가 원본 · 제출은 수파베이스가 원본)')
         sync_sheet_master('hwork_homeworks', h['hwork_homeworks'],
             lambda r: (r['teacher'], r['code']),
             lambda r: (json.dumps(r['data'], sort_keys=True), r['due']), heal)
-        sync_sheet_master('hwork_submissions', h['hwork_submissions'],
-            lambda r: (r['ts'], r['name'], r['code'], json.dumps(r['answers'], sort_keys=True)),
-            lambda r: (r['teacher'], r['school'], r['grade'], r['got'], r['total'],
-                       json.dumps(r['detail'], sort_keys=True), json.dumps(r['questions'], sort_keys=True)), heal)
+        # 2026-08-26부터 제출의 원본은 수파베이스(hwork_submissions)다(020 마이그레이션).
+        # 시트는 학생 폼이 뒤에서 이중 기록하는 사본 — 대조·보고만 하고 고치지 않는다
+        # (시트 기준으로 heal 하면 방금 들어온 제출이 사라진다). 제출시각은 원본(DB)과
+        # 사본(시트 백엔드)이 각자 찍어 분이 어긋날 수 있어 ts는 키에서 뺀다.
+        copy_compare('hwork_submissions', h['hwork_submissions'],
+            lambda r: (r['name'], r['teacher'], r['code'], json.dumps(r['answers'], sort_keys=True)),
+            lambda r: r['ts'])
     if '--voca' in sys.argv:
         vx = sys.argv[sys.argv.index('--voca') + 1]
         v = extract_voca(vx)
