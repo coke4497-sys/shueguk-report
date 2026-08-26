@@ -4613,15 +4613,23 @@ function asScope(){
   return '전체';
 }
 
+/* 요약 타일·주차 표·명단 — 검색어가 바뀔 때 이 부분만 다시 그린다.
+ * (검색창까지 통째로 다시 그리면 한글 조합(IME)이 끊겨 'ㅂㅏㄱ…'처럼 풀린다 —
+ *  2026-08-26 사용자 신고 "학생 이름 검색이 안됩니다") */
+function asBodyHtml(){
+  var list = asPool();
+  var only = (asS.view === 'person') ? asPerson(list) : null;
+  var scope = only ? [only] : list;
+  return asTiles(scope, only) + asTrend(scope) +
+    ((asS.view === 'person') ? asPersonHtml(list, only)
+     : (asS.view === 'warn') ? asWarnHtml(list)
+     : asMatrix(list));
+}
 function asRender(){
   if (mode !== 'att') return;
   var host = $('sheet'); if (!host) return;
   if (asErr){ host.innerHTML = '<p class="as-none">' + esc(asErr) + '</p>'; return; }
   if (!asData){ asLoad(); return; }
-  var w = asData.weeks;
-  var list = asPool();
-  var only = (asS.view === 'person') ? asPerson(list) : null;
-  var scope = only ? [only] : list;
 
   var h = '<div class="as-wrap">';
   // 조작줄
@@ -4650,19 +4658,16 @@ function asRender(){
       asPills([{v:'',t:'전체'}].concat(ss.map(function(x){ return {v:x,t:x + ' ' + cnt[x]}; })), asS.sub, 'sub') +
       '</span></div>';
   }
-  h += asTiles(scope, only) + asTrend(scope);
-  h += (asS.view === 'person') ? asPersonHtml(list, only)
-     : (asS.view === 'warn') ? asWarnHtml(list)
-     : asMatrix(list);
+  h += '<div id="as-body">' + asBodyHtml() + '</div>';
   h += '</div>';
   host.innerHTML = h;
 
   var q = $('as-q');
   if (q) q.addEventListener('input', function(){
     asS.q = this.value; asS.limit = 40; asS.person = '';
-    var pos = this.selectionStart;
-    asRender();
-    var n = $('as-q'); if (n){ n.focus(); try { n.setSelectionRange(pos, pos); } catch(e){} }
+    // 검색창은 그대로 두고 결과만 다시 그린다 — 입력창을 다시 만들면 한글 조합이 끊긴다
+    var bd = $('as-body');
+    if (bd) bd.innerHTML = asBodyHtml();
   });
 }
 
