@@ -3263,12 +3263,18 @@ function timetableAddClass(data) {
   try { lock.waitLock(10000); } catch (e) { return json({ result:'error', message:'잠시 후 다시 시도해 주세요.' }); }
   try {
     var v = sh.getDataRange().getValues();
-    var maxN = 0;
-    for (var i = 1; i < v.length; i++) {
-      var m = String(v[i][0] || '').trim().match(/^r(\d+)$/);
-      if (m) maxN = Math.max(maxN, parseInt(m[1], 10));
+    // 페이지(수파베이스 원본)가 만들어 보낸 반ID가 있으면 그대로 쓴다 (2026-08-26 원본 전환 —
+    // 시트 사본이 원본과 같은 ID를 가져야 한다). 형식이 다르거나 이미 있으면 새로 만든다.
+    var id = String(data.id || '').trim(), used = {};
+    for (var u = 1; u < v.length; u++) used[String(v[u][0] || '').trim()] = true;
+    if (!/^r\d{3,4}$/.test(id) || used[id]) {
+      var maxN = 0;
+      for (var i = 1; i < v.length; i++) {
+        var m = String(v[i][0] || '').trim().match(/^r(\d+)$/);
+        if (m) maxN = Math.max(maxN, parseInt(m[1], 10));
+      }
+      id = 'r' + ('000' + (maxN + 1)).slice(-3);
     }
-    var id = 'r' + ('000' + (maxN + 1)).slice(-3);
     var rg = sh.getRange(sh.getLastRow() + 1, 1, 1, 8);
     rg.setNumberFormat('@');
     rg.setValues([[id, d, st, en, loc, teacher, cls, '']]);

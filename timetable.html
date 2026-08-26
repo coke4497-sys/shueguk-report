@@ -1796,34 +1796,52 @@
       if (!nm || !fromId || !toId) return Promise.resolve({ result:'error', message:'이동 정보가 부족합니다.' });
       if (fromId === toId) return Promise.resolve({ result:'error', message:'같은 반입니다.' });
 
-      /* 1회 이동은 명단을 건드리지 않고, 결석 보충 자동 완료 판정이 백엔드에 있어
-       * 예전 그대로 기존 백엔드 먼저 → 수파베이스 미러. */
+      /* 1회 이동 — 수파베이스 먼저 (2026-08-26 완전 전환). 명단은 건드리지 않고 tt_log에
+       * 기록만 남기며, 결석 보충 자동 완료 판정(백엔드 mkAutoComplete_ — 같은 반·같은 학생의
+       * 미완료 결석 중 적용일과 가장 가까운 것 ±14일)도 화면에서 한다. 시트 사본(이동기록·
+       * 출석기록 보충 열)은 옛 백엔드를 뒤에서 불러 맞춘다(백엔드가 같은 판정을 재수행). */
       if (b.moveType === 'once'){
-        return legacyPost(b).then(function(res){
-          if (!res || res.result !== 'success') return res;
-          var fromC = classRow(book, fromId), toC = classRow(book, toId);
-          var applyDate = (res.date || b.date || tYmd());
-          return insertLog({ kind:'1회', student: res.moved || nm, book: book,
-              from_class_id: fromId, from_class: classLabel(fromC),
-              to_class_id: toId, to_class: classLabel(toC),
-              reason: String(b.reason || ''), apply_date: applyDate })
+        var reason = String(b.reason || '').trim();
+        if (!reason) return Promise.resolve({ result:'error', message:'1회 이동은 사유를 적어주세요.' });
+        var applyDate = String(b.date || '').trim();
+        if (applyDate && !/^\d{4}-\d{2}-\d{2}$/.test(applyDate))
+          return Promise.resolve({ result:'error', message:'적용 날짜 형식이 올바르지 않아요.' });
+        return fetchClasses(book).then(function(cs){
+          var fromC = byId(cs, fromId), toC = byId(cs, toId);
+          if (!fromC || !toC) return { result:'error', message:'반을 찾을 수 없어요. 새로고침 후 다시 시도해 주세요.' };
+          var k = nameIdx(fromC.students, nm);
+          if (k < 0) return { result:'error', message:'이동할 학생이 원래 반에 없어요. 새로고침 후 다시 시도해 주세요.' };
+          if (nameIdx(toC.students, nm) >= 0) return { result:'error', message:'이미 그 반에 있는 학생이에요.' };
+          var moved = fromC.students[k];
+          var ad = applyDate || tYmd();
+          return insertLog({ kind:'1회', student: moved, book: book,
+              from_class_id: fromId, from_class: fromC.cls,
+              to_class_id: toId, to_class: toC.cls,
+              reason: reason, apply_date: ad })
             .then(function(){
-              if (!res.makeupDone) return;
-              // 백엔드의 결석 보충 자동 완료를 수파베이스에도 동일 규칙으로 반영
+              legacyBg(b);   // 시트 이동기록 + 시트 출석기록 보충 열 (백엔드가 같은 판정 재수행)
+              // 결석 보충 자동 완료 — 백엔드 mkAutoComplete_ 1:1
               return sbGet('/attendance?status=eq.' + q('결석') + '&book=eq.' + q(book) +
                            '&class_id=eq.' + q(fromId) + '&student_plain=eq.' + q(plain(nm)) +
                            '&makeup_done=neq.1&select=id,date')
                 .then(function(rows){
-                  var am = Date.parse(applyDate), best = null, gap = 15;
-                  rows.forEach(function(r){
+                  var am = Date.parse(ad), best = null, gap = 15;
+                  (rows || []).forEach(function(r){
                     var g2 = Math.abs((Date.parse(r.date) - am) / 86400000);
                     if (g2 < gap){ gap = g2; best = r; }
                   });
-                  if (best) return sbWrite('PATCH', '/attendance?id=eq.' + best.id,
-                                           { makeup_plan: res.makeupDone, makeup_done: '1' });
+                  if (!best) return '';
+                  var mkPlan = '반 이동 보충: ' + toC.cls + ' ' + toC.day + toC.start + ' (' + toC.teacher + 'T)' +
+                               (applyDate ? ' · ' + applyDate.slice(5).replace('-', '/') + ' 보충' : '');
+                  return sbWrite('PATCH', '/attendance?id=eq.' + best.id,
+                                 { makeup_plan: mkPlan, makeup_done: '1' })
+                    .then(function(){ return mkPlan; }, function(e){ console.warn('보충 완료 반영 실패', e); return ''; });
+                }, function(e){ console.warn('보충 판정 조회 실패', e); return ''; })
+                .then(function(mkPlan){
+                  return ok({ moved: moved, once: true, date: applyDate, makeupDone: mkPlan,
+                              rosterUpdated: false, rosterMsg: '' });
                 });
-            })
-            .then(function(){ return res; }, function(e){ console.warn('1회 이동 미러 실패', e); return res; });
+            });
         });
       }
 
@@ -1951,45 +1969,95 @@
         });
       });
     },
-    /* 반 자체를 만들고 지우고 옮기는 것은 기존 백엔드 먼저 — 반ID를 백엔드가 매기고,
-     * 자주 하는 일이 아니라 굳이 판정 로직을 화면으로 옮기지 않았다. 짝 반 처리도 백엔드가 한다. */
+    /* 반 만들기·지우기·통째 이동 — 수파베이스 먼저 (2026-08-26 완전 전환).
+     * 반ID도 페이지가 매긴다(백엔드와 같은 규칙: 그 시간표의 r### 최대값+1 —
+     * 시트 사본은 같은 ID를 담아 뒤에서 보낸다: 백엔드 timetableAddClass가 id 파라미터 수용).
+     * 짝 반(중3·고3 정규↔내신)·학생정보 정규가/나 반영도 화면에서 함께 한다. */
     timetableAddClass: function(b){
-      return legacyPost(b).then(function(res){
-        if (!res || res.result !== 'success' || !res.id) return res;
-        var book = bookOf(b.book);
-        return sbWrite('POST', '/tt_classes', { book: book, class_id: res.id, day: b.day, start_time: b.start,
-                                                end_time: b.end, location: String(b.loc || ''), teacher: String(b.teacher || ''),
-                                                name: b.cls, roster: '' })
-          .then(function(){ return res; }, function(e){ console.warn('반 추가 미러 실패', e); return res; });
+      var book = bookOf(b.book);
+      var d = String(b.day || '').trim(), st = String(b.start || '').trim(), en = String(b.end || '').trim();
+      var loc = String(b.loc || '').trim(), teacher = String(b.teacher || '').trim(), cls = String(b.cls || '').trim();
+      if (!d || !st || !en || !cls) return Promise.resolve({ result:'error', message:'요일·시간·반이름을 입력해 주세요.' });
+      if ('월화수목금토일'.indexOf(d) < 0) return Promise.resolve({ result:'error', message:'요일이 올바르지 않아요.' });
+      function attempt(left){
+        return fetchClasses(book).then(function(cs){
+          var maxN = 0;
+          cs.forEach(function(c){
+            var m = String(c.id || '').match(/^r(\d+)$/);
+            if (m) maxN = Math.max(maxN, parseInt(m[1], 10));
+          });
+          var id = 'r' + ('000' + (maxN + 1)).slice(-3);
+          return sbWrite('POST', '/tt_classes', { book: book, class_id: id, day: d, start_time: st,
+                                                  end_time: en, location: loc, teacher: teacher,
+                                                  name: cls, roster: '' })
+            .then(function(){ return id; },
+                  function(e){ if (left > 0) return attempt(left - 1); throw e; });   // ID가 겹치면(동시 추가) 다시 계산
+        });
+      }
+      return attempt(2).then(function(id){
+        insertLog({ kind:'반추가', student:'(새 반)', book: book,
+                    to_class_id: id, to_class: cls + ' (' + d + st + ')', reason: String(b.reason || '') })
+          .catch(function(e){ console.warn('반추가 기록 실패', e); });
+        var copy = {}; for (var k in b) copy[k] = b[k];
+        copy.id = id;   // 시트 사본이 같은 반ID를 갖게
+        legacyBg(copy);
+        return ok({ id: id });
       });
     },
     timetableDeleteClass: function(b){
-      return legacyPost(b).then(function(res){
-        if (!res || res.result !== 'success') return res;
-        var book = bookOf(b.book);
-        return sbWrite('DELETE', '/tt_classes?book=eq.' + q(book) + '&class_id=eq.' + q(b.classId))
-          .then(function(){ return res; }, function(e){ console.warn('반 삭제 미러 실패', e); return res; });
+      var book = bookOf(b.book), cid = String(b.classId || '').trim();
+      if (!cid) return Promise.resolve({ result:'error', message:'반 정보가 없습니다.' });
+      return fetchClasses(book).then(function(cs){
+        var c = byId(cs, cid);
+        if (!c) return { result:'error', message:'반을 찾을 수 없어요. 새로고침 후 다시 시도해 주세요.' };
+        if (c.students.length)
+          return { result:'error', message:'학생이 남아 있는 반은 삭제할 수 없어요. 먼저 학생을 이동하거나 빼주세요. (' + c.students.length + '명)' };
+        return sbWrite('DELETE', '/tt_classes?book=eq.' + q(book) + '&class_id=eq.' + q(cid) +
+                       '&roster=eq.' + q(''))   // 그 사이 학생이 들어왔으면 지우지 않는다(값 그대로일 때만)
+          .then(function(){
+            insertLog({ kind:'반삭제', student:'(빈 반)', book: book,
+                        from_class_id: cid, from_class: c.cls + ' (' + c.day + c.start + ')',
+                        reason: String(b.reason || '') })
+              .catch(function(e){ console.warn('반삭제 기록 실패', e); });
+            legacyBg(b);
+            return ok({});
+          });
       });
     },
     timetableMoveClass: function(b){
       var book = bookOf(b.book), cid = String(b.classId || '').trim();
-      return legacyPost(b).then(function(res){
-        if (!res || res.result !== 'success') return res;
-        return Promise.all([fetchClasses(book), fetchClasses(twinBookOf(book))]).then(function(rs){
-          var was = byId(rs[0], cid);
-          var members = was ? was.students.slice() : [];
-          var tw = twinOf(was, rs[1]), tb = twinBookOf(book);
-          var jobs = [ sbWrite('PATCH', '/tt_classes?book=eq.' + q(book) + '&class_id=eq.' + q(cid),
-                       { day: b.day, start_time: b.start, end_time: b.end,
-                         location: String(b.loc || ''), teacher: String(b.teacher || '') }) ];
-          // 짝 반은 요일·시간만 함께 (위치·담당T는 시간표마다 다르게 둘 수 있다 — 백엔드와 같은 규칙)
-          if (tw) jobs.push(sbWrite('PATCH', '/tt_classes?book=eq.' + q(tb) + '&class_id=eq.' + q(tw.id),
-                                    { day: b.day, start_time: b.start, end_time: b.end }));
-          return Promise.all(jobs).then(function(){
-            applySlots(members, was ? was.cls : null);
-            res.twinMsg = tw ? (tb + ' 시간표의 같은 반도 함께 옮겼어요.') : (res.twinMsg || '');
-            return res;
-          }, function(e){ console.warn('반 이동 미러 실패', e); return res; });
+      var d = String(b.day || '').trim(), st = String(b.start || '').trim(), en = String(b.end || '').trim();
+      if (!cid || !d || !st || !en) return Promise.resolve({ result:'error', message:'이동 정보가 부족합니다.' });
+      if ('월화수목금토일'.indexOf(d) < 0) return Promise.resolve({ result:'error', message:'요일이 올바르지 않아요.' });
+      var tb = twinBookOf(book);
+      return Promise.all([fetchClasses(book), fetchClasses(tb)]).then(function(rs){
+        var was = byId(rs[0], cid);
+        if (!was) return { result:'error', message:'반을 찾을 수 없어요. 새로고침 후 다시 시도해 주세요.' };
+        var members = was.students.slice();
+        var tw = twinOf(was, rs[1]);   // 옮기기 '전' 요일·시간으로 짝을 찾는다 (백엔드와 같은 순서)
+        var oldLabel = was.cls + ' (' + was.day + was.start + ')';
+        var jobs = [ sbWrite('PATCH', '/tt_classes?book=eq.' + q(book) + '&class_id=eq.' + q(cid),
+                     { day: d, start_time: st, end_time: en,
+                       location: String(b.loc || ''), teacher: String(b.teacher || '') }) ];
+        // 짝 반은 요일·시간만 함께 (위치·담당T는 시간표마다 다르게 둘 수 있다 — 백엔드와 같은 규칙)
+        if (tw) jobs.push(sbWrite('PATCH', '/tt_classes?book=eq.' + q(tb) + '&class_id=eq.' + q(tw.id),
+                                  { day: d, start_time: st, end_time: en }));
+        return Promise.all(jobs).then(function(){
+          insertLog({ kind:'반이동', student:'(반 전체 ' + members.length + '명)', book: book,
+                      from_class_id: cid, from_class: oldLabel,
+                      to_class_id: cid, to_class: was.cls + ' (' + d + st + ')',
+                      reason: String(b.reason || '') })
+            .catch(function(e){ console.warn('반이동 기록 실패', e); });
+          legacyBg(b);
+          // 학생정보 정규가/나 재계산 — 정규 반이면 그 반 학생들, 짝이 정규면 짝 반 학생들
+          var slotJob;
+          if (book === '정규') slotJob = applySlots(members, was.cls);
+          else if (tw && tb === '정규') slotJob = applySlots(tw.students.slice(), tw.cls);
+          else slotJob = Promise.resolve({ updated: 0, msg: (book === '내신') ? '' : '' });
+          return slotJob.then(function(sl){
+            return ok({ rosterUpdated: sl.updated || 0, rosterSkipped: [], rosterMsg: sl.msg || '',
+                        twinBook: tw ? tb : '', twinMsg: tw ? (tb + ' 시간표의 같은 반도 함께 옮겼어요.') : '' });
+          });
         });
       });
     }

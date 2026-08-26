@@ -479,11 +479,12 @@ def main():
     print('· 시트가 원본인 표')
     # 주간 전용 반(w+yyMMdd+글자 — '이 주만' 수업)은 시트에 대응 행이 없다.
     # 페이지의 resyncClasses도 같은 이유로 정리 대상에서 뺀다(class_id=not.like.w*).
-    # 명단(roster)은 2026-08-25부터 수파베이스가 원본 — 시트는 페이지가 뒤에서 함께 기록한다.
-    # 그래서 요일·시간·위치·담당T·반이름만 시트 기준으로 고치고, 명단이 다르면 보고만 한다
-    # (여기서 시트 명단으로 덮어쓰면 방금 저장한 이동이 밤새 되돌아간다).
+    # 2026-08-26부터 시간표는 행 추가·삭제·요일/시간/담당까지 전부 수파베이스가 원본이다
+    # (반 추가·삭제·통째 이동·1회 이동도 페이지에서 먼저 저장 — heal=False, 보고만.
+    #  시트 기준으로 고치면 방금 한 반 이동·추가가 밤새 되돌아간다. 시트 '정규시간표' 탭을
+    #  직접 고쳐도 이제 반영되지 않는다 — 수정은 슈국 스케쥴 화면에서).
     sync_sheet_master('tt_classes', d['tt_classes'], lambda r: (r['book'], r['class_id']),
-        lambda r: (r['day'], r['start_time'], r['end_time'], r['location'], r['teacher'], r['name']), heal,
+        lambda r: (r['day'], r['start_time'], r['end_time'], r['location'], r['teacher'], r['name']), False,
         keep=lambda r: re.match(r'^w\d{6}', str(r.get('class_id') or '')) is not None,
         patch_fields=('day', 'start_time', 'end_time', 'location', 'teacher', 'name'),
         soft_valf=lambda r: ' '.join(str(r.get('roster') or '').split()),
