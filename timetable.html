@@ -1261,20 +1261,32 @@
   /* 반 전체를 그 주에만 한 번 더 여는 반(보강) 또는 옮긴 반을 만든다.
    * 명단은 넣지 않는다 — 화면이 원본 반의 지금 명단을 그대로 따라간다
    * (베껴 두면 그 뒤 정규 명단이 바뀌어도 안 따라와서, 2026-08-23 사용자 확정). */
+  /* '이 주만' 반의 새 ID — 한 번 쓴 접미사는 반을 지웠어도 다시 쓰지 않는다.
+   * (살아 있는 반뿐 아니라 tt_log에 흔적이 남은 ID까지 사용한 것으로 본다 —
+   *  지운 반의 ID를 재사용하면 그 반을 가리키던 옛 주간추가·출석 기록이
+   *  새 반에 유령처럼 되붙는다. 2026-08-26 실제 발생: 8/29 백양A 명단 9+9명 중복) */
+  function freshWeekId(book, pre){
+    return Promise.all([
+      sbGet('/tt_classes?book=eq.' + q(book) + '&class_id=like.' + q(pre + '*') + '&select=class_id'),
+      sbGet('/tt_log?book=eq.' + q(book) + '&or=(to_class_id.like.' + pre + '*,from_class_id.like.' + pre + '*)&select=to_class_id,from_class_id')
+    ]).then(function(rs){
+      var used = {};
+      var mark = function(v){ v = String(v || ''); if (v.indexOf(pre) === 0) used[v.slice(pre.length)] = 1; };
+      (rs[0] || []).forEach(function(r){ mark(r.class_id); });
+      (rs[1] || []).forEach(function(r){ mark(r.to_class_id); mark(r.from_class_id); });
+      for (var i = 0; i < 26; i++){ var ch = String.fromCharCode(97 + i); if (!used[ch]) return pre + ch; }
+      return '';
+    });
+  }
   function weekClassCopy(b, kind){
     var book = bookOf(b.book), from = classRow(book, b.fromId);
     var d = String(b.date || '').trim();          // 원래 수업이 있던 그 주의 날짜
     var nd = String(b.newDate || '').trim() || d; // 새로 열 날짜
     if (!from || !d) return Promise.resolve({ result:'error', message:'반과 날짜가 필요합니다.' });
     var pre = 'w' + nd.slice(2).replace(/-/g, '');
-    return sbGet('/tt_classes?book=eq.' + q(book) + '&class_id=like.' + q(pre + '*') + '&select=class_id')
-      .then(function(rows){
-        var used = {};
-        (rows || []).forEach(function(r){ used[r.class_id.slice(pre.length)] = 1; });
-        var sfx = '';
-        for (var i = 0; i < 26; i++){ var ch = String.fromCharCode(97 + i); if (!used[ch]){ sfx = ch; break; } }
-        if (!sfx) return { result:'error', message:'그 날짜에는 더 만들 수 없어요.' };
-        var id = pre + sfx;
+    return freshWeekId(book, pre)
+      .then(function(id){
+        if (!id) return { result:'error', message:'그 날짜에는 더 만들 수 없어요.' };
         return sbWrite('POST', '/tt_classes', { book: book, class_id: id, day: String(b.day || from.day),
                          start_time: String(b.start || from.start), end_time: String(b.end || from.end),
                          location: String(b.loc || from.loc), teacher: String(b.teacher || from.teacher),
@@ -1578,14 +1590,9 @@
       var cls = String(b.cls || '').trim();
       if (!d || !cls) return Promise.resolve({ result:'error', message:'날짜와 반 이름이 필요합니다.' });
       var pre = 'w' + d.slice(2).replace(/-/g, '');
-      return sbGet('/tt_classes?book=eq.' + q(book) + '&class_id=like.' + q(pre + '*') + '&select=class_id')
-        .then(function(rows){
-          var used = {};
-          (rows || []).forEach(function(r){ used[r.class_id.slice(pre.length)] = 1; });
-          var sfx = '';
-          for (var i = 0; i < 26; i++){ var ch = String.fromCharCode(97 + i); if (!used[ch]){ sfx = ch; break; } }
-          if (!sfx) return { result:'error', message:'그 날짜에는 더 만들 수 없어요.' };
-          var id = pre + sfx;
+      return freshWeekId(book, pre)
+        .then(function(id){
+          if (!id) return { result:'error', message:'그 날짜에는 더 만들 수 없어요.' };
           return sbWrite('POST', '/tt_classes', { book: book, class_id: id, day: String(b.day || ''),
                            start_time: String(b.start || ''), end_time: String(b.end || ''),
                            location: String(b.loc || ''), teacher: String(b.teacher || ''),
@@ -1634,6 +1641,12 @@
           // 반 전체 1회 이동으로 만들어진 복사본이면, 원본을 다시 보이게 기록도 지운다
           return sbWrite('DELETE', '/tt_log?kind=in.(' + [q('주간반이동'), q('주간반보강')].join(',') +
                                    ')&to_class_id=eq.' + q(id)).catch(function(){});
+        })
+        .then(function(){
+          // 이 반을 가리키던 학생 단위 주간 기록도 지운다 — 남겨 두면 같은 ID가
+          // 다시 생겼을 때 유령 학생으로 되붙는다 (2026-08-26 백양A 9+9명 중복의 원인)
+          return sbWrite('DELETE', '/tt_log?kind=in.(' + [q('주간추가'), q('주간빼기')].join(',') +
+                                   ')&or=(to_class_id.eq.' + q(id) + ',from_class_id.eq.' + q(id) + ')').catch(function(){});
         })
         .then(function(){
           return insertLog({ kind:'주간반삭제', student:'', book: book, from_class_id: id,
@@ -2015,6 +2028,16 @@ function onceOutThisWeek(){
 function onceInToday(){
   var t = todayStr();
   return onceMoves.filter(function(o){ return isStudentLog(o) && (!o.ymd || o.ymd === t); });
+}
+/* 명단에 이미 있는 학생은 '이 주'·'1회' 칩을 다시 만들지 않는다 — 안 거르면 한 사람이 두 칩으로
+ * 겹쳐 보인다(2026-08-26 실제 발생: 지워진 반 ID(w260829a)가 재사용되며 옛 주간추가 기록이
+ * 새 복사본에 되붙어 백양A가 9+9명으로 표시). 이 반에서 빠진(away) 학생의 재추가는 그대로 둔다. */
+function dedupTemps(c, temps, awayOf){
+  return temps.filter(function(o){
+    var p = plainName(o.student);
+    if (awayOf && awayOf[String(o.student || '').replace(/\(.*\)$/, '')]) return true;
+    return !c.students.some(function(nm){ return plainName(nm) === p; });
+  });
 }
 function todayDay(){ return ['일','월','화','수','목','금','토'][new Date().getDay()]; }
 function weekStartOf(d){
@@ -3102,6 +3125,7 @@ function blockEl(c, forList){
         label: (o.kind === '주간빼기') ? '이 주만 빠짐' : ((t ? labelOf(t) : '') + (md ? ' · ' + md + ' 보충' : '')) };
     });
     onceInToday().forEach(function(o){ if (o.toId === c.id) temps.push(o); });
+    temps = dedupTemps(c, temps, awayOf);
   }
   // 오늘 이후에 적용될 1회 이동 예약 — 마우스를 올리면 안내가 보이도록 (표시 자체는 적용일에)
   var planOf = {};
@@ -3439,6 +3463,7 @@ function weekBlockEl(c, dstr, forList){
     }
     if (o.toId === c.id) temps.push(o);
   });
+  temps = dedupTemps(c, temps, awayOf);
   var chips = sortNames(c.students).map(function(nm){
     var plain = nm.replace(/\(.*\)$/,'');
     var note = nameNote(nm);
@@ -5553,6 +5578,10 @@ function openWeekAdd(c, dstr){
     '<div class="mbtns"><button onclick="closeModal()">닫기</button></div>'
   );
   pickStudent(function(nm){
+    // 이미 명단에 있는 학생은 다시 넣지 않는다 — 넣으면 같은 이름이 두 칩으로 겹친다
+    if (c.students.some(function(x){ return plainName(x) === plainName(nm); })){
+      $('add-err').textContent = nm + ' 은(는) 이미 이 반 명단에 있어요.'; return;
+    }
     var reason = ($('wa-reason') ? $('wa-reason').value : '').trim();
     if (!confirm(nm + ' 을(를) ' + wkDayLabel(d) + ' ' + labelOf(c) + ' 에만 추가할까요?')) return;
     closeModal();
