@@ -789,7 +789,6 @@
         <button onclick="multiApply('결석')">선택 결석</button>
         <button onclick="multiApply('')">선택 기록 지우기</button>
         <span id="multiCnt" class="elabel"></span>
-        <button id="a-vm" style="display:none;color:var(--accent);font-weight:700;" onclick="openVmToday()"></button>
       </div>
       <span class="sp"></span>
       <div class="searchbar">
@@ -841,6 +840,26 @@
       <div class="ch-kinds" id="ch-kinds"></div>
     </div>
     <div class="ch-list" id="ch-list"><span class="ch-none">불러오는 중…</span></div>
+  </div>
+</aside>
+
+<!-- 오늘 보충 방문 — 오늘의 시간표 옆에 열었다 닫았다 하는 패널 (2026-08-26 사용자 요청) -->
+<aside class="chpanel closed" id="vmpanel" hidden>
+  <button class="ch-tab" id="vm-tab" onclick="vmToggle()" aria-expanded="false" aria-controls="vm-inner">
+    <svg class="chev" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+    오<br>늘<br>보<br>충
+  </button>
+  <div class="ch-inner" id="vm-inner">
+    <div class="ch-head">
+      <b>오늘 보충 방문</b><span class="ch-sub" id="vm-sub"></span><span class="sp"></span>
+      <button class="ch-ico" onclick="vmReload()" title="다시 불러오기" aria-label="다시 불러오기">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 3v6h-6"/></svg>
+      </button>
+      <button class="ch-ico" onclick="vmToggle()" aria-label="접기">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </div>
+    <div class="ch-list" id="vm-side"><span class="ch-none">불러오는 중…</span></div>
   </div>
 </aside>
 
@@ -2457,7 +2476,7 @@ function renderTabs(){
   $('eset-all').style.display  = (mode === 'week') ? 'none' : '';
   $('eset-week').style.display = (mode === 'week') ? '' : 'none';
   $('attbar').classList.toggle('show', mode === 'today');
-  vmEnsure(); vmSyncBtn();   // 오늘의 시간표면 오늘 보충 방문(영상·대면)을 조회해 버튼·팝업으로
+  vmSyncPanel();   // 오늘의 시간표면 '오늘 보충 방문' 사이드 패널을 조회·표시 (chSync 뒤에 호출할 것 — ch-on 정리 순서)
   var bare = (mode === 'cal' || mode === 'exs' || mode === 'att');
   document.querySelector('.searchbar').style.display = bare ? 'none' : '';
   document.querySelector('.legend').style.display = bare ? 'none' : '';
@@ -6136,11 +6155,14 @@ function saveMakeup(i, doneVal){
   });
 }
 
-/* ── 오늘의 보충 방문 (2026-08-26 사용자 요청 "영상보충은 해당 날짜의 오늘의 시간표에서 팝업으로") ──
+/* ── 오늘의 보충 방문 (2026-08-26 사용자 요청 — "영상보충은 해당 날짜의 오늘의 시간표에서",
+ *    "사이드에 열었다 닫았다 할 수 있게") ──
  * 결석자 관리에 적힌 영상·대면 보충 일정("영상보충: 8/26(수) 6:00") 중 날짜가 오늘인 건을
- * 오늘의 시간표 도구줄 버튼 + 팝업으로 보여 주고, 그 자리에서 출석 완료 처리한다. */
+ * 오늘의 시간표 오른쪽 패널(#vmpanel — 변경사항 패널과 같은 모양)로 보여 주고,
+ * 그 자리에서 출석 완료 처리한다. 올 친구가 없는 날에도 패널에 '없습니다'로 알린다. */
 var vmList = null, vmBusy = false;   // null = 아직 조회 전 ([다시 불러오기]가 비운다)
-var vmHadAny = false;                // 오늘 원래 올 사람이 있었는지 — 빈 팝업 문구 구분용
+var vmHadAny = false;                // 오늘 원래 올 사람이 있었는지 — 빈 문구 구분용
+var vmOpen = sessionStorage.getItem('tt_vmopen') !== '0';   // 기본은 펼침
 function vmPlanMD(plan){
   var m = /(\d{1,2})\s*\/\s*(\d{1,2})/.exec(String(plan || ''));
   return m ? (+m[1]) + '/' + (+m[2]) : '';
@@ -6167,40 +6189,49 @@ function vmEnsure(){
     var md = vmTodayMD();
     vmList = all.filter(function(m){ return (mkIsVideo(m) || mkIsOffline(m)) && vmPlanMD(m.plan) === md; });
     vmHadAny = vmList.length > 0;
-    vmSyncBtn();
-    // 있든 없든 하루 한 번은 저절로 띄운다(없으면 "올 친구가 없어요" — 2026-08-26 사용자 확정).
-    // 이미 다른 창이 열려 있으면 방해하지 않는다.
-    if (localStorage.getItem('tt_vm_seen') !== todayStr() && !$('modal').classList.contains('on')){
-      localStorage.setItem('tt_vm_seen', todayStr());
-      openVmToday();
-    }
+    vmRenderSide();
   }).catch(function(){ vmBusy = false; });
 }
-function vmSyncBtn(){
-  var b = $('a-vm'); if (!b) return;
-  var n = (vmList || []).length;
-  b.style.display = (mode === 'today' && vmList !== null) ? '' : 'none';
-  b.textContent = n ? '오늘 보충 방문 ' + n + '건' : '오늘 보충 방문 없음';
-  b.style.color = n ? 'var(--accent)' : 'var(--ink-soft)';
-  b.style.fontWeight = n ? '700' : '400';
+/* 패널 표시 — 오늘의 시간표에서만. 변경사항 패널(chSync)과 같은 방식, 열림은 세션에 기억 */
+function vmSyncPanel(){
+  var el = $('vmpanel'); if (!el) return;
+  var show = (mode === 'today');
+  el.hidden = !show;
+  if (!show) return;   // 본문 오른쪽 여백(ch-on)은 chSync가 정리한다
+  el.classList.toggle('closed', !vmOpen);
+  document.body.classList.toggle('ch-on', vmOpen);
+  var tab = $('vm-tab');
+  if (tab) tab.setAttribute('aria-expanded', vmOpen ? 'true' : 'false');
+  vmEnsure();
+  vmRenderSide();
 }
-function openVmToday(){
-  openModal('<h3>오늘 보충 방문</h3>'+
-    '<p class="mdesc">오늘 오기로 한 영상·대면 보충이에요. 다녀가면 출석 버튼으로 완료 처리하세요.</p>'+
-    '<div id="vm-list"></div>'+
-    '<div class="mbtns"><button onclick="closeModal(); openMakeup()">결석자 관리 열기</button>'+
-    '<button onclick="closeModal()">닫기</button></div>', true);
-  vmRender();
+function vmToggle(){
+  vmOpen = !vmOpen;
+  sessionStorage.setItem('tt_vmopen', vmOpen ? '1' : '0');
+  vmSyncPanel();
 }
-function vmRender(){
-  var box = $('vm-list'); if (!box) return;
-  var items = vmList || [];
-  if (!items.length){
-    box.innerHTML = '<p class="subnote">' +
-      (vmHadAny ? '오늘 보충 방문을 모두 확인했어요!' : '오늘은 영상보충 올 친구가 없습니다.') + '</p>';
+function vmReload(){
+  vmList = null;
+  vmRenderSide();
+  vmEnsure();
+}
+function vmRenderSide(){
+  var el = $('vmpanel'); if (!el || el.hidden) return;
+  var sub = $('vm-sub'), box = $('vm-side'); if (!box) return;
+  if (vmList === null){
+    if (sub) sub.textContent = '';
+    box.innerHTML = '<span class="ch-none">불러오는 중…</span>';
     return;
   }
-  box.innerHTML = items.map(function(m, i){
+  var n = vmList.length;
+  if (sub) sub.textContent = n ? n + '건' : '없음';
+  if (!n){
+    box.innerHTML = '<span class="ch-none">' +
+      (vmHadAny ? '오늘 보충 방문을 모두 확인했어요!' : '오늘은 영상보충 올 친구가 없습니다.') + '</span>';
+    return;
+  }
+  box.innerHTML = '<p class="mdesc" style="margin:2px 0 0;">오늘 오기로 한 영상·대면 보충이에요. 다녀가면 출석 버튼으로 완료 처리하세요.</p>' +
+    vmList.map(function(m, i){
     return '<div class="mk-item">'+
       '<div class="mk-top"><b>' + esc(plainName(m.student)) + '</b>'+
       '<small>' + esc(m.date) + ' (' + mkDayOf(m.date) + ') 결석 · ' + esc(classLabelOf(m.classId, m.book)) +
@@ -6219,7 +6250,7 @@ function vmDone(i){
     if (res && res.result === 'success'){
       vmList.splice(i, 1);
       setStatus(plainName(m.student) + ' — 보충 출석 완료 처리했어요.', 'ok');
-      vmRender(); vmSyncBtn();
+      vmRenderSide();
     } else setStatus('저장 실패: ' + ((res && res.message) || '오류'), 'err');
   });
 }
