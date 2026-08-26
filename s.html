@@ -1690,46 +1690,75 @@ function noticeItemHtml(n){
 function checkNoticeBtn(btn){
   var k = btn.getAttribute('data-key');
   btn.disabled = true; btn.textContent = '확인 중...';
-  fetch(ENDPOINT, {
-    method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
-    body: JSON.stringify({ action:'checkNotice', key: IS_ID?'':KEY, student: IS_ID?KEY:'', noticeKey: k })
-  })
-  .then(function(r){ return r.json(); })
-  .then(function(d){
-    if(!d || d.result!=='success'){
-      btn.disabled=false; btn.textContent='확인했습니다 ⭐';
-      alert('확인 처리에 실패했어요. 잠시 후 다시 시도해 주세요.');
-      return;
-    }
+  var legacyBody = JSON.stringify({ action:'checkNotice', key: IS_ID?'':KEY, student: IS_ID?KEY:'', noticeKey: k });
+  function applyDone(already){
     (STATE.notices||[]).forEach(function(n){ if(n.key===k) n.checked=true; });
-    // 수파베이스 미러 (2026-08-23 DB 이전) — 공지확인 기록도 미러에 즉시 반영 (실패 무해)
-    if(!d.already){
-      try {
-        var si2 = STATE.info || {};
-        // 표에 직접 넣지 않고 '넣기 전용' 함수로 — 학생 페이지라 표 권한을 열어 둘 수 없다
-        fetch('https://bangdbhqpphqqdwcledg.supabase.co/rest/v1/rpc/mirror_notice_read', {
-          method:'POST',
-          headers:{ 'apikey':'sb_publishable_dE9d1KIbpgYaQkaS2MSrlg_-7SiRJuT',
-                    'Authorization':'Bearer sb_publishable_dE9d1KIbpgYaQkaS2MSrlg_-7SiRJuT',
-                    'Content-Type':'application/json' },
-          body: JSON.stringify({ p: { at:new Date().toISOString(), student_id:String(si2.id||''),
-            name:String(si2.name||''), school:String(si2.school||'').trim(), notice_key:k } })
-        }).catch(function(){});
-      } catch(e){}
-    }
     var done=document.createElement('span');
     done.className='nchk-done';
-    done.textContent = d.already ? '✓ 확인했어요 · 별 +1' : '✓ 확인 완료! 별 1개를 받았어요 ⭐';
+    done.textContent = already ? '✓ 확인했어요 · 별 +1' : '✓ 확인 완료! 별 1개를 받았어요 ⭐';
     btn.parentNode.replaceChild(done, btn);
-    if(!d.already && STATE.stars && typeof STATE.stars.total==='number'){
+    if(!already && STATE.stars && typeof STATE.stars.total==='number'){
       STATE.stars.total += 1;
       renderStars();   // 등급 카드 즉시 갱신 (승급도 바로 반영)
     }
-  })
-  .catch(function(){
+  }
+  function showFail(msg){
     btn.disabled=false; btn.textContent='확인했습니다 ⭐';
-    alert('전송에 실패했어요. 인터넷을 확인해 주세요.');
-  });
+    alert(msg);
+  }
+  /* 옛 경로 (수파베이스 함수 실패 시 폴백) — 백엔드 기록 + 미러 훅 */
+  function legacyFlow(){
+    fetch(ENDPOINT, {
+      method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body: legacyBody
+    })
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      if(!d || d.result!=='success'){ showFail('확인 처리에 실패했어요. 잠시 후 다시 시도해 주세요.'); return; }
+      // 수파베이스 미러 — 공지확인 기록도 미러에 즉시 반영 (실패 무해)
+      if(!d.already){
+        try {
+          var si2 = STATE.info || {};
+          fetch('https://bangdbhqpphqqdwcledg.supabase.co/rest/v1/rpc/mirror_notice_read', {
+            method:'POST',
+            headers:{ 'apikey':'sb_publishable_dE9d1KIbpgYaQkaS2MSrlg_-7SiRJuT',
+                      'Authorization':'Bearer sb_publishable_dE9d1KIbpgYaQkaS2MSrlg_-7SiRJuT',
+                      'Content-Type':'application/json' },
+            body: JSON.stringify({ p: { at:new Date().toISOString(), student_id:String(si2.id||''),
+              name:String(si2.name||''), school:String(si2.school||'').trim(), notice_key:k } })
+          }).catch(function(){});
+        } catch(e){}
+      }
+      applyDone(!!d.already);
+    })
+    .catch(function(){ showFail('전송에 실패했어요. 인터넷을 확인해 주세요.'); });
+  }
+  /* 공지 확인의 원본은 수파베이스(notice_reads)다 — 2026-08-26, 022 마이그레이션.
+   * notice_read_submit 함수가 학생·공지·중복을 판정하고 기록한다(0.3초 안팎 — 옛 경로는 2~4초).
+   * 성공하면 시트 사본('공지확인' 탭)은 옛 백엔드로 뒤에서 보낸다(결과 무시, 미러 훅은 부르지
+   * 않음 — 함수가 이미 원본에 넣었다). 함수 호출이 실패하면 옛 경로 그대로. */
+  fetch('https://bangdbhqpphqqdwcledg.supabase.co/rest/v1/rpc/notice_read_submit', {
+    method:'POST',
+    headers:{ 'apikey':'sb_publishable_dE9d1KIbpgYaQkaS2MSrlg_-7SiRJuT',
+              'Authorization':'Bearer sb_publishable_dE9d1KIbpgYaQkaS2MSrlg_-7SiRJuT',
+              'Content-Type':'application/json' },
+    body: JSON.stringify({ p: { key: IS_ID?'':KEY, student: IS_ID?KEY:'', noticeKey: k } })
+  })
+  .then(function(r){ if(!r.ok) throw new Error('notice_read_submit '+r.status); return r.json(); })
+  .then(function(d){
+    if(d && d.result==='success'){
+      if(!d.already){
+        fetch(ENDPOINT, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
+                          body: legacyBody }).catch(function(){});
+      }
+      applyDone(!!d.already);
+    } else if(d && d.result==='error'){
+      showFail(d.message || '확인 처리에 실패했어요. 잠시 후 다시 시도해 주세요.');
+    } else {
+      throw new Error('bad response');
+    }
+  })
+  .catch(function(e){ console.warn('수파베이스 공지 확인 실패 — 기존 백엔드로 폴백', e); legacyFlow(); });
 }
 /* 슈퍼스타 TOP 30 — 공지사항 안의 공개 순위 메뉴. 확인해도 별이 쌓이지 않는 열람 전용. */
 function starTop30Html(){

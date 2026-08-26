@@ -501,9 +501,13 @@ def main():
         soft_label='학생정보 내용은 수파베이스가 원본 — 시트 이중 기록이 빠졌을 수 있음(보고만, 반복되면 확인)')
     sync_sheet_master('notices', d['notices'], lambda r: (r['title'], r['date'], r['type'], r['target']),
         lambda r: (r['body'], r['hidden']), heal)
-    sync_sheet_master('notice_reads', d['notice_reads'],
-        lambda r: (ep(r['at']), r.get('student_id',''), r.get('notice_key','')),
-        lambda r: r.get('name',''), heal)
+    # 2026-08-26부터 공지 확인의 원본은 수파베이스(notice_reads)다(022 마이그레이션).
+    # 시트는 학생 페이지가 뒤에서 이중 기록하는 사본 — 대조·보고만 하고 고치지 않는다
+    # (시트 기준으로 heal 하면 방금 확인한 기록이 지워져 별이 줄어든다).
+    # 확인 시각은 원본(DB)과 사본(백엔드)이 각자 찍어 어긋날 수 있어 키에서 뺀다.
+    copy_compare('notice_reads', d['notice_reads'],
+        lambda r: (r.get('student_id',''), r.get('name',''), r.get('notice_key','')),
+        lambda r: r.get('at',''))
     sync_sheet_master('star_bonus', d['star_bonus'],
         lambda r: (ep(r['at']), r.get('name',''), r.get('stars',0)), lambda r: r.get('reason',''), heal)
     # 시험(exams·exam_questions)은 2026-08-26부터 수파베이스가 원본(등록·삭제가 페이지에서 먼저).

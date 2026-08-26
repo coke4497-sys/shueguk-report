@@ -229,6 +229,21 @@
 - 주의: hwork_homeworks.data에는 정답이 들어 있다 — 현 공개 수준은 기존과 동일
   (제출 응답의 정오(JSON)·getReport로 정답이 이미 노출되는 구조).
 
+## 공지 확인(별 +1) — 수파베이스가 원본 (2026-08-26 전환)
+- [ ] `migrations/022_notice_read_origin.sql` — `notice_read_submit(p)` SECURITY DEFINER 함수를
+  anon에 연다. **사용자 SQL Editor 실행 대기.** 판정은 백엔드 checkNotice 1:1 — 학생 확인
+  (접근코드 또는 학생ID → students), **이 학생에게 실제로 보이는 공지인지**(collectNotices_의
+  대상 판정 `notice_matches_` — s.html noticeMatches와 같은 규칙, 임의 키로 별 쌓기 방지),
+  중복 확인 차단(readNoticeChecks_ 규칙 + 조언 잠금으로 동시 클릭 1회만).
+- **쓰기 흐름**: s.html [확인했습니다 ⭐] = `notice_read_submit` 먼저(0.3초 — 옛 경로는 2~4초를
+  학생이 기다렸다) → 성공 시 옛 백엔드 checkNotice를 뒤에서 호출해 **시트 '공지확인' 탭 사본**을
+  맞춘다(응답 무시, mirror_notice_read는 부르지 않음 — 이중 삽입 방지). 실패 시 옛 경로 폴백
+  (그쪽 성공이 종전대로 미러 훅). already(이미 확인)면 사본 호출 생략.
+- **일일 점검: notice_reads는 대조·보고만**(확인 시각이 원본·사본 각자 기록이라 키에서 뺌).
+- **공지 등록/게시/삭제(notice.html)·별 보너스(star_bonus)·설정값(report_config)의 원본은
+  그대로 시트·백엔드** — 교사 전용의 드문 저장이고 저장 즉시 미러 갱신 훅이 이미 있어
+  전환 이득이 작다(신중히 유지 결정, 2026-08-26). 별 순위 계산은 이미 수파베이스(010).
+
 ## 어휘 테스트 제출 — 수파베이스가 원본 (2026-08-26 전환)
 - [ ] `migrations/021_voca_origin.sql` — `voca_submit(p)` SECURITY DEFINER 함수를 anon에 연다.
   **사용자 SQL Editor 실행 대기.** 판정(열린 주차 wrong_week·운영 중단 closed)은 어휘 doPost +
