@@ -2039,10 +2039,16 @@ function onceInToday(){
  * 겹쳐 보인다(2026-08-26 실제 발생: 지워진 반 ID(w260829a)가 재사용되며 옛 주간추가 기록이
  * 새 복사본에 되붙어 백양A가 9+9명으로 표시). 이 반에서 빠진(away) 학생의 재추가는 그대로 둔다. */
 function dedupTemps(c, temps, awayOf){
+  var have = {};
+  c.students.forEach(function(nm){
+    var p = plainName(nm);
+    have[p] = 1;
+    if (/A$/.test(p)) have[p.slice(0, -1)] = 1;   // 동명이인 표기 차이(명단 '양지우A' ↔ 기록 '양지우') — asKey처럼 끝의 A만 뗀다
+  });
   return temps.filter(function(o){
     var p = plainName(o.student);
     if (awayOf && awayOf[String(o.student || '').replace(/\(.*\)$/, '')]) return true;
-    return !c.students.some(function(nm){ return plainName(nm) === p; });
+    return !(have[p] || (/A$/.test(p) && have[p.slice(0, -1)]));
   });
 }
 function todayDay(){ return ['일','월','화','수','목','금','토'][new Date().getDay()]; }
