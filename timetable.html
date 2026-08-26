@@ -2463,7 +2463,7 @@ function renderTabs(){
   document.querySelector('.hint').innerHTML =
     (mode === 'today') ? '<b>여기서는 출석 체크만 합니다.</b> 학생 이름을 누르면 출석·지각·결석 창이 떠요. '
         + '<span class="hint-x">1회 이동은 주차별 시간표에서, 영구 이동은 전체 시간표에서 하세요.</span>'
-    : (mode === 'week') ? '<b>여기서 한 변경은 그 주에만 적용돼요.</b> 학생 이름을 누르면 그 날짜의 출석 창이 떠요 — 출석 수정, [이 주만 빼기], [다른 반으로 1회 이동]을 그 창에서 합니다. 편집 도구의 [이 주만 학생 추가]·[이 주만 반 추가]도 그 주에만 생겨요. '
+    : (mode === 'week') ? '<b>여기서 한 변경은 그 주에만 적용돼요.</b> 학생 이름을 누르면 그 날짜의 출석 창이 떠요 — 출석 수정, [이 주만 빼기], [다른 반으로 1회 이동], [다른 주로 옮기기]를 그 창에서 합니다. 편집 도구의 [이 주만 학생 추가]·[이 주만 반 추가]도 그 주에만 생겨요. '
         + '<span class="hint-x">정규 명단·다른 주차·학생 개별 페이지는 그대로예요. 영구 변경은 전체 시간표에서 하세요.</span>'
     : (mode === 'att') ? '<b>기간·보기·정렬</b>을 골라 전체 학생의 주차별 출석을 한눈에 봐요. 학생 줄을 누르면 그 학생 상세 기록이 펼쳐져요. '
         + '<span class="hint-x">출석 체크는 오늘의 시간표에서 합니다.</span>'
@@ -5161,7 +5161,8 @@ function openAttend(c, nm, dateStr){
     // 그 주만 바꾸는 일은 주차별에서만 — 오늘의 시간표는 출석 체크 전용 (2026-08-23 사용자 확정)
     (mode === 'week'
       ? '<button onclick="openWeekRemove(\''+esc(c.id)+'\',\''+esc(nm)+'\',\''+esc(attDate)+'\')">이 주만 빼기</button>'+
-        '<button onclick="startOnceMoveById(\''+esc(c.id)+'\',\''+esc(nm)+'\')">다른 반으로 1회 이동</button>'
+        '<button onclick="startOnceMoveById(\''+esc(c.id)+'\',\''+esc(nm)+'\')">다른 반으로 1회 이동</button>'+
+        '<button onclick="openWeekStudentMove(\''+esc(c.id)+'\',\''+esc(nm)+'\',\''+esc(attDate)+'\')">다른 주로 옮기기</button>'
       : '')+
     '<button onclick="openNoteEdit(\''+esc(nm)+'\')">특이사항</button>'+
     '<button onclick="closeModal()">닫기</button></div>'
@@ -5698,6 +5699,69 @@ function openWeekAdd(c, dstr){
       });
   });
 }
+/* ── 학생 한 명을 다른 주차로 옮기기 (2026-08-26 사용자 요청 "10/5주차 확인 수업을 이번주차로
+ *    이동하는 경우 반을 한꺼번에 이동할 수가 없어요. 한명한명 옮기는 경우가 있어요") ──
+ * 반 전체 옮기기([이 주만 시간 옮기기])와 별개로, 일부 학생만 다른 주에 미리/늦게 듣는 경우.
+ * 원래 주에는 '주간빼기'(이 주 빠짐), 옮긴 주의 반에는 '주간추가'(이 주 학생) — 기존 두 기록을
+ * 한 번에 남긴다. 되돌리기도 기존 칩 그대로(각 주에서 칩을 눌러 되돌림). */
+function smClsOptions(selId){
+  return classes.filter(function(x){ return !x.wk; })
+    .slice().sort(function(a,b){ return a.cls.localeCompare(b.cls,'ko') || (mins(a.start)-mins(b.start)); })
+    .map(function(x){
+      return '<option value="'+esc(x.id)+'"'+(x.id===selId?' selected':'')+'>'+esc(x.cls)+' · '+esc(x.day)+' '+esc(x.start)+
+             (x.teacher ? ' · '+esc(x.teacher)+'T' : '')+'</option>';
+    }).join('');
+}
+function openWeekStudentMove(cid, nm, dstr){
+  var c = classes.find(function(x){ return x.id === cid; }); if (!c) return;
+  var d = dstr || attDate || ymdOf(weekDates()[c.day]);
+  openModal(
+    '<h3>다른 주로 옮기기</h3>'+
+    '<p class="mdesc"><b>'+esc(plainName(nm))+'</b> — '+esc(labelOf(c))+'<br>원래 수업: '+esc(wkDayLabel(d))+'</p>'+
+    '<p class="mdesc hint-x">이 학생만 한 번 옮겨요 — 원래 주에서는 <b>이 주 빠짐</b>으로 표시되고, 옮긴 주의 반에 <b>이 주</b> 학생으로 들어가 출석을 찍을 수 있어요. 반 전체를 옮기려면 반 카드의 [이 주만 시간 옮기기]를 쓰세요.</p>'+
+    '<label style="font-size:.8rem;color:var(--ink-soft);">옮길 주</label>'+
+    weekSelHtml('sm-week', weekStart)+
+    '<label style="font-size:.8rem;color:var(--ink-soft);display:block;margin-top:8px;">옮길 반 (그 주에 들을 수업)</label>'+
+    '<select id="sm-cls" style="font:inherit;font-size:.92rem;border:1.5px solid var(--line);border-radius:10px;padding:8px 10px;width:100%;margin-top:6px;">'+
+    smClsOptions(cid)+'</select>'+
+    '<label style="font-size:.8rem;color:var(--ink-soft);display:block;margin-top:8px;">사유 메모 (선택)</label>'+
+    '<textarea id="sm-reason" placeholder="예: 학교 시험으로 이번 주에 미리 수업"></textarea>'+
+    '<p class="merr" id="sm-err"></p>'+
+    '<div class="mbtns"><button onclick="closeModal()">취소</button>'+
+    '<button class="primary" onclick="submitWeekStudentMove(\''+esc(cid)+'\',\''+esc(nm)+'\',\''+esc(d)+'\')">옮기기</button></div>'
+  );
+}
+function submitWeekStudentMove(cid, nm, d){
+  var t = classes.find(function(x){ return x.id === ($('sm-cls') ? $('sm-cls').value : ''); });
+  if (!t){ $('sm-err').textContent = '옮길 반을 골라주세요.'; return; }
+  var tw = $('sm-week') ? wedOfYmd($('sm-week').value) : new Date(weekStart);
+  if (periodOf(tw) !== book){
+    $('sm-err').textContent = '그 주는 ' + periodOf(tw) + ' 기간이라 이 ' + book + ' 시간표가 나타나지 않아요.'; return;
+  }
+  var nd = ymdOf(weekDatesOf(tw)[t.day]);
+  if (nd === d && t.id === cid){
+    $('sm-err').textContent = '원래 수업과 같은 주·같은 반이에요. 옮길 주나 반을 골라주세요.'; return;
+  }
+  var reason = ($('sm-reason') ? $('sm-reason').value : '').trim();
+  closeModal();
+  // 옮긴 주에 먼저 넣고, 성공하면 원래 주에서 뺀다 — 중간에 실패해도 학생이 사라지는 일은 없게
+  post({ action:'timetableWeekAdd', book:book, student:nm, toId:t.id, date:nd, reason:reason },
+    '옮기는 중…', function(res){
+      if (!res || res.result !== 'success'){
+        setStatus('옮기기 실패: ' + ((res && res.message) || '오류'), 'err'); return;
+      }
+      post({ action:'timetableWeekRemove', book:book, student:nm, fromId:cid, date:d, reason:reason },
+        '원래 주에서 빼는 중…', function(res2){
+          if (res2 && res2.result === 'success'){
+            setStatus(plainName(nm) + ' — ' + wkDayLabel(nd) + ' ' + t.cls + ' 로 옮겼어요. 원래 수업(' + wkDayLabel(d) + ')에는 [이 주 빠짐]으로 표시돼요.', 'ok');
+          } else {
+            setStatus(plainName(nm) + ' — ' + wkDayLabel(nd) + ' ' + t.cls + ' 에 추가는 됐지만, 원래 주 빠짐 기록이 실패했어요. 원래 주 화면에서 학생을 눌러 [이 주만 빼기]를 해 주세요.', 'err');
+          }
+          loadWeek();
+        });
+    });
+}
+
 /* 이 주만 빼기 — 그 날짜의 출석 창에서 부른다 */
 function openWeekRemove(cid, nm, dstr){
   var c = classes.find(function(x){ return x.id === cid; }); if (!c) return;
