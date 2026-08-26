@@ -251,6 +251,24 @@
 - **일일 점검: students는 행 추가·삭제도 보고만**(heal=False — 시트 기준으로 행을 맞추면
   방금 등록한 신입이 지워지고 아웃한 학생이 되살아난다). 내용 보고는 종전 그대로.
 
+## 교사용 조회도 원본(수파베이스)에서 (2026-08-26 — 원본 전환의 후속)
+원본 전환 뒤에도 교사 확인 화면이 시트 사본을 읽고 있어, 사본 전송이 빠진 건이 교사에게
+안 보일 수 있었다(실제 사례: 옛 아웃이 시트 행만 지워 DB에 남긴 잔재가 화면에 되살아남).
+전부 **원본 우선 + 옛 백엔드 폴백** 구조.
+- **클리닉 신청 확인(shueguk-clinic teacher.html)**: 미러 먼저 그리던 화면을 이제 시트가 와도
+  유지한다 — 시트는 완료(클리어) 버튼용 행번호(_row)만 제공(제출시각·이름·시간대·유형·내용으로
+  짝 잇기, sbClinicClearPatch와 같은 기준). 사본에 없는 신청은 완료 버튼 잠금 + 콘솔 경고.
+- **클리닉 배정·현황(clinic_assign.html)**: 신청 현황(loadStatus)이 clinic_requests를 직접 읽는다
+  (`sbSignRows` — 한글 키로 변환). 설정(loadClinicSettings)은 백엔드 원본 그대로.
+- **H WORK 제출 확인(shueguk-h-work hwork_teacher.html)**: 목록·상세·문항 분석이
+  hwork_submissions를 직접 읽는다(교사 조용한 인증 도우미 추가 — 다른 티쳐스 페이지와 같은
+  계정·localStorage 토큰 공유). 상세는 id로 조회(`reportOf`), 폴백이면 옛 행 번호 경로.
+- **어휘 CSV(shueguk-voca 대시보드)**: 상세를 voca_results에서 id 묶음으로 채운다
+  (`sbFillDetails` — 200건씩). 시트 전체 조회는 폴백. 참여율·taken 조회는 종전 그대로.
+- **아웃 잔재 정리(2026-08-26)**: 옛 아웃(시트 행만 삭제)이 원본에 남긴 6명(문준호·최준교·
+  손윤하·심채민·김강우·김남우)의 기록 37건을 7개 표에서 삭제 — 전부 사용자가 아웃/삭제를
+  확정했던 학생들. 새 아웃은 원본을 직접 지우므로 재발하지 않는다.
+
 ## 공지 확인(별 +1) — 수파베이스가 원본 (2026-08-26 전환)
 - [ ] `migrations/022_notice_read_origin.sql` — `notice_read_submit(p)` SECURITY DEFINER 함수를
   anon에 연다. **사용자 SQL Editor 실행 대기.** 판정은 백엔드 checkNotice 1:1 — 학생 확인
