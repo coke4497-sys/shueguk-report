@@ -414,21 +414,26 @@
       .catch(function(){});
   }
   var POSTS = {
+    /* 시험 등록·삭제 — 수파베이스가 원본 (2026-08-26 전환, m.html과 동일 규칙):
+     * exams·exam_questions에 먼저 쓰고 시트 사본은 뒤에서. 배정 미러는 이 페이지가
+     * 배정 목록을 다시 읽을 때(sbResyncAssign) 함께 맞는다. */
     createReport: function(b, url){
-      return legacyPost(url, b).then(function(res){
-        if (!res || res.result !== 'success') return res;
-        return mirrorExam(b).then(function(){ return res; },
-          function(e){ console.warn('시험 미러 실패', e); return res; });
+      var id = String(b.id || '').trim();
+      if (!id) return Promise.resolve({ result:'error', message:'시험 ID가 비어 있습니다.' });
+      return mirrorExam(b).then(function(){
+        legacyPost(url, b).catch(function(e){ console.warn('시트 사본 실패(시험 등록)', e); });
+        return ok({ id: id, count: (b.questions || []).length });
       });
     },
     deleteReport: function(b, url){
-      return legacyPost(url, b).then(function(res){
-        if (!res || res.result !== 'success') return res;
-        var id = String(b.id || '').trim();
-        return sbWrite('DELETE', '/exams?report_id=eq.' + q(id))
-          .then(function(){ return sbWrite('DELETE', '/exam_questions?report_id=eq.' + q(id)); })
-          .then(function(){ return res; }, function(e){ console.warn('시험 삭제 미러 실패', e); return res; });
-      });
+      var id = String(b.id || '').trim();
+      if (!id) return Promise.resolve({ result:'error', message:'시험 ID가 비어 있습니다.' });
+      return sbWrite('DELETE', '/exams?report_id=eq.' + q(id))
+        .then(function(){ return sbWrite('DELETE', '/exam_questions?report_id=eq.' + q(id)); })
+        .then(function(){
+          legacyPost(url, b).catch(function(e){ console.warn('시트 사본 실패(시험 삭제)', e); });
+          return ok({});
+        });
     },
     saveTeacherNote: function(b, url){
       var id = parseInt(b.rowIndex, 10) || 0;

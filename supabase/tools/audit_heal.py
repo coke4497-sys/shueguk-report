@@ -505,10 +505,13 @@ def main():
         lambda r: r.get('name',''), heal)
     sync_sheet_master('star_bonus', d['star_bonus'],
         lambda r: (ep(r['at']), r.get('name',''), r.get('stars',0)), lambda r: r.get('reason',''), heal)
+    # 시험(exams·exam_questions)은 2026-08-26부터 수파베이스가 원본(등록·삭제가 페이지에서 먼저).
+    # 시트 사본이 빠졌을 수 있으니 **보고만** 한다 — 여기서 시트 기준으로 고치면 방금 등록한
+    # 시험이 지워지거나 삭제한 시험이 되살아난다. heal=False 로 대조만 수행.
     sync_sheet_master('exams', d['exams'], lambda r: r['report_id'],
-        lambda r: (r['title'], r['review'], r['scope'], r['school'], r['grade']), heal, 'report_id')
+        lambda r: (r['title'], r['review'], r['scope'], r['school'], r['grade']), False, 'report_id')
     sync_sheet_master('exam_questions', d['exam_questions'], lambda r: (r['report_id'], r['seq']),
-        lambda r: (r['no'], r['area'], r['qtype'], r['lv'], r['txt'], r['detail'], r['grp'], r['multi']), heal)
+        lambda r: (r['no'], r['area'], r['qtype'], r['lv'], r['txt'], r['detail'], r['grp'], r['multi']), False)
     sync_sheet_master('assignments', d['assignments'], lambda r: r['seq'],
         lambda r: (r['date'], r['tool'], r['item'], r['type'], r['target'], r['due'], r['memo']), heal)
     cfg_cur = {r['key']: r['value'] for r in sb_all('report_config')}

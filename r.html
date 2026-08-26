@@ -214,8 +214,8 @@ body.capturing ::placeholder{ color:transparent !important; }
  * 코드가 들어 있었다. 학생 화면에 있을 이유가 없어 걷어냈다 — 교사 화면(t.html 등)에는
  * 그 어댑터가 그대로 있다.
  *  · 시험 한 건 읽기(?id=)  → exam_bundle 함수 (그 시험만 돌려준다)
- *  · 복기 제출(__submit)    → 기존 백엔드 먼저(학생 페이지 성적·별 집계가 시트를 읽음),
- *                             성공하면 mirror_submission 함수로 미러에 한 줄
+ *  · 복기 제출(__submit)    → **수파베이스가 원본**(2026-08-26): mirror_submission 함수로 먼저
+ *                             넣고, 시트 사본은 뒤에서(실패 시 일일 점검이 보고만 — 삭제 없음)
  * 표를 직접 조회·기록하지 않는다 — 공개 키에 표 권한을 열어 두지 않기 위함(013 마이그레이션).
  * 함수 호출이 실패하면 기존 백엔드로 자동 폴백한다. */
 (function(){
@@ -273,18 +273,35 @@ body.capturing ::placeholder{ color:transparent !important; }
       if (opts && String(opts.method || '').toUpperCase() === 'POST'){
         var body; try { body = JSON.parse(opts.body); } catch (e) { return rawFetch(url, opts); }
         if (!body || body.action) return rawFetch(url, opts);   // 액션이 붙은 요청은 그대로 통과
-        // 학생 제출 — 기존 백엔드 먼저(학생 페이지 성적·별 집계가 시트를 읽음), 성공 시 미러
-        return legacyPost(url, body).then(function(res){
-          if (!res || res.result !== 'success') return fake(res);
-          var rec = { submitted_at: nowIso(), exam: String(body.title || ''), school: String(body.school || ''),
-                      grade: String(body.grade || ''), name: String(body.name || ''),
-                      wrong_count: String(body.wrongCount == null ? 0 : body.wrongCount),
-                      wrong_text: String(body.wrongText || ''), vow: String(body.vow || ''),
-                      score: String(body.score || ''), parent_phone: String(body.parentPhone || '') };
-          function put(){ return sbRpc('mirror_submission', { p: rec }); }
-          put().catch(function(){ setTimeout(function(){ put().catch(function(e){ console.warn('제출 미러 실패', e); }); }, 3000); });
-          return fake(res);
-        }, function(){ return rawFetch(url, opts); });
+        // 학생 제출 — 수파베이스가 원본 (2026-08-26 전환): mirror_submission 함수로 먼저 넣고
+        // (0.3초 안팎 — 시험 철에 제출이 몰려도 앱스스크립트 지연·실패에 안 흔들린다),
+        // 성공하면 시트 사본은 뒤에서 보낸다(별 집계 레거시·시트 열람용, 1회 재시도 — 빠지면
+        // 일일 점검이 'DB에만 있는 행'으로 보고만 하고 지우지 않는다). 함수가 실패하면
+        // 예전 경로(백엔드 먼저 + 미러)로 폴백한다.
+        var rec = { submitted_at: nowIso(), exam: String(body.title || ''), school: String(body.school || ''),
+                    grade: String(body.grade || ''), name: String(body.name || ''),
+                    wrong_count: String(body.wrongCount == null ? 0 : body.wrongCount),
+                    wrong_text: String(body.wrongText || ''), vow: String(body.vow || ''),
+                    score: String(body.score || ''), parent_phone: String(body.parentPhone || '') };
+        return sbRpc('mirror_submission', { p: rec }).then(function(){
+          var tried = 0;
+          (function sheetCopy(){
+            legacyPost(url, body).catch(function(){
+              if (++tried < 2) setTimeout(sheetCopy, 3000);
+              else console.warn('시트 사본 실패 — 일일 점검이 보고');
+            });
+          })();
+          return fake({ result:'success' });
+        }, function(e){
+          console.warn('수파베이스 제출 실패 — 기존 백엔드로 폴백', e);
+          return legacyPost(url, body).then(function(res){
+            if (res && res.result === 'success'){
+              function put(){ return sbRpc('mirror_submission', { p: rec }); }
+              put().catch(function(){ setTimeout(function(){ put().catch(function(e2){ console.warn('제출 미러 실패', e2); }); }, 3000); });
+            }
+            return fake(res);
+          }, function(){ return rawFetch(url, opts); });
+        });
       }
 
       var qs = new URLSearchParams(url.slice(url.indexOf('?') + 1));

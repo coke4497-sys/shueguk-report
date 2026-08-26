@@ -594,22 +594,32 @@ body{font-family:'Noto Sans KR',sans-serif; background:var(--sage-fog); color:va
     } catch (e) {}
   }
   var POSTS = {
+    /* 시험 등록·삭제 — 수파베이스가 원본 (2026-08-26 전환): exams·exam_questions에 먼저 쓰고
+     * 시트 사본과 배정('배정' 탭 — 시트가 원본)은 뒤에서 기존 백엔드로 보낸다.
+     * 시트 쪽이 실패하면 일일 점검이 차이로 보고한다(시험 표는 보고만 — 자동 복구 없음). */
     createReport: function(b, url){
-      return legacyPost(url, b).then(function(res){
-        if (!res || res.result !== 'success') return res;
-        sbResyncAnalysisAssign(url);
-        return mirrorExam(b).then(function(){ return res; },
-          function(e){ console.warn('시험 미러 실패', e); return res; });
+      var id = String(b.id || '').trim();
+      if (!id) return Promise.resolve({ result:'error', message:'시험 ID가 비어 있습니다.' });
+      return mirrorExam(b).then(function(){
+        legacyPost(url, b).then(function(res){
+          if (res && res.result === 'success') sbResyncAnalysisAssign(url);
+          else console.warn('시트 사본 실패(시험 등록)', res && res.message);
+        }, function(e){ console.warn('시트 사본 실패(시험 등록)', e); });
+        return ok({ id: id, count: (b.questions || []).length });
       });
     },
     deleteReport: function(b, url){
-      return legacyPost(url, b).then(function(res){
-        if (!res || res.result !== 'success') return res;
-        var id = String(b.id || '').trim();
-        return sbWrite('DELETE', '/exams?report_id=eq.' + q(id))
-          .then(function(){ return sbWrite('DELETE', '/exam_questions?report_id=eq.' + q(id)); })
-          .then(function(){ return res; }, function(e){ console.warn('시험 삭제 미러 실패', e); return res; });
-      });
+      var id = String(b.id || '').trim();
+      if (!id) return Promise.resolve({ result:'error', message:'시험 ID가 비어 있습니다.' });
+      return sbWrite('DELETE', '/exams?report_id=eq.' + q(id))
+        .then(function(){ return sbWrite('DELETE', '/exam_questions?report_id=eq.' + q(id)); })
+        .then(function(){
+          legacyPost(url, b).then(function(res){
+            if (res && res.result === 'success') sbResyncAnalysisAssign(url);
+            else console.warn('시트 사본 실패(시험 삭제)', res && res.message);
+          }, function(e){ console.warn('시트 사본 실패(시험 삭제)', e); });
+          return ok({});
+        });
     },
     saveTeacherNote: function(b, url){
       var id = parseInt(b.rowIndex, 10) || 0;

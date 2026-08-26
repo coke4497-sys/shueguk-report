@@ -486,6 +486,22 @@ curl -s -X POST "https://api.supabase.com/v1/projects/bangdbhqpphqqdwcledg/datab
   (키도 이름 대신 접근코드 — 표기 변경이 행 추가/삭제로 오판되지 않게). 시트 값으로 내용을
   덮어쓰면 방금 고친 수정이 밤새 되돌아간다.
 
+## 지필 리포트 쓰기 — 수파베이스가 원본 (2026-08-26 전환)
+9/17 중간고사 전 대비(사용자 "다음 데이터 이전"). DDL 없이 기존 함수·표 재사용, 순서만 뒤집었다.
+- **학생 복기 제출(r.html)**: `mirror_submission` 함수(013의 넣기 전용 anon 함수 — 이것이 곧 원본
+  insert)로 **먼저 넣고**(0.3초 안팎 — 시험 철에 몰려도 앱스스크립트 지연·콜드스타트에 안 흔들림),
+  시트 사본은 뒤에서 1회 재시도로 보낸다(별 집계 레거시·시트 열람용). 함수 실패 시 옛 경로
+  (백엔드 먼저+미러) 폴백. **일일 점검의 submissions는 원래 insert_missing(추가만·DB에만 있는 행
+  보고만)이라 방향 충돌 없음** — 시트 사본이 빠져도 밤에 지워지지 않는다.
+- **시험 등록(createReport)·삭제(deleteReport)** (m.html·analyses.html 공용 어댑터): `mirrorExam`
+  업서트(report_id 충돌 병합 + 문항 교체)/삭제를 **먼저** 실행하고 시트 사본은 뒤에서. 등록의
+  배정(assignType — '배정' 탭, 시트가 원본)은 레거시가 성공했을 때 `sbResyncAnalysisAssign`으로
+  미러를 맞춘다(analyses는 자체 목록 재읽기 때 맞음). t.html·stats.html에는 이 두 훅이 없어 무변경.
+- **일일 점검: exams·exam_questions는 보고만**(heal=False) — 시트 기준으로 고치면 방금 등록한
+  시험이 지워지거나 삭제한 시험이 되살아난다. '선생님 한마디'는 종전부터 수파베이스 원본.
+- 검증: anon `mirror_submission` 왕복(넣기→교사 확인→정리), 시험 업서트→문항 교체→삭제 왕복 통과.
+- 남은 지필 관련: 분석지 배정(assignments)은 여전히 시트가 원본(배정 로직이 백엔드) — 다음 회차.
+
 ## 학생 연락처 (2026-08-26 사용자 요청 — 018)
 - `migrations/018_student_contacts.sql`: students에 `phone_student`(필수)·`phone_parent1`(필수)·
   `phone_parent2`(주로 생략) — **전체 번호**(01012345678). 원본은 수파베이스, 시트에는 이 열이 없다
