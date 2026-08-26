@@ -158,9 +158,39 @@
     setTeacherSlots·setTarget 저장 성공 시 teachers 설정 미러 갱신.
 - s.html의 클리닉 카드(amITarget)·학생 폼의 시간대 조회(slots)는 기존 백엔드 그대로
   (설정·정원 판정이 Script Properties에 있어서 — 완전 전환 때 함께).
-- 일일 점검 `--clinic`: 클리닉 API(action=data)로 신청·설정을 받아 대조·복구.
+- ~~일일 점검 `--clinic`: 클리닉 API(action=data)로 신청·설정을 받아 대조·복구.~~ → 2026-08-26부터
+  신청은 대조·보고만(아래 '클리닉 신청 — 수파베이스가 원본' 절).
 - 제출시각·클리어는 시트가 날짜로 자동 변환 → API가 ISO UTC로 반환하므로 KST 'yyyy-MM-dd HH:mm'로
   정규화해 저장(페이지 훅·점검 도구 동일 규칙).
+
+## 클리닉 신청 — 수파베이스가 원본 (2026-08-26 전환)
+- [ ] `migrations/019_clinic_origin.sql` — 클리닉 판정 로직(shueguk-clinic Code.gs)을 1:1로 옮긴
+  SECURITY DEFINER 함수 2개를 anon에 연다(016 신청 전환과 같은 방식). **사용자 SQL Editor 실행 대기.**
+  - `clinic_form(p)` — 학생 폼 첫 화면(action=slots와 같은 모양: 정원 9·강사별 시간대·인원
+    counts/tcounts·열림·대상 학년 gradeTokens·targetType)
+  - `clinic_submit(p)` — 제출: 중단(closed/teacher_closed)→대상(not_target/grade_closed)→시간대
+    (bad_slot)→정원(full) 판정 후 clinic_requests에 기록. **조언 잠금으로 직렬화**되어 동시 제출이
+    몰려도 강사별 정원(9)을 넘지 않는다. ts는 DB가 KST 'yyyy-MM-dd HH:mm'로 찍는다.
+  - 주차 계산(화요일 시작 weekKey_·시간대 요일의 다음 날짜 meetWeekKey_)·학년 토큰(gradeKey_)·
+    학교 느슨 비교(schoolLoose_)·강사별 설정(teacherSlots)과 옛 공통 설정 폴백 모두 백엔드와 동일.
+    설정은 clinic_settings 미러를 읽는다(대상 없으면 기본 {"type":"학년","target":"고3"} — 백엔드 동일).
+  - 백엔드의 EXCLUDE(2026-06-16 주차 2건 정원 보정)는 지나간 주차라 옮기지 않았다.
+- **쓰기 흐름**: 학생 제출(index.html) = `clinic_submit` 먼저 → 성공 시 옛 백엔드에도 같은 제출을
+  뒤에서 보내 **시트 사본**을 맞춘다(JSONP 응답 무시, 이때는 sbMirrorClinic을 부르지 않아 이중
+  삽입 없음). 수파베이스 장애 시엔 옛 경로 폴백(그쪽 성공이 종전대로 sbMirrorClinic 미러).
+  폼 첫 화면(loadSlots)도 `clinic_form` 먼저, 실패 시 옛 action=slots 폴백.
+- **교사 화면의 옛 `sbResyncClinic`(시트 기준 통째 재동기화)은 지웠다**(teacher.html·
+  clinic_assign.html) — 지금 돌리면 방금 들어온 신청·클리어가 옛 시트 내용으로 되돌아간다.
+  teacher.html은 '시트 사본과 n건 차이'로 알리고, 클리어 처리는 백엔드 성공 후
+  `sbClinicClearPatch`가 같은 건(ts 정규화+이름+시간대+유형+내용)을 clinic_requests에도 표시한다.
+- **설정(강사별 시간대 teacherSlots·신청받기·대상)의 원본은 여전히 클리닉 백엔드**(Script
+  Properties) — 배정 화면 저장이 백엔드 먼저 + clinic_settings 미러 갱신, `clinic_form`·
+  `clinic_submit`은 미러를 읽는다. 일일 점검이 미러를 백엔드 기준으로 복구(종전 그대로).
+- **일일 점검 --clinic: clinic_requests는 대조·보고만**(자동 수정 없음 — audit_heal.py, ts는
+  원본·사본이 각자 찍어 키에서 빼고 대조). '시트에만' 건 = 옛 캐시 페이지의 레거시 직행 제출일
+  수 있음 — 보고를 보고 수동 반영.
+- s.html의 클리닉 카드(amITarget)·신청 확인(teacher.html action=data)·배정 화면 읽기는 기존
+  백엔드 그대로(다음 단계).
 
 ## H WORK (2026-08-23)
 - [x] `migrations/007_hwork.sql` — hwork_homeworks(HWORK목록: 과제 JSON+마감일, teacher+code 유일)·

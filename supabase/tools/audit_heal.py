@@ -7,7 +7,8 @@
 #     --hwork  : H WORK 시트(HWORK목록·제출기록)도 대조·동기화
 #     --voca   : 어휘 결과 시트(첫 탭)도 대조·동기화
 #     --signup : 주말 신청 데이터를 신청 백엔드 API(action=data)에서 받아 대조·동기화
-#     --clinic : 클리닉 신청·설정을 클리닉 백엔드 API(action=data)에서 받아 대조·동기화
+#     --clinic : 클리닉 신청(수파베이스 원본 — 시트 사본과 대조·보고만)·설정(백엔드 원본 — 복구)을
+#                클리닉 백엔드 API(action=data)에서 받아 대조
 #                (--signup 은 신청 설정 signup_settings 도 함께 맞춘다)
 #
 # 하는 일:
@@ -614,11 +615,16 @@ def main():
             report('clinic_requests: 클리닉 백엔드 조회 실패 — 대조 못 함')
         else:
             c_rows, c_set = res
-            print('· 클리닉 (클리닉 시트·백엔드 설정이 원본, API로 대조)')
-            sync_sheet_master('clinic_requests', c_rows,
-                lambda r: (r['ts'], r['name'], r['phone'], r['slot'], r['rtype'], r['area'], r['content']),
-                lambda r: (r['school'], r['qcount'], r['memo'], r['grade'], r['student_id'],
-                           r['teacher'], r['token'], r['clear']), heal)
+            # 2026-08-26부터 클리닉 신청의 원본은 수파베이스(clinic_requests)다(019 마이그레이션).
+            # 시트는 학생 폼이 뒤에서 이중 기록하는 사본 — 대조·보고만 하고 고치지 않는다
+            # (시트 기준으로 heal 하면 방금 들어온 신청·클리어 표시가 옛 시트 내용으로 되돌아간다).
+            # 제출시각은 원본(DB)과 사본(시트 백엔드)이 각자 찍어 분이 어긋날 수 있어 ts는 키에서 뺀다.
+            # '시트에만' 건 = 옛 캐시 페이지의 레거시 직행 제출일 수 있음 — 보고를 보고 수동 반영.
+            print('· 클리닉 (수파베이스가 원본 — 시트 사본과 대조·보고만, 설정은 백엔드가 원본)')
+            copy_compare('clinic_requests', c_rows,
+                lambda r: (r['name'], r['phone'], r['slot'], r['rtype'], r['area'], r['content'],
+                           r['teacher']),
+                lambda r: r['ts'])
             cur_set = {r['key']: r['value'] for r in sb_all('clinic_settings')}
             diff = [k for k, v in c_set.items() if cur_set.get(k) != v]
             if not diff:
