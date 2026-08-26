@@ -149,6 +149,11 @@
   - 신청 페이지에 다녀와 돌아왔을 때(`refreshOnReturn`) 신청 내역은 갱신되는데 하위 메뉴는 다시 그리지 않아 '신청 완료' 표시가 한 박자 늦던 문제 — api('') 응답 처리에 `renderMockHub()` 추가(`loadGradeGates`에는 원래 있었음).
   - **신청받기 중단(open) 상태를 학생 화면에 표시**: `STATE.mockOpen`(days 응답 또는 리포트가 담아 준 `mockGates.open`) — 하위 '모의고사 신청' 카드가 '지금은 신청을 받지 않아요 / 신청 마감'으로 비활성, 메인 카드 설명은 'OMR 작성 · 성적 확인'. **메인 카드 자체는 계속 열어 둔다**(중단돼도 OMR·성적은 봐야 함). 값이 없으면(구버전·조회 실패) 옛 동작 유지, 이미 신청한 학생은 신청 내역 표시가 우선.
   - 신청 날짜 표기를 메인 카드와 같은 '8/22 (토)' 형식으로 통일(`mockDayLabel` 공용 — 신청 백엔드 `mySignups`와 리포트 `collectMockSignups_`가 같은 `{day,date}` 형식이라 그대로 씀).
+- **모의고사 메뉴 접속지연 대책(2026-08-26)**: 메뉴를 여는 순간(s.html `openMockHub`→`prefetchMockMenu`) 두 가지를 선조회한다 — 백엔드 변경 없음, 화면만.
+  - ① **성적**: `studentReports`(실측 2~15초)를 미리 받아 두고(`MOCK_PRE`) `submitPw`가 재사용 — 8자리를 입력하는 동안 도착해 체감 대기가 사라진다. **이름이 유일한 학생만**(id 없이도 name+school+uniq=1 조회가 8자리 조회와 결과 동일 — `studentReports_`의 idOk 규칙). 동명이인은 종전대로 입력 후 조회. 신선도 2분 — OMR 응시 직후 다녀오면 `refreshOnReturn`·재진입이 새로 받는다.
+  - ② ~~신청 days sessionStorage 전달~~ — **같은 날 신청 데이터가 수파베이스 원본으로 전환되며 제거**(016 마이그레이션): signup.html이 `signup_days` 함수로 0.3초 안팎에 스스로 받는다. 자세한 것은 `supabase/README.md`·shuegukweekendtest CLAUDE.md.
+  - ~~OMR 카드는 앱스스크립트 내부(iframe)라 선조회 불가~~ — **같은 날 출제·OMR도 수파베이스 원본으로 전환**(017 마이그레이션): hub `omr.html`이 정적 학생 OMR 본체가 되어 즉시 열리고, 제출·채점(0.5초 안팎)·성적 관리(`omr_teacher.html`)·s.html 모의고사 성적(`fetchMockData` — `omr_student_reports` 함수, 폴백 레거시) 모두 수파베이스. 자세한 것은 `supabase/README.md`. **모의고사 성적 탭 순서도 이때 고쳐짐**(옛 백엔드는 제출시각을 문자열로 정렬해 요일 이름 알파벳순이었다 — 이제 실제 시간순).
+  - 검증(2026-08-26): 브라우저 E2E로 선조회 즉시 렌더→원본 승리→직접 접속 폴백→s.html 선조회 왕복(실 백엔드) 확인.
 
 ## H WORK 마감 (2026-08-15)
 - HWORK목록 시트 **D열에 마감일**(yyyy-MM-dd, 텍스트). **마감일 밤 11:59까지 제출 가능, 다음 날부터 서버가 거절**(화면 우회 불가). 마감 확인은 캐시 사용.

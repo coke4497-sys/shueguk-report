@@ -369,6 +369,51 @@ def fetch_clinic():
 ISSUES = []
 def report(line): ISSUES.append(line); print('  !', line)
 
+def mins_kst(v):
+    """시각을 분 단위 수로 — 'yyyy-MM-dd HH:mm'(KST 표기)과 ISO(+00/Z) 모두 흡수."""
+    s = str(v or '').strip()
+    if not s: return None
+    try: d = datetime.datetime.fromisoformat(s.replace('Z', '+00:00'))
+    except Exception: return None
+    if d.tzinfo is None:
+        d = d.replace(tzinfo=datetime.timezone(datetime.timedelta(hours=9)))
+    return d.timestamp() / 60.0
+
+def copy_compare(table, sheet_rows, keyf, ts_of, tol_min=3):
+    """수파베이스가 원본, 시트는 사본인 표 — **대조·보고만** 하고 고치지 않는다.
+    (시트 기준으로 heal 하면 방금 들어온 기록·삭제가 옛 시트 내용으로 되돌아간다.)
+    제출시각은 원본과 사본이 각자 기록해 몇 초~몇 분 어긋날 수 있으므로,
+    내용(keyf)이 같고 시각이 tol_min분 이내면 같은 건으로 짝짓는다."""
+    from collections import defaultdict
+    try:
+        cur = sb_all(table)
+    except Exception as e:
+        report(f'{table}: 조회 실패 — {e}')
+        return
+    a, b = defaultdict(list), defaultdict(list)
+    for r in cur: a[keyf(r)].append(mins_kst(ts_of(r)))
+    for r in sheet_rows: b[keyf(r)].append(mins_kst(ts_of(r)))
+    only_sb, only_sh = [], []
+    for k in set(a) | set(b):
+        xs, ys = a.get(k, []), b.get(k, [])
+        used = [False] * len(ys)
+        for x in xs:
+            hit = -1
+            for i, y in enumerate(ys):
+                if used[i]: continue
+                if x is None or y is None or abs(x - y) <= tol_min:
+                    hit = i; break
+            if hit >= 0: used[hit] = True
+            else: only_sb.append(k)
+        only_sh += [k] * sum(1 for u in used if not u)
+    if not only_sb and not only_sh:
+        print(f'  = {table}: 시트 사본과 일치 ({len(sheet_rows)}행)')
+    else:
+        report(f'{table}: 시트 사본과 차이 — 원본에만 {len(only_sb)} · 시트에만 {len(only_sh)}'
+               ' (원본은 수파베이스 — 자동 수정 안 함, 시트 쪽을 손볼 것)')
+        for k in only_sb[:5]: print(f'      · 원본에만: {str(k)[:150]}')
+        for k in only_sh[:5]: print(f'      · 시트에만: {str(k)[:150]}')
+
 def sync_sheet_master(table, sheet_rows, keyf, valf, heal, id_field='id', keep=None,
                       patch_fields=None, soft_valf=None, soft_label=''):
     """시트가 원본 — 수파베이스를 시트에 맞춘다.
@@ -492,13 +537,18 @@ def main():
     if '--omr' in sys.argv:
         omr_x = sys.argv[sys.argv.index('--omr') + 1]
         o = extract_omr(omr_x)
-        print('· 주말 모의고사 OMR (시트가 원본)')
-        sync_sheet_master('omr_exams', o['omr_exams'], lambda r: r['name'],
-            lambda r: (r['data'], r['mode']), heal, 'name')
-        sync_sheet_master('omr_responses', o['omr_responses'],
-            lambda r: (ep(r['submitted_at']), r['name'], r['exam']),
-            lambda r: (r['exam_date'], r['school'], r['grade'], r['subject'], r['got'], r['total'],
-                       r['level'], json.dumps(r['answers'], sort_keys=True), r['student_id']), heal)
+        # 2026-08-26부터 출제·OMR 응답의 원본은 수파베이스다(017 마이그레이션 — omr_exams·omr_responses).
+        # 시트는 페이지가 뒤에서 이중 기록하는 사본 — 대조·보고만 하고 고치지 않는다
+        # (시트 기준으로 heal 하면 방금 저장한 회차·제출·교사 삭제가 옛 시트 내용으로 되돌아간다).
+        print('· 주말 모의고사 OMR (수파베이스가 원본 — 시트 사본과 대조·보고만)')
+        copy_compare('omr_exams', o['omr_exams'],
+                     lambda r: (r['name'], r['data'], r['mode']), lambda r: '')
+        copy_compare('omr_responses', o['omr_responses'],
+            lambda r: (r['name'], r['exam'], r['school'], str(r['grade']), r['subject'],
+                       str(r['got']), str(r['level']),
+                       json.dumps({k: str(v) for k, v in (r['answers'] or {}).items()}, sort_keys=True),
+                       str(r['student_id'])),
+            lambda r: r['submitted_at'])
     if '--hwork' in sys.argv:
         hx = sys.argv[sys.argv.index('--hwork') + 1]
         h = extract_hwork(hx)
@@ -524,10 +574,14 @@ def main():
             report('signup_entries: 신청 백엔드 조회 실패 — 대조 못 함')
         else:
             rows, s_set = res
-            print('· 주말 신청 (신청 시트·백엔드 설정이 원본, API로 대조)')
-            sync_sheet_master('signup_entries', rows,
-                lambda r: (r['ts'], r['name'], r['day'], r['student_id']),
-                lambda r: (r['school'], r['grade'], r['subject'], r['exam_date']), heal)
+            # 2026-08-26부터 신청 데이터의 원본은 수파베이스(signup_entries)다(016 마이그레이션).
+            # 시트는 페이지가 뒤에서 이중 기록하는 사본 — 여기서는 대조·보고만 하고 고치지 않는다
+            # (시트 기준으로 heal 하면 방금 들어온 신청·교사 삭제가 옛 시트 내용으로 되돌아간다).
+            print('· 주말 신청 (수파베이스가 원본 — 시트 사본과 대조·보고만, 설정은 백엔드가 원본)')
+            copy_compare('signup_entries', rows,
+                lambda r: (r['name'], r['day'], r['student_id'], r['school'],
+                           r['grade'], r['subject'], r['exam_date']),
+                lambda r: r['ts'])
             try:
                 cur_ss = {r['key']: r['value'] for r in sb_all('signup_settings')}
             except Exception as e:      # 표가 아직 없으면(마이그레이션 전) 보고만 하고 넘어간다

@@ -636,6 +636,8 @@ function refreshOnReturn(){
   //  승인 완료 — 방금 본 시험도 곧바로 미러에 있다. 그전에는 여기서 직접 조회했다.)
   // 어댑터가 실패해 기존 백엔드로 폴백한 경우에는 플래그가 서지 않아 아래가 직접 조회한다.
   loadGradeGates();                                // 폴백일 때만 실제 조회가 나간다
+  // 모의고사 메뉴가 열린 채 OMR·신청에 다녀왔으면 선조회를 새로 받는다(방금 본 시험 반영)
+  if ($('mockHubView').style.display === 'block') prefetchMockMenu();
   api('').then(function(d){                        // 클리닉 내역·공지·H WORK·별 갱신
     if(!d || d.result!=='success') return;
     STATE.notices  = d.notices  || [];
@@ -2076,9 +2078,14 @@ function submitPw(){
     // 8자리 검증(리포트 백엔드)과 성적 조회(OMR 백엔드)를 동시에 실행 — 대기 시간 단축.
     // 검증에 실패하면 조회 결과는 버리고 성적을 보여주지 않는다.
     var mbtn=$('pwOk'); mbtn.disabled=true; mbtn.textContent='확인 중...'; $('pwErr').textContent='';
+    // 메뉴를 열 때 미리 받아 둔 성적(MOCK_PRE)이 신선하면 그대로 쓴다 — 8자리를 입력하는 동안
+    // 이미 도착해 있어 체감 대기가 사라진다. 선조회가 없거나 실패했으면 종전대로 지금 조회.
+    var mockJob = (MOCK_PRE && Date.now() - MOCK_PRE_AT < 120000)
+      ? MOCK_PRE.then(function(m){ return (m && m.ok) ? m : fetchMockData(pw); })
+      : fetchMockData(pw);
     Promise.all([
       api('&pw='+encodeURIComponent(pw)).catch(function(){ return null; }),
-      fetchMockData(pw)
+      mockJob
     ]).then(function(res){
       var d=res[0], m=res[1];
       mbtn.disabled=false; mbtn.textContent='확인';
@@ -2104,22 +2111,44 @@ function submitPw(){
 }
 
 /* ---- 모의고사 성적 ---- */
-// OMR 백엔드에서 이 학생의 성적표 목록을 가져온다. {ok, reports}/{ok:false, msg} 반환.
+// 이 학생의 성적표 목록. {ok, reports}/{ok:false, msg} 반환.
+// 2026-08-26부터 원본은 수파베이스(omr_student_reports 함수 — 017 마이그레이션, 실측 0.3~1초).
+// 실패하면 옛 OMR 백엔드(studentReports, 2~15초)로 폴백. 매칭 규칙·응답 모양은 동일하고
+// 정렬만 다르다 — 옛 백엔드는 제출시각을 문자열(요일 이름 알파벳순)로 정렬하는 버그가 있었고
+// 새 함수는 실제 시간 내림차순이다.
 function fetchMockData(id){
   if(!WEEKEND_API || WEEKEND_API.indexOf('http')!==0) return Promise.resolve({ ok:true, reports:[] });
   var info=STATE.info||{};
+  var uniq=(info.nameDup===false)?'1':'';
   // uniq=1: 동명이인이 아니면 OMR 제출 시 8자리를 잘못 적었어도 이름+학교로 매칭
-  var url=WEEKEND_API + (WEEKEND_API.indexOf('?')>=0?'&':'?') +
-    'action=studentReports&id='+encodeURIComponent(id)+
-    '&name='+encodeURIComponent(info.name||'')+
-    '&school='+encodeURIComponent(info.school||'')+
-    '&uniq='+((info.nameDup===false)?'1':'');
-  return jsonp(url, 15000).then(function(d){
-    if(!d) return { ok:false, msg:'연결 시간이 초과됐어요. 다시 시도해주세요.' };
-    var ok=d&&(d.result==='success'||d.ok);
-    if(!ok) return { ok:false, msg:(d&&d.message)||'성적을 불러오지 못했습니다.' };
-    return { ok:true, reports:d.reports||d.list||[] };
-  });
+  function legacy(){
+    var url=WEEKEND_API + (WEEKEND_API.indexOf('?')>=0?'&':'?') +
+      'action=studentReports&id='+encodeURIComponent(id)+
+      '&name='+encodeURIComponent(info.name||'')+
+      '&school='+encodeURIComponent(info.school||'')+
+      '&uniq='+uniq;
+    return jsonp(url, 15000).then(function(d){
+      if(!d) return { ok:false, msg:'연결 시간이 초과됐어요. 다시 시도해주세요.' };
+      var ok=d&&(d.result==='success'||d.ok);
+      if(!ok) return { ok:false, msg:(d&&d.message)||'성적을 불러오지 못했습니다.' };
+      return { ok:true, reports:d.reports||d.list||[] };
+    });
+  }
+  return fetch('https://bangdbhqpphqqdwcledg.supabase.co/rest/v1/rpc/omr_student_reports', {
+    method:'POST',
+    headers:{ 'apikey':'sb_publishable_dE9d1KIbpgYaQkaS2MSrlg_-7SiRJuT',
+              'Authorization':'Bearer sb_publishable_dE9d1KIbpgYaQkaS2MSrlg_-7SiRJuT',
+              'Content-Type':'application/json' },
+    body: JSON.stringify({ p:{ name:info.name||'', school:info.school||'', id:String(id||''), uniq:uniq } })
+  }).then(function(r){ if(!r.ok) throw new Error('sb '+r.status); return r.json(); })
+    .then(function(d){
+      if(!d || d.result!=='success') throw new Error('bad resp');
+      return { ok:true, reports:d.reports||[] };
+    })
+    .catch(function(e){
+      console.warn('모의고사 성적 원본 조회 실패 — 옛 백엔드로 폴백', e);
+      return legacy();
+    });
 }
 /* ---- 실전 모의고사 하위 메뉴 (신청 · OMR 작성 · 성적) ---- */
 // 모의고사 신청 1건을 '8/16 (토)' 형식으로 (백엔드 형식: date '8월 16일', day '토요일')
@@ -2181,7 +2210,25 @@ function renderMockHub(){
   }
   $('mockHubMenu').innerHTML = html;
 }
-function openMockHub(){ renderMockHub(); hide('hubView'); $('mockHubView').style.display='block'; window.scrollTo(0,0); }
+/* ── 하위 메뉴 선조회 (2026-08-26 접속 지연 대책) ──
+ * 메뉴를 여는 순간 성적표(OMR 백엔드 studentReports — 실측 2~15초)를 미리 받아 둔다.
+ * 8자리를 입력하는 동안 도착해 있어 체감 대기가 사라진다(submitPw가 MOCK_PRE 재사용).
+ * (신청 요일·남은자리 선조회(sessionStorage 전달)는 신청 데이터가 수파베이스 원본으로
+ *  옮겨 가며(016) 신청 페이지가 스스로 0.3초 안팎에 받게 되어 제거 — 2026-08-26) */
+var MOCK_PRE = null, MOCK_PRE_AT = 0;
+function prefetchMockMenu(){
+  var info = STATE.info || {};
+  // 이름이 유일한 학생만(동명이인은 8자리로 걸러야 해서 종전대로 입력 후 조회).
+  // 조회 조건(name+school+uniq=1)이 8자리를 넣은 조회와 같아 결과가 동일하다.
+  // OMR 응시 직후 다시 들어온 경우를 위해 2분이 지났으면 새로 받는다.
+  var mockReady = (typeof WEEKEND_API==='string' && WEEKEND_API.indexOf('http')===0);
+  if (mockReady && !STATE.mock && info.nameDup === false &&
+      (!MOCK_PRE || Date.now() - MOCK_PRE_AT > 120000)){
+    MOCK_PRE_AT = Date.now();
+    MOCK_PRE = fetchMockData('');
+  }
+}
+function openMockHub(){ renderMockHub(); prefetchMockMenu(); hide('hubView'); $('mockHubView').style.display='block'; window.scrollTo(0,0); }
 function closeMockHub(){ $('mockHubView').style.display='none'; show('hubView'); window.scrollTo(0,0); }
 
 var MOCK_SEL=0;
