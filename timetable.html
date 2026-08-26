@@ -525,6 +525,12 @@
   /* 그 주에만 있는 반 — 점선 테두리 + 작은 표시 (2026-08-23) */
   .blk.wkonly{border-style:dashed;border-width:1.5px;border-color:var(--btn);}
   /* 이 주만 휴강 — 수업이 없는 날임을 한눈에 (되돌릴 수 있게 카드는 남긴다) */
+  /* 출석 창의 학생·학부모 연락처 줄 (2026-08-26) */
+  .att-tel{background:var(--icon-bg);border-radius:9px;padding:8px 10px;}
+  .att-tel a{color:var(--accent);font-weight:700;text-decoration:none;}
+  .att-tel a:hover{text-decoration:underline;}
+  .att-tel .tel-sep{margin:0 7px;color:var(--ink-soft);}
+  .att-tel .tel-none{color:var(--ink-soft);}
   .blk.wkoff{opacity:.62;border-style:dashed;border-width:1.5px;border-color:var(--btn);}
   .blk.wkoff .bt .nm{text-decoration:line-through;text-decoration-thickness:1px;}
   .blk.wkoff .wkflag{text-decoration:none;}
@@ -5160,6 +5166,56 @@ function futureOncePlan(cid, nm){
   });
   return found;
 }
+/* ── 학생·학부모 연락처 (2026-08-26 사용자 요청 "출석 체크 이름을 누르면 연락처가 뜨게") ──
+ * students의 phone_* 열(교사 페이지라 조회 가능 — 학생 화면에는 노출 안 됨)을 한 번 받아 두고
+ * 출석 창에 표시한다. 번호를 누르면 바로 전화(tel:) — 휴대폰에서 유용. */
+var stuPhones = null, stuPhonesBusy = false, stuPhonesCbs = [];
+function stuPhonesEnsure(cb){
+  if (stuPhones){ if (cb) cb(); return; }
+  if (cb) stuPhonesCbs.push(cb);
+  if (stuPhonesBusy) return;
+  stuPhonesBusy = true;
+  fetch('https://bangdbhqpphqqdwcledg.supabase.co/rest/v1/students?select=name,phone_student,phone_parent1,phone_parent2',
+        { headers: { apikey: 'sb_publishable_dE9d1KIbpgYaQkaS2MSrlg_-7SiRJuT' } })
+    .then(function(r){ if (!r.ok) throw new Error('students ' + r.status); return r.json(); })
+    .then(function(rows){
+      stuPhones = {};
+      rows.forEach(function(r){
+        var k = plainName(r.name);
+        if (k) stuPhones[k] = { ps: String(r.phone_student || '').trim(),
+                                p1: String(r.phone_parent1 || '').trim(),
+                                p2: String(r.phone_parent2 || '').trim() };
+      });
+    })
+    .catch(function(e){ console.warn('연락처 조회 실패', e); stuPhones = {}; })
+    .then(function(){ stuPhonesBusy = false; stuPhonesCbs.splice(0).forEach(function(f){ f(); }); });
+}
+function phoneFmt(p){
+  p = String(p || '').replace(/\D/g, '');
+  if (p.length === 11) return p.slice(0,3) + '-' + p.slice(3,7) + '-' + p.slice(7);
+  if (p.length === 10) return p.slice(0,3) + '-' + p.slice(3,6) + '-' + p.slice(6);
+  return p;
+}
+function stuPhoneOf(nm){
+  if (!stuPhones) return null;
+  var p = plainName(nm);
+  return stuPhones[p] || (/A$/.test(p) ? stuPhones[p.slice(0, -1)] : stuPhones[p + 'A']) || null;
+}
+/* 열려 있는 출석 창의 #att-tel 자리에 연락처를 채운다 (데이터가 오면) */
+function attTelFill(nm){
+  stuPhonesEnsure(function(){
+    var el = $('att-tel'); if (!el) return;
+    var s = stuPhoneOf(nm), parts = [];
+    if (s){
+      if (s.ps) parts.push('학생 <a href="tel:' + s.ps + '">' + phoneFmt(s.ps) + '</a>');
+      if (s.p1) parts.push('학부모1 <a href="tel:' + s.p1 + '">' + phoneFmt(s.p1) + '</a>');
+      if (s.p2) parts.push('학부모2 <a href="tel:' + s.p2 + '">' + phoneFmt(s.p2) + '</a>');
+    }
+    el.innerHTML = parts.length ? parts.join('<span class="tel-sep">·</span>')
+                                : '<span class="tel-none">등록된 연락처가 없어요</span>';
+  });
+}
+function attTelHtml(){ return '<p class="mdesc att-tel" id="att-tel"><span class="tel-none">연락처 확인 중…</span></p>'; }
 function openAttend(c, nm, dateStr){
   attDate = dateStr || todayStr();
   var cur = attendAt(attDate, c.id, nm);
@@ -5167,6 +5223,7 @@ function openAttend(c, nm, dateStr){
   openModal(
     '<h3>출석 체크</h3>'+
     '<p class="mdesc"><b>'+esc(plainName(nm))+'</b> — '+esc(labelOf(c))+'<br>'+esc(attDate)+'</p>'+
+    attTelHtml()+
     (fut ? '<p class="mdesc" style="color:#5B76A8;background:#F0F4FA;border-radius:9px;padding:8px 10px;">1회 이동 예약 — '+esc(fut)+'</p>' : '')+
     '<div class="att-btns">'+
     '<button class="pick-ok'+(cur&&cur.status==='출석'?' on':'')+'" onclick="submitAttend(\''+esc(c.id)+'\',\''+esc(nm)+'\',\'출석\')">출석</button>'+
@@ -5186,6 +5243,7 @@ function openAttend(c, nm, dateStr){
     '<button onclick="openNoteEdit(\''+esc(nm)+'\')">특이사항</button>'+
     '<button onclick="closeModal()">닫기</button></div>'
   );
+  attTelFill(nm);
 }
 function submitAttend(cid, nm, status){
   var memo = ($('att-memo') ? $('att-memo').value : '').trim();
@@ -5949,6 +6007,7 @@ function openOnceManage(c, nm, row, dir, dateStr){
     '<p class="mdesc"><b>'+esc(plainName(nm))+'</b> ('+esc(o.date)+')<br>'+
     esc(from ? labelOf(from) : '') + ' → ' + esc(to ? labelOf(to) : '') +
     (dir==='out' ? '<br>이 날은 이동한 반에서 수업해요. 출석 체크도 그 반에서 해주세요.' : '')+'</p>'+
+    attTelHtml()+
     (o.reason ? '<p class="mdesc" style="background:var(--icon-bg);border-radius:9px;padding:8px 10px;">이동 사유 — '+esc(o.reason)+'</p>' : '')+
     attSec +
     (isToday
@@ -5962,6 +6021,7 @@ function openOnceManage(c, nm, row, dir, dateStr){
         '<button onclick="onceEditReason('+row+',\''+esc(nm)+'\')">사유 저장</button>')+
     '<button onclick="closeModal()">닫기</button></div>'
   );
+  attTelFill(nm);
 }
 /* 그 주만 추가·빼기 기록 관리 — 출석 체크(추가된 학생)와 되돌리기 */
 function openWeekManage(c, nm, o, dir){
@@ -5979,6 +6039,7 @@ function openWeekManage(c, nm, o, dir){
   openModal(
     '<h3>'+(added ? '이 주만 추가된 학생' : '이 주만 빠진 학생')+'</h3>'+
     '<p class="mdesc"><b>'+esc(plainName(nm))+'</b> — '+esc(labelOf(c))+'<br>'+esc(wkDayLabel(o.date || attDate))+' 하루만 적용돼요.</p>'+
+    attTelHtml()+
     (o.reason ? '<p class="mdesc" style="background:var(--icon-bg);border-radius:9px;padding:8px 10px;">사유 — '+esc(o.reason)+'</p>' : '')+
     attSec +
     '<p class="mdesc hint-x">정규 명단·다른 주차·학생 개별 페이지는 그대로예요.</p>'+
@@ -5988,6 +6049,7 @@ function openWeekManage(c, nm, o, dir){
       : '')+
     '<button onclick="closeModal()">닫기</button></div>'
   );
+  attTelFill(nm);
 }
 function onceEditReason(row, nm){
   var reason = $('om-reason').value.trim();

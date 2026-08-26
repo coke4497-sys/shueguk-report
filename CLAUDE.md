@@ -114,7 +114,7 @@
 - 구글시트 「★2026정규수업」은 슈의 참고용 원본 — **자동 동기화되지 않음**. 사용자가 "구글시트에서 시간표 다시 가져와줘" 하면: 시트 첫 탭을 읽어(병합셀 포함 파싱) `timetableSaveAll`로 전체 교체. (2026-08-14 세션에서 한 방법: clasp 로그인 → 백엔드에 임시 tmpDumpSheet 액션을 별도 배포로 추가해 시트 값+병합 읽기 → 파싱 → 임시 배포 삭제·코드 복구. 요일 헤더 행 2개(수목금/토일), 위치·담당T 행, 30분 시간축 구조.)
 
 ## 학생 연락처 — 전체 번호 저장 (2026-08-26)
-- students에 `phone_student`·`phone_parent1`·`phone_parent2`(전체 번호, 수파베이스 전용 — 시트에는 없음, `018_student_contacts.sql`). **신입 등록 폼이 전체 번호 입력**(학생·학부모1 필수, 학부모2 선택)으로 바뀌고 비밀번호(학생ID)는 학부모1 뒤 8자리를 자동 도출(종전 규칙 유지). 슈스 링크 [수정]에도 연락처 3칸. 초기 적재는 `supabase/tools/import_contacts.py`(CRM xlsx). 자세한 것은 `supabase/README.md` '학생 연락처' 절.
+- students에 `phone_student`·`phone_parent1`·`phone_parent2`(전체 번호, 수파베이스 전용 — 시트에는 없음, `018_student_contacts.sql`). 초기 적재 완료(2026-08-26, 재원 493명 전원 학생·학부모1 + 학부모2 44명 — CRM xlsx 대조 검증). **출석 창에 연락처 표시**(timetable.html — 사용자 요청 "출석 체크 이름을 누르면 연락처"): 출석/1회 이동/주간추가 창(`attTelHtml`/`attTelFill`)에 학생·학부모1·학부모2를 tel: 링크로, 전 학생 연락처는 첫 클릭에 한 번 받아 캐시(`stuPhonesEnsure`), 이름 대조는 plainName+끝 A 양방향(`stuPhoneOf`). **신입 등록 폼이 전체 번호 입력**(학생·학부모1 필수, 학부모2 선택)으로 바뀌고 비밀번호(학생ID)는 학부모1 뒤 8자리를 자동 도출(종전 규칙 유지). 슈스 링크 [수정]에도 연락처 3칸. 초기 적재는 `supabase/tools/import_contacts.py`(CRM xlsx). 자세한 것은 `supabase/README.md` '학생 연락처' 절.
 
 ## 학생정보 — 내용의 원본이 수파베이스 (2026-08-26)
 - 슈스 링크·이달의 신입·명단 조회는 `students` 표에서 직접(superstar `SGETS`, timetable 신입 카드), **수정·표기 변경은 수파베이스 먼저**(superstar `PRE`) + 시트는 뒤에서. 신입 등록·아웃만 백엔드 먼저(접근코드 발급·행 삭제) + 즉시 미러. 일일 점검은 students **내용이 달라도 보고만**(행 추가·삭제만 시트 기준). 자세한 것은 `supabase/README.md` '학생정보' 절. **시트 '학생정보'를 직접 고치면 밤 점검이 덮어쓰지 않으니 수파베이스에 반영 안 됨** — 수정은 슈스 링크 화면에서 할 것.
