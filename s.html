@@ -2111,22 +2111,44 @@ function submitPw(){
 }
 
 /* ---- 모의고사 성적 ---- */
-// OMR 백엔드에서 이 학생의 성적표 목록을 가져온다. {ok, reports}/{ok:false, msg} 반환.
+// 이 학생의 성적표 목록. {ok, reports}/{ok:false, msg} 반환.
+// 2026-08-26부터 원본은 수파베이스(omr_student_reports 함수 — 017 마이그레이션, 실측 0.3~1초).
+// 실패하면 옛 OMR 백엔드(studentReports, 2~15초)로 폴백. 매칭 규칙·응답 모양은 동일하고
+// 정렬만 다르다 — 옛 백엔드는 제출시각을 문자열(요일 이름 알파벳순)로 정렬하는 버그가 있었고
+// 새 함수는 실제 시간 내림차순이다.
 function fetchMockData(id){
   if(!WEEKEND_API || WEEKEND_API.indexOf('http')!==0) return Promise.resolve({ ok:true, reports:[] });
   var info=STATE.info||{};
+  var uniq=(info.nameDup===false)?'1':'';
   // uniq=1: 동명이인이 아니면 OMR 제출 시 8자리를 잘못 적었어도 이름+학교로 매칭
-  var url=WEEKEND_API + (WEEKEND_API.indexOf('?')>=0?'&':'?') +
-    'action=studentReports&id='+encodeURIComponent(id)+
-    '&name='+encodeURIComponent(info.name||'')+
-    '&school='+encodeURIComponent(info.school||'')+
-    '&uniq='+((info.nameDup===false)?'1':'');
-  return jsonp(url, 15000).then(function(d){
-    if(!d) return { ok:false, msg:'연결 시간이 초과됐어요. 다시 시도해주세요.' };
-    var ok=d&&(d.result==='success'||d.ok);
-    if(!ok) return { ok:false, msg:(d&&d.message)||'성적을 불러오지 못했습니다.' };
-    return { ok:true, reports:d.reports||d.list||[] };
-  });
+  function legacy(){
+    var url=WEEKEND_API + (WEEKEND_API.indexOf('?')>=0?'&':'?') +
+      'action=studentReports&id='+encodeURIComponent(id)+
+      '&name='+encodeURIComponent(info.name||'')+
+      '&school='+encodeURIComponent(info.school||'')+
+      '&uniq='+uniq;
+    return jsonp(url, 15000).then(function(d){
+      if(!d) return { ok:false, msg:'연결 시간이 초과됐어요. 다시 시도해주세요.' };
+      var ok=d&&(d.result==='success'||d.ok);
+      if(!ok) return { ok:false, msg:(d&&d.message)||'성적을 불러오지 못했습니다.' };
+      return { ok:true, reports:d.reports||d.list||[] };
+    });
+  }
+  return fetch('https://bangdbhqpphqqdwcledg.supabase.co/rest/v1/rpc/omr_student_reports', {
+    method:'POST',
+    headers:{ 'apikey':'sb_publishable_dE9d1KIbpgYaQkaS2MSrlg_-7SiRJuT',
+              'Authorization':'Bearer sb_publishable_dE9d1KIbpgYaQkaS2MSrlg_-7SiRJuT',
+              'Content-Type':'application/json' },
+    body: JSON.stringify({ p:{ name:info.name||'', school:info.school||'', id:String(id||''), uniq:uniq } })
+  }).then(function(r){ if(!r.ok) throw new Error('sb '+r.status); return r.json(); })
+    .then(function(d){
+      if(!d || d.result!=='success') throw new Error('bad resp');
+      return { ok:true, reports:d.reports||[] };
+    })
+    .catch(function(e){
+      console.warn('모의고사 성적 원본 조회 실패 — 옛 백엔드로 폴백', e);
+      return legacy();
+    });
 }
 /* ---- 실전 모의고사 하위 메뉴 (신청 · OMR 작성 · 성적) ---- */
 // 모의고사 신청 1건을 '8/16 (토)' 형식으로 (백엔드 형식: date '8월 16일', day '토요일')

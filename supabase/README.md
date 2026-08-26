@@ -88,6 +88,34 @@
   실시간 미러가 필요해지면 omr_code.gs에 UrlFetchApp 이중 기록 추가(클래스프 배포+소유자 권한 승인 필요).
 - 출제(hub answer_key.html): 저장/삭제 성공 시 omr_exams 즉시 미러.
 - s.html의 모의고사 성적(studentReports)은 기존 OMR 백엔드 그대로.
+- **→ 2026-08-26 아래 '출제·OMR' 절에서 전부 수파베이스 원본으로 전환됨. 이 절은 구조 참고용.**
+
+## 출제·OMR — 수파베이스가 원본 (2026-08-26 전환)
+- [x] `migrations/017_omr_origin.sql` — 채점(scoreAndBuild)을 1:1로 옮긴 `omr_score_build_`와
+  함수 4개: `omr_exam_list`(회차 이름·형식만 — anon) · `omr_submit`(채점+기록+성적표 반환 — anon) ·
+  `omr_student_reports`(본인 성적표 목록 — anon) · `omr_report_by_id`(재채점 — **교사 신분 전용**).
+  `omr_exams.seq` 열 추가(시트 행 순서 재현 — 회차 드롭다운 순서).
+  정답이 담긴 omr_exams는 anon이 못 읽는다 — 학생은 제출 후 성적표로만 정답을 본다(옛 공개 수준).
+- **OMR 학생·교사 화면을 정적 페이지로 재구축**(그동안 Apps Script 안(iframe)이라 미러 불가였던 것):
+  hub `omr.html`(옛 iframe 래퍼 → 학생 OMR 본체)·`omr_teacher.html`(옛 래퍼 → 성적 관리 본체).
+  UI·성적표 렌더는 shuegukweekendtest의 `omr_student.html`·`teacher.html`에서 그대로 이식.
+- **쓰기 흐름**: 학생 제출 = `omr_submit`(0.5초 안팎, 채점 서버측) → 성공 시 옛 OMR 백엔드
+  doPost `action=submit`(신설)에 같은 답안을 no-cors로 보내 **응답 시트 사본**을 맞춘다.
+  출제 저장(answer_key.html) = omr_exams 업서트(교사 신분) 먼저 → 옛 saveExam으로 시트 사본,
+  실패 시 옛 방식 폴백(+기존 미러 훅). 교사 삭제(omr_teacher.html) = 원본 id 삭제 → 시트 사본에서
+  같은 제출(이름·회차 같고 제출시각 3분 이내)을 찾아 이중 삭제(action=deleteResponse).
+- s.html 모의고사 성적(fetchMockData) = `omr_student_reports` 먼저, 실패 시 옛 백엔드 폴백.
+  **옛 백엔드의 정렬 버그**(제출시각을 문자열로 정렬 — 요일 이름 알파벳순)도 이번에 고쳐짐(실시간순).
+- **omr_code.gs 재배포 필요**: doPost `action=submit`(응답 시트 사본 기록)과
+  doGet 학생/교사 화면 → 새 정적 페이지로 리다이렉트(옛 주소로 제출하면 시트에만 남으므로).
+  재배포 전까지: 새 페이지 제출은 원본에만 기록(시트 사본 없음 — 새벽 점검이 보고),
+  옛 saveExam·deleteResponse·responses·studentReports 액션은 그대로 동작.
+- **일일 점검 --omr: 대조·보고만**(`copy_compare` — 이중 기록 시각이 어긋날 수 있어 내용이 같고
+  3분 이내면 같은 건으로 짝지음). --signup entries도 같은 방식으로 통일.
+- 검증(2026-08-26): 실학생 5명 성적표 33건을 옛 백엔드 채점과 **전 항목 대조 — 완전 일치**
+  (등급컷·영역별·문항 정오까지), 제출 5시나리오 롤백 트랜잭션 통과(점수 독립 계산 대조 포함),
+  브라우저 E2E 14항목 통과(제출→성적표→교사 재채점→삭제→회차 저장 왕복).
+  전환 시점 대조: 회차 8·응답 311 — 시트와 완전 일치(순서 포함).
 
 ## 주말 모의고사 신청 — 수파베이스가 원본 (2026-08-26 전환)
 - [x] `migrations/016_signup_origin.sql` — 신청 판정 로직(signup_code.gs)을 1:1로 옮긴

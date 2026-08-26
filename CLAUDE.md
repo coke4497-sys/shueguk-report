@@ -152,7 +152,7 @@
 - **모의고사 메뉴 접속지연 대책(2026-08-26)**: 메뉴를 여는 순간(s.html `openMockHub`→`prefetchMockMenu`) 두 가지를 선조회한다 — 백엔드 변경 없음, 화면만.
   - ① **성적**: `studentReports`(실측 2~15초)를 미리 받아 두고(`MOCK_PRE`) `submitPw`가 재사용 — 8자리를 입력하는 동안 도착해 체감 대기가 사라진다. **이름이 유일한 학생만**(id 없이도 name+school+uniq=1 조회가 8자리 조회와 결과 동일 — `studentReports_`의 idOk 규칙). 동명이인은 종전대로 입력 후 조회. 신선도 2분 — OMR 응시 직후 다녀오면 `refreshOnReturn`·재진입이 새로 받는다.
   - ② ~~신청 days sessionStorage 전달~~ — **같은 날 신청 데이터가 수파베이스 원본으로 전환되며 제거**(016 마이그레이션): signup.html이 `signup_days` 함수로 0.3초 안팎에 스스로 받는다. 자세한 것은 `supabase/README.md`·shuegukweekendtest CLAUDE.md.
-  - OMR 카드는 페이지가 앱스스크립트 내부(iframe)라 선조회 불가 — omr.html에 script.google.com **preconnect**만 추가. 더 줄이려면 omr_student.html을 정적 호스팅으로 옮기고 제출을 doPost 액션으로 바꾸는 백엔드 작업이 필요(clasp 재배포).
+  - ~~OMR 카드는 앱스스크립트 내부(iframe)라 선조회 불가~~ — **같은 날 출제·OMR도 수파베이스 원본으로 전환**(017 마이그레이션): hub `omr.html`이 정적 학생 OMR 본체가 되어 즉시 열리고, 제출·채점(0.5초 안팎)·성적 관리(`omr_teacher.html`)·s.html 모의고사 성적(`fetchMockData` — `omr_student_reports` 함수, 폴백 레거시) 모두 수파베이스. 자세한 것은 `supabase/README.md`. **모의고사 성적 탭 순서도 이때 고쳐짐**(옛 백엔드는 제출시각을 문자열로 정렬해 요일 이름 알파벳순이었다 — 이제 실제 시간순).
   - 검증(2026-08-26): 브라우저 E2E로 선조회 즉시 렌더→원본 승리→직접 접속 폴백→s.html 선조회 왕복(실 백엔드) 확인.
 
 ## H WORK 마감 (2026-08-15)
