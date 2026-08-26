@@ -528,6 +528,9 @@
   .blk.wkoff{opacity:.62;border-style:dashed;border-width:1.5px;border-color:var(--btn);}
   .blk.wkoff .bt .nm{text-decoration:line-through;text-decoration-thickness:1px;}
   .blk.wkoff .wkflag{text-decoration:none;}
+  /* 이 주만 이동해 나간 자리 — 개요 카드·옆 요일 막대도 연하게 (2026-08-26) */
+  .wk-mini.mvd,.wk-bar.mvd{opacity:.52;border-style:dashed;}
+  .wk-mini.mvd b{text-decoration:line-through;text-decoration-thickness:1px;}
   .blk .wkflag{font-style:normal;font-size:.66rem;font-weight:700;color:var(--accent);
     background:var(--icon-bg);border-radius:5px;padding:0 5px;margin-left:4px;vertical-align:1px;}
   .eset-grp{display:inline-flex;gap:6px;flex-wrap:wrap;}
@@ -786,6 +789,7 @@
         <button onclick="multiApply('결석')">선택 결석</button>
         <button onclick="multiApply('')">선택 기록 지우기</button>
         <span id="multiCnt" class="elabel"></span>
+        <button id="a-vm" style="display:none;color:var(--accent);font-weight:700;" onclick="openVmToday()"></button>
       </div>
       <span class="sp"></span>
       <div class="searchbar">
@@ -2211,7 +2215,7 @@ $('pw').addEventListener('keydown', function(e){ if(e.key==='Enter') tryLogin();
 var loadSeq = 0;   // 기간 전환 등으로 load가 겹칠 때 마지막 요청만 반영
 function load(isReload, cb){
   var seq = ++loadSeq;
-  if (isReload) nsCache = {};   // 다시 불러오기 = 이달의 신입생도 새로 조회
+  if (isReload){ nsCache = {}; vmList = null; }   // 다시 불러오기 = 이달의 신입생·오늘 보충 방문도 새로 조회
   // 캐시가 있으면 즉시 그려서 바로 보이게 (뒤에서 최신으로 갱신)
   var painted = false;
   if (!isReload){
@@ -2453,6 +2457,7 @@ function renderTabs(){
   $('eset-all').style.display  = (mode === 'week') ? 'none' : '';
   $('eset-week').style.display = (mode === 'week') ? '' : 'none';
   $('attbar').classList.toggle('show', mode === 'today');
+  vmEnsure(); vmSyncBtn();   // 오늘의 시간표면 오늘 보충 방문(영상·대면)을 조회해 버튼·팝업으로
   var bare = (mode === 'cal' || mode === 'exs' || mode === 'att');
   document.querySelector('.searchbar').style.display = bare ? 'none' : '';
   document.querySelector('.legend').style.display = bare ? 'none' : '';
@@ -3109,10 +3114,21 @@ function blockEl(c, forList){
   var b = document.createElement('div');
   var todayDrop = (mode==='today' && moving && moving.once) ? 'droppable ' : '';
   var offToday = (mode === 'today') ? wkOffAt(c.id, todayStr()) : null;   // 오늘 휴강인 반
+  var mvdToday = (mode === 'today') ? wkMovedAway(c.id, todayStr()) : null;   // 오늘만 다른 시간으로 이동한 반
   b.className = 'blk ' + (mode==='today' ? todayDrop : 'droppable ') + colorOf(c.cls) +
-                (c.wk ? ' wkonly' : '') + (offToday ? ' wkoff' : '') +
+                (c.wk ? ' wkonly' : '') + ((offToday || mvdToday) ? ' wkoff' : '') +
                 (classMoving && classMoving.id===c.id ? ' moving-src' : '');
   b.setAttribute('data-cid', c.id);
+  if (mvdToday){
+    // 오늘 이동해 나간 자리 — 출석 대상이 아니므로 학생 칩 없이 어디로 갔는지만 연하게
+    b.innerHTML = '<div class="bt"><span class="nm">'+esc(c.cls)+' <em class="wkflag">오늘 이동</em></span>'+
+                  '<small>'+esc(c.start)+'~'+esc(c.end)+
+                  (forList ? ' · '+esc(c.teacher)+'T'+(c.loc ? ' · '+esc(c.loc) : '') : '')+'</small></div>'+
+                  '<div class="stus"><span class="empty-note">→ '+esc(wkMovedToLabel(mvdToday))+' 에서 해요'+
+                  (mvdToday.reason ? ' — '+esc(mvdToday.reason) : '')+'</span></div>';
+    b.addEventListener('click', function(){ openWeekMovedInfo(c, todayStr(), mvdToday); });
+    return b;
+  }
   if (offToday){
     // 오늘은 수업이 없는 반 — 출석 대상이 아니므로 학생 칩 없이 휴강만 알린다
     b.innerHTML = '<div class="bt"><span class="nm">'+esc(c.cls)+' <em class="wkflag">오늘 휴강</em></span>'+
@@ -3455,8 +3471,19 @@ function buildWeekList(){
 function weekBlockEl(c, dstr, forList){
   var b = document.createElement('div');
   var off = wkOffAt(c.id, dstr);   // 이 주만 휴강
-  b.className = 'blk ' + colorOf(c.cls) + (c.wk ? ' wkonly' : '') + (off ? ' wkoff' : '');
+  var mvd = wkMovedAway(c.id, dstr);   // 이 주만 다른 시간으로 이동해 나감
+  b.className = 'blk ' + colorOf(c.cls) + (c.wk ? ' wkonly' : '') + ((off || mvd) ? ' wkoff' : '');
   b.setAttribute('data-cid', c.id);
+  if (mvd){
+    // 이동해 나간 자리 — 어디로 갔는지 연하게 남긴다 (2026-08-26 사용자 요청)
+    b.innerHTML = '<div class="bt"><span class="nm">'+esc(c.cls)+' <em class="wkflag">이 주 이동</em></span>'+
+                  '<small>'+esc(c.start)+'~'+esc(c.end)+
+                  (forList ? ' · '+esc(c.teacher)+'T'+(c.loc ? ' · '+esc(c.loc) : '') : '')+'</small></div>'+
+                  '<div class="stus"><span class="empty-note">→ '+esc(wkMovedToLabel(mvd))+' 에서 해요'+
+                  (mvd.reason ? ' — '+esc(mvd.reason) : '')+'</span></div>';
+    b.addEventListener('click', function(){ openWeekMovedInfo(c, dstr, mvd); });
+    return b;
+  }
   if (off){
     b.innerHTML = '<div class="bt"><span class="nm">'+esc(c.cls)+' <em class="wkflag">이 주 휴강</em></span>'+
                   '<small>'+esc(c.start)+'~'+esc(c.end)+
@@ -3865,8 +3892,45 @@ function wkOffAt(cid, dstr){
 }
 function wkVisible(c, dstr){
   if (c.wk) return !!dstr && c.wk === dstr;
-  // 휴강은 감추지 않고 '이 주 휴강' 카드로 남긴다 — 왜 수업이 없는지 보이고, 되돌릴 수 있다
-  return !wkMovedAway(c.id, dstr);
+  // 휴강·이 주만 이동 모두 감추지 않는다 — 휴강은 '이 주 휴강', 이동은 '어디로 이동' 흐린 카드로
+  // 원래 자리에 남긴다 (2026-08-26 사용자 요청 "이동한 자리에 연하게 어디로 이동이라는 표시").
+  return true;
+}
+/* '이 주만' 반ID(w+yyMMdd+글자)에 담긴 날짜 */
+function wkIdYmd(id){
+  var m = /^w(\d{6})/.exec(String(id || ''));
+  return m ? '20' + m[1].slice(0,2) + '-' + m[1].slice(2,4) + '-' + m[1].slice(4,6) : '';
+}
+/* 주간반이동 기록 → 옮겨 간 곳 표기 ('9/12 (토) 오전9:30~11:00 · ○○T') */
+function wkMovedToLabel(mv){
+  var t = classes.find(function(x){ return x.id === mv.toId; });
+  var ymd = wkIdYmd(mv.toId);
+  if (!t) return (ymd ? wkDayLabel(ymd) + ' ' : '') + '수업으로 이동';
+  return wkDayLabel(ymd) + ' ' + t.start + '~' + t.end + (t.teacher ? ' · ' + t.teacher + 'T' : '');
+}
+/* 이동해 나간 자리의 흐린 카드를 눌렀을 때 — 어디로 갔는지·되돌리는 곳 안내 */
+function openWeekMovedInfo(c, dstr, mv){
+  var ymd = wkIdYmd(mv.toId);
+  openModal(
+    '<h3>이 주만 옮긴 수업</h3>'+
+    '<p class="mdesc"><b>'+esc(c.cls)+'</b><br>원래: '+esc(wkDayLabel(dstr))+' '+esc(c.start)+'~'+esc(c.end)+
+    (c.teacher ? ' · '+esc(c.teacher)+'T' : '')+'</p>'+
+    '<p class="mdesc hint-x">→ <b>'+esc(wkMovedToLabel(mv))+'</b> 에서 해요.'+
+    (mv.reason ? '<br>사유: '+esc(mv.reason) : '')+'</p>'+
+    '<p class="subnote">되돌리려면 옮겨 간 날짜의 카드에서 [원래 시간으로 되돌리기]를 누르세요.</p>'+
+    '<div class="mbtns"><button onclick="closeModal()">닫기</button>'+
+    (mode === 'week' && ymd ? '<button class="primary" onclick="wkGotoMoved(\''+esc(ymd)+'\')">옮긴 수업 보러 가기</button>' : '')+
+    '</div>'
+  );
+}
+/* 옮겨 간 날짜의 주차·요일로 이동 */
+function wkGotoMoved(ymd){
+  closeModal();
+  var d = new Date(+ymd.slice(0,4), +ymd.slice(5,7)-1, +ymd.slice(8,10));
+  weekStart = weekStartOf(d);
+  weekZoomDay = ['일','월','화','수','목','금','토'][d.getDay()];
+  keepScroll = false;
+  loadWeek();
 }
 function wkZoomSorted(dname, dstr){
   return classes.filter(function(c){ return c.day === dname && wkVisible(c, dstr); })
@@ -3918,17 +3982,21 @@ function buildWeekOverview(){
       }
       var m = document.createElement('button');
       m.type = 'button';
-      m.className = 'wk-mini ' + colorOf(c.cls);
+      var mvd = wkMovedAway(c.id, dstr);
+      m.className = 'wk-mini ' + colorOf(c.cls) + (mvd ? ' mvd' : '');
       m.setAttribute('data-cid', c.id);
       var s = wkAttSummary(c.id, dstr);
-      var att = s.any
+      var att = mvd ? '<i class="none">이동</i>'
+        : s.any
         ? (s.cnt['출석'] ? '<i class="ok">'+s.cnt['출석']+'</i>' : '') +
           (s.cnt['지각'] ? '<i class="late">'+s.cnt['지각']+'</i>' : '') +
           (s.cnt['결석'] ? '<i class="abs">'+s.cnt['결석']+'</i>' : '')
         : '<i class="none">—</i>';
-      m.innerHTML = '<b>'+esc(c.cls)+'</b><small>'+esc(c.start)+'~'+esc(c.end)+' · '+c.students.length+'명</small>'+
-                    '<span class="sum">'+att+'</span>';
-      m.title = esc(c.cls) + ' — 누르면 ' + dname + '요일 확대';
+      m.innerHTML = '<b>'+esc(c.cls)+'</b><small>'+
+                    (mvd ? '→ '+esc(wkMovedToLabel(mvd)) : esc(c.start)+'~'+esc(c.end)+' · '+c.students.length+'명')+
+                    '</small><span class="sum">'+att+'</span>';
+      m.title = mvd ? esc(c.cls) + ' — 이 주는 ' + wkMovedToLabel(mvd) + ' 에서 해요'
+                    : esc(c.cls) + ' — 누르면 ' + dname + '요일 확대';
       m.addEventListener('click', function(){ weekZoomDay = dname; keepScroll = false; render(); });
       col.appendChild(m);
     });
@@ -3951,8 +4019,9 @@ function buildWeekZoom(dname){
       slim.appendChild(wkDayHeader(dy, dates, 'slim', function(){ weekZoomDay = dy; keepScroll = false; render(); }));
       wkDayClasses(dy, ymdOf(dates[dy])).forEach(function(c){
         var b = document.createElement('div');
-        b.className = 'wk-bar ' + colorOf(c.cls);
-        b.title = c.cls + ' ' + c.start + '~' + c.end;
+        var mvB = wkMovedAway(c.id, ymdOf(dates[dy]));
+        b.className = 'wk-bar ' + colorOf(c.cls) + (mvB ? ' mvd' : '');
+        b.title = c.cls + ' ' + c.start + '~' + c.end + (mvB ? ' — 이 주는 ' + wkMovedToLabel(mvB) + ' 에서' : '');
         slim.appendChild(b);
       });
       wrap.appendChild(slim);
@@ -6063,6 +6132,86 @@ function saveMakeup(i, doneVal){
       renderMakeup();
       setStatus(plainName(m.student) + ' — ' + (doneVal === null ? '보충 일정 저장'
         : (done ? (mkIsVideo({ plan:plan, done:false }) ? '영상보충 출석 — 완료 처리' : '완료 처리') : '미완료로 변경')) + ' 완료.', 'ok');
+    } else setStatus('저장 실패: ' + ((res && res.message) || '오류'), 'err');
+  });
+}
+
+/* ── 오늘의 보충 방문 (2026-08-26 사용자 요청 "영상보충은 해당 날짜의 오늘의 시간표에서 팝업으로") ──
+ * 결석자 관리에 적힌 영상·대면 보충 일정("영상보충: 8/26(수) 6:00") 중 날짜가 오늘인 건을
+ * 오늘의 시간표 도구줄 버튼 + 팝업으로 보여 주고, 그 자리에서 출석 완료 처리한다. */
+var vmList = null, vmBusy = false;   // null = 아직 조회 전 ([다시 불러오기]가 비운다)
+function vmPlanMD(plan){
+  var m = /(\d{1,2})\s*\/\s*(\d{1,2})/.exec(String(plan || ''));
+  return m ? (+m[1]) + '/' + (+m[2]) : '';
+}
+function vmTodayMD(){ var t = new Date(); return (t.getMonth()+1) + '/' + t.getDate(); }
+function vmEnsure(){
+  if (mode !== 'today' || vmBusy || vmList !== null) return;
+  vmBusy = true;
+  var other = (book === '정규') ? '내신' : '정규';
+  var qs2 = '&pw=' + encodeURIComponent(pw) + '&t=' + Date.now();
+  function g(u){ return fetch(u).then(function(r){ return r.json(); }).catch(function(){ return null; }); }
+  Promise.all([
+    g(ENDPOINT + '?action=attendAbsentList&book=' + encodeURIComponent(book) + qs2),
+    g(ENDPOINT + '?action=attendAbsentList&book=' + encodeURIComponent(other) + qs2),
+    cacheGet('list:' + other) ? Promise.resolve(null)
+      : g(ENDPOINT + '?action=timetableList&book=' + encodeURIComponent(other) + qs2)
+  ]).then(function(rs){
+    vmBusy = false;
+    if (rs[2] && rs[2].result === 'success')
+      cacheSet('list:' + other, { classes: rs[2].classes || [], onceMoves: rs[2].onceMoves || [] });
+    var all = [];
+    if (rs[0] && rs[0].result === 'success') (rs[0].list || []).forEach(function(m){ m.book = book; all.push(m); });
+    if (rs[1] && rs[1].result === 'success') (rs[1].list || []).forEach(function(m){ m.book = other; all.push(m); });
+    var md = vmTodayMD();
+    vmList = all.filter(function(m){ return (mkIsVideo(m) || mkIsOffline(m)) && vmPlanMD(m.plan) === md; });
+    vmSyncBtn();
+    // 오늘 올 사람이 있으면 하루 한 번은 저절로 띄운다 — 이미 다른 창이 열려 있으면 방해하지 않는다
+    if (vmList.length && localStorage.getItem('tt_vm_seen') !== todayStr() &&
+        !$('modal').classList.contains('on')){
+      localStorage.setItem('tt_vm_seen', todayStr());
+      openVmToday();
+    }
+  }).catch(function(){ vmBusy = false; });
+}
+function vmSyncBtn(){
+  var b = $('a-vm'); if (!b) return;
+  var n = (vmList || []).length;
+  b.style.display = (mode === 'today' && n) ? '' : 'none';
+  if (n) b.textContent = '오늘 보충 방문 ' + n + '건';
+}
+function openVmToday(){
+  openModal('<h3>오늘 보충 방문</h3>'+
+    '<p class="mdesc">오늘 오기로 한 영상·대면 보충이에요. 다녀가면 출석 버튼으로 완료 처리하세요.</p>'+
+    '<div id="vm-list"></div>'+
+    '<div class="mbtns"><button onclick="closeModal(); openMakeup()">결석자 관리 열기</button>'+
+    '<button onclick="closeModal()">닫기</button></div>', true);
+  vmRender();
+}
+function vmRender(){
+  var box = $('vm-list'); if (!box) return;
+  var items = vmList || [];
+  if (!items.length){ box.innerHTML = '<p class="subnote">오늘 예정된 보충 방문이 없어요. 모두 확인했어요!</p>'; return; }
+  box.innerHTML = items.map(function(m, i){
+    return '<div class="mk-item">'+
+      '<div class="mk-top"><b>' + esc(plainName(m.student)) + '</b>'+
+      '<small>' + esc(m.date) + ' (' + mkDayOf(m.date) + ') 결석 · ' + esc(classLabelOf(m.classId, m.book)) +
+      (m.book === '내신' ? ' <b>(내신)</b>' : '') + '</small></div>'+
+      '<div class="mk-plan">보충: <b>' + esc(m.plan) + '</b></div>'+
+      (m.mkMemo ? '<div class="mk-plan">메모: ' + esc(m.mkMemo) + '</div>' : '')+
+      '<div class="mk-row"><button class="done-btn" onclick="vmDone(' + i + ')">'+
+      (mkIsOffline(m) ? '보충 출석' : '영상보충 출석') + '</button></div>'+
+      '</div>';
+  }).join('');
+}
+function vmDone(i){
+  var m = (vmList || [])[i]; if (!m) return;
+  post({ action:'attendMakeupSet', book:(m.book || book), date:m.date, classId:m.classId, student:m.student,
+         plan:m.plan || '', done:'1', mkMemo:m.mkMemo || '' }, '저장하는 중…', function(res){
+    if (res && res.result === 'success'){
+      vmList.splice(i, 1);
+      setStatus(plainName(m.student) + ' — 보충 출석 완료 처리했어요.', 'ok');
+      vmRender(); vmSyncBtn();
     } else setStatus('저장 실패: ' + ((res && res.message) || '오류'), 'err');
   });
 }
