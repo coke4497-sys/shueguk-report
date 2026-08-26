@@ -6140,6 +6140,7 @@ function saveMakeup(i, doneVal){
  * 결석자 관리에 적힌 영상·대면 보충 일정("영상보충: 8/26(수) 6:00") 중 날짜가 오늘인 건을
  * 오늘의 시간표 도구줄 버튼 + 팝업으로 보여 주고, 그 자리에서 출석 완료 처리한다. */
 var vmList = null, vmBusy = false;   // null = 아직 조회 전 ([다시 불러오기]가 비운다)
+var vmHadAny = false;                // 오늘 원래 올 사람이 있었는지 — 빈 팝업 문구 구분용
 function vmPlanMD(plan){
   var m = /(\d{1,2})\s*\/\s*(\d{1,2})/.exec(String(plan || ''));
   return m ? (+m[1]) + '/' + (+m[2]) : '';
@@ -6165,10 +6166,11 @@ function vmEnsure(){
     if (rs[1] && rs[1].result === 'success') (rs[1].list || []).forEach(function(m){ m.book = other; all.push(m); });
     var md = vmTodayMD();
     vmList = all.filter(function(m){ return (mkIsVideo(m) || mkIsOffline(m)) && vmPlanMD(m.plan) === md; });
+    vmHadAny = vmList.length > 0;
     vmSyncBtn();
-    // 오늘 올 사람이 있으면 하루 한 번은 저절로 띄운다 — 이미 다른 창이 열려 있으면 방해하지 않는다
-    if (vmList.length && localStorage.getItem('tt_vm_seen') !== todayStr() &&
-        !$('modal').classList.contains('on')){
+    // 있든 없든 하루 한 번은 저절로 띄운다(없으면 "올 친구가 없어요" — 2026-08-26 사용자 확정).
+    // 이미 다른 창이 열려 있으면 방해하지 않는다.
+    if (localStorage.getItem('tt_vm_seen') !== todayStr() && !$('modal').classList.contains('on')){
       localStorage.setItem('tt_vm_seen', todayStr());
       openVmToday();
     }
@@ -6177,8 +6179,10 @@ function vmEnsure(){
 function vmSyncBtn(){
   var b = $('a-vm'); if (!b) return;
   var n = (vmList || []).length;
-  b.style.display = (mode === 'today' && n) ? '' : 'none';
-  if (n) b.textContent = '오늘 보충 방문 ' + n + '건';
+  b.style.display = (mode === 'today' && vmList !== null) ? '' : 'none';
+  b.textContent = n ? '오늘 보충 방문 ' + n + '건' : '오늘 보충 방문 없음';
+  b.style.color = n ? 'var(--accent)' : 'var(--ink-soft)';
+  b.style.fontWeight = n ? '700' : '400';
 }
 function openVmToday(){
   openModal('<h3>오늘 보충 방문</h3>'+
@@ -6191,7 +6195,11 @@ function openVmToday(){
 function vmRender(){
   var box = $('vm-list'); if (!box) return;
   var items = vmList || [];
-  if (!items.length){ box.innerHTML = '<p class="subnote">오늘 예정된 보충 방문이 없어요. 모두 확인했어요!</p>'; return; }
+  if (!items.length){
+    box.innerHTML = '<p class="subnote">' +
+      (vmHadAny ? '오늘 보충 방문을 모두 확인했어요!' : '오늘은 영상보충 올 친구가 없습니다.') + '</p>';
+    return;
+  }
   box.innerHTML = items.map(function(m, i){
     return '<div class="mk-item">'+
       '<div class="mk-top"><b>' + esc(plainName(m.student)) + '</b>'+
