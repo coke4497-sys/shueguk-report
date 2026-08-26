@@ -229,6 +229,28 @@
 - 주의: hwork_homeworks.data에는 정답이 들어 있다 — 현 공개 수준은 기존과 동일
   (제출 응답의 정오(JSON)·getReport로 정답이 이미 노출되는 구조).
 
+## 신입 등록·아웃 — 수파베이스가 원본 (2026-08-26 완전 전환)
+- **마이그레이션 없음** (교사 인증으로 students·기록 표에 직접 쓴다 — 새 함수 불필요).
+  **백엔드 addStudent가 token 파라미터를 받도록 수정 — clasp 재배포 필요.**
+- **신입 등록**(superstar.html): 어댑터 `PRE.addStudent`가 백엔드 판정 1:1(재원생 동명이인·접미사·
+  같은 번호 경고, force 통과)로 **접근코드를 페이지에서 생성해 students에 직접 INSERT**
+  (연락처 전체 번호 포함 — 옛 스키마면 연락처 없이 재시도). 시트 사본은 **같은 접근코드**를
+  담아 뒤에서 addStudent 호출(`__legacyBody` — 백엔드가 token을 그대로 쓰고 force='1'로 경고
+  재차단 방지). 수파베이스 실패 시 종전대로 백엔드 먼저 + AFTER 미러 폴백.
+- **아웃**(superstar.html): 검색(`scanSB`)이 **수파베이스 9개 표를 직접 조회**(students·submissions·
+  star_bonus·notice_reads·omr_responses·signup_entries·clinic_requests·voca_results·
+  hwork_submissions — 옛 exitScan과 같은 목록·같은 이름/번호 대조 규칙) + 시간표 명단(scanTT).
+  삭제는 **원본 행을 id로 정확히 DELETE** → 시트 사본은 뒤에서 옛 exitScan/exitDelete로 정리
+  (**전부 선택된 (종류·이름) 묶음만** — 일부 선택은 시트에 남겨 사본이 원본보다 많은 안전한
+  방향). 수파베이스 실패 시 옛 시트 검색·삭제로 폴백.
+  - **전환 배경(정확성 문제)**: 어휘·H WORK·클리닉 등이 원본 전환된 뒤로, 시트 행만 지우는
+    옛 아웃은 원본(DB)에 기록을 남겨 화면에 되살아났다.
+  - **한계**: 시트 사본 정리가 실패하면 submissions·voca_results(insert_missing)·star_bonus
+    (시트 원본)는 **다음 날 점검이 시트 행을 근거로 DB에 되살릴 수 있다** — 아웃 검색을 다시
+    돌려 지우면 된다(점검 보고에 드러남).
+- **일일 점검: students는 행 추가·삭제도 보고만**(heal=False — 시트 기준으로 행을 맞추면
+  방금 등록한 신입이 지워지고 아웃한 학생이 되살아난다). 내용 보고는 종전 그대로.
+
 ## 공지 확인(별 +1) — 수파베이스가 원본 (2026-08-26 전환)
 - [ ] `migrations/022_notice_read_origin.sql` — `notice_read_submit(p)` SECURITY DEFINER 함수를
   anon에 연다. **사용자 SQL Editor 실행 대기.** 판정은 백엔드 checkNotice 1:1 — 학생 확인

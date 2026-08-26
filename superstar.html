@@ -900,6 +900,66 @@
             .then(function(){ return { result:'success', from: from, to: to }; });
         });
       });
+    },
+    /* 신입 등록 — 수파베이스 먼저 (2026-08-26 완전 전환): 백엔드 addStudent의 판정
+     * (재원생 동명이인·접미사·같은 번호 경고, force='1' 통과)과 접근코드 생성을 1:1로 수행하고
+     * students에 직접 넣는다. 시트 사본은 같은 접근코드를 담아 뒤에서 보낸다(__legacyBody —
+     * 백엔드 addStudent가 token 파라미터를 받도록 수정됨, force='1'로 경고 재차단 방지).
+     * 연락처 전체 번호(pstuFull 등)는 페이지가 본문에 함께 담아 준다(백엔드는 무시). */
+    addStudent: function(b){
+      var name = tr_(b.name), sid = tr_(b.sid);
+      if (!name) return Promise.resolve({ result:'error', message:'이름을 입력하세요.' });
+      if (!/^\d{8}$/.test(sid)) return Promise.resolve({ result:'error', message:'부모님 연락처 8자리(숫자)를 입력하세요. 성적 확인 비밀번호로 쓰여요.' });
+      if (tr_(b.sphone) && !/^\d{8}$/.test(tr_(b.sphone))) return Promise.resolve({ result:'error', message:'학생 연락처는 숫자 8자리로 입력하세요. (없으면 비워두세요)' });
+      if (!tr_(b.school) || !tr_(b.grade)) return Promise.resolve({ result:'error', message:'학교와 학년을 입력하세요.' });
+      function randTok(){
+        var chars = 'abcdefghijklmnopqrstuvwxyz0123456789', s = '';
+        for (var i = 0; i < 10; i++) s += chars.charAt(Math.floor(Math.random() * chars.length));
+        return s;
+      }
+      return stuAll().then(function(rows){
+        var warns = [], base = baseNm_(name), used = {}, maxSeq = 0;
+        rows.forEach(function(r){
+          maxSeq = Math.max(maxSeq, r.seq || 0);
+          var tk = tr_(r.code); if (tk) used[tk] = true;
+          var rn = tr_(r.name); if (!rn) return;
+          if (LEFT_RE.test(tr_(r.enrolled))) return;
+          var rid = tr_(r.student_id).replace(/^'/, '');
+          var who = rn + ' (' + tr_(r.school) + ' ' + tr_(r.grade) + ')';
+          if (rn === name) warns.push('같은 이름의 재원생이 이미 있어요: ' + who + ' — 동명이인이면 이름 뒤에 A·B 접미사를 붙여 등록하세요 (예: ' + name + 'B).');
+          else if (baseNm_(rn) === base) warns.push('접미사 동명이인이 있어요: ' + who + ' — 이 학생도 접미사를 붙여 등록하는 것을 권장해요.');
+          if (rid && rid === sid) warns.push('같은 번호(8자리)의 재원생이 있어요: ' + who + ' — 형제(쌍둥이)라면 그대로 등록하세요.');
+        });
+        if (warns.length && String(b.force || '') !== '1') return { result:'warn', warns: warns };
+        var token = '';
+        do { token = randTok(); } while (used[token]);
+        return sb('POST', '/students', {
+          seq: maxSeq + 1, student_id: sid, name: name,
+          school: tr_(b.school), grade: tr_(b.grade), teacher: tr_(b.teacher), memo: tr_(b.memo),
+          class_a: tr_(b.classA), class_b: tr_(b.classB),
+          naeshin_a: tr_(b.progress), naeshin_b: tr_(b.checkup),
+          enrolled: '', code: token, student_phone: tr_(b.sphone), reg_date: todayYmd(),
+          phone_student: tr_(b.pstuFull), phone_parent1: tr_(b.pp1Full), phone_parent2: tr_(b.pp2Full)
+        }, { 'Prefer': 'return=minimal' }).then(function(){
+          var copy = {}; for (var k in b) copy[k] = b[k];
+          copy.token = token; copy.force = '1';
+          return { result:'success', name: name, token: token, __legacyBody: copy };
+        }, function(e){
+          // 연락처 열이 없는 옛 스키마(018 전)면 연락처 없이 한 번 더
+          console.warn('신입 등록 1차 실패 — 연락처 열 없이 재시도', e);
+          return sb('POST', '/students', {
+            seq: maxSeq + 1, student_id: sid, name: name,
+            school: tr_(b.school), grade: tr_(b.grade), teacher: tr_(b.teacher), memo: tr_(b.memo),
+            class_a: tr_(b.classA), class_b: tr_(b.classB),
+            naeshin_a: tr_(b.progress), naeshin_b: tr_(b.checkup),
+            enrolled: '', code: token, student_phone: tr_(b.sphone), reg_date: todayYmd()
+          }, { 'Prefer': 'return=minimal' }).then(function(){
+            var copy = {}; for (var k in b) copy[k] = b[k];
+            copy.token = token; copy.force = '1';
+            return { result:'success', name: name, token: token, __legacyBody: copy };
+          });
+        });
+      });
     }
   };
   function fakeRes(res){
@@ -952,7 +1012,16 @@
     var pre = body && PRE[body.action];
     if (pre){
       return pre(body).then(function(res){
-        if (res && res.result === 'success') rawFetch(url, opts).catch(function(){});   // 시트 이중 기록
+        if (res && res.result === 'success'){
+          // 시트 이중 기록 — PRE가 사본용 본문을 따로 만들었으면(접근코드 등) 그것으로 보낸다
+          var copyOpts = opts;
+          if (res.__legacyBody){
+            copyOpts = {}; for (var ck in opts) copyOpts[ck] = opts[ck];
+            copyOpts.body = JSON.stringify(res.__legacyBody);
+            delete res.__legacyBody;
+          }
+          rawFetch(url, copyOpts).catch(function(){});
+        }
         return fakeRes(res);
       }, function(e){
         console.warn('수파베이스 쓰기 실패 — 기존 백엔드로 폴백', body.action, e);
@@ -1237,7 +1306,9 @@
         name:name, school:school, grade:grade, sid:sid, sphone:sphone,
         teacher:$('f-teacher').value.trim(), memo:$('f-memo').value.trim(),
         classA:slot(pA), classB:slot(pB),
-        progress:slot(pP), checkup:slot(pC)
+        progress:slot(pP), checkup:slot(pC),
+        // 연락처 전체 번호 — 어댑터(PRE.addStudent)가 students에 직접 저장, 백엔드는 무시
+        pstuFull: pstu, pp1Full: pp1, pp2Full: pp2
       })
     })
     .then(function(r){ return r.json(); })
@@ -1350,12 +1421,69 @@
       })
       .catch(function(e){ console.warn('시간표 명단 조회 실패', e); return []; });
   }
-  function scan(){
-    var nm = $('x-name').value.trim(), sid = $('x-sid').value.trim();
-    if(!nm){ setStatus('scanStatus','이름을 입력해 주세요.','err'); return; }
-    if(sid && !/^\d{8}$/.test(sid)){ setStatus('scanStatus','8자리는 숫자 8개여야 해요.','err'); return; }
-    var btn=$('findBtn'); btn.disabled=true; setStatus('scanStatus','전체 시트에서 찾는 중… (10초 정도 걸릴 수 있어요)');
-    $('resultCard').style.display='none';
+  /* ── 기록 검색을 수파베이스에서 (2026-08-26 완전 전환) ─────────────
+   * 어휘·H WORK·클리닉·OMR·신청 등이 수파베이스 원본으로 바뀌면서, 시트 행만 지우는
+   * 옛 아웃은 원본에 기록을 남겼다(화면에 되살아남). 이제 원본(수파베이스)에서 찾아
+   * id로 정확히 지우고, 시트 사본은 뒤에서 옛 exitScan/exitDelete로 정리한다.
+   * 이름 대조는 백엔드 exitScan과 동일(실명·접미사 양방향), 수파베이스 실패 시 옛 경로 폴백. */
+  function exBase(s){ return String(s||'').trim().replace(/[A-Za-z]$/,''); }
+  function exNameHit(rn, nm, base){
+    rn = String(rn||'').trim(); if (!rn) return false;
+    var rb = exBase(rn);
+    return rn === nm || rn === base || rb === nm || rb === base;
+  }
+  function exIdMatch(rid, sid, sid4){
+    rid = String(rid==null?'':rid).replace(/^'/,'').trim();
+    if (!sid || !rid) return null;
+    return rid === sid || (rid.length === 4 && !!sid4 && rid === sid4);
+  }
+  function exYmd(v){
+    var s = String(v==null?'':v).trim();
+    if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0,10);
+    var t = Date.parse(s); if (isNaN(t)) return s.slice(0,16);
+    var d = new Date(t + 9*3600e3);
+    var p2 = function(n){ return ('0'+n).slice(-2); };
+    return d.getUTCFullYear()+'-'+p2(d.getUTCMonth()+1)+'-'+p2(d.getUTCDate());
+  }
+  var SB_SCAN = [
+    { table:'students',          label:'학생정보(명단)',    sel:'id,name,student_id,school,grade,teacher,enrolled', idf:'student_id',
+      desc:function(r){ return [r.school, r.grade, r.teacher, r.enrolled].map(function(x){return String(x||'').trim();}).filter(Boolean).join(' · '); } },
+    { table:'submissions',       label:'지필 제출결과',     sel:'id,name,parent_phone,submitted_at,exam,school', idf:'parent_phone',
+      desc:function(r){ return [exYmd(r.submitted_at), r.exam, r.school].map(function(x){return String(x||'').trim();}).filter(Boolean).join(' · '); } },
+    { table:'star_bonus',        label:'별(보너스)',        sel:'id,name,student_id,at,stars,reason', idf:'student_id',
+      desc:function(r){ return [exYmd(r.at), '별 '+r.stars, r.reason].map(function(x){return String(x||'').trim();}).filter(Boolean).join(' · '); } },
+    { table:'notice_reads',      label:'공지확인',          sel:'id,name,student_id,at,notice_key', idf:'student_id',
+      desc:function(r){ return [exYmd(r.at), r.notice_key].map(function(x){return String(x||'').trim();}).filter(Boolean).join(' · '); } },
+    { table:'omr_responses',     label:'모의고사 OMR 응답', sel:'id,name,student_id,submitted_at,exam,got,total', idf:'student_id',
+      desc:function(r){ return [exYmd(r.submitted_at), r.exam, (String(r.got||'')!==''?r.got+'/'+r.total:'')].map(function(x){return String(x||'').trim();}).filter(Boolean).join(' · '); } },
+    { table:'signup_entries',    label:'모의고사 신청',     sel:'id,name,student_id,ts,day,exam_date', idf:'student_id',
+      desc:function(r){ return [r.ts, r.day, r.exam_date].map(function(x){return String(x||'').trim();}).filter(Boolean).join(' · '); } },
+    { table:'clinic_requests',   label:'클리닉 신청',       sel:'id,name,phone,ts,slot,rtype', idf:'phone',
+      desc:function(r){ return [r.ts, r.slot, r.rtype].map(function(x){return String(x||'').trim();}).filter(Boolean).join(' · '); } },
+    { table:'voca_results',      label:'어휘 결과',         sel:'id,name,phone4,ts,round,score', idf:'phone4',
+      desc:function(r){ return [r.ts, String(r.round||'')+'주차', r.score].map(function(x){return String(x||'').trim();}).filter(Boolean).join(' · '); } },
+    { table:'hwork_submissions', label:'H WORK 제출기록',   sel:'id,name,ts,teacher,code,got,total', idf:'',
+      desc:function(r){ return [r.ts, r.teacher, r.code, r.got+'/'+r.total].map(function(x){return String(x||'').trim();}).filter(Boolean).join(' · '); } }
+  ];
+  function scanSB(nm, sid){
+    var base = exBase(nm), sid4 = sid.slice(-4);
+    return Promise.all(SB_SCAN.map(function(cfg){
+      return sbx('GET','/'+cfg.table+'?select='+cfg.sel+'&name=like.'+encodeURIComponent(base)+'*&order=id&limit=1000')
+        .then(function(rows){
+          return (rows||[]).filter(function(r){ return exNameHit(r.name, nm, base); }).map(function(r){
+            var rid = cfg.idf ? String(r[cfg.idf]==null?'':r[cfg.idf]).replace(/^'/,'').trim() : '';
+            return { src:'sb', table:cfg.table, dbid:r.id, label:cfg.label,
+                     name:String(r.name||'').trim(), id:rid, idMatch:exIdMatch(rid, sid, sid4),
+                     desc:cfg.desc(r) };
+          });
+        });
+    })).then(function(parts){
+      var out = []; parts.forEach(function(p){ out = out.concat(p); });
+      return out;
+    });
+  }
+  function legacyScan(nm, sid, btn){
+    setStatus('scanStatus','전체 시트에서 찾는 중… (10초 정도 걸릴 수 있어요)');
     Promise.all([
       fetch(ENDPOINT+'?action=exitScan&pw='+encodeURIComponent(SERVER_PW)+'&name='+encodeURIComponent(nm)+'&sid='+encodeURIComponent(sid)+'&t='+Date.now())
         .then(function(r){ return r.json(); }),
@@ -1370,6 +1498,24 @@
         renderList(nm, sid);
       })
       .catch(function(){ btn.disabled=false; setStatus('scanStatus','연결 실패 — 인터넷을 확인해 주세요. (재배포 전이면 아직 사용할 수 없어요)','err'); });
+  }
+  function scan(){
+    var nm = $('x-name').value.trim(), sid = $('x-sid').value.trim();
+    if(!nm){ setStatus('scanStatus','이름을 입력해 주세요.','err'); return; }
+    if(sid && !/^\d{8}$/.test(sid)){ setStatus('scanStatus','8자리는 숫자 8개여야 해요.','err'); return; }
+    var btn=$('findBtn'); btn.disabled=true; setStatus('scanStatus','기록을 찾는 중…');
+    $('resultCard').style.display='none';
+    Promise.all([ scanSB(nm, sid), scanTT(nm) ])
+      .then(function(rs){
+        btn.disabled=false;
+        ITEMS = (rs[0]||[]).concat(rs[1]||[]);
+        setStatus('scanStatus','');
+        renderList(nm, sid);
+      })
+      .catch(function(e){
+        console.warn('수파베이스 검색 실패 — 기존 백엔드(시트)로 폴백', e);
+        legacyScan(nm, sid, btn);
+      });
   }
 
   function renderList(nm, sid){
@@ -1434,36 +1580,77 @@
     });
     return chain.then(function(){ return { ok: okN, fail: failN }; });
   }
+  /* 시트 사본 정리 — 원본(수파베이스)에서 지운 뒤, 같은 (종류·이름) 묶음이 '전부' 선택된
+   * 것만 옛 exitScan으로 시트 행을 찾아 exitDelete 한다. 일부만 선택한 묶음은 시트에 남긴다
+   * (사본이 원본보다 많아지는 쪽이 안전 — 어긋남은 일일 점검이 보고). 실패해도 무해. */
+  function sheetCleanup(nm, sid, sbSel){
+    var tot = {}, selc = {}, full = {};
+    ITEMS.forEach(function(it){ if (it.src==='sb'){ var k = it.label+'|'+it.name; tot[k] = (tot[k]||0)+1; } });
+    sbSel.forEach(function(it){ var k = it.label+'|'+it.name; selc[k] = (selc[k]||0)+1; });
+    Object.keys(selc).forEach(function(k){ if (selc[k] === tot[k]) full[k] = true; });
+    if (!Object.keys(full).length) return Promise.resolve(0);
+    return fetch(ENDPOINT+'?action=exitScan&pw='+encodeURIComponent(SERVER_PW)+'&name='+encodeURIComponent(nm)+'&sid='+encodeURIComponent(sid)+'&t='+Date.now())
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        var items = ((d&&d.items)||[]).filter(function(it){ return full[it.label+'|'+String(it.name||'').trim()]; })
+          .map(function(it){ return { src:it.src, tab:it.tab, row:it.row, name:it.name }; });
+        if (!items.length) return 0;
+        return fetch(ENDPOINT, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
+            body: JSON.stringify({ action:'exitDelete', pw:SERVER_PW, items:items }) })
+          .then(function(r){ return r.json(); })
+          .then(function(res){ return (res && res.result==='success') ? (res.deleted||0) : 0; });
+      })
+      .catch(function(e){ console.warn('시트 사본 정리 실패 — 일일 점검이 보고', e); return 0; });
+  }
   function removeChecked(){
-    var sel=[], ttSel=[];
+    var sel=[], ttSel=[], sbSel=[];
     document.querySelectorAll('#list input[type=checkbox]:checked').forEach(function(c){
       var it=ITEMS[+c.getAttribute('data-i')];
       if(!it) return;
       if(it.src==='ttroster') ttSel.push(it);
+      else if(it.src==='sb') sbSel.push(it);
       else sel.push({ src:it.src, tab:it.tab, row:it.row, name:it.name });
     });
-    if(!sel.length && !ttSel.length){ setStatus('delStatus','체크된 기록이 없어요.','err'); return; }
-    var hasRoster = ITEMS.some(function(it){ return it.label==='학생정보(명단)' && sel.some(function(s){ return s.src===it.src && s.tab===it.tab && s.row===it.row; }); });
-    var msg = '선택한 '+(sel.length+ttSel.length)+'건을 영구 삭제합니다.\n되돌릴 수 없어요. 계속할까요?'+
+    if(!sel.length && !ttSel.length && !sbSel.length){ setStatus('delStatus','체크된 기록이 없어요.','err'); return; }
+    var hasRoster = sbSel.some(function(it){ return it.label==='학생정보(명단)'; }) ||
+      ITEMS.some(function(it){ return it.label==='학생정보(명단)' && sel.some(function(s){ return s.src===it.src && s.tab===it.tab && s.row===it.row; }); });
+    var msg = '선택한 '+(sel.length+ttSel.length+sbSel.length)+'건을 영구 삭제합니다.\n되돌릴 수 없어요. 계속할까요?'+
       (hasRoster?'\n\n(학생정보 행 포함 — 개인 페이지 링크도 즉시 무효화됩니다)':'')+
       (ttSel.length?'\n(시간표 명단 '+ttSel.length+'건 포함 — 전체 시간표에서 바로 사라집니다)':'');
     if(!confirm(msg)) return;
     var btn=$('delBtn'); btn.disabled=true; setStatus('delStatus','삭제하는 중…');
+    var nm = $('x-name').value.trim(), sid = $('x-sid').value.trim();
+    // ① 원본(수파베이스) 삭제 — 표별 id 묶음으로 정확히
+    var byTable = {};
+    sbSel.forEach(function(it){ (byTable[it.table]=byTable[it.table]||[]).push(it.dbid); });
+    var sbOk = 0, sbFail = 0, chain = Promise.resolve();
+    Object.keys(byTable).forEach(function(tb){
+      chain = chain.then(function(){
+        return sbx('DELETE','/'+tb+'?id=in.('+byTable[tb].join(',')+')')
+          .then(function(){ sbOk += byTable[tb].length; },
+                function(e){ console.warn('원본 삭제 실패', tb, e); sbFail += byTable[tb].length; });
+      });
+    });
+    // ② 폴백 화면(시트 검색 결과)이었으면 옛 exitDelete 그대로
     var backendJob = sel.length
       ? fetch(ENDPOINT, {
           method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
           body: JSON.stringify({ action:'exitDelete', pw:SERVER_PW, items:sel })
         }).then(function(r){ return r.json(); })
       : Promise.resolve({ result:'success', deleted:0, skipped:0 });
-    backendJob
+    chain.then(function(){ return backendJob; })
     .then(function(d){
-      if(!d || d.result!=='success'){ btn.disabled=false; setStatus('delStatus','삭제 실패: '+((d&&d.message)||'오류'),'err'); return; }
+      if(!d || d.result!=='success') d = { deleted:0, skipped:0, fail:sel.length };
       return removeRoster(ttSel).then(function(tt){
         btn.disabled=false;
-        var m='✓ '+d.deleted+'건 삭제 완료'+(d.skipped?' · '+d.skipped+'건은 목록이 낡아 건너뜀':'');
-        if (ttSel.length) m += ' · 시간표 명단 '+tt.ok+'건 정리'+(tt.fail?' ('+tt.fail+'건 실패 — 다시 시도해 주세요)':'');
-        setStatus('delStatus',m, tt.fail?'err':'ok');
-        scan();
+        var parts=[];
+        if (sbSel.length) parts.push('원본 '+sbOk+'건 삭제'+(sbFail?' ('+sbFail+'건 실패 — 다시 시도해 주세요)':''));
+        if (sel.length) parts.push('시트 '+d.deleted+'건 삭제'+(d.skipped?' · '+d.skipped+'건은 목록이 낡아 건너뜀':'')+(d.fail?' (실패 — 다시 시도해 주세요)':''));
+        if (ttSel.length) parts.push('시간표 명단 '+tt.ok+'건 정리'+(tt.fail?' ('+tt.fail+'건 실패 — 다시 시도해 주세요)':''));
+        setStatus('delStatus','✓ '+parts.join(' · '), (sbFail||tt.fail||d.fail)?'err':'ok');
+        // ③ 시트 사본은 뒤에서 정리 (전부 선택된 묶음만) — 끝난 뒤 목록을 다시 읽는다
+        var job = (sbSel.length && !sbFail) ? sheetCleanup(nm, sid, sbSel) : Promise.resolve(0);
+        job.then(function(){ scan(); });
       });
     })
     .catch(function(){ btn.disabled=false; setStatus('delStatus','연결 실패 — 다시 시도해 주세요.','err'); });

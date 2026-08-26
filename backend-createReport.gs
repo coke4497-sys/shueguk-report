@@ -2224,9 +2224,15 @@ function addStudent(data) {
     }
     if (warns.length && String(data.force || '') !== '1') return json({ result: 'warn', warns: warns });
 
-    // 접근코드 생성 (기존 코드와 충돌 없게)
-    var token = '';
-    do { token = randTok_(); } while (used[token]);
+    // 접근코드 생성 (기존 코드와 충돌 없게) — 페이지가 만들어 보낸 코드(token)가 있으면
+    // 그대로 쓴다 (2026-08-26 신입 등록 원본 전환: 수파베이스에 먼저 등록한 뒤 시트 사본을
+    // 보내는 구조라, 사본이 원본과 같은 접근코드를 가져야 한다). 형식이 다르거나 이미
+    // 쓰인 코드면 종전대로 새로 만든다.
+    var token = String(data.token || '').trim();
+    if (!/^[a-z0-9]{10}$/.test(token) || used[token]) {
+      token = '';
+      do { token = randTok_(); } while (used[token]);
+    }
     // 학생 연락처 열(M) — 헤더가 없으면 만든다
     var phoneCol = Math.max(codeCol + 1, 12);
     if (String(v[0][phoneCol] || '').trim() !== '학생연락처') sh.getRange(1, phoneCol + 1).setValue('학생연락처');

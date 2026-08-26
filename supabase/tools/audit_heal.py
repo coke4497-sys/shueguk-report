@@ -490,12 +490,13 @@ def main():
         soft_label='명단은 수파베이스가 원본 — 시트 이중 기록이 빠졌을 수 있음(보고만, 반복되면 확인)')
     sync_sheet_master('tt_period', d['tt_period'], lambda r: r['week_wednesday'], lambda r: r['book'], heal, 'week_wednesday')
     # 학생정보는 2026-08-26부터 '내용'의 원본이 수파베이스(수정·표기 변경이 페이지에서 먼저 저장).
-    # 행 추가(신입 등록)·행 삭제(아웃)는 여전히 백엔드가 먼저라 시트 기준으로 맞추되,
-    # 내용이 다르면 보고만 한다(시트 값으로 덮어쓰면 방금 고친 수정이 밤새 되돌아간다).
+    # 행 추가(신입 등록)·행 삭제(아웃)도 2026-08-26 완전 전환부터 수파베이스가 먼저다 —
+    # 시트는 사본이므로 행 차이도 **보고만** 한다(heal=False — 시트 기준으로 행을 지우면
+    # 방금 등록한 신입이 사라지고, 시트에 남은 행을 다시 넣으면 아웃한 학생이 되살아난다).
     # 키도 이름 대신 접근코드 — 표기 변경(이름 바뀜)이 행 추가/삭제로 오판되지 않게.
     sync_sheet_master('students', d['students'],
         lambda r: (str(r.get('code') or '').strip() or 'sid:' + str(r.get('student_id') or '') + ':' + str(r.get('name') or '')),
-        lambda r: (), heal,
+        lambda r: (), False,
         soft_valf=lambda r: (r.get('name'), r['school'], r['grade'], r['teacher'], r['memo'], r['class_a'], r['class_b'],
                              r['naeshin_a'], r['naeshin_b'], r['enrolled'], r['student_phone'], r['reg_date']),
         soft_label='학생정보 내용은 수파베이스가 원본 — 시트 이중 기록이 빠졌을 수 있음(보고만, 반복되면 확인)')
