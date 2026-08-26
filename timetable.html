@@ -577,6 +577,9 @@
   .ch-item .lr{color:var(--ink-soft);font-size:.74rem;margin-top:2px;}
   .ch-item .ch-when{color:var(--accent);font-size:.76rem;}
   .ch-none{color:var(--ink-soft);font-size:.82rem;padding:14px 2px;}
+  .ch-more{display:block;width:100%;margin-top:9px;padding:7px 0;font:inherit;font-size:.8rem;
+    color:var(--accent);background:none;border:1.5px dashed var(--line);border-radius:9px;cursor:pointer;}
+  .ch-more:hover{border-color:var(--accent);}
   @media (max-width:760px){
     .chpanel{top:72px;bottom:10px;width:300px;}
     .ch-tab{padding:9px 4px;font-size:.68rem;}
@@ -1203,13 +1206,16 @@
         }) });
       });
     },
-    timetableLog: function(){
-      return sbGet('/tt_log?order=at.desc&limit=100').then(function(rows){
+    timetableLog: function(qs){
+      // 변경사항 패널 — limit로 지난 기록을 더 받아 온다(기본 100건, [지난 기록 더 보기]가 늘려 요청).
+      // more = 이만큼 받고도 더 남았을 수 있다는 뜻(받은 수가 요청한 수와 같으면 참).
+      var lim = Math.max(1, Math.min(2000, parseInt(qs && qs.get && qs.get('limit'), 10) || 100));
+      return sbGet('/tt_log?order=at.desc&limit=' + lim).then(function(rows){
         return ok({ log: rows.map(function(g){
           return { row: g.id, date: atYmd(g.at), kind: g.kind, student: g.student,
                    fromCls: g.from_class, toCls: g.to_class, fromId: g.from_class_id, toId: g.to_class_id,
                    reason: g.reason, book: g.book };
-        }) });
+        }), more: rows.length >= lim });
       });
     },
     /* 재원생 명단 — 시트 '학생정보'의 읽기 미러(students)에서. 백엔드 getRoster와 같은 규칙:
@@ -6194,6 +6200,7 @@ function openMakeupMove(i){
 var chOpen = sessionStorage.getItem('tt_chopen') === '1';
 var chLoaded = false, chBusy = false;
 var chRows = [], chKind = '';   // 받아 둔 기록 전체 + 고른 종류(빈 값이면 전체)
+var chLimit = 100, chMayMore = false, chKeepScroll = null;   // [지난 기록 더 보기] — 100건씩 시작해 늘려 받는다
 
 function chSync(){
   var el = $('chpanel'); if (!el) return;
@@ -6222,13 +6229,15 @@ function chLoad(force){
   if (chLoaded && !force) return;
   chBusy = true;
   list.innerHTML = '<span class="ch-none">불러오는 중…</span>';
-  fetch(ENDPOINT + '?action=timetableLog&pw=' + encodeURIComponent(pw) + '&t=' + Date.now())
+  fetch(ENDPOINT + '?action=timetableLog&pw=' + encodeURIComponent(pw) + '&limit=' + chLimit + '&t=' + Date.now())
     .then(function(r){ return r.json(); })
     .then(function(d){
       chBusy = false;
       if (!d || d.result !== 'success'){ list.innerHTML = '<span class="ch-none">불러오지 못했어요.</span>'; return; }
       chLoaded = true;
       chRows = d.log || [];
+      // more가 없는 응답(옛 백엔드 폴백)은 받은 수로 짐작한다
+      chMayMore = (d.more != null) ? !!d.more : chRows.length >= chLimit;
       chClsIdx = null;
       chKinds();
       chRender();
@@ -6315,7 +6324,17 @@ function chRender(){
            (g.book === '내신' ? '<span class="lk" style="background:#8A6FA8;">내신</span>' : '') +
            (g.student ? '<b>' + esc(g.student) + '</b> ' : '') + path +
            '<div class="lr">' + esc(g.date) + (g.reason ? ' · ' + esc(g.reason) : '') + '</div></div>';
-  }).join('');
+  }).join('') +
+  (chMayMore ? '<button type="button" class="ch-more" onclick="chMore()">지난 기록 더 보기</button>' : '');
+  // 더 보기로 다시 그렸을 때는 보던 자리를 지킨다
+  if (chKeepScroll != null){ list.scrollTop = chKeepScroll; chKeepScroll = null; }
+}
+/* 지난 기록 더 보기 — 200건씩 늘려 다시 받는다 (기록이 적어 통째로 다시 받아도 가볍다) */
+function chMore(){
+  var list = $('ch-list');
+  chKeepScroll = list ? list.scrollTop : null;
+  chLimit += 200;
+  chLoad(true);
 }
 
 /* ── 시작 ── */
