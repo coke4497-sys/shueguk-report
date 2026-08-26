@@ -5705,12 +5705,36 @@ function openWeekAdd(c, dstr){
  * 원래 주에는 '주간빼기'(이 주 빠짐), 옮긴 주의 반에는 '주간추가'(이 주 학생) — 기존 두 기록을
  * 한 번에 남긴다. 되돌리기도 기존 칩 그대로(각 주에서 칩을 눌러 되돌림). */
 function smClsOptions(selId){
-  return classes.filter(function(x){ return !x.wk; })
+  var norm = classes.filter(function(x){ return !x.wk; })
     .slice().sort(function(a,b){ return a.cls.localeCompare(b.cls,'ko') || (mins(a.start)-mins(b.start)); })
     .map(function(x){
       return '<option value="'+esc(x.id)+'"'+(x.id===selId?' selected':'')+'>'+esc(x.cls)+' · '+esc(x.day)+' '+esc(x.start)+
              (x.teacher ? ' · '+esc(x.teacher)+'T' : '')+'</option>';
     }).join('');
+  // 새로 만든 '이 주만' 반에도 넣을 수 있다 (2026-08-26 사용자 요청) — 날짜가 지난 것은 제외
+  var mon = new Date(weekStartOf(new Date())); mon.setDate(mon.getDate() - 2);
+  var monY = ymdOf(mon);
+  var wks = classes.filter(function(x){ return x.wk && x.wk >= monY; })
+    .slice().sort(function(a,b){ return a.wk < b.wk ? -1 : a.wk > b.wk ? 1 : (mins(a.start)-mins(b.start)); })
+    .map(function(x){
+      return '<option value="'+esc(x.id)+'"'+(x.id===selId?' selected':'')+'>'+esc(x.cls)+' · '+esc(wkDayLabel(x.wk))+' '+esc(x.start)+
+             (x.teacher ? ' · '+esc(x.teacher)+'T' : '')+'</option>';
+    }).join('');
+  return norm + (wks ? '<optgroup label="이 주만 있는 반 (날짜가 정해져 있어요)">'+wks+'</optgroup>' : '');
+}
+/* '이 주만' 반을 고르면 수업 날짜가 반에 정해져 있다 — 옮길 주 선택을 그 주로 맞추고 잠근다 */
+function smClsChange(){
+  var t = classes.find(function(x){ return x.id === ($('sm-cls') ? $('sm-cls').value : ''); });
+  var wsel = $('sm-week'); if (!wsel) return;
+  var wk = t && t.wk;
+  wsel.disabled = !!wk;
+  if (wk){
+    var d0 = new Date(+wk.slice(0,4), +wk.slice(5,7)-1, +wk.slice(8,10));
+    var wy = ymdOf(weekStartOf(d0));
+    for (var i = 0; i < wsel.options.length; i++){
+      if (wsel.options[i].value === wy){ wsel.value = wy; break; }
+    }
+  }
 }
 function openWeekStudentMove(cid, nm, dstr){
   var c = classes.find(function(x){ return x.id === cid; }); if (!c) return;
@@ -5721,8 +5745,8 @@ function openWeekStudentMove(cid, nm, dstr){
     '<p class="mdesc hint-x">이 학생만 한 번 옮겨요 — 원래 주에서는 <b>이 주 빠짐</b>으로 표시되고, 옮긴 주의 반에 <b>이 주</b> 학생으로 들어가 출석을 찍을 수 있어요. 반 전체를 옮기려면 반 카드의 [이 주만 시간 옮기기]를 쓰세요.</p>'+
     '<label style="font-size:.8rem;color:var(--ink-soft);">옮길 주</label>'+
     weekSelHtml('sm-week', weekStart)+
-    '<label style="font-size:.8rem;color:var(--ink-soft);display:block;margin-top:8px;">옮길 반 (그 주에 들을 수업)</label>'+
-    '<select id="sm-cls" style="font:inherit;font-size:.92rem;border:1.5px solid var(--line);border-radius:10px;padding:8px 10px;width:100%;margin-top:6px;">'+
+    '<label style="font-size:.8rem;color:var(--ink-soft);display:block;margin-top:8px;">옮길 반 (그 주에 들을 수업 — 새로 만든 \'이 주만\' 반도 고를 수 있어요)</label>'+
+    '<select id="sm-cls" onchange="smClsChange()" style="font:inherit;font-size:.92rem;border:1.5px solid var(--line);border-radius:10px;padding:8px 10px;width:100%;margin-top:6px;">'+
     smClsOptions(cid)+'</select>'+
     '<label style="font-size:.8rem;color:var(--ink-soft);display:block;margin-top:8px;">사유 메모 (선택)</label>'+
     '<textarea id="sm-reason" placeholder="예: 학교 시험으로 이번 주에 미리 수업"></textarea>'+
@@ -5734,11 +5758,16 @@ function openWeekStudentMove(cid, nm, dstr){
 function submitWeekStudentMove(cid, nm, d){
   var t = classes.find(function(x){ return x.id === ($('sm-cls') ? $('sm-cls').value : ''); });
   if (!t){ $('sm-err').textContent = '옮길 반을 골라주세요.'; return; }
-  var tw = $('sm-week') ? wedOfYmd($('sm-week').value) : new Date(weekStart);
-  if (periodOf(tw) !== book){
-    $('sm-err').textContent = '그 주는 ' + periodOf(tw) + ' 기간이라 이 ' + book + ' 시간표가 나타나지 않아요.'; return;
+  var nd;
+  if (t.wk){
+    nd = t.wk;   // '이 주만' 반은 날짜가 반에 정해져 있다 — 옮길 주 선택과 무관
+  } else {
+    var tw = $('sm-week') ? wedOfYmd($('sm-week').value) : new Date(weekStart);
+    if (periodOf(tw) !== book){
+      $('sm-err').textContent = '그 주는 ' + periodOf(tw) + ' 기간이라 이 ' + book + ' 시간표가 나타나지 않아요.'; return;
+    }
+    nd = ymdOf(weekDatesOf(tw)[t.day]);
   }
-  var nd = ymdOf(weekDatesOf(tw)[t.day]);
   if (nd === d && t.id === cid){
     $('sm-err').textContent = '원래 수업과 같은 주·같은 반이에요. 옮길 주나 반을 골라주세요.'; return;
   }
