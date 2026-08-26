@@ -636,6 +636,8 @@ function refreshOnReturn(){
   //  승인 완료 — 방금 본 시험도 곧바로 미러에 있다. 그전에는 여기서 직접 조회했다.)
   // 어댑터가 실패해 기존 백엔드로 폴백한 경우에는 플래그가 서지 않아 아래가 직접 조회한다.
   loadGradeGates();                                // 폴백일 때만 실제 조회가 나간다
+  // 모의고사 메뉴가 열린 채 OMR·신청에 다녀왔으면 선조회를 새로 받는다(방금 본 시험 반영)
+  if ($('mockHubView').style.display === 'block') prefetchMockMenu();
   api('').then(function(d){                        // 클리닉 내역·공지·H WORK·별 갱신
     if(!d || d.result!=='success') return;
     STATE.notices  = d.notices  || [];
@@ -2076,9 +2078,14 @@ function submitPw(){
     // 8자리 검증(리포트 백엔드)과 성적 조회(OMR 백엔드)를 동시에 실행 — 대기 시간 단축.
     // 검증에 실패하면 조회 결과는 버리고 성적을 보여주지 않는다.
     var mbtn=$('pwOk'); mbtn.disabled=true; mbtn.textContent='확인 중...'; $('pwErr').textContent='';
+    // 메뉴를 열 때 미리 받아 둔 성적(MOCK_PRE)이 신선하면 그대로 쓴다 — 8자리를 입력하는 동안
+    // 이미 도착해 있어 체감 대기가 사라진다. 선조회가 없거나 실패했으면 종전대로 지금 조회.
+    var mockJob = (MOCK_PRE && Date.now() - MOCK_PRE_AT < 120000)
+      ? MOCK_PRE.then(function(m){ return (m && m.ok) ? m : fetchMockData(pw); })
+      : fetchMockData(pw);
     Promise.all([
       api('&pw='+encodeURIComponent(pw)).catch(function(){ return null; }),
-      fetchMockData(pw)
+      mockJob
     ]).then(function(res){
       var d=res[0], m=res[1];
       mbtn.disabled=false; mbtn.textContent='확인';
@@ -2181,7 +2188,43 @@ function renderMockHub(){
   }
   $('mockHubMenu').innerHTML = html;
 }
-function openMockHub(){ renderMockHub(); hide('hubView'); $('mockHubView').style.display='block'; window.scrollTo(0,0); }
+/* ── 하위 메뉴 선조회 (2026-08-26 접속 지연 대책) ──
+ * 메뉴를 여는 순간 ①성적표(OMR 백엔드 studentReports — 실측 2~15초)와
+ * ②신청 요일·남은자리(days — 실측 2~5초)를 미리 받아 둔다.
+ * 성적은 8자리를 입력하는 동안 도착해 있고(submitPw가 MOCK_PRE 재사용),
+ * days는 sessionStorage(mockDaysPre)로 신청 페이지(signup.html — 같은 도메인)에 넘겨
+ * 신청 페이지가 서버 응답을 기다리지 않고 요일·학년을 바로 그린다. */
+var MOCK_PRE = null, MOCK_PRE_AT = 0, DAYS_PRE_BUSY = false;
+function prefetchMockMenu(){
+  var info = STATE.info || {};
+  // ① 성적 — 이름이 유일한 학생만(동명이인은 8자리로 걸러야 해서 종전대로 입력 후 조회).
+  //   조회 조건(name+school+uniq=1)이 8자리를 넣은 조회와 같아 결과가 동일하다.
+  //   OMR 응시 직후 다시 들어온 경우를 위해 2분이 지났으면 새로 받는다.
+  var mockReady = (typeof WEEKEND_API==='string' && WEEKEND_API.indexOf('http')===0);
+  if (mockReady && !STATE.mock && info.nameDup === false &&
+      (!MOCK_PRE || Date.now() - MOCK_PRE_AT > 120000)){
+    MOCK_PRE_AT = Date.now();
+    MOCK_PRE = fetchMockData('');
+  }
+  // ② 신청 days — 신청 카드가 눌리는 상태일 때만. 결과가 도착하기 전에 학생이 먼저
+  //   넘어가도, 신청 페이지 쪽이 잠깐(6초) 기다렸다 집어 간다.
+  var sgn = STATE.mockSignups || [];
+  var signupActive = sgn.length ? true : (gradeEligible(STATE.mockGrades) && STATE.mockOpen !== false);
+  if (signupActive && !DAYS_PRE_BUSY){
+    var kept = null;
+    try { kept = JSON.parse(sessionStorage.getItem('mockDaysPre')||'null'); } catch(e){}
+    if (!(kept && Date.now() - kept.at < 60000)){
+      DAYS_PRE_BUSY = true;
+      jsonp(SIGNUP_API + '?action=days', 15000).then(function(d){
+        DAYS_PRE_BUSY = false;
+        if (d && d.result === 'success'){
+          try { sessionStorage.setItem('mockDaysPre', JSON.stringify({ at: Date.now(), resp: d })); } catch(e){}
+        }
+      });
+    }
+  }
+}
+function openMockHub(){ renderMockHub(); prefetchMockMenu(); hide('hubView'); $('mockHubView').style.display='block'; window.scrollTo(0,0); }
 function closeMockHub(){ $('mockHubView').style.display='none'; show('hubView'); window.scrollTo(0,0); }
 
 var MOCK_SEL=0;
