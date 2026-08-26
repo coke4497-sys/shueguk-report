@@ -2119,8 +2119,13 @@ function setStatus(m,k){ var s=$('status'); s.textContent=m||''; s.className='st
 
 /* "5:30" → 분(오전 10~12시는 오전, 1~9시는 오후로 해석) */
 function mins(t){
-  var p = String(t||'').split(':');
+  var s = String(t||'').trim();
+  // '오전7:00'(아침)·'밤10:00'(22시~자정) 접두 표기 — 12시간 표기로는 구분이 안 되는 시간대만 쓴다 (2026-08-26)
+  var am = s.indexOf('오전') === 0, night = s.indexOf('밤') === 0;
+  var p = s.replace(/^(오전|밤)\s*/, '').split(':');
   var h = parseInt(p[0],10)||0, m = parseInt(p[1],10)||0;
+  if (am) return (h === 12 ? 0 : h)*60 + m;
+  if (night) return (h === 12 ? 24 : h + 12)*60 + m;   // 밤12:00 = 자정(1440)
   if (h < 10) h += 12;
   return h*60+m;
 }
@@ -2133,6 +2138,13 @@ function fmt12(t){
   var h24 = Math.floor(t/60), mm = t%60;
   var h12 = h24 > 12 ? h24-12 : h24;
   return h12 + ':' + (mm<10?'0':'')+mm;
+}
+/* 분 → 저장용 시간 문자열. 10시 전(아침)은 '오전7:00', 22시부터는 '밤10:00',
+ * 그 사이는 기존 12시간 표기('5:30') 그대로 — mins()가 셋 다 읽는다. */
+function timeValOf(m){
+  if (m < 10*60) return '오전' + fmt12(m);
+  if (m >= 22*60) return '밤' + fmt12(m);
+  return fmt12(m);
 }
 function sortNames(arr){
   return arr.slice().sort(function(a,b){ return String(a).localeCompare(String(b), 'ko'); });
@@ -4876,7 +4888,7 @@ function dropClass(dname, cinfo, startMin){
            mins(x.start) < e2 && s < minsEnd(x);
   });
   if (clash){ setStatus('그 자리엔 이미 ' + clash.cls + ' 수업이 있어요. 다른 빈 자리를 눌러주세요.', 'err'); return; }
-  var startStr = fmt12(s), endStr = fmt12(e2);
+  var startStr = timeValOf(s), endStr = timeValOf(e2);   // 아침·밤 10시 이후 칸은 '오전'·'밤' 표기로 저장
   var newTeacher = cinfo.teacher || c.teacher, newLoc = cinfo.loc || c.loc;   // 빈 열(월·화 등)이면 담당·위치 유지
   if (!confirm(c.cls + ' (' + c.students.length + '명)\n' + c.day + ' ' + c.start + '~' + c.end + ' · ' + c.teacher + 'T\n→ ' + dname + ' ' + startStr + '~' + endStr + ' · ' + newTeacher + 'T (' + newLoc + ')\n\n반 전체를 이동할까요?' + (book==='정규' ? '\n(학생들 리포트의 정규 수업 시간도 함께 바뀝니다)' : ''))) return;
   post({ action:'timetableMoveClass', book:book, classId:c.id, day:dname, start:startStr, end:endStr,
@@ -5218,8 +5230,8 @@ function wkAddSrcChange(){
     if (nm){ nm.readOnly = false; nm.style.background = ''; nm.value = ''; }
     return;
   }
-  if ($('nc-start')) $('nc-start').value = c.start;
-  if ($('nc-end')) $('nc-end').value = c.end;
+  if ($('nc-start')) $('nc-start').value = timeValOf(mins(c.start));   // 옛 표기('10:00'=밤10시 끝)도 정확한 칸에 맞춘다
+  if ($('nc-end')) $('nc-end').value = timeValOf(minsEnd(c));
   if ($('nc-loc')) $('nc-loc').value = c.loc || '';
   if ($('nc-teacher')) $('nc-teacher').value = c.teacher || '';
   if (nm){ nm.value = c.cls; nm.readOnly = true; nm.style.background = 'var(--icon-bg)'; }
@@ -5231,7 +5243,7 @@ function submitAddWeekClass(){
   if (!cls){ $('nc-err').textContent = '반이름을 입력해 주세요.'; return; }
   var st0 = mins(st), en0 = mins(en);
   if (en0 <= st0) en0 += 12*60;
-  if (en0 > 22*60){ $('nc-err').textContent = '끝 시간이 시작보다 빨라요. (수업은 밤 10시까지)'; return; }
+  if (en0 <= st0 || en0 > 24*60){ $('nc-err').textContent = '끝 시간이 시작보다 빨라요. (수업은 오전 7시 ~ 밤 12시)'; return; }
   var dstr = ymdOf(weekDates()[d]);
   // 기존 반을 고른 경우 — 그 반의 복사본으로 열어 명단이 그대로 따라오게 한다
   var srcId = $('nc-src') ? $('nc-src').value : '';
@@ -5240,7 +5252,7 @@ function submitAddWeekClass(){
     var modeEl = document.querySelector('input[name="nc-mode"]:checked');
     var isMove = modeEl && modeEl.value === 'move';
     var srcDate = ymdOf(weekDates()[src.day]);   // 원래 수업이 있는 이 주의 날짜
-    if (isMove && srcDate === dstr && st === src.start){
+    if (isMove && srcDate === dstr && st0 === mins(src.start)){
       $('nc-err').textContent = '원래 수업과 같은 요일·시간이에요. 옮길 시간을 골라주세요.'; return;
     }
     closeModal();
@@ -5361,8 +5373,8 @@ function openWeekClassExtra(c, dstr){
   );
   // 원래 수업 값으로 채워 두기 — 보충할 요일·시간만 고치면 된다
   if ($('nc-day')) $('nc-day').value = c.day;
-  if ($('nc-start')) $('nc-start').value = c.start;
-  if ($('nc-end')) $('nc-end').value = c.end;
+  if ($('nc-start')) $('nc-start').value = timeValOf(mins(c.start));   // 옛 표기('10:00'=밤10시 끝)도 정확한 칸에 맞춘다
+  if ($('nc-end')) $('nc-end').value = timeValOf(minsEnd(c));
   if ($('nc-loc')) $('nc-loc').value = c.loc || '';
   if ($('nc-teacher')) $('nc-teacher').value = c.teacher || '';
   var nm = $('nc-cls');
@@ -5375,9 +5387,9 @@ function submitWeekClassExtra(cid, d){
   var reason = ($('nc-reason') ? $('nc-reason').value : '').trim();
   var st0 = mins(st), en0 = mins(en);
   if (en0 <= st0) en0 += 12*60;
-  if (en0 > 22*60){ $('nc-err').textContent = '끝 시간이 시작보다 빨라요. (수업은 밤 10시까지)'; return; }
+  if (en0 <= st0 || en0 > 24*60){ $('nc-err').textContent = '끝 시간이 시작보다 빨라요. (수업은 오전 7시 ~ 밤 12시)'; return; }
   var nd = ymdOf(weekDates()[day]);
-  if (day === c.day && st === c.start){
+  if (day === c.day && st0 === mins(c.start)){
     $('nc-err').textContent = '원래 수업과 같은 요일·시간이에요. 보충할 시간을 골라주세요.'; return;
   }
   closeModal();
@@ -5414,8 +5426,8 @@ function openWeekClassMove(c, dstr){
   );
   // 지금 값으로 채워 두기 — 바꿀 칸만 고치면 된다
   if ($('nc-day')) $('nc-day').value = c.day;
-  if ($('nc-start')) $('nc-start').value = c.start;
-  if ($('nc-end')) $('nc-end').value = c.end;
+  if ($('nc-start')) $('nc-start').value = timeValOf(mins(c.start));   // 옛 표기('10:00'=밤10시 끝)도 정확한 칸에 맞춘다
+  if ($('nc-end')) $('nc-end').value = timeValOf(minsEnd(c));
   if ($('nc-loc')) $('nc-loc').value = c.loc || '';
   if ($('nc-teacher')) $('nc-teacher').value = c.teacher || '';
   var nm = $('nc-cls');
@@ -5428,7 +5440,7 @@ function submitWeekClassMove(cid, d){
   var reason = ($('nc-reason') ? $('nc-reason').value : '').trim();
   var st0 = mins(st), en0 = mins(en);
   if (en0 <= st0) en0 += 12*60;
-  if (en0 > 22*60){ $('nc-err').textContent = '끝 시간이 시작보다 빨라요. (수업은 밤 10시까지)'; return; }
+  if (en0 <= st0 || en0 > 24*60){ $('nc-err').textContent = '끝 시간이 시작보다 빨라요. (수업은 오전 7시 ~ 밤 12시)'; return; }
   // 옮길 주 — 기본은 지금 보는 주. 다른 주를 고르면 그 주로 당기거나 미룬다(2026-08-23 사용자 요청).
   var tw = $('nc-week') ? wedOfYmd($('nc-week').value) : new Date(weekStart);
   var sameWeek = ymdOf(tw) === ymdOf(weekStart);
@@ -5436,7 +5448,7 @@ function submitWeekClassMove(cid, d){
     $('nc-err').textContent = '그 주는 ' + periodOf(tw) + ' 기간이라 이 ' + book + ' 시간표가 나타나지 않아요. 슈국 캘린더에서 기간을 먼저 확인해 주세요.'; return;
   }
   var nd = ymdOf(weekDatesOf(tw)[day]);
-  if (sameWeek && day === c.day && st === c.start && en === c.end && loc === (c.loc||'') && teacher === (c.teacher||'')){
+  if (sameWeek && day === c.day && st0 === mins(c.start) && en0 === minsEnd(c) && loc === (c.loc||'') && teacher === (c.teacher||'')){
     $('nc-err').textContent = '바뀐 것이 없어요. 옮길 주나 요일·시간을 고쳐주세요.'; return;
   }
   closeModal();
@@ -5800,14 +5812,21 @@ function openAdd(c){
 /* 반 추가 */
 /* 반 만들기 폼 조각 — 영구 반 추가와 '이 주만 반 추가'가 함께 쓴다 */
 function classFormHtml(dayFixed){
-  // 시작: 오전 10:00 ~ 밤 9:30 / 끝: 오전 10:30 ~ 밤 10:00
-  // ("10:00" 끝은 밤 10시 — 끝이 시작보다 이르면 오후로 해석(minsEnd)하므로 정상 표시·저장)
+  // 시작: 오전 7:00 ~ 밤 11:30 / 끝: 오전 7:30 ~ 밤 12:00, 30분 단위 (2026-08-26 사용자 요청)
+  // 저장 값은 timeValOf 규칙 — 아침은 '오전7:00', 22시부터는 '밤10:00', 그 사이는 기존 '5:30' 표기 그대로
   var startOpts = [], endOpts = [];
-  for (var t = 10*60; t <= 21*60+30; t += 30) startOpts.push(fmt12(t));
-  for (var t2 = 10*60+30; t2 <= 22*60; t2 += 30) endOpts.push(fmt12(t2));
+  for (var t = 7*60; t <= 23*60+30; t += 30) startOpts.push(t);
+  for (var t2 = 7*60+30; t2 <= 24*60; t2 += 30) endOpts.push(t2);
+  var partOf = function(m){ return m < 12*60 ? '오전' : m < 13*60 ? '낮' : m < 18*60 ? '오후' : m < 22*60 ? '저녁' : '밤'; };
   var timeSel = function(id, def, opts){
-    return '<select id="'+id+'" style="font:inherit;font-size:.92rem;border:1.5px solid var(--line);border-radius:10px;padding:8px 10px;width:100%;margin-top:6px;">'+
-      opts.map(function(o){ return '<option'+(o===def?' selected':'')+'>'+o+'</option>'; }).join('')+'</select>';
+    var html = '<select id="'+id+'" style="font:inherit;font-size:.92rem;border:1.5px solid var(--line);border-radius:10px;padding:8px 10px;width:100%;margin-top:6px;">';
+    var cur = '';
+    opts.forEach(function(m){
+      var g = partOf(m);
+      if (g !== cur){ if (cur) html += '</optgroup>'; html += '<optgroup label="'+g+'">'; cur = g; }
+      html += '<option value="'+timeValOf(m)+'"'+(m===def?' selected':'')+'>'+g+' '+fmt12(m)+'</option>';
+    });
+    return html + '</optgroup></select>';
   };
   var locs = [];
   classes.forEach(function(c){ if (c.loc && locs.indexOf(c.loc) < 0) locs.push(c.loc); });
@@ -5815,8 +5834,8 @@ function classFormHtml(dayFixed){
   return '<div style="display:flex;gap:8px;"><div style="flex:1;"><label style="font-size:.8rem;color:var(--ink-soft);">요일</label>'+
     '<select id="nc-day"'+(dayFixed ? ' disabled' : '')+' style="font:inherit;font-size:.92rem;border:1.5px solid var(--line);border-radius:10px;padding:8px 10px;width:100%;margin-top:6px;">'+
     DAYS.map(function(d){ return '<option'+(dayFixed===d?' selected':'')+'>'+d+'</option>'; }).join('')+'</select></div>'+
-    '<div style="flex:1;"><label style="font-size:.8rem;color:var(--ink-soft);">시작</label>'+timeSel('nc-start','5:30',startOpts)+'</div>'+
-    '<div style="flex:1;"><label style="font-size:.8rem;color:var(--ink-soft);">끝</label>'+timeSel('nc-end','7:00',endOpts)+'</div></div>'+
+    '<div style="flex:1;"><label style="font-size:.8rem;color:var(--ink-soft);">시작</label>'+timeSel('nc-start',17*60+30,startOpts)+'</div>'+
+    '<div style="flex:1;"><label style="font-size:.8rem;color:var(--ink-soft);">끝</label>'+timeSel('nc-end',19*60,endOpts)+'</div></div>'+
     '<div style="display:flex;gap:8px;margin-top:8px;"><div style="flex:1;"><label style="font-size:.8rem;color:var(--ink-soft);">위치</label>'+
     '<input type="text" id="nc-loc" list="nc-locs" placeholder="예) 본원"><datalist id="nc-locs">'+
     locs.map(function(l){ return '<option>'+esc(l)+'</option>'; }).join('')+'</datalist></div>'+
@@ -5843,7 +5862,7 @@ function submitAddClass(){
   // 표시 로직(minsEnd)과 같은 규칙: 끝이 시작보다 이르면 오후로 해석 — 저녁 8:30~10:00(밤) 허용
   var st0 = mins(st), en0 = mins(en);
   if (en0 <= st0) en0 += 12*60;
-  if (en0 > 22*60){ $('nc-err').textContent = '끝 시간이 시작보다 빨라요. (수업은 밤 10시까지)'; return; }
+  if (en0 <= st0 || en0 > 24*60){ $('nc-err').textContent = '끝 시간이 시작보다 빨라요. (수업은 오전 7시 ~ 밤 12시)'; return; }
   closeModal();
   post({ action:'timetableAddClass', book:book, day:d, start:st, end:en, loc:loc, teacher:teacher, cls:cls },
     '반을 만드는 중…', function(res){
