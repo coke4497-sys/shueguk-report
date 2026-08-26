@@ -577,11 +577,17 @@ def main():
     if '--voca' in sys.argv:
         vx = sys.argv[sys.argv.index('--voca') + 1]
         v = extract_voca(vx)
-        print('· 어휘 테스트 (시트가 원본)')
-        # 키에 점수·상세 포함 — 같은 분에 재제출한 중복 행(전송 재시도·재응시)이 서로 다른 키가 되도록
-        sync_sheet_master('voca_results', v,
+        # 2026-08-26부터 제출의 원본은 수파베이스(voca_results)다(021 마이그레이션).
+        # 시트는 학생 페이지가 뒤에서 이중 기록하는 사본 — 시트에만 있는 행(폴백 제출)은
+        # 추가하고, DB에만 있는 행(사본 전송 실패)은 보고만 한다. 제출시각은 페이지가 만든
+        # 문자열을 양쪽이 그대로 담아 정확히 일치하므로 키에 넣어도 안전하다.
+        # 키에 점수·상세 포함 — 같은 분에 재제출한 중복 행(전송 재시도·재응시)이 서로 다른 키가 되도록.
+        # DB 쪽 값은 공백을 떼고 비교(시트 추출 txt()와 같은 기준 — 2026-08-25 중복 사고 재발 방지).
+        print('· 어휘 테스트 (수파베이스가 원본 — 시트에만 있는 행 추가 · DB에만 있는 행 보고)')
+        insert_missing('voca_results', v,
             lambda r: (r['ts'], r['name'], r['round'], r['score'], r['details']),
-            lambda r: (r['school'], r['grade'], r['phone4']), heal)
+            lambda r: (txt(r['ts']), txt(r['name']), txt(r['round']), txt(r['score']), txt(r['details'])),
+            heal, '사본(시트) 전송이 빠진 건 — 시트 쪽을 손볼 것')
     if '--signup' in sys.argv:
         res = fetch_signup()
         if res is None:

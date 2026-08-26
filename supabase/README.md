@@ -229,6 +229,21 @@
 - 주의: hwork_homeworks.data에는 정답이 들어 있다 — 현 공개 수준은 기존과 동일
   (제출 응답의 정오(JSON)·getReport로 정답이 이미 노출되는 구조).
 
+## 어휘 테스트 제출 — 수파베이스가 원본 (2026-08-26 전환)
+- [ ] `migrations/021_voca_origin.sql` — `voca_submit(p)` SECURITY DEFINER 함수를 anon에 연다.
+  **사용자 SQL Editor 실행 대기.** 판정(열린 주차 wrong_week·운영 중단 closed)은 어휘 doPost +
+  리포트 vocaStatus(configOpen_) 조합을 1:1 이식 — 설정은 report_config 미러('어휘 테스트'·
+  '어휘 주차')를 읽는다(설정 원본은 여전히 리포트 시트 '설정' 탭). 채점은 원래 페이지가 한다
+  (정답이 공개 데이터라 종전 그대로). phone4·round는 시트 표기로 정규화(`voca_num_`).
+- **쓰기 흐름**: test.html = `voca_submit` 먼저 → 성공 시 옛 백엔드에 no-cors로 시트 사본 전송
+  (옛 백엔드의 sbMirrorVoca_는 015 잠금 이후 401로 조용히 실패 중이라 이중 삽입 없음 — 미러는
+  그동안 밤 점검이 채워 왔다). 실패 시 옛 no-cors 폴백. 거절(wrong_week·closed)을 학생 화면에 표시.
+- **티쳐스 페이지(shueguk-voca 대시보드)는 어긋나도 원본 화면 유지** — 시트 사본은 삭제용
+  행번호만 제공, 사본에 없는 줄은 삭제 잠금 + 차이 안내, 상세는 원본 id로 직접 조회.
+- **일일 점검 --voca: 시트에만 있는 행(폴백 제출)만 추가, DB에만 있는 행은 보고만**
+  (insert_missing — 제출시각이 페이지 문자열 그대로 양쪽에 담겨 키가 정확히 맞는다).
+- taken 조회(s.html 폴백·슈퍼스타)·CSV·참여율은 기존 백엔드(시트) 그대로 — 다음 단계.
+
 ## 어휘 테스트 (2026-08-23)
 - [x] `migrations/008_voca.sql` — voca_results(어휘 결과 시트 첫 탭 미러 — **시트가 원본**)
 - [x] 데이터 이전 (2026-08-22): 결과 2,301건 — 시트 xlsx 기준 전수 대조 일치, 쓰기 왕복 확인.
