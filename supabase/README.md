@@ -87,10 +87,34 @@
   응답 미러는 일일 점검이 OMR 시트(파일 id 1hd1huZpppBue5rlBVMZc2-wAbZ91PitFiBGT12Cq7YQ)로 동기화.
   실시간 미러가 필요해지면 omr_code.gs에 UrlFetchApp 이중 기록 추가(클래스프 배포+소유자 권한 승인 필요).
 - 출제(hub answer_key.html): 저장/삭제 성공 시 omr_exams 즉시 미러.
-- 신청(signup.html): 신청 성공 시 signup_entries에 한 줄 미러. 교사 화면(signup_teacher.html)이
-  목록을 읽을 때마다 신청 백엔드 원본으로 통째 재동기화(삭제·정리 반영). 일일 점검은
-  신청 백엔드 API(action=data)로 대조(--signup).
-- s.html의 모의고사 성적(studentReports)·신청 게이트는 기존 OMR/신청 백엔드 그대로.
+- s.html의 모의고사 성적(studentReports)은 기존 OMR 백엔드 그대로.
+
+## 주말 모의고사 신청 — 수파베이스가 원본 (2026-08-26 전환)
+- [x] `migrations/016_signup_origin.sql` — 신청 판정 로직(signup_code.gs)을 1:1로 옮긴
+  SECURITY DEFINER 함수 3개를 anon에 열었다(015 잠금과 같은 방식):
+  - `signup_days()` — 폼 첫 화면(정원 37·요일별 인원·응시 날짜·신청받기·가능 학년, days와 같은 모양)
+  - `signup_submit(p)` — 제출: 열림/요일/학년/정원 판정 후 기록. **조언 잠금으로 직렬화**되어
+    동시 제출이 몰려도 정원(37)을 넘지 않는다. 같은 학생 재제출은 정원을 차지하지 않음(백엔드와 동일).
+  - `signup_mine(p)` — 이번 주 본인 신청 내역(mySignups와 동일 규칙 — 학교 느슨 비교·uniq)
+  - 주차 계산(화요일 시작·KST)·응시 날짜(화+4/+5, 'M월 D일')·학교 느슨 비교 모두 백엔드와 동일.
+    검증: days·mine 응답을 레거시와 실데이터 전수 대조(일치), 제출 판정 11가지 시나리오를
+    **롤백되는 트랜잭션 안에서** 통과(성공·재제출·37명 채움·초과 full·정원 찬 상태 재제출 허용·
+    잘못된 요일·닫힌 학년·학년 개방·신청 중단·days 반영), 브라우저 E2E 왕복(제출→양쪽 기록→
+    교사 삭제→양쪽 소거).
+- **쓰기 흐름**: 학생 제출(signup.html) = `signup_submit` 먼저 → 성공 시 옛 백엔드에도 같은 제출을
+  뒤에서 보내 **시트 사본**을 맞춘다(응답 무시, 수파베이스 장애 시엔 옛 경로 폴백+미러 훅).
+  교사 삭제(signup_teacher.html) = `signup_entries` id 삭제 먼저 → 시트 사본에서 같은 신청
+  (이름·요일 같고 제출시각 3분 이내 — 사본 기록이 늦어 분이 어긋날 수 있음)을 찾아 이중 삭제.
+- **교사 화면의 옛 `sbResyncSignup`(시트 기준 통째 재동기화)은 지웠다** — 지금 돌리면 방금 들어온
+  신청·삭제가 옛 시트 내용으로 되돌아간다. 대신 '업데이트' 줄에 '시트 사본과 n건 차이'로 알린다.
+- **설정(신청받기 open·가능 학년 grades)의 원본은 여전히 신청 백엔드**(Script Properties) —
+  교사 토글이 백엔드 먼저 + signup_settings 미러 갱신, `signup_submit`·`signup_days`는 미러를 읽는다.
+  일일 점검이 미러를 백엔드 기준으로 복구(종전 그대로).
+- **일일 점검 --signup: entries는 대조·보고만**(자동 수정 없음 — audit_heal.py). 시트 쪽이 어긋나면
+  보고를 보고 시트를 손보거나, 수파베이스 쪽이 빠졌으면 수동 보충.
+- s.html: 신청 게이트·본인 신청 내역은 종전대로 student_bundle(signup_settings·signup_entries) —
+  이제 그 표가 원본이라 더 정확해졌다. 폴백 직접 조회(레거시 JSONP)는 그대로.
+- 전환 시점 대조: 시트 314건 = 미러 314건(행 단위 전 항목 일치) 확인 후 전환.
 
 ## 클리닉 (2026-08-23)
 - [x] `migrations/006_clinic.sql` — clinic_requests(신청 '응답' 시트 미러)·clinic_settings(Script Properties

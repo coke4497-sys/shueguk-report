@@ -2189,39 +2189,21 @@ function renderMockHub(){
   $('mockHubMenu').innerHTML = html;
 }
 /* ── 하위 메뉴 선조회 (2026-08-26 접속 지연 대책) ──
- * 메뉴를 여는 순간 ①성적표(OMR 백엔드 studentReports — 실측 2~15초)와
- * ②신청 요일·남은자리(days — 실측 2~5초)를 미리 받아 둔다.
- * 성적은 8자리를 입력하는 동안 도착해 있고(submitPw가 MOCK_PRE 재사용),
- * days는 sessionStorage(mockDaysPre)로 신청 페이지(signup.html — 같은 도메인)에 넘겨
- * 신청 페이지가 서버 응답을 기다리지 않고 요일·학년을 바로 그린다. */
-var MOCK_PRE = null, MOCK_PRE_AT = 0, DAYS_PRE_BUSY = false;
+ * 메뉴를 여는 순간 성적표(OMR 백엔드 studentReports — 실측 2~15초)를 미리 받아 둔다.
+ * 8자리를 입력하는 동안 도착해 있어 체감 대기가 사라진다(submitPw가 MOCK_PRE 재사용).
+ * (신청 요일·남은자리 선조회(sessionStorage 전달)는 신청 데이터가 수파베이스 원본으로
+ *  옮겨 가며(016) 신청 페이지가 스스로 0.3초 안팎에 받게 되어 제거 — 2026-08-26) */
+var MOCK_PRE = null, MOCK_PRE_AT = 0;
 function prefetchMockMenu(){
   var info = STATE.info || {};
-  // ① 성적 — 이름이 유일한 학생만(동명이인은 8자리로 걸러야 해서 종전대로 입력 후 조회).
-  //   조회 조건(name+school+uniq=1)이 8자리를 넣은 조회와 같아 결과가 동일하다.
-  //   OMR 응시 직후 다시 들어온 경우를 위해 2분이 지났으면 새로 받는다.
+  // 이름이 유일한 학생만(동명이인은 8자리로 걸러야 해서 종전대로 입력 후 조회).
+  // 조회 조건(name+school+uniq=1)이 8자리를 넣은 조회와 같아 결과가 동일하다.
+  // OMR 응시 직후 다시 들어온 경우를 위해 2분이 지났으면 새로 받는다.
   var mockReady = (typeof WEEKEND_API==='string' && WEEKEND_API.indexOf('http')===0);
   if (mockReady && !STATE.mock && info.nameDup === false &&
       (!MOCK_PRE || Date.now() - MOCK_PRE_AT > 120000)){
     MOCK_PRE_AT = Date.now();
     MOCK_PRE = fetchMockData('');
-  }
-  // ② 신청 days — 신청 카드가 눌리는 상태일 때만. 결과가 도착하기 전에 학생이 먼저
-  //   넘어가도, 신청 페이지 쪽이 잠깐(6초) 기다렸다 집어 간다.
-  var sgn = STATE.mockSignups || [];
-  var signupActive = sgn.length ? true : (gradeEligible(STATE.mockGrades) && STATE.mockOpen !== false);
-  if (signupActive && !DAYS_PRE_BUSY){
-    var kept = null;
-    try { kept = JSON.parse(sessionStorage.getItem('mockDaysPre')||'null'); } catch(e){}
-    if (!(kept && Date.now() - kept.at < 60000)){
-      DAYS_PRE_BUSY = true;
-      jsonp(SIGNUP_API + '?action=days', 15000).then(function(d){
-        DAYS_PRE_BUSY = false;
-        if (d && d.result === 'success'){
-          try { sessionStorage.setItem('mockDaysPre', JSON.stringify({ at: Date.now(), resp: d })); } catch(e){}
-        }
-      });
-    }
   }
 }
 function openMockHub(){ renderMockHub(); prefetchMockMenu(); hide('hubView'); $('mockHubView').style.display='block'; window.scrollTo(0,0); }

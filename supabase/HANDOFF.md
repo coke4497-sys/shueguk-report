@@ -48,10 +48,12 @@
 
 ## 원본/미러 방향 (혼동 금지)
 - **수파베이스가 원본**: attendance, tt_memo, exam_sched, hwcheck_records, naeshin_records,
-  submissions(선생님 한마디 포함), tt_log 일부(1회 취소/수정) — 시트로 덮어쓰지 말 것.
-  페이지가 시트에 이중 기록해서 시트도 거의 최신.
+  submissions(선생님 한마디 포함), tt_log 일부(1회 취소/수정),
+  **signup_entries(2026-08-26 전환 — 016 마이그레이션, 함수 signup_days/submit/mine)** —
+  시트로 덮어쓰지 말 것. 페이지가 시트에 이중 기록해서 시트도 거의 최신.
 - **시트/기존 백엔드가 원본**: tt_classes, tt_period, students, notices, notice_reads, star_bonus,
-  exams, exam_questions, omr_exams, omr_responses, signup_entries — 미러는 페이지 훅+일일 점검이 유지.
+  exams, exam_questions, omr_exams, omr_responses, **signup_settings(신청받기·가능 학년)** —
+  미러는 페이지 훅+일일 점검이 유지.
 
 ## 키·비밀 취급 (절대 규칙)
 - **Publishable 키**(공개 가능, 페이지·저장소에 있음): `sb_publishable_dE9d1KIbpgYaQkaS2MSrlg_-7SiRJuT`

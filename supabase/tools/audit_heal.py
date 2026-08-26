@@ -524,10 +524,29 @@ def main():
             report('signup_entries: 신청 백엔드 조회 실패 — 대조 못 함')
         else:
             rows, s_set = res
-            print('· 주말 신청 (신청 시트·백엔드 설정이 원본, API로 대조)')
-            sync_sheet_master('signup_entries', rows,
-                lambda r: (r['ts'], r['name'], r['day'], r['student_id']),
-                lambda r: (r['school'], r['grade'], r['subject'], r['exam_date']), heal)
+            # 2026-08-26부터 신청 데이터의 원본은 수파베이스(signup_entries)다(016 마이그레이션).
+            # 시트는 페이지가 뒤에서 이중 기록하는 사본 — 여기서는 대조·보고만 하고 고치지 않는다
+            # (시트 기준으로 heal 하면 방금 들어온 신청·교사 삭제가 옛 시트 내용으로 되돌아간다).
+            print('· 주말 신청 (수파베이스가 원본 — 시트 사본과 대조·보고만, 설정은 백엔드가 원본)')
+            from collections import Counter
+            try:
+                cur = sb_all('signup_entries')
+            except Exception as e:
+                report(f'signup_entries: 조회 실패 — {e}')
+                cur = None
+            if cur is not None:
+                keyf = lambda r: (r['ts'], r['name'], r['day'], r['student_id'],
+                                  r['school'], r['grade'], r['subject'], r['exam_date'])
+                c_sb, c_sh = Counter(map(keyf, cur)), Counter(map(keyf, rows))
+                only_sb = list((c_sb - c_sh).elements())
+                only_sh = list((c_sh - c_sb).elements())
+                if not only_sb and not only_sh:
+                    print(f'  = signup_entries: 시트 사본과 일치 ({len(rows)}행)')
+                else:
+                    report(f'signup_entries: 시트 사본과 차이 — 원본에만 {len(only_sb)} · 시트에만 {len(only_sh)}'
+                           ' (원본은 수파베이스 — 자동 수정 안 함, 시트 쪽을 손볼 것)')
+                    for k in only_sb[:5]: print(f'      · 원본에만: {k}')
+                    for k in only_sh[:5]: print(f'      · 시트에만: {k}')
             try:
                 cur_ss = {r['key']: r['value'] for r in sb_all('signup_settings')}
             except Exception as e:      # 표가 아직 없으면(마이그레이션 전) 보고만 하고 넘어간다
