@@ -1493,6 +1493,51 @@
     return fetchClasses('정규').then(function(cs){ return syncStudentSlots('정규', names, cs); },
                                     function(){ return { updated: 0, msg: '' }; });
   }
+  /* ── 내신 진도/확인 칸 동기화 (2026-08-27 사용자 요청 "내신 이동도 학생 페이지에 반영") ──
+   * 반이름에 '확인' → 내신확인(naeshin_b), 그 외 → 내신진도(naeshin_a), 논술 제외.
+   * 이름 대조는 앞(학교)·뒤(특이사항) 괄호를 모두 뗀다 — 내신 확인반 토큰이 '(화정)심지후' 형태.
+   * 이름이 유일할 때만 반영(정규 syncStudentSlots와 같은 안전 규칙). */
+  function naeKind(cls){
+    var c = String(cls || '').trim();
+    if (/논술/.test(c)) return '';
+    return /확인/.test(c) ? 'NB' : 'NA';
+  }
+  function plainFull(s){
+    return String(s || '').replace(/^\s*\([^)]*\)\s*/, '').replace(/\(.*\)$/, '').trim();
+  }
+  function syncNaeshinSlots(names, fresh){
+    var out = { updated: 0, msg: '' };
+    if (!names || !names.length) return Promise.resolve(out);
+    var listJob = fresh ? Promise.resolve(fresh) : fetchClasses('내신');
+    return listJob.then(function(list){
+      var seen = {}, jobs = [];
+      names.forEach(function(nm){
+        var p = plainFull(nm);
+        if (!p || seen[p]) return;
+        seen[p] = true;
+        var slot = { NA: '', NB: '' };
+        (list || []).forEach(function(c){
+          if (c.wk) return;                       // '이 주만' 반은 학생정보에 반영하지 않는다
+          var k = naeKind(c.cls);
+          if (!k) return;
+          var has = (c.students || []).some(function(s){ return plainFull(s) === p; });
+          if (has) slot[k] = String(c.day || '') + String(c.start || '');
+        });
+        jobs.push(sbGet('/students?name=eq.' + q(p) + '&select=id').then(function(rows){
+          if (!rows || rows.length !== 1){
+            out.msg = out.msg || ((!rows || !rows.length)
+              ? '학생정보 명단에 없는 이름이라 리포트에는 반영되지 않았어요.'
+              : '같은 이름이 여러 명이라 리포트에는 반영되지 않았어요. 슈스 링크 탭에서 직접 확인해 주세요.');
+            return;
+          }
+          return sbWrite('PATCH', '/students?id=eq.' + rows[0].id, { naeshin_a: slot.NA, naeshin_b: slot.NB })
+            .then(function(){ out.updated++; });
+        }));
+      });
+      return Promise.all(jobs).then(function(){ return out; },
+                                    function(e){ console.warn('내신 시간표 미러 실패', e); return out; });
+    }, function(){ return out; });
+  }
   /* 방금 적용한 명단 변경을 화면이 이미 받아 둔 목록에도 반영해 둔다 —
    * 학생정보(정규가/나)를 다시 계산할 때 목록을 또 받지 않으려고. */
   function localApply(lists, ops){
@@ -1869,10 +1914,16 @@
                       to_class_id: toId, to_class: toC.cls, reason: String(b.reason || '') })
             .catch(function(e){ console.warn('이동 기록 실패', e); });
           var after = localApply(rs2, ops);
-          return applySlots([moved], (bookOf(book) === '정규' ? toC.cls : (tt ? tt.cls : null)), after)
-            .then(function(sl){
-              return ok({ moved: moved, rosterUpdated: sl.updated, rosterMsg: sl.msg, twinMsg: twinMsg });
-            });
+          var naeJob = (bookOf(book) === '내신' || (tf && tt && tb === '내신'))
+            ? syncNaeshinSlots([moved], rs2['내신']) : Promise.resolve(null);
+          return Promise.all([
+            applySlots([moved], (bookOf(book) === '정규' ? toC.cls : (tt ? tt.cls : null)), after), naeJob
+          ]).then(function(pair){
+            var sl = pair[0], na = pair[1];
+            var useNa = (bookOf(book) === '내신' && na);
+            return ok({ moved: moved, rosterUpdated: useNa ? na.updated : sl.updated,
+                        rosterMsg: (useNa && na.msg) ? na.msg : sl.msg, twinMsg: twinMsg });
+          });
         });
       });
     },
@@ -1895,10 +1946,16 @@
                       reason: String(b.reason || '') })
             .catch(function(e){ console.warn('추가 기록 실패', e); });
           var after = localApply(rs2, ops);
-          return applySlots([nm], (bookOf(book) === '정규' ? toC.cls : (tt ? tt.cls : null)), after)
-            .then(function(sl){
-              return ok({ added: nm, rosterUpdated: sl.updated, rosterMsg: sl.msg, twinMsg: twinMsg });
-            });
+          var naeJob = (bookOf(book) === '내신' || (tt && tb === '내신'))
+            ? syncNaeshinSlots([nm], rs2['내신']) : Promise.resolve(null);
+          return Promise.all([
+            applySlots([nm], (bookOf(book) === '정규' ? toC.cls : (tt ? tt.cls : null)), after), naeJob
+          ]).then(function(pair){
+            var sl = pair[0], na = pair[1];
+            var useNa = (bookOf(book) === '내신' && na);
+            return ok({ added: nm, rosterUpdated: useNa ? na.updated : sl.updated,
+                        rosterMsg: (useNa && na.msg) ? na.msg : sl.msg, twinMsg: twinMsg });
+          });
         });
       });
     },
@@ -1923,10 +1980,16 @@
                       reason: String(b.reason || '') })
             .catch(function(e){ console.warn('빼기 기록 실패', e); });
           var after = localApply(rs2, ops);
-          return applySlots([removed], (bookOf(book) === '정규' ? fromC.cls : (tf ? tf.cls : null)), after)
-            .then(function(sl){
-              return ok({ removed: removed, rosterUpdated: sl.updated, rosterMsg: sl.msg, twinMsg: twinMsg });
-            });
+          var naeJob = (bookOf(book) === '내신' || (tf && tb === '내신'))
+            ? syncNaeshinSlots([removed], rs2['내신']) : Promise.resolve(null);
+          return Promise.all([
+            applySlots([removed], (bookOf(book) === '정규' ? fromC.cls : (tf ? tf.cls : null)), after), naeJob
+          ]).then(function(pair){
+            var sl = pair[0], na = pair[1];
+            var useNa = (bookOf(book) === '내신' && na);
+            return ok({ removed: removed, rosterUpdated: useNa ? na.updated : sl.updated,
+                        rosterMsg: (useNa && na.msg) ? na.msg : sl.msg, twinMsg: twinMsg });
+          });
         });
       });
     },
@@ -2049,13 +2112,22 @@
                       reason: String(b.reason || '') })
             .catch(function(e){ console.warn('반이동 기록 실패', e); });
           legacyBg(b);
-          // 학생정보 정규가/나 재계산 — 정규 반이면 그 반 학생들, 짝이 정규면 짝 반 학생들
-          var slotJob;
-          if (book === '정규') slotJob = applySlots(members, was.cls);
-          else if (tw && tb === '정규') slotJob = applySlots(tw.students.slice(), tw.cls);
-          else slotJob = Promise.resolve({ updated: 0, msg: (book === '내신') ? '' : '' });
-          return slotJob.then(function(sl){
-            return ok({ rosterUpdated: sl.updated || 0, rosterSkipped: [], rosterMsg: sl.msg || '',
+          // 학생정보 재계산 — 정규 반이면 정규가/나, 내신 반이면 내신 진도/확인.
+          // 짝 반의 시간도 함께 바뀌므로 짝 쪽 학생들도 각자 시간표 기준으로 다시 계산한다.
+          var slotJob, naeJob = Promise.resolve(null);
+          if (book === '정규'){
+            slotJob = applySlots(members, was.cls);
+            if (tw && tb === '내신') naeJob = syncNaeshinSlots(tw.students.slice(), null);
+          } else {
+            slotJob = (tw && tb === '정규') ? applySlots(tw.students.slice(), tw.cls)
+                                           : Promise.resolve({ updated: 0, msg: '' });
+            naeJob = syncNaeshinSlots(members, null);
+          }
+          return Promise.all([slotJob, naeJob]).then(function(pair){
+            var sl = pair[0], na = pair[1];
+            var useNa = (book === '내신' && na);
+            return ok({ rosterUpdated: (useNa ? na.updated : sl.updated) || 0, rosterSkipped: [],
+                        rosterMsg: (useNa && na.msg) ? na.msg : (sl.msg || ''),
                         twinBook: tw ? tb : '', twinMsg: tw ? (tb + ' 시간표의 같은 반도 함께 옮겼어요.') : '' });
           });
         });

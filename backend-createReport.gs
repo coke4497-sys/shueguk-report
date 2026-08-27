@@ -2706,6 +2706,17 @@ function ttKind_(cls) {
   if (/나$/.test(c)) return 'B';
   return 'S';
 }
+/* 내신 반 → 학생정보 열 종류: '확인' 포함 = 내신확인(J), 그 외 = 내신진도(I), 논술 제외.
+ * (2026-08-27 사용자 요청 — 내신 이동도 학생 페이지 '내 수업 정보'에 반영) */
+function ttNKind_(cls) {
+  var c = String(cls || '').trim();
+  if (/논술/.test(c)) return '';
+  return /확인/.test(c) ? 'NB' : 'NA';
+}
+/* 학생정보 열 번호 (1-based): 정규가 G=7 · 정규나 H=8 · 내신진도 I=9 · 내신확인 J=10 */
+function ttKindCol_(k) {
+  return (k === 'B') ? 8 : (k === 'NA') ? 9 : (k === 'NB') ? 10 : 7;
+}
 /* ── 정규 ↔ 내신 짝 반 (중3·고3) ───────────────────────────────────────────
  * 중3·고3은 정규 기간이든 내신 기간이든 같은 반으로 움직인다(사용자 확정, 2026-08-25).
  * 그런데 두 시간표는 반ID가 달라(r### / n###) 명단이 서로 남남이라, 한쪽에서 옮기면
@@ -2962,12 +2973,12 @@ function timetableMove(data) {
     ttLog_(ss, '영구', moved, fromId, String(v[fromRow][6] || ''), toId, String(v[toRow][6] || ''), reason, book);
 
     // 학생정보(정규가/나) 반영 — 이동한 반의 종류에 따라
-    var fk = ttKind_(v[fromRow][6]), tk = ttKind_(v[toRow][6]);
-    if (book === '내신') { fk = ''; tk = ''; }   // 내신 시간표는 학생정보 정규가/나에 반영하지 않음
+    var fk = (book === '내신') ? ttNKind_(v[fromRow][6]) : ttKind_(v[fromRow][6]);
+    var tk = (book === '내신') ? ttNKind_(v[toRow][6]) : ttKind_(v[toRow][6]);
     var slot = String(v[toRow][1] || '').trim() + ttTime_(v[toRow][2]);   // 예: 토6:00
     var rosterUpdated = false, rosterMsg = '';
     if (tk) {
-      var colOf = function (k) { return (k === 'B') ? 8 : 7; };   // G=7, H=8 (1-based)
+      var colOf = ttKindCol_;   // 정규가 G=7 · 정규나 H=8 · 내신진도 I=9 · 내신확인 J=10
       var ssh = ss.getSheetByName(TAB_STUDENTS);
       var sv = ssh ? ssh.getDataRange().getValues() : null;
       var rowN = -1, cnt = 0;
@@ -2984,7 +2995,7 @@ function timetableMove(data) {
                                 : '같은 이름이 여러 명이라 리포트에는 반영되지 않았어요. 슈스 링크 탭에서 직접 확인해 주세요.';
       }
     } else {
-      rosterMsg = (book === '내신') ? '' : '논술 수업은 리포트 시간표에 반영하지 않아요.';
+      rosterMsg = '논술 수업은 리포트 시간표에 반영하지 않아요.';
     }
     // 중3·고3은 정규·내신이 같은 반 — 짝 반 명단도 함께 옮긴다
     var twin = ttTwinRoster_(ss, book, v, fromRow, toRow, moved);
@@ -3008,7 +3019,7 @@ function ttRosterSet_(ss, plainName, kind, slot) {
     return { updated: false, msg: (cnt === 0) ? '학생정보 명단에 없는 이름이라 리포트에는 반영되지 않았어요.'
                                               : '같은 이름이 여러 명이라 리포트에는 반영되지 않았어요. 슈스 링크 탭에서 직접 확인해 주세요.' };
   }
-  ssh.getRange(rowN + 1, (kind === 'B') ? 8 : 7).setValue(slot);
+  ssh.getRange(rowN + 1, ttKindCol_(kind)).setValue(slot);
   dropTab_(TAB_STUDENTS);
   return { updated: true, msg: '' };
 }
@@ -3035,9 +3046,9 @@ function timetableAdd(data) {
     }
     toList.push(name);
     sh.getRange(toRow + 1, 8).setValue(toList.join(' '));
-    var tk = (book === '내신') ? '' : ttKind_(v[toRow][6]);
+    var tk = (book === '내신') ? ttNKind_(v[toRow][6]) : ttKind_(v[toRow][6]);
     var slot = String(v[toRow][1] || '').trim() + ttTime_(v[toRow][2]);
-    var r = (book === '내신') ? { updated:false, msg:'' } : ttRosterSet_(ss, plain, tk, slot);
+    var r = ttRosterSet_(ss, plain, tk, slot);
     ttLog_(ss, '추가', name, '', '', toId, String(v[toRow][6] || ''), String(data.reason || ''), book);
     var twin = ttTwinRoster_(ss, book, v, -1, toRow, name);
     return json({ result:'success', added: name, rosterUpdated: r.updated, rosterMsg: r.msg,
@@ -3071,8 +3082,8 @@ function timetableRemove(data) {
     if (idx < 0) return json({ result:'error', message:'그 반에 없는 학생이에요. 새로고침 후 다시 시도해 주세요.' });
     var removed = fromList.splice(idx, 1)[0];
     sh.getRange(fromRow + 1, 8).setValue(fromList.join(' '));
-    var fk = (book === '내신') ? '' : ttKind_(v[fromRow][6]);
-    var r = (book === '내신') ? { updated:false, msg:'' } : ttRosterSet_(ss, plain, fk, '');   // 해당 열 비우기
+    var fk = (book === '내신') ? ttNKind_(v[fromRow][6]) : ttKind_(v[fromRow][6]);
+    var r = ttRosterSet_(ss, plain, fk, '');   // 해당 열 비우기
     ttLog_(ss, '빼기', removed, fromId, String(v[fromRow][6] || ''), '', '', String(data.reason || ''), book);
     var twin = ttTwinRoster_(ss, book, v, fromRow, -1, removed);
     return json({ result:'success', removed: removed, rosterUpdated: r.updated, rosterMsg: r.msg,
@@ -3193,7 +3204,7 @@ function timetableMoveClass(data) {
     rg.setNumberFormat('@');
     rg.setValues([[newDay, newStart, newEnd, newLoc, newTeacher]]);
     // 소속 학생 전원 리포트 반영 (정규 + 가/나/단일만)
-    var kind = (book === '내신') ? '' : ttKind_(v[row][6]);
+    var kind = (book === '내신') ? ttNKind_(v[row][6]) : ttKind_(v[row][6]);
     var updated = 0, skipped = [];
     if (kind) {
       var slot = newDay + newStart;
@@ -3214,7 +3225,7 @@ function timetableMoveClass(data) {
       twinBook = twin.book;
       twinMsg = twin.book + ' 시간표의 같은 반도 함께 옮겼어요.';
       // 짝이 정규 시간표면 그 반 학생들의 리포트 시간(정규가/나)도 새 시간으로
-      var tkind = (twin.book === '내신') ? '' : ttKind_(twin.v[twinRow][6]);
+      var tkind = (twin.book === '내신') ? ttNKind_(twin.v[twinRow][6]) : ttKind_(twin.v[twinRow][6]);
       if (tkind) {
         var tnames = ttListAt_(twin.v, twinRow);
         for (var tn = 0; tn < tnames.length; tn++) {
