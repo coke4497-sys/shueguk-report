@@ -1859,6 +1859,12 @@
           if (nameIdx(toC.students, nm) >= 0) return { result:'error', message:'이미 그 반에 있는 학생이에요.' };
           var moved = fromC.students[k];
           var ad = applyDate || tYmd();
+          return sbGet('/tt_log?kind=eq.' + q('1회') + '&book=eq.' + q(book) +
+                       '&from_class_id=eq.' + q(fromId) + '&to_class_id=eq.' + q(toId) +
+                       '&apply_date=eq.' + q(ad) + '&select=student').then(function(prev){
+            // 같은 학생의 같은 이동이 이미 있으면 재기록하지 않는다 (중복 칩 방지, 2026-08-27)
+            if ((prev || []).some(function(g){ return plain(g.student) === plain(nm); }))
+              return { result:'error', message:'이미 기록된 1회 이동이에요. 사유를 고치거나 취소하려면 보라색 칩을 눌러 주세요.' };
           return insertLog({ kind:'1회', student: moved, book: book,
               from_class_id: fromId, from_class: fromC.cls,
               to_class_id: toId, to_class: toC.cls,
@@ -1887,6 +1893,7 @@
                               rosterUpdated: false, rosterMsg: '' });
                 });
             });
+          });
         });
       }
 
@@ -2234,8 +2241,12 @@ function dedupTemps(c, temps, awayOf){
     have[p] = 1;
     if (/A$/.test(p)) have[p.slice(0, -1)] = 1;   // 동명이인 표기 차이(명단 '양지우A' ↔ 기록 '양지우') — asKey처럼 끝의 A만 뗀다
   });
+  var seen = {};   // 같은 학생·같은 종류의 중복 기록은 칩 하나만 (데이터에 중복이 남아도 화면은 한 번, 2026-08-27)
   return temps.filter(function(o){
     var p = plainName(o.student);
+    var sk = String(o.kind || '1회') + '|' + p;
+    if (seen[sk]) return false;
+    seen[sk] = 1;
     if (awayOf && awayOf[String(o.student || '').replace(/\(.*\)$/, '')]) return true;
     return !(have[p] || (/A$/.test(p) && have[p.slice(0, -1)]));
   });

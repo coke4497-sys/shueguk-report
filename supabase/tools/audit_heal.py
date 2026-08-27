@@ -545,10 +545,13 @@ def main():
     insert_missing('submissions', d['submissions'],
         lambda r: (ep(r['submitted_at']), r['name'].strip(), r['exam'].strip()),
         lambda r: (ep(r['submitted_at']), r['name'].strip(), r['exam'].strip()), heal, '이중 기록 지연·실패 가능')
-    insert_missing('tt_log', d['tt_log'],
-        lambda r: (ep(r['at']), r['kind'], r['student'], r['from_class_id'], r['to_class_id']),
-        lambda r: (ep(r['at']), r['kind'], r['student'], r['from_class_id'], r['to_class_id']), heal,
-        '페이지에서 직접 기록한 이동(1회 취소 등 정상일 수 있음)')
+    # 2026-08-27: tt_log는 수파베이스가 원본(모든 시간표 쓰기가 페이지 먼저) — 시트
+    # '시간표이동기록'은 뒤에서 보내는 사본이라 기록 시각이 몇 초~몇 분 어긋난다.
+    # 초 단위 일치 키(insert_missing + ep)는 그 사본을 '빠진 행'으로 오인해 되살렸고,
+    # 그래서 1회 이동 칩이 중복으로 보였다(8/27 사용자 신고로 89건 정리). 대조·보고만 한다.
+    copy_compare('tt_log', d['tt_log'],
+        lambda r: (r['kind'], r['student'], r['from_class_id'], r['to_class_id']),
+        lambda r: r['at'], tol_min=10)
 
     # ── 주말 모의고사 (선택) — 셋 다 원본이 밖(시트/신청 백엔드)에 있는 미러 ──
     if '--omr' in sys.argv:
