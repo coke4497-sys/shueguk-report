@@ -623,7 +623,8 @@ function cidMembers_(){
   if (!urlCid || !ttClasses || !ttClasses[urlCid] || !ttClasses[urlCid].students) return null;
   var m = {};
   ttClasses[urlCid].students.forEach(function(nm){ m[String(nm).replace(/^\s*\([^)]*\)\s*/,'').replace(/\(.*\)$/,'')] = true; });
-  // 이번 주 1회 이동으로 이 반에 온 학생도 포함
+  // 이번 주 1회 이동으로 이 반에서 나간 학생은 빼고, 이 반에 온 학생은 포함
+  (wkOnce || []).forEach(function(o){ if (o.fromId === urlCid) delete m[String(o.student || '').replace(/^\s*\([^)]*\)\s*/,'').replace(/\(.*\)$/,'')]; });
   (wkOnce || []).forEach(function(o){ if (o.toId === urlCid) m[String(o.student || '').replace(/^\s*\([^)]*\)\s*/,'').replace(/\(.*\)$/,'')] = true; });
   return m;
 }
@@ -803,7 +804,11 @@ function matchBase_(s, upTo){
   if (upTo === 'school') return true;
   if (upTo !== 'teacher' && tc && String(s.teacher||'').trim() !== tc) return false;
   if (upTo === 'teacher') return true;
-  if (upTo !== 'slot' && sl && slotNorm(s.classA) !== sl && slotNorm(s.classB) !== sl && !onceToSlots_(s)[sl]) return false;
+  if (upTo !== 'slot' && sl){
+    // 자기 가/나 시간대라도 이번 주 1회 이동으로 나갔으면 그 시간대에서는 빠진다
+    var own = (slotNorm(s.classA) === sl || slotNorm(s.classB) === sl) && !onceFromSlots_(s)[sl];
+    if (!own && !onceToSlots_(s)[sl]) return false;
+  }
   return true;
 }
 /* 이번 주 1회 이동으로 '이동해 간' 시간대들 — 그 시간대 목록에도 학생이 나타나게 */
@@ -814,6 +819,18 @@ function onceToSlots_(s){
     if (plainNm(o.student) !== pn) return;
     var t = ttClasses[o.toId];
     if (t) out[t.slot] = 1;
+  });
+  return out;
+}
+/* 이번 주 1회 이동으로 '떠난' 시간대들 — 원래 반 목록에서 빠지게 (이동해 온 반에만 표시)
+ * 같은 시간대로 온 이동이 함께 있으면(드묾) onceToSlots_가 이겨 그대로 남는다 */
+function onceFromSlots_(s){
+  if (!ttClasses || !wkOnce.length) return {};
+  var pn = plainNm(s.name), out = {};
+  wkOnce.forEach(function(o){
+    if (plainNm(o.student) !== pn) return;
+    var f = ttClasses[o.fromId];
+    if (f) out[f.slot] = 1;
   });
   return out;
 }
