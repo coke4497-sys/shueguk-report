@@ -1395,6 +1395,53 @@
           });
       });
   }
+  /* ── 영구 이동의 '적용 시작 주' (2026-08-28 수정 요청함 — 다음 주부터 옮기는
+   * 학생은 이번 주 출석 체크가 어렵다는 조교 요청) ─────────────────────────
+   * 명단은 지금 바꾸되(영구 이동 그대로), 시작 주 전의 각 주에는
+   * 주간추가(원래 반) + 주간빼기(새 반) 기록을 남겨 오늘·주차별 화면이
+   * 그때까지 원래 반으로 보여 주게 한다. 주마다 그 주의 기간(정규/내신)에 맞는
+   * 쪽에 기록한다 — 기간이 반대쪽 시간표면 짝 반(중3·고3)에 남기고, 짝 반이
+   * 없으면 그 주엔 이 시간표가 화면에 나오지 않으므로 남길 것이 없다. */
+  var STAY_DAY_OFF = { '월':-2, '화':-1, '수':0, '목':1, '금':2, '토':3, '일':4 };
+  function curWedYmd(){
+    var x = new Date();
+    x = new Date(x.getFullYear(), x.getMonth(), x.getDate());
+    x.setDate(x.getDate() - ((x.getDay() + 6) % 7) + 2);   // 월~일 달력 주의 수요일
+    return localYmd(x);
+  }
+  function dayYmdInWeek(wedYmd, day){
+    var d = new Date(+wedYmd.slice(0,4), +wedYmd.slice(5,7)-1, +wedYmd.slice(8,10));
+    d.setDate(d.getDate() + (STAY_DAY_OFF[day] != null ? STAY_DAY_OFF[day] : 0));
+    return localYmd(d);
+  }
+  function mdOfYmd(ymd){ return (+ymd.slice(5,7)) + '/' + (+ymd.slice(8,10)); }
+  function moveStayRecords(book, tb, moved, fromC, toC, tf, tt, applyFrom, userReason){
+    var cur = curWedYmd();
+    if (!applyFrom || applyFrom <= cur) return Promise.resolve(0);
+    return sbGet('/tt_period?select=week_wednesday,book').then(function(ps){
+      var per = {}; (ps || []).forEach(function(p){ per[p.week_wednesday] = p.book; });
+      var reason = '반 이동 예약 — ' + mdOfYmd(applyFrom) + ' 주부터 새 반' +
+                   (userReason ? ' (' + userReason + ')' : '');
+      var jobs = [];
+      var w = new Date(+cur.slice(0,4), +cur.slice(5,7)-1, +cur.slice(8,10));
+      for (var i = 0; i < 16; i++){
+        var wy = localYmd(w);
+        if (wy >= applyFrom) break;
+        var bk = bookOf(per[wy]);
+        var pair = (bk === book) ? { f: fromC, t: toC } : ((tf && tt) ? { f: tf, t: tt } : null);
+        if (pair){
+          jobs.push(insertLog({ kind:'주간추가', student: moved, book: bk,
+                                to_class_id: pair.f.id, to_class: pair.f.cls,
+                                reason: reason, apply_date: dayYmdInWeek(wy, pair.f.day) }));
+          jobs.push(insertLog({ kind:'주간빼기', student: moved, book: bk,
+                                from_class_id: pair.t.id, from_class: pair.t.cls,
+                                reason: reason, apply_date: dayYmdInWeek(wy, pair.t.day) }));
+        }
+        w.setDate(w.getDate() + 7);
+      }
+      return Promise.all(jobs).then(function(){ return jobs.length / 2; });
+    });
+  }
   /* ── 명단 편집 — 수파베이스가 원본 (2026-08-25) ────────────────────────────
    * 예전엔 시트에 먼저 쓰고 성공하면 수파베이스에 미러했다(그래서 명단의 원본은 시트였고,
    * 화면이 앱스스크립트 응답 2~4초를 기다렸다). 이제 수파베이스에 먼저 쓰고 시트에는 같은
@@ -1951,23 +1998,33 @@
           ops.push({ book: tb, id: tf.id, del: moved, soft: true }, { book: tb, id: tt.id, add: moved, soft: true });
           twinMsg = twinDoneMsg(tb);
         } else if (tf || tt) twinMsg = twinNoneMsg(tb);
+        // 적용 시작 주(그 주 수요일) — 그 전 주까지는 화면에서 원래 반에 남는다
+        var af = String(b.applyFrom || '').trim();
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(af) || af <= curWedYmd()) af = '';
         return rosterOps(book, ops).then(function(r){
           if (!r.ok) return { result:'error', message: r.message };
           legacyBg(b);                                   // 시트·학생정보는 뒤에서
           insertLog({ kind:'영구', student: moved, book: book,
                       from_class_id: fromId, from_class: fromC.cls,
-                      to_class_id: toId, to_class: toC.cls, reason: String(b.reason || '') })
+                      to_class_id: toId, to_class: toC.cls,
+                      reason: String(b.reason || '') +
+                              (af ? (b.reason ? ' · ' : '') + mdOfYmd(af) + ' 주부터 적용' : '') })
             .catch(function(e){ console.warn('이동 기록 실패', e); });
+          var stayJob = af
+            ? moveStayRecords(book, tb, moved, fromC, toC, tf, tt, af, String(b.reason || ''))
+                .catch(function(e){ console.warn('이동 예약 기록 실패', e); return -1; })
+            : Promise.resolve(0);
           var after = localApply(rs2, ops);
           var naeJob = (bookOf(book) === '내신' || (tf && tt && tb === '내신'))
             ? syncNaeshinSlots([moved], rs2['내신']) : Promise.resolve(null);
           return Promise.all([
-            applySlots([moved], (bookOf(book) === '정규' ? toC.cls : (tt ? tt.cls : null)), after), naeJob
+            applySlots([moved], (bookOf(book) === '정규' ? toC.cls : (tt ? tt.cls : null)), after), naeJob, stayJob
           ]).then(function(pair){
             var sl = pair[0], na = pair[1];
             var useNa = (bookOf(book) === '내신' && na);
             return ok({ moved: moved, rosterUpdated: useNa ? na.updated : sl.updated,
-                        rosterMsg: (useNa && na.msg) ? na.msg : sl.msg, twinMsg: twinMsg });
+                        rosterMsg: (useNa && na.msg) ? na.msg : sl.msg, twinMsg: twinMsg,
+                        applyFrom: af, stayWeeks: pair[2] });
           });
         });
       });
@@ -5595,12 +5652,29 @@ function openMovePicker(fromC){
 }
 
 /* 이동 확인 모달 (전체/요일별 = 영구 이동 전용, 1회 이동은 오늘의 시간표에서) */
+/* '언제부터' 선택 — 다음 주부터 옮기는 학생은 그 전까지 원래 반에서 출석해야 해서
+ * (2026-08-28 수정 요청함). 기본은 지금처럼 바로 적용. 기준은 보고 있는 주가 아니라 오늘. */
+function mvWeekSelHtml(){
+  var opts = ['<option value="">이번 주부터 — 바로 적용</option>'];
+  var cur = weekStartOf(new Date());
+  for (var i = 1; i <= 12; i++){
+    var w = new Date(cur.getFullYear(), cur.getMonth(), cur.getDate() + 7 * i);
+    var ds = weekDatesOf(w);
+    opts.push('<option value="'+ymdOf(w)+'">'+mdOf(ds['월'])+'~'+mdOf(ds['일'])+' 주부터 · '+periodOf(w)+
+              (i === 1 ? ' — 다음 주' : '')+'</option>');
+  }
+  return '<label style="font-size:.8rem;color:var(--ink-soft);display:block;margin-top:8px;">언제부터 새 반으로 갈까요?</label>'+
+    '<select id="mv-week" style="font:inherit;font-size:.92rem;border:1.5px solid var(--line);border-radius:10px;padding:8px 10px;width:100%;margin-top:6px;">'+
+    opts.join('')+'</select>'+
+    '<p class="mdesc hint-x" style="margin:6px 0 0;">뒤 주를 고르면 그 전까지는 지금 반에 그대로 나와 출석을 찍을 수 있어요. 리포트·학생 페이지의 반 정보는 바로 바뀝니다.</p>';
+}
 function openMoveModal(target){
   var m = moving; if (!m) return;
   openModal(
     '<h3>학생 이동 (영구)</h3>'+
     '<p class="mdesc"><b>'+esc(plainName(m.name))+'</b><br>'+esc(m.fromLabel)+'<br>→ '+esc(labelOf(target))+'</p>'+
     '<p class="mdesc">반이 완전히 바뀌고, 리포트·학생 페이지의 정규 수업도 변경됩니다.<br>이번 주만 옮기는 <b>1회 이동은 오늘의 시간표</b>에서 학생 이름을 눌러 해주세요.</p>'+
+    mvWeekSelHtml()+
     '<textarea id="mv-reason" placeholder="사유 메모 (선택)"></textarea>'+
     '<div class="mbtns"><button onclick="closeModal()">취소</button>'+
     '<button class="primary" onclick="submitMove(\''+esc(target.id)+'\')">영구 이동</button></div>'
@@ -5609,12 +5683,19 @@ function openMoveModal(target){
 function submitMove(toId){
   var m = moving; if (!m) return;
   var reason = $('mv-reason').value.trim();
+  var af = $('mv-week') ? $('mv-week').value : '';
   closeModal();
-  post({ action:'timetableMove', book:book, student:m.name, fromId:m.fromId, toId:toId, moveType:'perm', reason:reason },
+  post({ action:'timetableMove', book:book, student:m.name, fromId:m.fromId, toId:toId, moveType:'perm', reason:reason, applyFrom:af },
     '이동하는 중…', function(res){
       if (res && res.result === 'success'){
         cancelMove();
-        setStatus((res.moved||'') + ' 이동 완료.' + rosterNote(res), 'ok');
+        var msg = (res.moved||'') + ' 이동 완료.';
+        if (res.applyFrom){
+          msg += (res.stayWeeks >= 0)
+            ? ' ' + mdOf(wedOfYmd(res.applyFrom)) + ' 주부터 새 반에 나와요 — 그때까지는 지금 반에서 출석해요.'
+            : ' 다만 그 전 주 표시(원래 반에 남기기)는 저장되지 않았어요 — 주차별 화면을 확인해 주세요.';
+        }
+        setStatus(msg + rosterNote(res), 'ok');
         load(true);
       } else {
         setStatus('이동 실패: ' + ((res && res.message) || '오류'), 'err');
