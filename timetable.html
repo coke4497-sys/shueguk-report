@@ -6204,29 +6204,38 @@ function startOnceMoveGrid(cid, nm){
   var c = classes.find(function(x){ return x.id === cid; });
   if (c) startOnceMove(c, nm);
 }
-function onceOptLabel(t, withName){
-  return (withName ? t.cls + ' · ' : '') + t.day + ' ' + t.start +
-         (t.teacher ? ' · ' + t.teacher + 'T' : '') + (t.loc ? ' · ' + t.loc : '');
+function onceOptLabel(t){
+  return t.day + ' ' + t.start + (t.teacher ? ' · ' + t.teacher + 'T' : '') + (t.loc ? ' · ' + t.loc : '');
 }
+/* 1회 이동은 같은 학년·같은 이름의 반으로만 간다(2026-08-28 사용자 확정 "동일한 학년내에서
+ * 동일한 이름의 반으로만 이동") — 다른 반 전체 목록은 빼고, 같은 이름 수업만 보인다.
+ * 단 새로 만든 '이 주만' 반(w*)은 이름과 무관하게 항상 포함(사용자 요청) — smClsOptions와 같은 취급. */
 function oncePickOptions(c){
-  // '이 주만' 반(w*)은 제외 — 그쪽은 [이 주만 학생 넣기]·[다른 주로 옮기기]가 담당
-  var others = classes.filter(function(x){ return !x.wk && x.id !== c.id; });
-  var same = others.filter(function(x){ return x.cls.trim() === c.cls.trim(); })
+  var same = classes.filter(function(x){ return !x.wk && x.id !== c.id && x.cls.trim() === c.cls.trim(); })
     .sort(function(a,b){ return (DAYS.indexOf(a.day) - DAYS.indexOf(b.day)) || (mins(a.start) - mins(b.start)); });
-  var rest = others.filter(function(x){ return x.cls.trim() !== c.cls.trim(); })
-    .sort(function(a,b){ return a.cls.localeCompare(b.cls,'ko') || (DAYS.indexOf(a.day) - DAYS.indexOf(b.day)) || (mins(a.start) - mins(b.start)); });
-  var h = same.length
-    ? '<optgroup label="같은 반 (다른 요일·시간)">' + same.map(function(x, i){
-        return '<option value="'+esc(x.id)+'"'+(i===0?' selected':'')+'>'+esc(onceOptLabel(x, false))+'</option>';
-      }).join('') + '</optgroup>'
-    : '<option value="" selected>옮겨 갈 수업을 골라 주세요</option>';
-  h += '<optgroup label="다른 반 전체">' + rest.map(function(x){
-    return '<option value="'+esc(x.id)+'">'+esc(onceOptLabel(x, true))+'</option>';
-  }).join('') + '</optgroup>';
+  // 새로 만든 '이 주만' 반 — 날짜가 반에 정해져 있고, 지난 날짜 것은 제외
+  var mon = new Date(weekStartOf(new Date())); mon.setDate(mon.getDate() - 2);
+  var monY = ymdOf(mon);
+  var wks = classes.filter(function(x){ return x.wk && x.wk >= monY && x.id !== c.id; })
+    .sort(function(a,b){ return a.wk < b.wk ? -1 : a.wk > b.wk ? 1 : (mins(a.start) - mins(b.start)); });
+  var h = same.map(function(x, i){
+    return '<option value="'+esc(x.id)+'"'+(i===0?' selected':'')+'>'+esc(onceOptLabel(x))+'</option>';
+  }).join('');
+  if (wks.length){
+    h += '<optgroup label="새로 만든 \'이 주만\' 반 (날짜가 정해져 있어요)">' + wks.map(function(x){
+      return '<option value="'+esc(x.id)+'">'+esc(x.cls)+' · '+esc(wkDayLabel(x.wk))+' '+esc(x.start)+
+             (x.teacher ? ' · '+esc(x.teacher)+'T' : '')+'</option>';
+    }).join('') + '</optgroup>';
+  }
+  if (!h) return '';
+  if (!same.length) h = '<option value="" selected>옮겨 갈 수업을 골라 주세요</option>' + h;
   return h;
 }
-/* 적용일 = 대상 반 요일의 그 주 날짜 (오늘 보기라면 오늘) — openOnceModal과 같은 규칙 */
-function onceAdOf(t){ return (mode === 'week') ? ymdOf(weekDates()[t.day]) : todayStr(); }
+/* 적용일 = 대상 반 요일의 그 주 날짜 (오늘 보기라면 오늘, '이 주만' 반은 반에 정해진 날짜) */
+function onceAdOf(t){
+  if (t.wk) return t.wk;
+  return (mode === 'week') ? ymdOf(weekDates()[t.day]) : todayStr();
+}
 function oncePickAdLine(){
   var el = $('once-ad'); if (!el) return;
   var t = classes.find(function(x){ return x.id === ($('once-to') ? $('once-to').value : ''); });
@@ -6237,20 +6246,24 @@ function oncePickAdLine(){
   el.innerHTML = '적용일: <b>' + esc(mdOf(d) + ' (' + dk[d.getDay()] + ')') + '</b> — 그 날짜 시간표에 보라색 이름으로 표시돼요';
 }
 function openOncePick(c, nm){
+  var opts = oncePickOptions(c);
   openModal(
     '<h3>다른 반으로 1회 이동</h3>'+
     '<p class="mdesc"><b>'+esc(plainName(nm))+'</b> — '+esc(labelOf(c))+'<br>원래 반과 리포트는 그대로 두고, 그 날짜 하루만 옮겨 가요.</p>'+
-    '<label style="font-size:.8rem;color:var(--ink-soft);">옮겨 갈 수업 — 같은 반의 다른 요일 수업이 먼저 나와요</label>'+
-    '<select id="once-to" onchange="oncePickAdLine()" style="font:inherit;font-size:.92rem;border:1.5px solid var(--line);border-radius:10px;padding:8px 10px;width:100%;margin-top:6px;">'+
-    oncePickOptions(c)+'</select>'+
-    '<p class="mdesc" id="once-ad" style="margin:8px 0 0;"></p>'+
-    '<textarea id="once-reason" placeholder="사유 메모 (필수) — 예: 여행으로 앞당겨 수업, 학교 행사"></textarea>'+
+    (opts
+      ? '<label style="font-size:.8rem;color:var(--ink-soft);">옮겨 갈 수업 — 같은 반의 다른 요일 수업</label>'+
+        '<select id="once-to" onchange="oncePickAdLine()" style="font:inherit;font-size:.92rem;border:1.5px solid var(--line);border-radius:10px;padding:8px 10px;width:100%;margin-top:6px;">'+
+        opts+'</select>'+
+        '<p class="mdesc" id="once-ad" style="margin:8px 0 0;"></p>'+
+        '<textarea id="once-reason" placeholder="사유 메모 (필수) — 예: 여행으로 앞당겨 수업, 학교 행사"></textarea>'
+      : '<p class="mdesc" style="background:var(--icon-bg);border-radius:9px;padding:8px 10px;">같은 이름의 다른 수업이 없어요. 다른 반으로 옮겨야 하면 [시간표에서 직접 고르기]로 옮길 반을 눌러 주세요.</p>')+
     '<p class="merr" id="once-err"></p>'+
     '<div class="mbtns"><button onclick="closeModal()">취소</button>'+
     '<button onclick="startOnceMoveGrid(\''+esc(c.id)+'\',\''+esc(nm)+'\')">시간표에서 직접 고르기</button>'+
-    '<button class="primary" onclick="submitOncePick(\''+esc(c.id)+'\',\''+esc(nm)+'\')">1회 이동</button></div>'
+    (opts ? '<button class="primary" onclick="submitOncePick(\''+esc(c.id)+'\',\''+esc(nm)+'\')">1회 이동</button>' : '')+
+    '</div>'
   );
-  oncePickAdLine();
+  if (opts) oncePickAdLine();
 }
 function submitOncePick(fromId, nm){
   var toId = $('once-to') ? $('once-to').value : '';
