@@ -2530,6 +2530,7 @@ function load(isReload, cb){
     renderTabs();
     if (mode === 'week' && !d.week) loadWeek(); else render();
     if (cb) cb(true);
+    noteSweep();   // 시작일이 지난 'M/D부터' 표기 정리 (하루 한 번)
   });
 }
 /* ── 브라우저 캐시: 이전 데이터를 즉시 띄우고, 뒤에서 최신으로 조용히 갱신 ── */
@@ -5649,6 +5650,56 @@ function submitNoteEdit(nm){
 function openNoteFromMove(){
   if (!moving || moving.once) return;
   openNoteEdit(moving.name);
+}
+
+/* ── 지난 'M/D부터' 표기 자동 정리 (2026-08-28 사용자 확정 "등원 전 친구들은 특이사항으로
+ * 처리 + 날짜가 지나면 표기를 지우고요") ────────────────────────────────
+ * 등원 시작 전 학생은 '김민재B(9/4부터)'처럼 표기해 두는데, 시작일이 지나면 낡은 안내가
+ * 된다. 시간표를 불러온 뒤 하루 한 번(시간표별, localStorage tt_notesweep) 지난 표기를
+ * 찾아 기존 표기수정 경로(timetableRenameStudent — 짝 반·시트·기록 동일 처리)로 지운다. */
+function noteExpiredMd(note, today){
+  var m = /^(\d{1,2})\/(\d{1,2})부터$/.exec(String(note || '').trim());
+  if (!m) return false;
+  var t = new Date(+today.slice(0,4), +today.slice(5,7)-1, +today.slice(8,10));
+  // 표기에 연도가 없어 올해·작년 두 날짜로 본다 — 지난 지 1~180일이면 만료.
+  // 반년 넘게 지난 것으로만 해석되는 날짜는 내년 예정으로 보고 두는다('12/28부터'를 11월에 적은 경우 등).
+  return [t.getFullYear(), t.getFullYear() - 1].some(function(y){
+    var d = new Date(y, +m[1] - 1, +m[2]);
+    var diff = (t - d) / 86400e3;
+    return diff >= 1 && diff <= 180;
+  });
+}
+function noteSweep(){
+  var today = todayStr();
+  var done = {};
+  try { done = JSON.parse(localStorage.getItem('tt_notesweep') || '{}'); } catch(e){}
+  if (done[book] === today) return;
+  var targets = [], seen = {};
+  (classes || []).forEach(function(c){
+    if (!c || c.wk) return;   // '이 주만' 반 명단은 원본 반을 따라가므로 원본 쪽에서 정리된다
+    (c.students || []).forEach(function(nm){
+      if (seen[nm]) return; seen[nm] = 1;
+      // 마지막 괄호만 표기로 본다 — nameNote는 "(화정)심지후(8/21부터)"처럼
+      // 앞 괄호(학교 구분)가 있으면 첫 괄호부터 통째로 잡아 여기서는 못 쓴다
+      var m0 = /\(([^)]*)\)\s*$/.exec(String(nm || ''));
+      if (m0 && noteExpiredMd(m0[1], today)) targets.push(nm);
+    });
+  });
+  // 실패해도 같은 날 되풀이하지 않는다 — 내일 다시 시도된다
+  done[book] = today;
+  try { localStorage.setItem('tt_notesweep', JSON.stringify(done)); } catch(e){}
+  if (!targets.length) return;
+  (function next(i){
+    if (i >= targets.length){
+      setStatus('시작일이 지난 표기를 지웠어요: ' + targets.map(plainName).join(', '), 'ok');
+      load(true);
+      return;
+    }
+    // 뒤 괄호(표기)만 뗀다 — 앞 괄호는 내신 확인반 학교 구분이라 남겨야 한다
+    var to = targets[i].replace(/\([^)]*\)$/, '');
+    post({ action:'timetableRenameStudent', book:book, from:targets[i], to:to },
+      '지난 표기 정리 중…', function(){ next(i + 1); });
+  })(0);
 }
 
 /* ── 그 주에만 적용되는 명단 변경 (2026-08-23 사용자 요청) ─────────────
