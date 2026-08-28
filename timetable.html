@@ -462,6 +462,11 @@
   .ch-item .lk{display:inline-block;font-size:.7rem;border-radius:6px;padding:0 6px;margin-right:6px;color:#fff;background:var(--btn);}
   .ch-item .lk.once{background:#B08A3E;}
   .ch-item .lk.minus{background:#B4574E;}
+  .ch-item .lk.abs{background:#C64F63;}   /* 결석 — 출석 그래프의 결석 색 계열 */
+  .ch-item .lk.new{background:#3D82B8;}   /* 신입 등록 */
+  .ch-item .lk.out{background:#6B7570;}   /* 아웃(퇴원) */
+  .ch-day{font-size:.72rem;font-weight:700;color:var(--ink-soft);margin:12px 0 1px;padding-bottom:3px;border-bottom:1px solid var(--line-soft);}
+  #ch-list .ch-day:first-child{margin-top:2px;}
   .blk.c-g1,.wk-mini.c-g1,.wk-bar.c-g1{background:var(--g1);}
   .blk.c-g2,.wk-mini.c-g2,.wk-bar.c-g2{background:var(--g2);}
   .blk.c-g3,.wk-mini.c-g3,.wk-bar.c-g3{background:var(--g3);}
@@ -1256,14 +1261,28 @@
     timetableLog: function(qs){
       // 변경사항 패널 — limit로 지난 기록을 더 받아 온다(기본 100건, [지난 기록 더 보기]가 늘려 요청).
       // more = 이만큼 받고도 더 남았을 수 있다는 뜻(받은 수가 요청한 수와 같으면 참).
+      // 결석 기록(attendance)도 함께 합쳐 내려준다 (2026-08-28 사용자 요청 "변경사항 정리 — 결석도 표시").
+      // 결석의 date는 수업일 — 시간표 기록의 기록일과 함께 날짜순으로 섞는다.
       var lim = Math.max(1, Math.min(2000, parseInt(qs && qs.get && qs.get('limit'), 10) || 100));
-      return sbGet('/tt_log?order=at.desc&limit=' + lim).then(function(rows){
-        return ok({ log: rows.map(function(g){
-          return { row: g.id, date: atYmd(g.at), kind: g.kind, student: g.student,
+      return Promise.all([
+        sbGet('/tt_log?order=at.desc&limit=' + lim),
+        sbGet('/attendance?status=eq.' + q('결석') + '&select=id,date,book,class_id,student,memo,updated_at&order=date.desc,updated_at.desc&limit=' + lim)
+      ]).then(function(rs){
+        var logs = (rs[0] || []).map(function(g){
+          return { row: g.id, at: String(g.at || ''), date: atYmd(g.at), kind: g.kind, student: g.student,
                    fromCls: g.from_class, toCls: g.to_class, fromId: g.from_class_id, toId: g.to_class_id,
                    reason: g.reason, book: g.book,
                    apply: (g.apply_date && /^\d{4}-\d{2}-\d{2}$/.test(g.apply_date)) ? g.apply_date : '' };
-        }), more: rows.length >= lim });
+        });
+        var abs = (rs[1] || []).map(function(a){
+          return { row: 'a' + a.id, at: String(a.updated_at || ''), date: String(a.date || ''), kind: '결석',
+                   student: a.student, fromCls: '', toCls: '', fromId: a.class_id, toId: '',
+                   reason: a.memo || '', book: a.book, apply: '' };
+        });
+        var all = logs.concat(abs).sort(function(x, y){
+          return x.date !== y.date ? (x.date < y.date ? 1 : -1) : (x.at < y.at ? 1 : -1);
+        });
+        return ok({ log: all, more: (rs[0] || []).length >= lim });
       });
     },
     /* 이달의 신입생 카드 — students에서 직접 (학생정보 원본 전환, 2026-08-26). 백엔드 getNewStudents와 같은 규칙. */
@@ -6982,14 +7001,34 @@ function chLoad(force){
     })
     .catch(function(){ chBusy = false; list.innerHTML = '<span class="ch-none">불러오지 못했어요.</span>'; });
 }
-/* 종류 칩 — 실제 기록에 있는 종류(이동·1회·빼기·추가·표기수정)만 만든다 */
+/* 종류 칩 — 사용자 확정 묶음으로 고정 (2026-08-28 "결석, 1회 이동, 반 이동, 변경 등의 현황과
+ * 신입생 추가, 퇴원생 삭제 등이 표시되어야"): 순서는 고정, 기록이 있는 묶음만 보인다. */
+var CH_GROUPS = [
+  ['결석',      function(g){ return g.kind === '결석'; }],
+  ['1회 이동',  function(g){ return g.kind === '1회'; }],
+  ['반 이동',   function(g){ return g.kind === '영구' || g.kind === '반이동'; }],
+  ['신입·추가', function(g){ return g.kind === '추가'; }],
+  ['퇴원·빼기', function(g){ return g.kind === '빼기'; }]
+];
+function chGroupOf(g){
+  for (var i = 0; i < CH_GROUPS.length; i++) if (CH_GROUPS[i][1](g)) return CH_GROUPS[i][0];
+  return '변경';   // 나머지 전부 — 표기수정, 이 주만 변경(주간*), 반 만들기/삭제
+}
+/* 기록 배지에 쓰는 표시명 — 내부 용어 대신 알아보기 쉬운 말로 */
+var CH_KIND_NAMES = { '영구':'반 이동', '반이동':'반 전체 이동', '1회':'1회 이동',
+  '주간추가':'이 주만 추가', '주간빼기':'이 주만 빼기', '주간반이동':'이 주만 시간 이동',
+  '주간반보강':'이 주만 보충', '주간반휴강':'이 주만 휴강', '주간반추가':'이 주만 반 추가',
+  '주간반삭제':'이 주만 반 삭제', '반추가':'반 만들기', '반삭제':'반 삭제' };
+function chKindLabel(g){
+  if (g.kind === '추가') return /신입/.test(g.reason || '') ? '신입' : '추가';
+  if (g.kind === '빼기') return /아웃/.test(g.reason || '') ? '퇴원' : '빼기';
+  return CH_KIND_NAMES[g.kind] || g.kind;
+}
 function chKinds(){
   var box = $('ch-kinds'); if (!box) return;
-  var ks = [], seen = {};
-  chRows.forEach(function(g){
-    var k = String(g.kind || '').trim();
-    if (k && !seen[k]){ seen[k] = true; ks.push(k); }
-  });
+  var seen = {};
+  chRows.forEach(function(g){ seen[chGroupOf(g)] = true; });
+  var ks = CH_GROUPS.map(function(d){ return d[0]; }).concat(['변경']).filter(function(k){ return seen[k]; });
   if (chKind && !seen[chKind]) chKind = '';
   box.innerHTML = ks.length < 2 ? '' : [''].concat(ks).map(function(k){
     return '<button type="button"' + (k === chKind ? ' class="on"' : '') +
@@ -7003,21 +7042,26 @@ function chSetKind(k){ chKind = (chKind === k) ? '' : k; chKinds(); chRender(); 
 var chClsIdx = null;
 function chClassIndex(){
   if (chClsIdx) return chClsIdx;
-  var idx = {};
+  var when = {}, name = {};
   function add(list){
     (list || []).forEach(function(c){
-      if (c && c.id && !idx[c.id]) idx[c.id] = String(c.day || '') + String(c.start || '');
+      if (c && c.id && !when[c.id]){
+        when[c.id] = String(c.day || '') + String(c.start || '');
+        name[c.id] = String(c.cls || '');
+      }
     });
   }
   add(classes);
   ['정규','내신'].forEach(function(bk){ var v = cacheGet('list:' + bk); if (v) add(v.classes); });
-  chClsIdx = idx;
-  return idx;
+  chClsIdx = { when: when, name: name };
+  return chClsIdx;
 }
 function chClsLabel(id, name){
-  var nm = String(name || '').trim();
+  var idx = chClassIndex();
+  // 결석 기록은 반이름 없이 반ID만 온다 — 색인에서 이름을 찾아 채운다
+  var nm = String(name || '').trim() || String(idx.name[id] || '').trim();
   if (!nm) return '';
-  var when = chClassIndex()[id] || '';
+  var when = idx.when[id] || '';
   // '이 주만' 반(w+yyMMdd)은 날짜가 ID에 있다 — 요일만으로는 어느 날인지 몰라 날짜를 붙인다
   // (2026-08-26 사용자 지적 "이동한 날짜와 요일 시간이 모두 확인할 수 있어야")
   var ymd = wkIdYmd(id);
@@ -7042,10 +7086,12 @@ function chRender(){
   var list = $('ch-list'); if (!list || !chLoaded) return;
   var q = ($('ch-q') ? $('ch-q').value : '').trim().toLowerCase();
   var rows = chRows.filter(function(g){
-    if (chKind && String(g.kind || '').trim() !== chKind) return false;
+    if (chKind && chGroupOf(g) !== chKind) return false;
     if (!q) return true;
     var idx = chClassIndex();
-    return [g.student, g.fromCls, g.toCls, g.reason, g.date, g.kind, g.book, idx[g.fromId], idx[g.toId],
+    return [g.student, g.fromCls, g.toCls, g.reason, g.date, g.kind, chKindLabel(g), g.book,
+            idx.when[g.fromId], idx.when[g.toId], idx.name[g.fromId], idx.name[g.toId],
+            wkDayLabel(g.date || ''),
             g.apply, wkDayLabel(g.apply || ''), wkDayLabel(wkIdYmd(g.fromId)), wkDayLabel(wkIdYmd(g.toId))]
       .map(function(x){ return String(x == null ? '' : x).toLowerCase(); })
       .join(' ').indexOf(q) >= 0;
@@ -7055,21 +7101,35 @@ function chRender(){
     : (rows.length < chRows.length ? rows.length + ' / ' + chRows.length + '건' : chRows.length + '건');
   if (!chRows.length){ list.innerHTML = '<span class="ch-none">아직 기록이 없어요.</span>'; return; }
   if (!rows.length){ list.innerHTML = '<span class="ch-none">찾는 기록이 없어요.</span>'; return; }
-  list.innerHTML = rows.map(function(g){
-    var kcls = (g.kind === '1회' || g.kind === '주간추가' || g.kind === '주간반추가' ||
-               g.kind === '주간반이동' || g.kind === '주간반보강') ? ' once'
+  // 날짜별로 묶어 소제목을 붙인다 (2026-08-28 사용자 확정 — 결석은 수업일, 나머지는 기록일 기준)
+  var today = todayStr(), html = [], lastDay = null;
+  rows.forEach(function(g){
+    if (g.date !== lastDay){
+      lastDay = g.date;
+      var dl = wkDayLabel(g.date) || g.date;
+      html.push('<div class="ch-day">' + esc(dl) + (g.date === today ? ' · 오늘' : '') + '</div>');
+    }
+    var lbl = chKindLabel(g);
+    var kcls = g.kind === '결석' ? ' abs'
+             : lbl === '신입' ? ' new'
+             : lbl === '퇴원' ? ' out'
+             : (g.kind === '1회' || g.kind === '주간추가' || g.kind === '주간반추가' ||
+                g.kind === '주간반이동' || g.kind === '주간반보강') ? ' once'
              : (g.kind === '빼기' || g.kind === '주간빼기' || g.kind === '주간반삭제' ||
                 g.kind === '주간반휴강') ? ' minus' : '';
     var fromL = chClsLabel(g.fromId, g.fromCls), toL = chClsLabel(g.toId, g.toCls);
-    var path = fromL && toL ? fromL + ' → ' + toL : (toL ? '→ ' + toL : fromL + ' 에서');
+    var path = g.kind === '결석' ? fromL
+             : (fromL && toL ? fromL + ' → ' + toL : (toL ? '→ ' + toL : (fromL ? fromL + ' 에서' : '')));
     // 적용일 — 어느 날짜의 수업에 해당하는 기록인지 (주간반이동은 원래 수업일이 숨는 날)
     var applyL = g.apply ? ((g.kind === '주간반이동' ? '원래 수업일 ' : '적용 ') + wkDayLabel(g.apply)) : '';
-    return '<div class="ch-item"><span class="lk' + kcls + '">' + esc(g.kind) + '</span>' +
+    var lr = (applyL ? '<b>' + esc(applyL) + '</b>' : '') +
+             (g.reason ? (applyL ? ' · ' : '') + esc(g.reason) : '');
+    html.push('<div class="ch-item"><span class="lk' + kcls + '">' + esc(lbl) + '</span>' +
            (g.book === '내신' ? '<span class="lk" style="background:#8A6FA8;">내신</span>' : '') +
            (g.student ? '<b>' + esc(g.student) + '</b> ' : '') + path +
-           '<div class="lr">' + esc(g.date) + (applyL ? ' · <b>' + esc(applyL) + '</b>' : '') +
-           (g.reason ? ' · ' + esc(g.reason) : '') + '</div></div>';
-  }).join('') +
+           (lr ? '<div class="lr">' + lr + '</div>' : '') + '</div>');
+  });
+  list.innerHTML = html.join('') +
   (chMayMore ? '<button type="button" class="ch-more" onclick="chMore()">지난 기록 더 보기</button>' : '');
   // 더 보기로 다시 그렸을 때는 보던 자리를 지킨다
   if (chKeepScroll != null){ list.scrollTop = chKeepScroll; chKeepScroll = null; }
