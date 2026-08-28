@@ -6233,8 +6233,8 @@ function oncePickOptions(c){
   var wks = classes.filter(function(x){ return x.wk && x.wk >= monY && x.id !== c.id; })
     .sort(function(a,b){ return a.wk < b.wk ? -1 : a.wk > b.wk ? 1 : (mins(a.start) - mins(b.start)); });
   var h = same.map(function(x, i){
-    // 이름이 다른 짝 반(고3파이널A→B 등)은 반이름을 붙여 구분한다
-    var label = (x.cls.trim() === c.cls.trim() ? '' : x.cls.trim() + ' · ') + onceOptLabel(x);
+    // 반이름을 항상 붙인다 — 같은 수업의 반인지 이름으로 확인할 수 있게 (2026-08-28 사용자 요청)
+    var label = x.cls.trim() + ' · ' + onceOptLabel(x);
     return '<option value="'+esc(x.id)+'"'+(exact.length && i===0 ? ' selected' : '')+'>'+esc(label)+'</option>';
   }).join('');
   if (wks.length){
