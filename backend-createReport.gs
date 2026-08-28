@@ -77,6 +77,7 @@ var TAB_ATTEND = '출석기록';        // A:날짜(yyyy-MM-dd) B:시간표(정�
 var TAB_TT_MEMO = '시간표메모';     // A:날짜(yyyy-MM-dd) B:메모(오늘의 이슈) C:기록일시
 var TAB_TT_PERIOD = '기간설정';     // A:주차수요일(yyyy-MM-dd) B:구분(정규/내신) C:기록일시 — 슈국 캘린더 주별 기간
 var TAB_EXAM_SCHED = '지필일정';    // A:유형(기간/과목) B:학교 C:시작일(과목은 해당일) D:종료일 E:내용 F:기록일시 — 슈국 캘린더 지필고사 일정
+var TAB_EDIT_REQ = '수정요청';      // A:기록일시 B:작성자 C:화면 D:내용 E:상태(접수됨/처리 완료/보류) F:처리메모 G:처리일시 — 티쳐스 수정 요청함
 
 var HWCHECK_ITEMS_KEY = '숙제검사 항목';
 var HWCHECK_DEFAULT_ITEMS = ['숙제 수행', '오답 처리'];
@@ -526,6 +527,11 @@ function doGet(e) {
   if (p.action === 'ttMemoList') {
     if (String(p.pw || '') !== TEACHER_PW) return json({ result:'error', message:'unauthorized' });
     return getTtMemoList(p.from, p.to);
+  }
+  // 시간표 수정 요청 목록 (timetable.html 수정 요청함 — 클로드 코드 세션도 이 액션으로 읽음) — 비밀번호 필요
+  if (p.action === 'editReqList') {
+    if (String(p.pw || '') !== TEACHER_PW) return json({ result:'error', message:'unauthorized' });
+    return getEditReqList();
   }
   // 내신 대비 기록 조회 (naeshin.html) — 비밀번호 필요. ?action=naeshinGet&period=26-2-중간&classId=n001[&scopeKey=공유:고1|화정]
   if (p.action === 'naeshinGet') {
@@ -2430,6 +2436,8 @@ function doPost(e) {
     if (data && data.action === 'attendSetBulk')    { return attendSetBulk(data); }
     if (data && data.action === 'attendMakeupSet')  { return attendMakeupSet(data); }
     if (data && data.action === 'ttMemoSet')        { return ttMemoSet(data); }
+    if (data && data.action === 'editReqAdd')       { return editReqAdd(data); }
+    if (data && data.action === 'editReqSet')       { return editReqSet(data); }
     if (data && data.action === 'naeshinSet')       { return naeshinSet(data); }
     if (data && data.action === 'ttPeriodSet')      { return ttPeriodSet(data); }
     if (data && data.action === 'examSchedSet')     { return examSchedSet(data); }
@@ -3745,6 +3753,88 @@ function ttPeriodData_() {
 }
 function getTtPeriodList() {
   return json({ result:'success', periods: ttPeriodData_() });
+}
+/* ── 시간표 수정 요청함 (timetable.html) — 조교가 남긴 수정 요청을 클로드 코드 세션이 읽어 처리 ── */
+function editReqSheet_(ss) {
+  var sh = ss.getSheetByName(TAB_EDIT_REQ);
+  if (!sh) {
+    sh = ss.insertSheet(TAB_EDIT_REQ);
+    sh.appendRow(['기록일시', '작성자', '화면', '내용', '상태', '처리메모', '처리일시']);
+    sh.getRange(1, 1, 1, 7).setFontWeight('bold').setBackground('#DDE5E1');
+  }
+  return sh;
+}
+/** 요청 전체 조회(최신순). GET action=editReqList&pw= */
+function getEditReqList() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ss.getSheetByName(TAB_EDIT_REQ);
+  var out = [];
+  if (sh) {
+    var v = sh.getDataRange().getValues();
+    for (var i = 1; i < v.length; i++) {
+      var text = String(v[i][3] || '').trim();
+      if (!text) continue;
+      var ts = v[i][0], dts = v[i][6];
+      out.push({
+        row: i + 1,
+        ts: (ts && ts.getTime) ? Utilities.formatDate(ts, 'Asia/Seoul', 'yyyy-MM-dd HH:mm') : String(ts || '').trim(),
+        writer: String(v[i][1] || '').trim(),
+        screen: String(v[i][2] || '').trim(),
+        text: text,
+        status: String(v[i][4] || '').trim() || '접수됨',
+        note: String(v[i][5] || '').trim(),
+        doneTs: (dts && dts.getTime) ? Utilities.formatDate(dts, 'Asia/Seoul', 'yyyy-MM-dd HH:mm') : String(dts || '').trim()
+      });
+    }
+  }
+  out.reverse();   // 최신이 위로
+  return json({ result:'success', reqs: out });
+}
+/** 요청 등록. { pw, writer, screen, text } */
+function editReqAdd(data) {
+  if (String(data.pw || '') !== TEACHER_PW) return json({ result:'error', message:'unauthorized' });
+  var text = String(data.text || '').trim();
+  if (!text) return json({ result:'error', message:'내용을 적어 주세요.' });
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = editReqSheet_(ss);
+  var lock = LockService.getScriptLock();
+  try { lock.waitLock(10000); } catch (e) { return json({ result:'error', message:'잠시 후 다시 시도해 주세요.' }); }
+  try {
+    var row = sh.getLastRow() + 1;
+    var rg = sh.getRange(row, 1, 1, 7);
+    rg.setNumberFormats([['yyyy-mm-dd hh:mm', '@', '@', '@', '@', '@', '@']]);
+    rg.setValues([[new Date(), String(data.writer || '').trim(), String(data.screen || '').trim(), text, '접수됨', '', '']]);
+    return json({ result:'success' });
+  } finally {
+    try { lock.releaseLock(); } catch (e) {}
+  }
+}
+/** 요청 상태·처리메모 변경(클로드 코드 세션·페이지 공용). { pw, row, ts, status, note, del }
+ *  ts = 그 줄의 기록일시(목록 응답의 값 그대로) — 줄이 지워져 행이 밀렸을 때 엉뚱한 줄을 고치지 않기 위한 대조.
+ *  del이 참이면 그 줄 삭제(잘못 넣은 요청 지우기). */
+function editReqSet(data) {
+  if (String(data.pw || '') !== TEACHER_PW) return json({ result:'error', message:'unauthorized' });
+  var row = parseInt(data.row, 10);
+  if (!row || row < 2) return json({ result:'error', message:'row가 필요합니다.' });
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ss.getSheetByName(TAB_EDIT_REQ);
+  if (!sh || row > sh.getLastRow()) return json({ result:'error', message:'그 요청을 찾지 못했어요. 목록을 새로고침해 주세요.' });
+  var lock = LockService.getScriptLock();
+  try { lock.waitLock(10000); } catch (e) { return json({ result:'error', message:'잠시 후 다시 시도해 주세요.' }); }
+  try {
+    var ts = sh.getRange(row, 1).getValue();
+    var tss = (ts && ts.getTime) ? Utilities.formatDate(ts, 'Asia/Seoul', 'yyyy-MM-dd HH:mm') : String(ts || '').trim();
+    if (String(data.ts || '').trim() && String(data.ts).trim() !== tss)
+      return json({ result:'error', message:'그 요청의 자리가 바뀌었어요. 목록을 새로고침해 주세요.' });
+    if (data.del) { sh.deleteRow(row); return json({ result:'success', deleted:true }); }
+    var status = String(data.status || '').trim();
+    if (status) sh.getRange(row, 5).setNumberFormat('@').setValue(status);
+    if (data.note != null) sh.getRange(row, 6).setNumberFormat('@').setValue(String(data.note));
+    sh.getRange(row, 7).setNumberFormat('@').setValue(Utilities.formatDate(new Date(), 'Asia/Seoul', 'yyyy-MM-dd HH:mm'));
+    return json({ result:'success' });
+  } finally {
+    try { lock.releaseLock(); } catch (e) {}
+  }
 }
 
 /* ── 통합 부팅 조회 (접속 지연 대책, 2026-08-19) ─────────────────

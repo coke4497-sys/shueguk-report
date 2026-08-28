@@ -441,6 +441,21 @@
     border-radius:8px;padding:5px 10px;cursor:pointer;color:var(--ink);white-space:nowrap;}
   .mk-item .mk-row button.done-btn{background:var(--btn);border-color:var(--btn);color:#fff;}
   .mk-sec{font-size:.8rem;color:var(--ink-soft);margin:12px 0 2px;font-weight:700;}
+  /* ── 수정 요청함 (2026-08-28) — 조교가 남긴 요청을 클로드 코드가 읽어 처리 ── */
+  .req-lb{font-size:.78rem;color:var(--ink-soft);font-weight:700;margin-top:10px;display:block;}
+  .req-form select{width:100%;font:inherit;font-size:.92rem;border:1.5px solid var(--line);border-radius:10px;padding:8px 10px;margin-top:6px;background:#fff;}
+  .req-item{border:1px solid var(--line-soft);border-radius:10px;padding:9px 11px;font-size:.86rem;margin-top:8px;}
+  .req-top{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap;}
+  .req-top small{color:var(--ink-soft);font-size:.74rem;}
+  .req-st{font-size:.72rem;font-weight:700;border-radius:999px;padding:2px 9px;flex:none;}
+  .req-st.wait{background:#F5EBCF;color:#5F4E14;}
+  .req-st.done{background:#DCE9E2;color:#2F5D46;}
+  .req-st.hold{background:#ECEFED;color:#5C6660;}
+  .req-text{margin-top:5px;white-space:pre-wrap;word-break:break-word;}
+  .req-note{margin-top:6px;background:#F4F8F6;border-radius:8px;padding:7px 9px;font-size:.8rem;}
+  .req-note b{color:var(--accent);font-size:.74rem;display:block;margin-bottom:2px;}
+  .req-del{margin-left:auto;font:inherit;font-size:.74rem;background:#fff;border:1px solid var(--line-soft);border-radius:8px;padding:2px 8px;cursor:pointer;color:var(--ink-soft);flex:none;}
+  .req-msg{font-size:.8rem;color:var(--accent);min-height:1.1em;margin:6px 0 0;}
   .mk-item .mk-alt{font-size:.76rem;color:var(--ink-soft);white-space:nowrap;}
   .mk-item .mk-plan{font-size:.82rem;color:var(--accent);margin-top:5px;}
   /* 변경사항 항목의 구분 배지 (옛 이동 기록 모달에서 옮겨 옴 — 모달은 오른쪽 패널로 대체) */
@@ -751,6 +766,9 @@
         <span class="clabel">출석 관리</span>
         <button onclick="openMakeup()">결석자 관리</button>
         <button id="v-att" onclick="setMode('att')">출석 현황</button>
+      </span>
+      <span class="cluster">
+        <button onclick="openEditReq()">수정 요청</button>
       </span>
       <button class="iconbtn" onclick="load(true)" title="다시 불러오기" aria-label="다시 불러오기">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
@@ -5097,6 +5115,101 @@ function nsLoad(m){
       var card = $('ns-card');
       if (card && nsMonth === m) nsRender(card);
     });
+}
+
+/* ── 수정 요청함 — 조교가 남긴 요청을 클로드 코드 세션이 읽어 처리 (2026-08-28 사용자 확정) ── */
+var reqRows = null;      // 마지막으로 받은 목록 (null = 아직/실패)
+var reqLoading = false;
+var REQ_SCREENS = ['오늘의 시간표','주차별 시간표','전체 시간표','슈국 캘린더','지필고사 일정','출석 현황','기타'];
+function openEditReq(){
+  openModal(
+    '<h3>수정 요청</h3>'+
+    '<p class="mdesc">시간표에서 잘못됐거나 고치고 싶은 것을 적어 두세요. 슈가 클로드 코드에서 확인해 처리하고, 결과를 아래 목록에 남겨요.</p>'+
+    '<div class="req-form">'+
+    '<span class="req-lb">어느 화면인가요?</span>'+
+    '<select id="req-screen">'+ REQ_SCREENS.map(function(s){ return '<option>'+s+'</option>'; }).join('') +'</select>'+
+    '<span class="req-lb">무엇을 고칠까요?</span>'+
+    '<textarea id="req-text" style="min-height:72px;" placeholder="반·학생 이름과 함께 적어 주세요 — 예: 고1 백양B 명단에 김○○이 두 번 들어가 있어요"></textarea>'+
+    '<span class="req-lb">작성자 (선택)</span>'+
+    '<input type="text" id="req-writer" placeholder="이름">'+
+    '<p class="merr" id="req-err"></p>'+
+    '<p class="req-msg" id="req-msg"></p>'+
+    '<div class="mbtns"><button onclick="closeModal()">닫기</button>'+
+    '<button class="primary" onclick="reqSubmit()">요청 남기기</button></div>'+
+    '</div>'+
+    '<p class="mk-sec">요청 목록</p>'+
+    '<div id="req-list"><p class="mdesc">불러오는 중…</p></div>'
+  );
+  var w = '';
+  try { w = localStorage.getItem('tt_req_writer') || ''; } catch(e){}
+  if (w) $('req-writer').value = w;
+  reqLoad();
+}
+function reqLoad(){
+  if (reqLoading) return;
+  reqLoading = true;
+  fetch(ENDPOINT + '?action=editReqList&pw=' + encodeURIComponent(pw) + '&t=' + Date.now())
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      reqLoading = false;
+      reqRows = (d && d.result === 'success') ? (d.reqs || []) : null;
+      reqRenderList();
+    })
+    .catch(function(){ reqLoading = false; reqRows = null; reqRenderList(); });
+}
+function reqRenderList(){
+  var box = $('req-list');
+  if (!box) return;
+  if (reqRows === null){ box.innerHTML = '<p class="mdesc">목록을 불러오지 못했어요. 인터넷을 확인해 주세요.</p>'; return; }
+  if (!reqRows.length){ box.innerHTML = '<p class="mdesc">아직 남긴 요청이 없어요.</p>'; return; }
+  box.innerHTML = reqRows.map(function(r, i){
+    var st = r.status === '처리 완료' ? 'done' : (r.status === '보류' ? 'hold' : 'wait');
+    return '<div class="req-item">'+
+      '<div class="req-top">'+
+      '<span class="req-st '+st+'">'+esc(r.status)+'</span>'+
+      '<small>'+esc(r.ts)+(r.writer ? ' · '+esc(r.writer) : '')+(r.screen ? ' · '+esc(r.screen) : '')+'</small>'+
+      (st === 'wait' ? '<button class="req-del" onclick="reqDelete('+i+')">지우기</button>' : '')+
+      '</div>'+
+      '<div class="req-text">'+esc(r.text)+'</div>'+
+      (r.note ? '<div class="req-note"><b>처리 결과'+(r.doneTs ? ' · '+esc(r.doneTs) : '')+'</b>'+esc(r.note)+'</div>' : '')+
+      '</div>';
+  }).join('');
+}
+function reqSubmit(){
+  var text = ($('req-text') ? $('req-text').value : '').trim();
+  if (!text){ $('req-err').textContent = '내용을 적어 주세요.'; return; }
+  var writer = ($('req-writer') ? $('req-writer').value : '').trim();
+  var screen = $('req-screen') ? $('req-screen').value : '';
+  try { localStorage.setItem('tt_req_writer', writer); } catch(e){}
+  $('req-err').textContent = '';
+  $('req-msg').textContent = '요청을 남기는 중…';
+  post({ action:'editReqAdd', writer:writer, screen:screen, text:text }, '수정 요청을 남기는 중…', function(res){
+    var err = $('req-err'), msg = $('req-msg');
+    if (!res || res.result !== 'success'){
+      if (err) err.textContent = (res && res.message) || '저장에 실패했어요. 다시 시도해 주세요.';
+      if (msg) msg.textContent = '';
+      return;
+    }
+    if ($('req-text')) $('req-text').value = '';
+    if (msg) msg.textContent = '요청을 남겼어요. 처리되면 아래 목록에 결과가 표시돼요.';
+    setStatus('수정 요청을 남겼어요.', 'ok');
+    reqLoad();
+  });
+}
+function reqDelete(i){
+  var r = reqRows && reqRows[i];
+  if (!r) return;
+  if (!confirm('이 요청을 지울까요?\n\n' + r.text)) return;
+  post({ action:'editReqSet', row:r.row, ts:r.ts, del:1 }, '요청을 지우는 중…', function(res){
+    var msg = $('req-msg');
+    if (!res || res.result !== 'success'){
+      if (msg) msg.textContent = (res && res.message) || '지우지 못했어요. 목록을 새로 불러올게요.';
+      reqLoad();
+      return;
+    }
+    if (msg) msg.textContent = '요청을 지웠어요.';
+    reqLoad();
+  });
 }
 
 /* ── 모달 ── */
