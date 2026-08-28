@@ -467,6 +467,7 @@
   .ch-item .lk.out{background:#6B7570;}   /* 아웃(퇴원) */
   .ch-day{font-size:.72rem;font-weight:700;color:var(--ink-soft);margin:12px 0 1px;padding-bottom:3px;border-bottom:1px solid var(--line-soft);}
   #ch-list .ch-day:first-child{margin-top:2px;}
+  .ch-scope{font-size:.7rem;color:var(--ink-soft);background:var(--icon-bg);border-radius:8px;padding:5px 8px;margin:2px 0 4px;}
   .blk.c-g1,.wk-mini.c-g1,.wk-bar.c-g1{background:var(--g1);}
   .blk.c-g2,.wk-mini.c-g2,.wk-bar.c-g2{background:var(--g2);}
   .blk.c-g3,.wk-mini.c-g3,.wk-bar.c-g3{background:var(--g3);}
@@ -6965,6 +6966,8 @@ function chSync(){
   var tab = $('ch-tab');
   if (tab) tab.setAttribute('aria-expanded', chOpen ? 'true' : 'false');
   if (chOpen && !chLoaded) chLoad();
+  // 화면(주차별/전체)·보는 주가 바뀌면 그 범위로 다시 거른다 — chSync는 renderTabs마다 불린다
+  else if (chOpen && chLoaded){ chKinds(); chRender(); }
 }
 function chToggle(){
   chOpen = !chOpen;
@@ -7014,6 +7017,31 @@ function chGroupOf(g){
   for (var i = 0; i < CH_GROUPS.length; i++) if (CH_GROUPS[i][1](g)) return CH_GROUPS[i][0];
   return '변경';   // 나머지 전부 — 표기수정, 이 주만 변경(주간*), 반 만들기/삭제
 }
+/* 화면에 따라 보여줄 기록을 나눈다 (2026-08-28 사용자 확정 "주차별에는 해당 주차의 변경 사항이,
+ * 전체에는 신입, 퇴원, 영구 이동의 변경 사항이"):
+ * 전체 시간표 = 영구적인 변경만(신입·퇴원·영구 이동·반 전체 이동·표기수정·반 만들기/삭제),
+ * 주차별 = 보고 있는 주에 해당하는 것만(1회 이동·이 주만 변경·결석은 적용일/수업일 기준,
+ *          신입·퇴원·추가·빼기는 그 주에 기록된 것). */
+var CH_PERMA = { '영구':1, '반이동':1, '추가':1, '빼기':1, '표기수정':1, '반추가':1, '반삭제':1 };
+function chScopeFilter(g){
+  if (mode === 'all') return !!CH_PERMA[g.kind];
+  if (mode !== 'week') return true;
+  var ds = weekDates(), from = ymdOf(ds['월']), to = ymdOf(ds['일']);
+  function inW(d){ return d && d >= from && d <= to; }
+  if (g.kind === '결석') return inW(g.date);                       // 수업일
+  if (g.kind === '1회' || /^주간/.test(g.kind))                     // 적용일 또는 복사본 날짜
+    return inW(g.apply || g.date) || inW(wkIdYmd(g.toId));
+  if (g.kind === '추가' || g.kind === '빼기') return inW(g.date);   // 그 주에 등록·퇴원(기록일)
+  return false;   // 영구 이동·반 통째 이동·표기수정 등은 전체 시간표에서
+}
+function chScopeNote(){
+  if (mode === 'all') return '전체 시간표 — 영구 변경만 (신입 · 퇴원 · 반 이동 · 표기수정)';
+  if (mode === 'week'){
+    var ds = weekDates();
+    return '이 주(' + mdOf(ds['월']) + '~' + mdOf(ds['일']) + ')의 변경만 — 1회 이동 · 이 주만 변경 · 결석 · 신입 · 퇴원';
+  }
+  return '';
+}
 /* 기록 배지에 쓰는 표시명 — 내부 용어 대신 알아보기 쉬운 말로 */
 var CH_KIND_NAMES = { '영구':'반 이동', '반이동':'반 전체 이동', '1회':'1회 이동',
   '주간추가':'이 주만 추가', '주간빼기':'이 주만 빼기', '주간반이동':'이 주만 시간 이동',
@@ -7027,7 +7055,7 @@ function chKindLabel(g){
 function chKinds(){
   var box = $('ch-kinds'); if (!box) return;
   var seen = {};
-  chRows.forEach(function(g){ seen[chGroupOf(g)] = true; });
+  chRows.filter(chScopeFilter).forEach(function(g){ seen[chGroupOf(g)] = true; });
   var ks = CH_GROUPS.map(function(d){ return d[0]; }).concat(['변경']).filter(function(k){ return seen[k]; });
   if (chKind && !seen[chKind]) chKind = '';
   box.innerHTML = ks.length < 2 ? '' : [''].concat(ks).map(function(k){
@@ -7085,7 +7113,8 @@ var chIdxBusy = false;
 function chRender(){
   var list = $('ch-list'); if (!list || !chLoaded) return;
   var q = ($('ch-q') ? $('ch-q').value : '').trim().toLowerCase();
-  var rows = chRows.filter(function(g){
+  var scoped = chRows.filter(chScopeFilter);
+  var rows = scoped.filter(function(g){
     if (chKind && chGroupOf(g) !== chKind) return false;
     if (!q) return true;
     var idx = chClassIndex();
@@ -7097,12 +7126,17 @@ function chRender(){
       .join(' ').indexOf(q) >= 0;
   });
   var sub = $('ch-sub');
-  if (sub) sub.textContent = !chRows.length ? ''
-    : (rows.length < chRows.length ? rows.length + ' / ' + chRows.length + '건' : chRows.length + '건');
-  if (!chRows.length){ list.innerHTML = '<span class="ch-none">아직 기록이 없어요.</span>'; return; }
-  if (!rows.length){ list.innerHTML = '<span class="ch-none">찾는 기록이 없어요.</span>'; return; }
+  if (sub) sub.textContent = !scoped.length ? ''
+    : (rows.length < scoped.length ? rows.length + ' / ' + scoped.length + '건' : scoped.length + '건');
+  var note = '<div class="ch-scope">' + esc(chScopeNote()) + '</div>';
+  if (!scoped.length){
+    list.innerHTML = note + '<span class="ch-none">' +
+      (mode === 'week' ? '이 주에는 변경 기록이 없어요.' : '아직 기록이 없어요.') + '</span>';
+    return;
+  }
+  if (!rows.length){ list.innerHTML = note + '<span class="ch-none">찾는 기록이 없어요.</span>'; return; }
   // 날짜별로 묶어 소제목을 붙인다 (2026-08-28 사용자 확정 — 결석은 수업일, 나머지는 기록일 기준)
-  var today = todayStr(), html = [], lastDay = null;
+  var today = todayStr(), html = [note], lastDay = null;
   rows.forEach(function(g){
     if (g.date !== lastDay){
       lastDay = g.date;
