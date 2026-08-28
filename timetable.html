@@ -6210,16 +6210,32 @@ function onceOptLabel(t){
 /* 1회 이동은 같은 학년·같은 이름의 반으로만 간다(2026-08-28 사용자 확정 "동일한 학년내에서
  * 동일한 이름의 반으로만 이동") — 다른 반 전체 목록은 빼고, 같은 이름 수업만 보인다.
  * 단 새로 만든 '이 주만' 반(w*)은 이름과 무관하게 항상 포함(사용자 요청) — smClsOptions와 같은 취급. */
+/* 반이름 끝의 구분 알파벳 한 글자를 뗀 기본 이름 — 고3파이널A~F(2026-08-28 사용자 확인 "6개의 반"),
+ * 내신 화수A/B처럼 알파벳만 다른 반은 한 묶음으로 본다. 교재 괄호("고2 화수A(동아 문학)")는 떼고 비교.
+ * '논술B 국어'처럼 끝이 알파벳이 아니면 그대로라 다른 과목과 섞이지 않는다. */
+function onceBaseCls(s){
+  return String(s || '').trim().replace(/\([^)]*\)\s*$/, '').trim().replace(/[A-Za-z]$/, '').trim();
+}
 function oncePickOptions(c){
-  var same = classes.filter(function(x){ return !x.wk && x.id !== c.id && x.cls.trim() === c.cls.trim(); })
-    .sort(function(a,b){ return (DAYS.indexOf(a.day) - DAYS.indexOf(b.day)) || (mins(a.start) - mins(b.start)); });
+  var exact = [], sect = [];
+  classes.forEach(function(x){
+    if (x.wk || x.id === c.id) return;
+    if (x.cls.trim() === c.cls.trim()) exact.push(x);
+    else if (onceBaseCls(x.cls) && onceBaseCls(x.cls) === onceBaseCls(c.cls)) sect.push(x);
+  });
+  var byDayTime = function(a,b){ return (DAYS.indexOf(a.day) - DAYS.indexOf(b.day)) || (mins(a.start) - mins(b.start)); };
+  exact.sort(byDayTime);
+  sect.sort(function(a,b){ return a.cls.localeCompare(b.cls,'ko') || byDayTime(a,b); });
+  var same = exact.concat(sect);
   // 새로 만든 '이 주만' 반 — 날짜가 반에 정해져 있고, 지난 날짜 것은 제외
   var mon = new Date(weekStartOf(new Date())); mon.setDate(mon.getDate() - 2);
   var monY = ymdOf(mon);
   var wks = classes.filter(function(x){ return x.wk && x.wk >= monY && x.id !== c.id; })
     .sort(function(a,b){ return a.wk < b.wk ? -1 : a.wk > b.wk ? 1 : (mins(a.start) - mins(b.start)); });
   var h = same.map(function(x, i){
-    return '<option value="'+esc(x.id)+'"'+(i===0?' selected':'')+'>'+esc(onceOptLabel(x))+'</option>';
+    // 이름이 다른 짝 반(고3파이널A→B 등)은 반이름을 붙여 구분한다
+    var label = (x.cls.trim() === c.cls.trim() ? '' : x.cls.trim() + ' · ') + onceOptLabel(x);
+    return '<option value="'+esc(x.id)+'"'+(exact.length && i===0 ? ' selected' : '')+'>'+esc(label)+'</option>';
   }).join('');
   if (wks.length){
     h += '<optgroup label="새로 만든 \'이 주만\' 반 (날짜가 정해져 있어요)">' + wks.map(function(x){
@@ -6228,7 +6244,8 @@ function oncePickOptions(c){
     }).join('') + '</optgroup>';
   }
   if (!h) return '';
-  if (!same.length) h = '<option value="" selected>옮겨 갈 수업을 골라 주세요</option>' + h;
+  // 정확히 같은 이름이 없으면(짝 반·'이 주만' 반만 있으면) 자동 선택하지 않는다
+  if (!exact.length) h = '<option value="" selected>옮겨 갈 수업을 골라 주세요</option>' + h;
   return h;
 }
 /* 적용일 = 대상 반 요일의 그 주 날짜 (오늘 보기라면 오늘, '이 주만' 반은 반에 정해진 날짜) */
