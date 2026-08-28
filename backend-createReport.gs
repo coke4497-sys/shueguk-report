@@ -3804,10 +3804,39 @@ function editReqAdd(data) {
     var rg = sh.getRange(row, 1, 1, 7);
     rg.setNumberFormats([['yyyy-mm-dd hh:mm', '@', '@', '@', '@', '@', '@']]);
     rg.setValues([[new Date(), String(data.writer || '').trim(), String(data.screen || '').trim(), text, '접수됨', '', '']]);
-    return json({ result:'success' });
   } finally {
     try { lock.releaseLock(); } catch (e) {}
   }
+  // 등록 직후 클로드 자동 호출 — 실패해도 등록은 이미 끝난 뒤라 무해 (2026-08-28)
+  try { editReqNotify_(String(data.writer || '').trim(), String(data.screen || '').trim(), text); } catch (e) {}
+  return json({ result:'success' });
+}
+/** 요청 접수 즉시 클로드 호출 — GitHub 이슈에 @claude 멘션을 남기면 클로드 세션이
+ *  바로 열려 요청함을 처리한다(매시 순찰의 최대 1시간 대기 해소, 순찰은 안전망으로 유지).
+ *  스크립트 속성 GH_TOKEN(이 저장소 이슈 쓰기 권한)이 없으면 조용히 건너뛴다.
+ *  주의: UrlFetchApp — 소유자가 편집기에서 외부 요청 권한을 승인해야 실제로 동작
+ *  (어휘 스크립트와 같은 절차, 승인 전에는 조용히 실패). */
+function editReqNotify_(writer, screen, text) {
+  var token = PropertiesService.getScriptProperties().getProperty('GH_TOKEN');
+  if (!token) return;
+  var short = text.length > 40 ? text.slice(0, 40) + '…' : text;
+  UrlFetchApp.fetch('https://api.github.com/repos/coke4497-sys/shueguk-report/issues', {
+    method: 'post',
+    contentType: 'application/json',
+    headers: { 'Authorization': 'Bearer ' + token, 'Accept': 'application/vnd.github+json' },
+    muteHttpExceptions: true,
+    payload: JSON.stringify({
+      title: '[수정 요청] ' + short,
+      body: '@claude 티쳐스 \'수정 요청함\'에 새 요청이 접수됐습니다.\n\n' +
+            '- 작성자: ' + (writer || '(미기재)') + ' / 화면: ' + (screen || '-') + '\n' +
+            '- 내용: ' + text + '\n\n' +
+            '처리 방법: 이 저장소 CLAUDE.md의 「시간표 수정 요청함 (2026-08-28 구축)」 절의 ' +
+            "'자동 순찰(Routine)' 정책을 그대로 따라 주세요 — 먼저 editReqList로 '접수됨' 목록을 다시 조회하고" +
+            '(이미 다른 세션이 처리해 접수됨이 없으면 이 이슈만 닫으면 됩니다), 각 건을 정책대로 처리하거나 보류한 뒤 ' +
+            'editReqSet으로 결과를 남깁니다. 판단이 필요하거나 데이터 삭제가 걸린 건은 건드리지 말고 보류. ' +
+            '끝나면 이 이슈에 결과를 한 줄로 남기고 이슈를 닫아 주세요.'
+    })
+  });
 }
 /** 요청 상태·처리메모 변경(클로드 코드 세션·페이지 공용). { pw, row, ts, status, note, del }
  *  ts = 그 줄의 기록일시(목록 응답의 값 그대로) — 줄이 지워져 행이 밀렸을 때 엉뚱한 줄을 고치지 않기 위한 대조.
