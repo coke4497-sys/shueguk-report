@@ -6192,11 +6192,75 @@ function pickStudent(onPick){
   }
 }
 
-/* ── 1회 이동 (오늘의 시간표 전용) ── */
-/* 출석 창의 [다른 반으로 1회 이동] — 반 id로 찾아 이동 모드 시작 */
+/* ── 1회 이동 ── */
+/* 출석 창의 [다른 반으로 1회 이동] — 같은 반의 다른 요일 수업을 드롭다운으로 바로 고른다
+ * (2026-08-28 사용자 요청 "이동할 요일을 찾아서 그 반을 선택해야 적용" → 목록에서 선택).
+ * [시간표에서 직접 고르기]로 옛 방식(반 블록 클릭)도 그대로 쓸 수 있다. */
 function startOnceMoveById(cid, nm){
   var c = classes.find(function(x){ return x.id === cid; });
+  if (c) openOncePick(c, nm);
+}
+function startOnceMoveGrid(cid, nm){
+  var c = classes.find(function(x){ return x.id === cid; });
   if (c) startOnceMove(c, nm);
+}
+function onceOptLabel(t, withName){
+  return (withName ? t.cls + ' · ' : '') + t.day + ' ' + t.start +
+         (t.teacher ? ' · ' + t.teacher + 'T' : '') + (t.loc ? ' · ' + t.loc : '');
+}
+function oncePickOptions(c){
+  // '이 주만' 반(w*)은 제외 — 그쪽은 [이 주만 학생 넣기]·[다른 주로 옮기기]가 담당
+  var others = classes.filter(function(x){ return !x.wk && x.id !== c.id; });
+  var same = others.filter(function(x){ return x.cls.trim() === c.cls.trim(); })
+    .sort(function(a,b){ return (DAYS.indexOf(a.day) - DAYS.indexOf(b.day)) || (mins(a.start) - mins(b.start)); });
+  var rest = others.filter(function(x){ return x.cls.trim() !== c.cls.trim(); })
+    .sort(function(a,b){ return a.cls.localeCompare(b.cls,'ko') || (DAYS.indexOf(a.day) - DAYS.indexOf(b.day)) || (mins(a.start) - mins(b.start)); });
+  var h = same.length
+    ? '<optgroup label="같은 반 (다른 요일·시간)">' + same.map(function(x, i){
+        return '<option value="'+esc(x.id)+'"'+(i===0?' selected':'')+'>'+esc(onceOptLabel(x, false))+'</option>';
+      }).join('') + '</optgroup>'
+    : '<option value="" selected>옮겨 갈 수업을 골라 주세요</option>';
+  h += '<optgroup label="다른 반 전체">' + rest.map(function(x){
+    return '<option value="'+esc(x.id)+'">'+esc(onceOptLabel(x, true))+'</option>';
+  }).join('') + '</optgroup>';
+  return h;
+}
+/* 적용일 = 대상 반 요일의 그 주 날짜 (오늘 보기라면 오늘) — openOnceModal과 같은 규칙 */
+function onceAdOf(t){ return (mode === 'week') ? ymdOf(weekDates()[t.day]) : todayStr(); }
+function oncePickAdLine(){
+  var el = $('once-ad'); if (!el) return;
+  var t = classes.find(function(x){ return x.id === ($('once-to') ? $('once-to').value : ''); });
+  if (!t){ el.textContent = ''; return; }
+  var ad = onceAdOf(t);
+  var dk = ['일','월','화','수','목','금','토'];
+  var d = new Date(+ad.slice(0,4), +ad.slice(5,7)-1, +ad.slice(8,10));
+  el.innerHTML = '적용일: <b>' + esc(mdOf(d) + ' (' + dk[d.getDay()] + ')') + '</b> — 그 날짜 시간표에 보라색 이름으로 표시돼요';
+}
+function openOncePick(c, nm){
+  openModal(
+    '<h3>다른 반으로 1회 이동</h3>'+
+    '<p class="mdesc"><b>'+esc(plainName(nm))+'</b> — '+esc(labelOf(c))+'<br>원래 반과 리포트는 그대로 두고, 그 날짜 하루만 옮겨 가요.</p>'+
+    '<label style="font-size:.8rem;color:var(--ink-soft);">옮겨 갈 수업 — 같은 반의 다른 요일 수업이 먼저 나와요</label>'+
+    '<select id="once-to" onchange="oncePickAdLine()" style="font:inherit;font-size:.92rem;border:1.5px solid var(--line);border-radius:10px;padding:8px 10px;width:100%;margin-top:6px;">'+
+    oncePickOptions(c)+'</select>'+
+    '<p class="mdesc" id="once-ad" style="margin:8px 0 0;"></p>'+
+    '<textarea id="once-reason" placeholder="사유 메모 (필수) — 예: 여행으로 앞당겨 수업, 학교 행사"></textarea>'+
+    '<p class="merr" id="once-err"></p>'+
+    '<div class="mbtns"><button onclick="closeModal()">취소</button>'+
+    '<button onclick="startOnceMoveGrid(\''+esc(c.id)+'\',\''+esc(nm)+'\')">시간표에서 직접 고르기</button>'+
+    '<button class="primary" onclick="submitOncePick(\''+esc(c.id)+'\',\''+esc(nm)+'\')">1회 이동</button></div>'
+  );
+  oncePickAdLine();
+}
+function submitOncePick(fromId, nm){
+  var toId = $('once-to') ? $('once-to').value : '';
+  var target = classes.find(function(x){ return x.id === toId; });
+  if (!target){ $('once-err').textContent = '옮겨 갈 수업을 골라 주세요.'; return; }
+  var from = classes.find(function(x){ return x.id === fromId; });
+  if (!from) return;
+  // 저장은 기존 경로 그대로 — submitOnce가 moving의 이름·원래 반·적용일을 읽는다
+  moving = { name: nm, fromId: fromId, fromLabel: labelOf(from), once: true, applyDate: onceAdOf(target) };
+  submitOnce(toId);
 }
 function startOnceMove(c, nm){
   closeModal();
