@@ -2438,6 +2438,7 @@ function doPost(e) {
     if (data && data.action === 'ttMemoSet')        { return ttMemoSet(data); }
     if (data && data.action === 'editReqAdd')       { return editReqAdd(data); }
     if (data && data.action === 'editReqSet')       { return editReqSet(data); }
+    if (data && data.action === 'editReqTokenSet')  { return editReqTokenSet(data); }
     if (data && data.action === 'naeshinSet')       { return naeshinSet(data); }
     if (data && data.action === 'ttPeriodSet')      { return ttPeriodSet(data); }
     if (data && data.action === 'examSchedSet')     { return examSchedSet(data); }
@@ -3811,32 +3812,52 @@ function editReqAdd(data) {
   try { editReqNotify_(String(data.writer || '').trim(), String(data.screen || '').trim(), text); } catch (e) {}
   return json({ result:'success' });
 }
-/** 요청 접수 즉시 클로드 호출 — GitHub 이슈에 @claude 멘션을 남기면 클로드 세션이
- *  바로 열려 요청함을 처리한다(매시 순찰의 최대 1시간 대기 해소, 순찰은 안전망으로 유지).
- *  스크립트 속성 GH_TOKEN(이 저장소 이슈 쓰기 권한)이 없으면 조용히 건너뛴다.
- *  주의: UrlFetchApp — 소유자가 편집기에서 외부 요청 권한을 승인해야 실제로 동작
- *  (어휘 스크립트와 같은 절차, 승인 전에는 조용히 실패). */
+/** 요청 접수 즉시 클로드 호출 — 알림 채널 PR(#329, 항상 열어 두는 PR)에 댓글을 달면
+ *  그 PR을 구독 중인 클로드 세션이 댓글 이벤트로 깨어나 요청함을 바로 처리한다
+ *  (매시 순찰의 최대 1시간 대기 해소, 순찰은 안전망으로 유지).
+ *  스크립트 속성 GH_TOKEN(이 저장소 이슈·PR 쓰기 권한 토큰)이 없으면 조용히 건너뛴다.
+ *  토큰·PR 번호 저장은 editReqTokenSet 액션으로(값은 절대 응답에 담지 않음).
+ *  주의: UrlFetchApp — 소유자가 편집기에서 권한승인()을 실행해 외부 요청 권한을
+ *  승인해야 실제로 동작(어휘 스크립트의 2026-08-25 절차와 동일, 승인 전에는 조용히 실패). */
+var GH_NOTIFY_PR_DEFAULT = '329';
 function editReqNotify_(writer, screen, text) {
-  var token = PropertiesService.getScriptProperties().getProperty('GH_TOKEN');
+  var props = PropertiesService.getScriptProperties();
+  var token = props.getProperty('GH_TOKEN');
   if (!token) return;
-  var short = text.length > 40 ? text.slice(0, 40) + '…' : text;
-  UrlFetchApp.fetch('https://api.github.com/repos/coke4497-sys/shueguk-report/issues', {
+  var pr = props.getProperty('GH_NOTIFY_PR') || GH_NOTIFY_PR_DEFAULT;
+  UrlFetchApp.fetch('https://api.github.com/repos/coke4497-sys/shueguk-report/issues/' + pr + '/comments', {
     method: 'post',
     contentType: 'application/json',
     headers: { 'Authorization': 'Bearer ' + token, 'Accept': 'application/vnd.github+json' },
     muteHttpExceptions: true,
     payload: JSON.stringify({
-      title: '[수정 요청] ' + short,
-      body: '@claude 티쳐스 \'수정 요청함\'에 새 요청이 접수됐습니다.\n\n' +
+      body: '[수정 요청 접수] 티쳐스 \'수정 요청함\'에 새 요청이 등록됐습니다.\n\n' +
             '- 작성자: ' + (writer || '(미기재)') + ' / 화면: ' + (screen || '-') + '\n' +
             '- 내용: ' + text + '\n\n' +
-            '처리 방법: 이 저장소 CLAUDE.md의 「시간표 수정 요청함 (2026-08-28 구축)」 절의 ' +
-            "'자동 순찰(Routine)' 정책을 그대로 따라 주세요 — 먼저 editReqList로 '접수됨' 목록을 다시 조회하고" +
-            '(이미 다른 세션이 처리해 접수됨이 없으면 이 이슈만 닫으면 됩니다), 각 건을 정책대로 처리하거나 보류한 뒤 ' +
-            'editReqSet으로 결과를 남깁니다. 판단이 필요하거나 데이터 삭제가 걸린 건은 건드리지 말고 보류. ' +
-            '끝나면 이 이슈에 결과를 한 줄로 남기고 이슈를 닫아 주세요.'
+            "구독 세션 처리 안내: CLAUDE.md 「시간표 수정 요청함」 절의 '자동 순찰(Routine)' 정책 그대로 — " +
+            "editReqList로 '접수됨' 목록을 다시 조회해(이미 처리돼 없으면 아무것도 안 해도 됨) 각 건을 처리/보류하고 " +
+            'editReqSet으로 결과를 남긴다. 판단 필요·데이터 삭제 건은 보류. 이 댓글에는 답글을 달지 않는다.'
     })
   });
+}
+/** 알림용 토큰·PR 번호 저장(쓰기 전용 — 값은 어떤 경로로도 되돌려주지 않는다).
+ *  { pw, token?, prNum? } — 토큰 값을 지우려면 token:'' */
+function editReqTokenSet(data) {
+  if (String(data.pw || '') !== TEACHER_PW) return json({ result:'error', message:'unauthorized' });
+  var props = PropertiesService.getScriptProperties();
+  var saved = [];
+  if (data.token != null) {
+    var t = String(data.token).trim();
+    if (t) props.setProperty('GH_TOKEN', t); else props.deleteProperty('GH_TOKEN');
+    saved.push('token');
+  }
+  if (data.prNum != null) { props.setProperty('GH_NOTIFY_PR', String(data.prNum).trim()); saved.push('prNum'); }
+  return json({ result:'success', saved: saved });
+}
+/** 편집기에서 한 번 실행 — 외부 요청(UrlFetchApp) 권한 승인용. 승인 창이 뜨면 허용. */
+function 권한승인() {
+  var r = UrlFetchApp.fetch('https://api.github.com', { muteHttpExceptions: true });
+  Logger.log('연결 확인: ' + r.getResponseCode() + ' (200이면 성공)');
 }
 /** 요청 상태·처리메모 변경(클로드 코드 세션·페이지 공용). { pw, row, ts, status, note, del }
  *  ts = 그 줄의 기록일시(목록 응답의 값 그대로) — 줄이 지워져 행이 밀렸을 때 엉뚱한 줄을 고치지 않기 위한 대조.
