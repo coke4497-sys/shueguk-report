@@ -500,7 +500,7 @@ var FEATURES = [
   { id:'voca',    icon:'book',   tone:'yel', title:'어휘 테스트',   desc:'단어 시험 보기',     url:'' },
   { id:'clinic',  icon:'pulse',  tone:'pnk', title:'클리닉 신청',   desc:'클리닉 신청·확인',   url:'https://coke4497-sys.github.io/shueguk-clinic/' },
   { id:'mock',    icon:'paper',  tone:'lav', title:'모의고사 신청', desc:'모의고사 응시 신청',  url:'https://coke4497-sys.github.io/shuegukweekendtest/signup.html' },
-  { id:'grammar', icon:'pencil', tone:'yel', title:'문법 테스트',   desc:'문법 시험 보기',     url:'' }
+  { id:'grammar', icon:'pencil', tone:'lav', title:'문법 테스트',   desc:'문법 시험 보기',     url:'' }
 ];
 
 /* ── 어휘 테스트 연결 설정 ───────────────────────────────────
@@ -508,6 +508,8 @@ var FEATURES = [
  *   학년코드: 고1~3 → h1·h2·h3, 중1~3 → m1·m2·m3
  * 주차는 교사용 어휘 페이지에서 지정(설정 탭 '어휘 주차') → 학생은 그 주차만 열림. */
 var VOCA_BASE = 'https://coke4497-sys.github.io/shueguk-voca/test.html';
+// 문법 테스트 — 배정 확인 페이지(내 문법 테스트). 이름·학교·학년·학생ID(학부모 전화 8자리)를 실어 보낸다.
+var GRAMMAR_BASE = 'https://coke4497-sys.github.io/shueguk-gramma/index.html';
 
 function vocaGradeCode(gradeStr){
   var s = String(gradeStr||'').replace(/20\d{2}/,'');   // 연도 제거(2026 등)
@@ -1537,6 +1539,14 @@ function renderHub(){
       }
       // 그 외(주차 미설정 등)는 기본 설명 + '준비 중'
     }
+    // 문법 테스트: 배정 확인 페이지로 — 배정된 테스트만 열리므로 카드는 항상 활성
+    if(f.id==='grammar' && STATE.info){
+      url = GRAMMAR_BASE + '?name=' + encodeURIComponent(STATE.info.name || '')
+          + '&school=' + encodeURIComponent(STATE.info.school || '')
+          + '&grade=' + encodeURIComponent(levelGrade(STATE.info.grade) || '')
+          + '&p8=' + encodeURIComponent(String(STATE.info.id || ''));
+      desc = '배정된 테스트 확인·응시';
+    }
     var ic = '<span class="icon">'+svg(ICON[f.icon]||ICON.book)+(vocaBadge?'<span class="new-dot">1</span>':'')+'</span>';
     var tcl = f.tone ? ' t-'+f.tone : '';
     // 실전 모의고사: 신청·OMR·성적을 하위 메뉴 하나로 묶음
@@ -1584,8 +1594,8 @@ function renderHub(){
     var ready = url && url.indexOf('http')===0;
     if(ready){
       var href;
-      if(f.id==='voca'){
-        href = url;   // g·w 이미 포함, 어휘는 토큰 불필요(교사 발송 링크와 동일 형식)
+      if(f.id==='voca' || f.id==='grammar'){
+        href = url;   // 파라미터 이미 포함, 토큰 불필요(교사 발송 링크와 동일 형식)
       } else {
         href = url + (url.indexOf('?')>=0?'&':'?') + 'key=' + encodeURIComponent(KEY);
         // 클리닉: 토큰과 함께 이름·학생ID·담당강사·학교·학년을 실어 보내 폼 자동 채움에 사용
