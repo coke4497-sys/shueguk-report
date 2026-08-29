@@ -1588,11 +1588,13 @@ function renderHub(){
         href = url;   // g·w 이미 포함, 어휘는 토큰 불필요(교사 발송 링크와 동일 형식)
       } else {
         href = url + (url.indexOf('?')>=0?'&':'?') + 'key=' + encodeURIComponent(KEY);
-        // 클리닉: 토큰과 함께 이름·학생ID·담당강사를 실어 보내 자동 식별·강사구분에 사용
+        // 클리닉: 토큰과 함께 이름·학생ID·담당강사·학교·학년을 실어 보내 폼 자동 채움에 사용
         if(f.id==='clinic' && STATE.info){
           href += '&nm='  + encodeURIComponent(STATE.info.name    || '')
                 + '&sid=' + encodeURIComponent(STATE.info.id      || '')
-                + '&tc='  + encodeURIComponent(STATE.info.teacher || '');
+                + '&tc='  + encodeURIComponent(STATE.info.teacher || '')
+                + '&sc='  + encodeURIComponent(STATE.info.school  || '')
+                + '&gr='  + encodeURIComponent(levelGrade(STATE.info.grade) || '');
         }
       }
       html += '<a class="card'+tcl+'" href="'+esc(href)+'">'+body+'<span class="go">열기 '+svg(ICON.arrow)+'</span></a>';
@@ -1865,7 +1867,7 @@ function renderHomework(){
 function openClinic(){ renderClinic(); hide('hubView'); $('clinicView').style.display='block'; window.scrollTo(0,0); }
 function closeClinic(){ $('clinicView').style.display='none'; show('hubView'); window.scrollTo(0,0); }
 
-// 클리닉 신청 페이지 링크 — 토큰과 이름·학생ID·담당강사를 실어 자동 식별
+// 클리닉 신청 페이지 링크 — 토큰과 이름·학생ID·담당강사·학교·학년을 실어 폼을 자동으로 채운다
 function clinicApplyHref(){
   var f = FEATURES.filter(function(x){ return x.id==='clinic'; })[0];
   var url = (f && f.url) || 'https://coke4497-sys.github.io/shueguk-clinic/';
@@ -1873,7 +1875,9 @@ function clinicApplyHref(){
   if(STATE.info){
     href += '&nm='  + encodeURIComponent(STATE.info.name    || '')
           + '&sid=' + encodeURIComponent(STATE.info.id      || '')
-          + '&tc='  + encodeURIComponent(STATE.info.teacher || '');
+          + '&tc='  + encodeURIComponent(STATE.info.teacher || '')
+          + '&sc='  + encodeURIComponent(STATE.info.school  || '')
+          + '&gr='  + encodeURIComponent(levelGrade(STATE.info.grade) || '');
   }
   return href;
 }
