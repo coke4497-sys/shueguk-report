@@ -179,6 +179,7 @@ async function live() {
       const g = byExam[name] || {};
       let bad = [];
       A.bySubject.forEach(sub => {
+        if (!sub.n) return;                 // 그 과목 응시자가 없는 회차는 함수도 줄을 만들지 않는다
         const st = g[sub.subject];
         if (!st) { bad.push(sub.subject + ' 없음'); return; }
         if (st.n !== sub.n) bad.push(sub.subject + ' 인원 ' + st.n + '≠' + sub.n);
