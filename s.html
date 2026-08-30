@@ -293,6 +293,38 @@
   .mr-clabels{display:flex;gap:5px;margin:7px 20px 18px;padding:0 2px;}
   .mr-clabels span{flex:1;text-align:center;font-size:10px;color:var(--ink);word-break:keep-all;line-height:1.2;}
 
+  /* 모의고사 성적 추이 (2026-08-30) */
+  .tr-card{background:var(--surface);border:1px solid var(--line-soft);border-radius:var(--radius);padding:18px 18px 20px;margin-bottom:16px;}
+  .tr-ttl{font-family:var(--serif);font-weight:700;font-size:1.02rem;color:var(--accent);margin:0 0 10px;}
+  .tr-head{margin:0;font-size:.92rem;color:var(--ink);}
+  .tr-head b{font-family:var(--serif);color:var(--accent);}
+  .tr-sub{margin:5px 0 0;font-size:.87rem;color:var(--ink-soft);}
+  .tr-sub b{font-weight:700;}
+  .tr-sub b.up{color:#3A6B5E;} .tr-sub b.down{color:#B5644F;}
+  .tr-note{margin:7px 0 0;font-size:.78rem;color:var(--ink-soft);line-height:1.6;}
+  .tr-legend{display:flex;gap:14px;margin:14px 0 2px;font-size:.75rem;color:var(--ink-soft);}
+  .tr-legend .lg{display:inline-flex;align-items:center;gap:5px;}
+  .tr-legend .lg::before{content:"";width:16px;height:0;border-top:2.4px solid #3A6B5E;border-radius:2px;}
+  .tr-legend .lg.avg::before{border-top:1.6px dashed #9DB3A9;}
+  .tr-chart{width:100%;height:auto;display:block;}
+  .tr-chart .tr-dot{cursor:pointer;}
+  .tr-sec{font-family:var(--serif);font-weight:700;font-size:.88rem;color:var(--ink);margin:18px 0 8px;}
+  .tr-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;}
+  .tr-grades{display:flex;align-items:center;gap:6px;padding-bottom:2px;}
+  .tr-gc{flex:0 0 auto;display:flex;flex-direction:column;align-items:center;gap:1px;cursor:pointer;
+    border:1px solid var(--line);border-radius:11px;padding:7px 11px;background:var(--surface);}
+  .tr-gc i{font-style:normal;font-size:.7rem;color:var(--ink-soft);}
+  .tr-gc b{font-family:var(--serif);font-size:.9rem;color:var(--ink);}
+  .tr-gc.up{background:#E7F0EA;border-color:#9DBDB0;} .tr-gc.up b{color:#3A6B5E;}
+  .tr-gc.down{background:#F7EDEA;border-color:#E0BDB4;} .tr-gc.down b{color:#B5644F;}
+  .tr-ar{flex:0 0 auto;color:#9AA7A0;font-size:.8rem;}
+  table.tr-cat{border-collapse:collapse;font-size:.8rem;min-width:100%;}
+  table.tr-cat th{background:var(--icon-bg);color:var(--accent);font-weight:700;padding:7px 9px;white-space:nowrap;}
+  table.tr-cat td{padding:7px 9px;border-bottom:1px solid var(--line-soft);text-align:center;color:var(--ink);white-space:nowrap;}
+  table.tr-cat td.cn{text-align:left;color:var(--ink-soft);}
+  table.tr-cat td.low{color:#B5644F;font-weight:700;}
+  table.tr-cat td.na{color:#C4CDC7;}
+
   /* 모의고사 성적표 (OMR 스타일 · 정오표 포함) */
   .omr-report{ --shadow:0 2px 10px rgba(63,58,68,.06);
     background:#f7f6f3; border:1px solid var(--line-soft); border-radius:var(--radius); overflow:hidden; margin-bottom:16px;
@@ -434,6 +466,7 @@
     <button class="gv-back" onclick="closeMock()" id="mockBack"></button>
     <span class="gv-ttl">주말 실전 모의고사 · 성적</span>
   </div>
+  <div id="mockTrend" style="display:none;"></div>
   <div class="exam-tabs" id="mockTabs" style="display:none;"></div>
   <div id="mockList"></div>
   <footer><p>이수경국어 Shueguk · 학생용</p></footer>
@@ -2296,6 +2329,8 @@ function renderMock(){
     else { tabs.style.display='none'; }
     list.innerHTML=mockCardHtml(reps[MOCK_SEL]);
   }
+  renderMockTrend();            // 성적 추이 (평균선은 도착하면 다시 그린다)
+  if(reps.length) fetchMockStats(reps);
   hide('hubView'); $('gradeView').style.display='none'; $('mockHubView').style.display='none'; $('mockView').style.display='block'; window.scrollTo(0,0);
 }
 // 응시일 표시 정리: 시트가 '6월 3일'을 날짜 값으로 바꿔 장황한 문자열로 와도 'M월 D일'로 되돌린다.
@@ -2354,6 +2389,278 @@ function mockCardHtml(x){
       '<div class="grid-wrap">'+block(1,15)+block(16,30)+block(31,45)+'</div>'+
       '<div class="legend">정오 칸의 숫자 = 획득 배점 · 0 = 오답</div></section>'+
     '</div>';
+}
+
+/* ==TREND-CORE== 모의고사 성적 추이 계산 (화면과 분리 — tools/mock-trend-test.js 가 이 블록만 떼어 검증한다) */
+var TREND = (function(){
+  var CAT_ORDER = ['독서','문학','화작','문법','선택과목'];
+
+  // 성적표 목록은 최근순으로 오므로 시간순(옛→최근)으로 되돌린다.
+  // submittedAt(제출시각)이 있으면 그것으로, 없으면(옛 백엔드 폴백) 받은 순서를 뒤집는다.
+  function order(reps){
+    var list = (reps||[]).map(function(x,i){ return { idx:i, rep:x, t:timeOf(x) }; });
+    var allT = list.length && list.every(function(o){ return o.t !== null; });
+    if(allT) list.sort(function(a,b){ return a.t - b.t || b.idx - a.idx; });
+    else list.reverse();
+    return list;
+  }
+  function timeOf(x){
+    var s = String((x && x.submittedAt) || '').trim();
+    if(!s) return null;
+    var t = Date.parse(/[TZ]/.test(s) ? s : s.replace(' ','T'));
+    return isNaN(t) ? null : t;
+  }
+  // '8월 29일' → '8/29' (회차 이름밖에 없으면 그걸로)
+  function label(x){
+    var m = String((x && x.examDate) || '').match(/(\d+)월\s*(\d+)일/);
+    if(m) return m[1] + '/' + m[2];
+    var s = String((x && x.examDate) || '').trim();
+    return s || String((x && x.examName) || '');
+  }
+  // 영역 분류(독서·문학·선택과목)별 성취도 % — 회차마다 영역 이름은 달라도 분류는 같다
+  function catRates(x){
+    var m = {};
+    ((x && x.areas) || []).forEach(function(a){
+      var c = a.cat || '기타';
+      if(!m[c]) m[c] = { full:0, score:0 };
+      m[c].full  += Number(a.full)  || 0;
+      m[c].score += Number(a.score) || 0;
+    });
+    var out = {};
+    for(var c in m) out[c] = m[c].full > 0 ? Math.round(m[c].score / m[c].full * 1000) / 10 : null;
+    return out;
+  }
+  // 그 회차의 슈국 평균 — 같은 선택과목 평균이 먼저, 인원이 적어 평균이 없으면 전체 평균
+  function avgOf(stats, exam, subject){
+    var rows = (stats || []).filter(function(s){ return s.exam === exam; });
+    function pick(sub){
+      var r = rows.filter(function(s){ return s.subject === sub && s.avg != null; })[0];
+      return r ? { avg: Number(r.avg), n: Number(r.n), basis: sub } : null;
+    }
+    return pick(subject) || pick('전체') || null;
+  }
+  function mean(a){ return a.length ? Math.round(a.reduce(function(x,y){ return x+y; }, 0) / a.length * 10) / 10 : null; }
+
+  /* reps: 성적표 목록(최근순) · stats: omr_exam_stats 결과(없으면 평균선 없음) · max: 그릴 회차 수 */
+  function build(reps, stats, max){
+    var list = order(reps);
+    var shown = (max && list.length > max) ? list.slice(list.length - max) : list;
+    var points = shown.map(function(o){
+      var x = o.rep, a = avgOf(stats, x.examName, x.subject);
+      return {
+        idx: o.idx, exam: String(x.examName||''), label: label(x),
+        got: Number(x.got) || 0, level: String(x.level || ''),
+        subject: String(x.subject || ''),
+        avg: a ? a.avg : null, avgN: a ? a.n : null, avgBasis: a ? a.basis : '',
+        cats: catRates(x)
+      };
+    });
+
+    // 영역 분류 줄 — 실제로 값이 있는 분류만, 정해진 순서로
+    var seen = {};
+    points.forEach(function(p){ for(var c in p.cats) if(p.cats[c] != null) seen[c] = true; });
+    var cats = CAT_ORDER.filter(function(c){ return seen[c]; })
+      .concat(Object.keys(seen).filter(function(c){ return CAT_ORDER.indexOf(c) < 0; }).sort());
+    var catRows = cats.map(function(c){
+      return { cat: c, values: points.map(function(p){ return p.cats[c] == null ? null : p.cats[c]; }) };
+    });
+
+    var last = points[points.length-1] || null;
+    var prev = points.length > 1 ? points[points.length-2] : null;
+    var worst = null;
+    if(last){
+      catRows.forEach(function(r){
+        var v = r.values[r.values.length-1];
+        if(v == null) return;
+        if(!worst || v < worst.rate) worst = { cat: r.cat, rate: v };
+      });
+    }
+    return {
+      points: points, catRows: catRows,
+      total: (reps||[]).length,            // 전체 응시 횟수 (잘라내기 전)
+      hidden: list.length - shown.length,  // 화면에 안 그린 옛 회차 수
+      summary: {
+        n: (reps||[]).length,
+        recentAvg: mean(points.slice(-3).map(function(p){ return p.got; })),
+        last: last, prev: prev,
+        delta: (last && prev) ? Math.round((last.got - prev.got) * 10) / 10 : null,
+        vsAvg: (last && last.avg != null) ? Math.round((last.got - last.avg) * 10) / 10 : null,
+        levelDelta: (last && prev && /^\d$/.test(last.level) && /^\d$/.test(prev.level))
+          ? (Number(prev.level) - Number(last.level)) : null,   // + = 등급이 올랐다(숫자가 작아졌다)
+        worst: worst
+      }
+    };
+  }
+
+  // 꺾은선 좌표 — 세로는 데이터에 맞춰 10점 단위로 여유를 둔다
+  function scale(points, w, h, pad){
+    var vals = [];
+    points.forEach(function(p){ vals.push(p.got); if(p.avg != null) vals.push(p.avg); });
+    var lo = vals.length ? Math.min.apply(null, vals) : 0;
+    var hi = vals.length ? Math.max.apply(null, vals) : 100;
+    var yMin = Math.max(0, Math.floor((lo - 8) / 10) * 10);
+    var yMax = Math.min(100, Math.max(Math.ceil((hi + 6) / 10) * 10, yMin + 20));
+    var n = points.length;
+    var innerW = w - pad.l - pad.r;
+    function x(i){ return n <= 1 ? pad.l + innerW/2 : pad.l + innerW * i / (n - 1); }
+    function y(v){ return pad.t + (h - pad.t - pad.b) * (1 - (v - yMin) / (yMax - yMin)); }
+    return { x:x, y:y, yMin:yMin, yMax:yMax };
+  }
+  // 값이 없는 회차에서 선을 끊는다 (평균 인원이 적어 평균선이 비는 회차)
+  function segments(points, key){
+    var segs = [], cur = [];
+    points.forEach(function(p, i){
+      var v = key === 'avg' ? p.avg : p.got;
+      if(v == null){ if(cur.length) segs.push(cur); cur = []; return; }
+      cur.push({ i:i, v:v });
+    });
+    if(cur.length) segs.push(cur);
+    return segs;
+  }
+  return { build:build, order:order, label:label, catRates:catRates, avgOf:avgOf,
+           scale:scale, segments:segments };
+})();
+/* ==/TREND-CORE== */
+
+/* ---- 모의고사 성적 추이 (2026-08-30 사용자 요청) ----
+ * 성적표 목록(STATE.mock)은 이미 전 회차가 와 있어 추이는 화면에서 바로 그린다.
+ * 슈국 평균선만 서버에서 따로 받는다 — omr_exam_stats(023): 평균·인원 숫자만 주는 함수.
+ * (학생 화면은 남의 성적을 읽을 수 없게 잠겨 있고, 응시 5명 미만 회차는 평균이 안 나온다) */
+var MOCK_STATS = null;       // [{exam, subject, n, avg}] · null = 아직 못 받음
+var MOCK_STATS_JOB = null;
+var MOCK_STATS_KEY = '';     // 받아 둔 회차 목록 — 새 회차에 응시하면 다시 받는다
+
+function fetchMockStats(reps){
+  var names = [];
+  (reps||[]).forEach(function(x){
+    var n = String((x && x.examName) || '').trim();
+    if(n && names.indexOf(n) < 0) names.push(n);
+  });
+  if(!names.length) return;
+  var key = names.join('|');
+  if(key === MOCK_STATS_KEY && (MOCK_STATS || MOCK_STATS_JOB)) return;
+  MOCK_STATS_KEY = key; MOCK_STATS = null;
+  MOCK_STATS_JOB = fetch('https://bangdbhqpphqqdwcledg.supabase.co/rest/v1/rpc/omr_exam_stats', {
+    method:'POST',
+    headers:{ 'apikey':'sb_publishable_dE9d1KIbpgYaQkaS2MSrlg_-7SiRJuT',
+              'Authorization':'Bearer sb_publishable_dE9d1KIbpgYaQkaS2MSrlg_-7SiRJuT',
+              'Content-Type':'application/json' },
+    body: JSON.stringify({ p:{ exams:names } })
+  }).then(function(r){ if(!r.ok) throw new Error('sb '+r.status); return r.json(); })
+    .then(function(d){
+      if(!d || d.result!=='success') throw new Error('bad resp');
+      MOCK_STATS = d.stats || []; MOCK_STATS_JOB = null;
+      if($('mockView').style.display==='block') renderMockTrend();
+    })
+    .catch(function(e){
+      // 평균선은 없어도 추이는 그대로 보인다 (옛 배포본·조회 실패)
+      console.warn('회차 평균 조회 실패 — 평균선 없이 표시합니다', e);
+      MOCK_STATS_JOB = null; MOCK_STATS_KEY = '';
+    });
+}
+function renderMockTrend(){
+  var box=$('mockTrend'); if(!box) return;
+  var html=mockTrendHtml(STATE.mock||[]);
+  box.innerHTML=html; box.style.display = html ? 'block' : 'none';
+}
+function trendPoint(x){ return Math.round(x*10)/10; }
+
+function mockTrendHtml(reps){
+  var T = TREND.build(reps, MOCK_STATS, 8);
+  var P = T.points, s = T.summary;
+  if(!P.length) return '';
+
+  /* 1) 한 줄 요약 */
+  var head = '지금까지 <b>'+s.n+'회</b> 응시';
+  if(s.recentAvg != null && P.length > 1) head += ' · 최근 '+Math.min(3,P.length)+'회 평균 <b>'+s.recentAvg+'점</b>';
+  var bits = [];
+  if(s.delta != null) bits.push(s.delta > 0 ? '지난 회차보다 <b class="up">'+s.delta+'점</b> 올랐어요'
+    : s.delta < 0 ? '지난 회차보다 <b class="down">'+Math.abs(s.delta)+'점</b> 내렸어요' : '지난 회차와 점수가 같아요');
+  if(s.vsAvg != null) bits.push(s.vsAvg > 0 ? '슈국 평균보다 <b class="up">'+s.vsAvg+'점</b> 높아요'
+    : s.vsAvg < 0 ? '슈국 평균보다 <b class="down">'+Math.abs(s.vsAvg)+'점</b> 낮아요' : '슈국 평균과 같아요');
+  var sum = '<p class="tr-head">'+head+'</p>'+(bits.length ? '<p class="tr-sub">'+bits.join(' · ')+'</p>' : '');
+  if(s.worst) sum += '<p class="tr-note">최근 회차에서는 '+esc(s.worst.cat)+' 성취도가 가장 낮았어요 ('+s.worst.rate+'%)</p>';
+
+  /* 회차가 하나뿐이면 흐름 대신 안내 */
+  if(P.length < 2){
+    return '<div class="tr-card"><h3 class="tr-ttl">성적 추이</h3>'+sum+
+      '<p class="tr-note">회차가 쌓이면 점수와 등급이 어떻게 움직이는지 한눈에 보여드릴게요.</p></div>';
+  }
+
+  /* 2) 점수 꺾은선 (내 점수 + 슈국 평균) */
+  // 점마다 점수를 적으므로 세로축 숫자는 두지 않는다(점수 라벨과 겹친다) — 옅은 가로선만
+  var W=340, H=152, pad={l:16,r:16,t:20,b:32};
+  var sc=TREND.scale(P, W, H, pad);
+  function poly(seg){ return seg.map(function(o){ return trendPoint(sc.x(o.i))+','+trendPoint(sc.y(o.v)); }).join(' '); }
+  var grid='';
+  [sc.yMax, Math.round((sc.yMin+sc.yMax)/2), sc.yMin].forEach(function(v){
+    var y=trendPoint(sc.y(v));
+    grid += '<line x1="0" y1="'+y+'" x2="'+W+'" y2="'+y+'" stroke="#E5EDE8" stroke-width="1"/>';
+  });
+  var avgLine = TREND.segments(P,'avg').map(function(seg){
+    return seg.length === 1
+      ? '<circle cx="'+trendPoint(sc.x(seg[0].i))+'" cy="'+trendPoint(sc.y(seg[0].v))+'" r="2.4" fill="#9DB3A9"/>'
+      : '<polyline points="'+poly(seg)+'" fill="none" stroke="#9DB3A9" stroke-width="1.6" stroke-dasharray="4 3" stroke-linejoin="round"/>';
+  }).join('');
+  var myLine = TREND.segments(P,'got').map(function(seg){
+    return '<polyline points="'+poly(seg)+'" fill="none" stroke="#3A6B5E" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"/>';
+  }).join('');
+  var lastAvg=-1; P.forEach(function(p,i){ if(p.avg!=null) lastAvg=i; });
+  if(lastAvg>=0){
+    var ax=trendPoint(sc.x(lastAvg)), ay=trendPoint(sc.y(P[lastAvg].avg));
+    avgLine += '<circle cx="'+ax+'" cy="'+ay+'" r="2.6" fill="#9DB3A9"/>'+
+      '<text x="'+ax+'" y="'+(ay+12)+'" text-anchor="'+(lastAvg===P.length-1?'end':'middle')+'" font-size="9" fill="#7E8D85">평균 '+P[lastAvg].avg+'</text>';
+  }
+  var dots = P.map(function(p,i){
+    var x=trendPoint(sc.x(i)), y=trendPoint(sc.y(p.got));
+    var t = p.label+' · '+p.got+'점'+(p.level?' · '+p.level+(/^\d$/.test(p.level)?'등급':''):'')
+          + (p.avg!=null ? ' (슈국 평균 '+p.avg+'점)' : '');
+    return '<g class="tr-dot" onclick="pickMock('+p.idx+')"><title>'+esc(t)+'</title>'+
+      '<circle cx="'+x+'" cy="'+y+'" r="9" fill="transparent"/>'+
+      '<circle cx="'+x+'" cy="'+y+'" r="3.6" fill="#fff" stroke="#3A6B5E" stroke-width="2"/>'+
+      '<text x="'+x+'" y="'+Math.max(10, y-9)+'" text-anchor="middle" font-size="9.5" font-weight="700" fill="#2A332F">'+p.got+'</text>'+
+      '</g>';
+  }).join('');
+  var xlab = P.map(function(p,i){
+    return '<text x="'+trendPoint(sc.x(i))+'" y="'+(H-16)+'" text-anchor="middle" font-size="9" fill="#65726B">'+esc(p.label)+'</text>';
+  }).join('');
+  var hasAvg = P.some(function(p){ return p.avg != null; });
+  var chart = '<div class="tr-legend"><span class="lg mine">내 점수</span>'+
+    (hasAvg ? '<span class="lg avg">슈국 평균</span>' : '')+'</div>'+
+    '<svg class="tr-chart" viewBox="0 0 '+W+' '+H+'" role="img" aria-label="회차별 점수 추이">'+
+    grid+avgLine+myLine+dots+xlab+'</svg>';
+
+  var noAvg = MOCK_STATS && hasAvg && P.some(function(p){ return p.avg == null; });
+  var foot = '<p class="tr-note">점을 누르면 그 회차 성적표로 갑니다'
+    + (T.hidden>0 ? ' · 최근 '+P.length+'회만 그렸어요' : '')
+    + (noAvg ? ' · 응시 인원이 적은 회차는 평균을 표시하지 않아요' : '') + '</p>';
+
+  /* 3) 등급 흐름 */
+  var chips = P.map(function(p,i){
+    var prev = i ? P[i-1].level : '';
+    var cls = (/^\d$/.test(p.level) && /^\d$/.test(prev))
+      ? (Number(p.level) < Number(prev) ? ' up' : Number(p.level) > Number(prev) ? ' down' : '') : '';
+    return '<span class="tr-gc'+cls+'" onclick="pickMock('+p.idx+')"><i>'+esc(p.label)+'</i>'+
+      '<b>'+esc(p.level||'-')+(/^\d$/.test(p.level)?'등급':'')+'</b></span>';
+  }).join('<span class="tr-ar">→</span>');
+  var grades = '<h4 class="tr-sec">등급 흐름</h4><div class="tr-scroll"><div class="tr-grades">'+chips+'</div></div>';
+
+  /* 4) 영역별 추이 */
+  var areaTbl = '';
+  if(T.catRows.length){
+    var th = P.map(function(p){ return '<th>'+esc(p.label)+'</th>'; }).join('');
+    var tr = T.catRows.map(function(r){
+      var tds = r.values.map(function(v){
+        if(v == null) return '<td class="na">·</td>';
+        return '<td class="'+(v < 60 ? 'low' : '')+'">'+Math.round(v)+'</td>';
+      }).join('');
+      return '<tr><td class="cn">'+esc(r.cat)+'</td>'+tds+'</tr>';
+    }).join('');
+    areaTbl = '<h4 class="tr-sec">영역별 성취도 (%)</h4>'+
+      '<div class="tr-scroll"><table class="tr-cat"><tr><th>영역</th>'+th+'</tr>'+tr+'</table></div>';
+  }
+
+  return '<div class="tr-card"><h3 class="tr-ttl">성적 추이</h3>'+sum+chart+foot+grades+areaTbl+'</div>';
 }
 
 /* ---- 시작 ---- */
