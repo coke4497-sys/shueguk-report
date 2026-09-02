@@ -233,6 +233,20 @@
       onChange(sel);
     }
 
+    /* 밖에서 학생 묶음을 골라 넣는다 — 키는 '이름|학교|학년'(skey).
+     * 클리닉 배정에서 '반으로 고르기'가 쓴다: 시간표 반 명단을 이 위젯의 '일부' 선택으로 옮겨
+     * 선택의 원본이 한 곳(위젯)에 남게 한다. 못 찾은 키는 돌려줘 화면에서 알릴 수 있다. */
+    function selectByKeys(keys){
+      var okKeys = [], missed = [];
+      (keys || []).forEach(function(k){ if (byKey[k]) okKeys.push(k); else missed.push(k); });
+      mode = '일부';
+      tabsEl.querySelectorAll('.sp-tab').forEach(function(t){ t.classList.toggle('on', t.getAttribute('data-mode') === mode); });
+      many = {};
+      okKeys.forEach(function(k){ many[k] = true; });
+      renderBody(); fire();
+      return { matched: okKeys.length, missed: missed };
+    }
+
     function reset(){
       gradeSel = {}; one = null; many = {};
       mode = allowAll ? '전체' : '학년';
@@ -269,7 +283,8 @@
     }
 
     load();
-    return { getSelection:getSelection, reset:reset, reload:load, get students(){ return students; } };
+    return { getSelection:getSelection, reset:reset, reload:load, selectByKeys:selectByKeys,
+             get students(){ return students; } };
   }
 
   window.StudentPicker = { create:create };
