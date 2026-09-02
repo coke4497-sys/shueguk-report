@@ -221,6 +221,10 @@
   #searchResults button{font:inherit;font-size:.8rem;background:#fff;border:1px solid var(--line);
     border-radius:999px;padding:3px 11px;cursor:pointer;color:var(--ink);}
   #searchResults button b{color:var(--accent);}
+  /* 주차별 검색 결과의 상태 표기 — 1회 이동·이 주 추가(파랑) / 빠짐·휴강(회색) */
+  #searchResults button em.sflag{font-style:normal;font-size:.72rem;font-weight:700;color:#37769F;
+    background:#EAF1F7;border-radius:6px;padding:1px 6px;margin-right:2px;}
+  #searchResults button em.sflag.off{color:#6A716C;background:#EFF1EF;}
   .blk.search-blk{outline:2px solid #B08A3E;}
   .stus button.search-hit{background:#B08A3E;border-color:#B08A3E;color:#fff;font-weight:700;}
   .editbar{display:none;gap:6px;align-items:center;flex-wrap:wrap;
@@ -2771,7 +2775,18 @@ function syncWeekClassRosters(){
     if (copy && from) copy.students = from.students.slice();
   });
 }
+/* 화면을 다시 그린 뒤 — 검색 결과도 지금 보기·주차 기준으로 다시 만든다
+ * (주차별 결과는 그 주 기록을 반영하므로 주차를 넘기면 시간이 달라진다) */
 function render(){
+  renderView();
+  if (pendingGoto){
+    var g = pendingGoto; pendingGoto = null;
+    requestAnimationFrame(function(){ requestAnimationFrame(function(){ gotoSearchHit(g.cid, g.ymd); }); });
+  }
+  var qEl = $('stu-q');
+  if (qEl && qEl.value.trim()) searchStudent();
+}
+function renderView(){
   syncWeekClassRosters();   // 옮긴·보충 반의 명단을 원본 반과 맞춘 뒤 그린다 (지우면 학생이 안 따라온다)
   var host = $('sheet');
   var prevSw = host.querySelector('.scrollwrap');
@@ -4415,13 +4430,8 @@ function searchStudent(){
   var q = $('stu-q').value.trim();
   var box = $('searchResults');
   if (!q){ box.innerHTML = ''; applySearchHits(); return; }
-  var out = [];
-  classes.forEach(function(c){
-    c.students.forEach(function(nm){
-      if (plainName(nm).indexOf(q) >= 0) out.push({ c: c, nm: nm });
-    });
-  });
-  out.sort(function(a, b){ return plainName(a.nm).localeCompare(plainName(b.nm), 'ko') || (DAY_IDX[a.c.day] - DAY_IDX[b.c.day]); });
+  // 주차별은 그 주 기록(1회 이동·반 전체 이동·주간추가/빼기·휴강)을 반영해 '이번 주 실제 수업'을 찾는다
+  var out = (mode === 'week') ? weekSearchHits(q) : classSearchHits(q);
   // 검색된 학생의 출석 이력 바로가기 (겹치는 이름은 최대 3명까지)
   var uniq = [];
   out.forEach(function(h){ var nm = plainName(h.nm); if (uniq.indexOf(nm) < 0) uniq.push(nm); });
@@ -4429,12 +4439,99 @@ function searchStudent(){
     return '<button class="ahist" onclick="openAttStatus(\'' + esc(nm) + '\')">' + esc(nm) + ' 출석 이력</button>';
   }).join('');
   box.innerHTML = out.length
-    ? hist + out.slice(0, 12).map(function(h){
-        return '<button onclick="gotoSearchHit(\'' + esc(h.c.id) + '\')"><b>' + esc(plainName(h.nm)) + '</b> ' +
-               esc(h.c.cls) + ' · ' + esc(h.c.day) + esc(h.c.start) + ' ' + esc(h.c.teacher) + 'T</button>';
-      }).join('') + (out.length > 12 ? '<span>외 ' + (out.length - 12) + '건</span>' : '')
+    ? hist + out.slice(0, 12).map(searchHitBtn).join('') +
+      (out.length > 12 ? '<span>외 ' + (out.length - 12) + '건</span>' : '')
     : '<span>검색 결과가 없어요.</span>';
   applySearchHits();
+}
+/* 오늘·전체 시간표 — 명단 그대로. '이 주만' 반은 그 날짜에만 화면에 있으므로 오늘 열리는 것만 넣는다 */
+function classSearchHits(q){
+  var t = todayStr(), out = [];
+  classes.forEach(function(c){
+    if (c.wk && !(mode === 'today' && c.wk === t)) return;
+    c.students.forEach(function(nm){
+      if (plainName(nm).indexOf(q) >= 0) out.push({ c: c, nm: nm, ymd: (mode === 'today') ? t : '' });
+    });
+  });
+  return sortHits(out);
+}
+/* 주차별 보기의 검색 — 그 주에 실제로 어느 반·언제 수업하는지 찾는다.
+ * 정규 명단만 보면 1회 이동·반 전체 이동·주간추가/빼기가 빠져 옮겨 간 반의 시간을 알 수 없었다
+ * (2026-09-02 사용자 요청 "이동한 반의 시간을 알 수 있어야"). 결과를 누르면 그 반이 열리는
+ * 주·요일로 옮겨 가 학생 칩을 찾아 준다 — 다른 주로 당긴 수업도 같다. */
+function weekSearchHits(q){
+  var dates = weekDates(), r = weekViewRange(), byId = {}, out = [], used = {}, seen = {};
+  classes.forEach(function(c){ byId[c.id] = c; });
+  var away = {}, came = [];
+  weekOnce.forEach(function(o){
+    if (!isStudentLog(o)) return;   // 반 단위 기록(주간반이동·보강)은 학생 기록이 아니다
+    if (o.fromId) away[o.fromId + '|' + plainName(o.student)] = o;
+    if (o.toId) came.push(o);
+  });
+  // 그 반이 열리는 날짜 — '이 주만' 반은 반ID의 날짜, 기록이 있으면 그 적용일, 없으면 그 요일의 날짜
+  function ymdFor(c, applyYmd){ return c.wk || applyYmd || (dates[c.day] ? ymdOf(dates[c.day]) : ''); }
+  function push(h){
+    var k = h.c.id + '|' + plainName(h.nm) + '|' + (h.ymd || '');
+    if (seen[k]) return;
+    seen[k] = 1;
+    out.push(h);
+  }
+  classes.forEach(function(c){
+    if (c.wk && (c.wk < r.from || c.wk > r.to)) return;   // 다른 주의 '이 주만' 반
+    var ymd = ymdFor(c), mvd = wkMovedAway(c.id, ymd), off = wkOffAt(c.id, ymd);
+    c.students.forEach(function(nm){
+      if (plainName(nm).indexOf(q) < 0) return;
+      var a = away[c.id + '|' + plainName(nm)];
+      if (a && a.kind !== '주간빼기'){                       // 1회 이동 — 옮겨 간 반의 시간으로
+        used[a.row] = 1;
+        var t = byId[a.toId];
+        if (t) push({ nm: nm, c: t, ymd: ymdFor(t, a.date), flag: '1회 이동', from: c, note: a.reason });
+        else push({ nm: nm, c: c, ymd: ymd, flag: '1회 이동', off: true, note: '옮겨 간 반을 찾지 못했어요' });
+        return;
+      }
+      if (a){ push({ nm: nm, c: c, ymd: ymd, flag: '이 주 빠짐', off: true, note: a.reason }); return; }
+      if (mvd){                                             // 반 전체가 그 주만 다른 시간·다른 주로
+        var t2 = byId[mvd.toId];
+        if (t2) push({ nm: nm, c: t2, ymd: ymdFor(t2), flag: '반 이동', from: c, note: mvd.reason });
+        else push({ nm: nm, c: c, ymd: ymd, flag: '반 이동', off: true, note: mvd.reason });
+        return;
+      }
+      if (off){ push({ nm: nm, c: c, ymd: ymd, flag: '이 주 휴강', off: true, note: off.reason }); return; }
+      push({ nm: nm, c: c, ymd: ymd });
+    });
+  });
+  came.forEach(function(o){                                  // 그 주에 이동해 온·추가된 학생
+    if (used[o.row] || plainName(o.student).indexOf(q) < 0) return;
+    var t = byId[o.toId];
+    if (!t) return;
+    push({ nm: o.student, c: t, ymd: ymdFor(t, o.date),
+           flag: (o.kind === '주간추가') ? '이 주 추가' : '1회 이동', note: o.reason });
+  });
+  return sortHits(out);
+}
+function sortHits(out){
+  return out.sort(function(a, b){
+    return plainName(a.nm).localeCompare(plainName(b.nm), 'ko') ||
+           String(a.ymd || '').localeCompare(String(b.ymd || '')) ||
+           (DAY_IDX[a.c.day] - DAY_IDX[b.c.day]) || (mins(a.c.start) - mins(b.c.start));
+  });
+}
+/* 검색 결과 한 줄 — 날짜가 있으면 '8/30 (일) 2:00'처럼 그 주 날짜로 적는다 */
+function searchHitBtn(h){
+  var when = h.ymd ? (wkDayLabel(h.ymd) + ' ' + h.c.start) : (h.c.day + h.c.start);
+  var tip = [];
+  if (h.from) tip.push('원래 ' + h.from.cls + ' ' + h.from.day + h.from.start);
+  if (h.note) tip.push(h.note);
+  return '<button onclick="gotoSearchHit(\'' + esc(h.c.id) + '\', \'' + esc(h.ymd || '') + '\')"' +
+         (tip.length ? ' title="' + esc(tip.join(' · ')) + '"' : '') + '><b>' + esc(plainName(h.nm)) + '</b> ' +
+         (h.flag ? '<em class="sflag' + (h.off ? ' off' : '') + '">' + esc(h.flag) + '</em> ' : '') +
+         esc(h.c.cls) + ' · ' + esc(when) + ' ' + esc(h.c.teacher) + 'T</button>';
+}
+/* 지금 보고 있는 주의 월~일 날짜 범위 */
+function weekViewRange(){
+  var f = new Date(weekStart); f.setDate(f.getDate() - 2);
+  var t = new Date(weekStart); t.setDate(t.getDate() + 4);
+  return { from: ymdOf(f), to: ymdOf(t) };
 }
 function applySearchHits(){
   var q = $('stu-q') ? $('stu-q').value.trim() : '';
@@ -4449,7 +4546,30 @@ function applySearchHits(){
     }
   });
 }
-function gotoSearchHit(cid){
+var pendingGoto = null;   // 다른 주의 수업으로 찾아가는 중 (주간 기록을 받은 뒤 render에서 이어서 처리)
+function gotoSearchHit(cid, ymd){
+  // 주차별: 그 수업이 열리는 주·요일로 먼저 옮겨 간다 (다른 주로 당긴 수업도 찾아간다)
+  if (mode === 'week' && ymd){
+    var r = weekViewRange();
+    var d = new Date(+ymd.slice(0,4), +ymd.slice(5,7)-1, +ymd.slice(8,10));
+    var dn = ['일','월','화','수','목','금','토'][d.getDay()];
+    if (ymd < r.from || ymd > r.to){
+      weekStart = weekStartOf(d);
+      if (useListView()) weekListDay = dn; else weekZoomDay = dn;
+      keepScroll = false;
+      pendingGoto = { cid: cid, ymd: ymd };
+      loadWeek();
+      return;
+    }
+    var cur = useListView() ? weekListDay : weekZoomDay;
+    if (cur !== dn){
+      if (useListView()) weekListDay = dn; else weekZoomDay = dn;
+      keepScroll = false;
+      render();
+      requestAnimationFrame(function(){ requestAnimationFrame(function(){ gotoSearchHit(cid, ymd); }); });
+      return;
+    }
+  }
   var el = document.querySelector('.blk[data-cid="' + cid + '"]');
   if (!el && mode === 'today'){
     setMode('all');
