@@ -1062,7 +1062,6 @@
   function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
   function $(id){ return document.getElementById(id); }
 
-  (function(){ unlock(); })();   // 티쳐스 페이지 비밀번호 제거(접속 간소화, 2026-08-14)
   function unlock(){ document.body.classList.remove('locked'); loadRoster(); loadNewList(); ttPickerFill(); }
   function checkLock(){
     var v=$('lockInput').value, ok=false;
@@ -2102,6 +2101,12 @@
       saveEdit(w2.querySelector('.ledit'), s2);
     }
   });
+
+  /* 시작 — 반드시 이 스크립트 맨 끝에서 (2026-09-04 수정)
+   * 위쪽에서 부르면 아래에 선언된 값(SBR·sbx 등)이 아직 비어 있어
+   * ttPickerFill의 반 목록 조회가 'undefined/tt_classes'로 나가 조용히 실패했다.
+   * 티쳐스 페이지 비밀번호 게이트는 없다(접속 간소화, 2026-08-14). */
+  (function(){ unlock(); })();
 </script>
 
 <p class="refresh-tip">화면이 예전 그대로거나 방금 바꾼 내용이 안 보이면 <b>Ctrl+Shift+R</b> 로 새로고침해 주세요.</p>
