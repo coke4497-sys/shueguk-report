@@ -6216,11 +6216,16 @@ function openWeekClassManage(c, dstr){
   // 다른 주에서 당기거나 미뤄 온 수업이면 원래 수업일을 함께 보여준다
   var origin = (mv && mv.kind === '주간반이동' && mv.date && mv.date !== d)
     ? '<p class="mdesc hint-x">' + esc(wkDayLabel(mv.date)) + ' 수업을 이 날로 옮겨 온 거예요.</p>' : '';
+  if (mv && mv.kind === '주간반보강')
+    origin = '<p class="mdesc hint-x">원래 수업은 그대로 있고, 이 주에 한 번 더 여는 <b>보충</b>이에요.</p>';
+  // 만들 때 적은 사유 메모 — 적어 두고도 볼 곳이 없었다 (2026-09-04 수정 요청함 이종민)
+  var memo = (mv && mv.reason)
+    ? '<p class="mdesc" style="background:var(--icon-bg);border-radius:8px;padding:8px 10px;">메모: '+esc(mv.reason)+'</p>' : '';
   openModal(
     '<h3>이 주만 있는 반</h3>'+
     '<p class="mdesc"><b>'+esc(c.cls)+'</b><br>'+esc(wkDayLabel(d))+' '+esc(c.start)+'~'+esc(c.end)+
     (c.teacher ? ' · '+esc(c.teacher)+'T' : '')+(c.loc ? ' · '+esc(c.loc) : '')+'</p>'+
-    origin+
+    origin+memo+
     '<p class="mdesc hint-x">이 날 하루만 있는 반이에요. 정규 시간표와 다른 주차에는 나타나지 않아요.</p>'+
     '<div class="mbtns">'+
     '<button onclick="closeModal(); openWeekAdd(classes.find(function(x){return x.id===\''+esc(c.id)+'\';}), \''+esc(d)+'\')">학생 넣기</button>'+
