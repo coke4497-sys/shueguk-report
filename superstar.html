@@ -169,6 +169,12 @@
   .ledit .esave:disabled{background:#9fb3aa;}
   .ledit .estat{font-size:12px;margin-top:8px;min-height:1.1em;text-align:center;color:var(--ink-soft);}
   .ledit .estat.ok{color:var(--ok);} .ledit .estat.err{color:var(--bad);}
+  .ledit .nmrow{align-items:center;}
+  .ledit .e-base{flex:1;min-width:0;padding:10px 11px;border:1px dashed var(--line-soft);border-radius:10px;
+    background:#fff;font-size:14px;color:var(--ink);}
+  .ledit .e-sfx{flex:0 0 74px;width:74px;text-align:center;font-weight:700;}
+  .ledit .ehint{font-weight:400;color:#9aa6a0;}
+  .ledit .nmnote{margin-top:6px;font-size:11.5px;color:#9aa6a0;line-height:1.5;}
 
   /* 별 더하기 탭 */
   :root{ --gold:#8A6A14; }
@@ -1701,8 +1707,15 @@
         '<div class="ledit"></div></div>';
     }).join('');
   }
+  /* 이름 뒤 동명이인 구분 알파벳 — '양지우B' = 기본 이름 '양지우' + 알파벳 'B' */
+  function nmBase(n){ var t=String(n||'').trim(); return (t.length>1 && /[A-Za-z]$/.test(t)) ? t.slice(0,-1) : t; }
+  function nmSfx(n){ var t=String(n||'').trim(); return (t.length>1 && /[A-Za-z]$/.test(t)) ? t.slice(-1) : ''; }
   function editFormHtml(s){
-    return '<div class="row2"><div><label>학교</label><input type="text" class="e-school" value="'+esc(s.school||'')+'" /></div>'+
+    return '<label>이름 <span class="ehint">— 동명이인 구분 알파벳만 고칠 수 있어요</span></label>'+
+      '<div class="row2 nmrow"><div class="e-base">'+esc(nmBase(s.name))+'</div>'+
+      '<input type="text" class="e-sfx" maxlength="1" placeholder="없음" value="'+esc(nmSfx(s.name))+'" /></div>'+
+      '<div class="nmnote">A~Z 한 글자. 비우면 알파벳 없이 이름만 남아요. 바꾸면 전체 시간표 명단과 최근 60일 출석 기록의 이름도 함께 바뀝니다.</div>'+
+      '<div class="row2"><div><label>학교</label><input type="text" class="e-school" value="'+esc(s.school||'')+'" /></div>'+
       '<div><label>학년</label><input type="text" class="e-grade" value="'+esc(s.grade||'')+'" /></div></div>'+
       '<label>담당 교사</label><input type="text" class="e-teacher" value="'+esc(s.teacher||'')+'" />'+
       '<div class="row2"><div><label>정규 가 수업</label><input type="text" class="e-classA" value="'+esc(s.classA||'')+'" /></div>'+
@@ -1718,33 +1731,139 @@
       '<button type="button" class="etoday">오늘로 넣기</button></div>'+
       '<button type="button" class="esave">저장</button><div class="estat"></div>';
   }
+  /* ── 이름 표기 변경을 전체 시간표 명단에도 반영 (2026-09-04 사용자 요청
+   *    "슈스링크에서 이름 뒤 알파벳도 수정") ────────────────────────────────
+   * 명단의 원본이 수파베이스라 여기서 직접 고친다(값이 그대로일 때만 쓰는 CAS).
+   * 이름 앞뒤 괄호 표기((화정) 학교 구분·(8/23부터) 특이사항)는 그대로 두고 이름만 바꾼다.
+   * 규칙은 timetable.html의 표기수정(timetableRenameStudent)과 같다 —
+   * tt_log '표기수정' 기록 + 최근 60일 출석 기록 이름 + 시트 사본(백엔드)까지. */
+  var TT_SEP = '\u0001';   // 반+토큰 묶음 키 구분자
+  function ttTokRename(tok, from, to){
+    var t = String(tok||''), pre = '', post = '';
+    var mp = t.match(/^\([^)]*\)/);   if (mp){ pre  = mp[0]; t = t.slice(pre.length); }
+    var ms = t.match(/\([^)]*\)$/);   if (ms){ post = ms[0]; t = t.slice(0, t.length - post.length); }
+    return (t.trim() === from) ? (pre + to + post) : null;
+  }
+  function ttRenameOne(book, cid, from, to, _try){
+    return sbx('GET','/tt_classes?book=eq.'+encodeURIComponent(book)+'&class_id=eq.'+encodeURIComponent(cid)+'&select=roster')
+      .then(function(rows){
+        if (!rows || !rows.length) return { fail:true };
+        var old = String(rows[0].roster||''), toks = old.trim().split(/\s+/).filter(String), hit = null;
+        var next = toks.map(function(t){ var r = ttTokRename(t, from, to); if (r){ hit = t; return r; } return t; });
+        if (!hit) return { done:true };   // 이미 바뀌어 있음
+        return sbx('PATCH','/tt_classes?book=eq.'+encodeURIComponent(book)+'&class_id=eq.'+encodeURIComponent(cid)+
+                   '&roster=eq.'+encodeURIComponent(old), { roster: next.join(' ') }, { 'Prefer':'return=representation' })
+          .then(function(r){
+            if (r && r.length) return { done:true, tok:hit };
+            // 다른 조교가 같은 반을 동시에 고쳤다 — 다시 읽어 최대 세 번까지
+            if ((_try||0) >= 2) return { fail:true };
+            return ttRenameOne(book, cid, from, to, (_try||0) + 1);
+          });
+      });
+  }
+  function renameTT(from, to){
+    return sbx('GET','/tt_classes?select=book,class_id,roster')
+      .then(function(rows){
+        var hits = [];
+        (rows||[]).forEach(function(c){
+          var toks = String(c.roster||'').trim().split(/\s+/).filter(String);
+          if (toks.some(function(tok){ return !!ttTokRename(tok, from, to); }))
+            hits.push({ book:c.book, cid:c.class_id });
+        });
+        if (!hits.length) return { ok:0, fail:0 };
+        var okN = 0, failN = 0, pairs = {}, chain = Promise.resolve();
+        hits.forEach(function(h){
+          chain = chain.then(function(){
+            return ttRenameOne(h.book, h.cid, from, to).then(function(r){
+              if (r.fail){ failN++; return; }
+              okN++;
+              if (r.tok) pairs[h.book + TT_SEP + r.tok] = true;
+            }, function(){ failN++; });
+          });
+        });
+        return chain.then(function(){
+          var since = new Date(Date.now() + 9*3600e3 - 60*86400e3).toISOString().slice(0,10);
+          Object.keys(pairs).forEach(function(k){
+            var bk = k.split(TT_SEP)[0], tok = k.split(TT_SEP)[1], nt = ttTokRename(tok, from, to);
+            sbx('POST','/tt_log', { kind:'표기수정', student: tok, book: bk, reason: tok + ' → ' + nt },
+                { 'Prefer':'return=minimal' }).catch(function(){});
+            // 최근 60일 출석 기록의 이름도 함께 (student_plain은 시트와 같은 규칙으로 만든 값)
+            var pl = String(tok).replace(/\(.*\)$/, '');
+            if (pl) sbx('PATCH','/attendance?book=eq.'+encodeURIComponent(bk)+'&student_plain=eq.'+encodeURIComponent(pl)+
+                        '&date=gte.'+since, { student: nt })
+                      .catch(function(e){ console.warn('출석 기록 표기 변경 실패', bk, tok, e); });
+            // 시트 사본 — 백엔드가 짝 반·시트 출석 기록까지 함께 맞춘다 (실패해도 수파베이스가 원본)
+            fetch(ENDPOINT, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
+              body: JSON.stringify({ action:'timetableRenameStudent', pw:SERVER_PW, book:bk, from:tok, to:nt }) })
+              .catch(function(){});
+          });
+          return { ok:okN, fail:failN };
+        });
+      })
+      .catch(function(e){ console.warn('시간표 명단 표기 변경 실패', e); return { ok:0, fail:-1 }; });
+  }
   function saveEdit(wrap, s){
     var g=function(cls){ return wrap.querySelector('.'+cls).value.trim(); };
     var dg=function(cls){ return g(cls).replace(/\D/g,''); };
+    var sfx=g('e-sfx').toUpperCase(), from=String(s.name||'').trim(), to=nmBase(from)+sfx;
     var payload={ action:'updateStudent', pw:SERVER_PW, code:s.code,
       school:g('e-school'), grade:g('e-grade'), teacher:g('e-teacher'), memo:g('e-memo'),
       classA:g('e-classA'), classB:g('e-classB'), progress:g('e-progress'), checkup:g('e-checkup'),
       regDate:g('e-regdate'),
       phoneStu:dg('e-pstu'), phone1:dg('e-pp1'), phone2:dg('e-pp2') };
+    if(sfx && !/^[A-Z]$/.test(sfx)){
+      setE(wrap,'이름 뒤 알파벳은 A~Z 한 글자로 적어주세요. (없애려면 비우세요)','err'); return; }
     if(payload.regDate && !/^\d{4}-\d{2}-\d{2}$/.test(payload.regDate)){
       setE(wrap,'등록일은 2026-08-23 형태로 적어주세요.','err'); return; }
     if(!payload.school || !payload.grade){ setE(wrap,'학교와 학년은 비울 수 없어요.','err'); return; }
     var badPhone=[payload.phoneStu,payload.phone1,payload.phone2].some(function(p){ return p && (p.length<8||p.length>11); });
     if(badPhone){ setE(wrap,'휴대폰 번호는 숫자 8~11자리로 적어주세요. (없으면 비워두세요)','err'); return; }
-    var btn=wrap.querySelector('.esave'); btn.disabled=true; setE(wrap,'저장하는 중…');
-    fetch(ENDPOINT, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify(payload) })
-      .then(function(r){ return r.json(); })
-      .then(function(d){
-        btn.disabled=false;
-        if(!d || d.result!=='success'){ setE(wrap,'저장 실패: '+((d&&d.message)||'오류'),'err'); return; }
-        s.school=payload.school; s.grade=payload.grade; s.teacher=payload.teacher; s.memo=payload.memo;
-        s.classA=payload.classA; s.classB=payload.classB; s.progress=payload.progress; s.checkup=payload.checkup;
-        s.regDate=payload.regDate;
-        s.phoneStu=payload.phoneStu; s.phone1=payload.phone1; s.phone2=payload.phone2;
-        setE(wrap,'✓ 저장되었어요','ok');
-        setTimeout(function(){ renderLinks(); }, 700);
+    var btn=wrap.querySelector('.esave'); btn.disabled=true;
+    var post=function(body){
+      return fetch(ENDPOINT, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify(body) })
+        .then(function(r){ return r.json(); });
+    };
+    // ① 이름(알파벳)이 바뀌었으면 학생정보 이름부터 — 실패하면 나머지도 저장하지 않는다
+    var renamed = (to !== from);
+    setE(wrap, renamed ? '이름을 바꾸는 중…' : '저장하는 중…');
+    var nameJob = renamed
+      ? post({ action:'studentRename', pw:SERVER_PW, code:s.code, to:to })
+      : Promise.resolve({ result:'success' });
+    nameJob
+      .then(function(rd){
+        if(!rd || rd.result!=='success') throw { m:'이름 변경 실패: '+((rd&&rd.message)||'오류') };
+        if(renamed){ s.name = to; setE(wrap,'저장하는 중…'); }
+        // ② 나머지 정보
+        return post(payload).then(function(d){
+          if(!d || d.result!=='success')
+            throw { m:(renamed?'이름은 바뀌었지만 나머지 저장에 실패했어요: ':'저장 실패: ')+((d&&d.message)||'오류') };
+          s.school=payload.school; s.grade=payload.grade; s.teacher=payload.teacher; s.memo=payload.memo;
+          s.classA=payload.classA; s.classB=payload.classB; s.progress=payload.progress; s.checkup=payload.checkup;
+          s.regDate=payload.regDate;
+          s.phoneStu=payload.phoneStu; s.phone1=payload.phone1; s.phone2=payload.phone2;
+          // ③ 전체 시간표 명단도 같은 이름으로 (이름을 바꾼 경우만)
+          if(!renamed) return { skip:true };
+          setE(wrap,'시간표 명단도 맞추는 중…');
+          return renameTT(from, to);
+        });
       })
-      .catch(function(){ btn.disabled=false; setE(wrap,'연결 실패 — 다시 시도해 주세요.','err'); });
+      .then(function(tt){
+        btn.disabled=false;
+        var msg='✓ 저장되었어요';
+        if(renamed){
+          msg += ' · 이름 '+from+' → '+to;
+          if(tt && tt.fail>0)      msg += ' · 시간표 명단 '+tt.ok+'곳 반영 ('+tt.fail+'곳 실패 — 전체 시간표에서 확인해 주세요)';
+          else if(tt && tt.fail<0) msg += ' · 시간표 명단은 반영하지 못했어요 (전체 시간표에서 확인해 주세요)';
+          else if(tt && tt.ok)     msg += ' · 시간표 명단 '+tt.ok+'곳도 함께 반영';
+          else                     msg += ' · 시간표 명단에는 이 이름이 없었어요';
+        }
+        setE(wrap,msg,(tt && (tt.fail>0 || tt.fail<0))?'err':'ok');
+        setTimeout(function(){ renderLinks(); }, renamed?1800:700);
+      })
+      .catch(function(e){
+        btn.disabled=false;
+        setE(wrap,(e&&e.m)||'연결 실패 — 다시 시도해 주세요.','err');
+      });
   }
   function setE(wrap,m,k){ var e=wrap.querySelector('.estat'); e.textContent=m||''; e.className='estat'+(k?' '+k:''); }
   ['lk-q','lk-grade','lk-school'].forEach(function(id){ $(id).addEventListener('input', renderLinks); });
