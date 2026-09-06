@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# 질문 대기열(024_question_queue.sql) 왕복 검증 — 로컬 PostgreSQL에 마이그레이션을 적용하고
-# 학생 함수(qq_submit/qq_mine/qq_cancel/qq_teachers)와 교사 쪽 갱신(호출·완료·맨 뒤로)을
+# 질문 대기열(024_question_queue.sql + 025_clinic_to_queue.sql) 왕복 검증 — 로컬 PostgreSQL에
+# 클리닉(006·019)과 대기열 마이그레이션을 적용하고 학생 함수(qq_submit/qq_mine/qq_cancel/qq_arrive/
+# qq_teachers)·클리닉 신청(clinic_submit → '예약' 줄)·교사 쪽 갱신(호출·완료·맨 뒤로·도착)을
 # 실제로 돌려 순번·중복·권한 규칙을 assert 로 확인한다.
 #
 # 사용:  PGHOST=/home/pgtest PGPORT=5499 PGUSER=postgres bash tools/qq-sql-test.sh
@@ -31,7 +32,10 @@ insert into students (student_id,name,school,grade,teacher,enrolled) values
  ('67890123','노담당','화수고','2026 고등 3학년','','재원');
 SQL
 
+psql -v ON_ERROR_STOP=1 -q -d "$DB" -f supabase/migrations/006_clinic.sql
+psql -v ON_ERROR_STOP=1 -q -d "$DB" -f supabase/migrations/019_clinic_origin.sql
 psql -v ON_ERROR_STOP=1 -q -d "$DB" -f supabase/migrations/024_question_queue.sql
+psql -v ON_ERROR_STOP=1 -q -d "$DB" -f supabase/migrations/025_clinic_to_queue.sql
 
 psql -v ON_ERROR_STOP=1 -q -d "$DB" <<'SQL'
 \set ON_ERROR_STOP on
@@ -140,6 +144,97 @@ begin
   raise notice 'OK — 질문 대기열 함수 왕복 검증 통과';
 end $$;
 
+-- ── 025: 클리닉 신청 → 예약 줄 → 도착 ─────────────────────────
+insert into clinic_settings (key, value) values ('target', '{"type":"전체","target":""}') on conflict (key) do update set value = excluded.value;
+update question_queue set status = '완료' where status in ('대기','호출');   -- 앞 블록의 열린 줄 정리(같은 학생·선생님 중복 방지 규칙과 겹치지 않게)
+do $$
+declare r jsonb; qid bigint; qid2 bigint; cid bigint; row question_queue; today date := qq_today_(); n int;
+        slot text; qd date;
+begin
+  -- 시간대 해석
+  assert clinic_slot_hm_('목 저녁 5:30–7:00') = '17:30', 'slot 17:30';
+  assert clinic_slot_hm_('토 3:30–5:00') = '15:30', 'slot 15:30';
+  assert clinic_slot_hm_('토 오전 10:00–11:30') = '10:00', 'slot 오전';
+  assert clinic_slot_hm_('금 밤 10:00–11:00') = '22:00', 'slot 밤';
+  assert clinic_slot_hm_('시간 미정') is null, 'slot none';
+  assert clinic_meet_date_('2026-09-06'::date, '목 저녁 5:30–7:00') = '2026-09-10'::date, 'meet 다음 목요일';
+  assert clinic_meet_date_('2026-09-10'::date, '목 저녁 5:30–7:00') = '2026-09-10'::date, 'meet 당일';
+  assert clinic_meet_date_('2026-09-06'::date, '') = '2026-09-06'::date, 'meet 요일 없음';
+
+  -- 오늘 요일의 시간대로 신청 → 오늘 날짜 '예약' 줄 (요청 2장 → 한 줄, 영역 합침, 사진 포함, clinic_id)
+  slot := substring('일월화수목금토' from extract(dow from today)::int + 1 for 1) || ' 저녁 5:30–7:00';
+  r := clinic_submit(jsonb_build_object('name','이영희','school','능곡고','phone','1234','time',slot,'grade','고2',
+        'studentId','23456789','teacher','김지원','memo','잘 부탁드려요','photo','data:image/jpeg;base64,CLINIC',
+        'requests', jsonb_build_array(
+          jsonb_build_object('type','질문','area','독서 · 인문','content','비문학 3번','count','1~2개'),
+          jsonb_build_object('type','개념 설명','area','문법 (언어와 매체)','content','음운 변동','count',''))));
+  assert r->>'result' = 'success' and (r->>'saved')::int = 2 and (r->>'queueId') is not null, 'clinic_submit: ' || r::text;
+  qid := (r->>'queueId')::bigint;
+  select * into row from question_queue where id = qid;
+  assert row.status = '예약' and row.qdate = today and row.qtime = '17:30' and row.teacher = '김지원'
+     and row.student_id = '23456789' and row.grade = '고2' and row.photo = 'data:image/jpeg;base64,CLINIC', '예약 줄: ' || row::text;
+  assert row.unit = '독서 · 인문, 문법 (언어와 매체)', 'unit: ' || row.unit;
+  assert row.text = E'· 질문 · 독서 · 인문 — 비문학 3번 (1~2개)\n· 개념 설명 · 문법 (언어와 매체) — 음운 변동\n메모: 잘 부탁드려요', 'text: ' || row.text;
+  select min(id) into cid from clinic_requests where student_id = '23456789';
+  assert row.clinic_id = cid, 'clinic_id = 첫 신청 행';
+  assert qq_position_(qid) is null, '예약은 순번 없음';
+
+  -- 같은 학생이 같은 날 같은 선생님께 다시 신청 → 새 줄 없음(queueId null), 신청 자체는 저장
+  r := clinic_submit(jsonb_build_object('name','이영희','school','능곡고','phone','1234','time',slot,'grade','고2',
+        'studentId','23456789','teacher','김지원','requests', jsonb_build_array(jsonb_build_object('type','질문','area','문학 · 현대시','content','x','count',''))));
+  assert r->>'result' = 'success' and (r->>'queueId') is null, 'dup clinic: ' || r::text;
+  select count(*) into n from question_queue where student_id = '23456789' and qdate = today and status = '예약'; assert n = 1, '예약 중복 없음';
+
+  -- 내 질문에 예약이 clinic:true 로 보인다
+  r := qq_mine('{"name":"이영희","student_id":"23456789"}');
+  assert (select count(*) from jsonb_array_elements(r->'list') x where x->>'status' = '예약' and (x->>'clinic')::boolean) = 1, 'mine 예약: ' || r::text;
+
+  -- 먼저 온 다른 친구(현장 등록)가 1번, 예약은 순서에 없음
+  r := qq_submit('{"name":"노담당","student_id":"67890123","teacher":"김지원","qtime":"17:40","text":"먼저 왔어요"}');
+  qid2 := (r->>'id')::bigint;
+  assert (r->>'position')::int = 1, '먼저 온 친구 1번: ' || r::text;
+
+  -- 도착 처리(qq_arrive) → 대기, ord = 지금(17:40 예약보다 뒤/앞은 실제 시각에 따르므로 위치는 1 또는 2), qtime 갱신
+  r := qq_arrive(jsonb_build_object('id', qid, 'name','이영희','student_id','23456789'));
+  assert (r->>'ok')::boolean and (r->>'changed')::boolean, 'arrive: ' || r::text;
+  select * into row from question_queue where id = qid;
+  assert row.status = '대기' and row.qtime ~ '^\d\d:\d\d$' and row.qtime <> '17:30', 'arrived row: ' || row::text;
+  assert (select count(*) from question_queue where qdate = today and teacher = '김지원' and status = '대기') = 2, '대기 2명';
+  -- 두 번 도착은 변화 없음, 남의 예약 도착 불가
+  r := qq_arrive(jsonb_build_object('id', qid, 'name','이영희','student_id','23456789'));
+  assert not (r->>'changed')::boolean, 'arrive twice';
+
+  -- 예약이 있는 학생이 당일 '질문하기'로 올리면 새 줄 대신 예약을 도착 처리(글·단원·사진 덧붙임)
+  update question_queue set status = '예약', qtime = '17:30', photo = '' where id = qid;
+  r := qq_submit('{"name":"이영희","student_id":"23456789","teacher":"김지원","qtime":"18:05","unit":"문학","text":"현장에서 추가 질문","photo":"data:image/jpeg;base64,NEW"}');
+  assert (r->>'arrived')::boolean and (r->>'id')::bigint = qid, 'submit→arrive: ' || r::text;
+  select * into row from question_queue where id = qid;
+  assert row.status = '대기' and row.qtime = '18:05' and row.unit like '%문학' and row.text like E'%\n현장에서 추가 질문' and row.photo = 'data:image/jpeg;base64,NEW', 'merged: ' || row::text;
+  select count(*) into n from question_queue where student_id = '23456789' and qdate = today and status in ('예약','대기','호출'); assert n = 1, '새 줄 안 생김';
+  -- 이미 대기 중이면 종전대로 dup
+  r := qq_submit('{"name":"이영희","student_id":"23456789","teacher":"김지원","text":"또"}');
+  assert (r->>'dup')::boolean, 'dup after arrive';
+
+  -- 신청 행을 지우면 대기열 줄도 사라진다(cascade)
+  delete from clinic_requests where id = cid;
+  assert not exists (select 1 from question_queue where id = qid), 'cascade delete';
+
+  -- 다음 목요일 시간대로 신청 → 그 날짜의 예약(오늘 목록엔 안 보임)
+  r := clinic_submit(jsonb_build_object('name','김철수','school','화정고','phone','5678','time','목 저녁 7:00–8:30','grade','고1',
+        'studentId','12345678','teacher','이수경','requests', jsonb_build_array(jsonb_build_object('type','추가 문제','area','문학 · 고전시가','content','정과정','count',''))));
+  qd := clinic_meet_date_(today, '목 저녁 7:00–8:30');
+  select * into row from question_queue where id = (r->>'queueId')::bigint;
+  assert row.qdate = qd and row.qtime = '19:00' and row.status = '예약', '미래 예약: ' || row::text;
+  if qd <> today then
+    r := qq_mine('{"name":"김철수","student_id":"12345678"}');
+    assert (select count(*) from jsonb_array_elements(r->'list') x where (x->>'clinic')::boolean) = 0, '미래 예약은 오늘 목록에 없음';
+    r := qq_arrive(jsonb_build_object('id', row.id, 'name','김철수','student_id','12345678'));
+    assert not (r->>'changed')::boolean, '미래 예약은 오늘 도착 불가';
+  end if;
+
+  raise notice 'OK — 클리닉 신청 → 예약 → 도착 검증 통과';
+end $$;
+
 -- 권한: anon 은 표를 못 읽고 함수는 부를 수 있다
 set role anon;
 do $$ begin
@@ -149,7 +244,7 @@ do $$ begin
   exception when insufficient_privilege then null;
   end;
 end $$;
-select (qq_teachers() @> '["이수경"]'::jsonb) as anon_can_call_fn \gset
+select (qq_teachers() @> '["이수경"]'::jsonb) and (qq_arrive('{"id":"1","name":"x","student_id":"0"}')->>'error' = 'unknown_student') as anon_can_call_fn \gset
 reset role;
 \if :anon_can_call_fn
 \echo OK — anon: 표 접근 차단 · 함수 호출 허용

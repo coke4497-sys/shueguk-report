@@ -221,6 +221,9 @@
   .qq-item .ntag.call{background:#3A6B5E;color:#fff;}
   .qq-item .ntag.done{background:#E5EDE8;color:#65726B;}
   .qq-item .ntag.off{background:#EFEFEF;color:#7A7A7A;}
+  .qq-item .ntag.resv{background:#F7E2DE;color:#B0736A;}
+  .qq-item .qq-arrive{width:100%;border:0;border-radius:12px;padding:12px;background:var(--accent);color:#fff;font-family:var(--serif);font-weight:700;font-size:.98rem;cursor:pointer;margin-top:10px;}
+  .qq-item .qq-arrive:disabled{opacity:.55;}
   .qq-item .qq-pos{font-family:var(--serif);font-size:1.04rem;font-weight:700;color:var(--ink);}
   .qq-item .qq-pos.now{color:var(--accent);}
   .qq-item .qq-cancel{border:1px solid var(--line);background:var(--surface);color:var(--ink-soft);border-radius:10px;padding:6px 12px;font-size:.78rem;cursor:pointer;margin-top:10px;}
@@ -496,7 +499,7 @@
     </div>
     <button type="button" class="qq-btn" id="qqSubmit" onclick="qqSubmit()">질문 올리기</button>
     <div class="qq-err" id="qqErr"></div>
-    <p class="qq-note">올리면 선생님 질문 목록에 질문 타임 순서로 들어가요. 선생님이 호출하면 강의실 화면에 이름이 크게 나와요 — 화면을 보고 선생님께 가면 됩니다.</p>
+    <p class="qq-note">올리면 선생님 질문 목록에 질문 타임 순서로 들어가요. 선생님이 호출하면 강의실 화면에 이름이 크게 나와요 — 화면을 보고 선생님께 가면 됩니다. 클리닉을 신청한 날은 아래 '오늘 내 질문'에서 <b>[도착했어요]</b>만 누르면 돼요.</p>
   </div>
   <h2 class="sec-h">오늘 내 질문</h2>
   <div class="qq-upd" id="qqUpd"></div>
@@ -1794,10 +1797,20 @@ function qqTimeLabel(t){
 }
 // 오늘 내 질문 상태 한 줄 (카드 설명용) — 대기·호출 중인 건이 없으면 빈 문자열
 function qqStatusDesc(){
-  var open = (STATE.qq||[]).filter(function(q){ return q.status==='대기' || q.status==='호출'; });
+  var open = (STATE.qq||[]).filter(function(q){ return q.status==='대기' || q.status==='호출' || q.status==='예약'; });
   if(open.some(function(q){ return q.status==='호출'; })) return '호출됨 · 선생님께 가세요';
-  if(open.length){ var qp = open[0].position; return '질문 대기 중 · ' + (qp>1 ? '앞에 '+(qp-1)+'명' : '다음 순서예요'); }
+  var w = open.filter(function(q){ return q.status==='대기'; });
+  if(w.length){ var qp = w[0].position; return '질문 대기 중 · ' + (qp>1 ? '앞에 '+(qp-1)+'명' : '다음 순서예요'); }
+  if(open.length) return '오늘 클리닉 · 도착하면 [도착했어요]';
   return '';
+}
+// 클리닉 신청으로 미리 들어온 줄(예약) — 학원에 도착하면 그 시각으로 줄에 선다
+function qqArrive(id){
+  var me = qqMe(), btn = document.getElementById('qqArr'+id);
+  if(btn){ btn.disabled = true; btn.textContent = '줄 서는 중…'; }
+  qqRpc('qq_arrive', { p: { id: id, name: me.name, student_id: me.student_id } })
+    .then(function(r){ if(!r || !r.ok) throw new Error(r && r.error || 'x'); return qqRefresh(); })
+    .catch(function(){ qqShowErr('도착 처리를 못 했어요. 잠시 후 다시 눌러 주세요.'); if(btn){ btn.disabled = false; btn.textContent = '도착했어요 → 줄 서기'; } });
 }
 function openQuestion(){
   hide('hubView'); $('clinicView').style.display='none'; $('questionView').style.display='block'; window.scrollTo(0,0);
@@ -1872,6 +1885,7 @@ function qqSubmit(){
     if(!r || !r.ok){ qqShowErr(QQ_ERR[r && r.error] || '올리지 못했어요. 잠시 후 다시 해 보세요.'); return; }
     $('qqText').value=''; $('qqUnit').value=''; qqClearPhoto(); qqResetTime();
     if(r.dup) qqShowErr('이미 ' + tc + ' 선생님께 올린 질문이 대기 중이에요. 그 순서를 기다려 주세요.');
+    else if(r.arrived) qqShowErr('클리닉 신청으로 올라온 질문에 이어 붙이고, 지금 시각으로 줄에 세웠어요.');
     return qqRefresh();
   })
   .catch(function(){ qqShowErr('연결이 잘 안 돼요. 잠시 후 다시 해 보세요.'); })
@@ -1911,9 +1925,15 @@ function qqRenderList(){
       tag = '<span class="ntag call">호출됨</span>';
       pos = '<div class="qq-pos now">선생님께 가세요 · '+esc(q.calledAt||'')+' 호출</div>';
     } else if(q.status==='완료'){ tag = '<span class="ntag done">완료</span>'; }
+    else if(q.status==='예약'){
+      tag = '<span class="ntag resv">클리닉 신청</span>';
+      pos = '<div class="qq-note" style="margin:0">클리닉 신청으로 미리 올라온 질문이에요. 아직 줄에 서지 않았어요 — <b>학원에 도착하면</b> 아래 버튼을 눌러 주세요. 먼저 온 친구부터 순서가 돼요.</div>'
+          + '<button type="button" class="qq-arrive" id="qqArr'+(+q.id)+'" onclick="qqArrive('+(+q.id)+')">도착했어요 → 줄 서기</button>';
+    }
     else if(q.status==='건너뜀'){ tag = '<span class="ntag off">건너뜀</span>'; pos = '<div class="qq-note" style="margin:0">차례에 자리에 없어 넘어갔어요. 다시 올려 주세요.</div>'; }
     else { tag = '<span class="ntag off">취소함</span>'; }
-    var when = (q.qtime ? qqTimeLabel(q.qtime)+' 질문 타임' : '') + (q.time ? (q.qtime?' · ':'')+q.time+' 올림' : '');
+    var when = q.status==='예약' ? (q.qtime ? qqTimeLabel(q.qtime)+' 클리닉' : '')
+             : (q.qtime ? qqTimeLabel(q.qtime)+' 질문 타임' : '') + (q.time ? (q.qtime?' · ':'')+q.time+' 올림' : '');
     return '<div class="notice-item qq-item">'+tag+
       '<div class="nh"><span class="ntitle">'+esc(q.teacher)+' 선생님'+(q.unit?' · '+esc(q.unit):'')+(q.hasPhoto?'<span class="qq-ph">사진 첨부</span>':'')+'</span><span class="ndate">'+esc(when)+'</span></div>'+
       pos + (q.text ? '<div class="nbody">'+esc(q.text)+'</div>' : '') +
