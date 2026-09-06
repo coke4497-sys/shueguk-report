@@ -56,16 +56,29 @@ begin
   r := qq_submit('{"name":"김철수","student_id":"12345678","teacher":"이수경","text":"","photo":"http://x"}');
   assert r->>'error' = 'photo_too_big', r::text;
 
-  -- 정상 등록 3건(이수경T): 철수 → 민수 → 유진, 순번 1·2·3
-  a := qq_submit('{"name":"김철수","student_id":"12345678","school":"화정고","grade":"고1","teacher":"이수경","text":"독서 3번 질문"}');
+  -- 질문 타임 형식 검사
+  r := qq_submit('{"name":"김철수","student_id":"12345678","teacher":"이수경","qtime":"25:00","text":"q"}');
+  assert r->>'error' = 'bad_time', 'bad_time: ' || r::text;
+  r := qq_submit('{"name":"김철수","student_id":"12345678","teacher":"이수경","qtime":"5시","text":"q"}');
+  assert r->>'error' = 'bad_time', 'bad_time2: ' || r::text;
+
+  -- 정상 등록 3건(이수경T): 질문 타임 순 — 철수 5:30 → 민수 5:30(뒤에 올림) → 유진 6:00, 순번 1·2·3
+  a := qq_submit('{"name":"김철수","student_id":"12345678","school":"화정고","grade":"고1","teacher":"이수경","qtime":"5:30","unit":"독서","text":"독서 3번 질문"}');
   assert (a->>'ok')::boolean and (a->>'position')::int = 1, 'a: ' || a::text;
   ida := (a->>'id')::bigint;
-  b := qq_submit('{"name":"박민수","student_id":"34567890","teacher":"이수경","text":"","photo":"data:image/jpeg;base64,AAAA"}');
-  assert (b->>'position')::int = 2, 'b: ' || b::text;
-  idb := (b->>'id')::bigint;
-  c := qq_submit('{"name":"최유진","student_id":"56789012","teacher":"이수경","text":"문학 12번"}');
-  assert (c->>'position')::int = 3, 'c: ' || c::text;
+  assert (select qtime from question_queue where id = ida) = '05:30', '시각 표기 05:30 정규화';
+  assert (select unit from question_queue where id = ida) = '독서', '단원 저장';
+  c := qq_submit('{"name":"최유진","student_id":"56789012","teacher":"이수경","qtime":"06:00","text":"문학 12번"}');
+  assert (c->>'position')::int = 2, 'c: ' || c::text;
   idc := (c->>'id')::bigint;
+  b := qq_submit('{"name":"박민수","student_id":"34567890","teacher":"이수경","qtime":"5:30","text":"","photo":"data:image/jpeg;base64,AAAA"}');
+  assert (b->>'position')::int = 2, '같은 타임은 먼저 올린 쪽이 앞 / 이른 타임은 늦게 올려도 앞: ' || b::text;
+  idb := (b->>'id')::bigint;
+  assert qq_position_(idc) = 3, '유진(6:00)은 3번';
+  -- 타임을 안 주면 지금 시각으로 들어간다
+  r := qq_submit('{"name":"노담당","student_id":"67890123","teacher":"김지원","text":"t"}');
+  assert (select qtime from question_queue where id = (r->>'id')::bigint) ~ '^\d\d:\d\d$', 'qtime 기본값';
+  update question_queue set status = '취소' where id = (r->>'id')::bigint;
 
   -- 다른 선생님 대기열은 따로 센다
   r := qq_submit('{"name":"이영희","student_id":"23456789","teacher":"김지원","text":"화작"}');
@@ -80,7 +93,7 @@ begin
   r := qq_mine('{"name":"박민수","student_id":"34567890"}');
   l := r->'list';
   assert jsonb_array_length(l) = 1 and (l->0->>'hasPhoto')::boolean and l->0->>'status' = '대기'
-     and (l->0->>'position')::int = 2 and l->0->>'time' ~ '^\d\d:\d\d$', 'mine: ' || r::text;
+     and (l->0->>'position')::int = 2 and l->0->>'time' ~ '^\d\d:\d\d$' and l->0->>'qtime' = '05:30', 'mine: ' || r::text;
   assert l->0->'photo' is null, '사진 본문은 내려주지 않는다';
 
   -- 교사: 철수 호출 → 민수 1번, 유진 2번
@@ -88,8 +101,8 @@ begin
   assert qq_position_(ida) is null, 'called has no position';
   assert qq_position_(idb) = 1 and qq_position_(idc) = 2, 'after call';
 
-  -- 교사: 민수 맨 뒤로(ord 갱신) → 유진 1번, 민수 2번
-  update question_queue set ord = (extract(epoch from clock_timestamp())*1000)::bigint + 1 where id = idb;
+  -- 교사: 민수 맨 뒤로(ord = 오늘 최대 + 1) → 유진 1번, 민수 2번
+  update question_queue set ord = (select max(ord) from question_queue where qdate = qq_today_()) + 1 where id = idb;
   assert qq_position_(idc) = 1 and qq_position_(idb) = 2, 'to back';
 
   -- 학생 취소: 호출된 건은 취소 안 됨, 대기 건만
@@ -103,7 +116,7 @@ begin
   assert qq_position_(idb) = 1, 'after cancel';
 
   -- 취소한 뒤 다시 올리면 새 건으로 들어간다(dup 아님)
-  r := qq_submit('{"name":"최유진","student_id":"56789012","teacher":"이수경","text":"다시"}');
+  r := qq_submit('{"name":"최유진","student_id":"56789012","teacher":"이수경","qtime":"23:59","text":"다시"}');
   assert r->'dup' is null and (r->>'position')::int = 2, 'resubmit: ' || r::text;
 
   -- 교사: 완료

@@ -684,6 +684,7 @@ curl -s -X POST "https://api.supabase.com/v1/projects/bangdbhqpphqqdwcledg/datab
 - `question_queue` 한 표 + 학생 함수 `qq_teachers`/`qq_submit`/`qq_mine`/`qq_cancel`(SECURITY DEFINER, anon 허용).
   표는 015 방침대로 anon 권한 없음·authenticated(교사) 전용 정책. 시트 사본 없음 — 일일 점검 대상 아님.
 - 학생 판정: 이름+학생ID(8자리)가 students와 일치해야 함. 같은 선생님께 대기/호출 중 건이 있으면 dup 응답(새 줄 없음).
+- 순서 `ord` = 그날 질문 타임(`qtime` 'HH:MM', KST)의 epoch ms — 타임이 이른 순, 같으면 id 순. 교사 [맨 뒤로]는 오늘 최댓값+1. `unit`은 질문 단원.
 - 사진은 data URL(JPEG, ≤1.2MB 제한)로 `photo` 열에. 7일 지난 사진은 `qq_submit`이 비운다.
 - 교사 화면(hub question.html·question_board.html)은 표를 직접 읽고 PATCH로 상태를 바꾼다(호출·완료·건너뜀·대기·ord·note).
 - 검증: 리포트 `tools/qq-sql-test.sh`(로컬 PostgreSQL) — 함수 규칙·순번·권한을 실제 SQL로 확인. 자세한 것은 CLAUDE.md '질문 대기열'.

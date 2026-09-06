@@ -198,8 +198,12 @@
   /* 질문하기 (2026-09-06) — 선생님별 질문 대기열 */
   .qq-form{background:var(--surface);border:1px solid var(--line-soft);border-radius:var(--radius);padding:18px 18px 16px;margin-bottom:14px;}
   .qq-form label{display:block;font-size:.8rem;color:var(--ink-soft);margin:0 0 5px 2px;}
-  .qq-form select,.qq-form textarea{width:100%;font-family:var(--sans);font-size:.95rem;color:var(--ink);background:#FBFCFB;border:1px solid var(--line);border-radius:12px;padding:10px 12px;outline:none;}
-  .qq-form select:focus,.qq-form textarea:focus{border-color:var(--accent);}
+  .qq-form select,.qq-form textarea,.qq-form input[type=text],.qq-form input[type=time]{width:100%;font-family:var(--sans);font-size:.95rem;color:var(--ink);background:#FBFCFB;border:1px solid var(--line);border-radius:12px;padding:10px 12px;outline:none;}
+  .qq-form select:focus,.qq-form textarea:focus,.qq-form input:focus{border-color:var(--accent);}
+  .qq-time{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+  .qq-time input[type=time]{width:auto;min-width:120px;}
+  .qq-time .qq-ask{font-size:.82rem;color:var(--ink);}
+  .qq-time .qq-ask b{color:var(--accent);font-weight:700;}
   .qq-form textarea{min-height:96px;resize:vertical;line-height:1.6;}
   .qq-row{margin-bottom:13px;}
   .qq-photo{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
@@ -475,6 +479,13 @@
   </div>
   <div class="qq-form">
     <div class="qq-row"><label for="qqTeacher">어느 선생님께 질문할까요?</label><select id="qqTeacher"></select></div>
+    <div class="qq-row"><label for="qqTime">질문 타임</label>
+      <div class="qq-time"><input type="time" id="qqTime" step="300"><span class="qq-ask">지금 시간으로 맞춰 두었어요. <b>이 시간이 맞나요?</b> 아니면 바꿔 주세요.</span></div>
+    </div>
+    <div class="qq-row"><label for="qqUnit">질문 단원</label>
+      <input type="text" id="qqUnit" list="qqUnits" maxlength="100" placeholder="예) 독서 · 문학 · 문법 · 화작 · 언매 · 내신 교과서" autocomplete="off">
+      <datalist id="qqUnits"><option value="독서"><option value="문학"><option value="문법"><option value="화법과 작문"><option value="언어와 매체"><option value="내신 교과서"><option value="어휘"><option value="모의고사"><option value="기타"></datalist>
+    </div>
     <div class="qq-row"><label for="qqText">질문 내용 (교재 · 쪽수 · 문항 번호와 궁금한 점)</label><textarea id="qqText" maxlength="1000" placeholder="예) 독서 교재 42쪽 3번, 2번 선지가 왜 틀렸는지 모르겠어요"></textarea></div>
     <div class="qq-row"><label>문제 사진 (선택)</label>
       <div class="qq-photo">
@@ -485,7 +496,7 @@
     </div>
     <button type="button" class="qq-btn" id="qqSubmit" onclick="qqSubmit()">질문 올리기</button>
     <div class="qq-err" id="qqErr"></div>
-    <p class="qq-note">올리면 선생님 대기열에 순서대로 들어가요. 호출되면 강의실 화면에 이름이 나와요 — 화면을 보고 선생님께 가면 됩니다.</p>
+    <p class="qq-note">올리면 선생님 질문 목록에 질문 타임 순서로 들어가요. 선생님이 호출하면 강의실 화면에 이름이 크게 나와요 — 화면을 보고 선생님께 가면 됩니다.</p>
   </div>
   <h2 class="sec-h">오늘 내 질문</h2>
   <div class="qq-upd" id="qqUpd"></div>
@@ -1779,8 +1790,17 @@ function qqRpc(fn, args){
   }).then(function(r){ if(!r.ok) throw new Error('qq rpc ' + r.status); return r.json(); });
 }
 function qqMe(){ var i = STATE.info || {}; return { name: String(i.name||'').trim(), student_id: String(i.id||'').trim() }; }
+function qqNowHM(){ return new Date(Date.now() + 9*3600*1000).toISOString().slice(11,16); }   // 한국 시각 'HH:MM'
+function qqResetTime(){ $('qqTime').value = qqNowHM(); }
+// '17:30' → '오후 5:30' (학생 화면 표시용)
+function qqTimeLabel(t){
+  var m = String(t||'').match(/^(\d{1,2}):(\d{2})$/); if(!m) return t||'';
+  var h = +m[1], ap = h < 12 ? '오전' : '오후', h12 = h % 12; if(h12===0) h12 = 12;
+  return ap + ' ' + h12 + ':' + m[2];
+}
 function openQuestion(){
   hide('hubView'); $('questionView').style.display='block'; window.scrollTo(0,0);
+  qqResetTime();                                    // 질문 타임 = 지금 시각 (학생이 확인·수정)
   qqFillTeachers();
   qqRenderList();
   qqRefresh();
@@ -1834,20 +1854,22 @@ function qqShrink(file){
 }
 function qqShowErr(m){ var e=$('qqErr'); e.textContent=m; e.style.display = m ? 'block' : 'none'; }
 var QQ_ERR = { unknown_student:'학생 정보를 확인하지 못했어요. 페이지를 새로고침한 뒤 다시 해 보세요.',
-               no_teacher:'질문할 선생님을 골라 주세요.', empty:'질문 내용을 적거나 사진을 붙여 주세요.',
+               no_teacher:'질문할 선생님을 골라 주세요.', bad_time:'질문 타임을 확인해 주세요.', empty:'질문 내용을 적거나 사진을 붙여 주세요.',
                too_long:'질문이 너무 길어요. 1000자 안으로 줄여 주세요.', photo_too_big:'사진이 너무 커요. 다시 찍어 주세요.' };
 function qqSubmit(){
   var me = qqMe(), tc = $('qqTeacher').value, tx = $('qqText').value.trim();
+  var qt = $('qqTime').value || qqNowHM(), un = $('qqUnit').value.trim();
   qqShowErr('');
   if(!tc){ qqShowErr(QQ_ERR.no_teacher); return; }
+  if(!/^\d{1,2}:\d{2}$/.test(qt)){ qqShowErr(QQ_ERR.bad_time); return; }
   if(!tx && !QQ_PHOTO){ qqShowErr(QQ_ERR.empty); return; }
   var btn = $('qqSubmit'); btn.disabled = true; btn.textContent = '올리는 중…';
   qqRpc('qq_submit', { p: { name: me.name, student_id: me.student_id,
       school: String((STATE.info&&STATE.info.school)||''), grade: levelGrade((STATE.info&&STATE.info.grade)||'') || String((STATE.info&&STATE.info.grade)||''),   // '고1' 형태로 저장(교사 화면 표시용)
-      teacher: tc, text: tx, photo: QQ_PHOTO } })
+      teacher: tc, qtime: qt, unit: un, text: tx, photo: QQ_PHOTO } })
   .then(function(r){
     if(!r || !r.ok){ qqShowErr(QQ_ERR[r && r.error] || '올리지 못했어요. 잠시 후 다시 해 보세요.'); return; }
-    $('qqText').value=''; qqClearPhoto();
+    $('qqText').value=''; $('qqUnit').value=''; qqClearPhoto(); qqResetTime();
     if(r.dup) qqShowErr('이미 ' + tc + ' 선생님께 올린 질문이 대기 중이에요. 그 순서를 기다려 주세요.');
     return qqRefresh();
   })
@@ -1889,8 +1911,9 @@ function qqRenderList(){
     } else if(q.status==='완료'){ tag = '<span class="ntag done">완료</span>'; }
     else if(q.status==='건너뜀'){ tag = '<span class="ntag off">건너뜀</span>'; pos = '<div class="qq-note" style="margin:0">차례에 자리에 없어 넘어갔어요. 다시 올려 주세요.</div>'; }
     else { tag = '<span class="ntag off">취소함</span>'; }
+    var when = (q.qtime ? qqTimeLabel(q.qtime)+' 질문 타임' : '') + (q.time ? (q.qtime?' · ':'')+q.time+' 올림' : '');
     return '<div class="notice-item qq-item">'+tag+
-      '<div class="nh"><span class="ntitle">'+esc(q.teacher)+' 선생님'+(q.hasPhoto?'<span class="qq-ph">사진 첨부</span>':'')+'</span><span class="ndate">'+esc(q.time||'')+' 올림</span></div>'+
+      '<div class="nh"><span class="ntitle">'+esc(q.teacher)+' 선생님'+(q.unit?' · '+esc(q.unit):'')+(q.hasPhoto?'<span class="qq-ph">사진 첨부</span>':'')+'</span><span class="ndate">'+esc(when)+'</span></div>'+
       pos + (q.text ? '<div class="nbody">'+esc(q.text)+'</div>' : '') +
       (q.status==='대기' ? '<button type="button" class="qq-cancel" onclick="qqCancel('+(+q.id)+')">질문 취소</button>' : '') +
       '</div>';

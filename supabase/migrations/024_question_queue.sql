@@ -6,7 +6,7 @@
 -- 원본은 이 표 하나(question_queue) — 시트 사본 없음(그날 쓰고 끝나는 기록).
 --   · 학생 화면은 표를 직접 읽지 않고 아래 함수만 부른다(015 잠금 방침):
 --       qq_teachers()  — 선생님 목록(students의 담당T)
---       qq_submit(p)   — 질문 올리기 {name,school,grade,student_id,teacher,text,photo}
+--       qq_submit(p)   — 질문 올리기 {name,school,grade,student_id,teacher,qtime,unit,text,photo}
 --       qq_mine(p)     — 내 오늘 질문·순번 {name,student_id}
 --       qq_cancel(p)   — 대기 중인 내 질문 취소 {id,name,student_id}
 --   · 교사 화면(question.html·question_board.html)은 조용한 인증(authenticated)으로 표를 직접 읽고 쓴다.
@@ -17,12 +17,14 @@ create table if not exists question_queue (
   id bigint generated always as identity primary key,
   created_at timestamptz not null default now(),
   qdate date not null default (now() at time zone 'Asia/Seoul')::date,   -- 한국 날짜(하루 단위 대기열)
-  ord bigint not null default (extract(epoch from clock_timestamp()) * 1000)::bigint,  -- 순서(맨 뒤로 보내기용)
+  ord bigint not null default (extract(epoch from clock_timestamp()) * 1000)::bigint,  -- 순서 = 질문 타임(그날 그 시각의 ms), 맨 뒤로 보내기는 이 값을 키운다
   name text not null default '',
   school text not null default '',
   grade text not null default '',
   student_id text not null default '',   -- 학생ID(부모님 전화 8자리) — students와 대조
   teacher text not null default '',      -- 질문할 선생님(담당T 표기 그대로)
+  qtime text not null default '',        -- 질문 타임 'HH:MM' (학생이 확인한 시각 — 기본은 올린 시각)
+  unit text not null default '',         -- 질문 단원 (독서·문학·문법… 자유 입력)
   text text not null default '',
   photo text not null default '',        -- data:image/jpeg;base64,…  (빈값 = 사진 없음)
   status text not null default '대기',   -- 대기 / 호출 / 완료 / 취소 / 건너뜀
@@ -75,6 +77,8 @@ returns jsonb language sql stable set search_path = public as $$
   select jsonb_build_object(
     'id', r.id,
     'teacher', r.teacher,
+    'qtime', r.qtime,
+    'unit', r.unit,
     'text', r.text,
     'hasPhoto', r.photo <> '',
     'status', r.status,
@@ -99,21 +103,30 @@ returns jsonb language sql stable security definer set search_path = public as $
 $$;
 
 -- ── 질문 올리기 ─────────────────────────────────────────────
--- p: {name, school, grade, student_id, teacher, text, photo}
+-- p: {name, school, grade, student_id, teacher, qtime, unit, text, photo}
 -- 응답: {ok:true, id, position, dup?}  /  {ok:false, error}
---   error: unknown_student(명단에 없음) · no_teacher · empty(글·사진 둘 다 없음) · too_long · photo_too_big
+--   error: unknown_student(명단에 없음) · no_teacher · bad_time(HH:MM 아님) · empty(글·사진 둘 다 없음) · too_long · photo_too_big
 -- 같은 선생님께 이미 대기/호출 중인 질문이 있으면 새로 넣지 않고 그 건을 돌려준다(dup:true).
+-- 순서(ord)는 질문 타임 — 그날 그 시각(KST)의 ms. 같은 시각이면 먼저 올린 쪽(id)이 앞. 타임이 없으면 지금.
 create or replace function public.qq_submit(p jsonb)
 returns jsonb language plpgsql security definer set search_path = public as $$
 declare nm text := trim(coalesce(p->>'name',''));
         sid text := trim(coalesce(p->>'student_id',''));
         tc text := trim(coalesce(p->>'teacher',''));
+        qt text := trim(coalesce(p->>'qtime',''));
+        un text := trim(coalesce(p->>'unit',''));
         tx text := trim(coalesce(p->>'text',''));
         ph text := coalesce(p->>'photo','');
-        ex question_queue; nid bigint;
+        ex question_queue; nid bigint; v_ord bigint;
 begin
   if not qq_student_ok_(nm, sid) then return jsonb_build_object('ok', false, 'error', 'unknown_student'); end if;
   if tc = '' then return jsonb_build_object('ok', false, 'error', 'no_teacher'); end if;
+  if qt = '' then qt := to_char(now() at time zone 'Asia/Seoul', 'HH24:MI'); end if;
+  if qt !~ '^\d{1,2}:\d{2}$' or split_part(qt,':',1)::int > 23 or split_part(qt,':',2)::int > 59 then
+    return jsonb_build_object('ok', false, 'error', 'bad_time');
+  end if;
+  qt := lpad(split_part(qt,':',1), 2, '0') || ':' || split_part(qt,':',2);
+  if length(un) > 100 then un := left(un, 100); end if;
   if tx = '' and ph = '' then return jsonb_build_object('ok', false, 'error', 'empty'); end if;
   if length(tx) > 1000 then return jsonb_build_object('ok', false, 'error', 'too_long'); end if;
   if ph <> '' and (ph not like 'data:image/%' or length(ph) > 1200000) then
@@ -128,8 +141,10 @@ begin
     return jsonb_build_object('ok', true, 'id', ex.id, 'position', qq_position_(ex.id), 'status', ex.status, 'dup', true);
   end if;
 
-  insert into question_queue (name, school, grade, student_id, teacher, text, photo)
-  values (nm, trim(coalesce(p->>'school','')), trim(coalesce(p->>'grade','')), sid, tc, tx, ph)
+  -- 순서 = 그날 질문 타임(KST)의 epoch ms
+  v_ord := (extract(epoch from ((qq_today_()::text || ' ' || qt)::timestamp at time zone 'Asia/Seoul')) * 1000)::bigint;
+  insert into question_queue (ord, name, school, grade, student_id, teacher, qtime, unit, text, photo)
+  values (v_ord, nm, trim(coalesce(p->>'school','')), trim(coalesce(p->>'grade','')), sid, tc, qt, un, tx, ph)
   returning id into nid;
 
   -- 오래된 사진 비우기(글·기록은 남긴다) — 표가 사진으로 불어나지 않게
