@@ -1811,7 +1811,7 @@ function qqArrive(id){
   if(btn){ btn.disabled = true; btn.textContent = '줄 서는 중…'; }
   qqRpc('qq_arrive', { p: { id: id, name: me.name, student_id: me.student_id } })
     .then(function(r){ if(!r || !r.ok) throw new Error(r && r.error || 'x'); return qqRefresh(); })
-    .catch(function(){ qqShowErr('줄 서기가 안 됐어요. 잠시 후 다시 눌러 주세요.'); if(btn){ btn.disabled = false; btn.textContent = '다시 눌러 주세요'; } });
+    .catch(function(){ qqShowErr('질문 대기가 안 됐어요. 잠시 후 다시 눌러 주세요.'); if(btn){ btn.disabled = false; btn.textContent = '다시 눌러 주세요'; } });
 }
 function openQuestion(){
   hide('hubView'); $('clinicView').style.display='none'; $('questionView').style.display='block'; window.scrollTo(0,0);
@@ -1929,12 +1929,12 @@ function qqRenderList(){
     else if(q.status==='예약'){
       tag = '<span class="ntag resv">클리닉 신청</span>';
       pos = '<div class="qq-note" style="margin:0">클리닉 신청으로 미리 올라온 질문이에요. 아직 줄에 서지 않았어요 — <b>학원에 도착하면</b> 아래 버튼을 눌러 주세요. 먼저 온 친구부터 순서가 돼요.</div>'
-          + '<button type="button" class="qq-arrive" id="qqArr'+(+q.id)+'" onclick="qqArrive('+(+q.id)+')">도착했어요 → 줄 서기</button>';
+          + '<button type="button" class="qq-arrive" id="qqArr'+(+q.id)+'" onclick="qqArrive('+(+q.id)+')">도착했어요 → 질문 대기</button>';
     }
     else if(q.status==='명단'){
       tag = '<span class="ntag resv">오늘 질문 명단</span>';
       pos = '<div class="qq-note" style="margin:0">선생님이 올린 오늘 질문 명단에 내 이름이 있어요. 아직 줄에 서지 않았어요 — <b>질문할 준비가 되면</b> 아래 버튼을 눌러 주세요(전자칠판에서 이름을 눌러도 돼요). 먼저 누른 순서대로 호출돼요.</div>'
-          + '<button type="button" class="qq-arrive" id="qqArr'+(+q.id)+'" onclick="qqArrive('+(+q.id)+')">질문 대기 → 줄 서기</button>';
+          + '<button type="button" class="qq-arrive" id="qqArr'+(+q.id)+'" onclick="qqArrive('+(+q.id)+')">질문 대기</button>';
     }
     else if(q.status==='건너뜀'){ tag = '<span class="ntag off">건너뜀</span>'; pos = '<div class="qq-note" style="margin:0">차례에 자리에 없어 넘어갔어요. 다시 올려 주세요.</div>'; }
     else { tag = '<span class="ntag off">취소함</span>'; }
