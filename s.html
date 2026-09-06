@@ -136,6 +136,7 @@
 
   /* 클리닉 신청·확인 뷰 */
   #clinicView{display:none;}
+  #questionView{display:none;}
   .hw-go{display:inline-flex;align-items:center;gap:5px;margin-top:12px;color:var(--accent);font-size:.84rem;font-weight:700;text-decoration:none;}
   .hw-go svg{width:15px;height:15px;}
   .hw-go:hover{opacity:.8;}
@@ -194,6 +195,40 @@
   .exam-tab:active{opacity:.85;}
   .empty-state{background:var(--surface);border:1px dashed var(--line);border-radius:var(--radius);padding:38px 24px;text-align:center;}
   .empty-state p{font-family:var(--serif);font-size:.92rem;color:var(--ink-soft);margin:0;line-height:1.8;}
+  /* 질문하기 (2026-09-06) — 선생님별 질문 대기열 */
+  .qq-form{background:var(--surface);border:1px solid var(--line-soft);border-radius:var(--radius);padding:18px 18px 16px;margin-bottom:14px;}
+  .qq-form label{display:block;font-size:.8rem;color:var(--ink-soft);margin:0 0 5px 2px;}
+  .qq-form select,.qq-form textarea,.qq-form input[type=text],.qq-form input[type=time]{width:100%;font-family:var(--sans);font-size:.95rem;color:var(--ink);background:#FBFCFB;border:1px solid var(--line);border-radius:12px;padding:10px 12px;outline:none;}
+  .qq-form select:focus,.qq-form textarea:focus,.qq-form input:focus{border-color:var(--accent);}
+  .qq-time{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+  .qq-time input[type=time]{width:auto;min-width:120px;}
+  .qq-time .qq-ask{font-size:.82rem;color:var(--ink);}
+  .qq-time .qq-ask b{color:var(--accent);font-weight:700;}
+  .qq-form textarea{min-height:96px;resize:vertical;line-height:1.6;}
+  .qq-row{margin-bottom:13px;}
+  .qq-photo{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+  .qq-photo .qq-file{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:#FBFCFB;color:var(--ink);border-radius:11px;padding:9px 13px;font-size:.85rem;cursor:pointer;}
+  .qq-photo .qq-file svg{width:16px;height:16px;}
+  .qq-photo input[type=file]{display:none;}
+  .qq-prev{position:relative;display:none;}
+  .qq-prev img{display:block;max-width:100%;max-height:220px;border-radius:12px;border:1px solid var(--line-soft);}
+  .qq-prev .qq-x{position:absolute;top:6px;right:6px;border:0;background:rgba(42,51,47,.72);color:#fff;border-radius:999px;width:26px;height:26px;font-size:.8rem;cursor:pointer;}
+  .qq-note{font-size:.78rem;color:var(--ink-soft);margin:6px 2px 0;line-height:1.6;}
+  .qq-btn{width:100%;border:0;border-radius:12px;padding:12px;background:var(--accent);color:#fff;font-family:var(--serif);font-weight:700;font-size:.98rem;cursor:pointer;margin-top:4px;}
+  .qq-btn:disabled{opacity:.55;cursor:default;}
+  .qq-err{color:#B4544A;font-size:.82rem;margin:8px 2px 0;display:none;}
+  .qq-item .ntag.wait{background:#E9EDF8;color:#4E5F8A;}
+  .qq-item .ntag.call{background:#3A6B5E;color:#fff;}
+  .qq-item .ntag.done{background:#E5EDE8;color:#65726B;}
+  .qq-item .ntag.off{background:#EFEFEF;color:#7A7A7A;}
+  .qq-item .ntag.resv{background:#F7E2DE;color:#B0736A;}
+  .qq-item .qq-arrive{width:100%;border:0;border-radius:12px;padding:12px;background:var(--accent);color:#fff;font-family:var(--serif);font-weight:700;font-size:.98rem;cursor:pointer;margin-top:10px;}
+  .qq-item .qq-arrive:disabled{opacity:.55;}
+  .qq-item .qq-pos{font-family:var(--serif);font-size:1.04rem;font-weight:700;color:var(--ink);}
+  .qq-item .qq-pos.now{color:var(--accent);}
+  .qq-item .qq-cancel{border:1px solid var(--line);background:var(--surface);color:var(--ink-soft);border-radius:10px;padding:6px 12px;font-size:.78rem;cursor:pointer;margin-top:10px;}
+  .qq-item .qq-ph{display:inline-block;font-size:.74rem;color:var(--ink-soft);margin-left:6px;}
+  .qq-upd{font-size:.74rem;color:var(--ink-soft);text-align:right;margin:-6px 2px 10px;}
 
   /* === 학부모용 보고서 디자인 (HTML 저장본과 동일) === */
   .report{
@@ -431,11 +466,44 @@
 <div id="clinicView"><main class="wrap gwrap">
   <div class="gv-bar">
     <button class="gv-back" onclick="closeClinic()" id="clBack"></button>
-    <span class="gv-ttl">클리닉 · 신청·확인</span>
+    <span class="gv-ttl">클리닉 · 신청·질문</span>
   </div>
   <div class="grid" id="clinicMenu"></div>
   <h2 class="sec-h">내 클리닉 신청 내역</h2>
   <div id="clinicList"></div>
+  <footer><p>이수경국어 Shueguk · 학생용</p></footer>
+</main></div>
+
+<!-- 질문하기 — 선생님별 질문 대기열 (2026-09-06) -->
+<div id="questionView"><main class="wrap gwrap">
+  <div class="gv-bar">
+    <button class="gv-back" onclick="closeQuestion()" id="qqBack"></button>
+    <span class="gv-ttl">질문하기</span>
+  </div>
+  <div class="qq-form">
+    <div class="qq-row"><label for="qqTeacher">어느 선생님께 질문할까요?</label><select id="qqTeacher"></select></div>
+    <div class="qq-row"><label for="qqTime">질문 타임</label>
+      <div class="qq-time"><input type="time" id="qqTime" step="300"><span class="qq-ask">지금 시간으로 맞춰 두었어요. <b>이 시간이 맞나요?</b> 아니면 바꿔 주세요.</span></div>
+    </div>
+    <div class="qq-row"><label for="qqUnit">질문 단원</label>
+      <input type="text" id="qqUnit" list="qqUnits" maxlength="100" placeholder="예) 독서 · 문학 · 문법 · 화작 · 언매 · 내신 교과서" autocomplete="off">
+      <datalist id="qqUnits"><option value="독서"><option value="문학"><option value="문법"><option value="화법과 작문"><option value="언어와 매체"><option value="내신 교과서"><option value="어휘"><option value="모의고사"><option value="기타"></datalist>
+    </div>
+    <div class="qq-row"><label for="qqText">질문 내용 (교재 · 쪽수 · 문항 번호와 궁금한 점)</label><textarea id="qqText" maxlength="1000" placeholder="예) 독서 교재 42쪽 3번, 2번 선지가 왜 틀렸는지 모르겠어요"></textarea></div>
+    <div class="qq-row"><label>문제 사진 (선택)</label>
+      <div class="qq-photo">
+        <label class="qq-file" for="qqFile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>사진 찍기 · 고르기</label>
+        <input type="file" id="qqFile" accept="image/*" onchange="qqPickPhoto(this)">
+        <div class="qq-prev" id="qqPrev"><img id="qqPrevImg" alt="첨부한 문제 사진"><button type="button" class="qq-x" onclick="qqClearPhoto()" aria-label="사진 지우기">×</button></div>
+      </div>
+    </div>
+    <button type="button" class="qq-btn" id="qqSubmit" onclick="qqSubmit()">질문 올리기</button>
+    <div class="qq-err" id="qqErr"></div>
+    <p class="qq-note">올리면 선생님 질문 목록에 질문 타임 순서로 들어가요. 선생님이 호출하면 강의실 화면에 이름이 크게 나와요 — 화면을 보고 선생님께 가면 됩니다. 클리닉을 신청한 날은 아래 '오늘 내 질문'에서 <b>[도착했어요]</b>만 누르면 돼요.</p>
+  </div>
+  <h2 class="sec-h">오늘 내 질문</h2>
+  <div class="qq-upd" id="qqUpd"></div>
+  <div id="qqList"></div>
   <footer><p>이수경국어 Shueguk · 학생용</p></footer>
 </main></div>
 
@@ -524,7 +592,8 @@ var ICON = {
   back:'<path d="M19 12H5M11 18l-6-6 6-6"/>',
   bell:'<path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>',
   clip:'<path d="M9 3h6a1 1 0 0 1 1 1v1a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M16 5h2a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2"/><path d="M9 14l2 2 4-4"/>',
-  check:'<path d="M20 6L9 17l-5-5"/>'
+  check:'<path d="M20 6L9 17l-5-5"/>',
+  ask:'<path d="M21 11.5a8.4 8.4 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7A8.5 8.5 0 1 1 21 11.5z"/><path d="M9.8 9.3a2.4 2.4 0 0 1 4.7.8c0 1.6-2.4 2.1-2.4 3.4"/><line x1="12.1" y1="16.6" x2="12.1" y2="16.7"/>'
 };
 function svg(inner){ return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">'+inner+'</svg>'; }
 
@@ -738,10 +807,10 @@ function hide(id){ $(id).style.display='none'; }
 
 var KEY = '';        // 접근코드(토큰) — 없으면 테스트용 id
 var IS_ID = false;
-var STATE = { info:null, authed:false, exams:null, examCount:0, notices:null, homework:null, analyses:null, clinic:null, stars:null, vocaOpen:null, vocaWeek:null, mockGrades:null, mockOpen:null, clinicEligible:null, vocaTaken:null, mockSignups:null, mockFromServer:false, mockGatesFromServer:false, vocaFromServer:false, clinicFromServer:false, hwcheck:null };
+var STATE = { info:null, authed:false, exams:null, examCount:0, notices:null, homework:null, analyses:null, clinic:null, stars:null, vocaOpen:null, vocaWeek:null, mockGrades:null, mockOpen:null, clinicEligible:null, vocaTaken:null, mockSignups:null, mockFromServer:false, mockGatesFromServer:false, vocaFromServer:false, clinicFromServer:false, hwcheck:null, qq:null, qqLoading:false, qqTeachers:null };
 
 function showError(title, msg){
-  hide('loadBox'); hide('hubView'); $('gradeView').style.display='none'; $('mockHubView').style.display='none'; $('mockView').style.display='none'; $('clinicView').style.display='none'; $('hwcheckView').style.display='none';
+  hide('loadBox'); hide('hubView'); $('gradeView').style.display='none'; $('mockHubView').style.display='none'; $('mockView').style.display='none'; $('clinicView').style.display='none'; $('hwcheckView').style.display='none'; $('questionView').style.display='none';
   $('errTitle').textContent = title || '불러올 수 없습니다';
   $('errMsg').textContent = msg || '';
   show('errBox');
@@ -1547,6 +1616,9 @@ function renderHub(){
               '<span class="go">열기 '+svg(ICON.arrow)+'</span></button>';
   }
 
+  // 질문 대기열 상태 (2026-09-06) — 클리닉 카드 안에 '질문하기'가 들어 있어 카드 설명에 상태를 붙인다
+  if(STATE.qq === null && !STATE.qqLoading) qqRefresh(true);   // 처음 한 번 뒤에서 받아 카드 설명 갱신
+
   FEATURES.forEach(function(f){
     var desc = f.desc;
     var url = f.url;
@@ -1616,11 +1688,13 @@ function renderHub(){
     // 대상이 아니어도 신청 내역이 있는 학생은 확인을 위해 열어 둔다.
     // (백엔드 amITarget이 전체/학년/개인/일부 대상 여부를 직접 판단 — 선택된 학생에게만 카드가 열림)
     if(f.id==='clinic'){
+      // 2026-09-06: '질문하기'(질문 대기열)가 이 카드 안에 들어가 클리닉 대상이 아닌 주에도 카드는 열린다
+      // (신청 대상 아님 안내는 클리닉 화면 안의 '클리닉 신청하기' 카드가 한다). 질문 상태가 있으면 그것을 먼저 보여 준다.
       var hasClinicApps = !!(STATE.clinic && STATE.clinic.total);
-      if(STATE.clinicEligible === false && !hasClinicApps){
-        html += '<div class="card pending">'+ic+'<h3>'+esc(f.title)+'</h3><p class="desc">이번 주는 클리닉 신청 대상이 아니에요.</p><span class="tag">이번 주 운영 안 함</span></div>';
-        return;
-      }
+      var qd = qqStatusDesc();
+      if(qd) desc = qd;
+      else if(STATE.clinicEligible === false && !hasClinicApps) desc = '질문 올리기 · 이번 주는 신청 대상 아님';
+      else if(desc === f.desc) desc = '클리닉 신청 · 질문 올리기';
       html += '<button class="card'+tcl+'" onclick="openClinic()">'+ic+
               '<h3>'+esc(f.title)+'</h3><p class="desc">'+esc(desc)+'</p>'+
               '<span class="go">열기 '+svg(ICON.arrow)+'</span></button>';
@@ -1660,7 +1734,7 @@ function renderHub(){
 
   renderStars();   // 슈퍼스타 별 카드 (백엔드가 stars를 주면 표시)
 
-  hide('loadBox'); hide('errBox'); $('gradeView').style.display='none'; $('noticeView').style.display='none'; $('homeworkView').style.display='none'; $('mockHubView').style.display='none'; $('mockView').style.display='none'; $('clinicView').style.display='none'; $('hwcheckView').style.display='none'; show('hubView');
+  hide('loadBox'); hide('errBox'); $('gradeView').style.display='none'; $('noticeView').style.display='none'; $('homeworkView').style.display='none'; $('mockHubView').style.display='none'; $('mockView').style.display='none'; $('clinicView').style.display='none'; $('hwcheckView').style.display='none'; $('questionView').style.display='none'; show('hubView');
 }
 
 /* ---- 알려드립니다(공지) ---- */
@@ -1697,6 +1771,177 @@ function renderHwcheck(){
 }
 function openHwcheck(){ renderHwcheck(); hide('hubView'); $('hwcheckView').style.display='block'; window.scrollTo(0,0); }
 function closeHwcheck(){ $('hwcheckView').style.display='none'; show('hubView'); window.scrollTo(0,0); }
+
+/* ---- 질문하기 — 선생님별 질문 대기열 (2026-09-06) ----
+ * 원본은 수파베이스 question_queue(024 마이그레이션). 학생 화면은 표를 읽지 않고
+ * 함수만 부른다(qq_teachers·qq_submit·qq_mine·qq_cancel). 시트 사본 없음.
+ * 사진은 이 페이지가 1280px·JPEG로 줄여 data URL 로 보낸다(저장소 없이 표에 담김). */
+var QQ_REST = 'https://bangdbhqpphqqdwcledg.supabase.co/rest/v1';
+var QQ_KEY  = 'sb_publishable_dE9d1KIbpgYaQkaS2MSrlg_-7SiRJuT';
+var QQ_POLL = null, QQ_PHOTO = '';
+function qqRpc(fn, args){
+  return fetch(QQ_REST + '/rpc/' + fn, {
+    method: 'POST',
+    headers: { 'apikey': QQ_KEY, 'Authorization': 'Bearer ' + QQ_KEY, 'Content-Type': 'application/json' },
+    body: JSON.stringify(args || {})
+  }).then(function(r){ if(!r.ok) throw new Error('qq rpc ' + r.status); return r.json(); });
+}
+function qqMe(){ var i = STATE.info || {}; return { name: String(i.name||'').trim(), student_id: String(i.id||'').trim() }; }
+function qqNowHM(){ return new Date(Date.now() + 9*3600*1000).toISOString().slice(11,16); }   // 한국 시각 'HH:MM'
+function qqResetTime(){ $('qqTime').value = qqNowHM(); }
+// '17:30' → '오후 5:30' (학생 화면 표시용)
+function qqTimeLabel(t){
+  var m = String(t||'').match(/^(\d{1,2}):(\d{2})$/); if(!m) return t||'';
+  var h = +m[1], ap = h < 12 ? '오전' : '오후', h12 = h % 12; if(h12===0) h12 = 12;
+  return ap + ' ' + h12 + ':' + m[2];
+}
+// 오늘 내 질문 상태 한 줄 (카드 설명용) — 대기·호출 중인 건이 없으면 빈 문자열
+function qqStatusDesc(){
+  var open = (STATE.qq||[]).filter(function(q){ return q.status==='대기' || q.status==='호출' || q.status==='예약'; });
+  if(open.some(function(q){ return q.status==='호출'; })) return '호출됨 · 선생님께 가세요';
+  var w = open.filter(function(q){ return q.status==='대기'; });
+  if(w.length){ var qp = w[0].position; return '질문 대기 중 · ' + (qp>1 ? '앞에 '+(qp-1)+'명' : '다음 순서예요'); }
+  if(open.length) return '오늘 클리닉 · 도착하면 [도착했어요]';
+  return '';
+}
+// 클리닉 신청으로 미리 들어온 줄(예약) — 학원에 도착하면 그 시각으로 줄에 선다
+function qqArrive(id){
+  var me = qqMe(), btn = document.getElementById('qqArr'+id);
+  if(btn){ btn.disabled = true; btn.textContent = '줄 서는 중…'; }
+  qqRpc('qq_arrive', { p: { id: id, name: me.name, student_id: me.student_id } })
+    .then(function(r){ if(!r || !r.ok) throw new Error(r && r.error || 'x'); return qqRefresh(); })
+    .catch(function(){ qqShowErr('도착 처리를 못 했어요. 잠시 후 다시 눌러 주세요.'); if(btn){ btn.disabled = false; btn.textContent = '도착했어요 → 줄 서기'; } });
+}
+function openQuestion(){
+  hide('hubView'); $('clinicView').style.display='none'; $('questionView').style.display='block'; window.scrollTo(0,0);
+  qqResetTime();                                    // 질문 타임 = 지금 시각 (학생이 확인·수정)
+  qqFillTeachers();
+  qqRenderList();
+  qqRefresh();
+  clearInterval(QQ_POLL);
+  QQ_POLL = setInterval(function(){ if($('questionView').style.display==='block' && !document.hidden) qqRefresh(); }, 8000);
+}
+function closeQuestion(){ clearInterval(QQ_POLL); QQ_POLL=null; $('questionView').style.display='none'; renderClinic(); $('clinicView').style.display='block'; window.scrollTo(0,0); }
+// 선생님 목록 — 담당 선생님을 기본 선택. 목록에 없어도(표기 차이) 맨 위에 넣어 준다.
+function qqFillTeachers(){
+  var sel = $('qqTeacher'), mine = String((STATE.info && STATE.info.teacher) || '').trim();
+  function fill(list){
+    var names = (list||[]).slice();
+    if(mine && names.indexOf(mine) < 0) names.unshift(mine);
+    if(!names.length){ sel.innerHTML = '<option value="">선생님 목록을 불러오지 못했어요</option>'; return; }
+    var cur = sel.value;
+    sel.innerHTML = names.map(function(n){ return '<option value="'+esc(n)+'">'+esc(n)+' 선생님</option>'; }).join('');
+    sel.value = (cur && names.indexOf(cur)>=0) ? cur : (mine && names.indexOf(mine)>=0 ? mine : names[0]);
+  }
+  if(STATE.qqTeachers){ fill(STATE.qqTeachers); return; }
+  fill(mine ? [mine] : []);
+  qqRpc('qq_teachers').then(function(list){ if(Array.isArray(list)){ STATE.qqTeachers = list; fill(list); } }).catch(function(){});
+}
+// 사진 선택 → 긴 변 1280px · JPEG 로 줄여 미리보기 (원본 업로드 안 함)
+function qqPickPhoto(input){
+  var f = input.files && input.files[0]; if(!f) return;
+  qqShrink(f).then(function(data){
+    QQ_PHOTO = data; $('qqPrevImg').src = data; $('qqPrev').style.display='block';
+  }).catch(function(){ qqShowErr('사진을 읽지 못했어요. 다른 사진으로 해 보세요.'); });
+  input.value = '';
+}
+function qqClearPhoto(){ QQ_PHOTO=''; $('qqPrev').style.display='none'; $('qqPrevImg').removeAttribute('src'); }
+function qqShrink(file){
+  return new Promise(function(res, rej){
+    var url = URL.createObjectURL(file), img = new Image();
+    img.onload = function(){
+      URL.revokeObjectURL(url);
+      var w = img.naturalWidth, h = img.naturalHeight, s = Math.min(1, 1280/Math.max(w,h,1));
+      function draw(scale, q){
+        var c = document.createElement('canvas'); c.width = Math.max(1,Math.round(w*scale)); c.height = Math.max(1,Math.round(h*scale));
+        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+        return c.toDataURL('image/jpeg', q);
+      }
+      var out = draw(s, .8);
+      if(out.length > 900000) out = draw(s, .6);
+      if(out.length > 900000) out = draw(s*.7, .6);
+      res(out);
+    };
+    img.onerror = function(){ URL.revokeObjectURL(url); rej(new Error('img')); };
+    img.src = url;
+  });
+}
+function qqShowErr(m){ var e=$('qqErr'); e.textContent=m; e.style.display = m ? 'block' : 'none'; }
+var QQ_ERR = { unknown_student:'학생 정보를 확인하지 못했어요. 페이지를 새로고침한 뒤 다시 해 보세요.',
+               no_teacher:'질문할 선생님을 골라 주세요.', bad_time:'질문 타임을 확인해 주세요.', empty:'질문 내용을 적거나 사진을 붙여 주세요.',
+               too_long:'질문이 너무 길어요. 1000자 안으로 줄여 주세요.', photo_too_big:'사진이 너무 커요. 다시 찍어 주세요.' };
+function qqSubmit(){
+  var me = qqMe(), tc = $('qqTeacher').value, tx = $('qqText').value.trim();
+  var qt = $('qqTime').value || qqNowHM(), un = $('qqUnit').value.trim();
+  qqShowErr('');
+  if(!tc){ qqShowErr(QQ_ERR.no_teacher); return; }
+  if(!/^\d{1,2}:\d{2}$/.test(qt)){ qqShowErr(QQ_ERR.bad_time); return; }
+  if(!tx && !QQ_PHOTO){ qqShowErr(QQ_ERR.empty); return; }
+  var btn = $('qqSubmit'); btn.disabled = true; btn.textContent = '올리는 중…';
+  qqRpc('qq_submit', { p: { name: me.name, student_id: me.student_id,
+      school: String((STATE.info&&STATE.info.school)||''), grade: levelGrade((STATE.info&&STATE.info.grade)||'') || String((STATE.info&&STATE.info.grade)||''),   // '고1' 형태로 저장(교사 화면 표시용)
+      teacher: tc, qtime: qt, unit: un, text: tx, photo: QQ_PHOTO } })
+  .then(function(r){
+    if(!r || !r.ok){ qqShowErr(QQ_ERR[r && r.error] || '올리지 못했어요. 잠시 후 다시 해 보세요.'); return; }
+    $('qqText').value=''; $('qqUnit').value=''; qqClearPhoto(); qqResetTime();
+    if(r.dup) qqShowErr('이미 ' + tc + ' 선생님께 올린 질문이 대기 중이에요. 그 순서를 기다려 주세요.');
+    else if(r.arrived) qqShowErr('클리닉 신청으로 올라온 질문에 이어 붙이고, 지금 시각으로 줄에 세웠어요.');
+    return qqRefresh();
+  })
+  .catch(function(){ qqShowErr('연결이 잘 안 돼요. 잠시 후 다시 해 보세요.'); })
+  .then(function(){ btn.disabled = false; btn.textContent = '질문 올리기'; });
+}
+function qqCancel(id){
+  if(!confirm('이 질문을 취소할까요?')) return;
+  var me = qqMe();
+  qqRpc('qq_cancel', { p: { id: id, name: me.name, student_id: me.student_id } })
+    .then(function(){ return qqRefresh(); }).catch(function(){ qqShowErr('취소하지 못했어요. 잠시 후 다시 해 보세요.'); });
+}
+// 오늘 내 질문·순번 다시 받기. quiet=허브 카드 설명만 갱신(화면 안 열림)
+function qqRefresh(quiet){
+  if(!STATE.info) return Promise.resolve();
+  STATE.qqLoading = true;
+  var me = qqMe();
+  return qqRpc('qq_mine', { p: me }).then(function(r){
+    STATE.qqLoading = false;
+    if(r && r.ok && Array.isArray(r.list)) STATE.qq = r.list;
+    else if(STATE.qq === null) STATE.qq = [];
+    if($('questionView').style.display==='block'){ qqRenderList(); $('qqUpd').textContent = '방금 확인함'; }
+    else if($('clinicView').style.display === 'block') renderClinic();
+    else if(quiet && $('hubView').style.display !== 'none') renderHub();
+  }).catch(function(){ STATE.qqLoading = false; if(STATE.qq === null) STATE.qq = []; });
+}
+function qqRenderList(){
+  var el = $('qqList'), list = STATE.qq;
+  if(list === null){ el.innerHTML = '<div class="empty-state"><p>불러오는 중…</p></div>'; return; }
+  if(!list.length){ el.innerHTML = '<div class="empty-state"><p>오늘 올린 질문이 없어요.<br>위에서 질문을 올리면 순서가 여기에 보여요.</p></div>'; return; }
+  el.innerHTML = list.slice().reverse().map(function(q){
+    var tag, pos = '';
+    if(q.status==='대기'){
+      tag = '<span class="ntag wait">대기 중</span>';
+      pos = q.position>1 ? '<div class="qq-pos">앞에 '+(q.position-1)+'명 · '+q.position+'번째</div>'
+                         : '<div class="qq-pos now">다음 순서예요</div>';
+    } else if(q.status==='호출'){
+      tag = '<span class="ntag call">호출됨</span>';
+      pos = '<div class="qq-pos now">선생님께 가세요 · '+esc(q.calledAt||'')+' 호출</div>';
+    } else if(q.status==='완료'){ tag = '<span class="ntag done">완료</span>'; }
+    else if(q.status==='예약'){
+      tag = '<span class="ntag resv">클리닉 신청</span>';
+      pos = '<div class="qq-note" style="margin:0">클리닉 신청으로 미리 올라온 질문이에요. 아직 줄에 서지 않았어요 — <b>학원에 도착하면</b> 아래 버튼을 눌러 주세요. 먼저 온 친구부터 순서가 돼요.</div>'
+          + '<button type="button" class="qq-arrive" id="qqArr'+(+q.id)+'" onclick="qqArrive('+(+q.id)+')">도착했어요 → 줄 서기</button>';
+    }
+    else if(q.status==='건너뜀'){ tag = '<span class="ntag off">건너뜀</span>'; pos = '<div class="qq-note" style="margin:0">차례에 자리에 없어 넘어갔어요. 다시 올려 주세요.</div>'; }
+    else { tag = '<span class="ntag off">취소함</span>'; }
+    var when = q.status==='예약' ? (q.qtime ? qqTimeLabel(q.qtime)+' 클리닉' : '')
+             : (q.qtime ? qqTimeLabel(q.qtime)+' 질문 타임' : '') + (q.time ? (q.qtime?' · ':'')+q.time+' 올림' : '');
+    return '<div class="notice-item qq-item">'+tag+
+      '<div class="nh"><span class="ntitle">'+esc(q.teacher)+' 선생님'+(q.unit?' · '+esc(q.unit):'')+(q.hasPhoto?'<span class="qq-ph">사진 첨부</span>':'')+'</span><span class="ndate">'+esc(when)+'</span></div>'+
+      pos + (q.text ? '<div class="nbody">'+esc(q.text)+'</div>' : '') +
+      (q.status==='대기' ? '<button type="button" class="qq-cancel" onclick="qqCancel('+(+q.id)+')">질문 취소</button>' : '') +
+      '</div>';
+  }).join('');
+}
+document.addEventListener('visibilitychange', function(){ if(!document.hidden && $('questionView').style.display==='block') qqRefresh(); });
 /* 지필고사 분석지(복기)를 공지 항목처럼 렌더 — 미입력은 초록 강조 + 복기 입력 버튼 */
 function analysisNoticeHtml(a){
   var href = 'r.html?id=' + encodeURIComponent(a.id);
@@ -1913,7 +2158,7 @@ function renderHomework(){
 
 /* ---- 클리닉 (신청 + 내 신청 내역) ---- */
 function openClinic(){ renderClinic(); hide('hubView'); $('clinicView').style.display='block'; window.scrollTo(0,0); }
-function closeClinic(){ $('clinicView').style.display='none'; show('hubView'); window.scrollTo(0,0); }
+function closeClinic(){ $('clinicView').style.display='none'; show('hubView'); renderHub(); window.scrollTo(0,0); }
 
 // 클리닉 신청 페이지 링크 — 토큰과 이름·학생ID·담당강사·학교·학년을 실어 폼을 자동으로 채운다
 function clinicApplyHref(){
@@ -1968,6 +2213,10 @@ function renderClinic(){
            '<h3>클리닉 신청하기</h3><p class="desc">새 클리닉 수업 신청</p>'+
            '<span class="go">열기 '+svg(ICON.arrow)+'</span></a>';
   }
+  // 질문하기 (2026-09-06 사용자 요청 "클리닉 신청으로 합쳐주세요") — 선생님별 질문 대기열
+  menu += '<button class="card t-sky" onclick="openQuestion()"><span class="icon">'+svg(ICON.ask)+'</span>'+
+          '<h3>질문하기</h3><p class="desc">'+esc(qqStatusDesc() || '선생님께 질문 올리기 · 순서 확인')+'</p>'+
+          '<span class="go">열기 '+svg(ICON.arrow)+'</span></button>';
   $('clinicMenu').innerHTML = menu;
 
   // ② 내 신청 내역 — 백엔드가 준 목록(최신순). 구버전 백엔드면 최근 1건만이라도 표시.
@@ -2676,6 +2925,7 @@ function boot(){
   $('nvBack').innerHTML = svg(ICON.back) + ' 메뉴';
   $('hwBack').innerHTML = svg(ICON.back) + ' 메뉴';
   $('clBack').innerHTML = svg(ICON.back) + ' 메뉴';
+  $('qqBack').innerHTML = svg(ICON.back) + ' 클리닉';
   $('pwIcon').innerHTML = svg(ICON.lock);
   $('pwInput').addEventListener('keydown', function(e){ if(e.key==='Enter') submitPw(); });
 

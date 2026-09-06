@@ -680,6 +680,18 @@ curl -s -X POST "https://api.supabase.com/v1/projects/bangdbhqpphqqdwcledg/datab
   **같은 규칙이 두 벌** 있다 — 시트 쪽은 백엔드가, 수파베이스 쪽은 어댑터가 처리하기 때문.
   한쪽 규칙을 고치면 다른 쪽도 같이 고칠 것. 검증: `tools/tt-twin-test.js`(가짜 시트 8가지).
 
+## 질문 대기열 — 수파베이스가 원본 (2026-09-06, 024)
+- `question_queue` 한 표 + 학생 함수 `qq_teachers`/`qq_submit`/`qq_mine`/`qq_cancel`(SECURITY DEFINER, anon 허용).
+  표는 015 방침대로 anon 권한 없음·authenticated(교사) 전용 정책. 시트 사본 없음 — 일일 점검 대상 아님.
+- 학생 판정: 이름+학생ID(8자리)가 students와 일치해야 함. 같은 선생님께 대기/호출 중 건이 있으면 dup 응답(새 줄 없음).
+- 순서 `ord` = 그날 질문 타임(`qtime` 'HH:MM', KST)의 epoch ms — 타임이 이른 순, 같으면 id 순. 교사 [맨 뒤로]는 오늘 최댓값+1. `unit`은 질문 단원.
+- 사진은 data URL(JPEG, ≤1.2MB 제한)로 `photo` 열에. 7일 지난 사진은 `qq_submit`이 비운다.
+- 교사 화면(hub question.html·question_board.html)은 표를 직접 읽고 PATCH로 상태를 바꾼다(호출·완료·건너뜀·대기·ord·note).
+- 검증: 리포트 `tools/qq-sql-test.sh`(로컬 PostgreSQL) — 함수 규칙·순번·권한을 실제 SQL로 확인. 자세한 것은 CLAUDE.md '질문 대기열'.
+- [x] 실제 프로젝트에 024 실행 (2026-09-06, 관리 API) — 표·함수·권한 확인, 실 학생 왕복 검증 뒤 테스트 행 삭제.
+- **025 클리닉 신청 → 예약 줄**: `clinic_submit`이 clinic_requests 저장 뒤 question_queue에 '예약' 한 줄(clinic_id → clinic_requests.id **on delete cascade**). `qq_arrive`(학생 도착)·`qq_submit`(예약 있으면 도착 처리로 합침)·`qq_row_json_`(clinic 표시) 재정의, 도우미 `clinic_slot_hm_`/`clinic_meet_date_`/`clinic_queue_add_`. 교사 화면의 반 전체 불러오기는 authenticated로 question_queue에 일괄 INSERT.
+- [x] 실제 프로젝트에 025 실행 (2026-09-06) — 실제 강사 설정으로 신청→예약 줄→cascade 삭제 왕복 확인.
+
 ## ⚠ 2026-08-25 사고 기록 — anon 권한을 잘못 되돌렸다가 복구
 같은 날 다른 세션(`session_01C7786KiKeAoTXLsuvTaYfS`)이 3단계 잠그기(`015_lock_anon.sql`)를
 실행한 직후, 이 세션이 그 사실을 모른 채 **모든 표의 401을 장애로 판단하고 anon 권한을
