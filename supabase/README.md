@@ -688,7 +688,7 @@ curl -s -X POST "https://api.supabase.com/v1/projects/bangdbhqpphqqdwcledg/datab
 - 사진은 data URL(JPEG, ≤1.2MB 제한)로 `photo` 열에. 7일 지난 사진은 `qq_submit`이 비운다.
 - 교사 화면(hub question.html·question_board.html)은 표를 직접 읽고 PATCH로 상태를 바꾼다(호출·완료·건너뜀·대기·ord·note).
 - 검증: 리포트 `tools/qq-sql-test.sh`(로컬 PostgreSQL) — 함수 규칙·순번·권한을 실제 SQL로 확인. 자세한 것은 CLAUDE.md '질문 대기열'.
-- **[ ] 실제 프로젝트에 024 실행** — 위 'SQL 실행 방법'대로(sbp_ 토큰 필요). 실행 전에는 페이지가 동작하지 않는다.
+- [x] 실제 프로젝트에 024 실행 (2026-09-06, 관리 API) — 표·함수·권한 확인, 실 학생 왕복 검증 뒤 테스트 행 삭제.
 
 ## ⚠ 2026-08-25 사고 기록 — anon 권한을 잘못 되돌렸다가 복구
 같은 날 다른 세션(`session_01C7786KiKeAoTXLsuvTaYfS`)이 3단계 잠그기(`015_lock_anon.sql`)를
