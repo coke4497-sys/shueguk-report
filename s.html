@@ -1797,10 +1797,11 @@ function qqTimeLabel(t){
 }
 // 오늘 내 질문 상태 한 줄 (카드 설명용) — 대기·호출 중인 건이 없으면 빈 문자열
 function qqStatusDesc(){
-  var open = (STATE.qq||[]).filter(function(q){ return q.status==='대기' || q.status==='호출' || q.status==='예약'; });
+  var open = (STATE.qq||[]).filter(function(q){ return q.status==='대기' || q.status==='호출' || q.status==='예약' || q.status==='명단'; });
   if(open.some(function(q){ return q.status==='호출'; })) return '호출됨 · 선생님께 가세요';
   var w = open.filter(function(q){ return q.status==='대기'; });
   if(w.length){ var qp = w[0].position; return '질문 대기 중 · ' + (qp>1 ? '앞에 '+(qp-1)+'명' : '다음 순서예요'); }
+  if(open.some(function(q){ return q.status==='명단'; })) return '오늘 질문 명단 · 준비되면 [질문 대기]';
   if(open.length) return '오늘 클리닉 · 도착하면 [도착했어요]';
   return '';
 }
@@ -1810,7 +1811,7 @@ function qqArrive(id){
   if(btn){ btn.disabled = true; btn.textContent = '줄 서는 중…'; }
   qqRpc('qq_arrive', { p: { id: id, name: me.name, student_id: me.student_id } })
     .then(function(r){ if(!r || !r.ok) throw new Error(r && r.error || 'x'); return qqRefresh(); })
-    .catch(function(){ qqShowErr('도착 처리를 못 했어요. 잠시 후 다시 눌러 주세요.'); if(btn){ btn.disabled = false; btn.textContent = '도착했어요 → 줄 서기'; } });
+    .catch(function(){ qqShowErr('줄 서기가 안 됐어요. 잠시 후 다시 눌러 주세요.'); if(btn){ btn.disabled = false; btn.textContent = '다시 눌러 주세요'; } });
 }
 function openQuestion(){
   hide('hubView'); $('clinicView').style.display='none'; $('questionView').style.display='block'; window.scrollTo(0,0);
@@ -1930,9 +1931,14 @@ function qqRenderList(){
       pos = '<div class="qq-note" style="margin:0">클리닉 신청으로 미리 올라온 질문이에요. 아직 줄에 서지 않았어요 — <b>학원에 도착하면</b> 아래 버튼을 눌러 주세요. 먼저 온 친구부터 순서가 돼요.</div>'
           + '<button type="button" class="qq-arrive" id="qqArr'+(+q.id)+'" onclick="qqArrive('+(+q.id)+')">도착했어요 → 줄 서기</button>';
     }
+    else if(q.status==='명단'){
+      tag = '<span class="ntag resv">오늘 질문 명단</span>';
+      pos = '<div class="qq-note" style="margin:0">선생님이 올린 오늘 질문 명단에 내 이름이 있어요. 아직 줄에 서지 않았어요 — <b>질문할 준비가 되면</b> 아래 버튼을 눌러 주세요(전자칠판에서 이름을 눌러도 돼요). 먼저 누른 순서대로 호출돼요.</div>'
+          + '<button type="button" class="qq-arrive" id="qqArr'+(+q.id)+'" onclick="qqArrive('+(+q.id)+')">질문 대기 → 줄 서기</button>';
+    }
     else if(q.status==='건너뜀'){ tag = '<span class="ntag off">건너뜀</span>'; pos = '<div class="qq-note" style="margin:0">차례에 자리에 없어 넘어갔어요. 다시 올려 주세요.</div>'; }
     else { tag = '<span class="ntag off">취소함</span>'; }
-    var when = q.status==='예약' ? (q.qtime ? qqTimeLabel(q.qtime)+' 클리닉' : '')
+    var when = q.status==='명단' ? '' : q.status==='예약' ? (q.qtime ? qqTimeLabel(q.qtime)+' 클리닉' : '')
              : (q.qtime ? qqTimeLabel(q.qtime)+' 질문 타임' : '') + (q.time ? (q.qtime?' · ':'')+q.time+' 올림' : '');
     return '<div class="notice-item qq-item">'+tag+
       '<div class="nh"><span class="ntitle">'+esc(q.teacher)+' 선생님'+(q.unit?' · '+esc(q.unit):'')+(q.hasPhoto?'<span class="qq-ph">사진 첨부</span>':'')+'</span><span class="ndate">'+esc(when)+'</span></div>'+

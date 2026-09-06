@@ -691,6 +691,7 @@ curl -s -X POST "https://api.supabase.com/v1/projects/bangdbhqpphqqdwcledg/datab
 - [x] 실제 프로젝트에 024 실행 (2026-09-06, 관리 API) — 표·함수·권한 확인, 실 학생 왕복 검증 뒤 테스트 행 삭제.
 - **025 클리닉 신청 → 예약 줄**: `clinic_submit`이 clinic_requests 저장 뒤 question_queue에 '예약' 한 줄(clinic_id → clinic_requests.id **on delete cascade**). `qq_arrive`(학생 도착)·`qq_submit`(예약 있으면 도착 처리로 합침)·`qq_row_json_`(clinic 표시) 재정의, 도우미 `clinic_slot_hm_`/`clinic_meet_date_`/`clinic_queue_add_`. 교사 화면의 반 전체 불러오기는 authenticated로 question_queue에 일괄 INSERT.
 - [x] 실제 프로젝트에 025 실행 (2026-09-06) — 실제 강사 설정으로 신청→예약 줄→cascade 삭제 왕복 확인.
+- **026 '명단' 상태**: 교사 화면 [명단으로 올리기]가 반 학생을 `status='명단'`으로 일괄 INSERT. `qq_arrive`·`qq_submit`·`clinic_queue_add_`가 예약과 명단을 같이 다루도록 재정의. [x] 실제 프로젝트 실행(2026-09-06).
 
 ## ⚠ 2026-08-25 사고 기록 — anon 권한을 잘못 되돌렸다가 복구
 같은 날 다른 세션(`session_01C7786KiKeAoTXLsuvTaYfS`)이 3단계 잠그기(`015_lock_anon.sql`)를
