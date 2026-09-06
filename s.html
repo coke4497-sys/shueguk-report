@@ -1797,8 +1797,9 @@ function qqTimeLabel(t){
 }
 // 오늘 내 질문 상태 한 줄 (카드 설명용) — 대기·호출 중인 건이 없으면 빈 문자열
 function qqStatusDesc(){
-  var open = (STATE.qq||[]).filter(function(q){ return q.status==='대기' || q.status==='호출' || q.status==='예약' || q.status==='명단'; });
+  var open = (STATE.qq||[]).filter(function(q){ return q.status==='대기' || q.status==='호출' || q.status==='질문중' || q.status==='예약' || q.status==='명단'; });
   if(open.some(function(q){ return q.status==='호출'; })) return '호출됨 · 선생님께 가세요';
+  if(open.some(function(q){ return q.status==='질문중'; })) return '질문 중 · 선생님과 이야기하는 중';
   var w = open.filter(function(q){ return q.status==='대기'; });
   if(w.length){ var qp = w[0].position; return '질문 대기 중 · ' + (qp>1 ? '앞에 '+(qp-1)+'명' : '다음 순서예요'); }
   if(open.some(function(q){ return q.status==='명단'; })) return '오늘 질문 명단 · 준비되면 [질문 대기]';
@@ -1925,6 +1926,9 @@ function qqRenderList(){
     } else if(q.status==='호출'){
       tag = '<span class="ntag call">호출됨</span>';
       pos = '<div class="qq-pos now">선생님께 가세요 · '+esc(q.calledAt||'')+' 호출</div>';
+    } else if(q.status==='질문중'){
+      tag = '<span class="ntag call">질문 중</span>';
+      pos = '<div class="qq-pos now">선생님과 질문 중 · '+esc(q.calledAt||'')+' 호출</div>';
     } else if(q.status==='완료'){ tag = '<span class="ntag done">완료</span>'; }
     else if(q.status==='예약'){
       tag = '<span class="ntag resv">클리닉 신청</span>';
