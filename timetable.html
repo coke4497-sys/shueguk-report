@@ -4178,12 +4178,17 @@ function wkMovedFrom(cid){
   }
   return null;
 }
+/* 반이 숨는(흐려지는) 날짜는 '적용일'만 본다 — 오늘의 시간표 기록(onceMoves)은
+ * date=기록일·ymd=적용일이라, 기록일까지 대조하면 "오늘 기록한 10/11 이동"이
+ * 오늘 수업을 흐리게 만든다 (2026-09-06 수정 요청함 조예나 "수업이 자꾸 지워져요").
+ * 주차별 기록(weekOnce)은 date가 적용일이고 ymd가 없어 그대로 맞는다. */
+function wkApplyYmd(o){ return o.ymd || o.date; }
 function wkMovedAway(cid, dstr){
   if (!dstr) return null;
   var src = (mode === 'week') ? weekOnce : onceMoves;
   for (var i = 0; i < src.length; i++){
     var o = src[i];
-    if (o.kind === '주간반이동' && o.fromId === cid && (o.date === dstr || o.ymd === dstr)) return o;
+    if (o.kind === '주간반이동' && o.fromId === cid && wkApplyYmd(o) === dstr) return o;
   }
   return null;
 }
@@ -4193,7 +4198,7 @@ function wkOffAt(cid, dstr){
   var src = (mode === 'week') ? weekOnce : onceMoves;
   for (var i = 0; i < src.length; i++){
     var o = src[i];
-    if (o.kind === '주간반휴강' && o.fromId === cid && (o.date === dstr || o.ymd === dstr)) return o;
+    if (o.kind === '주간반휴강' && o.fromId === cid && wkApplyYmd(o) === dstr) return o;
   }
   return null;
 }
