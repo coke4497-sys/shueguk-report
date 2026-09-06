@@ -463,7 +463,7 @@
 <div id="clinicView"><main class="wrap gwrap">
   <div class="gv-bar">
     <button class="gv-back" onclick="closeClinic()" id="clBack"></button>
-    <span class="gv-ttl">클리닉 · 신청·확인</span>
+    <span class="gv-ttl">클리닉 · 신청·질문</span>
   </div>
   <div class="grid" id="clinicMenu"></div>
   <h2 class="sec-h">내 클리닉 신청 내역</h2>
@@ -1613,15 +1613,7 @@ function renderHub(){
               '<span class="go">열기 '+svg(ICON.arrow)+'</span></button>';
   }
 
-  // 질문하기 — 선생님별 질문 대기열 (2026-09-06). 오늘 올린 질문이 있으면 상태를 설명에 표시
-  var qqOpen = (STATE.qq||[]).filter(function(q){ return q.status==='대기' || q.status==='호출'; });
-  var qqDesc = '선생님께 질문 올리기 · 순서 확인';
-  if(qqOpen.some(function(q){ return q.status==='호출'; })) qqDesc = '호출됨 · 선생님께 가세요';
-  else if(qqOpen.length){ var qp = qqOpen[0].position; qqDesc = '대기 중 · ' + (qp>1 ? '앞에 '+(qp-1)+'명' : '다음 순서예요'); }
-  html += '<button class="card t-sky" onclick="openQuestion()">' +
-            '<span class="icon">'+svg(ICON.ask)+'</span>' +
-            '<h3>질문하기</h3><p class="desc">'+esc(qqDesc)+'</p>' +
-            '<span class="go">열기 '+svg(ICON.arrow)+'</span></button>';
+  // 질문 대기열 상태 (2026-09-06) — 클리닉 카드 안에 '질문하기'가 들어 있어 카드 설명에 상태를 붙인다
   if(STATE.qq === null && !STATE.qqLoading) qqRefresh(true);   // 처음 한 번 뒤에서 받아 카드 설명 갱신
 
   FEATURES.forEach(function(f){
@@ -1693,11 +1685,13 @@ function renderHub(){
     // 대상이 아니어도 신청 내역이 있는 학생은 확인을 위해 열어 둔다.
     // (백엔드 amITarget이 전체/학년/개인/일부 대상 여부를 직접 판단 — 선택된 학생에게만 카드가 열림)
     if(f.id==='clinic'){
+      // 2026-09-06: '질문하기'(질문 대기열)가 이 카드 안에 들어가 클리닉 대상이 아닌 주에도 카드는 열린다
+      // (신청 대상 아님 안내는 클리닉 화면 안의 '클리닉 신청하기' 카드가 한다). 질문 상태가 있으면 그것을 먼저 보여 준다.
       var hasClinicApps = !!(STATE.clinic && STATE.clinic.total);
-      if(STATE.clinicEligible === false && !hasClinicApps){
-        html += '<div class="card pending">'+ic+'<h3>'+esc(f.title)+'</h3><p class="desc">이번 주는 클리닉 신청 대상이 아니에요.</p><span class="tag">이번 주 운영 안 함</span></div>';
-        return;
-      }
+      var qd = qqStatusDesc();
+      if(qd) desc = qd;
+      else if(STATE.clinicEligible === false && !hasClinicApps) desc = '질문 올리기 · 이번 주는 신청 대상 아님';
+      else if(desc === f.desc) desc = '클리닉 신청 · 질문 올리기';
       html += '<button class="card'+tcl+'" onclick="openClinic()">'+ic+
               '<h3>'+esc(f.title)+'</h3><p class="desc">'+esc(desc)+'</p>'+
               '<span class="go">열기 '+svg(ICON.arrow)+'</span></button>';
@@ -1798,8 +1792,15 @@ function qqTimeLabel(t){
   var h = +m[1], ap = h < 12 ? '오전' : '오후', h12 = h % 12; if(h12===0) h12 = 12;
   return ap + ' ' + h12 + ':' + m[2];
 }
+// 오늘 내 질문 상태 한 줄 (카드 설명용) — 대기·호출 중인 건이 없으면 빈 문자열
+function qqStatusDesc(){
+  var open = (STATE.qq||[]).filter(function(q){ return q.status==='대기' || q.status==='호출'; });
+  if(open.some(function(q){ return q.status==='호출'; })) return '호출됨 · 선생님께 가세요';
+  if(open.length){ var qp = open[0].position; return '질문 대기 중 · ' + (qp>1 ? '앞에 '+(qp-1)+'명' : '다음 순서예요'); }
+  return '';
+}
 function openQuestion(){
-  hide('hubView'); $('questionView').style.display='block'; window.scrollTo(0,0);
+  hide('hubView'); $('clinicView').style.display='none'; $('questionView').style.display='block'; window.scrollTo(0,0);
   qqResetTime();                                    // 질문 타임 = 지금 시각 (학생이 확인·수정)
   qqFillTeachers();
   qqRenderList();
@@ -1807,7 +1808,7 @@ function openQuestion(){
   clearInterval(QQ_POLL);
   QQ_POLL = setInterval(function(){ if($('questionView').style.display==='block' && !document.hidden) qqRefresh(); }, 8000);
 }
-function closeQuestion(){ clearInterval(QQ_POLL); QQ_POLL=null; $('questionView').style.display='none'; show('hubView'); renderHub(); window.scrollTo(0,0); }
+function closeQuestion(){ clearInterval(QQ_POLL); QQ_POLL=null; $('questionView').style.display='none'; renderClinic(); $('clinicView').style.display='block'; window.scrollTo(0,0); }
 // 선생님 목록 — 담당 선생님을 기본 선택. 목록에 없어도(표기 차이) 맨 위에 넣어 준다.
 function qqFillTeachers(){
   var sel = $('qqTeacher'), mine = String((STATE.info && STATE.info.teacher) || '').trim();
@@ -1892,6 +1893,7 @@ function qqRefresh(quiet){
     if(r && r.ok && Array.isArray(r.list)) STATE.qq = r.list;
     else if(STATE.qq === null) STATE.qq = [];
     if($('questionView').style.display==='block'){ qqRenderList(); $('qqUpd').textContent = '방금 확인함'; }
+    else if($('clinicView').style.display === 'block') renderClinic();
     else if(quiet && $('hubView').style.display !== 'none') renderHub();
   }).catch(function(){ STATE.qqLoading = false; if(STATE.qq === null) STATE.qq = []; });
 }
@@ -2136,7 +2138,7 @@ function renderHomework(){
 
 /* ---- 클리닉 (신청 + 내 신청 내역) ---- */
 function openClinic(){ renderClinic(); hide('hubView'); $('clinicView').style.display='block'; window.scrollTo(0,0); }
-function closeClinic(){ $('clinicView').style.display='none'; show('hubView'); window.scrollTo(0,0); }
+function closeClinic(){ $('clinicView').style.display='none'; show('hubView'); renderHub(); window.scrollTo(0,0); }
 
 // 클리닉 신청 페이지 링크 — 토큰과 이름·학생ID·담당강사·학교·학년을 실어 폼을 자동으로 채운다
 function clinicApplyHref(){
@@ -2191,6 +2193,10 @@ function renderClinic(){
            '<h3>클리닉 신청하기</h3><p class="desc">새 클리닉 수업 신청</p>'+
            '<span class="go">열기 '+svg(ICON.arrow)+'</span></a>';
   }
+  // 질문하기 (2026-09-06 사용자 요청 "클리닉 신청으로 합쳐주세요") — 선생님별 질문 대기열
+  menu += '<button class="card t-sky" onclick="openQuestion()"><span class="icon">'+svg(ICON.ask)+'</span>'+
+          '<h3>질문하기</h3><p class="desc">'+esc(qqStatusDesc() || '선생님께 질문 올리기 · 순서 확인')+'</p>'+
+          '<span class="go">열기 '+svg(ICON.arrow)+'</span></button>';
   $('clinicMenu').innerHTML = menu;
 
   // ② 내 신청 내역 — 백엔드가 준 목록(최신순). 구버전 백엔드면 최근 1건만이라도 표시.
@@ -2899,7 +2905,7 @@ function boot(){
   $('nvBack').innerHTML = svg(ICON.back) + ' 메뉴';
   $('hwBack').innerHTML = svg(ICON.back) + ' 메뉴';
   $('clBack').innerHTML = svg(ICON.back) + ' 메뉴';
-  $('qqBack').innerHTML = svg(ICON.back) + ' 메뉴';
+  $('qqBack').innerHTML = svg(ICON.back) + ' 클리닉';
   $('pwIcon').innerHTML = svg(ICON.lock);
   $('pwInput').addEventListener('keydown', function(e){ if(e.key==='Enter') submitPw(); });
 
