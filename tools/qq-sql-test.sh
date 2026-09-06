@@ -36,6 +36,7 @@ psql -v ON_ERROR_STOP=1 -q -d "$DB" -f supabase/migrations/006_clinic.sql
 psql -v ON_ERROR_STOP=1 -q -d "$DB" -f supabase/migrations/019_clinic_origin.sql
 psql -v ON_ERROR_STOP=1 -q -d "$DB" -f supabase/migrations/024_question_queue.sql
 psql -v ON_ERROR_STOP=1 -q -d "$DB" -f supabase/migrations/025_clinic_to_queue.sql
+psql -v ON_ERROR_STOP=1 -q -d "$DB" -f supabase/migrations/026_queue_roster.sql
 
 psql -v ON_ERROR_STOP=1 -q -d "$DB" <<'SQL'
 \set ON_ERROR_STOP on
@@ -233,6 +234,32 @@ begin
   end if;
 
   raise notice 'OK — 클리닉 신청 → 예약 → 도착 검증 통과';
+end $$;
+
+-- ── 026: 반 명단('명단') → 학생/교사가 줄 세우기 ─────────────────
+do $$
+declare r jsonb; qid bigint; row question_queue; today date := qq_today_(); n int;
+begin
+  update question_queue set status = '완료' where status in ('예약','대기','호출');
+  -- 교사가 명단으로 올린 줄(교사 화면은 authenticated로 직접 INSERT — 여기선 같은 모양으로 넣는다)
+  insert into question_queue (name, school, grade, student_id, teacher, qtime, unit, status, note)
+   values ('박민수','서정중','중3','34567890','이수경','17:00','정리정독 중3','명단','반 명단: 정리정독 중3') returning id into qid;
+  assert qq_position_(qid) is null, '명단은 순번 없음';
+  -- 학생 페이지 [질문 대기] = qq_arrive → 대기, 지금 시각
+  r := qq_arrive(jsonb_build_object('id', qid, 'name','박민수','student_id','34567890'));
+  assert (r->>'ok')::boolean and (r->>'changed')::boolean and (r->>'position')::int = 1, 'roster arrive: ' || r::text;
+  select * into row from question_queue where id = qid; assert row.status = '대기' and row.qtime <> '17:00', 'roster arrived row';
+  -- 명단이 있는 학생이 '질문하기'로 올리면 그 줄을 도착 처리(새 줄 없음)
+  update question_queue set status = '명단' where id = qid;
+  r := qq_submit('{"name":"박민수","student_id":"34567890","teacher":"이수경","qtime":"18:10","text":"명단에서 질문"}');
+  assert (r->>'arrived')::boolean and (r->>'id')::bigint = qid, 'submit→roster arrive: ' || r::text;
+  select count(*) into n from question_queue where student_id='34567890' and qdate = today and status in ('명단','대기','호출'); assert n = 1, '명단 중복 없음';
+  -- 명단이 있는 학생의 클리닉 신청은 예약을 따로 만들지 않는다
+  update question_queue set status = '명단' where id = qid;
+  r := clinic_submit(jsonb_build_object('name','박민수','school','서정중','phone','1111','time', substring('일월화수목금토' from extract(dow from today)::int + 1 for 1) || ' 저녁 5:30–7:00','grade','중3',
+        'studentId','34567890','teacher','이수경','requests', jsonb_build_array(jsonb_build_object('type','질문','area','문학 · 현대시','content','x','count',''))));
+  assert r->>'result' = 'success' and (r->>'queueId') is null, '명단 있으면 예약 안 만듦: ' || r::text;
+  raise notice 'OK — 반 명단 → 줄 세우기 검증 통과';
 end $$;
 
 -- 권한: anon 은 표를 못 읽고 함수는 부를 수 있다
