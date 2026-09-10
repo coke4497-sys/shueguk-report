@@ -4086,6 +4086,7 @@ function buildAllOverview(){
       m.innerHTML = '<b>' + esc(c.cls) + '</b><small>' + esc(c.start) + '~' + esc(c.end) +
                     ' · ' + esc(c.teacher) + 'T · ' + c.students.length + '명</small>';
       m.title = esc(c.cls) + ' — 누르면 ' + dname + '요일 확대';
+      durHeight(m, c, DUR_PX.ov);
       m.addEventListener('click', function(){ allZoomDay = dname; keepScroll = false; render(); });
       col.appendChild(m);
     });
@@ -4185,6 +4186,7 @@ function buildAllZoom(dname){
         var b = document.createElement('div');
         b.className = 'wk-bar ' + colorOf(c.cls);
         b.title = c.cls + ' ' + c.start + '~' + c.end + ' · ' + c.teacher + 'T';
+        durHeight(b, c, DUR_PX.bar, true);
         slim.appendChild(b);
       });
       wrap.appendChild(slim);
@@ -4219,6 +4221,13 @@ function buildAllZoom(dname){
  *       확대된 요일 머리글을 다시 누르면 개요로 복귀. */
 var weekZoomDay = null;   // null = 개요, '금' = 그 요일 확대
 var WK_LOC_ORDER = ['본원', '화정센터', '민트초코', '정리정독'];
+/* 개요 카드·옆 요일 막대의 높이를 수업 길이에 비례시킨다 (2026-09-10 사용자 요청
+ * "90분·120분·180분 수업 각각 수업 시간과 시간표 칸 높이가 비례하도록"). 확대·그리드 화면은
+ * 원래 30분 눈금이라 비례하고, 개요 카드만 같은 높이였다. 분당 px — 90분 카드가 글자 두 줄(전체)·
+ * 세 줄(주차별, 출석 요약)보다 작아지지 않는 값. 값을 줄이면 90분 카드가 내용 높이에 걸려 비례가 깨진다. */
+var DUR_PX = { ov: 0.72, week: 0.74, bar: 0.25 };   // 전체 개요는 '11:00~12:30 · 현지T · 9명'이 좁은 열에서 두 줄로 접혀 세 줄 높이가 기준
+function durMin(c){ return Math.max(30, minsEnd(c) - mins(c.start)); }
+function durHeight(el, c, k, fixed){ el.style[fixed ? 'height' : 'minHeight'] = Math.round(durMin(c) * k) + 'px'; }
 function wkLocLabel(l){ return l === '민트초코' ? '민초센터' : (l || '기타'); }
 function wkLocRank(l){ var i = WK_LOC_ORDER.indexOf(l); return i < 0 ? 99 : i; }
 /* 확대 화면용 정렬 — 센터 → 강사(TEACHER_ORDER) → 시간 순 (강사별 묶음 표시, 2026-08-22 사용자 요청) */
@@ -4365,6 +4374,7 @@ function buildWeekOverview(){
                     '</small><span class="sum">'+att+'</span>';
       m.title = mvd ? esc(c.cls) + ' — 이 주는 ' + wkMovedToLabel(mvd) + ' 에서 해요'
                     : esc(c.cls) + ' — 누르면 ' + dname + '요일 확대';
+      durHeight(m, c, DUR_PX.week);
       m.addEventListener('click', function(){ weekZoomDay = dname; keepScroll = false; render(); });
       col.appendChild(m);
     });
@@ -4390,6 +4400,7 @@ function buildWeekZoom(dname){
         var mvB = wkMovedAway(c.id, ymdOf(dates[dy]));
         b.className = 'wk-bar ' + colorOf(c.cls) + (mvB ? ' mvd' : '');
         b.title = c.cls + ' ' + c.start + '~' + c.end + (mvB ? ' — 이 주는 ' + wkMovedToLabel(mvB) + ' 에서' : '');
+        durHeight(b, c, DUR_PX.bar, true);
         slim.appendChild(b);
       });
       wrap.appendChild(slim);
