@@ -56,6 +56,13 @@
   .bookwrap button.on{background:var(--icon-bg);filter:saturate(1.2);
     color:var(--accent);font-weight:700;
     animation:ppyong .38s cubic-bezier(.34,1.56,.64,1);}
+  /* 강사별 보기 드롭다운 — 전체 시간표 제목 줄 (2026-09-10 사용자 요청) */
+  .tsel{font:inherit;font-size:.88rem;border:1px solid var(--line);border-radius:10px;background:#fff;
+    color:var(--ink);padding:6px 30px 6px 12px;cursor:pointer;appearance:none;-webkit-appearance:none;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%234C6E66' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
+    background-repeat:no-repeat;background-position:right 10px center;}
+  .tsel.on{background-color:var(--icon-bg);color:var(--accent);font-weight:700;}
+  .tsel-note{font-size:.82rem;color:var(--ink-soft);}
   .today-head{font-family:"Gowun Batang",serif;font-weight:700;font-size:1.1rem;color:var(--accent);margin:14px 4px 2px;}
   .weeknav-tt{display:flex;align-items:center;gap:10px;margin:14px 4px 8px;}
   .weeknav-tt button{font:inherit;font-size:.88rem;background:var(--icon-bg);color:var(--ink);
@@ -2831,8 +2838,10 @@ function renderView(){
     trow.innerHTML = '<b>전체 시간표</b>' +
       '<span class="bookwrap">' +
       '<button' + (book === '정규' ? ' class="on"' : '') + ' onclick="setBook(\'정규\')">정규</button>' +
-      '<button' + (book === '내신' ? ' class="on"' : '') + ' onclick="setBook(\'내신\')">내신</button></span>' +
-      '<span class="sp"></span>';
+      '<button' + (book === '내신' ? ' class="on"' : '') + ' onclick="setBook(\'내신\')">내신</button></span>';
+    trow.appendChild(allTeacherSel());          // 강사별 보기 (2026-09-10 사용자 요청)
+    var tnote = allTeacherNote(); if (tnote) trow.appendChild(tnote);
+    var tsp = document.createElement('span'); tsp.className = 'sp'; trow.appendChild(tsp);
     host.appendChild(trow);
     if (narrowScreen()) trow.appendChild(mviewToggleBtn());
     if (useListView()){
@@ -3739,11 +3748,11 @@ function buildAllList(){
   var wrap = document.createElement('div');
   wrap.appendChild(dayTabsEl(allListDay, function(dy){ return esc(dy); },
     function(dy){ allListDay = dy; keepScroll = false; render(); }));
-  var list = classes.filter(function(c){ return c.day === allListDay && wkVisible(c, null); });
+  var list = classes.filter(function(c){ return c.day === allListDay && wkVisible(c, null) && allTeacherOn(c); });
   if (!list.length){
     var em = document.createElement('p');
     em.className = 'day-empty';
-    em.textContent = allListDay + '요일에는 등록된 ' + book + ' 수업이 없어요.';
+    em.textContent = allListDay + '요일에는 등록된 ' + book + (allTeacher ? ' ' + allTeacher + 'T' : '') + ' 수업이 없어요.';
     wrap.appendChild(em);
   } else {
     wrap.appendChild(locGroupList(list, function(c){ return blockEl(c, true); }));
@@ -3856,7 +3865,7 @@ function buildFullGrid(){
   var baseCols = [], seenB = {};
   // 전체 시간표는 '기본값' — 그 주에만 있는 반은 넣지 않는다
   classes.forEach(function(c){
-    if (c.wk) return;
+    if (c.wk || !allTeacherOn(c)) return;
     var key = c.loc + '|' + c.teacher;
     if (!seenB[key]){ seenB[key] = true; baseCols.push({ key:key, loc:c.loc, teacher:c.teacher }); }
   });
@@ -3870,7 +3879,7 @@ function buildFullGrid(){
     if (dname === '월' || dname === '화'){
       var cols = [], seen = {};
       classes.forEach(function(c){
-        if (c.day !== dname || c.wk) return;
+        if (c.day !== dname || c.wk || !allTeacherOn(c)) return;
         var key = c.loc + '|' + c.teacher;
         if (!seen[key]){ seen[key] = true; cols.push({ key:key, loc:c.loc, teacher:c.teacher }); }
       });
@@ -3887,7 +3896,7 @@ function buildFullGrid(){
   // 통합 시간축: 10:00 ~ 10:00(22시), 수업이 벗어나면 확장
   var lo = 10*60, hi = 22*60;
   classes.forEach(function(c){
-    if (c.wk) return;
+    if (c.wk || !allTeacherOn(c)) return;
     lo = Math.min(lo, mins(c.start));
     hi = Math.max(hi, minsEnd(c));
   });
@@ -3954,7 +3963,7 @@ function buildFullGrid(){
     if (di < DAYS.length-1) gcol++;
   });
   classes.forEach(function(c){
-    if (c.wk) return;
+    if (c.wk || !allTeacherOn(c)) return;
     var col = colOfKey[c.day + '|' + c.loc + '|' + c.teacher];
     if (!col) return;
     var r0 = Math.floor((mins(c.start)-lo)/30), r1 = Math.ceil((minsEnd(c)-lo)/30);
@@ -3983,6 +3992,56 @@ function buildFullGrid(){
  * 반 통째 이동(빈 자리 클릭)만 시간 그리드가 필요해서 [시간 그리드로 보기] 토글로 옛 화면 유지 —
  * 편집 '반 이동'을 시작하면 자동으로 그리드로 전환, 끝나면 개요로 복귀. */
 var allZoomDay = null;      // null = 개요, '금' = 그 요일 확대
+/* ── 강사별 보기 (2026-09-10 사용자 요청 "전체 시간표에 강사별 시간표를 드롭다운으로") ──
+ * 제목 줄의 드롭다운에서 강사를 고르면 개요·요일 확대·시간 그리드·모바일 목록이 그 강사의 반만
+ * 보여 준다. 정규/내신 전환·새로고침에도 유지(sessionStorage). 검색 결과가 다른 강사 반이면
+ * 필터를 풀고 찾아간다(gotoSearchHit). 주차별·오늘의 시간표에는 적용하지 않는다. */
+var allTeacher = sessionStorage.getItem('tt_allteacher') || '';   // '' = 모든 강사
+function allTeacherOn(c){ return !allTeacher || String(c.teacher || '').trim() === allTeacher; }
+function allTeacherList(){
+  var seen = {}, out = [];
+  classes.forEach(function(c){
+    if (c.wk) return;
+    var t = String(c.teacher || '').trim();
+    if (t && !seen[t]){ seen[t] = true; out.push(t); }
+  });
+  if (allTeacher && !seen[allTeacher]) out.push(allTeacher);   // 이 시간표에 반이 없어도 고른 값은 보이게
+  out.sort(function(a, b){ return (wkTeacherRank(a) - wkTeacherRank(b)) || a.localeCompare(b, 'ko'); });
+  return out;
+}
+function setAllTeacher(t){
+  allTeacher = String(t || '');
+  try { if (allTeacher) sessionStorage.setItem('tt_allteacher', allTeacher); else sessionStorage.removeItem('tt_allteacher'); } catch(e){}
+  keepScroll = false;
+  render();
+}
+function allTeacherSel(){
+  var sel = document.createElement('select');
+  sel.className = 'tsel' + (allTeacher ? ' on' : '');
+  sel.id = 'all-teacher';
+  sel.title = '강사별로 보기';
+  var o0 = document.createElement('option'); o0.value = ''; o0.textContent = '모든 강사'; sel.appendChild(o0);
+  allTeacherList().forEach(function(t){
+    var o = document.createElement('option'); o.value = t; o.textContent = t + 'T'; sel.appendChild(o);
+  });
+  sel.value = allTeacher;
+  sel.addEventListener('change', function(){ setAllTeacher(sel.value); });
+  return sel;
+}
+/* 고른 강사의 반 수·주간 수업 시간 요약 */
+function allTeacherNote(){
+  if (!allTeacher) return null;
+  var n = 0, m = 0;
+  classes.forEach(function(c){
+    if (c.wk || !allTeacherOn(c)) return;
+    n++; m += Math.max(0, minsEnd(c) - mins(c.start));
+  });
+  var sp = document.createElement('span');
+  sp.className = 'tsel-note';
+  var h = Math.round(m / 30) / 2;
+  sp.textContent = n ? ('반 ' + n + '개 · 주 ' + h + '시간') : ('이 시간표에는 ' + allTeacher + 'T 반이 없어요');
+  return sp;
+}
 var allAutoGrid = false;    // 반 이동 때문에 자동으로 그리드로 전환했는지
 function allView(){ return sessionStorage.getItem('tt_allview') || 'ov'; }
 function allViewToggleBtn(){
@@ -4014,7 +4073,7 @@ function buildAllOverview(){
     var col = document.createElement('div');
     col.className = 'wk-ov-col';
     col.appendChild(allDayHeader(dname, '', function(){ allZoomDay = dname; keepScroll = false; render(); }));
-    var list = wkDayClasses(dname);
+    var list = wkDayClasses(dname).filter(allTeacherOn);
     var lastLoc = null;
     list.forEach(function(c){
       if (c.loc !== lastLoc){
@@ -4126,7 +4185,7 @@ function buildAllZoom(dname){
       var slim = document.createElement('div');
       slim.className = 'wk-slim';
       slim.appendChild(allDayHeader(dy, 'slim', function(){ allZoomDay = dy; keepScroll = false; render(); }));
-      wkDayClasses(dy).forEach(function(c){
+      wkDayClasses(dy).filter(allTeacherOn).forEach(function(c){
         var b = document.createElement('div');
         b.className = 'wk-bar ' + colorOf(c.cls);
         b.title = c.cls + ' ' + c.start + '~' + c.end + ' · ' + c.teacher + 'T';
@@ -4143,9 +4202,10 @@ function buildAllZoom(dname){
     hh.innerHTML = esc(dy) + (dy === todayDay() ? ' (오늘)' : '') + '<small>— 누르면 전체 개요로 돌아가요</small>';
     hh.addEventListener('click', function(){ allZoomDay = null; keepScroll = false; render(); });
     big.appendChild(hh);
-    var list = wkZoomSorted(dy);
+    var list = wkZoomSorted(dy).filter(allTeacherOn);
     if (!list.length){
-      var em = document.createElement('div'); em.className = 'wk-empty'; em.textContent = '이 요일에는 수업이 없어요.';
+      var em = document.createElement('div'); em.className = 'wk-empty';
+      em.textContent = allTeacher ? ('이 요일에는 ' + allTeacher + 'T 수업이 없어요.') : '이 요일에는 수업이 없어요.';
       big.appendChild(em);
     }
     zoomCenterGrids(big, dy, list, function(c){ return blockEl(c); });
@@ -4580,6 +4640,15 @@ function gotoSearchHit(cid, ymd){
     setMode('all');
     requestAnimationFrame(function(){ requestAnimationFrame(function(){ gotoSearchHit(cid); }); });
     return;
+  }
+  // 강사별 보기 중 다른 강사의 반이면 필터를 풀고 찾아간다 (2026-09-10)
+  if (!el && mode === 'all' && allTeacher){
+    var ct = classes.find(function(x){ return x.id === cid; });
+    if (ct && !allTeacherOn(ct)){
+      setAllTeacher('');
+      requestAnimationFrame(function(){ requestAnimationFrame(function(){ gotoSearchHit(cid); }); });
+      return;
+    }
   }
   // 전체 개요 보기엔 반 블록이 없음 — 그 반의 요일을 확대한 뒤 다시 찾기
   if (!el && mode === 'all' && !useListView() && allView() !== 'grid'){
