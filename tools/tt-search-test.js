@@ -20,7 +20,7 @@ function grab(name){
   return html.slice(at, j + 1);
 }
 const NAMES = ['weekSearchHits','classSearchHits','sortHits','searchHitBtn','weekViewRange',
-               'plainName','isStudentLog','wkMovedAway','wkOffAt','wkDayLabel','mdOf','ymdOf',
+               'plainName','isStudentLog','wkMovedAway','wkOffAt','wkApplyYmd','wkDayLabel','mdOf','ymdOf',
                'weekDates','weekDatesOf','mins','esc'];
 const src = [
   "var WEEK_VIEW_ORDER = ['월','화','수','목','금','토','일'];",
