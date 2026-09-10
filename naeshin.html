@@ -456,6 +456,35 @@ function wkShort(w){
   if(i<0) return /^\d+$/.test(String(w)) ? String(w)+'주' : String(w);
   return md(w);
 }
+/* 반을 열 때 기본 주차 = '지금 검사하는 과제의 주' (2026-09-10 조교 건의 "9/9 주간에는 9/2 주간 페이지가
+ * 나왔으면" — 확인 수업에서 검사하는 과제물은 지난 주차 것이라, 첫 주(8/26)부터 시작하면 반마다
+ * 주차를 다시 골라야 했다). 규칙: 오늘이 속한 수업 주(수요일 시작)의 바로 앞 내신 주차. 그런 주가
+ * 없으면(첫 내신 주) 오늘 주, 그것도 없으면 첫 주차. 같은 날 손으로 고른 주차는 다른 반을 열어도
+ * 유지된다(sessionStorage `ns_week` — 날짜가 바뀌면 버림). */
+function thisWedYmd(){
+  var d = new Date(), dow = d.getDay();               // 0=일 … 3=수
+  d.setDate(d.getDate() - ((dow - 3 + 7) % 7));       // 오늘 또는 직전 수요일
+  var p = function(n){ return (n < 10 ? '0' : '') + n; };
+  return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+}
+function defaultWeek(wopts, wed){
+  wed = wed || thisWedYmd();
+  var cal = wopts.filter(function(w){ return /^\d{4}-\d{2}-\d{2}$/.test(w); }).sort();
+  var prev = cal.filter(function(w){ return w < wed; });
+  if (prev.length) return prev[prev.length - 1];
+  if (cal.indexOf(wed) >= 0) return wed;
+  return wopts[0];
+}
+function rememberWeek(w){
+  try { sessionStorage.setItem('ns_week', JSON.stringify({ w: w, wed: thisWedYmd() })); } catch(e){}
+}
+function rememberedWeek(wopts){
+  try {
+    var o = JSON.parse(sessionStorage.getItem('ns_week') || 'null');
+    if (o && o.wed === thisWedYmd() && wopts.indexOf(o.w) >= 0) return o.w;
+  } catch(e){}
+  return '';
+}
 /* 저장된 기록에 캘린더에 없는 주차(옛 1~6주차 등)가 있으면 목록 뒤에 붙여 잃어버리지 않게 */
 function weekOptions(){
   var extra={};
@@ -679,10 +708,10 @@ function renderWeek(){
     $('wtabs').innerHTML = '<p class="empty" style="padding:8px 0;">슈국 캘린더에 <b>내신 기간</b>으로 지정된 주가 없어요.<br>시간표 → 슈국 캘린더 → 기간설정에서 내신 주차를 먼저 지정해 주세요.</p>';
     $('wbody').innerHTML=''; return;
   }
-  if(wopts.indexOf(week)<0) week = wopts[0];
+  if(wopts.indexOf(week)<0) week = rememberedWeek(wopts) || defaultWeek(wopts);
   $('wtabs').innerHTML =
     '<label style="margin:0 0 4px;">주차 <span class="dot">슈국 캘린더의 내신 기간</span></label>'+
-    '<select id="wk-sel" onchange="week=this.value;renderWeek()">'+
+    '<select id="wk-sel" onchange="week=this.value;rememberWeek(week);renderWeek()">'+
       wopts.map(function(w){
         var has = (rec.weeks[w] && (rec.weeks[w].prog||rec.weeks[w].hw)) || Object.keys(rec.notes[w]||{}).length;
         return '<option value="'+esc(w)+'"'+(w===week?' selected':'')+'>'+esc(wkLabel(w))+(has?' ●':'')+'</option>';
