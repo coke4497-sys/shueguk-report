@@ -4028,18 +4028,14 @@ function allTeacherSel(){
   sel.addEventListener('change', function(){ setAllTeacher(sel.value); });
   return sel;
 }
-/* 고른 강사의 반 수·주간 수업 시간 요약 */
+/* 고른 강사의 반이 이 시간표에 없을 때만 안내 — '반 n개 · 주 h시간' 요약은 2026-09-10 사용자 요청으로 뺐다 */
 function allTeacherNote(){
   if (!allTeacher) return null;
-  var n = 0, m = 0;
-  classes.forEach(function(c){
-    if (c.wk || !allTeacherOn(c)) return;
-    n++; m += Math.max(0, minsEnd(c) - mins(c.start));
-  });
+  var any = classes.some(function(c){ return !c.wk && allTeacherOn(c); });
+  if (any) return null;
   var sp = document.createElement('span');
   sp.className = 'tsel-note';
-  var h = Math.round(m / 30) / 2;
-  sp.textContent = n ? ('반 ' + n + '개 · 주 ' + h + '시간') : ('이 시간표에는 ' + allTeacher + 'T 반이 없어요');
+  sp.textContent = '이 시간표에는 ' + allTeacher + 'T 반이 없어요';
   return sp;
 }
 var allAutoGrid = false;    // 반 이동 때문에 자동으로 그리드로 전환했는지
