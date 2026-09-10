@@ -45,7 +45,7 @@ const CLASSES = [
   await page.waitForFunction(() => document.querySelectorAll('.wk-mini').length === 2);
   const minis = await page.$$eval('.wk-mini small', s => s.map(x => x.textContent));
   ok('은지T 선택 → 카드 2개 모두 은지T', minis.length === 2 && minis.every(t => t.includes('은지T')), JSON.stringify(minis));
-  ok('요약: 반 2개 · 주 3시간', (await page.textContent('.tsel-note')) === '반 2개 · 주 3시간', await page.textContent('.tsel-note'));
+  ok('요약: 반 2개 (주간 시간 없음)', (await page.textContent('.tsel-note')) === '반 2개', await page.textContent('.tsel-note'));
   ok('드롭다운 on 표시', await page.$eval('#all-teacher', s => s.classList.contains('on')));
   ok('sessionStorage 저장', await page.evaluate(() => sessionStorage.getItem('tt_allteacher')) === '은지');
   // 요일 확대
