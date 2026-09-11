@@ -283,8 +283,14 @@
   직접 PATCH(`sbClinicClearByIds`, 표시 문자열은 옛 setClear와 같은 KST 'yyyy-MM-dd HH:mm'),
   시트 행이 있는 건만 뒤에서 setClear로 따라간다(결과 무시). 배경: 시트 사본이 8/20 신청을 끝으로
   멈춰(8/28~9/11 24건이 원본에만 있음) 사본 기준이던 완료 버튼이 최근 신청 전부에서 잠겨
-  '…'로만 보였다. 사본이 왜 끊기는지는 미확인(백엔드는 정상 응답·판정 — 학생 화면에서 뒤로 보내는
-  jsonp가 닿기 전에 창이 닫히는 쪽이 유력). 미러 조회가 실패해 시트만으로 그린 화면은 옛 경로
+  '…'로만 보였다. **사본이 끊긴 원인**(같은 날 조사): 시트 백엔드는 정상(실제 신청 3건을 가짜 시트로
+  돌려 전부 저장 판정, 배포본도 정상 응답)이고 응답에 2~5초(길면 13초)가 걸리는데, 원본 전환 뒤
+  학생 폼은 완료 화면을 0.3초 만에 띄우고 사본 jsonp(`<script>`)를 뒤에서 보냈다 — 그 사이 학생이
+  창을 닫거나 뒤로 가면 요청이 끊긴다(전환 전에는 이 응답을 기다렸다가 완료 화면을 띄워 문제 없었다).
+  **고침(shueguk-clinic index.html `sheetCopy`)**: 사본을 `navigator.sendBeacon`(POST → doPost, 창을 닫아도
+  브라우저가 전송을 마침)으로, 안 되면 keepalive fetch, 그것도 안 되면 옛 jsonp. 실제 doPost가 text/plain
+  JSON 본문을 받는 것을 거절 응답(bad_slot)으로 확인. 이미 빠진 24건은 시트에 없는 채로 둔다(원본은
+  온전, 완료 처리도 이제 원본 기준). 미러 조회가 실패해 시트만으로 그린 화면은 옛 경로
   (setClear → ts 짝 PATCH) 그대로. 검증: 클리닉 저장소 `NODE_PATH=$(npm root -g) node
   tools/teacher-clear-e2e.js`(브라우저 26건).
 - **클리닉 배정·현황(clinic_assign.html)**: 신청 현황(loadStatus)이 clinic_requests를 직접 읽는다
