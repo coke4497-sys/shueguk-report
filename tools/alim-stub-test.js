@@ -144,6 +144,27 @@ delete PROPS.ALIM_TPL_ABSENT;
 ROUTES['/kakao/v1/templates'] = { code: 200, body: [{ templateId: 'KA01TP333', content: TXT, status: 'PENDING' }] };
 r = J(fns.alimDiscover({ pw: 'sh' }));
 eq('승인 전이면 저장 안 함 + 안내', [r.templates.absent.saved, r.templates.absent.pending, PROPS.ALIM_TPL_ABSENT, r.notes.some(n => n.indexOf('승인 전') >= 0)], ['', true, undefined, true]);
+// 상태 항목이 없으면(모양이 달라 못 읽음) 저장하지 않는다 — 2026-09-12 심사 중 템플릿이 저장된 사고
+delete PROPS.ALIM_TPL_ABSENT;
+ROUTES['/kakao/v1/templates'] = { code: 200, body: [{ templateId: 'KA01TP555', content: TXT }] };
+r = J(fns.alimDiscover({ pw: 'sh' }));
+eq('상태 못 읽으면 저장 안 함', [r.templates.absent.saved, PROPS.ALIM_TPL_ABSENT, r.notes.some(n => n.indexOf('상태를 읽지 못함') >= 0)], ['', undefined, true]);
+ROUTES['/kakao/v1/templates'] = { code: 200, body: [{ templateId: 'KA01TP666', content: TXT, inspectionStatus: 'INSPECTING', status: 'ACTIVE' }] };
+r = J(fns.alimDiscover({ pw: 'sh' }));
+eq('다른 이름의 상태 항목이 심사 중이면 저장 안 함', [r.templates.absent.saved, PROPS.ALIM_TPL_ABSENT], ['', undefined]);
+ROUTES['/kakao/v1/templates'] = { code: 200, body: [{ templateId: 'KA01TP777', content: TXT, inspectionStatus: 'APPROVED', status: 'ACTIVE' }] };
+r = J(fns.alimDiscover({ pw: 'sh' }));
+eq('다른 이름의 상태 항목이 승인이면 저장', [r.templates.absent.saved, PROPS.ALIM_TPL_ABSENT], ['KA01TP777', 'KA01TP777']);
+// 실제 솔라피 응답 모양(2026-09-12 debug로 확인): friends 배열 + startKey/nextKey 에 pfId, 템플릿 상태는 codes[].status
+delete PROPS.ALIM_TPL_ABSENT; delete PROPS.KAKAO_PFID;
+ROUTES['/kakao/v1/plus-friends'] = { code: 200, body: { friends: [{ pfId: 'KA01PFreal', name: '이수경국어', searchId: '@이수경국어', status: 'ACTIVE' }], limit: 20, startKey: 'KA01PFreal', nextKey: null } };
+ROUTES['/kakao/v1/templates'] = { code: 200, body: { templateList: [{ templateId: 'KA01TP888', name: '결석 안내', content: TXT, codes: [{ status: 'INSPECTING', comments: [{ status: 'x' }] }], status: 'ACTIVE' }] } };
+r = J(fns.alimDiscover({ pw: 'sh' }));
+eq('페이지 키의 pfId는 무시하고 채널 이름까지 읽음', [r.savedPfId, r.channels.length, r.channels[0].name], ['KA01PFreal', 1, '이수경국어']);
+eq('codes[].status 심사 중 → 저장 안 함', [r.templates.absent.saved, r.templates.absent.status.indexOf('codes[0].status=INSPECTING') >= 0], ['', true]);
+ROUTES['/kakao/v1/templates'].body.templateList[0].codes[0].status = 'APPROVED';
+r = J(fns.alimDiscover({ pw: 'sh' }));
+eq('codes[].status 승인 → 저장', PROPS.ALIM_TPL_ABSENT, 'KA01TP888');
 // 문구 다름
 ROUTES['/kakao/v1/templates'] = { code: 200, body: [{ templateId: 'KA01TP444', content: TXT + ' 감사합니다.', status: 'APPROVED' }] };
 r = J(fns.alimDiscover({ pw: 'sh' }));
