@@ -2451,6 +2451,7 @@ function doPost(e) {
     if (data && data.action === 'editReqTokenSet')  { return editReqTokenSet(data); }
     if (data && data.action === 'alimSend')         { return alimSend(data); }
     if (data && data.action === 'alimConfigSet')    { return alimConfigSet(data); }
+    if (data && data.action === 'alimDiscover')     { return alimDiscover(data); }
     if (data && data.action === 'naeshinSet')       { return naeshinSet(data); }
     if (data && data.action === 'ttPeriodSet')      { return ttPeriodSet(data); }
     if (data && data.action === 'examSchedSet')     { return examSchedSet(data); }
@@ -4026,6 +4027,77 @@ function alimSend(data) {
   var okCount = sent.filter(function(x) { return x.ok && !x.dup; }).length;
   var failCount = sent.filter(function(x) { return !x.ok; }).length;
   return json({ result:'success', sent: sent, okCount: okCount, failCount: failCount, groupId: groupId });
+}
+/** 솔라피에서 채널(pfId)·승인된 템플릿 ID를 읽어 와 저장 — 원장님이 콘솔에서 값을 찾아 옮겨 적지 않아도 되게.
+ *  { pw } — 저장된 API 키·비밀로 GET kakao/v1/plus-friends, kakao/v1/templates 를 부른다.
+ *  응답 모양이 바뀌어도 견디도록 JSON을 통째로 훑어 KA01PF…/KA01TP… 값을 찾는다(alimWalk_).
+ *  채널이 정확히 하나면 KAKAO_PFID 저장, 여럿이면 목록만 돌려주고 사용자가 고른다(pfId·템플릿 ID는 비밀이 아니라 응답에 담아도 됨).
+ *  템플릿은 문구가 ALIM_TPL_와 (공백 무시) 같고 상태가 승인이면 그 종류의 속성에 저장한다. */
+function alimNorm_(t) { return String(t || '').replace(/\r/g, '').replace(/[ \t]+/g, ' ').replace(/ *\n */g, '\n').trim(); }
+function alimWalk_(v, fn, depth) {
+  depth = depth || 0;
+  if (depth > 12 || v == null) return;
+  if (Array.isArray(v)) { v.forEach(function(x) { alimWalk_(x, fn, depth + 1); }); return; }
+  if (typeof v === 'object') { fn(v); Object.keys(v).forEach(function(k) { alimWalk_(v[k], fn, depth + 1); }); }
+}
+function alimGet_(key, secret, path) {
+  var res = UrlFetchApp.fetch('https://api.solapi.com' + path, {
+    method: 'get', headers: { 'Authorization': alimAuthHeader_(key, secret) }, muteHttpExceptions: true });
+  var code = res.getResponseCode(), body;
+  try { body = JSON.parse(res.getContentText() || 'null'); } catch (e) { body = null; }
+  return { code: code, body: body };
+}
+function alimDiscover(data) {
+  if (String(data.pw || '') !== TEACHER_PW) return json({ result:'error', message:'unauthorized' });
+  var props = alimProps_();
+  var key = String(props.getProperty(ALIM_PROP_.key) || '').trim();
+  var secret = String(props.getProperty(ALIM_PROP_.secret) || '').trim();
+  if (!key || !secret) return json({ result:'error', message:'솔라피 API Key와 Secret을 먼저 저장해 주세요.' });
+  var out = { result:'success', channels: [], savedPfId: '', templates: {}, notes: [] };
+  // 1) 채널
+  var ch;
+  try { ch = alimGet_(key, secret, '/kakao/v1/plus-friends'); } catch (e) { return json({ result:'error', message:'솔라피 연결 실패: ' + e }); }
+  if (ch.code === 401 || ch.code === 403) return json({ result:'error', message:'솔라피가 API 키를 거절했어요 (' + ch.code + '). Key·Secret을 다시 확인해 주세요.' });
+  if (ch.code !== 200) out.notes.push('채널 목록 조회 실패 (' + ch.code + ')');
+  var seen = {};
+  alimWalk_(ch.body, function(o) {
+    var id = '';
+    Object.keys(o).forEach(function(k) { var v = o[k]; if (!id && typeof v === 'string' && /^KA01PF[0-9A-Za-z]+$/.test(v)) id = v; });
+    if (!id || seen[id]) return;
+    seen[id] = true;
+    out.channels.push({ pfId: id, name: String(o.name || o.channelName || o.plusFriendName || ''),
+                        searchId: String(o.searchId || o.plusFriendId || ''), status: String(o.status || '') });
+  });
+  var cur = String(props.getProperty(ALIM_PROP_.pfId) || '').trim();
+  if (out.channels.length === 1) { props.setProperty(ALIM_PROP_.pfId, out.channels[0].pfId); out.savedPfId = out.channels[0].pfId; }
+  else if (out.channels.length > 1 && cur && out.channels.some(function(c) { return c.pfId === cur; })) out.savedPfId = cur;
+  else if (out.channels.length > 1) out.notes.push('연동된 채널이 ' + out.channels.length + '개예요. 아래에서 하나를 골라 주세요.');
+  else if (ch.code === 200) out.notes.push('연동된 카카오 채널을 찾지 못했어요. 솔라피 콘솔에서 채널 연동이 끝났는지 확인해 주세요.');
+  // 2) 템플릿 — 문구가 같고 승인된 것
+  var pf = out.savedPfId || cur;
+  var tp;
+  try { tp = alimGet_(key, secret, '/kakao/v1/templates?limit=500' + (pf ? '&pfId=' + encodeURIComponent(pf) : '')); } catch (e) { tp = { code: 0, body: null }; }
+  if (tp.code !== 200) out.notes.push('템플릿 목록 조회 실패 (' + (tp.code || '연결') + ')');
+  var found = [];
+  alimWalk_(tp.body, function(o) {
+    var id = '';
+    Object.keys(o).forEach(function(k) { var v = o[k]; if (!id && typeof v === 'string' && /^KA01TP[0-9A-Za-z]+$/.test(v)) id = v; });
+    if (!id) return;
+    var text = String(o.content || o.text || o.templateContent || ''), st = String(o.status || '');
+    if (text) found.push({ id: id, text: alimNorm_(text), status: st, name: String(o.name || o.templateName || '') });
+  });
+  Object.keys(ALIM_TPL_).forEach(function(k) {
+    var t = ALIM_TPL_[k], want = alimNorm_(t.text);
+    var hits = found.filter(function(f) { return f.text === want; });
+    var ok = hits.filter(function(f) { return !f.status || /APPROV|승인/i.test(f.status); });
+    var pick = ok[0] || null;
+    if (pick) props.setProperty(t.prop, pick.id);
+    out.templates[k] = { label: t.label, saved: pick ? pick.id : '', status: (pick || hits[0] || {}).status || '',
+                         pending: !pick && hits.length ? true : false, found: hits.length };
+    if (!pick && hits.length) out.notes.push("'" + t.label + "' 템플릿이 아직 승인 전이에요 (" + hits[0].status + ") — 승인되면 다시 눌러 주세요.");
+    if (!hits.length && tp.code === 200) out.notes.push("'" + t.label + "' 문구와 똑같은 템플릿이 없어요 — 솔라피 템플릿 등록 문구가 화면의 문구와 한 글자도 다르지 않은지 확인해 주세요.");
+  });
+  return json(out);
 }
 /** 발송 기록 조회. GET action=alimLog&pw=&from=yyyy-MM-dd&to=yyyy-MM-dd[&limit=] — 수업일(G) 기준, 최신순 */
 function alimLogGet(from, to, limit) {

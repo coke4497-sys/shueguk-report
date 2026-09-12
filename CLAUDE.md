@@ -178,6 +178,13 @@
     학생마다 한 줄. 수파베이스 표는 두지 않았다(발송 원본이 솔라피라 여기는 사본 성격).
   - 키·비밀·pfId·템플릿 ID·발신번호는 **스크립트 속성**(SOLAPI_KEY·SOLAPI_SECRET·KAKAO_PFID·ALIM_TPL_ABSENT·SOLAPI_FROM)에만.
     어떤 응답에도 값을 담지 않는다. 화면 상단 [알림톡] 창의 '설정'에서 넣는다(빈 칸은 그대로, 채운 칸만 저장).
+- **채널·템플릿 ID는 솔라피에서 자동으로 가져온다**(2026-09-12 — 원장님이 콘솔 [변경] 창에서 pfId를 못 찾아 만든 것): [알림톡] 설정의
+  **[솔라피에서 가져오기]**(`alimDiscover` → 백엔드 `alimDiscover`) — 저장된 API 키로 `GET /kakao/v1/plus-friends`·`/kakao/v1/templates`를
+  읽어 채널이 하나면 KAKAO_PFID를 저장하고(여럿이면 목록에서 [이 채널 쓰기] = `alimPickPf`), 문구가 `ALIM_TPL_`와 공백 무시하고 같고
+  상태가 승인(APPROV/승인)인 템플릿 ID를 종류별 속성에 저장한다. 응답 모양을 믿지 않고 JSON을 통째로 훑어 `KA01PF…`/`KA01TP…`를
+  찾는다(`alimWalk_` — 솔라피 문서가 이 환경에서 안 열려 모양을 확인 못 함). 승인 전·문구 다름·채널 없음은 notes로 알린다.
+  직접 입력 칸(pfId·템플릿 ID)은 '직접 입력' 접이식 안에 남겨 뒀다. 학원 채널 pfId = `KA01PF260912155016737BPjigUV32pr`(2026-09-12
+  사용자 확인, 채널 '이수경국어' — 솔라피 발신번호 010-7151-4497 등록·잔액 충전 완료).
 - **템플릿 문구는 백엔드 `ALIM_TPL_` 한 곳** — 솔라피에 심사 등록한 문구와 **글자 하나까지 같아야** 발송된다.
   문구를 바꾸면 솔라피 템플릿을 새로 심사받고 ID를 다시 넣을 것. 변수: 학생명 · 수업일('9/11(금) 5:30') · 반이름.
   ```
@@ -196,8 +203,8 @@
   관리자 휴대폰 인증) → pfId ③ 위 문구로 알림톡 템플릿 등록·심사(1~3 영업일) → 템플릿 ID ④ API Key/Secret 발급
   ⑤ (선택) 발신번호 등록 ⑥ [알림톡] 설정에 입력. **백엔드 재배포 필요**(clasp — 이 절 배포 전에는 [알림톡] 창이
   '설정을 확인하지 못했어요'로 나오고 결석 확인 창은 뜨지 않는다).
-- 검증: `node tools/alim-stub-test.js`(47건 — 가짜 시트·속성·UrlFetch로 서명을 노드 crypto와 대조, 페이로드·기록·dup·
-  부분 실패·HTTP 오류·번호 형식·조회 범위) + `NODE_PATH=$(npm root -g) node tools/alim-e2e-test.js`(26건 — 실제
+- 검증: `node tools/alim-stub-test.js`(59건 — 가짜 시트·속성·UrlFetch로 서명을 노드 crypto와 대조, 페이로드·기록·dup·
+  부분 실패·HTTP 오류·번호 형식·조회 범위·자동 가져오기) + `NODE_PATH=$(npm root -g) node tools/alim-e2e-test.js`(28건 — 실제
   페이지에서 결석 저장→확인 창→POST 내용, 다시 보내기 force, 괄호 이름, 연락처 없음, 복수 선택, [알림톡] 설정 저장,
   설정 전 무반응). `tools/tt-twin-stub.js`에 Range.setFontWeight/setBackground 스텁과 alim 함수 노출을 더했다.
   **고치면 둘 다 함께 고칠 것.**

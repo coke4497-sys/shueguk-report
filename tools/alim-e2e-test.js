@@ -46,6 +46,7 @@ const posts = [];
         sent.forEach((x, i) => { if (x.ok) logRows.unshift({ ts: ymd + ' 18:3' + i, kind:'absent', student:x.student, who: body.items[i].who, to: body.items[i].to, cls: body.items[i].cls, date: ymd, ok:true, message:'' }); });
         return r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ result:'success', sent, okCount: sent.filter(x=>x.ok).length, failCount: sent.filter(x=>!x.ok).length }) });
       }
+      if (body.action === 'alimDiscover') return r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ result:'success', savedPfId:'KA01PF260912155016737BPjigUV32pr', channels:[{ pfId:'KA01PF260912155016737BPjigUV32pr', name:'이수경국어', searchId:'@이수경국어' }], templates:{ absent:{ label:'결석 안내', saved:'', pending:true, found:1 } }, notes:["'결석 안내' 템플릿이 아직 승인 전이에요 (PENDING) — 승인되면 다시 눌러 주세요."] }) });
       if (body.action === 'alimConfigSet') return r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ result:'success', saved: Object.keys(body).filter(k => !['action','pw'].includes(k)) }) });
       return r.fulfill({ status: 200, contentType: 'application/json', body: '{"result":"success"}' });
     }
@@ -130,6 +131,12 @@ const posts = [];
   ok('문구 표시', st.includes('결석 안내'));
   ok('기록 줄', (await page.textContent('#al-log')).includes('박지우'));
   await page.click('#al-cfg summary');
+  await page.click('#al-disc-btn');
+  await page.waitForFunction(() => (document.getElementById('al-disc') || {}).textContent.includes('pfId 저장'));
+  const disc = await page.textContent('#al-disc');
+  ok('자동 가져오기 결과 표시', disc.includes('KA01PF260912155016737BPjigUV32pr') && disc.includes('이수경국어') && disc.includes('승인 전'));
+  ok('alimDiscover POST', posts.some(p => p.action === 'alimDiscover'));
+  await page.click('#al-cfg details summary');
   await page.fill('#al-tpl-absent', 'KA01TP_NEW');
   await page.fill('#al-from', '031-111-2222');
   await page.click('#al-cfg .primary');

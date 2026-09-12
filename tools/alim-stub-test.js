@@ -120,5 +120,47 @@ eq('범위 밖은 없음', J(fns.alimLogGet('2026-09-12', '2026-09-12')).rows.le
 eq('limit', J(fns.alimLogGet('2026-09-11', '2026-09-11', '2')).rows.length, 2);
 eq('시트 없으면 빈 목록', (() => { delete SHEETS['알림톡기록']; return J(fns.alimLogGet()).rows; })(), []);
 
+console.log('8) 솔라피에서 채널·템플릿 가져오기(alimDiscover)');
+reset();
+const TXT = fns.ALIM_TPL_.absent.text;
+let ROUTES = {};
+global.UrlFetchApp = { fetch: (url, opt) => { CALLS.push({ url, opt }); const k = Object.keys(ROUTES).find(p => url.indexOf(p) >= 0);
+  const n = k ? ROUTES[k] : { code: 404, body: {} };
+  return { getResponseCode: () => n.code, getContentText: () => JSON.stringify(n.body) }; } };
+eq('키 없으면 거절', J(fns.alimDiscover({ pw: 'sh' })).result, 'error');
+fns.alimConfigSet({ pw: 'sh', apiKey: 'K', apiSecret: 'S' });
+ROUTES = { '/kakao/v1/plus-friends': { code: 200, body: { list: [{ pfId: 'KA01PF260912155016737BPjigUV32pr', name: '이수경국어', searchId: '@이수경국어', status: 'ACTIVE' }] } },
+           '/kakao/v1/templates': { code: 200, body: { templateList: [
+             { templateId: 'KA01TP111', name: '결석 안내', content: TXT.replace(/\n/g, '\r\n'), status: 'APPROVED' },
+             { templateId: 'KA01TP222', name: '다른 것', content: '다른 문구', status: 'APPROVED' } ] } } };
+r = J(fns.alimDiscover({ pw: 'sh' }));
+eq('채널 1개 → pfId 저장', [r.savedPfId, PROPS.KAKAO_PFID], ['KA01PF260912155016737BPjigUV32pr', 'KA01PF260912155016737BPjigUV32pr']);
+eq('채널 정보', [r.channels[0].name, r.channels[0].searchId], ['이수경국어', '@이수경국어']);
+eq('문구 같고 승인된 템플릿 저장(줄바꿈 차이 무시)', [r.templates.absent.saved, PROPS.ALIM_TPL_ABSENT], ['KA01TP111', 'KA01TP111']);
+eq('템플릿 조회에 pfId 붙임', CALLS[CALLS.length - 1].url.indexOf('pfId=KA01PF260912155016737BPjigUV32pr') > 0, true);
+eq('GET 인증 헤더', /^HMAC-SHA256 apiKey=K, /.test(CALLS[CALLS.length - 1].opt.headers.Authorization), true);
+// 승인 전
+delete PROPS.ALIM_TPL_ABSENT;
+ROUTES['/kakao/v1/templates'] = { code: 200, body: [{ templateId: 'KA01TP333', content: TXT, status: 'PENDING' }] };
+r = J(fns.alimDiscover({ pw: 'sh' }));
+eq('승인 전이면 저장 안 함 + 안내', [r.templates.absent.saved, r.templates.absent.pending, PROPS.ALIM_TPL_ABSENT, r.notes.some(n => n.indexOf('승인 전') >= 0)], ['', true, undefined, true]);
+// 문구 다름
+ROUTES['/kakao/v1/templates'] = { code: 200, body: [{ templateId: 'KA01TP444', content: TXT + ' 감사합니다.', status: 'APPROVED' }] };
+r = J(fns.alimDiscover({ pw: 'sh' }));
+eq('문구 다르면 저장 안 함 + 안내', [r.templates.absent.saved, r.notes.some(n => n.indexOf('똑같은 템플릿이 없어요') >= 0)], ['', true]);
+// 채널 여럿 → 저장 안 하고 목록
+delete PROPS.KAKAO_PFID;
+ROUTES['/kakao/v1/plus-friends'] = { code: 200, body: [{ pfId: 'KA01PFaaa', name: 'A' }, { pfId: 'KA01PFbbb', name: 'B' }] };
+r = J(fns.alimDiscover({ pw: 'sh' }));
+eq('채널 여럿 → 목록만', [r.channels.length, r.savedPfId, PROPS.KAKAO_PFID], [2, '', undefined]);
+fns.alimConfigSet({ pw: 'sh', pfId: 'KA01PFbbb' });
+r = J(fns.alimDiscover({ pw: 'sh' }));
+eq('여럿 중 이미 고른 것은 유지', [r.savedPfId, PROPS.KAKAO_PFID], ['KA01PFbbb', 'KA01PFbbb']);
+ROUTES['/kakao/v1/plus-friends'] = { code: 401, body: { errorCode: 'InvalidApiKey' } };
+eq('키 거절 → 오류', J(fns.alimDiscover({ pw: 'sh' })).result, 'error');
+ROUTES['/kakao/v1/plus-friends'] = { code: 200, body: [] };
+r = J(fns.alimDiscover({ pw: 'sh' }));
+eq('채널 없음 → 안내', r.notes.some(n => n.indexOf('찾지 못했어요') >= 0), true);
+
 console.log(fail ? ('\n' + fail + '건 실패') : '\n전부 통과');
 process.exit(fail ? 1 : 0);

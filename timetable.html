@@ -5576,11 +5576,18 @@ function openAlim(){
     '<p class="subnote">값은 저장만 되고 다시 보이지 않아요. 바꿀 칸만 채우고 저장하세요 — 빈 칸은 그대로 둡니다.</p>'+
     '<span class="req-lb">솔라피 API Key</span><input type="text" id="al-key" autocomplete="off" placeholder="NCS…">'+
     '<span class="req-lb">솔라피 API Secret</span><input type="password" id="al-secret" autocomplete="off">'+
-    '<span class="req-lb">카카오 채널 pfId (솔라피 → 카카오 채널 연동에서 확인)</span><input type="text" id="al-pfid" autocomplete="off" placeholder="KA01PF…">'+
-    '<span class="req-lb">결석 안내 템플릿 ID (심사 승인 후)</span><input type="text" id="al-tpl-absent" autocomplete="off" placeholder="KA01TP…">'+
-    '<span class="req-lb">발신번호 (솔라피에 등록한 번호 — 넣으면 카카오톡 못 받는 번호는 문자로 대체)</span><input type="text" id="al-from" autocomplete="off" placeholder="031-000-0000">'+
+    '<span class="req-lb">발신번호 (솔라피에 등록한 번호 — 넣으면 카카오톡 못 받는 번호는 문자로 대체)</span><input type="text" id="al-from" autocomplete="off" placeholder="010-0000-0000">'+
     '<p class="merr" id="al-cfg-err"></p><p class="req-msg" id="al-cfg-msg"></p>'+
     '<div class="mbtns"><button class="primary" onclick="alimCfgSave()">설정 저장</button></div>'+
+    '<p class="mk-sec">채널 · 템플릿 — 솔라피에서 자동으로 가져오기</p>'+
+    '<p class="subnote">API 키를 저장한 뒤 누르면 연동된 카카오 채널(pfId)과 승인된 결석 안내 템플릿 ID를 솔라피에서 읽어 와 저장해요. 템플릿 심사가 끝난 뒤 한 번 더 누르세요.</p>'+
+    '<div class="al-line"><button id="al-disc-btn" onclick="alimDiscover()">솔라피에서 가져오기</button><span id="al-disc-msg" class="al-note"></span></div>'+
+    '<div id="al-disc"></div>'+
+    '<details class="al-cfg" style="margin-top:6px;"><summary>직접 입력 (자동 가져오기가 안 될 때)</summary>'+
+    '<span class="req-lb">카카오 채널 pfId</span><input type="text" id="al-pfid" autocomplete="off" placeholder="KA01PF…">'+
+    '<span class="req-lb">결석 안내 템플릿 ID</span><input type="text" id="al-tpl-absent" autocomplete="off" placeholder="KA01TP…">'+
+    '<div class="mbtns"><button class="primary" onclick="alimCfgSave()">저장</button></div>'+
+    '</details>'+
     '</details>'+
     '<div class="mbtns"><button onclick="closeModal()">닫기</button></div>', true
   );
@@ -5620,6 +5627,38 @@ function alimRenderLog(){
       }).join('');
     })
     .catch(function(){ var el = $('al-log'); if (el) el.innerHTML = '<p class="merr">기록을 불러오지 못했어요.</p>'; });
+}
+/* 솔라피에서 채널·템플릿 ID 가져오기 — 백엔드 alimDiscover. 채널이 여럿이면 고르는 버튼을 보여 준다. */
+function alimDiscover(){
+  var btn = $('al-disc-btn'), msg = $('al-disc-msg'), box = $('al-disc');
+  if (btn) btn.disabled = true; if (msg) msg.textContent = '솔라피에 물어보는 중…'; if (box) box.innerHTML = '';
+  post({ action:'alimDiscover' }, '솔라피에서 가져오는 중…', function(res){
+    if (btn) btn.disabled = false;
+    if (!res || res.result !== 'success'){ if (msg) msg.textContent = ''; if (box) box.innerHTML = '<p class="merr">'+esc((res && res.message) || '가져오지 못했어요.')+'</p>'; return; }
+    var parts = [];
+    if (res.savedPfId) parts.push('<p class="req-msg">채널 pfId 저장: '+esc(res.savedPfId)+(res.channels[0] && res.channels[0].name ? ' ('+esc(res.channels[0].name)+')' : '')+'</p>');
+    if (res.channels && res.channels.length > 1){
+      parts.push('<p class="subnote">연동된 채널이 여러 개예요. 알림톡을 보낼 채널을 골라 주세요.</p>');
+      parts.push(res.channels.map(function(c){
+        return '<div class="al-row"><b>'+esc(c.name || c.searchId || c.pfId)+'</b><span class="al-note">'+esc(c.searchId)+' · '+esc(c.pfId)+'</span>'+
+          (res.savedPfId === c.pfId ? '<span class="al-sent">사용 중</span>' : '<button onclick="alimPickPf(\''+esc(c.pfId)+'\')">이 채널 쓰기</button>')+'</div>';
+      }).join(''));
+    }
+    Object.keys(res.templates || {}).forEach(function(k){
+      var t = res.templates[k];
+      if (t.saved) parts.push('<p class="req-msg">'+esc(t.label)+' 템플릿 ID 저장: '+esc(t.saved)+'</p>');
+    });
+    (res.notes || []).forEach(function(n){ parts.push('<p class="subnote">'+esc(n)+'</p>'); });
+    if (msg) msg.textContent = '';
+    if (box) box.innerHTML = parts.join('') || '<p class="subnote">가져올 것이 없었어요.</p>';
+    alimCfgEnsure(alimRenderState, true);
+  });
+}
+function alimPickPf(pfId){
+  post({ action:'alimConfigSet', pfId: pfId }, '채널 저장 중…', function(res){
+    if (res && res.result === 'success'){ setStatus('알림톡 채널을 저장했어요.', 'ok'); alimDiscover(); }
+    else setStatus('저장 실패: ' + ((res && res.message) || '오류'), 'err');
+  });
 }
 function alimCfgSave(){
   var b = { action:'alimConfigSet' }, any = false;
