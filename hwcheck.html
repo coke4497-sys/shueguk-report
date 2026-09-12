@@ -654,8 +654,15 @@ function boot(){
     applyUrlSlot();
     bootPainted = true;
   }
-  loadWeek();
+  /* 캐시로 그리는 첫 화면을 페이지 읽기(스크립트 실행)와 분리 — 같은 차례에 485명을 그리면
+   * 그 동안 화면이 하얗게 멈춘다(느린 휴대폰 2.8초, 2026-09-12 실측). 한 프레임 뒤에 그린다. */
+  setTimeout(loadWeek, 0);
 }
+/* 화면에 그린 데이터의 서명 — 최신 조회 결과가 캐시와 같으면 다시 그리지 않는다(두 번 그리기 제거) */
+function dataSig(){
+  try { return JSON.stringify([week, items, records, ttClasses, wkAtt, wkOnce, roster]); } catch(e){ return ''; }
+}
+var paintedSig = '';
 
 var bootPainted = false;   // 캐시로 화면을 먼저 그렸는지
 var slotApplied = false;   // 주소의 slot 자동 선택을 이미 했는지
@@ -669,10 +676,11 @@ function loadWeek(){
     records = chw.records || {};
     if (ttClasses === null){ var ctm = cacheGet('ttmap'); if (ctm) ttClasses = ctm; }
     var cwk = cacheGet('hwwk:' + week);
-    if (cwk){ wkAtt = cwk.a || []; wkOnce = cwk.o || []; }
+    if (cwk) setWeekData(cwk.a, cwk.o);
     renderChips();
     render();
     painted = true;
+    paintedSig = dataSig();
   }
   setStatus(painted ? '최신 기록 확인 중…' : '검사 기록을 불러오는 중…');
   // 통합 부팅 조회 — 명단·검사 기록·시간표·주간 출석을 한 번에 (접속 지연 대책, 2026-08-19)
@@ -704,8 +712,7 @@ function loadWeek(){
       cacheSet('ttmap', ttClasses);
       if (urlCid){ updateCidNote(); rebuildFilters(); }   // 반 명단이 준비되면 반 필터 적용
       // ③ 주간 출석·1회 이동
-      wkAtt = r.weekAttend || [];
-      wkOnce = r.weekOnce || [];
+      setWeekData(r.weekAttend, r.weekOnce);
       cacheSet('hwwk:' + week, { a: wkAtt, o: wkOnce });
       // ④ 검사 기록
       items = r.items || [];
@@ -713,8 +720,8 @@ function loadWeek(){
       cacheSet('hw:' + week, { items: items, records: records });
       if (!slotApplied){ slotApplied = true; if (!bootPainted) applyUrlSlot(); }
       setStatus('');
-      renderChips();
-      render();
+      if (painted && dataSig() === paintedSig){ paintedSig = ''; }   // 캐시 화면과 같은 내용 — 그대로 둔다
+      else { renderChips(); render(); }
       if (!plansTimerSet){ plansTimerSet = true; setTimeout(refreshPlansBadge, 4000); }   // 대책 뱃지는 잠시 뒤에
     })
     .catch(function(){ if (painted) setStatus(''); else setStatus('서버 연결에 실패했어요. 잠시 후 다시 시도해 주세요.', true); });
@@ -724,6 +731,15 @@ var plansTimerSet = false;
 /* ── 시간표 연동: 그 주의 출석·1회 이동을 학생 카드에 표시 ── */
 var ttClasses = null;   // 반ID -> {slot('금5:30'), label}
 var wkAtt = [], wkOnce = [];
+/* 이름(괄호 뗀)별 색인 — 예전엔 학생 485명마다 그 주 출석 700여 건을 처음부터 훑어(regex 포함)
+ * 카드 하나 그리는 데 그 비용이 네 번(출석 칩·결석 판정·이동 필터 둘) 들었다. 2026-09-12 속도 개선. */
+var wkAttBy = {}, wkOnceBy = {};
+function setWeekData(a, o){
+  wkAtt = a || []; wkOnce = o || [];
+  wkAttBy = {}; wkOnceBy = {};
+  wkAtt.forEach(function(x){ var k = plainNm(x.student); (wkAttBy[k] = wkAttBy[k] || []).push(x); });
+  wkOnce.forEach(function(x){ var k = plainNm(x.student); (wkOnceBy[k] = wkOnceBy[k] || []).push(x); });
+}
 function plainNm(n){ return String(n || '').replace(/^\s*\([^)]*\)\s*/, '').replace(/\(.*\)$/, '').trim(); }
 function ttInfoHtml(s){
   if (!ttClasses) return '';
@@ -732,8 +748,7 @@ function ttInfoHtml(s){
   if (s.classA) mySlots[slotNorm(s.classA)] = 1;
   if (s.classB) mySlots[slotNorm(s.classB)] = 1;
   var parts = [];
-  wkAtt.forEach(function(a){
-    if (plainNm(a.student) !== pn) return;
+  (wkAttBy[pn] || []).forEach(function(a){
     var c = ttClasses[a.classId];
     if (!c || !mySlots[c.slot]) return;   // 이 학생의 가/나 수업 기록만
     var md = String(a.date).slice(5).replace('-', '/');
@@ -741,8 +756,7 @@ function ttInfoHtml(s){
     parts.push('<span class="tt-chip ' + k + '">' + md + ' ' + esc(c.slot) + ' ' + esc(a.status) +
                (a.memo ? ' · ' + esc(a.memo) : '') + '</span>');
   });
-  wkOnce.forEach(function(o){
-    if (plainNm(o.student) !== pn) return;
+  (wkOnceBy[pn] || []).forEach(function(o){
     var f = ttClasses[o.fromId], t = ttClasses[o.toId];
     var md = String(o.date).slice(5).replace('-', '/');
     parts.push('<span class="tt-chip once">' + md + ' 1회 이동 ' + esc(f ? f.slot : '?') + '→' + esc(t ? t.slot : '?') +
@@ -759,10 +773,9 @@ function isAwayThisWeek(s){
   var mySlots = {};
   if (s.classA) mySlots[slotNorm(s.classA)] = 1;
   if (s.classB) mySlots[slotNorm(s.classB)] = 1;
-  var abs = false;
-  for (var i = 0; i < wkAtt.length; i++){
-    var a = wkAtt[i];
-    if (plainNm(a.student) !== pn) continue;
+  var abs = false, mine = wkAttBy[pn] || [];
+  for (var i = 0; i < mine.length; i++){
+    var a = mine[i];
     var c = ttClasses[a.classId];
     if (!c || !mySlots[c.slot]) continue;
     if (a.status === '결석') abs = true;
@@ -815,8 +828,7 @@ function matchBase_(s, upTo){
 function onceToSlots_(s){
   if (!ttClasses || !wkOnce.length) return {};
   var pn = plainNm(s.name), out = {};
-  wkOnce.forEach(function(o){
-    if (plainNm(o.student) !== pn) return;
+  (wkOnceBy[pn] || []).forEach(function(o){
     var t = ttClasses[o.toId];
     if (t) out[t.slot] = 1;
   });
@@ -827,8 +839,7 @@ function onceToSlots_(s){
 function onceFromSlots_(s){
   if (!ttClasses || !wkOnce.length) return {};
   var pn = plainNm(s.name), out = {};
-  wkOnce.forEach(function(o){
-    if (plainNm(o.student) !== pn) return;
+  (wkOnceBy[pn] || []).forEach(function(o){
     var f = ttClasses[o.fromId];
     if (f) out[f.slot] = 1;
   });
@@ -955,10 +966,37 @@ function render(){
   var baseSet = {};
   baseStudents().forEach(function(s){ baseSet[s.code] = true; });
   var checked = 0;
-  var html = stus.map(function(s){
+  stus.forEach(function(s){ if (isChecked(records[s.code])) checked++; });
+  $('count-note').textContent = '검사 ' + checked + '명 / 전체 ' + stus.length + '명' +
+    (awayCnt ? ' · 결석 ' + awayCnt + '명(맨 아래)' : '');
+  /* 나눠 그리기(2026-09-12): 485명을 한 번에 그리면 느린 휴대폰에서 1.3초 넘게 멈춘다.
+   * 처음 RENDER_CHUNK 명만 바로 그리고 나머지는 한 덩어리씩 뒤이어 붙인다. 그 사이 다시
+   * render()가 불리면(필터 변경 등) 세대 번호가 바뀌어 남은 덩어리는 버린다. */
+  var gen = ++renderGen;
+  var list = $('list');
+  if (!stus.length){ list.innerHTML = '<p class="empty">해당하는 학생이 없어요.</p>'; renderPending = null; return; }
+  list.innerHTML = stus.slice(0, RENDER_CHUNK).map(function(s){ return cardHtml(s, baseSet, away); }).join('');
+  renderPending = { gen: gen, stus: stus, i: RENDER_CHUNK, baseSet: baseSet, away: away };
+  if (renderPending.i < stus.length) setTimeout(renderStep, 0);
+}
+var RENDER_CHUNK = 60, renderGen = 0, renderPending = null;
+function renderStep(){
+  var p = renderPending;
+  if (!p || p.gen !== renderGen || p.i >= p.stus.length) return;
+  var next = Math.min(p.i + RENDER_CHUNK * 3, p.stus.length);   // 첫 덩어리만 작게, 뒤는 크게(배치 횟수 줄이기)
+  $('list').insertAdjacentHTML('beforeend', p.stus.slice(p.i, next).map(function(s){ return cardHtml(s, p.baseSet, p.away); }).join(''));
+  p.i = next;
+  if (p.i < p.stus.length) setTimeout(renderStep, 0);
+}
+/* 남은 덩어리를 지금 바로 다 그린다 — 특정 학생 카드가 화면에 꼭 있어야 할 때 */
+function renderFlush(){
+  var p = renderPending;
+  if (!p || p.gen !== renderGen) return;
+  while (p.i < p.stus.length) renderStep();
+}
+function cardHtml(s, baseSet, away){
     var rec = records[s.code];
     var extra = !baseSet[s.code];
-    if (isChecked(rec)) checked++;
     var pct = rec ? pctOf(rec) : null;
     var starsHtml = items.map(function(it, ii){
       var sc = rec ? (parseInt(rec.scores[it], 10) || 0) : 0;
@@ -972,7 +1010,10 @@ function render(){
     var pctHtml = (rec && rec.missing) ? '<span class="miss-lb">미제출</span>'
       : (showPct == null ? '<span style="font-size:.8rem;">미검사</span>'
         : '<b class="' + (showPct >= 100 ? 'full' : '') + '">' + showPct + '%</b>' + (showPct >= 100 ? ' 🏆' : ''));
-    return '<div class="stu' + (rec && rec.missing ? ' missing' : '') + (away[s.code] ? ' away' : '') + '" id="stu-' + esc(s.code) + '">' +
+    /* 대책·메모 칸은 비워 두고 열 때 만든다(ensurePlan/ensureMemo) — 접힌 칸이 화면 요소의 57%였다.
+     * 미제출로 이미 펼쳐 보이는 대책 칸만 지금 채운다. */
+    var missing = !!(rec && rec.missing);
+    return '<div class="stu' + (missing ? ' missing' : '') + (away[s.code] ? ' away' : '') + '" id="stu-' + esc(s.code) + '">' +
       '<div class="top"><span class="nm">' + esc(s.name) + '<small>' + esc(s.school) + ' · ' + esc(s.grade) + '</small>' +
       (away[s.code] ? '<span class="away-badge">이번 주 결석</span>' : '') +
       (extra ? '<span class="extra-badge">추가됨</span><button class="extra-rm" onclick="removeExtra(\'' + esc(s.code) + '\')" title="목록에서 빼기">×</button>' : '') + '</span>' +
@@ -981,23 +1022,36 @@ function render(){
       ttInfoHtml(s) +
       starsHtml +
       '<div class="memo-btns">' +
-        '<button class="missbtn ' + (rec && rec.missing ? 'on' : '') + '" onclick="toggleMissing(\'' + esc(s.code) + '\')">미제출</button>' +
+        '<button class="missbtn ' + (missing ? 'on' : '') + '" onclick="toggleMissing(\'' + esc(s.code) + '\')">미제출</button>' +
         '<button id="pubbtn-' + esc(s.code) + '" class="' + (rec && rec.pub ? 'has' : '') + '" onclick="toggleMemo(\'' + esc(s.code) + '\',\'pub\')">공개 메모</button>' +
         '<button id="privbtn-' + esc(s.code) + '" class="' + (rec && rec.priv ? 'has' : '') + '" onclick="toggleMemo(\'' + esc(s.code) + '\',\'priv\')">비공개 메모</button>' +
       '</div>' +
-      '<div class="plan-area" id="plan-' + esc(s.code) + '" style="' + (rec && rec.missing ? 'display:block;' : '') + '">' +
-        '<label>이후 대책 — 버튼을 누르면 문장이 자동으로 만들어져요</label>' +
-        planPickerHtml(s.code) +
-        '<input onblur="planChanged(\'' + esc(s.code) + '\')" id="ta-plan-' + esc(s.code) + '" placeholder="예: 8/13 목 5:30에 재검사 약속" value="' + esc(rec ? rec.plan : '') + '" /></div>' +
-      '<div class="memo-area" id="memo-pub-' + esc(s.code) + '"><label>공개 메모 — 학생 개별 페이지에 보여요</label>' +
-        '<textarea onblur="memoChanged(\'' + esc(s.code) + '\')" id="ta-pub-' + esc(s.code) + '">' + esc(rec ? rec.pub : '') + '</textarea></div>' +
-      '<div class="memo-area" id="memo-priv-' + esc(s.code) + '"><label>비공개 메모 — 교사·조교만 봐요</label>' +
-        '<textarea onblur="memoChanged(\'' + esc(s.code) + '\')" id="ta-priv-' + esc(s.code) + '">' + esc(rec ? rec.priv : '') + '</textarea></div>' +
+      '<div class="plan-area" id="plan-' + esc(s.code) + '" style="' + (missing ? 'display:block;' : '') + '"' + (missing ? ' data-built="1"' : '') + '>' +
+        (missing ? planAreaHtml(s.code, rec) : '') + '</div>' +
+      '<div class="memo-area" id="memo-pub-' + esc(s.code) + '"></div>' +
+      '<div class="memo-area" id="memo-priv-' + esc(s.code) + '"></div>' +
     '</div>';
-  }).join('');
-  $('list').innerHTML = html || '<p class="empty">해당하는 학생이 없어요.</p>';
-  $('count-note').textContent = '검사 ' + checked + '명 / 전체 ' + stus.length + '명' +
-    (awayCnt ? ' · 결석 ' + awayCnt + '명(맨 아래)' : '');
+}
+function planAreaHtml(token, rec){
+  return '<label>이후 대책 — 버튼을 누르면 문장이 자동으로 만들어져요</label>' +
+    planPickerHtml(token) +
+    '<input onblur="planChanged(\'' + esc(token) + '\')" id="ta-plan-' + esc(token) + '" placeholder="예: 8/13 목 5:30에 재검사 약속" value="' + esc(rec ? rec.plan : '') + '" />';
+}
+function ensurePlan(token){
+  var el = $('plan-' + token);
+  if (!el || el.getAttribute('data-built')) return el;
+  el.setAttribute('data-built', '1');
+  el.innerHTML = planAreaHtml(token, records[token]);
+  return el;
+}
+function ensureMemo(token, kind){
+  var el = $('memo-' + kind + '-' + token);
+  if (!el || el.getAttribute('data-built')) return el;
+  el.setAttribute('data-built', '1');
+  var rec = records[token];
+  el.innerHTML = (kind === 'pub' ? '<label>공개 메모 — 학생 개별 페이지에 보여요</label>' : '<label>비공개 메모 — 교사·조교만 봐요</label>') +
+    '<textarea onblur="memoChanged(\'' + esc(token) + '\')" id="ta-' + kind + '-' + esc(token) + '">' + esc(rec ? (rec[kind] || '') : '') + '</textarea>';
+  return el;
 }
 
 /* ── 입력 → 자동 저장 ── */
@@ -1028,7 +1082,7 @@ function updateCard(token){
   }
   var card = $('stu-' + token);
   if (card) card.classList.toggle('missing', !!rec.missing);
-  var plan = $('plan-' + token);
+  var plan = rec.missing ? ensurePlan(token) : $('plan-' + token);
   if (plan) plan.style.display = rec.missing ? 'block' : 'none';
   var stus = currentStudents(), checked = 0;
   stus.forEach(function(s){ if (isChecked(records[s.code])) checked++; });
@@ -1115,14 +1169,15 @@ function samePlan(token){
   queueSave(token);
 }
 function toggleMemo(token, kind){
-  var el = $('memo-' + kind + '-' + token);
+  var el = ensureMemo(token, kind);
   el.style.display = (el.style.display === 'block') ? 'none' : 'block';
   if (el.style.display === 'block') $('ta-' + kind + '-' + token).focus();
 }
 function memoChanged(token){
   var rec = recOf(token);
-  rec.pub = $('ta-pub-' + token).value;
-  rec.priv = $('ta-priv-' + token).value;
+  var tp = $('ta-pub-' + token), tv = $('ta-priv-' + token);   // 아직 안 연 칸은 기록값 그대로
+  rec.pub = tp ? tp.value : (rec.pub || '');
+  rec.priv = tv ? tv.value : (rec.priv || '');
   $('pubbtn-' + token).classList.toggle('has', !!rec.pub.trim());
   $('privbtn-' + token).classList.toggle('has', !!rec.priv.trim());
   if (!isChecked(rec) && !rec.pub.trim() && !rec.priv.trim() && !(rec.plan||'').trim()) return;   // 아무것도 없으면 저장 안 함
