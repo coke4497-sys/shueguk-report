@@ -21,7 +21,7 @@ const PHONES = [
   { name: '박지우', phone_student: '01011112222', phone_parent1: '01033334444', phone_parent2: '01055556666' },
   { name: '최민하', phone_student: '', phone_parent1: '01077778888', phone_parent2: '' },
 ];
-const TPL = '[이수경국어학원] 결석 안내\n#{학생명} 학생이 #{수업일} #{반이름} 수업에 결석했습니다.\n보충 일정은 학원에서 별도로 안내드리겠습니다.';
+const TPL = '[이수경국어학원] 결석 안내\n#{학생명} 학생이 #{수업일} #{반이름} 수업에 결석했습니다.';
 let cfg = { result:'success', ready:true, has:{ key:true, secret:true, from:false, pfId:true }, smsFallback:false,
             templates:{ absent:{ label:'결석 안내', text: TPL, vars:['학생명','수업일','반이름'], ready:true } } };
 let logRows = [];

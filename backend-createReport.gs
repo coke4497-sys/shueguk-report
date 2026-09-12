@@ -3888,8 +3888,7 @@ var ALIM_TPL_ = {
     prop: 'ALIM_TPL_ABSENT',              // 스크립트 속성: 솔라피 템플릿 ID(KA01TP…)
     vars: ['학생명', '수업일', '반이름'],
     text: '[이수경국어학원] 결석 안내\n' +
-          '#{학생명} 학생이 #{수업일} #{반이름} 수업에 결석했습니다.\n' +
-          '보충 일정은 학원에서 별도로 안내드리겠습니다.'
+          '#{학생명} 학생이 #{수업일} #{반이름} 수업에 결석했습니다.'
   }
 };
 function alimProps_() { return PropertiesService.getScriptProperties(); }
