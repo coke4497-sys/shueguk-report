@@ -4061,11 +4061,13 @@ function alimDiscover(data) {
   var seen = {};
   alimWalk_(ch.body, function(o) {
     var id = '';
-    Object.keys(o).forEach(function(k) { var v = o[k]; if (!id && typeof v === 'string' && /^KA01PF[0-9A-Za-z]+$/.test(v)) id = v; });
+    // startKey/nextKey 같은 페이지 넘김 값에도 pfId가 들어 있어(2026-09-12 확인) *Key 항목은 건너뛴다
+    Object.keys(o).forEach(function(k) { var v = o[k]; if (!id && !/key$/i.test(k) && typeof v === 'string' && /^KA01PF[0-9A-Za-z]+$/.test(v)) id = v; });
     if (!id || seen[id]) return;
     seen[id] = true;
-    out.channels.push({ pfId: id, name: String(o.name || o.channelName || o.plusFriendName || ''),
-                        searchId: String(o.searchId || o.plusFriendId || ''), status: String(o.status || '') });
+    out.channels.push({ pfId: id, name: String(o.name || o.channelName || o.plusFriendName || o.pfName || ''),
+                        searchId: String(o.searchId || o.plusFriendId || o.searchName || ''), status: String(o.status || '') });
+    if (String(data.debug || '') === '1') (out.channelKeys = out.channelKeys || []).push(Object.keys(o));
   });
   var cur = String(props.getProperty(ALIM_PROP_.pfId) || '').trim();
   if (out.channels.length === 1) { props.setProperty(ALIM_PROP_.pfId, out.channels[0].pfId); out.savedPfId = out.channels[0].pfId; }
@@ -4082,18 +4084,39 @@ function alimDiscover(data) {
     var id = '';
     Object.keys(o).forEach(function(k) { var v = o[k]; if (!id && typeof v === 'string' && /^KA01TP[0-9A-Za-z]+$/.test(v)) id = v; });
     if (!id) return;
-    var text = String(o.content || o.text || o.templateContent || ''), st = String(o.status || '');
-    if (text) found.push({ id: id, text: alimNorm_(text), status: st, name: String(o.name || o.templateName || '') });
+    var text = String(o.content || o.text || o.templateContent || '');
+    if (!text) return;
+    // 상태 항목 이름을 모르므로 이름에 status/state/inspection/approval 이 들어간 문자열 항목을 모두 모은다
+    // 상태 항목 이름을 모르므로 이름에 status/state/inspect 가 들어간 항목을 깊이 2까지(codes[] 안까지) 모은다
+    var sts = [], vals = [];
+    var grab = function(obj, prefix, depth) {
+      if (!obj || typeof obj !== 'object' || depth > 2) return;
+      Object.keys(obj).forEach(function(k) {
+        var v = obj[k];
+        if (/status|state|inspect|approv|검수|승인/i.test(k) && v != null && typeof v !== 'object') { sts.push(prefix + k + '=' + String(v)); vals.push(String(v)); }
+        else if (v && typeof v === 'object' && !/comment|button|variable|replacement/i.test(k)) {
+          if (Array.isArray(v)) v.forEach(function(x, i) { grab(x, prefix + k + '[' + i + '].', depth + 1); });
+          else grab(v, prefix + k + '.', depth + 1);
+        }
+      });
+    };
+    grab(o, '', 0);
+    var approved = vals.some(function(v) { return /APPROV|승인/i.test(v); }) &&
+                   !vals.some(function(v) { return /REJECT|반려|PENDING|INSPECT|검수|심사/i.test(v); });
+    found.push({ id: id, text: alimNorm_(text), status: sts.join(' '), approved: approved, name: String(o.name || o.templateName || '') });
+    if (String(data.debug || '') === '1') {
+      (out.templateKeys = out.templateKeys || []).push(Object.keys(o));
+      (out.templateCodes = out.templateCodes || []).push(JSON.stringify(o.codes || o.status || null).slice(0, 600));
+    }
   });
   Object.keys(ALIM_TPL_).forEach(function(k) {
     var t = ALIM_TPL_[k], want = alimNorm_(t.text);
     var hits = found.filter(function(f) { return f.text === want; });
-    var ok = hits.filter(function(f) { return !f.status || /APPROV|승인/i.test(f.status); });
-    var pick = ok[0] || null;
+    var pick = hits.filter(function(f) { return f.approved; })[0] || null;   // 상태를 못 읽으면 저장하지 않는다(승인 전 ID로는 발송이 거절되므로)
     if (pick) props.setProperty(t.prop, pick.id);
     out.templates[k] = { label: t.label, saved: pick ? pick.id : '', status: (pick || hits[0] || {}).status || '',
                          pending: !pick && hits.length ? true : false, found: hits.length };
-    if (!pick && hits.length) out.notes.push("'" + t.label + "' 템플릿이 아직 승인 전이에요 (" + hits[0].status + ") — 승인되면 다시 눌러 주세요.");
+    if (!pick && hits.length) out.notes.push("'" + t.label + "' 템플릿이 아직 승인 전이에요" + (hits[0].status ? ' (' + hits[0].status + ')' : ' (상태를 읽지 못함)') + " — 승인되면 다시 눌러 주세요.");
     if (!hits.length && tp.code === 200) out.notes.push("'" + t.label + "' 문구와 똑같은 템플릿이 없어요 — 솔라피 템플릿 등록 문구가 화면의 문구와 한 글자도 다르지 않은지 확인해 주세요.");
   });
   return json(out);
