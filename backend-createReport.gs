@@ -77,7 +77,8 @@ var TAB_ATTEND = '출석기록';        // A:날짜(yyyy-MM-dd) B:시간표(정�
 var TAB_TT_MEMO = '시간표메모';     // A:날짜(yyyy-MM-dd) B:메모(오늘의 이슈) C:기록일시
 var TAB_TT_PERIOD = '기간설정';     // A:주차수요일(yyyy-MM-dd) B:구분(정규/내신) C:기록일시 — 슈국 캘린더 주별 기간
 var TAB_EXAM_SCHED = '지필일정';    // A:유형(기간/과목) B:학교 C:시작일(과목은 해당일) D:종료일 E:내용 F:기록일시 — 슈국 캘린더 지필고사 일정
-var TAB_EDIT_REQ = '수정요청';      // A:기록일시 B:작성자 C:화면 D:내용 E:상태(접수됨/처리 완료/보류) F:처리메모 G:처리일시 — 티쳐스 수정 요청함
+var TAB_EDIT_REQ = '수정요청';
+var TAB_ALIM = '알림톡기록';       // A:기록일시 B:종류(결석) C:학생 D:받는분(학부모1/학부모2/학생) E:번호 F:반 G:수업일 H:결과(성공/실패) I:메시지 J:그룹ID — 카카오 알림톡 발송 기록 (2026-09-11)      // A:기록일시 B:작성자 C:화면 D:내용 E:상태(접수됨/처리 완료/보류) F:처리메모 G:처리일시 — 티쳐스 수정 요청함
 
 var HWCHECK_ITEMS_KEY = '숙제검사 항목';
 var HWCHECK_DEFAULT_ITEMS = ['숙제 수행', '오답 처리'];
@@ -527,6 +528,15 @@ function doGet(e) {
   if (p.action === 'ttMemoList') {
     if (String(p.pw || '') !== TEACHER_PW) return json({ result:'error', message:'unauthorized' });
     return getTtMemoList(p.from, p.to);
+  }
+  // 알림톡 — 설정 상태(값 없이 있다/없다만)·템플릿 문구 / 발송 기록 (timetable.html) — 비밀번호 필요
+  if (p.action === 'alimConfig') {
+    if (String(p.pw || '') !== TEACHER_PW) return json({ result:'error', message:'unauthorized' });
+    return alimConfigGet();
+  }
+  if (p.action === 'alimLog') {
+    if (String(p.pw || '') !== TEACHER_PW) return json({ result:'error', message:'unauthorized' });
+    return alimLogGet(p.from, p.to, p.limit);
   }
   // 시간표 수정 요청 목록 (timetable.html 수정 요청함 — 클로드 코드 세션도 이 액션으로 읽음) — 비밀번호 필요
   if (p.action === 'editReqList') {
@@ -2439,6 +2449,9 @@ function doPost(e) {
     if (data && data.action === 'editReqAdd')       { return editReqAdd(data); }
     if (data && data.action === 'editReqSet')       { return editReqSet(data); }
     if (data && data.action === 'editReqTokenSet')  { return editReqTokenSet(data); }
+    if (data && data.action === 'alimSend')         { return alimSend(data); }
+    if (data && data.action === 'alimConfigSet')    { return alimConfigSet(data); }
+    if (data && data.action === 'alimDiscover')     { return alimDiscover(data); }
     if (data && data.action === 'naeshinSet')       { return naeshinSet(data); }
     if (data && data.action === 'ttPeriodSet')      { return ttPeriodSet(data); }
     if (data && data.action === 'examSchedSet')     { return examSchedSet(data); }
@@ -3858,6 +3871,254 @@ function editReqTokenSet(data) {
 function 권한승인() {
   var r = UrlFetchApp.fetch('https://api.github.com', { muteHttpExceptions: true });
   Logger.log('연결 확인: ' + r.getResponseCode() + ' (200이면 성공)');
+}
+/* ══════════════════════════════════════════════════════════════════════
+ *  카카오 알림톡 (2026-09-11 사용자 결정 "솔라피로 할게요. 결석 알림부터")
+ *  발송은 이 백엔드 한 곳에서만 — 화면(timetable.html)은 확인 창을 띄우고 alimSend를 부른다.
+ *  솔라피(solapi.com) API v4, 인증은 HMAC-SHA256. 키·비밀·발신번호·채널 pfId·템플릿 ID는
+ *  스크립트 속성에만 두고(alimConfigSet, 쓰기 전용), 어떤 응답에도 값을 담지 않는다.
+ *  템플릿 문구는 아래 ALIM_TPL_ 한 곳 — 솔라피에 심사 등록한 문구와 글자 하나까지 같아야
+ *  한다(다르면 솔라피가 발송을 거절). 문구를 고치면 솔라피 템플릿도 새로 심사받을 것.
+ *  주의: UrlFetchApp — 외부 요청 권한은 2026-08-28 승인됨(editReqNotify_ 참고).
+ * ══════════════════════════════════════════════════════════════════════ */
+var ALIM_PROP_ = { key:'SOLAPI_KEY', secret:'SOLAPI_SECRET', from:'SOLAPI_FROM', pfId:'KAKAO_PFID' };
+var ALIM_TPL_ = {
+  absent: {
+    label: '결석 안내',
+    prop: 'ALIM_TPL_ABSENT',              // 스크립트 속성: 솔라피 템플릿 ID(KA01TP…)
+    vars: ['학생명', '수업일', '반이름'],
+    text: '[이수경국어학원] 결석 안내\n' +
+          '#{학생명} 학생이 #{수업일} #{반이름} 수업에 결석했습니다.'
+  }
+};
+function alimProps_() { return PropertiesService.getScriptProperties(); }
+function alimSheet_(ss) {
+  var sh = ss.getSheetByName(TAB_ALIM);
+  if (!sh) {
+    sh = ss.insertSheet(TAB_ALIM);
+    sh.appendRow(['기록일시', '종류', '학생', '받는분', '번호', '반', '수업일', '결과', '메시지', '그룹ID']);
+    sh.getRange(1, 1, 1, 10).setFontWeight('bold').setBackground('#DDE5E1');
+  }
+  return sh;
+}
+/** 설정 상태 — 값은 절대 담지 않고 '있다/없다'만. 화면은 이걸로 알림 창을 띄울지 정한다. */
+function alimConfigGet() {
+  var props = alimProps_();
+  var has = function(k){ return !!String(props.getProperty(k) || '').trim(); };
+  var tpls = {};
+  Object.keys(ALIM_TPL_).forEach(function(k) {
+    var t = ALIM_TPL_[k];
+    tpls[k] = { label: t.label, text: t.text, vars: t.vars, ready: has(t.prop) };
+  });
+  var ready = has(ALIM_PROP_.key) && has(ALIM_PROP_.secret) && has(ALIM_PROP_.pfId);
+  return json({ result:'success', ready: ready,
+    has: { key: has(ALIM_PROP_.key), secret: has(ALIM_PROP_.secret), from: has(ALIM_PROP_.from), pfId: has(ALIM_PROP_.pfId) },
+    smsFallback: has(ALIM_PROP_.from), templates: tpls });
+}
+/** 설정 저장(쓰기 전용). { pw, apiKey?, apiSecret?, from?, pfId?, tpl?:{absent:'KA01TP…'} } — 빈 문자열이면 지움. */
+function alimConfigSet(data) {
+  if (String(data.pw || '') !== TEACHER_PW) return json({ result:'error', message:'unauthorized' });
+  var props = alimProps_(), saved = [];
+  var put = function(prop, v, name) {
+    if (v == null) return;
+    v = String(v).trim();
+    if (v) props.setProperty(prop, v); else props.deleteProperty(prop);
+    saved.push(name);
+  };
+  put(ALIM_PROP_.key, data.apiKey, 'apiKey');
+  put(ALIM_PROP_.secret, data.apiSecret, 'apiSecret');
+  put(ALIM_PROP_.from, data.from == null ? null : String(data.from).replace(/\D/g, ''), 'from');
+  put(ALIM_PROP_.pfId, data.pfId, 'pfId');
+  if (data.tpl && typeof data.tpl === 'object') {
+    Object.keys(data.tpl).forEach(function(k) { if (ALIM_TPL_[k]) put(ALIM_TPL_[k].prop, data.tpl[k], 'tpl.' + k); });
+  }
+  return json({ result:'success', saved: saved });
+}
+/** 솔라피 HMAC-SHA256 인증 헤더 값 */
+function alimAuthHeader_(key, secret) {
+  var date = new Date().toISOString();
+  var salt = Utilities.getUuid().replace(/-/g, '');
+  var sig = Utilities.computeHmacSha256Signature(date + salt, secret).map(function(b) {
+    return ('0' + (b & 0xff).toString(16)).slice(-2);
+  }).join('');
+  return 'HMAC-SHA256 apiKey=' + key + ', date=' + date + ', salt=' + salt + ', signature=' + sig;
+}
+function alimFmtTs_(d) { return Utilities.formatDate(d, 'Asia/Seoul', 'yyyy-MM-dd HH:mm'); }
+/* 수업일 칸 — 시트가 날짜로 바꿔 놓아도 yyyy-MM-dd 문자열로 (시트 자동 변환 주의 절 참고) */
+function alimYmd_(v) { return (v && v.getTime) ? Utilities.formatDate(v, 'Asia/Seoul', 'yyyy-MM-dd') : String(v || '').trim().slice(0, 10); }
+/** 발송. { pw, kind:'absent', items:[{ student, to, who, vars:{학생명,수업일,반이름}, cls, date }], force? }
+ *  같은 종류·학생·수업일로 이미 성공한 기록이 있으면 force가 아니면 건너뛴다(dup) — 조교 둘이 겹쳐 눌러도 두 번 안 감.
+ *  응답: { result:'success', sent:[{student,ok,message,dup}], okCount, failCount } */
+function alimSend(data) {
+  if (String(data.pw || '') !== TEACHER_PW) return json({ result:'error', message:'unauthorized' });
+  var kind = String(data.kind || '').trim(), tpl = ALIM_TPL_[kind];
+  if (!tpl) return json({ result:'error', message:'모르는 알림 종류예요: ' + kind });
+  var items = (data.items || []).filter(function(it) { return it && it.student && it.to; });
+  if (!items.length) return json({ result:'error', message:'보낼 학생·번호가 없어요.' });
+  if (items.length > 50) return json({ result:'error', message:'한 번에 50명까지만 보낼 수 있어요.' });
+  var props = alimProps_();
+  var key = String(props.getProperty(ALIM_PROP_.key) || '').trim();
+  var secret = String(props.getProperty(ALIM_PROP_.secret) || '').trim();
+  var pfId = String(props.getProperty(ALIM_PROP_.pfId) || '').trim();
+  var from = String(props.getProperty(ALIM_PROP_.from) || '').replace(/\D/g, '');
+  var tplId = String(props.getProperty(tpl.prop) || '').trim();
+  if (!key || !secret || !pfId) return json({ result:'error', message:'알림톡 설정(API 키·채널)이 아직 없어요. [알림톡] 설정에서 넣어 주세요.' });
+  if (!tplId) return json({ result:'error', message:"'" + tpl.label + "' 템플릿 ID가 아직 없어요. 솔라피 심사가 끝나면 [알림톡] 설정에 넣어 주세요." });
+
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = alimSheet_(ss);
+  // 중복 확인 — 최근 7일 꼬리만 읽는다
+  var done = {};
+  if (String(data.force || '') !== '1') {
+    var tail = sheetTail_(sh, 0, Date.now() - 7 * 24 * 3600 * 1000).rows;
+    tail.forEach(function(r) {
+      if (String(r[1]) === kind && String(r[7]) === '성공') done[String(r[2]).trim() + '|' + alimYmd_(r[6])] = true;
+    });
+  }
+  var msgs = [], sent = [], pending = [];
+  items.forEach(function(it) {
+    var student = String(it.student).trim(), date = String(it.date || '').trim();
+    var to = String(it.to).replace(/\D/g, '');
+    if (done[student + '|' + date]) { sent.push({ student: student, ok: true, dup: true, message: '이미 보냈어요' }); return; }
+    if (!/^01\d{8,9}$/.test(to)) { sent.push({ student: student, ok: false, message: '휴대폰 번호 형식이 아니에요: ' + to }); return; }
+    var vars = {};
+    tpl.vars.forEach(function(v) { vars['#{' + v + '}'] = String((it.vars || {})[v] || '').trim(); });
+    var m = { to: to, type: 'ATA', kakaoOptions: { pfId: pfId, templateId: tplId, variables: vars, disableSms: !from } };
+    if (from) m.from = from;
+    msgs.push(m);
+    pending.push({ student: student, to: to, who: String(it.who || '').trim(), cls: String(it.cls || '').trim(), date: date });
+  });
+  var groupId = '';
+  if (msgs.length) {
+    var res, code, body;
+    try {
+      res = UrlFetchApp.fetch('https://api.solapi.com/messages/v4/send-many/detail', {
+        method: 'post', contentType: 'application/json',
+        headers: { 'Authorization': alimAuthHeader_(key, secret) },
+        muteHttpExceptions: true,
+        payload: JSON.stringify({ messages: msgs })
+      });
+      code = res.getResponseCode();
+      try { body = JSON.parse(res.getContentText() || '{}'); } catch (e) { body = {}; }
+    } catch (e) {
+      code = 0; body = { errorMessage: '솔라피 연결 실패: ' + e };
+    }
+    var failedByTo = {};
+    if (code === 200) {
+      groupId = String((body.groupInfo && body.groupInfo._id) || '');
+      (body.failedMessageList || []).forEach(function(f) { failedByTo[String(f.to || '')] = String(f.statusMessage || f.errorMessage || '실패'); });
+    }
+    var errAll = code === 200 ? '' : ('솔라피 오류 ' + (code || '') + ' ' + String(body.errorMessage || body.message || '')).trim();
+    pending.forEach(function(p) {
+      var err = errAll || failedByTo[p.to] || '';
+      sent.push({ student: p.student, ok: !err, message: err || '보냈어요' });
+    });
+    // 기록 — 학생마다 한 줄
+    var rows = pending.map(function(p) {
+      var err = errAll || failedByTo[p.to] || '';
+      return [new Date(), kind, p.student, p.who, p.to, p.cls, p.date, err ? '실패' : '성공', err, groupId];
+    });
+    var r0 = sh.getLastRow() + 1;
+    var rg = sh.getRange(r0, 1, rows.length, 10);
+    rg.setNumberFormats(rows.map(function() { return ['yyyy-mm-dd hh:mm', '@', '@', '@', '@', '@', '@', '@', '@', '@']; }));
+    rg.setValues(rows);
+  }
+  var okCount = sent.filter(function(x) { return x.ok && !x.dup; }).length;
+  var failCount = sent.filter(function(x) { return !x.ok; }).length;
+  return json({ result:'success', sent: sent, okCount: okCount, failCount: failCount, groupId: groupId });
+}
+/** 솔라피에서 채널(pfId)·승인된 템플릿 ID를 읽어 와 저장 — 원장님이 콘솔에서 값을 찾아 옮겨 적지 않아도 되게.
+ *  { pw } — 저장된 API 키·비밀로 GET kakao/v1/plus-friends, kakao/v1/templates 를 부른다.
+ *  응답 모양이 바뀌어도 견디도록 JSON을 통째로 훑어 KA01PF…/KA01TP… 값을 찾는다(alimWalk_).
+ *  채널이 정확히 하나면 KAKAO_PFID 저장, 여럿이면 목록만 돌려주고 사용자가 고른다(pfId·템플릿 ID는 비밀이 아니라 응답에 담아도 됨).
+ *  템플릿은 문구가 ALIM_TPL_와 (공백 무시) 같고 상태가 승인이면 그 종류의 속성에 저장한다. */
+function alimNorm_(t) { return String(t || '').replace(/\r/g, '').replace(/[ \t]+/g, ' ').replace(/ *\n */g, '\n').trim(); }
+function alimWalk_(v, fn, depth) {
+  depth = depth || 0;
+  if (depth > 12 || v == null) return;
+  if (Array.isArray(v)) { v.forEach(function(x) { alimWalk_(x, fn, depth + 1); }); return; }
+  if (typeof v === 'object') { fn(v); Object.keys(v).forEach(function(k) { alimWalk_(v[k], fn, depth + 1); }); }
+}
+function alimGet_(key, secret, path) {
+  var res = UrlFetchApp.fetch('https://api.solapi.com' + path, {
+    method: 'get', headers: { 'Authorization': alimAuthHeader_(key, secret) }, muteHttpExceptions: true });
+  var code = res.getResponseCode(), body;
+  try { body = JSON.parse(res.getContentText() || 'null'); } catch (e) { body = null; }
+  return { code: code, body: body };
+}
+function alimDiscover(data) {
+  if (String(data.pw || '') !== TEACHER_PW) return json({ result:'error', message:'unauthorized' });
+  var props = alimProps_();
+  var key = String(props.getProperty(ALIM_PROP_.key) || '').trim();
+  var secret = String(props.getProperty(ALIM_PROP_.secret) || '').trim();
+  if (!key || !secret) return json({ result:'error', message:'솔라피 API Key와 Secret을 먼저 저장해 주세요.' });
+  var out = { result:'success', channels: [], savedPfId: '', templates: {}, notes: [] };
+  // 1) 채널
+  var ch;
+  try { ch = alimGet_(key, secret, '/kakao/v1/plus-friends'); } catch (e) { return json({ result:'error', message:'솔라피 연결 실패: ' + e }); }
+  if (ch.code === 401 || ch.code === 403) return json({ result:'error', message:'솔라피가 API 키를 거절했어요 (' + ch.code + '). Key·Secret을 다시 확인해 주세요.' });
+  if (ch.code !== 200) out.notes.push('채널 목록 조회 실패 (' + ch.code + ')');
+  var seen = {};
+  alimWalk_(ch.body, function(o) {
+    var id = '';
+    Object.keys(o).forEach(function(k) { var v = o[k]; if (!id && typeof v === 'string' && /^KA01PF[0-9A-Za-z]+$/.test(v)) id = v; });
+    if (!id || seen[id]) return;
+    seen[id] = true;
+    out.channels.push({ pfId: id, name: String(o.name || o.channelName || o.plusFriendName || ''),
+                        searchId: String(o.searchId || o.plusFriendId || ''), status: String(o.status || '') });
+  });
+  var cur = String(props.getProperty(ALIM_PROP_.pfId) || '').trim();
+  if (out.channels.length === 1) { props.setProperty(ALIM_PROP_.pfId, out.channels[0].pfId); out.savedPfId = out.channels[0].pfId; }
+  else if (out.channels.length > 1 && cur && out.channels.some(function(c) { return c.pfId === cur; })) out.savedPfId = cur;
+  else if (out.channels.length > 1) out.notes.push('연동된 채널이 ' + out.channels.length + '개예요. 아래에서 하나를 골라 주세요.');
+  else if (ch.code === 200) out.notes.push('연동된 카카오 채널을 찾지 못했어요. 솔라피 콘솔에서 채널 연동이 끝났는지 확인해 주세요.');
+  // 2) 템플릿 — 문구가 같고 승인된 것
+  var pf = out.savedPfId || cur;
+  var tp;
+  try { tp = alimGet_(key, secret, '/kakao/v1/templates?limit=500' + (pf ? '&pfId=' + encodeURIComponent(pf) : '')); } catch (e) { tp = { code: 0, body: null }; }
+  if (tp.code !== 200) out.notes.push('템플릿 목록 조회 실패 (' + (tp.code || '연결') + ')');
+  var found = [];
+  alimWalk_(tp.body, function(o) {
+    var id = '';
+    Object.keys(o).forEach(function(k) { var v = o[k]; if (!id && typeof v === 'string' && /^KA01TP[0-9A-Za-z]+$/.test(v)) id = v; });
+    if (!id) return;
+    var text = String(o.content || o.text || o.templateContent || ''), st = String(o.status || '');
+    if (text) found.push({ id: id, text: alimNorm_(text), status: st, name: String(o.name || o.templateName || '') });
+  });
+  Object.keys(ALIM_TPL_).forEach(function(k) {
+    var t = ALIM_TPL_[k], want = alimNorm_(t.text);
+    var hits = found.filter(function(f) { return f.text === want; });
+    var ok = hits.filter(function(f) { return !f.status || /APPROV|승인/i.test(f.status); });
+    var pick = ok[0] || null;
+    if (pick) props.setProperty(t.prop, pick.id);
+    out.templates[k] = { label: t.label, saved: pick ? pick.id : '', status: (pick || hits[0] || {}).status || '',
+                         pending: !pick && hits.length ? true : false, found: hits.length };
+    if (!pick && hits.length) out.notes.push("'" + t.label + "' 템플릿이 아직 승인 전이에요 (" + hits[0].status + ") — 승인되면 다시 눌러 주세요.");
+    if (!hits.length && tp.code === 200) out.notes.push("'" + t.label + "' 문구와 똑같은 템플릿이 없어요 — 솔라피 템플릿 등록 문구가 화면의 문구와 한 글자도 다르지 않은지 확인해 주세요.");
+  });
+  return json(out);
+}
+/** 발송 기록 조회. GET action=alimLog&pw=&from=yyyy-MM-dd&to=yyyy-MM-dd[&limit=] — 수업일(G) 기준, 최신순 */
+function alimLogGet(from, to, limit) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ss.getSheetByName(TAB_ALIM);
+  var out = [];
+  if (sh) {
+    from = String(from || '').trim(); to = String(to || '').trim();
+    var since = from ? (Date.parse(from) - 3 * 24 * 3600 * 1000) : (Date.now() - 30 * 24 * 3600 * 1000);
+    var rows = sheetTail_(sh, 0, since).rows;
+    rows.forEach(function(r) {
+      var ymd = alimYmd_(r[6]);
+      if (from && ymd && ymd < from) return;
+      if (to && ymd && ymd > to) return;
+      out.push({ ts: (r[0] && r[0].getTime) ? alimFmtTs_(r[0]) : String(r[0] || ''), kind: String(r[1] || ''),
+                 student: String(r[2] || '').trim(), who: String(r[3] || ''), to: String(r[4] || ''),
+                 cls: String(r[5] || ''), date: ymd, ok: String(r[7] || '') === '성공', message: String(r[8] || '') });
+    });
+  }
+  out.reverse();
+  var lim = Math.max(1, Math.min(2000, parseInt(limit, 10) || 300));
+  return json({ result:'success', rows: out.slice(0, lim) });
 }
 /** 요청 상태·처리메모 변경(클로드 코드 세션·페이지 공용). { pw, row, ts, status, note, del }
  *  ts = 그 줄의 기록일시(목록 응답의 값 그대로) — 줄이 지워져 행이 밀렸을 때 엉뚱한 줄을 고치지 않기 위한 대조.

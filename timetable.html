@@ -452,6 +452,26 @@
     border-radius:8px;padding:5px 10px;cursor:pointer;color:var(--ink);white-space:nowrap;}
   .mk-item .mk-row button.done-btn{background:var(--btn);border-color:var(--btn);color:#fff;}
   .mk-sec{font-size:.8rem;color:var(--ink-soft);margin:12px 0 2px;font-weight:700;}
+  /* ── 카카오 알림톡 (2026-09-11) — 결석 알림 확인 창·설정·기록 ── */
+  .al-prev{background:#F7F5EC;border-radius:10px;padding:10px 12px;font-size:.86rem;white-space:pre-wrap;word-break:break-word;line-height:1.5;margin-top:8px;}
+  .al-row{display:flex;align-items:center;gap:8px;padding:7px 4px;border-bottom:1px solid var(--line-soft);font-size:.88rem;flex-wrap:wrap;}
+  .al-row:last-child{border-bottom:0;}
+  .al-row input[type=checkbox]{width:16px;height:16px;flex:none;}
+  .al-row b{flex:none;}
+  .al-row select{font:inherit;font-size:.82rem;border:1px solid var(--line);border-radius:8px;padding:3px 6px;background:#fff;max-width:100%;}
+  .al-row .al-note{font-size:.76rem;color:var(--ink-soft);}
+  .al-row .al-none{font-size:.78rem;color:#7E2B3D;}
+  .al-sent{display:inline-block;font-size:.76rem;border-radius:999px;padding:2px 9px;background:#DCE9E2;color:#2F5D46;font-weight:700;}
+  .al-sent.no{background:#F5EBCF;color:#5F4E14;}
+  .al-sent.bad{background:#F3DFDD;color:#7E2B3D;}
+  .al-line{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:.84rem;margin:6px 0 2px;}
+  .al-line button{font:inherit;font-size:.78rem;background:#fff;border:1px solid var(--line-soft);border-radius:8px;padding:3px 9px;cursor:pointer;color:var(--ink);}
+  .al-cfg{margin-top:10px;}
+  .al-cfg summary{cursor:pointer;font-size:.84rem;font-weight:700;color:var(--ink-soft);}
+  .al-cfg input{width:100%;font:inherit;font-size:.9rem;border:1.5px solid var(--line);border-radius:10px;padding:8px 10px;margin-top:4px;background:#fff;box-sizing:border-box;}
+  .al-cfg .req-lb{margin-top:8px;}
+  .al-log .al-row small{color:var(--ink-soft);font-size:.74rem;}
+  .al-log .al-row .grow{flex:1 1 auto;}
   /* ── 수정 요청함 (2026-08-28) — 조교가 남긴 요청을 클로드 코드가 읽어 처리 ── */
   .req-lb{font-size:.78rem;color:var(--ink-soft);font-weight:700;margin-top:10px;display:block;}
   .req-form select{width:100%;font:inherit;font-size:.92rem;border:1.5px solid var(--line);border-radius:10px;padding:8px 10px;margin-top:6px;background:#fff;}
@@ -783,6 +803,7 @@
         <span class="clabel">출석 관리</span>
         <button onclick="openMakeup()">결석자 관리</button>
         <button id="v-att" onclick="setMode('att')">출석 현황</button>
+        <button onclick="openAlim()">알림톡</button>
       </span>
       <span class="cluster">
         <button onclick="openEditReq()">수정 요청</button>
@@ -5396,6 +5417,267 @@ function nsLoad(m){
     });
 }
 
+/* ══════════════════════════════════════════════════════════════════════
+ * 카카오 알림톡 — 결석 알림 (2026-09-11 사용자 결정 "솔라피로 할게요. 결석 알림부터")
+ * 결석을 저장하면(개별·복수 선택) 확인 창을 띄워 학부모1에게 알림톡을 보낸다 — 자동 발송은 없다,
+ * 조교가 잘못 찍은 결석이 바로 학부모에게 가면 곤란해서. 발송·기록·설정은 전부 백엔드(alimSend/alimLog/
+ * alimConfig/alimConfigSet)에서, 여기는 창만. 번호는 출석 창 연락처와 같은 stuPhones(수파베이스 students).
+ * 함수 접두 alim, 스타일 .al-*.
+ * ══════════════════════════════════════════════════════════════════════ */
+var alimCfg = null, alimCfgBusy = false, alimCfgCbs = [];
+var alimLogByDate = {};   // 'yyyy-MM-dd' → { 'plain이름': {ts, ok, message, who} } — 그 날짜 결석 알림 발송 여부
+function alimCfgEnsure(cb, force){
+  if (alimCfg && !force){ if (cb) cb(alimCfg); return; }
+  if (cb) alimCfgCbs.push(cb);
+  if (alimCfgBusy) return;
+  alimCfgBusy = true;
+  fetch(ENDPOINT + '?action=alimConfig&pw=' + encodeURIComponent(pw) + '&t=' + Date.now())
+    .then(function(r){ return r.json(); })
+    .then(function(d){ alimCfg = (d && d.result === 'success') ? d : { ready:false, templates:{}, error:(d && d.message) || '조회 실패' }; })
+    .catch(function(){ alimCfg = { ready:false, templates:{}, error:'연결 실패' }; })
+    .then(function(){ alimCfgBusy = false; alimCfgCbs.splice(0).forEach(function(f){ f(alimCfg); }); });
+}
+function alimLogEnsure(ymd, cb, force){
+  if (alimLogByDate[ymd] && !force){ if (cb) cb(alimLogByDate[ymd]); return; }
+  fetch(ENDPOINT + '?action=alimLog&pw=' + encodeURIComponent(pw) + '&from=' + ymd + '&to=' + ymd + '&t=' + Date.now())
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      var m = {};
+      ((d && d.rows) || []).slice().reverse().forEach(function(r){   // 오래된 것부터 덮어 마지막 시도가 남게
+        if (r.kind !== 'absent') return;
+        var k = plainName(r.student);
+        if (!m[k] || r.ok || !m[k].ok) m[k] = { ts: r.ts, ok: r.ok, message: r.message, who: r.who };
+      });
+      alimLogByDate[ymd] = m;
+    })
+    .catch(function(){ alimLogByDate[ymd] = alimLogByDate[ymd] || {}; })
+    .then(function(){ if (cb) cb(alimLogByDate[ymd]); });
+}
+/* 알림 문구 변수: 수업일 '9/11(금) 5:30' · 반이름 '고1 가' */
+function alimVarsOf(c, nm, ymd){
+  var d = wedOfYmd(ymd), dn = ['일','월','화','수','목','금','토'][d.getDay()];
+  return { '학생명': plainName(nm), '수업일': mdOf(d) + '(' + dn + ') ' + (c ? c.start : ''), '반이름': c ? c.cls : '' };
+}
+function alimFill(text, vars){ return String(text || '').replace(/#\{([^}]+)\}/g, function(_, k){ return vars[k] != null ? vars[k] : ''; }); }
+/* 받는 사람 후보 — 학부모1이 기본, 학부모2·학생은 고를 수 있게 */
+function alimTargets(nm){
+  var s = stuPhoneOf(nm), out = [];
+  if (s){
+    if (s.p1) out.push({ who:'학부모1', to:s.p1 });
+    if (s.p2) out.push({ who:'학부모2', to:s.p2 });
+    if (s.ps) out.push({ who:'학생', to:s.ps });
+  }
+  return out;
+}
+/* 결석 저장 뒤 확인 창. cid가 null이면 items의 cid를 쓴다(복수 선택). names: 이름 배열 또는 {cid,nm} 배열 */
+function alimOfferAbsent(cid, names, ymd){
+  var items = names.map(function(x){ return typeof x === 'string' ? { cid: cid, nm: x } : x; });
+  alimCfgEnsure(function(cfg){
+    if (!cfg.ready || !cfg.templates.absent || !cfg.templates.absent.ready) return;   // 설정 전에는 조용히
+    stuPhonesEnsure(function(){
+      alimLogEnsure(ymd, function(log){ alimOpenConfirm(items, ymd, log, cfg); });
+    });
+  });
+}
+function alimOpenConfirm(items, ymd, log, cfg){
+  var tpl = cfg.templates.absent;
+  var rows = items.map(function(it, i){
+    var c = classes.find(function(x){ return x.id === it.cid; });
+    var tg = alimTargets(it.nm), sent = log[plainName(it.nm)];
+    var opts = tg.map(function(t){ return '<option value="'+esc(t.who)+'|'+esc(t.to)+'">'+esc(t.who)+' '+esc(phoneFmt(t.to))+'</option>'; }).join('');
+    var already = sent && sent.ok;
+    return '<div class="al-row" data-i="'+i+'">'+
+      '<input type="checkbox" id="al-ck'+i+'"'+(tg.length && !already ? ' checked' : '')+(tg.length ? '' : ' disabled')+'>'+
+      '<b>'+esc(plainName(it.nm))+'</b>'+
+      '<span class="al-note">'+esc(c ? c.cls + ' · ' + c.day + c.start : '')+'</span>'+
+      (tg.length ? '<select id="al-to'+i+'">'+opts+'</select>' : '<span class="al-none">등록된 연락처가 없어요</span>')+
+      (already ? '<span class="al-sent">'+esc(sent.ts.slice(11))+' 보냄</span>' : '')+
+      '</div>';
+  }).join('');
+  var first = items[0], c0 = classes.find(function(x){ return x.id === first.cid; });
+  var preview = alimFill(tpl.text, alimVarsOf(c0, first.nm, ymd));
+  openModal(
+    '<h3>결석 알림톡</h3>'+
+    '<p class="mdesc">학부모에게 결석 알림톡을 보낼까요? 보낼 학생만 체크하세요.'+(items.length > 1 ? ' (' + items.length + '명)' : '')+'</p>'+
+    '<div id="al-rows">'+rows+'</div>'+
+    '<p class="mk-sec">보낼 내용'+(items.length > 1 ? ' (첫 학생 기준 — 학생마다 이름·반·시간이 바뀌어요)' : '')+'</p>'+
+    '<div class="al-prev">'+esc(preview)+'</div>'+
+    (cfg.smsFallback ? '' : '<p class="subnote">카카오톡을 받을 수 없는 번호는 문자로 대체되지 않아요 (발신번호 미설정).</p>')+
+    '<p class="merr" id="al-err"></p>'+
+    '<div class="mbtns"><button onclick="closeModal()">보내지 않기</button>'+
+    '<button class="primary" id="al-go" onclick="alimSendConfirm(\''+esc(ymd)+'\')">알림톡 보내기</button></div>'
+  );
+  alimConfirmItems = items;
+}
+var alimConfirmItems = [];
+function alimSendConfirm(ymd){
+  var items = [];
+  alimConfirmItems.forEach(function(it, i){
+    var ck = $('al-ck'+i), sel = $('al-to'+i);
+    if (!ck || !ck.checked || !sel) return;
+    var parts = sel.value.split('|'), c = classes.find(function(x){ return x.id === it.cid; });
+    items.push({ student: plainName(it.nm), who: parts[0], to: parts[1], cls: c ? c.cls : '', date: ymd, vars: alimVarsOf(c, it.nm, ymd) });
+  });
+  if (!items.length){ $('al-err').textContent = '보낼 학생을 체크해 주세요.'; return; }
+  var btn = $('al-go'); if (btn) btn.disabled = true;
+  closeModal();
+  var body = { action:'alimSend', kind:'absent', items: items };
+  if (alimForce){ body.force = '1'; alimForce = false; }
+  post(body, '알림톡 보내는 중…', function(res){
+    if (!res || res.result !== 'success'){ setStatus('알림톡 실패: ' + ((res && res.message) || '오류'), 'err'); return; }
+    delete alimLogByDate[ymd];
+    var bad = (res.sent || []).filter(function(x){ return !x.ok; });
+    var dup = (res.sent || []).filter(function(x){ return x.dup; });
+    var msg = '결석 알림톡 ' + res.okCount + '건 보냈어요.';
+    if (dup.length) msg += ' ' + dup.map(function(x){ return x.student; }).join('·') + '은(는) 이미 보낸 기록이 있어 건너뛰었어요.';
+    if (bad.length) msg += ' 실패: ' + bad.map(function(x){ return x.student + ' (' + x.message + ')'; }).join(', ');
+    setStatus(msg, bad.length ? 'err' : 'ok');
+  });
+}
+/* 출석 창의 '결석 알림' 줄 — 보냈으면 시각, 아니면 [알림톡 보내기] */
+function alimAttLine(cid, nm, ymd){
+  alimCfgEnsure(function(cfg){
+    var el = $('att-alim'); if (!el) return;
+    if (!cfg.ready || !cfg.templates.absent || !cfg.templates.absent.ready){ el.innerHTML = '<span class="al-note">결석 알림톡은 설정 전이에요 (상단 [알림톡])</span>'; return; }
+    alimLogEnsure(ymd, function(log){
+      var el2 = $('att-alim'); if (!el2) return;
+      var s = log[plainName(nm)];
+      var cidE = esc(cid), nmE = esc(nm), ymdE = esc(ymd);
+      if (s && s.ok) el2.innerHTML = '<span class="al-sent">'+esc(s.who)+'께 알림톡 보냄 '+esc(s.ts.slice(5))+'</span>'+
+        '<button onclick="alimResend(\''+cidE+'\',\''+nmE+'\',\''+ymdE+'\')">다시 보내기</button>';
+      else el2.innerHTML = (s ? '<span class="al-sent bad">알림톡 실패 · '+esc(s.message || '')+'</span>' : '<span class="al-sent no">결석 알림톡 아직 안 보냄</span>')+
+        '<button onclick="alimResend(\''+cidE+'\',\''+nmE+'\',\''+ymdE+'\')">알림톡 보내기</button>';
+    });
+  });
+}
+function alimResend(cid, nm, ymd){
+  stuPhonesEnsure(function(){
+    alimCfgEnsure(function(cfg){
+      var log = alimLogByDate[ymd] || {}, s = log[plainName(nm)];
+      if (s && s.ok){
+        if (!confirm(plainName(nm) + ' 학부모께 오늘 이미 보냈어요. 한 번 더 보낼까요?')) return;
+        alimLogByDate[ymd] = Object.assign({}, log); delete alimLogByDate[ymd][plainName(nm)];   // 창에서 체크되게
+        alimOpenConfirm([{ cid: cid, nm: nm }], ymd, alimLogByDate[ymd], cfg);
+        alimForce = true;
+      } else { alimForce = false; alimOpenConfirm([{ cid: cid, nm: nm }], ymd, log, cfg); }
+    });
+  });
+}
+var alimForce = false;
+/* 상단 [알림톡] — 오늘 보낸 기록 + 설정(쓰기 전용) */
+function openAlim(){
+  openModal(
+    '<h3>알림톡</h3>'+
+    '<p class="mdesc">결석을 기록하면 학부모에게 카카오 알림톡을 보낼지 물어봐요. 보낸 기록과 설정은 여기서 확인해요.</p>'+
+    '<div id="al-state"><p class="subnote">확인 중…</p></div>'+
+    '<p class="mk-sec">보낸 기록 <span class="al-note" id="al-log-range"></span></p>'+
+    '<div class="al-log" id="al-log"><p class="subnote">불러오는 중…</p></div>'+
+    '<details class="al-cfg" id="al-cfg"><summary>설정 (솔라피 API 키 · 카카오 채널 · 템플릿)</summary>'+
+    '<p class="subnote">값은 저장만 되고 다시 보이지 않아요. 바꿀 칸만 채우고 저장하세요 — 빈 칸은 그대로 둡니다.</p>'+
+    '<span class="req-lb">솔라피 API Key</span><input type="text" id="al-key" autocomplete="off" placeholder="NCS…">'+
+    '<span class="req-lb">솔라피 API Secret</span><input type="password" id="al-secret" autocomplete="off">'+
+    '<span class="req-lb">발신번호 (솔라피에 등록한 번호 — 넣으면 카카오톡 못 받는 번호는 문자로 대체)</span><input type="text" id="al-from" autocomplete="off" placeholder="010-0000-0000">'+
+    '<p class="merr" id="al-cfg-err"></p><p class="req-msg" id="al-cfg-msg"></p>'+
+    '<div class="mbtns"><button class="primary" onclick="alimCfgSave()">설정 저장</button></div>'+
+    '<p class="mk-sec">채널 · 템플릿 — 솔라피에서 자동으로 가져오기</p>'+
+    '<p class="subnote">API 키를 저장한 뒤 누르면 연동된 카카오 채널(pfId)과 승인된 결석 안내 템플릿 ID를 솔라피에서 읽어 와 저장해요. 템플릿 심사가 끝난 뒤 한 번 더 누르세요.</p>'+
+    '<div class="al-line"><button id="al-disc-btn" onclick="alimDiscover()">솔라피에서 가져오기</button><span id="al-disc-msg" class="al-note"></span></div>'+
+    '<div id="al-disc"></div>'+
+    '<details class="al-cfg" style="margin-top:6px;"><summary>직접 입력 (자동 가져오기가 안 될 때)</summary>'+
+    '<span class="req-lb">카카오 채널 pfId</span><input type="text" id="al-pfid" autocomplete="off" placeholder="KA01PF…">'+
+    '<span class="req-lb">결석 안내 템플릿 ID</span><input type="text" id="al-tpl-absent" autocomplete="off" placeholder="KA01TP…">'+
+    '<div class="mbtns"><button class="primary" onclick="alimCfgSave()">저장</button></div>'+
+    '</details>'+
+    '</details>'+
+    '<div class="mbtns"><button onclick="closeModal()">닫기</button></div>', true
+  );
+  alimCfgEnsure(alimRenderState, true);
+  alimRenderLog();
+}
+function alimRenderState(cfg){
+  var el = $('al-state'); if (!el) return;
+  var t = cfg.templates && cfg.templates.absent;
+  if (cfg.error){ el.innerHTML = '<p class="merr">설정을 확인하지 못했어요: '+esc(cfg.error)+' (백엔드가 아직 옛 배포본이면 재배포가 필요해요)</p>'; return; }
+  var items = [
+    ['솔라피 API 키', cfg.has && cfg.has.key && cfg.has.secret],
+    ['카카오 채널(pfId)', cfg.has && cfg.has.pfId],
+    ['결석 안내 템플릿', t && t.ready],
+    ['문자 대체 발신번호', cfg.has && cfg.has.from]
+  ];
+  el.innerHTML = '<div class="al-line">' + items.map(function(x){
+    return '<span class="al-sent'+(x[1] ? '' : ' no')+'">'+esc(x[0])+' '+(x[1] ? '준비됨' : '없음')+'</span>';
+  }).join('') + '</div>' +
+  (t ? '<p class="mk-sec">결석 안내 문구 (솔라피 템플릿에 이 문구 그대로 등록)</p><div class="al-prev">'+esc(t.text)+'</div>' : '');
+}
+function alimRenderLog(){
+  var to = todayStr(), fd = new Date(); fd.setDate(fd.getDate() - 6);
+  var from = ymdOf(fd);
+  var rg = $('al-log-range'); if (rg) rg.textContent = '최근 7일';
+  fetch(ENDPOINT + '?action=alimLog&pw=' + encodeURIComponent(pw) + '&from=' + from + '&to=' + to + '&t=' + Date.now())
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      var el = $('al-log'); if (!el) return;
+      var rows = (d && d.rows) || [];
+      if (!d || d.result !== 'success'){ el.innerHTML = '<p class="merr">기록을 불러오지 못했어요.</p>'; return; }
+      if (!rows.length){ el.innerHTML = '<p class="subnote">최근 7일에 보낸 알림톡이 없어요.</p>'; return; }
+      el.innerHTML = rows.map(function(r){
+        return '<div class="al-row"><span class="al-sent'+(r.ok ? '' : ' bad')+'">'+(r.ok ? '성공' : '실패')+'</span>'+
+          '<b>'+esc(r.student)+'</b><span class="grow al-note">'+esc(r.cls)+' · 수업일 '+esc(r.date)+' · '+esc(r.who)+' '+esc(phoneFmt(r.to))+
+          (r.message && !r.ok ? ' · '+esc(r.message) : '')+'</span><small>'+esc(r.ts)+'</small></div>';
+      }).join('');
+    })
+    .catch(function(){ var el = $('al-log'); if (el) el.innerHTML = '<p class="merr">기록을 불러오지 못했어요.</p>'; });
+}
+/* 솔라피에서 채널·템플릿 ID 가져오기 — 백엔드 alimDiscover. 채널이 여럿이면 고르는 버튼을 보여 준다. */
+function alimDiscover(){
+  var btn = $('al-disc-btn'), msg = $('al-disc-msg'), box = $('al-disc');
+  if (btn) btn.disabled = true; if (msg) msg.textContent = '솔라피에 물어보는 중…'; if (box) box.innerHTML = '';
+  post({ action:'alimDiscover' }, '솔라피에서 가져오는 중…', function(res){
+    if (btn) btn.disabled = false;
+    if (!res || res.result !== 'success'){ if (msg) msg.textContent = ''; if (box) box.innerHTML = '<p class="merr">'+esc((res && res.message) || '가져오지 못했어요.')+'</p>'; return; }
+    var parts = [];
+    if (res.savedPfId) parts.push('<p class="req-msg">채널 pfId 저장: '+esc(res.savedPfId)+(res.channels[0] && res.channels[0].name ? ' ('+esc(res.channels[0].name)+')' : '')+'</p>');
+    if (res.channels && res.channels.length > 1){
+      parts.push('<p class="subnote">연동된 채널이 여러 개예요. 알림톡을 보낼 채널을 골라 주세요.</p>');
+      parts.push(res.channels.map(function(c){
+        return '<div class="al-row"><b>'+esc(c.name || c.searchId || c.pfId)+'</b><span class="al-note">'+esc(c.searchId)+' · '+esc(c.pfId)+'</span>'+
+          (res.savedPfId === c.pfId ? '<span class="al-sent">사용 중</span>' : '<button onclick="alimPickPf(\''+esc(c.pfId)+'\')">이 채널 쓰기</button>')+'</div>';
+      }).join(''));
+    }
+    Object.keys(res.templates || {}).forEach(function(k){
+      var t = res.templates[k];
+      if (t.saved) parts.push('<p class="req-msg">'+esc(t.label)+' 템플릿 ID 저장: '+esc(t.saved)+'</p>');
+    });
+    (res.notes || []).forEach(function(n){ parts.push('<p class="subnote">'+esc(n)+'</p>'); });
+    if (msg) msg.textContent = '';
+    if (box) box.innerHTML = parts.join('') || '<p class="subnote">가져올 것이 없었어요.</p>';
+    alimCfgEnsure(alimRenderState, true);
+  });
+}
+function alimPickPf(pfId){
+  post({ action:'alimConfigSet', pfId: pfId }, '채널 저장 중…', function(res){
+    if (res && res.result === 'success'){ setStatus('알림톡 채널을 저장했어요.', 'ok'); alimDiscover(); }
+    else setStatus('저장 실패: ' + ((res && res.message) || '오류'), 'err');
+  });
+}
+function alimCfgSave(){
+  var b = { action:'alimConfigSet' }, any = false;
+  var take = function(id, key){ var v = ($(id) ? $(id).value : '').trim(); if (v){ b[key] = v; any = true; } };
+  take('al-key', 'apiKey'); take('al-secret', 'apiSecret'); take('al-pfid', 'pfId'); take('al-from', 'from');
+  var tpl = ($('al-tpl-absent') ? $('al-tpl-absent').value : '').trim();
+  if (tpl){ b.tpl = { absent: tpl }; any = true; }
+  if (!any){ $('al-cfg-err').textContent = '채운 칸이 없어요.'; return; }
+  $('al-cfg-err').textContent = '';
+  post(b, '설정 저장 중…', function(res){
+    if (res && res.result === 'success'){
+      ['al-key','al-secret','al-pfid','al-tpl-absent','al-from'].forEach(function(id){ if ($(id)) $(id).value = ''; });
+      if ($('al-cfg-msg')) $('al-cfg-msg').textContent = '저장했어요: ' + (res.saved || []).join(', ');
+      alimCfgEnsure(alimRenderState, true);
+      setStatus('알림톡 설정을 저장했어요.', 'ok');
+    } else if ($('al-cfg-err')) $('al-cfg-err').textContent = '저장 실패: ' + ((res && res.message) || '오류');
+  });
+}
+
 /* ── 수정 요청함 — 조교가 남긴 요청을 클로드 코드 세션이 읽어 처리 (2026-08-28 사용자 확정) ── */
 var reqRows = null;      // 마지막으로 받은 목록 (null = 아직/실패)
 var reqLoading = false;
@@ -5649,12 +5931,13 @@ function multiApply(status){
   var cids = Object.keys(byClass);
   var label = status === '' ? '기록 지우기' : status;
   if (!confirm(sel.length + '명을 일괄 ' + label + ' 처리할까요?')) return;
-  var done = 0, total = 0;
+  var done = 0, total = 0, absDone = [];   // absDone: 결석으로 기록된 {cid,nm} — 알림톡 확인 창용
   var next = function(i){
     if (i >= cids.length){
       multiSel = {}; updateMultiCnt();
       render();
       setStatus(total + '명 ' + label + ' 완료.', 'ok');
+      if (status === '결석' && absDone.length) alimOfferAbsent(null, absDone, todayStr());   // 학부모 결석 알림톡 (2026-09-11)
       return;
     }
     var cid = cids[i];
@@ -5665,7 +5948,7 @@ function multiApply(status){
           byClass[cid].forEach(function(nm){ delete attend[attKey(cid, nm)]; });
           total += res.cleared || 0;
         } else {
-          (res.marked || []).forEach(function(nm){ attend[attKey(cid, nm)] = { status: status, memo: '' }; });
+          (res.marked || []).forEach(function(nm){ attend[attKey(cid, nm)] = { status: status, memo: '' }; absDone.push({ cid: cid, nm: nm }); });
           total += (res.marked || []).length;
         }
       }
@@ -5767,6 +6050,7 @@ function openAttend(c, nm, dateStr){
     '<h3>출석 체크</h3>'+
     '<p class="mdesc"><b>'+esc(plainName(nm))+'</b> — '+esc(labelOf(c))+'<br>'+esc(attDate)+'</p>'+
     attTelHtml()+
+    (cur && cur.status === '결석' ? '<div class="al-line" id="att-alim"></div>' : '')+
     (fut ? '<p class="mdesc" style="color:#5B76A8;background:#F0F4FA;border-radius:9px;padding:8px 10px;">1회 이동 예약 — '+esc(fut)+'</p>' : '')+
     '<div class="att-btns">'+
     '<button class="pick-ok'+(cur&&cur.status==='출석'?' on':'')+'" onclick="submitAttend(\''+esc(c.id)+'\',\''+esc(nm)+'\',\'출석\')">출석</button>'+
@@ -5787,6 +6071,7 @@ function openAttend(c, nm, dateStr){
     '<button onclick="closeModal()">닫기</button></div>'
   );
   attTelFill(nm);
+  if (cur && cur.status === '결석') alimAttLine(c.id, nm, attDate);
 }
 function submitAttend(cid, nm, status){
   var memo = ($('att-memo') ? $('att-memo').value : '').trim();
@@ -5806,6 +6091,7 @@ function submitAttend(cid, nm, status){
         }
         render();
         setStatus(plainName(nm) + (status ? ' — ' + status + ' 기록 완료.' : ' 기록을 지웠어요.') + (d !== todayStr() ? ' (' + d + ')' : ''), 'ok');
+        if (status === '결석') alimOfferAbsent(cid, [nm], d);   // 학부모 결석 알림톡 — 확인 창 (2026-09-11)
       } else setStatus('기록 실패: ' + ((res && res.message) || '오류'), 'err');
     });
 }
