@@ -75,6 +75,49 @@ const CLASSES = [
   await page.evaluate((d) => { allZoomDay = d; keepScroll = false; render(); }, TODAY);
   await checkGrid(page, '전체 확대', '.wk-tgrid .blk');
   await page.close();
+
+  // ④ '이 주만' 반 만들기 확인창 (wkOverlapOk) — 같은 강사·겹치는 시간이면 한 번 묻는다
+  page = await open('week');
+  await page.waitForSelector('.wk-mini', { timeout: 15000 });
+  let dlg = [], dlgMode = 'dismiss';
+  page.on('dialog', d => { dlg.push(d.message()); if (dlgMode === 'accept') d.accept(); else d.dismiss(); });
+  const modalOpen = () => page.evaluate(() => document.getElementById('modal').classList.contains('on'));
+  // ④-1 보충 추가: 4:00~5:30은 백양C(3:30~5:00)·원래 수업과 겹침 → 확인창, [취소]면 창 유지
+  await page.evaluate(() => openWeekClassExtra(classes.find(c => c.id === 'rA')));
+  await page.selectOption('#nc-start', '4:00'); await page.selectOption('#nc-end', '5:30');
+  dlg = []; dlgMode = 'dismiss';
+  await page.click('text=보충 만들기');
+  ok('보충: 겹치면 확인창 + 겹치는 반 명시', dlg.length === 1 && dlg[0].indexOf('이미 수업이 있어요') >= 0 && dlg[0].indexOf('고1 백양C') >= 0, JSON.stringify(dlg));
+  ok('보충: [취소]면 만들지 않고 창 유지', await modalOpen());
+  dlg = []; dlgMode = 'accept';
+  await page.click('text=보충 만들기');
+  await page.waitForFunction(() => !document.getElementById('modal').classList.contains('on'));
+  ok('보충: [확인]이면 그대로 진행', dlg.length === 1);
+  // ④-2 새 반 만들기: 지원T 3:30~5:00 → 두 반 다 명시
+  await page.evaluate(() => openAddWeekClass());
+  await page.evaluate((d) => { document.getElementById('nc-day').value = d; }, TODAY);
+  await page.selectOption('#nc-start', '3:30'); await page.selectOption('#nc-end', '5:00');
+  await page.fill('#nc-teacher', '지원'); await page.fill('#nc-cls', '테스트반');
+  dlg = []; dlgMode = 'dismiss';
+  await page.click('text=이 주만 만들기');
+  ok('새 반: 겹치는 두 반 모두 명시', dlg.length === 1 && dlg[0].indexOf('고1 확인') >= 0 && dlg[0].indexOf('고1 백양C') >= 0, JSON.stringify(dlg));
+  ok('새 반: [취소]면 창 유지', await modalOpen());
+  await page.evaluate(() => closeModal());
+  // ④-3 시간 옮기기: 같은 날짜로 옮기면 자기 자신은 어차피 숨어 제외, 백양C만 겹침으로 잡힘
+  await page.evaluate(() => openWeekClassMove(classes.find(c => c.id === 'rA')));
+  await page.selectOption('#nc-start', '4:00'); await page.selectOption('#nc-end', '5:30');
+  dlg = []; dlgMode = 'dismiss';
+  await page.click('text=이 주만 옮기기');
+  ok('옮기기: 자기 자신 제외 + 백양C만 명시', dlg.length === 1 && dlg[0].indexOf('고1 백양C') >= 0 && dlg[0].indexOf('고1 확인') < 0, JSON.stringify(dlg));
+  await page.evaluate(() => closeModal());
+  // ④-4 안 겹치는 시간(1:00~2:30)은 묻지 않고 그대로 진행
+  await page.evaluate(() => openWeekClassExtra(classes.find(c => c.id === 'rA')));
+  await page.selectOption('#nc-start', '1:00'); await page.selectOption('#nc-end', '2:30');
+  dlg = []; dlgMode = 'dismiss';
+  await page.click('text=보충 만들기');
+  await page.waitForFunction(() => !document.getElementById('modal').classList.contains('on'));
+  ok('안 겹치면 확인창 없이 진행', dlg.length === 0, JSON.stringify(dlg));
+  await page.close();
   console.log('통과 ' + pass + ' / 실패 ' + fail);
   await b.close(); srv.close(); process.exit(fail ? 1 : 0);
 })().catch(e => { console.error(e); process.exit(1); });

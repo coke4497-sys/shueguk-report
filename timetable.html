@@ -6353,6 +6353,25 @@ function wkSrcOptions(){
              (c.teacher ? ' · '+esc(c.teacher)+'T' : '')+' ('+c.students.length+'명)</option>';
     }).join('');
 }
+/* '이 주만' 반을 만들기 전 — 그 날짜·같은 강사의 겹치는 수업이 있으면 한 번 물어본다
+ * (2026-09-13 사용자 승인 "확인창 만들어줘" — 겹침 나란히 표시와 한 세트).
+ * 일부러 겹치게 여는 보충은 [확인]으로 그대로 진행되고, 실수만 걸러 준다.
+ * 담당T가 빈 값이면 묻지 않는다. excludeId = 그 날짜에 어차피 숨는 원본 반(옮기기 자기 자신). */
+function wkOverlapOk(dstr, dayName, s, e, teacher, excludeId){
+  var t = String(teacher || '').trim();
+  if (!t) return true;
+  var hit = classes.filter(function(c){
+    if (excludeId && c.id === excludeId) return false;
+    if (String(c.teacher || '').trim() !== t) return false;
+    if (c.wk ? c.wk !== dstr : c.day !== dayName) return false;
+    if (wkOffAt(c.id, dstr) || wkMovedAway(c.id, dstr)) return false;   // 그 날짜엔 안 하는 수업
+    return mins(c.start) < e && minsEnd(c) > s;
+  });
+  if (!hit.length) return true;
+  var lines = hit.map(function(c){ return '· ' + c.cls + ' — ' + c.start + '~' + c.end + (c.loc ? ' (' + c.loc + ')' : ''); });
+  return confirm(t + 'T의 같은 시간에 이미 수업이 있어요.\n\n' + lines.join('\n') +
+                 '\n\n일부러 겹치게 여는 수업이면 [확인]을 눌러 그대로 만들고,\n실수라면 [취소]를 눌러 시간을 바꿔 주세요.');
+}
 function openAddWeekClass(){
   var dates = weekDates();
   var defDay = weekZoomDay || weekListDay || todayDay();
@@ -6412,6 +6431,7 @@ function submitAddWeekClass(){
     if (isMove && srcDate === dstr && st0 === mins(src.start)){
       $('nc-err').textContent = '원래 수업과 같은 요일·시간이에요. 옮길 시간을 골라주세요.'; return;
     }
+    if (!wkOverlapOk(dstr, d, st0, en0, teacher, (isMove && srcDate === dstr) ? src.id : '')) return;
     closeModal();
     post({ action: isMove ? 'timetableWeekClassMove' : 'timetableWeekClassExtra',
            book:book, fromId:src.id, date:srcDate, newDate:dstr,
@@ -6426,6 +6446,7 @@ function submitAddWeekClass(){
       });
     return;
   }
+  if (!wkOverlapOk(dstr, d, st0, en0, teacher, '')) return;
   closeModal();
   post({ action:'timetableWeekClass', book:book, date:dstr, day:d, start:st, end:en,
          loc:loc, teacher:teacher, cls:cls, reason:reason },
@@ -6549,6 +6570,7 @@ function submitWeekClassExtra(cid, d){
   if (day === c.day && st0 === mins(c.start)){
     $('nc-err').textContent = '원래 수업과 같은 요일·시간이에요. 보충할 시간을 골라주세요.'; return;
   }
+  if (!wkOverlapOk(nd, day, st0, en0, teacher, '')) return;   // 보충은 원래 수업도 그대로라 자기 자신도 겹침 대상
   closeModal();
   post({ action:'timetableWeekClassExtra', book:book, fromId:cid, date:d, newDate:nd,
          day:day, start:st, end:en, loc:loc, teacher:teacher, reason:reason },
@@ -6608,6 +6630,7 @@ function submitWeekClassMove(cid, d){
   if (sameWeek && day === c.day && st0 === mins(c.start) && en0 === minsEnd(c) && loc === (c.loc||'') && teacher === (c.teacher||'')){
     $('nc-err').textContent = '바뀐 것이 없어요. 옮길 주나 요일·시간을 고쳐주세요.'; return;
   }
+  if (!wkOverlapOk(nd, day, st0, en0, teacher, (nd === d) ? cid : '')) return;   // 같은 날짜면 원본은 어차피 숨어 제외
   closeModal();
   post({ action:'timetableWeekClassMove', book:book, fromId:cid, date:d, newDate:nd,
          day:day, start:st, end:en, loc:loc, teacher:teacher, reason:reason },
