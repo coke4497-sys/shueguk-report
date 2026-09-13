@@ -42,7 +42,10 @@ var CLINIC_TAB      = '응답';     // 제출시각|이름|학교|전화뒤4|클
 // (모든 항목이 '단위' 기준 — 같은 것을 여러 번 제출·신청해도 별은 1회분만)
 // 깜짝 보너스(수동): '별' 탭에 로그로 기록 (star.html에서 부여)
 var TAB_STARS  = '별';   // A:일시 B:학생ID C:이름 D:학교 E:별 F:사유
-var STAR_RULES = { exam: 2, clinic: 1, voca: 1, hwork: 1, notice: 1, mock: 1, hwcheck: 1 };   // notice = 공지 확인 1건당, mock = 모의고사 응시 회차당, hwcheck = 숙제 검사 만점(100%) 주차당
+var STAR_RULES = { exam: 2, clinic: 1, voca: 1, hwork: 1, notice: 1, mock: 1, hwcheck: 1, gramma: 1 };   // notice = 공지 확인 1건당, mock = 모의고사 응시 회차당, hwcheck = 숙제 검사 만점(100%) 주차당, gramma = 문법 테스트 정답률 90% 이상(카테고리+회차당, 2026-09-13)
+// 문법 테스트 결과 시트(shueguk-gramma Code.gs가 쓰는 스프레드시트) ID — 비우면 이 폴백 경로에서 문법 별은 0으로 계산된다.
+// 원본 집계는 수파베이스 gramma_results(리포트 027 마이그레이션)로 학생 페이지(student_bundle)·순위(superstar computeRanking)가 한다.
+var GRAMMA_SHEET_ID = '';
 var TAB_NOTICE_READ = '공지확인';   // A:일시 B:학생ID C:이름 D:학교 E:공지키(작성일|제목)
 // 어휘·H WORK·주말 모의고사 자동 적립용 스프레드시트 ID (비우면 그 항목은 0으로 계산)
 var VOCA_SHEET_ID  = '1AVDyKpBj9kSW5hzSzOieVIZpV6FnIpcFMjsjUyuGAbE';   // 어휘 결과 시트
@@ -1662,6 +1665,18 @@ function starRankingData_() {
       mark_(stus[byToken[htk]].hwcheck, hwcheckWeekStr_(hcv[hc][1]) || ('r' + hc), tsOf_(hcv[hc][0]));
     }
   }
+  // 문법 테스트 90% 이상 (카테고리|회차 단위) — GRAMMA_SHEET_ID 비면 건너뜀
+  var gsnap = grammaSnap_();
+  if (gsnap.ok && gsnap.has.name) {
+    for (var gi = 0; gi < gsnap.rows.length; gi++) {
+      var gr = gsnap.rows[gi];
+      if (grammaPct_(gr[6]) < 90 || !gr[0].trim()) continue;
+      var kg = resolve(gr[3], gr[0], gr[1], gr[2]);
+      if (kg < 0) continue;
+      if (!stus[kg].gramma) stus[kg].gramma = {};
+      mark_(stus[kg].gramma, gr[4].trim() + '|' + gr[5].trim(), 0);
+    }
+  }
   // 동점 처리: '지금의 별 수에 먼저 도달한' 학생이 위 — 마지막 별의 획득 시각(earnedAt)이 이른 순.
   function setMax_(set, m) { for (var k in set) { if (set[k] > m) m = set[k]; } return m; }
   var out = stus.map(function (s) {
@@ -1673,12 +1688,12 @@ function starRankingData_() {
     var bd = { exam: Object.keys(s.exam).length, clinic: Object.keys(s.clinic).length,
                voca: Object.keys(s.voca).length, hwork: Object.keys(s.hwork).length,
                mock: Object.keys(s.mock).length, notice: Object.keys(s.notice).length,
-               hwcheck: Object.keys(s.hwcheck).length, bonus: s.bonus };
+               hwcheck: Object.keys(s.hwcheck).length, gramma: Object.keys(s.gramma || {}).length, bonus: s.bonus };
     return { name: s.name, school: s.school, grade: s.grade, earnedAt: earnedAt, breakdown: bd,
       total: bd.exam * STAR_RULES.exam + bd.clinic * STAR_RULES.clinic
            + bd.voca * STAR_RULES.voca + bd.hwork * STAR_RULES.hwork
            + bd.mock * STAR_RULES.mock + bd.hwcheck * STAR_RULES.hwcheck
-           + bd.notice * STAR_RULES.notice + bd.bonus };
+           + bd.notice * STAR_RULES.notice + bd.gramma * STAR_RULES.gramma + bd.bonus };
   });
   out.sort(function (a, b) { return b.total - a.total || a.earnedAt - b.earnedAt || a.name.localeCompare(b.name, 'ko'); });
   return out;
@@ -1743,17 +1758,68 @@ function collectStars_(ss, info, key, siblingShared) {
   var hwork  = countHwork_(name, String(info.school || ''), uniq, grade);   // 과제 제출 수
   var mock   = countMock_(name, String(info.school || ''), sid, uniq, grade);   // 모의고사 응시 수(회차 단위)
   var hwcheck = countHwcheckPerfect_(ss, key);                 // 숙제 검사 만점(100%) 주차 수
+  var gramma = countGramma_(name, String(info.school || ''), sid, uniq, grade);   // 문법 테스트 90% 이상(카테고리+회차 단위)
   var bonus  = sumBonus_(ss, sid, name, String(info.school || ''), String(info.grade || ''), uniq);   // {sum, latest}
   var noticeN = Object.keys(readNoticeChecks_(ss, sid, name, String(info.school || '').trim(), uniq)).length;   // 공지 확인 수
   var total = exam * STAR_RULES.exam + clinic * STAR_RULES.clinic
             + voca * STAR_RULES.voca + hwork * STAR_RULES.hwork
             + mock * STAR_RULES.mock + hwcheck * STAR_RULES.hwcheck
-            + noticeN * STAR_RULES.notice + bonus.sum;
+            + noticeN * STAR_RULES.notice + gramma * STAR_RULES.gramma + bonus.sum;
   return {
     total: total,
-    breakdown: { exam: exam, clinic: clinic, voca: voca, hwork: hwork, mock: mock, hwcheck: hwcheck, notice: noticeN, bonus: bonus.sum },
+    breakdown: { exam: exam, clinic: clinic, voca: voca, hwork: hwork, mock: mock, hwcheck: hwcheck, notice: noticeN, gramma: gramma, bonus: bonus.sum },
     latestBonus: bonus.latest   // {stars, reason, date} 또는 null
   };
+}
+
+/* 문법 테스트 결과 스냅샷 — 행: [이름, 학교, 학년, 8자리, 카테고리, 회차, 점수('19 / 21')] (시트 머리글 name·school·grade·phone8·unit·round·score) */
+function grammaSnap_() {
+  return extSnap_('grammaSnap', 60, function () {
+    var snap = { ok: false, has: {}, rows: [] };
+    if (!GRAMMA_SHEET_ID) return snap;
+    var sh;
+    try { sh = SpreadsheetApp.openById(GRAMMA_SHEET_ID).getSheets()[0]; } catch (e) { return snap; }
+    if (!sh) return snap;
+    snap.ok = true;
+    if (sh.getLastRow() < 2) return snap;
+    var v = sh.getDataRange().getValues();
+    var H = v[0].map(function (h) { return String(h || '').trim().toLowerCase(); });
+    var iN = idxOfAny_(H, ['name', '이름']), iS = idxOfAny_(H, ['school', '학교']), iG = idxOfAny_(H, ['grade', '학년']),
+        iP = idxOfAny_(H, ['phone8']), iU = idxOfAny_(H, ['unit']), iR = idxOfAny_(H, ['round']), iSc = idxOfAny_(H, ['score']);
+    snap.has = { name: iN >= 0, school: iS >= 0, grade: iG >= 0, phone8: iP >= 0, unit: iU >= 0, round: iR >= 0, score: iSc >= 0 };
+    for (var i = 1; i < v.length; i++) {
+      snap.rows.push([
+        iN >= 0 ? String(v[i][iN] || '') : '', iS >= 0 ? String(v[i][iS] || '') : '', iG >= 0 ? String(v[i][iG] || '') : '',
+        iP >= 0 ? String(v[i][iP] || '').replace(/[^0-9]/g, '') : '', iU >= 0 ? String(v[i][iU] || '') : '',
+        iR >= 0 ? String(v[i][iR] || '') : '', iSc >= 0 ? String(v[i][iSc] || '') : ''
+      ]);
+    }
+    return snap;
+  });
+}
+/** 점수 문자열 '19 / 21' → 정답률(정수 %). 모양이 다르면 -1. */
+function grammaPct_(score) {
+  var m = String(score || '').match(/(\d+)\s*\/\s*(\d+)/);
+  if (!m || !(+m[2] > 0)) return -1;
+  return Math.round(+m[1] * 100 / +m[2]);
+}
+/** 문법 테스트 90% 이상 수(카테고리|회차 단위 — 재응시 중복은 1개). 8자리가 양쪽에 있으면 대조, 없으면 어휘와 같은 이름·학교·학년 규칙. GRAMMA_SHEET_ID 비면 0. */
+function countGramma_(name, school, sid, uniq, grade) {
+  if (!GRAMMA_SHEET_ID || !name) return 0;
+  var snap = grammaSnap_();
+  if (!snap.ok || !snap.rows.length || !snap.has.name) return 0;
+  var set = {}, myGd = gradeDigit_(grade), base = baseName_(name);
+  for (var i = 0; i < snap.rows.length; i++) {
+    var r = snap.rows[i];
+    if (grammaPct_(r[6]) < 90) continue;
+    var rn = r[0].trim();
+    if (rn !== name && rn !== base) continue;
+    if (r[3] && sid && r[3] !== sid) continue;
+    if (!uniq && school && r[1].trim() && !schoolMatch_(r[1].trim(), school)) continue;
+    if (myGd) { var rGd = gradeDigit_(r[2]); if (rGd && rGd !== myGd) continue; }
+    set[r[4].trim() + '|' + r[5].trim()] = true;
+  }
+  return Object.keys(set).length;
 }
 
 /** 주말 모의고사 응시 수(회차 단위 — 같은 회차 중복 제출은 1개).
