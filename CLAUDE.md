@@ -264,6 +264,11 @@
 ## 지필 리포트 쓰기 — 수파베이스가 원본 (2026-08-26)
 - **학생 복기 제출(r.html)·시험 등록/삭제(m.html·analyses.html)가 수파베이스 먼저**, 시트 사본은 뒤에서. 일일 점검은 exams·exam_questions **보고만**(시트 기준 복구 금지 — 등록·삭제가 되돌아간다), submissions는 원래 추가만. 자세한 것은 `supabase/README.md` '지필 리포트 쓰기' 절.
 
+## 슈퍼스타 별 — 문법 테스트 90% 이상 (2026-09-13 사용자 요청)
+- `STAR_RULES.gramma = 1`: 문법 테스트(shueguk-gramma) 정답률 90% 이상, **카테고리+회차 단위**(재응시 중복 없음). 세 곳에 같이 넣었다 — s.html(`student_bundle`의 `gramma_results`, 획득 내역 '문법 테스트 90% 이상'), superstar.html `computeRanking`(gramma_results 직접 조회 — 표가 없으면 0, 아웃 검색 `SB_SCAN`에도 optional로 포함), 백엔드 `collectStars_`·`starRankingData_`(`countGramma_`/`grammaSnap_` — **`GRAMMA_SHEET_ID`가 비어 있어 폴백에서는 0**. 문법 결과 스프레드시트 ID를 넣고 재배포하면 센다).
+- 원본은 수파베이스 `gramma_results`(027 마이그레이션, 자세한 것은 `supabase/README.md`). 문법 test.html이 시트와 수파베이스 둘 다에 쓴다. **027·028은 2026-09-13 실제 수파베이스에 적용 완료**(공개 키 왕복 확인).
+- **STAR_RULES를 바꾸면 세 벌(백엔드·s.html·superstar.html)을 함께 바꿀 것**(이미 있던 규칙).
+
 ## 학생 연락처 — 전체 번호 저장 (2026-08-26)
 - students에 `phone_student`·`phone_parent1`·`phone_parent2`(전체 번호, 수파베이스 전용 — 시트에는 없음, `018_student_contacts.sql`). 초기 적재 완료(2026-08-26, 재원 493명 전원 학생·학부모1 + 학부모2 44명 — CRM xlsx 대조 검증). **출석 창에 연락처 표시**(timetable.html — 사용자 요청 "출석 체크 이름을 누르면 연락처"): 출석/1회 이동/주간추가 창(`attTelHtml`/`attTelFill`)에 학생·학부모1·학부모2를 tel: 링크로, 전 학생 연락처는 첫 클릭에 한 번 받아 캐시(`stuPhonesEnsure`), 이름 대조는 plainName+끝 A 양방향(`stuPhoneOf`). **신입 등록 폼이 전체 번호 입력**(학생·학부모1 필수, 학부모2 선택)으로 바뀌고 비밀번호(학생ID)는 학부모1 뒤 8자리를 자동 도출(종전 규칙 유지). 슈스 링크 [수정]에도 연락처 3칸. 초기 적재는 `supabase/tools/import_contacts.py`(CRM xlsx). 자세한 것은 `supabase/README.md` '학생 연락처' 절.
 

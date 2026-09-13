@@ -846,7 +846,7 @@ function api(extra){
   function p2(n){ return ('0' + n).slice(-2); }
 
   /* ── 백엔드 규칙 이식 ── */
-  var STAR_RULES = { exam: 2, clinic: 1, voca: 1, hwork: 1, notice: 1, mock: 1, hwcheck: 1 };
+  var STAR_RULES = { exam: 2, clinic: 1, voca: 1, hwork: 1, notice: 1, mock: 1, hwcheck: 1, gramma: 1 };   // gramma = 문법 테스트 정답률 90% 이상(카테고리+회차 단위, 2026-09-13)
   function baseName(s){ return tr(s).replace(/[A-Za-z]$/, ''); }
   function schoolMatch(a, b){
     a = String(a || '').replace(/\s+/g, ''); b = String(b || '').replace(/\s+/g, '');
@@ -1048,7 +1048,7 @@ function api(extra){
       var notices = B.notices || [], reads = B.notice_reads || [], assigns = B.assignments || [],
           clinicRows = B.clinic_requests || [], hwsub = B.hwork_submissions || [], voca = B.voca_results || [],
           omr = B.omr_responses || [], hwc = B.hwcheck_records || [], signup = B.signup_entries || [],
-          bonusRows = B.star_bonus || [], cfg = B.report_config || [], subs = B.submissions || [],
+          bonusRows = B.star_bonus || [], cfg = B.report_config || [], subs = B.submissions || [], gramma = B.gramma_results || [],
           examList = B.exams || [], qRows = B.exam_questions || [],
           clinicSet = B.clinic_settings || [], signupSet = B.signup_settings || [];
 
@@ -1259,6 +1259,19 @@ function api(extra){
         });
         var hwPerfect = 0;
         hwcheck.forEach(function(h){ if (h.pct >= 100) hwPerfect++; });
+        /* 문법 테스트 90% 이상 — 카테고리|회차 단위(재응시 중복 없음). 8자리가 양쪽에 있으면 대조, 없으면 어휘와 같은 이름·학교·학년 규칙 */
+        var grammaSet = {};
+        gramma.forEach(function(r){
+          if ((Number(r.pct) || 0) < 90) return;
+          var rn = tr(r.name);
+          if (rn !== name && rn !== base) return;
+          var rp = tr(r.phone8);
+          if (rp && sid && rp !== sid) return;
+          if (!uniq && school) { var rs = tr(r.school); if (rs && !schoolMatch(rs, school)) return; }
+          if (myGd) { var rGd = gradeDigit(r.grade); if (rGd && rGd !== myGd) return; }
+          grammaSet[tr(r.unit) + '|' + tr(r.round)] = true;
+        });
+        var grammaN = Object.keys(grammaSet).length;
         var bonus = { sum: 0, latest: null };
         bonusRows.forEach(function(r){
           var rid = tr(r.student_id).replace(/^'/, ''), rnm = tr(r.name), rsc = tr(r.school);
@@ -1282,10 +1295,10 @@ function api(extra){
           total: examCountStars * STAR_RULES.exam + clinicN * STAR_RULES.clinic
                + Object.keys(vocaRounds).length * STAR_RULES.voca + Object.keys(hworkSet).length * STAR_RULES.hwork
                + Object.keys(mockSet).length * STAR_RULES.mock + hwPerfect * STAR_RULES.hwcheck
-               + noticeN * STAR_RULES.notice + bonus.sum,
+               + noticeN * STAR_RULES.notice + grammaN * STAR_RULES.gramma + bonus.sum,
           breakdown: { exam: examCountStars, clinic: clinicN, voca: Object.keys(vocaRounds).length,
                        hwork: Object.keys(hworkSet).length, mock: Object.keys(mockSet).length,
-                       hwcheck: hwPerfect, notice: noticeN, bonus: bonus.sum },
+                       hwcheck: hwPerfect, notice: noticeN, gramma: grammaN, bonus: bonus.sum },
           latestBonus: bonus.latest
         };
 
@@ -1491,6 +1504,7 @@ function renderStars(){
       hwork: '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/>',
       notice:'<path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>',
       hwcheck:'<path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>',
+      gramma:'<path d="M4 7V4h16v3"/><path d="M9 20h6"/><path d="M12 4v16"/>',
       bonus: '<path d="M12 2l2.9 6.2 6.8.8-5 4.7 1.3 6.7L12 17.1 6 20.4l1.3-6.7-5-4.7 6.8-.8z"/>'
     };
     function srcIcon(k){
@@ -1504,6 +1518,7 @@ function renderStars(){
       ['hwork',  'H-work 과제',        bd.hwork,  '개', bd.hwork],
       ['hwcheck','숙제 검사 만점',     bd.hwcheck,'주', bd.hwcheck],
       ['notice', '공지 확인',          bd.notice, '건', bd.notice],
+      ['gramma', '문법 테스트 90% 이상', bd.gramma || 0, '회', bd.gramma || 0],
       ['bonus',  '수경쌤 깜짝 보너스', bd.bonus ? 1 : 0, '', bd.bonus]
     ].filter(function(s){ return s[2] > 0; });
     if(srcs.length){

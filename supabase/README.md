@@ -600,6 +600,16 @@ anon 의 표 권한 회수 + 정책을 `to authenticated` 로. 배포(머지→P
 - 이름·개별 점수는 어떤 경우에도 나가지 않는다. 검증: `shueguk-report/tools/mock-trend-test.js --live`
   (5명 규칙·전체 인원=과목 합·개인정보 미포함·교사 화면과 같은 평균).
 
+## 문법 테스트 결과 — 슈퍼스타 별 적립 (2026-09-13, 027·028)
+- `migrations/027_gramma_results.sql` — 표 `gramma_results`(이름·학교·학년·8자리·카테고리·회차·점수·정답률) + 함수
+  `gramma_submit(p)`(기록 + 별 판정: 정답률 90% 이상 → star, 같은 학생·같은 테스트로 처음이면 first) +
+  `gramma_status(p)`(이름+8자리로 테스트별 최고 정답률 — 학생 입구 페이지 배지용). anon은 함수만, 표는 교사 신분만(015 규칙).
+- `migrations/028_student_bundle_gramma.sql` — `student_bundle`에 `gramma_results` 항목 추가(012 본문 그대로 + 한 항목). **027 뒤에 실행.**
+- **이 표가 별 집계의 원본**(문법 결과 시트는 대시보드용 사본 — 문법 test.html이 둘 다 쓴다). 집계: s.html(bundle)·superstar.html(computeRanking, 표 없으면 0)·
+  백엔드 폴백(`GRAMMA_SHEET_ID` 비어 있으면 0). 일일 점검(audit_heal)에는 넣지 않았다 — 페이지가 함수로 직접 쓰는 원본이라 시트 기준 복구 대상이 아니다.
+- 검증: `PGHOST=/home/pgtest PGPORT=5499 PGUSER=postgres bash tools/gramma-sql-test.sh`(로컬 PostgreSQL에 001~012를 순서대로 얹은 뒤 027·028 — 판정·재응시·status·bundle·권한 assert).
+- 적용 상태: **2026-09-13 실제 수파베이스에 027·028 적용 완료** — 공개 키로 표 직접 읽기 차단(42501)·gramma_submit(95%→star·first, 재응시→first 아님)·gramma_status 왕복 확인 뒤 시험 행 삭제(표 0행에서 시작).
+
 ## 재동기화(델타) 방법
 시트가 원본인 데이터가 수파베이스와 어긋났을 때: 백엔드 시트 xlsx 다운로드 →
 `tools/extract_from_xlsx.py`로 추출 → 키 기준 비교(출석 date+book+반+이름, 시간표 book+반ID,
