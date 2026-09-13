@@ -266,7 +266,7 @@
 
 ## 슈퍼스타 별 — 문법 테스트 90% 이상 (2026-09-13 사용자 요청)
 - `STAR_RULES.gramma = 1`: 문법 테스트(shueguk-gramma) 정답률 90% 이상, **카테고리+회차 단위**(재응시 중복 없음). 세 곳에 같이 넣었다 — s.html(`student_bundle`의 `gramma_results`, 획득 내역 '문법 테스트 90% 이상'), superstar.html `computeRanking`(gramma_results 직접 조회 — 표가 없으면 0, 아웃 검색 `SB_SCAN`에도 optional로 포함), 백엔드 `collectStars_`·`starRankingData_`(`countGramma_`/`grammaSnap_` — **`GRAMMA_SHEET_ID`가 비어 있어 폴백에서는 0**. 문법 결과 스프레드시트 ID를 넣고 재배포하면 센다).
-- 원본은 수파베이스 `gramma_results`(027 마이그레이션, 자세한 것은 `supabase/README.md`). 문법 test.html이 시트와 수파베이스 둘 다에 쓴다.
+- 원본은 수파베이스 `gramma_results`(027 마이그레이션, 자세한 것은 `supabase/README.md`). 문법 test.html이 시트와 수파베이스 둘 다에 쓴다. **027·028은 2026-09-13 실제 수파베이스에 적용 완료**(공개 키 왕복 확인).
 - **STAR_RULES를 바꾸면 세 벌(백엔드·s.html·superstar.html)을 함께 바꿀 것**(이미 있던 규칙).
 
 ## 학생 연락처 — 전체 번호 저장 (2026-08-26)
