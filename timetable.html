@@ -3615,6 +3615,40 @@ function addCell(g, ci, r, dname, cinfo, lo, rowOffset){
   });
   g.appendChild(cell);
 }
+/* 같은 열(강사)에서 시간이 겹치는 카드는 폭을 나눠 나란히 배치 — 한 장이 다른 장을
+ * 완전히 덮어 클릭조차 못 하던 문제 대응 (2026-09-13 사용자 "겹침 개선" — 9/12 토 3:30
+ * 옛 '이 주만' 백양C 반이 같은 시간 확인 수업 카드와 포개져 조교가 지우지 못했다).
+ * items = [{ el, col, s, e }] (col=그리드 열 키, s·e=분). 겹치는 묶음 안에서 차선(lane)을
+ * 배정하고 width/margin-left(%)로 나눈다 — 그리드 칸 기준 %라 열 폭이 바뀌어도 맞다. */
+function spreadOverlaps(items){
+  var byCol = {};
+  items.forEach(function(it){ (byCol[it.col] = byCol[it.col] || []).push(it); });
+  Object.keys(byCol).forEach(function(k){
+    var arr = byCol[k].sort(function(a, b){ return a.s - b.s || a.e - b.e; });
+    var cluster = [], lanes = [], end = -1;
+    function flush(){
+      if (cluster.length > 1){
+        var n = lanes.length;
+        cluster.forEach(function(it){
+          it.el.style.width = 'calc(' + (100 / n) + '% - 2px)';
+          it.el.style.marginLeft = 'calc(' + (100 * it.lane / n) + '% + 1px)';
+        });
+      }
+      cluster = []; lanes = []; end = -1;
+    }
+    arr.forEach(function(it){
+      if (cluster.length && it.s >= end) flush();
+      var lane = -1;
+      for (var i = 0; i < lanes.length; i++){ if (lanes[i] <= it.s){ lane = i; break; } }
+      if (lane < 0){ lane = lanes.length; lanes.push(0); }
+      lanes[lane] = it.e;
+      it.lane = lane;
+      cluster.push(it);
+      if (it.e > end) end = it.e;
+    });
+    flush();
+  });
+}
 
 /* 요일별·오늘 보기: 담당T × 시간 그리드 */
 function buildDayGrid(list){
@@ -3680,14 +3714,18 @@ function buildDayGrid(list){
   cols.forEach(function(cinfo, ci){
     for (var r = 0; r < nrows; r++) addCell(g, ci+2, r, dname, cinfo, lo, 1);
   });
+  var placed = [];
   list.forEach(function(c){
     var r0 = Math.floor((mins(c.start)-lo)/30), r1 = Math.ceil((minsEnd(c)-lo)/30);
     if (r1 <= r0) r1 = r0+1;
     var b = blockEl(c);
-    b.style.gridColumn = String((colIdx[c.loc+'|'+c.teacher]||0)+2);
+    var col = (colIdx[c.loc+'|'+c.teacher]||0)+2;
+    b.style.gridColumn = String(col);
     b.style.gridRow = (r0+1) + ' / ' + (r1+1);
     g.appendChild(b);
+    placed.push({ el: b, col: col, s: mins(c.start), e: minsEnd(c) });
   });
+  spreadOverlaps(placed);
 
   tuneRowHeight(g, '', nrows);
   var wrap = document.createElement('div');
@@ -3983,6 +4021,7 @@ function buildFullGrid(){
     });
     if (di < DAYS.length-1) gcol++;
   });
+  var placedF = [];
   classes.forEach(function(c){
     if (c.wk || !allTeacherOn(c)) return;
     var col = colOfKey[c.day + '|' + c.loc + '|' + c.teacher];
@@ -3993,7 +4032,9 @@ function buildFullGrid(){
     b.style.gridColumn = String(col);
     b.style.gridRow = (r0+1) + ' / ' + (r1+1);
     g.appendChild(b);
+    placedF.push({ el: b, col: col, s: mins(c.start), e: minsEnd(c) });
   });
+  spreadOverlaps(placedF);
 
   tuneRowHeight(g, '', nrows);
   var wrap = document.createElement('div');
@@ -4183,14 +4224,18 @@ function zoomCenterGrids(big, dname, list, makeBlock){
         addCell(g, j + 2, r, dname, { key: loc + '|' + cols[j], loc: loc, teacher: cols[j] }, lo, 2);
       }
     }
+    var placedZ = [];
     cl.forEach(function(c){
       var r0 = Math.floor((mins(c.start) - lo) / 30), r1 = Math.ceil((minsEnd(c) - lo) / 30);
       if (r1 <= r0) r1 = r0 + 1;
       var b = makeBlock(c);
-      b.style.gridColumn = String(cols.indexOf(c.teacher) + 2);
+      var col = cols.indexOf(c.teacher) + 2;
+      b.style.gridColumn = String(col);
       b.style.gridRow = (r0 + 2) + ' / ' + (r1 + 2);
       g.appendChild(b);
+      placedZ.push({ el: b, col: col, s: mins(c.start), e: minsEnd(c) });
     });
+    spreadOverlaps(placedZ);
     big.appendChild(g);
     zoomTuneRows(g, n);
   });
