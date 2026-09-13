@@ -46,6 +46,7 @@ var STAR_RULES = { exam: 2, clinic: 1, voca: 1, hwork: 1, notice: 1, mock: 1, hw
 // 문법 테스트 결과 시트(shueguk-gramma Code.gs가 쓰는 스프레드시트) ID — 비우면 이 폴백 경로에서 문법 별은 0으로 계산된다.
 // 원본 집계는 수파베이스 gramma_results(리포트 027 마이그레이션)로 학생 페이지(student_bundle)·순위(superstar computeRanking)가 한다.
 var GRAMMA_SHEET_ID = '1aofZTG14J7Teqyi7He_oC0itMd-9HcNA_RavRvdrdkw';   // 2026-09-13 사용자 제공 — 첫 탭 머리글 time·name·school·grade·phone8·unit·round·score·details
+var GRAMMA_STAR_FROM = '2026-09-13';   // 이 날짜(제출 시각 time 열, yyyy-MM-dd) 이후 제출만 별로 센다 — 수파베이스 gramma_results(원본)가 이 날부터 쌓이므로 폴백도 같은 범위. 지난 기록도 세려면 원본에 백필하고 이 값을 비울 것.
 var TAB_NOTICE_READ = '공지확인';   // A:일시 B:학생ID C:이름 D:학교 E:공지키(작성일|제목)
 // 어휘·H WORK·주말 모의고사 자동 적립용 스프레드시트 ID (비우면 그 항목은 0으로 계산)
 var VOCA_SHEET_ID  = '1AVDyKpBj9kSW5hzSzOieVIZpV6FnIpcFMjsjUyuGAbE';   // 어휘 결과 시트
@@ -1670,7 +1671,7 @@ function starRankingData_() {
   if (gsnap.ok && gsnap.has.name) {
     for (var gi = 0; gi < gsnap.rows.length; gi++) {
       var gr = gsnap.rows[gi];
-      if (grammaPct_(gr[6]) < 90 || !gr[0].trim()) continue;
+      if (grammaPct_(gr[6]) < 90 || !gr[0].trim() || !grammaInRange_(gr[7])) continue;
       var kg = resolve(gr[3], gr[0], gr[1], gr[2]);
       if (kg < 0) continue;
       if (!stus[kg].gramma) stus[kg].gramma = {};
@@ -1772,7 +1773,7 @@ function collectStars_(ss, info, key, siblingShared) {
   };
 }
 
-/* 문법 테스트 결과 스냅샷 — 행: [이름, 학교, 학년, 8자리, 카테고리, 회차, 점수('19 / 21')] (시트 머리글 name·school·grade·phone8·unit·round·score) */
+/* 문법 테스트 결과 스냅샷 — 행: [이름, 학교, 학년, 8자리, 카테고리, 회차, 점수('19 / 21'), 제출시각] (시트 머리글 name·school·grade·phone8·unit·round·score·time) */
 function grammaSnap_() {
   return extSnap_('grammaSnap', 60, function () {
     var snap = { ok: false, has: {}, rows: [] };
@@ -1785,17 +1786,29 @@ function grammaSnap_() {
     var v = sh.getDataRange().getValues();
     var H = v[0].map(function (h) { return String(h || '').trim().toLowerCase(); });
     var iN = idxOfAny_(H, ['name', '이름']), iS = idxOfAny_(H, ['school', '학교']), iG = idxOfAny_(H, ['grade', '학년']),
-        iP = idxOfAny_(H, ['phone8']), iU = idxOfAny_(H, ['unit']), iR = idxOfAny_(H, ['round']), iSc = idxOfAny_(H, ['score']);
-    snap.has = { name: iN >= 0, school: iS >= 0, grade: iG >= 0, phone8: iP >= 0, unit: iU >= 0, round: iR >= 0, score: iSc >= 0 };
+        iP = idxOfAny_(H, ['phone8']), iU = idxOfAny_(H, ['unit']), iR = idxOfAny_(H, ['round']), iSc = idxOfAny_(H, ['score']), iT = idxOfAny_(H, ['time', '제출시각']);
+    snap.has = { name: iN >= 0, school: iS >= 0, grade: iG >= 0, phone8: iP >= 0, unit: iU >= 0, round: iR >= 0, score: iSc >= 0, time: iT >= 0 };
     for (var i = 1; i < v.length; i++) {
       snap.rows.push([
         iN >= 0 ? String(v[i][iN] || '') : '', iS >= 0 ? String(v[i][iS] || '') : '', iG >= 0 ? String(v[i][iG] || '') : '',
         iP >= 0 ? String(v[i][iP] || '').replace(/[^0-9]/g, '') : '', iU >= 0 ? String(v[i][iU] || '') : '',
-        iR >= 0 ? String(v[i][iR] || '') : '', iSc >= 0 ? String(v[i][iSc] || '') : ''
+        iR >= 0 ? String(v[i][iR] || '') : '', iSc >= 0 ? String(v[i][iSc] || '') : '',
+        iT >= 0 ? grammaTimeStr_(v[i][iT]) : ''
       ]);
     }
     return snap;
   });
+}
+/** 제출 시각 칸 → 'yyyy-MM-dd…' 문자열(시트가 날짜로 바꿔 둔 칸도 읽는다 — 시트 자동 변환 주의 메모 참고). */
+function grammaTimeStr_(v) {
+  if (v instanceof Date && !isNaN(v)) return Utilities.formatDate(v, 'Asia/Seoul', 'yyyy-MM-dd HH:mm');
+  return String(v || '').trim();
+}
+/** GRAMMA_STAR_FROM 이전 제출은 별로 세지 않는다(시각이 없으면 센다). */
+function grammaInRange_(timeStr) {
+  if (!GRAMMA_STAR_FROM) return true;
+  var t = String(timeStr || '').slice(0, 10);
+  return !/^\d{4}-\d{2}-\d{2}$/.test(t) || t >= GRAMMA_STAR_FROM;
 }
 /** 점수 문자열 '19 / 21' → 정답률(정수 %). 모양이 다르면 -1. */
 function grammaPct_(score) {
@@ -1811,7 +1824,7 @@ function countGramma_(name, school, sid, uniq, grade) {
   var set = {}, myGd = gradeDigit_(grade), base = baseName_(name);
   for (var i = 0; i < snap.rows.length; i++) {
     var r = snap.rows[i];
-    if (grammaPct_(r[6]) < 90) continue;
+    if (grammaPct_(r[6]) < 90 || !grammaInRange_(r[7])) continue;
     var rn = r[0].trim();
     if (rn !== name && rn !== base) continue;
     if (r[3] && sid && r[3] !== sid) continue;
