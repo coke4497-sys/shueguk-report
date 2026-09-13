@@ -45,7 +45,7 @@ var TAB_STARS  = '별';   // A:일시 B:학생ID C:이름 D:학교 E:별 F:사�
 var STAR_RULES = { exam: 2, clinic: 1, voca: 1, hwork: 1, notice: 1, mock: 1, hwcheck: 1, gramma: 1 };   // notice = 공지 확인 1건당, mock = 모의고사 응시 회차당, hwcheck = 숙제 검사 만점(100%) 주차당, gramma = 문법 테스트 정답률 90% 이상(카테고리+회차당, 2026-09-13)
 // 문법 테스트 결과 시트(shueguk-gramma Code.gs가 쓰는 스프레드시트) ID — 비우면 이 폴백 경로에서 문법 별은 0으로 계산된다.
 // 원본 집계는 수파베이스 gramma_results(리포트 027 마이그레이션)로 학생 페이지(student_bundle)·순위(superstar computeRanking)가 한다.
-var GRAMMA_SHEET_ID = '';
+var GRAMMA_SHEET_ID = '1aofZTG14J7Teqyi7He_oC0itMd-9HcNA_RavRvdrdkw';   // 2026-09-13 사용자 제공 — 첫 탭 머리글 time·name·school·grade·phone8·unit·round·score·details
 var TAB_NOTICE_READ = '공지확인';   // A:일시 B:학생ID C:이름 D:학교 E:공지키(작성일|제목)
 // 어휘·H WORK·주말 모의고사 자동 적립용 스프레드시트 ID (비우면 그 항목은 0으로 계산)
 var VOCA_SHEET_ID  = '1AVDyKpBj9kSW5hzSzOieVIZpV6FnIpcFMjsjUyuGAbE';   // 어휘 결과 시트
