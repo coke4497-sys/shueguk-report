@@ -402,15 +402,20 @@
       var week = (p.get('week') || '').trim();
       if (!/^\d{4}-\d{2}-\d{2}$/.test(week)) return Promise.reject(new Error('week 형식'));
       var to = ymdShift(week, 4);
-      return Promise.all([
+      /* 그 주의 기간(슈국 캘린더 tt_period — 미지정=정규)에 맞는 시간표·출석·1회 이동을 읽는다(2026-09-13 사용자
+       * "내신 주에는 내신 출석을 읽도록"). 내신 주에는 출석이 book=내신·반ID n### 으로 쌓여 정규만 읽던 카드가 비어 있었다. */
+      return sbGet('/tt_period?week_wednesday=eq.' + q(week) + '&select=book').then(function(pr){
+        var book = (pr[0] && pr[0].book === '내신') ? '내신' : '정규';
+        return Promise.all([
         sbGet('/hwcheck_records?week=eq.' + q(week)),
-        sbGet('/tt_classes?book=eq.' + q('정규') + '&class_id=not.like.w*' +
+        sbGet('/tt_classes?book=eq.' + q(book) + '&class_id=not.like.w*' +
               '&order=id&select=class_id,day,start_time,end_time,location,teacher,name,roster'),   // w… = 그 주에만 있는 반(시간표 페이지 전용)
-        sbGet('/attendance?date=gte.' + q(week) + '&date=lte.' + q(to) + '&book=eq.' + q('정규') + '&order=date'),
-        sbGet('/tt_log?kind=eq.' + q('1회') + '&book=eq.' + q('정규') + '&at=gte.' + q(new Date(Date.parse(week) - 68 * 86400000).toISOString())),
+        sbGet('/attendance?date=gte.' + q(week) + '&date=lte.' + q(to) + '&book=eq.' + q(book) + '&order=date'),
+        sbGet('/tt_log?kind=eq.' + q('1회') + '&book=eq.' + q(book) + '&at=gte.' + q(new Date(Date.parse(week) - 68 * 86400000).toISOString())),
         sbGet('/students?select=' + STU_COLS + '&order=seq,id'),
         sbGet('/report_config?key=eq.' + q(ITEMS_KEY) + '&select=value')
-      ]).then(function(S){
+        ]).then(function(S){ S.book = book; return S; });
+      }).then(function(S){
         var records = {};
         S[0].forEach(function(r){
           records[r.token] = { scores: r.scores || {}, pct: r.pct || 0, pub: r.pub, priv: r.priv,
@@ -420,6 +425,7 @@
         var items = raw.split(',').map(function(x){ return x.trim(); }).filter(Boolean);
         return ok({
           week: week,
+          book: S.book,
           items: items.length ? items : DEFAULT_ITEMS.slice(),
           records: records,
           students: studentLinks(S[4]),
@@ -660,7 +666,7 @@ function boot(){
 }
 /* 화면에 그린 데이터의 서명 — 최신 조회 결과가 캐시와 같으면 다시 그리지 않는다(두 번 그리기 제거) */
 function dataSig(){
-  try { return JSON.stringify([week, items, records, ttClasses, wkAtt, wkOnce, roster]); } catch(e){ return ''; }
+  try { return JSON.stringify([week, weekBook, items, records, ttClasses, wkAtt, wkOnce, roster]); } catch(e){ return ''; }
 }
 var paintedSig = '';
 
@@ -674,8 +680,10 @@ function loadWeek(){
   if (bootPainted && chw){
     items = chw.items || [];
     records = chw.records || {};
-    if (ttClasses === null){ var ctm = cacheGet('ttmap'); if (ctm) ttClasses = ctm; }
     var cwk = cacheGet('hwwk:' + week);
+    weekBook = (cwk && cwk.book === '내신') ? '내신' : '정규';
+    weekBookNote();
+    var ctm = cacheGet('ttmap:' + weekBook); ttClasses = ctm || null;
     if (cwk) setWeekData(cwk.a, cwk.o);
     renderChips();
     render();
@@ -704,16 +712,19 @@ function loadWeek(){
       $('gate').style.display = 'none';
       $('bar').style.display = 'block';   // CSS 기본값이 display:none이라 ''로는 안 보임
       buildTypeValues();
-      // ② 시간표 (반ID→시간대)
+      // ② 시간표 (반ID→시간대) — 그 주 기간(정규/내신)의 것
+      weekBook = (r.book === '내신') ? '내신' : '정규';
+      weekBookNote();
       ttClasses = {};
       (r.classes || []).forEach(function(c){
         ttClasses[c.id] = { slot: slotNorm(c.day + c.start), label: c.cls, students: (c.students || []) };
       });
-      cacheSet('ttmap', ttClasses);
-      if (urlCid){ updateCidNote(); rebuildFilters(); }   // 반 명단이 준비되면 반 필터 적용
+      cacheSet('ttmap:' + weekBook, ttClasses);
+      rebuildFilters();   // 시간대 목록은 그 주 기간(정규/내신)에 맞게, 반(cid) 필터도 반 명단이 준비된 뒤 적용
+      if (urlCid) updateCidNote();
       // ③ 주간 출석·1회 이동
       setWeekData(r.weekAttend, r.weekOnce);
-      cacheSet('hwwk:' + week, { a: wkAtt, o: wkOnce });
+      cacheSet('hwwk:' + week, { a: wkAtt, o: wkOnce, book: weekBook });
       // ④ 검사 기록
       items = r.items || [];
       records = r.records || {};
@@ -734,6 +745,13 @@ var wkAtt = [], wkOnce = [];
 /* 이름(괄호 뗀)별 색인 — 예전엔 학생 485명마다 그 주 출석 700여 건을 처음부터 훑어(regex 포함)
  * 카드 하나 그리는 데 그 비용이 네 번(출석 칩·결석 판정·이동 필터 둘) 들었다. 2026-09-12 속도 개선. */
 var wkAttBy = {}, wkOnceBy = {};
+/* 그 주의 기간 — '내신'이면 시간표·출석·이동이 내신 것이고, 학생의 시간대도 내신 진도/확인(naeshin_a/b)으로 본다 */
+var weekBook = '정규';
+function stuSlots(s){ return weekBook === '내신' ? [s.progress, s.checkup] : [s.classA, s.classB]; }
+function stuSlotMap(s){ var m = {}; stuSlots(s).forEach(function(v){ if (v) m[slotNorm(v)] = 1; }); return m; }
+function weekBookNote(){
+  var el = $('wk-range'); if (el) el.textContent = '수 ~ 일' + (weekBook === '내신' ? ' · 내신 기간 (내신 시간표 기준)' : '');
+}
 function setWeekData(a, o){
   wkAtt = a || []; wkOnce = o || [];
   wkAttBy = {}; wkOnceBy = {};
@@ -744,9 +762,7 @@ function plainNm(n){ return String(n || '').replace(/^\s*\([^)]*\)\s*/, '').repl
 function ttInfoHtml(s){
   if (!ttClasses) return '';
   var pn = plainNm(s.name);
-  var mySlots = {};
-  if (s.classA) mySlots[slotNorm(s.classA)] = 1;
-  if (s.classB) mySlots[slotNorm(s.classB)] = 1;
+  var mySlots = stuSlotMap(s);
   var parts = [];
   (wkAttBy[pn] || []).forEach(function(a){
     var c = ttClasses[a.classId];
@@ -770,9 +786,7 @@ function ttInfoHtml(s){
 function isAwayThisWeek(s){
   if (!ttClasses) return false;
   var pn = plainNm(s.name);
-  var mySlots = {};
-  if (s.classA) mySlots[slotNorm(s.classA)] = 1;
-  if (s.classB) mySlots[slotNorm(s.classB)] = 1;
+  var mySlots = stuSlotMap(s);
   var abs = false, mine = wkAttBy[pn] || [];
   for (var i = 0; i < mine.length; i++){
     var a = mine[i];
@@ -819,7 +833,7 @@ function matchBase_(s, upTo){
   if (upTo === 'teacher') return true;
   if (upTo !== 'slot' && sl){
     // 자기 가/나 시간대라도 이번 주 1회 이동으로 나갔으면 그 시간대에서는 빠진다
-    var own = (slotNorm(s.classA) === sl || slotNorm(s.classB) === sl) && !onceFromSlots_(s)[sl];
+    var own = !!stuSlotMap(s)[sl] && !onceFromSlots_(s)[sl];
     if (!own && !onceToSlots_(s)[sl]) return false;
   }
   return true;
@@ -857,7 +871,7 @@ function rebuildFilters(){
   fillSelect_('f-teacher', '담당 강사 전체', uniq(roster.filter(function(s){ return matchBase_(s, 'teacher'); }).map(function(s){ return String(s.teacher||'').trim(); })).sort());
   var slotStus = roster.filter(function(s){ return matchBase_(s, 'slot'); });
   fillSelect_('f-slot', '시간대 전체',
-    uniq(slotStus.map(function(s){ return slotNorm(s.classA); }).concat(slotStus.map(function(s){ return slotNorm(s.classB); })))
+    uniq([].concat.apply([], slotStus.map(function(s){ return stuSlots(s).map(slotNorm); })))
       .sort(function(a, b){ return slotSortKey(a) - slotSortKey(b); }));
 }
 function buildTypeValues(){ rebuildFilters(); }

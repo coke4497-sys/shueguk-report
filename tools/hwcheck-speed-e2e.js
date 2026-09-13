@@ -22,17 +22,26 @@ const WED = weekStartOf(new Date()), WEEK = ymd(WED);
 const dayOf = i => ymd(new Date(WED.getFullYear(), WED.getMonth(), WED.getDate() + i));
 const GRADES = ['2026 고등 1학년', '2026 고등 2학년', '2026 고등 3학년', '2026 중등 2학년', '2026 중등 3학년'];
 const SLOTS = ['수 5:30', '수 7:00', '목 5:30', '금 5:30', '토 2:00', '토 6:00', '일 11:00', '일 2:00'];
+const NSLOTS = ['수 8:30', '목 7:00', '금 8:30', '토 9:00'];   // 내신 진도/확인 시간대(정규와 다르게)
 const STUDENTS = [], CLASSES = [];
 for (let i = 0; i < 485; i++){
   const name = '학생' + String(i + 1).padStart(3, '0');
   STUDENTS.push({ seq: i, id: i + 1, student_id: String(10000000 + i), name, school: ['화정고', '능곡고', '서정중', '무원고'][i % 4], grade: GRADES[i % 5],
-    teacher: ['이수경', '김지원', '이은지'][i % 3], memo: '', class_a: SLOTS[i % 8], class_b: i % 5 < 3 ? SLOTS[(i + 3) % 8] : '', naeshin_a: '', naeshin_b: '', enrolled: '재원', code: 'tok' + String(i).padStart(4, '0'), reg_date: '' });
+    teacher: ['이수경', '김지원', '이은지'][i % 3], memo: '', class_a: SLOTS[i % 8], class_b: i % 5 < 3 ? SLOTS[(i + 3) % 8] : '', naeshin_a: NSLOTS[i % 4], naeshin_b: i % 2 ? NSLOTS[(i + 2) % 4] : '', enrolled: '재원', code: 'tok' + String(i).padStart(4, '0'), reg_date: '' });
 }
 /* 반: 시간대마다 3개(학생 번호 %3로 배정) — 가/나 시간대 둘 다 그 반 명단에 들어간다 */
 const CMAP = {};
 STUDENTS.forEach((s, i) => { [s.class_a, s.class_b].filter(Boolean).forEach(slot => { const k = slot + '|' + (i % 3); (CMAP[k] = CMAP[k] || []).push(s.name); }); });
 Object.keys(CMAP).sort().forEach((k, ci) => { const slot = k.split('|')[0]; CLASSES.push({ class_id: 'r' + String(ci + 1).padStart(3, '0'), day: slot.charAt(0), start_time: slot.slice(2), end_time: '', location: '본원', teacher: '슈', name: '반' + ci, roster: CMAP[k].join(' ') }); });
 function classOf(s, slot){ return CLASSES.find(c => c.day + ' ' + c.start_time === slot && c.roster.split(' ').includes(s.name)); }
+/* 내신 시간표(n###)·내신 출석 — 내신 주 검사용 */
+const NCLASSES = [], NMAP = {};
+STUDENTS.forEach((s, i) => { [s.naeshin_a, s.naeshin_b].filter(Boolean).forEach(slot => { const k = slot + '|' + (i % 2); (NMAP[k] = NMAP[k] || []).push(s.name); }); });
+Object.keys(NMAP).sort().forEach((k, ci) => { const slot = k.split('|')[0]; NCLASSES.push({ class_id: 'n' + String(ci + 1).padStart(3, '0'), day: slot.charAt(0), start_time: slot.slice(2), end_time: '', location: '본원', teacher: '슈', name: '내신반' + ci, roster: NMAP[k].join(' ') }); });
+const NATT = [];
+STUDENTS.forEach((s, i) => { const c = NCLASSES.find(x => x.day + ' ' + x.start_time === s.naeshin_a && x.roster.split(' ').includes(s.name)); if (!c) return;
+  NATT.push({ id: 5000 + i, date: dayOf('수목금토일'.indexOf(s.naeshin_a.charAt(0))), class_id: c.class_id, student: s.name, status: i === 4 ? '결석' : '출석', memo: '', book: '내신' }); });
+let PERIOD = '정규';
 const ATT = []; let aid = 1;
 STUDENTS.forEach((s, i) => {
   const c = classOf(s, s.class_a); if (!c) return;
@@ -63,8 +72,10 @@ async function route(page){
       const j = o => r.fulfill({ contentType: 'application/json', body: JSON.stringify(o) });
       if (u.includes('/hwcheck_records?week')) return j(RECORDS);
       if (u.includes('/hwcheck_records?or')) return j([]);
-      if (u.includes('/tt_classes')) return j(CLASSES);
-      if (u.includes('/attendance')) return j(ATT);
+      const nae = u.includes(encodeURIComponent('내신'));
+      if (u.includes('/tt_period')) return j(PERIOD === '내신' ? [{ book: '내신' }] : []);
+      if (u.includes('/tt_classes')) return j(nae ? NCLASSES : CLASSES);
+      if (u.includes('/attendance')) return j(nae ? NATT : ATT);
       if (u.includes('/tt_log')) return j(LOGS);
       if (u.includes('/students')) return j(STUDENTS);
       if (u.includes('/report_config')) return j([{ value: '숙제 수행,오답 처리' }]);
@@ -165,6 +176,37 @@ const cards = pg => pg.evaluate(() => document.querySelectorAll('#list .stu').le
   await sleep(500);
   const slotN = await cards(page);
   ok(slotN > 0 && slotN < 485 && await page.$eval('#f-slot', e => e.value) === '토6:00', '?slot= 주소 필터 → ' + slotN + '명');
+
+  console.log('⑤ 내신 주 — 내신 시간표·출석으로 읽는다');
+  ok(!(await page.$eval('#wk-range', e => e.textContent)).includes('내신'), '정규 주에는 기간 표시 없음');
+  PERIOD = '내신';
+  await page.goto(URL, { waitUntil: 'domcontentloaded' });
+  await page.waitForFunction(() => document.getElementById('status').textContent === '' && /내신 기간/.test(document.getElementById('wk-range').textContent), { timeout: 15000 });
+  await page.waitForFunction(() => document.querySelectorAll('#list .stu').length === 485, { timeout: 15000 });
+  ok(true, '주차 표시에 “내신 기간”');
+  ok(await page.evaluate(() => document.querySelectorAll('#list .ttinfo .tt-chip.ok').length) > 300, '내신 출석 칩이 보인다(' + await page.evaluate(() => document.querySelectorAll('#list .ttinfo .tt-chip').length) + '개)');
+  ok(await page.evaluate(() => /수 8:30|수8:30/.test(document.querySelector('#stu-tok0000 .ttinfo').textContent)), '칩의 시간대가 학생의 내신 진도 시간대');
+  ok(await page.evaluate(() => { const L = document.querySelectorAll('#list .stu'); return L[L.length - 1].id === 'stu-tok0004' && L[L.length - 1].classList.contains('away'); }), '내신 결석 학생이 맨 아래로');
+  const slotOpts = await page.$$eval('#f-slot option', os => os.map(o => o.value).filter(Boolean));
+  ok(slotOpts.length === 4 && slotOpts.every(v => /^(수8:30|목7:00|금8:30|토9:00)$/.test(v)), '시간대 필터가 내신 시간대: ' + slotOpts.join(','));
+  await page.selectOption('#f-slot', '수8:30');
+  await page.waitForTimeout(400);
+  const expN = STUDENTS.filter(s => [s.naeshin_a, s.naeshin_b].map(v => v.replace(/\s+/g, '')).includes('수8:30')).length;
+  ok(await page.evaluate(() => document.querySelectorAll('#list .stu').length) === expN, '내신 시간대 필터 → 그 시간대 학생만(' + expN + '명)');
+  await page.goto(URL + '?cid=n001', { waitUntil: 'domcontentloaded' });
+  await page.waitForFunction(() => document.getElementById('status').textContent === '' && document.querySelector('#cid-note') && document.querySelector('#cid-note').style.display === 'flex', { timeout: 15000 });
+  await page.waitForTimeout(400);
+  const cidN = await page.evaluate(() => document.querySelectorAll('#list .stu').length);
+  ok(cidN > 0 && cidN < 200 && /내신반0/.test(await page.$eval('#cid-note', e => e.textContent)), '시간표에서 내신 반(n001)으로 넘어오면 그 반 명단만: ' + cidN + '명');
+  await page.goto(URL, { waitUntil: 'domcontentloaded' });
+  await page.waitForFunction(() => document.getElementById('status').textContent === '' && document.querySelectorAll('#list .stu').length === 485, { timeout: 15000 });
+  await page.waitForTimeout(400);
+  ok(await page.evaluate(() => window.__replaced) === 0, '내신 주 캐시 방문도 다시 그리지 않음');
+  PERIOD = '정규';
+  await page.goto(URL, { waitUntil: 'domcontentloaded' });
+  await page.waitForFunction(() => document.getElementById('status').textContent === '' && !/내신/.test(document.getElementById('wk-range').textContent), { timeout: 15000 });
+  await page.waitForTimeout(600);
+  ok(await page.evaluate(() => /지각/.test((document.querySelector('#stu-tok0009 .ttinfo') || {}).textContent || '') && window.__replaced === 1), '정규로 돌아오면 정규 출석으로 다시 그림(교체 1회)');
 
   await browser.close(); srv.close();
   console.log('\n' + (bad ? '✗ ' + bad + ' / ' + n + ' 실패' : '✓ ' + n + '건 모두 통과'));
