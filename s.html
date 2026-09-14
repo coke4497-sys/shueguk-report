@@ -1664,13 +1664,13 @@ function renderHub(){
       }
       // 그 외(주차 미설정 등)는 기본 설명 + '준비 중'
     }
-    // 문법 테스트: 배정 확인 페이지로 — 배정된 테스트만 열리므로 카드는 항상 활성
+    // 문법 테스트: 문법 입구 페이지로 — 단원·레벨·회차를 골라 자유 응시 + 배정 확인(2026-09-14), 카드는 항상 활성
     if(f.id==='grammar' && STATE.info){
       url = GRAMMAR_BASE + '?name=' + encodeURIComponent(STATE.info.name || '')
           + '&school=' + encodeURIComponent(STATE.info.school || '')
           + '&grade=' + encodeURIComponent(levelGrade(STATE.info.grade) || '')
           + '&p8=' + encodeURIComponent(String(STATE.info.id || ''));
-      desc = '배정된 테스트 확인·응시';
+      desc = '단원을 골라 응시 · 배정 확인';
     }
     var ic = '<span class="icon">'+svg(ICON[f.icon]||ICON.book)+(vocaBadge?'<span class="new-dot">1</span>':'')+'</span>';
     var tcl = f.tone ? ' t-'+f.tone : '';
