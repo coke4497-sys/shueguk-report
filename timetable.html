@@ -5631,6 +5631,7 @@ function openAlim(){
     '<details class="al-cfg" style="margin-top:6px;"><summary>직접 입력 (자동 가져오기가 안 될 때)</summary>'+
     '<span class="req-lb">카카오 채널 pfId</span><input type="text" id="al-pfid" autocomplete="off" placeholder="KA01PF…">'+
     '<span class="req-lb">결석 안내 템플릿 ID</span><input type="text" id="al-tpl-absent" autocomplete="off" placeholder="KA01TP…">'+
+    '<span class="req-lb">공지 안내 템플릿 ID</span><input type="text" id="al-tpl-notice" autocomplete="off" placeholder="KA01TP…">'+
     '<div class="mbtns"><button class="primary" onclick="alimCfgSave()">저장</button></div>'+
     '</details>'+
     '</details>'+
@@ -5641,18 +5642,20 @@ function openAlim(){
 }
 function alimRenderState(cfg){
   var el = $('al-state'); if (!el) return;
-  var t = cfg.templates && cfg.templates.absent;
+  var t = cfg.templates && cfg.templates.absent, tn = cfg.templates && cfg.templates.notice;
   if (cfg.error){ el.innerHTML = '<p class="merr">설정을 확인하지 못했어요: '+esc(cfg.error)+' (백엔드가 아직 옛 배포본이면 재배포가 필요해요)</p>'; return; }
   var items = [
     ['솔라피 API 키', cfg.has && cfg.has.key && cfg.has.secret],
     ['카카오 채널(pfId)', cfg.has && cfg.has.pfId],
     ['결석 안내 템플릿', t && t.ready],
+    ['공지 안내 템플릿', tn && tn.ready],
     ['문자 대체 발신번호', cfg.has && cfg.has.from]
   ];
   el.innerHTML = '<div class="al-line">' + items.map(function(x){
     return '<span class="al-sent'+(x[1] ? '' : ' no')+'">'+esc(x[0])+' '+(x[1] ? '준비됨' : '없음')+'</span>';
   }).join('') + '</div>' +
-  (t ? '<p class="mk-sec">결석 안내 문구 (솔라피 템플릿에 이 문구 그대로 등록)</p><div class="al-prev">'+esc(t.text)+'</div>' : '');
+  (t ? '<p class="mk-sec">결석 안내 문구 (솔라피 템플릿에 이 문구 그대로 등록)</p><div class="al-prev">'+esc(t.text)+'</div>' : '') +
+  (tn ? '<p class="mk-sec">공지 안내 문구 (공지 등록 화면에서 보내요 — 솔라피 템플릿에 이 문구 그대로 등록)</p><div class="al-prev">'+esc(tn.text)+'</div>' : '');
 }
 function alimRenderLog(){
   var to = todayStr(), fd = new Date(); fd.setDate(fd.getDate() - 6);
@@ -5710,12 +5713,13 @@ function alimCfgSave(){
   var take = function(id, key){ var v = ($(id) ? $(id).value : '').trim(); if (v){ b[key] = v; any = true; } };
   take('al-key', 'apiKey'); take('al-secret', 'apiSecret'); take('al-pfid', 'pfId'); take('al-from', 'from');
   var tpl = ($('al-tpl-absent') ? $('al-tpl-absent').value : '').trim();
-  if (tpl){ b.tpl = { absent: tpl }; any = true; }
+  var tplN = ($('al-tpl-notice') ? $('al-tpl-notice').value : '').trim();
+  if (tpl || tplN){ b.tpl = {}; if (tpl) b.tpl.absent = tpl; if (tplN) b.tpl.notice = tplN; any = true; }
   if (!any){ $('al-cfg-err').textContent = '채운 칸이 없어요.'; return; }
   $('al-cfg-err').textContent = '';
   post(b, '설정 저장 중…', function(res){
     if (res && res.result === 'success'){
-      ['al-key','al-secret','al-pfid','al-tpl-absent','al-from'].forEach(function(id){ if ($(id)) $(id).value = ''; });
+      ['al-key','al-secret','al-pfid','al-tpl-absent','al-tpl-notice','al-from'].forEach(function(id){ if ($(id)) $(id).value = ''; });
       if ($('al-cfg-msg')) $('al-cfg-msg').textContent = '저장했어요: ' + (res.saved || []).join(', ');
       alimCfgEnsure(alimRenderState, true);
       setStatus('알림톡 설정을 저장했어요.', 'ok');
