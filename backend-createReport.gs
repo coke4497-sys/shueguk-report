@@ -3968,6 +3968,20 @@ var ALIM_TPL_ = {
     vars: ['학생명', '수업일', '반이름'],
     text: '[이수경국어학원] 결석 안내\n' +
           '#{학생명} 학생이 #{수업일} #{반이름} 수업에 결석했습니다.'
+  },
+  /* 공지 알림(2026-09-15 사용자 "공지사항을 올릴 때 푸시 팝업" → 알림톡 + 학생 페이지 팝업으로 결정).
+   * 공지 등록 화면(notice.html)이 대상 학생(또는 학부모1)에게 보낸다. 중복 키(수업일 칸)는
+   * 'N:날짜|제목' — 같은 공지를 두 번 보내지 않되, 같은 날 다른 공지는 따로 간다. */
+  notice: {
+    label: '공지 안내',
+    prop: 'ALIM_TPL_NOTICE',
+    vars: ['학생명', '제목'],
+    text: '[이수경국어학원] 새 공지\n' +
+          '#{학생명} 학생에게 새 공지가 도착했어요.\n' +
+          '\n' +
+          '▶ #{제목}\n' +
+          '\n' +
+          '학생 페이지에서 내용을 확인해 주세요.'
   }
 };
 function alimProps_() { return PropertiesService.getScriptProperties(); }
@@ -4024,7 +4038,11 @@ function alimAuthHeader_(key, secret) {
 }
 function alimFmtTs_(d) { return Utilities.formatDate(d, 'Asia/Seoul', 'yyyy-MM-dd HH:mm'); }
 /* 수업일 칸 — 시트가 날짜로 바꿔 놓아도 yyyy-MM-dd 문자열로 (시트 자동 변환 주의 절 참고) */
-function alimYmd_(v) { return (v && v.getTime) ? Utilities.formatDate(v, 'Asia/Seoul', 'yyyy-MM-dd') : String(v || '').trim().slice(0, 10); }
+function alimYmd_(v) {
+  if (v && v.getTime) return Utilities.formatDate(v, 'Asia/Seoul', 'yyyy-MM-dd');
+  var s = String(v || '').trim();
+  return /^\d{4}-\d{2}-\d{2}/.test(s) ? s.slice(0, 10) : s;   // 날짜가 아닌 키('N:날짜|제목' — 공지)는 통째로
+}
 /** 발송. { pw, kind:'absent', items:[{ student, to, who, vars:{학생명,수업일,반이름}, cls, date }], force? }
  *  같은 종류·학생·수업일로 이미 성공한 기록이 있으면 force가 아니면 건너뛴다(dup) — 조교 둘이 겹쳐 눌러도 두 번 안 감.
  *  응답: { result:'success', sent:[{student,ok,message,dup}], okCount, failCount } */

@@ -55,6 +55,18 @@
   .submit:active{opacity:.85;}
   .submit:disabled{background:#9fb3aa;cursor:default;}
   .status{font-size:13px;margin-top:12px;min-height:1.2em;color:var(--ink-soft);text-align:center;}
+  /* 공지 알림톡(2026-09-15) — 등록 뒤 대상 학생·학부모에게 카카오 알림톡 */
+  .alim-row{display:flex;flex-wrap:wrap;align-items:center;gap:8px;}
+  .alim-row select{font:inherit;font-size:13px;padding:5px 8px;border:1px solid var(--line-soft);border-radius:8px;background:#fff;color:var(--ink);}
+  .alim-note{font-size:12px;color:var(--ink-soft);font-weight:400;}
+  .alim-box{margin-top:14px;border-radius:12px;background:#F4F6F8;padding:14px 16px;font-size:13.5px;}
+  .alim-box h4{margin:0 0 6px;font-size:14px;font-family:"Gowun Batang",serif;}
+  .alim-box .prev{white-space:pre-wrap;background:#fff;border-radius:8px;padding:10px 12px;margin:8px 0;font-size:13px;line-height:1.55;}
+  .alim-box .miss{color:var(--ink-soft);font-size:12.5px;margin:6px 0 0;}
+  .alim-box .btns{display:flex;gap:8px;justify-content:flex-end;margin-top:10px;}
+  .alim-box .btns button{font:inherit;font-size:13px;padding:8px 14px;border-radius:10px;border:1px solid var(--line-soft);background:#fff;cursor:pointer;}
+  .alim-box .btns button.go{background:var(--accent);color:#fff;border-color:var(--accent);}
+  .alim-box .btns button:disabled{opacity:.5;cursor:default;}
   .status.ok{color:var(--ok);} .status.err{color:var(--bad);}
 
   /* 관리 목록 */
@@ -135,6 +147,10 @@
     <textarea id="body" placeholder="자세한 안내 내용을 적어주세요."></textarea>
 
     <label class="pub"><input type="checkbox" id="pub" checked /> 지금 바로 노출하기 (끄면 ‘숨김’으로 저장)</label>
+    <label class="pub alim-row"><input type="checkbox" id="alimOn" disabled /> 등록 뒤 카카오 알림톡도 보내기 — 받는 분
+      <select id="alimWho"><option value="학생">학생</option><option value="학부모1">학부모1</option></select>
+      <span class="alim-note" id="alimNote">알림톡 설정 확인 중…</span></label>
+    <div class="alim-box" id="alimBox" style="display:none"></div>
 
     <button type="button" class="submit" id="submitBtn" onclick="submitNotice()">공지 등록</button>
     <div class="status" id="status"></div>
@@ -387,6 +403,147 @@
       }
     });
     loadNotices();
+    alimCfgLoad();
+  }
+
+  /* ===== 공지 알림톡 (2026-09-15) =====
+   * 등록이 끝난 뒤 [알림톡도 보내기]가 켜져 있으면, 그 공지의 대상 학생을 수파베이스 students에서
+   * 골라(학생 페이지 s.html의 noticeMatches와 같은 규칙) 학생 또는 학부모1 번호로 백엔드 alimSend(kind 'notice')를
+   * 부른다. 발송·기록·중복 방지는 백엔드가 한다(한 번에 50명 — 여기서 나눠 보낸다). */
+  var alimCfg = null, ALIM_BATCH = 50;
+  function alimReady(){ return !!(alimCfg && alimCfg.ready && alimCfg.templates && alimCfg.templates.notice && alimCfg.templates.notice.ready); }
+  function alimCfgLoad(){
+    var ck = document.getElementById('alimOn'), note = document.getElementById('alimNote');
+    fetch(ENDPOINT + '?action=alimConfig&pw=' + encodeURIComponent(SERVER_PW) + '&t=' + Date.now())
+      .then(function(r){ return r.json(); })
+      .then(function(d){ alimCfg = (d && d.result === 'success') ? d : null; })
+      .catch(function(){ alimCfg = null; })
+      .then(function(){
+        if (alimReady()){ ck.disabled = false; note.textContent = '대상 학생의 번호로 “새 공지” 알림톡이 가요 (등록 뒤 한 번 더 확인)'; }
+        else if (!alimCfg) note.textContent = '알림톡 설정을 확인하지 못했어요 (백엔드가 옛 배포본이면 재배포 필요)';
+        else if (!alimCfg.ready) note.textContent = '알림톡 설정 전이에요 — 시간표 페이지 상단 [알림톡]에서 설정';
+        else note.textContent = '공지 안내 템플릿이 아직 없어요 — 솔라피 심사 뒤 [알림톡] 설정에서 [솔라피에서 가져오기]';
+      });
+  }
+  /* 학생 페이지 s.html의 공지 대상 판정(noticeMatches)과 같은 규칙 — 고치면 그쪽도 함께 */
+  function tr(v){ return String(v == null ? '' : v).trim(); }
+  function gradeDigit(s){
+    s = String(s || '').replace(/\s+/g, '');
+    var m = s.match(/([1-3])학년/) || s.match(/고([1-3])/);
+    if (m) return m[1];
+    var a = s.match(/[1-3]/g);
+    return a ? a[a.length - 1] : '';
+  }
+  function normGrade(s){
+    s = tr(s); if (!s) return '';
+    var lv = /고/.test(s) ? '고' : (/중/.test(s) ? '중' : (/초/.test(s) ? '초' : ''));
+    if (!lv) return '';
+    var m = s.match(/([1-6])\s*학년/) || s.match(/(?:고|중|초)\s*([1-6])/);
+    return m ? lv + m[1] : '';
+  }
+  function schoolMatch(a, b){
+    a = String(a || '').replace(/\s+/g, ''); b = String(b || '').replace(/\s+/g, '');
+    if (!a || !b) return false;
+    if (a === b) return true;
+    var na = a.replace(/(등학교|고등학교|중학교|학교|고|중)$/, ''), nb = b.replace(/(등학교|고등학교|중학교|학교|고|중)$/, '');
+    if (na && nb && na === nb) return true;
+    return a.indexOf(b) >= 0 || b.indexOf(a) >= 0;
+  }
+  function noticeMatches(type, target, stu){
+    type = tr(type); target = tr(target);
+    if (type.indexOf('전체') >= 0) return true;
+    if (type === '' && target === '') return true;
+    var tokens = target.split(/[,\n;\/·\s]+/).map(tr).filter(Boolean);
+    if (!tokens.length) return false;
+    if (type.indexOf('학년') >= 0){
+      var g = stu.grade.replace(/\s+/g, ''), sg = (stu.school + stu.grade).replace(/\s+/g, '');
+      var gd = gradeDigit(stu.grade), ng = normGrade(stu.grade);
+      var lvS = /중/.test(g) ? '중' : (/고/.test(g) ? '고' : '');
+      return target.split(/[,\n;\/·]+/).map(tr).filter(Boolean).some(function(t){
+        var tt = t.replace(/\s+/g, ''); if (!tt) return false;
+        var td = gradeDigit(tt); if (td && gd && td !== gd) return false;
+        var lvT = /중/.test(tt) ? '중' : (/고/.test(tt) ? '고' : '');
+        if (lvT && lvS && lvT !== lvS) return false;
+        if (ng && normGrade(tt) === ng) return true;
+        return tt === g || sg.indexOf(tt) >= 0 || g.indexOf(tt) >= 0;
+      });
+    }
+    return tokens.some(function(t){
+      if (t.indexOf('|') >= 0){
+        var p = t.split('|'), tn = tr(p[0]), ts = tr(p[1]), tg = tr(p[2]);
+        if (!tn || tn !== stu.name) return false;
+        if (ts && stu.school && !schoolMatch(ts, stu.school)) return false;
+        if (tg && stu.grade && tg.replace(/\s+/g, '') !== stu.grade.replace(/\s+/g, '')) return false;
+        return true;
+      }
+      return t === stu.name || t === stu.sid || t === stu.code;
+    });
+  }
+  var LEFT_RE = /^(퇴원|n|no|off|x|중단|비재원)$/i;
+  var alimPending = null;   // { ref, title, who, items:[{student,to}], missing:[names] }
+  function alimFill(text, vars){ return String(text || '').replace(/#\{([^}]+)\}/g, function(_, k){ return vars[k] != null ? vars[k] : ''; }); }
+  function todayKst(){ var d = new Date(Date.now() + 9 * 3600000), p = function(n){ return String(n).padStart(2, '0'); }; return d.getUTCFullYear() + '-' + p(d.getUTCMonth() + 1) + '-' + p(d.getUTCDate()); }
+  /* 등록 성공 뒤 — 대상 학생을 골라 확인 상자를 띄운다 */
+  function alimOfferNotice(sel, title){
+    var box = document.getElementById('alimBox'), who = document.getElementById('alimWho').value;
+    box.style.display = 'block';
+    box.innerHTML = '<h4>공지 알림톡</h4><p class="miss">대상 학생의 연락처를 확인하는 중…</p>';
+    fetch('https://bangdbhqpphqqdwcledg.supabase.co/rest/v1/students?select=name,school,grade,student_id,code,enrolled,phone_student,phone_parent1,phone_parent2&order=seq,id&limit=2000',
+          { headers: { apikey: 'sb_publishable_dE9d1KIbpgYaQkaS2MSrlg_-7SiRJuT' } })
+      .then(function(r){ if (!r.ok) throw new Error('students ' + r.status); return r.json(); })
+      .then(function(rows){
+        var items = [], missing = [];
+        rows.forEach(function(r){
+          if (!tr(r.name) || LEFT_RE.test(tr(r.enrolled))) return;
+          var stu = { name: tr(r.name), school: tr(r.school), grade: tr(r.grade), sid: tr(r.student_id).replace(/^'/, ''), code: tr(r.code) };
+          if (!noticeMatches(sel.type, sel.target, stu)) return;
+          var to = String(who === '학부모1' ? r.phone_parent1 : r.phone_student || '').replace(/\D/g, '');
+          if (/^01\d{8,9}$/.test(to)) items.push({ student: stu.name, to: to });
+          else missing.push(stu.name);
+        });
+        alimPending = { ref: 'N:' + todayKst() + '|' + title, title: title, who: who, items: items, missing: missing };
+        var tpl = alimCfg.templates.notice;
+        var preview = alimFill(tpl.text, { '학생명': items[0] ? items[0].student : '○○○', '제목': title });
+        box.innerHTML = '<h4>공지 알림톡</h4>' +
+          '<div>' + esc(sel.summary) + ' 중 <b>' + items.length + '명</b>에게 ' + esc(who) + ' 번호로 보내요.' +
+          (items.length > ALIM_BATCH ? ' <span class="alim-note">(' + ALIM_BATCH + '명씩 나눠 보내요)</span>' : '') + '</div>' +
+          '<div class="prev">' + esc(preview) + '</div>' +
+          (missing.length ? '<p class="miss">' + esc(who) + ' 연락처가 없어 못 보내는 학생 ' + missing.length + '명: ' + esc(missing.join(', ')) + '</p>' : '') +
+          (alimCfg.smsFallback ? '' : '<p class="miss">카카오톡을 받을 수 없는 번호는 문자로 대체되지 않아요 (발신번호 미설정).</p>') +
+          '<div class="btns"><button type="button" onclick="alimCancel()">보내지 않기</button>' +
+          '<button type="button" class="go" id="alimGo" onclick="alimSendNotice()"' + (items.length ? '' : ' disabled') + '>알림톡 보내기 (' + items.length + '명)</button></div>';
+      })
+      .catch(function(e){ box.innerHTML = '<h4>공지 알림톡</h4><p class="miss">연락처를 불러오지 못했어요 — ' + esc(e.message) + '</p><div class="btns"><button type="button" onclick="alimCancel()">닫기</button></div>'; });
+  }
+  function alimCancel(){ alimPending = null; var box = document.getElementById('alimBox'); box.style.display = 'none'; box.innerHTML = ''; }
+  function alimSendNotice(){
+    var p = alimPending; if (!p || !p.items.length) return;
+    var btn = document.getElementById('alimGo'); btn.disabled = true; btn.textContent = '보내는 중…';
+    var chunks = []; for (var i = 0; i < p.items.length; i += ALIM_BATCH) chunks.push(p.items.slice(i, i + ALIM_BATCH));
+    var okCount = 0, dup = [], bad = [], err = '';
+    var run = chunks.reduce(function(prev, chunk){
+      return prev.then(function(){
+        if (err) return;
+        return fetch(ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify({ action: 'alimSend', kind: 'notice',
+            items: chunk.map(function(it){ return { student: it.student, to: it.to, who: p.who, cls: '공지', date: p.ref, vars: { '학생명': it.student, '제목': p.title } }; }) }) })
+          .then(function(r){ return r.json(); })
+          .then(function(res){
+            if (!res || res.result !== 'success'){ err = (res && res.message) || '오류'; return; }
+            okCount += res.okCount || 0;
+            (res.sent || []).forEach(function(x){ if (x.dup) dup.push(x.student); else if (!x.ok) bad.push(x.student + ' (' + x.message + ')'); });
+          })
+          .catch(function(){ err = '인터넷 연결을 확인해 주세요.'; });
+      });
+    }, Promise.resolve());
+    run.then(function(){
+      alimCancel();
+      if (err){ setStatus('알림톡 실패: ' + err + (okCount ? ' (그전 ' + okCount + '건은 보냈어요)' : ''), 'err'); return; }
+      var msg = '공지 알림톡 ' + okCount + '건 보냈어요.';
+      if (dup.length) msg += ' 이미 보낸 ' + dup.length + '명은 건너뛰었어요.';
+      if (bad.length) msg += ' 실패: ' + bad.join(', ');
+      setStatus(msg, bad.length ? 'err' : 'ok');
+    });
   }
 
   function setStatus(msg, kind){
@@ -417,11 +574,13 @@
       btn.disabled=false; btn.textContent=label;
       if(res.result==='success'){
         setStatus('✓ 등록됐어요 — '+sel.summary+(hidden?' · (숨김으로 저장)':''), 'ok');
+        var wantAlim = document.getElementById('alimOn').checked && alimReady() && !hidden;   // 숨김 공지는 알리지 않는다
         document.getElementById('title').value='';
         document.getElementById('body').value='';
         document.getElementById('pub').checked=true;
         if(picker) picker.reset();
         loadNotices();
+        if (wantAlim) alimOfferNotice(sel, title || body.trim().split('\n')[0].slice(0, 40));
       } else {
         setStatus('등록 실패: '+(res.message==='unauthorized'?'권한이 없습니다.':(res.message||'알 수 없는 오류')), 'err');
       }
