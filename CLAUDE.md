@@ -219,7 +219,7 @@
   학생 페이지에서 내용을 확인해 주세요.
   ```
   솔라피에 이 문구로 템플릿을 등록·심사받은 뒤 [알림톡] 설정의 [솔라피에서 가져오기](문구 대조로 `ALIM_TPL_NOTICE` 자동 저장)
-  또는 직접 입력 칸 '공지 안내 템플릿 ID'. **백엔드 변경이라 재배포 필요**(2026-09-15 저장소 반영, 배포는 사용자 clasp 로그인 뒤).
+  또는 직접 입력 칸 '공지 안내 템플릿 ID'. **리포트 배포 @120(2026-09-16)에 포함** — 배포본 alimConfig 응답에 templates.notice(공지 안내, ready:false)가 나오는 것 확인. 남은 것 = 솔라피에 위 문구로 템플릿 등록·심사 승인 뒤 [솔라피에서 가져오기] 한 번.
   검증: `node tools/alim-stub-test.js`(9절 8건 추가) + `NODE_PATH=$(npm root -g) node tools/notice-alim-e2e.js`(29건 — 등록→대상
   고르기(학년·일부·동명이인 토큰·퇴원 제외)→50명 나누기→POST 본문·중복 키·결과 문구, 학부모1·연락처 없음 안내, 숨김 공지 미전송,
   설정 전 잠금 + 아래 학생 페이지 팝업).
@@ -491,6 +491,17 @@ npm i -g @google/clasp   # 이미 있으면 생략
 ```
 
 ### 2) 로그인 (브라우저 필요 — 사용자 1분)
+**먼저 읽을 것(2026-09-16 실패 3회 뒤 확정한 방법)**: 아래 fifo 방식은 `clasp login` 프로세스가 살아 있어야 하는데, 원격 세션에서는 **도구 호출이 끝나면 백그라운드 프로세스가 죽고**(setsid·nohup 무관), `run_in_background`로 살려 둬도 **사용자가 답을 보내는 사이 컨테이너가 다시 시작되면** 함께 죽는다. 그때마다 state·PKCE가 새로 나와 사용자가 보낸 주소가 "state parameter mismatch"로 거절된다(사용자에게 세 번 링크를 다시 부탁하게 됐다). **그래서 clasp login을 쓰지 말고 인증 주소를 직접 만들어 코드를 직접 교환한다** — 프로세스가 없어도 되고 컨테이너가 다시 시작돼도 유효하다:
+```bash
+# ① 주소 만들기 (clasp의 공개 OAuth 클라이언트, PKCE 없음 — client_secret이 clasp 소스에 공개돼 있어 가능)
+python3 -c "import urllib.parse,secrets;s=' '.join('https://www.googleapis.com/auth/'+x for x in ['script.deployments','script.projects','script.webapp.deploy','drive.metadata.readonly','drive.file','service.management','logging.read','userinfo.email','userinfo.profile','cloud-platform']);print('https://accounts.google.com/o/oauth2/v2/auth?'+urllib.parse.urlencode(dict(client_id='1072944905499-vm2v2i5dvn0a0d2o4ca36i1vge8cvbn0.apps.googleusercontent.com',redirect_uri='http://localhost:8888',response_type='code',access_type='offline',prompt='consent',scope=s,state='shueguk-'+secrets.token_urlsafe(8))))"
+# ② 사용자에게 주소 전달 → coke4497 계정으로 허용 → localhost:8888/?...code=... 주소를 받는다(코드는 몇 분 안에 써야 하니 "복사하면 바로 보내 달라"고 할 것)
+# ③ 코드 교환 + ~/.clasprc.json 작성 (client_secret은 clasp 소스 build/src/auth/oauth_client.js의 DEFAULT_CLASP_OAUTH_CLIENT_SECRET)
+curl -s -X POST https://oauth2.googleapis.com/token -d client_id=1072944905499-vm2v2i5dvn0a0d2o4ca36i1vge8cvbn0.apps.googleusercontent.com -d client_secret=<위 파일의 값> -d code='<주소의 code= 값>' -d redirect_uri=http://localhost:8888 -d grant_type=authorization_code > /tmp/tok.json
+# /tmp/tok.json의 refresh_token·access_token으로 {"tokens":{"default":{"client_id":…,"client_secret":…,"type":"authorized_user","refresh_token":…,"access_token":…,"expiry_date":<ms>,"token_type":"Bearer"}}} 를 ~/.clasprc.json(0600)에 쓰고 /tmp/tok.json 삭제
+```
+그 뒤 3) 배포는 그대로. 2026-09-16 이 방법으로 리포트 @120 배포 성공. 아래 fifo 방식은 참고용으로만 남긴다.
+
 ```bash
 rm -f /tmp/co /tmp/cf; mkfifo /tmp/cf
 ( sleep 1800 > /tmp/cf ) &                                   # fifo write-end 유지
