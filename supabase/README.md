@@ -600,6 +600,16 @@ anon 의 표 권한 회수 + 정책을 `to authenticated` 로. 배포(머지→P
 - 이름·개별 점수는 어떤 경우에도 나가지 않는다. 검증: `shueguk-report/tools/mock-trend-test.js --live`
   (5명 규칙·전체 인원=과목 합·개인정보 미포함·교사 화면과 같은 평균).
 
+## 문법 스테이지 게임 — 세트 클리어 별·플레이 점수·탑30 (2026-09-16, 029)
+- `migrations/029_gramma_stages.sql` — 사용자 결정(스테이지 통과 70% · 스테이지 5개 = 세트 · 세트 클리어 → 별 +1, **027의 '회차마다 90% → 별' 규칙 폐지**):
+  `gramma_results`에 `mode`('test'|'play')·`points` 열, **새 표 `gramma_sets`**(학생·카테고리·세트 번호 유일 = 별 원본),
+  `gramma_pass_pct()`=70, `gramma_submit(p)`(기록 + 통과 판정 + 요청의 `set:{no,rounds}` 회차들이 전부 70% 이상이면 세트 기록 — 응답 {ok,pct,pass,set_cleared,set_first,stars}),
+  `gramma_status(p)`(items에 pass·points + sets + stars), **새 함수 `gramma_top(p)`**(문법 슈스 탑30 — {level all|mid|high, month 'YYYY-MM', name, phone8} → rows 30명(이름·학교·학년·stages·points·stars, 8자리 없음)+me),
+  `student_bundle`에 `gramma_sets` 항목(028 본문 그대로 + 한 항목). 세트 구성은 문법 저장소 `stage.js`가 정해 보낸다 — 값을 바꾸면 양쪽 함께.
+- 집계 세 곳이 `gramma_sets`를 센다: s.html(`student_bundle.gramma_sets`, '문법 세트 클리어'), superstar.html(`gramma_sets` 직접 조회, 아웃 검색 SB_SCAN에도 optional로), 백엔드 폴백 `countGramma_`/`collectStars_`(시트의 회차별 최고 정답률로 세트를 계산 — `GRAMMA_ROUNDS`에 카테고리별 전체 회차 수, 문법 manifest에 회차를 더하면 갱신·재배포).
+- 검증: `PGHOST=/home/pgtest PGPORT=5499 PGUSER=postgres bash tools/gramma-sql-test.sh`(027·028 검사 뒤 029를 얹어 통과/세트/first/status/top(level·month·me)/bundle/권한 assert).
+- 적용 상태: **실제 수파베이스 적용 대기**(사용자 sbp 토큰 필요) — 적용 전에는 페이지의 gramma_submit이 옛 함수(90% 규칙)로 답해 세트 안내가 나오지 않고 gramma_top은 404.
+
 ## 문법 테스트 결과 — 슈퍼스타 별 적립 (2026-09-13, 027·028)
 - `migrations/027_gramma_results.sql` — 표 `gramma_results`(이름·학교·학년·8자리·카테고리·회차·점수·정답률) + 함수
   `gramma_submit(p)`(기록 + 별 판정: 정답률 90% 이상 → star, 같은 학생·같은 테스트로 처음이면 first) +

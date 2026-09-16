@@ -862,7 +862,7 @@ function api(extra){
   function p2(n){ return ('0' + n).slice(-2); }
 
   /* ── 백엔드 규칙 이식 ── */
-  var STAR_RULES = { exam: 2, clinic: 1, voca: 1, hwork: 1, notice: 1, mock: 1, hwcheck: 1, gramma: 1 };   // gramma = 문법 테스트 정답률 90% 이상(카테고리+회차 단위, 2026-09-13)
+  var STAR_RULES = { exam: 2, clinic: 1, voca: 1, hwork: 1, notice: 1, mock: 1, hwcheck: 1, gramma: 1 };   // gramma = 문법 세트 클리어(스테이지 5개를 모두 70% 이상 — 2026-09-16, 옛 '회차마다 90%' 규칙 대체)
   function baseName(s){ return tr(s).replace(/[A-Za-z]$/, ''); }
   function schoolMatch(a, b){
     a = String(a || '').replace(/\s+/g, ''); b = String(b || '').replace(/\s+/g, '');
@@ -1064,7 +1064,7 @@ function api(extra){
       var notices = B.notices || [], reads = B.notice_reads || [], assigns = B.assignments || [],
           clinicRows = B.clinic_requests || [], hwsub = B.hwork_submissions || [], voca = B.voca_results || [],
           omr = B.omr_responses || [], hwc = B.hwcheck_records || [], signup = B.signup_entries || [],
-          bonusRows = B.star_bonus || [], cfg = B.report_config || [], subs = B.submissions || [], gramma = B.gramma_results || [],
+          bonusRows = B.star_bonus || [], cfg = B.report_config || [], subs = B.submissions || [], grammaSets = B.gramma_sets || [],
           examList = B.exams || [], qRows = B.exam_questions || [],
           clinicSet = B.clinic_settings || [], signupSet = B.signup_settings || [];
 
@@ -1275,17 +1275,16 @@ function api(extra){
         });
         var hwPerfect = 0;
         hwcheck.forEach(function(h){ if (h.pct >= 100) hwPerfect++; });
-        /* 문법 테스트 90% 이상 — 카테고리|회차 단위(재응시 중복 없음). 8자리가 양쪽에 있으면 대조, 없으면 어휘와 같은 이름·학교·학년 규칙 */
+        /* 문법 세트 클리어(gramma_sets — 029) — 카테고리|세트 단위. 8자리가 양쪽에 있으면 대조, 없으면 어휘와 같은 이름·학교·학년 규칙 */
         var grammaSet = {};
-        gramma.forEach(function(r){
-          if ((Number(r.pct) || 0) < 90) return;
+        grammaSets.forEach(function(r){
           var rn = tr(r.name);
           if (rn !== name && rn !== base) return;
           var rp = tr(r.phone8);
           if (rp && sid && rp !== sid) return;
           if (!uniq && school) { var rs = tr(r.school); if (rs && !schoolMatch(rs, school)) return; }
           if (myGd) { var rGd = gradeDigit(r.grade); if (rGd && rGd !== myGd) return; }
-          grammaSet[tr(r.unit) + '|' + tr(r.round)] = true;
+          grammaSet[tr(r.unit) + '|' + tr(r.set_no)] = true;
         });
         var grammaN = Object.keys(grammaSet).length;
         var bonus = { sum: 0, latest: null };
@@ -1534,7 +1533,7 @@ function renderStars(){
       ['hwork',  'H-work 과제',        bd.hwork,  '개', bd.hwork],
       ['hwcheck','숙제 검사 만점',     bd.hwcheck,'주', bd.hwcheck],
       ['notice', '공지 확인',          bd.notice, '건', bd.notice],
-      ['gramma', '문법 테스트 90% 이상', bd.gramma || 0, '회', bd.gramma || 0],
+      ['gramma', '문법 세트 클리어', bd.gramma || 0, '세트', bd.gramma || 0],
       ['bonus',  '수경쌤 깜짝 보너스', bd.bonus ? 1 : 0, '', bd.bonus]
     ].filter(function(s){ return s[2] > 0; });
     if(srcs.length){
