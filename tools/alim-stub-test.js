@@ -210,5 +210,23 @@ eq('같은 날 다른 공지는 따로 감', [r.okCount, r.sent[0].dup], [1, und
 r = J(fns.alimSend({ pw: 'sh', kind: 'absent', items: [item('김하나', '01012345678', '2026-09-15')] }));
 eq('결석 중복 판정은 종류가 달라 영향 없음', r.okCount, 1);
 
+console.log('10) 결석 예정 확인(kind preabsent — 2026-09-16)');
+reset();
+fns.alimConfigSet({ pw: 'sh', apiKey: 'KEY1', apiSecret: 'SEC1', pfId: 'PF1', tpl: { absent: 'KA01TP1' } });
+r = J(fns.alimConfigGet());
+eq('설정 목록에 결석 예정 확인 템플릿(변수 다섯, 버튼 없음, 보충 안내 선택지 둘, 아직 ID 없음)', [r.templates.preabsent.label, r.templates.preabsent.vars, r.templates.preabsent.buttons, r.templates.preabsent.options['보충안내'].length, r.templates.preabsent.ready], ['결석 예정 확인', ['학생명', '수업일', '반이름', '사유', '보충안내'], [], 2, false]);
+eq('문구에 학원 통보·사유·보충안내·학부모 확인', r.templates.preabsent.text.indexOf('결석하겠다고 학원에 알려 왔습니다.\n사유: #{사유}\n#{보충안내}\n학부모님께서도 알고 계신 내용인지 확인 부탁드립니다.') > 0, true);
+r = J(fns.alimSend({ pw: 'sh', kind: 'preabsent', items: [item('김하나', '01012345678', '2026-09-18')] }));
+eq('템플릿 ID 없으면 거절', [r.result, /결석 예정 확인/.test(r.message)], ['error', true]);
+fns.alimConfigSet({ pw: 'sh', tpl: { preabsent: 'KA01TPP' } });
+r = J(fns.alimSend({ pw: 'sh', kind: 'preabsent', items: [item('김하나', '01012345678', '2026-09-18')] }));
+let pb = JSON.parse(CALLS[CALLS.length - 1].opt.payload);
+eq('결석 예정 확인 발송 — 그 템플릿 ID·변수(사유·보충안내 포함)', [r.okCount, pb.messages[0].kakaoOptions.templateId, Object.keys(pb.messages[0].kakaoOptions.variables)], [1, 'KA01TPP', ['#{학생명}', '#{수업일}', '#{반이름}', '#{사유}', '#{보충안내}']]);
+eq('기록 종류 preabsent', SHEETS['알림톡기록'][1][1], 'preabsent');
+r = J(fns.alimSend({ pw: 'sh', kind: 'preabsent', items: [item('김하나', '01012345678', '2026-09-18')] }));
+eq('같은 날 같은 학생은 중복 건너뜀', [r.okCount, r.sent[0].dup], [0, true]);
+r = J(fns.alimSend({ pw: 'sh', kind: 'absent', items: [item('김하나', '01012345678', '2026-09-18')] }));
+eq('같은 날 결석 안내는 종류가 달라 따로 감', r.okCount, 1);
+
 console.log(fail ? ('\n' + fail + '건 실패') : '\n전부 통과');
 process.exit(fail ? 1 : 0);
