@@ -1679,13 +1679,13 @@ function renderHub(){
       }
       // 그 외(주차 미설정 등)는 기본 설명 + '준비 중'
     }
-    // 문법 테스트: 문법 입구 페이지로 — 단원·레벨·회차를 골라 자유 응시 + 배정 확인(2026-09-14), 카드는 항상 활성
+    // 문법 테스트: 문법 스테이지 입구로 — 단원·레벨·스테이지를 골라 자유 응시(2026-09-14), 카드는 항상 활성. 배정 안내 문구는 2026-09-16 티쳐스 배정 기능 중단으로 뺌
     if(f.id==='grammar' && STATE.info){
       url = GRAMMAR_BASE + '?name=' + encodeURIComponent(STATE.info.name || '')
           + '&school=' + encodeURIComponent(STATE.info.school || '')
           + '&grade=' + encodeURIComponent(levelGrade(STATE.info.grade) || '')
           + '&p8=' + encodeURIComponent(String(STATE.info.id || ''));
-      desc = '단원을 골라 응시 · 배정 확인';
+      desc = '단원을 골라 스테이지 도전 · 세트 클리어로 별 +1';
     }
     var ic = '<span class="icon">'+svg(ICON[f.icon]||ICON.book)+(vocaBadge?'<span class="new-dot">1</span>':'')+'</span>';
     var tcl = f.tone ? ' t-'+f.tone : '';
