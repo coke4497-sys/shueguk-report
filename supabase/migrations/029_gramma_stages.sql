@@ -132,7 +132,7 @@ declare v_level text := coalesce(p->>'level','all');
 begin
   if v_month !~ '^\d{4}-\d{2}$' then v_month := ''; end if;
   create temp table if not exists _gt (rank int, name text, phone8 text, school text, grade text, stages int, points int, stars int) on commit drop;
-  delete from _gt;
+  delete from _gt where true;   -- 수파베이스는 WHERE 없는 DELETE를 막는다(2026-09-16 실제 적용 때 확인)
   insert into _gt
   with agg as (
     select b.name, b.phone8,

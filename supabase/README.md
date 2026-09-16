@@ -608,7 +608,7 @@ anon 의 표 권한 회수 + 정책을 `to authenticated` 로. 배포(머지→P
   `student_bundle`에 `gramma_sets` 항목(028 본문 그대로 + 한 항목). 세트 구성은 문법 저장소 `stage.js`가 정해 보낸다 — 값을 바꾸면 양쪽 함께.
 - 집계 세 곳이 `gramma_sets`를 센다: s.html(`student_bundle.gramma_sets`, '문법 세트 클리어'), superstar.html(`gramma_sets` 직접 조회, 아웃 검색 SB_SCAN에도 optional로), 백엔드 폴백 `countGramma_`/`collectStars_`(시트의 회차별 최고 정답률로 세트를 계산 — `GRAMMA_ROUNDS`에 카테고리별 전체 회차 수, 문법 manifest에 회차를 더하면 갱신·재배포).
 - 검증: `PGHOST=/home/pgtest PGPORT=5499 PGUSER=postgres bash tools/gramma-sql-test.sh`(027·028 검사 뒤 029를 얹어 통과/세트/first/status/top(level·month·me)/bundle/권한 assert).
-- 적용 상태: **실제 수파베이스 적용 대기**(사용자 sbp 토큰 필요) — 적용 전에는 페이지의 gramma_submit이 옛 함수(90% 규칙)로 답해 세트 안내가 나오지 않고 gramma_top은 404.
+- 적용 상태: **2026-09-16 실제 수파베이스에 029 적용 완료** — 공개 키로 시험 학생 왕복(60% 미통과 → 73% 통과 → 5회차 통과에 세트 클리어·set_first·stars 1 → 재응시는 first 아님 → status sets/stars → top 1위·중등 필터 빈 목록) 확인 뒤 시험 행 삭제(표 0행). 첫 적용 때 `gramma_top`의 `delete from _gt`가 수파베이스의 'WHERE 없는 DELETE 금지'에 걸려 `where true`를 붙였다 — **임시표를 비울 땐 항상 where를 쓸 것**.
 
 ## 문법 테스트 결과 — 슈퍼스타 별 적립 (2026-09-13, 027·028)
 - `migrations/027_gramma_results.sql` — 표 `gramma_results`(이름·학교·학년·8자리·카테고리·회차·점수·정답률) + 함수
