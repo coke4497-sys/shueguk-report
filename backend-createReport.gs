@@ -3997,6 +3997,20 @@ var ALIM_TPL_ = {
     text: '[이수경국어학원] 결석 안내\n' +
           '#{학생명} 학생이 #{수업일} #{반이름} 수업에 결석했습니다.'
   },
+  /* 결석 예정 확인(2026-09-16 사용자 "결석 예고 템플릿 — 학생이 결석을 통보했을 때 학부모님께 확인드리는 내용").
+   * 출석 창(오늘·주차별)의 [결석 예정 확인 · 보내기]에서 보낸다 — 출석 상태와 무관, 자동 발송 없음. */
+  preabsent: {
+    label: '결석 예정 확인',
+    prop: 'ALIM_TPL_PREABSENT',
+    vars: ['학생명', '수업일', '반이름', '사유', '보충안내'],   // 사유 = 학생이 말한 사유(조교 입력), 보충안내 = 아래 둘 중 하나
+    text: '[이수경국어학원] 결석 예정 확인\n' +
+          '#{학생명} 학생이 #{수업일} #{반이름} 수업에 결석하겠다고 학원에 알려 왔습니다.\n' +
+          '사유: #{사유}\n' +
+          '#{보충안내}\n' +
+          '학부모님께서도 알고 계신 내용인지 확인 부탁드립니다.',
+    /* 보충안내 선택지(2026-09-16 사용자 지정) — 화면 라디오, 문구는 여기와 timetable.html ALIM_MK_OPTS 가 같아야 한다 */
+    options: { '보충안내': ['보충 일정은 별도 안내드립니다.', '당일 결석이므로 보충을 진행하지 않습니다.'] }
+  },
   /* 공지 알림(2026-09-15 사용자 "공지사항을 올릴 때 푸시 팝업" → 알림톡 + 학생 페이지 팝업으로 결정).
    * 공지 등록 화면(notice.html)이 대상 학생(또는 학부모1)에게 보낸다. 중복 키(수업일 칸)는
    * 'N:날짜|제목' — 같은 공지를 두 번 보내지 않되, 같은 날 다른 공지는 따로 간다. */
@@ -4035,7 +4049,7 @@ function alimConfigGet() {
   var tpls = {};
   Object.keys(ALIM_TPL_).forEach(function(k) {
     var t = ALIM_TPL_[k];
-    tpls[k] = { label: t.label, text: t.text, vars: t.vars, buttons: t.buttons || [], ready: has(t.prop) };
+    tpls[k] = { label: t.label, text: t.text, vars: t.vars, buttons: t.buttons || [], options: t.options || {}, ready: has(t.prop) };
   });
   var ready = has(ALIM_PROP_.key) && has(ALIM_PROP_.secret) && has(ALIM_PROP_.pfId);
   return json({ result:'success', ready: ready,
