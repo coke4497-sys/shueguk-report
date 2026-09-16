@@ -10,6 +10,9 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='48' fill='%23DCE9E4'/%3E%3C/svg%3E" />
 <meta name="theme-color" content="#E4EFEA" />
 <!-- 홈 화면 앱 아이콘(각 학생 링크를 앱처럼 저장) -->
+<!-- 학생용 매니페스트: 범위(scope)가 사이트 전체(/)라 문법·어휘·H WORK 등 다른 저장소 페이지도 홈 화면 앱 안에서
+     사파리 막대 없이 열린다. start_url은 일부러 없음 — 홈 화면에 추가한 그 주소(s.html?key=…)가 시작 주소가 된다. -->
+<link rel="manifest" href="manifest-student.json" />
 <link rel="apple-touch-icon" href="icon-180.png" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="mobile-web-app-capable" content="yes" />
