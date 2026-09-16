@@ -5655,7 +5655,8 @@ function alimRenderState(cfg){
     return '<span class="al-sent'+(x[1] ? '' : ' no')+'">'+esc(x[0])+' '+(x[1] ? '준비됨' : '없음')+'</span>';
   }).join('') + '</div>' +
   (t ? '<p class="mk-sec">결석 안내 문구 (솔라피 템플릿에 이 문구 그대로 등록)</p><div class="al-prev">'+esc(t.text)+'</div>' : '') +
-  (tn ? '<p class="mk-sec">공지 안내 문구 (공지 등록 화면에서 보내요 — 솔라피 템플릿에 이 문구 그대로 등록)</p><div class="al-prev">'+esc(tn.text)+'</div>' : '');
+  (tn ? '<p class="mk-sec">공지 안내 문구 (공지 등록 화면에서 보내요 — 솔라피 템플릿에 이 문구 그대로 등록)</p><div class="al-prev">'+esc(tn.text)+'</div>' +
+        (tn.buttons && tn.buttons.length ? '<p class="subnote">템플릿 버튼도 함께 등록: ' + tn.buttons.map(function(b){ return '<b>'+esc(b.name)+'</b> (웹링크, 모바일·PC 모두 <code>'+esc(b.linkMo)+'</code>)'; }).join(', ') + ' — 주소의 #{접근코드} 자리는 학생마다 채워져요.</p>' : '') : '');
 }
 function alimRenderLog(){
   var to = todayStr(), fd = new Date(); fd.setDate(fd.getDate() - 6);

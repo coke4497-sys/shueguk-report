@@ -24,10 +24,12 @@ STUDENTS.push({ name: '김없음', school: '능곡고', grade: '2026 고등 2학
 STUDENTS.push({ name: '이퇴원', school: '능곡고', grade: '2026 고등 2학년', student_id: '30000003', code: 'c23', enrolled: '퇴원', phone_student: '01031110003', phone_parent1: '', phone_parent2: '' });
 STUDENTS.push({ name: '한동명', school: '화정고', grade: '2026 고등 2학년', student_id: '30000004', code: 'c24', enrolled: '재원', phone_student: '01031110004', phone_parent1: '', phone_parent2: '' });
 STUDENTS.push({ name: '한동명', school: '능곡고', grade: '2026 고등 2학년', student_id: '30000005', code: 'c25', enrolled: '재원', phone_student: '01031110005', phone_parent1: '', phone_parent2: '' });
+STUDENTS.push({ name: '김코드없음', school: '능곡고', grade: '2026 고등 2학년', student_id: '30000006', code: '', enrolled: '재원', phone_student: '01031110006', phone_parent1: '01032220006', phone_parent2: '' });   // 접근코드 없음 → 버튼 주소를 못 만들어 제외
 const ROSTER = STUDENTS.filter(s => s.enrolled !== '퇴원').map(s => ({ name: s.name, school: s.school, grade: s.grade }));
 let ALIM_CFG = { result: 'success', ready: true, smsFallback: false, has: { key: true, secret: true, pfId: true, from: false },
   templates: { absent: { label: '결석 안내', text: 'x', vars: [], ready: true },
-               notice: { label: '공지 안내', text: '[이수경국어학원] 새 공지\n#{학생명} 학생에게 새 공지가 도착했어요.\n\n▶ #{제목}\n\n학생 페이지에서 내용을 확인해 주세요.', vars: ['학생명', '제목'], ready: true } } };
+               notice: { label: '공지 안내', text: '[이수경국어학원] 새 공지\n#{학생명} 학생에게 새 공지가 도착했어요.\n\n▶ #{제목}\n\n학생 페이지에서 내용을 확인해 주세요.', vars: ['학생명', '제목', '접근코드'], ready: true,
+                         buttons: [{ name: '학생 페이지 열기', type: 'WL', linkMo: 'https://coke4497-sys.github.io/shueguk-report/s.html?key=#{접근코드}', linkPc: 'https://coke4497-sys.github.io/shueguk-report/s.html?key=#{접근코드}' }] } } };
 const posts = [];   // 백엔드 POST 본문
 let NOTICES = [];   // 학생 페이지에 줄 공지
 const reads = [];   // notice_read_submit 호출
@@ -95,6 +97,7 @@ const alimSends = () => posts.filter(b => b.action === 'alimSend');
   const boxTxt = await page.$eval('#alimBox', e => e.textContent);
   ok(/120명/.test(boxTxt) && /학생 번호로/.test(boxTxt) && /50명씩/.test(boxTxt), '확인 상자: 120명 · 학생 번호 · 50명씩 나눠 보냄 (' + boxTxt.slice(0, 60).replace(/\s+/g, ' ') + ')');
   ok(/고일001 학생에게 새 공지가 도착했어요/.test(boxTxt) && /▶ 추석 휴강 안내/.test(boxTxt), '미리보기에 학생명·제목이 채워진다');
+  ok(await page.$eval('#alimBox .alim-btn', e => e.textContent) === '학생 페이지 열기', '미리보기 아래 템플릿 버튼 [학생 페이지 열기]');
   ok(!/연락처가 없어/.test(boxTxt), '고1은 전원 번호 있음 → 안내 없음');
   await page.click('#alimGo');
   await page.waitForFunction(() => /공지 알림톡/.test(document.getElementById('status').textContent), { timeout: 8000 });
@@ -102,7 +105,7 @@ const alimSends = () => posts.filter(b => b.action === 'alimSend');
   ok(sends.length === 3 && sends.map(b => b.items.length).join(',') === '50,50,20', 'alimSend 3번(50·50·20명)');
   const it0 = sends[0].items[0];
   ok(sends.every(b => b.kind === 'notice') && it0.who === '학생' && it0.to === '01011000000' && it0.cls === '공지', 'kind notice · 학생 번호 · 반 “공지”');
-  ok(/^N:\d{4}-\d{2}-\d{2}\|추석 휴강 안내$/.test(it0.date) && it0.vars['제목'] === '추석 휴강 안내' && it0.vars['학생명'] === '고일001', '중복 키 N:날짜|제목 + 변수(학생명·제목)');
+  ok(/^N:\d{4}-\d{2}-\d{2}\|추석 휴강 안내$/.test(it0.date) && it0.vars['제목'] === '추석 휴강 안내' && it0.vars['학생명'] === '고일001' && it0.vars['접근코드'] === 'c10', '중복 키 N:날짜|제목 + 변수(학생명·제목·접근코드=학생 페이지 키)');
   const st = await page.$eval('#status', e => e.textContent);
   ok(/119건 보냈어요/.test(st) && /이미 보낸 1명/.test(st), '결과 문구: 119건 + 중복 1명 (' + st + ')');
   ok(await page.$eval('#alimBox', e => e.style.display) === 'none', '보낸 뒤 상자 닫힘');
@@ -117,6 +120,7 @@ const alimSends = () => posts.filter(b => b.action === 'alimSend');
   const t2 = await page.$eval('#alimBox', e => e.textContent);
   ok(/1명에게 학부모1 번호로/.test(t2), '학부모1 번호가 있는 1명만 (' + t2.match(/\d+명에게[^.]*/)[0] + ')');
   ok(/연락처가 없어 못 보내는 학생 3명: 김없음, 한동명, 한동명/.test(t2), '학부모1 번호 없는 3명 안내(퇴원생은 아예 제외)');
+  ok(/접근코드가 없어 못 보내는 학생 1명: 김코드없음/.test(t2), '접근코드 없는 학생은 번호가 있어도 제외하고 따로 안내');
   await page.click('#alimGo');
   await page.waitForFunction(() => /공지 알림톡 1건/.test(document.getElementById('status').textContent), { timeout: 8000 });
   ok(alimSends().length === 1 && alimSends()[0].items[0].student === '박보검' && alimSends()[0].items[0].to === '01032220001' && alimSends()[0].items[0].who === '학부모1', '박보검 학부모1 번호로 1건');
