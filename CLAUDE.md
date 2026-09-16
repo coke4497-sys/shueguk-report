@@ -290,7 +290,10 @@
 ## 지필 리포트 쓰기 — 수파베이스가 원본 (2026-08-26)
 - **학생 복기 제출(r.html)·시험 등록/삭제(m.html·analyses.html)가 수파베이스 먼저**, 시트 사본은 뒤에서. 일일 점검은 exams·exam_questions **보고만**(시트 기준 복구 금지 — 등록·삭제가 되돌아간다), submissions는 원래 추가만. 자세한 것은 `supabase/README.md` '지필 리포트 쓰기' 절.
 
-## 슈퍼스타 별 — 문법 테스트 90% 이상 (2026-09-13 사용자 요청)
+## 슈퍼스타 별 — 문법 세트 클리어 (2026-09-16 사용자 결정, 029 — 아래 '90% 이상' 절을 대체)
+- 문법 테스트가 스테이지 게임이 되면서(문법 저장소 CLAUDE.md '문법 스테이지 게임' 절) **별 규칙 = 세트 클리어(스테이지 5개를 모두 정답률 70% 이상) 하나당 별 +1**. 회차마다 90% 규칙은 폐지. 원본은 수파베이스 `gramma_sets`(029), 세 곳(s.html `gramma_sets` 항목 · superstar `computeRanking` gramma_sets 조회 · 백엔드 `grammaSetCount_`/`countGramma_` — 시트 회차별 최고 정답률로 세트 계산, `GRAMMA_ROUNDS` 회차 수 표)이 같은 규칙. 표시 이름 '문법 세트 클리어'. **029는 2026-09-16 실제 수파베이스에 적용 완료**(공개 키 왕복 확인, `supabase/README.md`). 백엔드 폴백은 리포트 재배포가 필요하다(clasp).
+
+## ~~슈퍼스타 별 — 문법 테스트 90% 이상~~ (2026-09-13 사용자 요청 — 2026-09-16 세트 규칙으로 대체)
 - `STAR_RULES.gramma = 1`: 문법 테스트(shueguk-gramma) 정답률 90% 이상, **카테고리+회차 단위**(재응시 중복 없음). 세 곳에 같이 넣었다 — s.html(`student_bundle`의 `gramma_results`, 획득 내역 '문법 테스트 90% 이상'), superstar.html `computeRanking`(gramma_results 직접 조회 — 표가 없으면 0, 아웃 검색 `SB_SCAN`에도 optional로 포함), 백엔드 `collectStars_`·`starRankingData_`(`countGramma_`/`grammaSnap_` — `GRAMMA_SHEET_ID`에 문법 결과 스프레드시트 ID(2026-09-13 사용자 제공) 설정, **리포트 배포 @119(2026-09-13)**). **`GRAMMA_STAR_FROM='2026-09-13'`**: 폴백은 이 날짜 이후 제출만 센다 — 수파베이스 원본이 이 날부터 쌓이므로 범위를 맞춘 것. 시트에는 그 전 기록 65건(90% 이상 31건, 3명, 5/30~9/10)이 있는데 세지 않는다. 지난 기록도 별로 인정하려면 시트 → gramma_results 백필 + 이 값을 비우고 재배포.
 - 원본은 수파베이스 `gramma_results`(027 마이그레이션, 자세한 것은 `supabase/README.md`). 문법 test.html이 시트와 수파베이스 둘 다에 쓴다. **027·028은 2026-09-13 실제 수파베이스에 적용 완료**(공개 키 왕복 확인).
 - **STAR_RULES를 바꾸면 세 벌(백엔드·s.html·superstar.html)을 함께 바꿀 것**(이미 있던 규칙).
