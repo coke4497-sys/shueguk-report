@@ -62,6 +62,7 @@
   .alim-box{margin-top:14px;border-radius:12px;background:#F4F6F8;padding:14px 16px;font-size:13.5px;}
   .alim-box h4{margin:0 0 6px;font-size:14px;font-family:"Gowun Batang",serif;}
   .alim-box .prev{white-space:pre-wrap;background:#fff;border-radius:8px;padding:10px 12px;margin:8px 0;font-size:13px;line-height:1.55;}
+  .alim-box .alim-btn{margin-top:10px;padding:8px 0;text-align:center;border-radius:6px;background:#F4F5F3;color:#4C6E66;font-size:13px;}   /* 템플릿 버튼 미리보기 */
   .alim-box .miss{color:var(--ink-soft);font-size:12.5px;margin:6px 0 0;}
   .alim-box .btns{display:flex;gap:8px;justify-content:flex-end;margin-top:10px;}
   .alim-box .btns button{font:inherit;font-size:13px;padding:8px 14px;border-radius:10px;border:1px solid var(--line-soft);background:#fff;cursor:pointer;}
@@ -492,23 +493,26 @@
           { headers: { apikey: 'sb_publishable_dE9d1KIbpgYaQkaS2MSrlg_-7SiRJuT' } })
       .then(function(r){ if (!r.ok) throw new Error('students ' + r.status); return r.json(); })
       .then(function(rows){
-        var items = [], missing = [];
+        var items = [], missing = [], nocode = [];
         rows.forEach(function(r){
           if (!tr(r.name) || LEFT_RE.test(tr(r.enrolled))) return;
           var stu = { name: tr(r.name), school: tr(r.school), grade: tr(r.grade), sid: tr(r.student_id).replace(/^'/, ''), code: tr(r.code) };
           if (!noticeMatches(sel.type, sel.target, stu)) return;
           var to = String(who === '학부모1' ? r.phone_parent1 : r.phone_student || '').replace(/\D/g, '');
-          if (/^01\d{8,9}$/.test(to)) items.push({ student: stu.name, to: to });
-          else missing.push(stu.name);
+          if (!/^01\d{8,9}$/.test(to)) missing.push(stu.name);
+          else if (!stu.code) nocode.push(stu.name);   // [학생 페이지 열기] 버튼 주소가 못 만들어지므로 보내지 않는다
+          else items.push({ student: stu.name, to: to, code: stu.code });
         });
         alimPending = { ref: 'N:' + todayKst() + '|' + title, title: title, who: who, items: items, missing: missing };
         var tpl = alimCfg.templates.notice;
         var preview = alimFill(tpl.text, { '학생명': items[0] ? items[0].student : '○○○', '제목': title });
+        var btns = (tpl.buttons || []).map(function(b){ return '<div class="alim-btn">' + esc(b.name) + '</div>'; }).join('');
         box.innerHTML = '<h4>공지 알림톡</h4>' +
           '<div>' + esc(sel.summary) + ' 중 <b>' + items.length + '명</b>에게 ' + esc(who) + ' 번호로 보내요.' +
           (items.length > ALIM_BATCH ? ' <span class="alim-note">(' + ALIM_BATCH + '명씩 나눠 보내요)</span>' : '') + '</div>' +
-          '<div class="prev">' + esc(preview) + '</div>' +
+          '<div class="prev">' + esc(preview) + btns + '</div>' +
           (missing.length ? '<p class="miss">' + esc(who) + ' 연락처가 없어 못 보내는 학생 ' + missing.length + '명: ' + esc(missing.join(', ')) + '</p>' : '') +
+          (nocode.length ? '<p class="miss">학생 페이지 접근코드가 없어 못 보내는 학생 ' + nocode.length + '명: ' + esc(nocode.join(', ')) + '</p>' : '') +
           (alimCfg.smsFallback ? '' : '<p class="miss">카카오톡을 받을 수 없는 번호는 문자로 대체되지 않아요 (발신번호 미설정).</p>') +
           '<div class="btns"><button type="button" onclick="alimCancel()">보내지 않기</button>' +
           '<button type="button" class="go" id="alimGo" onclick="alimSendNotice()"' + (items.length ? '' : ' disabled') + '>알림톡 보내기 (' + items.length + '명)</button></div>';
@@ -526,7 +530,7 @@
         if (err) return;
         return fetch(ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
           body: JSON.stringify({ action: 'alimSend', kind: 'notice',
-            items: chunk.map(function(it){ return { student: it.student, to: it.to, who: p.who, cls: '공지', date: p.ref, vars: { '학생명': it.student, '제목': p.title } }; }) }) })
+            items: chunk.map(function(it){ return { student: it.student, to: it.to, who: p.who, cls: '공지', date: p.ref, vars: { '학생명': it.student, '제목': p.title, '접근코드': it.code } }; }) }) })
           .then(function(r){ return r.json(); })
           .then(function(res){
             if (!res || res.result !== 'success'){ err = (res && res.message) || '오류'; return; }

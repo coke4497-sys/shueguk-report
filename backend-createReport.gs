@@ -4003,13 +4003,19 @@ var ALIM_TPL_ = {
   notice: {
     label: '공지 안내',
     prop: 'ALIM_TPL_NOTICE',
-    vars: ['학생명', '제목'],
+    vars: ['학생명', '제목', '접근코드'],   // 접근코드 = 학생 페이지 링크(s.html?key=)의 키 — 버튼 주소 변수
     text: '[이수경국어학원] 새 공지\n' +
           '#{학생명} 학생에게 새 공지가 도착했어요.\n' +
           '\n' +
           '▶ #{제목}\n' +
           '\n' +
-          '학생 페이지에서 내용을 확인해 주세요.'
+          '학생 페이지에서 내용을 확인해 주세요.',
+    /* 템플릿 버튼(2026-09-16 사용자 "학생 페이지 열기 버튼을 템플릿에 추가"). 솔라피 템플릿 등록 때 이 버튼을
+     * 같이 넣는다 — 종류 웹링크(WL), 모바일·PC 링크 모두 아래 주소(도메인은 고정, 변수는 #{접근코드} 자리만).
+     * 알림톡(ATA)은 버튼이 템플릿에 붙어 있어 보낼 때 따로 싣지 않고 variables로 #{접근코드}만 채운다. */
+    buttons: [{ name: '학생 페이지 열기', type: 'WL',
+                linkMo: 'https://coke4497-sys.github.io/shueguk-report/s.html?key=#{접근코드}',
+                linkPc: 'https://coke4497-sys.github.io/shueguk-report/s.html?key=#{접근코드}' }]
   }
 };
 function alimProps_() { return PropertiesService.getScriptProperties(); }
@@ -4029,7 +4035,7 @@ function alimConfigGet() {
   var tpls = {};
   Object.keys(ALIM_TPL_).forEach(function(k) {
     var t = ALIM_TPL_[k];
-    tpls[k] = { label: t.label, text: t.text, vars: t.vars, ready: has(t.prop) };
+    tpls[k] = { label: t.label, text: t.text, vars: t.vars, buttons: t.buttons || [], ready: has(t.prop) };
   });
   var ready = has(ALIM_PROP_.key) && has(ALIM_PROP_.secret) && has(ALIM_PROP_.pfId);
   return json({ result:'success', ready: ready,
