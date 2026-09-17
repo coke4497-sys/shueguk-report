@@ -4018,13 +4018,16 @@ var ALIM_TPL_ = {
   /* 공지 알림(2026-09-15 사용자 "공지사항을 올릴 때 푸시 팝업" → 알림톡 + 학생 페이지 팝업으로 결정).
    * 공지 등록 화면(notice.html)이 대상 학생(또는 학부모1)에게 보낸다. 중복 키(수업일 칸)는
    * 'N:날짜|제목' — 같은 공지를 두 번 보내지 않되, 같은 날 다른 공지는 따로 간다.
-   * 종류 넷(2026-09-17): 솔라피/카카오가 '새 공지' 하나짜리 템플릿을 "제목이 너무 포괄적 — 용도가 특정되는
+   * 종류(2026-09-17): 솔라피/카카오가 '새 공지' 하나짜리 템플릿을 "제목이 너무 포괄적 — 용도가 특정되는
    * 제목으로 나눌 것"으로 반려해서(2026-09-16), 공지 화면에서 종류를 고르고 그 종류의 템플릿으로 보낸다.
-   * 문구 모양은 넷이 같고 제목 줄·둘째 줄의 종류 이름만 다르다. 변수·버튼은 종류마다 동일. */
-  notice_sched: alimNoticeTpl_('수업 일정 안내', 'ALIM_TPL_NOTICE_SCHED'),   // 휴강·보강·시간 변경·방학 일정
-  notice_exam:  alimNoticeTpl_('시험 안내',      'ALIM_TPL_NOTICE_EXAM'),    // 내신 대비·모의고사·어휘·문법 테스트
-  notice_hw:    alimNoticeTpl_('과제 안내',      'ALIM_TPL_NOTICE_HW'),      // H WORK·숙제·학습 자료
-  notice_ops:   alimNoticeTpl_('학원 운영 안내', 'ALIM_TPL_NOTICE_OPS')      // 등원·시설·행사·기타
+   * 처음 넷(수업 일정·시험·과제·학원 운영)으로 나눴다가 같은 날 사용자가 아래 여섯으로 정했다.
+   * 문구 모양은 모두 같고 제목 줄·둘째 줄의 종류 이름만 다르다. 변수·버튼은 종류마다 동일. */
+  notice_mock:   alimNoticeTpl_('주말 실전 모의고사 신청 안내', 'ALIM_TPL_NOTICE_MOCK'),
+  notice_hwork:  alimNoticeTpl_('H WORK 안내',                'ALIM_TPL_NOTICE_HWORK'),
+  notice_report: alimNoticeTpl_('지필고사 리포트 제작 안내',   'ALIM_TPL_NOTICE_REPORT'),
+  notice_voca:   alimNoticeTpl_('어휘 테스트 참여 안내',       'ALIM_TPL_NOTICE_VOCA'),
+  notice_gramma: alimNoticeTpl_('문법 테스트 참여 안내',       'ALIM_TPL_NOTICE_GRAMMA'),
+  notice_event:  alimNoticeTpl_('행사 안내',                   'ALIM_TPL_NOTICE_EVENT')
 };
 function alimProps_() { return PropertiesService.getScriptProperties(); }
 function alimSheet_(ss) {
