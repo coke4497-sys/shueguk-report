@@ -3993,8 +3993,9 @@ var ALIM_PROP_ = { key:'SOLAPI_KEY', secret:'SOLAPI_SECRET', from:'SOLAPI_FROM',
  * 열기 버튼을 템플릿에 추가"): 솔라피 템플릿 등록 때 이 버튼을 같이 넣는다 — 종류 웹링크(WL), 모바일·PC 링크 모두
  * 아래 주소(도메인은 고정, 변수는 #{접근코드} 자리만). 알림톡(ATA)은 버튼이 템플릿에 붙어 있어 보낼 때 따로 싣지
  * 않고 variables로 #{접근코드}만 채운다. 접근코드 = 학생 페이지 링크(s.html?key=)의 키. */
-function alimNoticeTpl_(name, prop) {
-  var link = 'https://coke4497-sys.github.io/shueguk-report/s.html?key=#{접근코드}';
+var ALIM_STU_LINK_ = 'https://coke4497-sys.github.io/shueguk-report/s.html?key=#{접근코드}';
+function alimTail_(line) { return line + '\n' + ALIM_STU_LINK_; }   // 마지막 줄 + 학생 페이지 주소 줄
+function alimNoticeTpl_(name, prop, tail) {
   return {
     label: name, prop: prop, notice: true,
     vars: ['학생명', '제목', '접근코드'],
@@ -4003,8 +4004,8 @@ function alimNoticeTpl_(name, prop) {
           '\n' +
           '▶ #{제목}\n' +
           '\n' +
-          '학생 페이지에서 내용을 확인해 주세요.',
-    buttons: [{ name: '학생 페이지 열기', type: 'WL', linkMo: link, linkPc: link }]
+          (tail || '학생 페이지에서 내용을 확인해 주세요.'),   // 마지막 줄만 종류별로 다르게 둘 수 있다(사용자 지정 문구)
+    buttons: [{ name: '학생 페이지 열기', type: 'WL', linkMo: ALIM_STU_LINK_, linkPc: ALIM_STU_LINK_ }]
   };
 }
 var ALIM_TPL_ = {
@@ -4023,13 +4024,24 @@ var ALIM_TPL_ = {
    * 처음 넷(수업 일정·시험·과제·학원 운영)으로 나눴다가 같은 날 사용자가 아래 여덟으로 정했다(결석 안내까지 합쳐 9종).
    * 문구 모양은 모두 같고 제목 줄·둘째 줄의 종류 이름만 다르다. 변수·버튼은 종류마다 동일. */
   notice_sched:    alimNoticeTpl_('수업 일정 안내',              'ALIM_TPL_NOTICE_SCHED'),
-  notice_mock:     alimNoticeTpl_('주말 실전 모의고사 신청 안내', 'ALIM_TPL_NOTICE_MOCK'),
-  notice_hwork:    alimNoticeTpl_('H WORK 안내',                'ALIM_TPL_NOTICE_HWORK'),
-  notice_report:   alimNoticeTpl_('지필고사 리포트 제작 안내',   'ALIM_TPL_NOTICE_REPORT'),
-  notice_reportup: alimNoticeTpl_('지필고사 리포트 업데이트 안내', 'ALIM_TPL_NOTICE_REPORTUP'),
-  notice_voca:     alimNoticeTpl_('어휘 테스트 참여 안내',       'ALIM_TPL_NOTICE_VOCA'),
-  notice_gramma:   alimNoticeTpl_('문법 테스트 참여 안내',       'ALIM_TPL_NOTICE_GRAMMA'),
-  notice_event:    alimNoticeTpl_('행사 안내',                   'ALIM_TPL_NOTICE_EVENT')
+  /* 마지막 줄은 종류마다 '어느 메뉴에서 무엇을 하면 되는지'를 적고(2026-09-17 사용자 "학생 페이지에서 내용을 확인해 주세요를 좀더
+   * 명확하게"), 그 아래 학생 페이지 주소를 한 줄 더 둔다(주소의 키 자리는 #{접근코드} — 버튼과 같은 주소). 메뉴 이름은 s.html 카드 이름. */
+  notice_sched:    alimNoticeTpl_('수업 일정 안내',              'ALIM_TPL_NOTICE_SCHED',
+                     alimTail_('학생 페이지의 알려드립니다 메뉴에서 바뀐 수업 일정을 확인해 주세요.')),
+  notice_mock:     alimNoticeTpl_('주말 실전 모의고사 신청 안내', 'ALIM_TPL_NOTICE_MOCK',
+                     alimTail_('학생 페이지의 주말 실전 모의고사 메뉴에서 신청할 수 있습니다.')),
+  notice_hwork:    alimNoticeTpl_('H WORK 안내',                'ALIM_TPL_NOTICE_HWORK',
+                     alimTail_('학생 페이지의 H-work 메뉴에서 과제를 확인하고 제출해 주세요.')),
+  notice_report:   alimNoticeTpl_('지필고사 리포트 제작 안내',   'ALIM_TPL_NOTICE_REPORT',
+                     alimTail_('학생 페이지의 지필고사 데이터 메뉴에서 시험 복기를 입력해 주세요.')),
+  notice_reportup: alimNoticeTpl_('지필고사 리포트 업데이트 안내', 'ALIM_TPL_NOTICE_REPORTUP',
+                     alimTail_('학생 페이지의 지필고사 데이터 메뉴에서 새로 올라온 리포트를 확인해 주세요.')),
+  notice_voca:     alimNoticeTpl_('어휘 테스트 참여 안내',       'ALIM_TPL_NOTICE_VOCA',
+                     alimTail_('학생 페이지의 어휘 테스트 메뉴에서 이번 주 테스트에 참여해 주세요.')),
+  notice_gramma:   alimNoticeTpl_('문법 테스트 참여 안내',       'ALIM_TPL_NOTICE_GRAMMA',
+                     alimTail_('학생 페이지의 문법 테스트 메뉴에서 배정된 테스트에 참여해 주세요.')),
+  notice_event:    alimNoticeTpl_('행사 안내',                   'ALIM_TPL_NOTICE_EVENT',
+                     alimTail_('학생 페이지의 알려드립니다 메뉴에서 행사 내용을 확인해 주세요.'))
 };
 function alimProps_() { return PropertiesService.getScriptProperties(); }
 function alimSheet_(ss) {

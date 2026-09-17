@@ -195,8 +195,12 @@ eq('공지 종류 여덟(notice 표시, 결석까지 9종) — 옛 단일 notice
    [['notice_sched', 'notice_mock', 'notice_hwork', 'notice_report', 'notice_reportup', 'notice_voca', 'notice_gramma', 'notice_event'], false, false, 9]);
 eq('종류 이름', NK.map(k => r.templates[k].label), ['수업 일정 안내', '주말 실전 모의고사 신청 안내', 'H WORK 안내', '지필고사 리포트 제작 안내', '지필고사 리포트 업데이트 안내', '어휘 테스트 참여 안내', '문법 테스트 참여 안내', '행사 안내']);
 eq('설정 목록에 공지 템플릿(아직 ID 없음)', [typeof r.templates.notice_mock.text, r.templates.notice_mock.ready, r.templates.notice_mock.vars], ['string', false, ['학생명', '제목', '접근코드']]);
-eq('문구 = 제목 줄·둘째 줄에 종류 이름, 나머지 동일',
-   NK.map(k => r.templates[k].text === '[이수경국어학원] ' + r.templates[k].label + '\n#{학생명} 학생에게 ' + r.templates[k].label + '가 도착했어요.\n\n▶ #{제목}\n\n학생 페이지에서 내용을 확인해 주세요.'),
+const TAILS = { notice_sched: '학생 페이지의 알려드립니다 메뉴에서 바뀐 수업 일정을 확인해 주세요.', notice_mock: '학생 페이지의 주말 실전 모의고사 메뉴에서 신청할 수 있습니다.',
+  notice_hwork: '학생 페이지의 H-work 메뉴에서 과제를 확인하고 제출해 주세요.', notice_report: '학생 페이지의 지필고사 데이터 메뉴에서 시험 복기를 입력해 주세요.',
+  notice_reportup: '학생 페이지의 지필고사 데이터 메뉴에서 새로 올라온 리포트를 확인해 주세요.', notice_voca: '학생 페이지의 어휘 테스트 메뉴에서 이번 주 테스트에 참여해 주세요.',
+  notice_gramma: '학생 페이지의 문법 테스트 메뉴에서 배정된 테스트에 참여해 주세요.', notice_event: '학생 페이지의 알려드립니다 메뉴에서 행사 내용을 확인해 주세요.' };
+eq('문구 = 제목 줄·둘째 줄에 종류 이름 + ▶ 제목 + 종류별 마지막 줄 + 학생 페이지 주소(#{접근코드})',
+   NK.map(k => r.templates[k].text === '[이수경국어학원] ' + r.templates[k].label + '\n#{학생명} 학생에게 ' + r.templates[k].label + '가 도착했어요.\n\n▶ #{제목}\n\n' + TAILS[k] + '\nhttps://coke4497-sys.github.io/shueguk-report/s.html?key=#{접근코드}'),
    NK.map(() => true));
 eq('공지 템플릿 버튼 = 학생 페이지 열기(웹링크, 접근코드 변수) — 결석은 버튼 없음',
    [NK.map(k => r.templates[k].buttons.map(b => [b.name, b.type, b.linkMo === b.linkPc, /s\.html\?key=#\{접근코드\}$/.test(b.linkMo)])), r.templates.absent.buttons],
