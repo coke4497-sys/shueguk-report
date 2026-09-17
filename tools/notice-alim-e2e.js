@@ -1,7 +1,7 @@
 /* 공지 알림톡 + 학생 페이지 미확인 공지 팝업 브라우저 E2E (2026-09-15)
  * 가짜 백엔드(script.google.com)·가짜 수파베이스로 실제 페이지를 띄워
  *   ① notice.html — 알림톡 설정 상태 표시, 등록 뒤 대상 학생 고르기(학년·개인), 연락처 없는 학생 안내,
- *      50명씩 나눠 alimSend(kind notice) 호출, 중복 키·변수, 숨김 공지는 안 보냄, 설정 전엔 체크 잠금
+ *      50명씩 나눠 alimSend(kind = 고른 공지 종류 notice_*) 호출, 종류 드롭다운·준비 전 종류 잠금, 중복 키·변수, 숨김 공지는 안 보냄, 설정 전엔 체크 잠금
  *   ② s.html — 확인 안 한 공지가 있으면 첫 화면 팝업, [확인했습니다]로 notice_read_submit, 같은 묶음은 다시 안 뜸,
  *      '나중에 볼게요' 뒤 뱃지 유지, 확인 뒤 사라짐
  * 원격에는 아무것도 보내지 않는다.
@@ -26,10 +26,14 @@ STUDENTS.push({ name: '한동명', school: '화정고', grade: '2026 고등 2학
 STUDENTS.push({ name: '한동명', school: '능곡고', grade: '2026 고등 2학년', student_id: '30000005', code: 'c25', enrolled: '재원', phone_student: '01031110005', phone_parent1: '', phone_parent2: '' });
 STUDENTS.push({ name: '김코드없음', school: '능곡고', grade: '2026 고등 2학년', student_id: '30000006', code: '', enrolled: '재원', phone_student: '01031110006', phone_parent1: '01032220006', phone_parent2: '' });   // 접근코드 없음 → 버튼 주소를 못 만들어 제외
 const ROSTER = STUDENTS.filter(s => s.enrolled !== '퇴원').map(s => ({ name: s.name, school: s.school, grade: s.grade }));
+const LINK = 'https://coke4497-sys.github.io/shueguk-report/s.html?key=#{접근코드}';
+const ntpl = (label, ready) => ({ label, notice: true, ready, vars: ['학생명', '제목', '접근코드'],
+  text: '[이수경국어학원] ' + label + '\n#{학생명} 학생에게 ' + label + '가 도착했어요.\n\n▶ #{제목}\n\n학생 페이지에서 내용을 확인해 주세요.',
+  buttons: [{ name: '학생 페이지 열기', type: 'WL', linkMo: LINK, linkPc: LINK }] });
+/* 공지 종류 넷(2026-09-17) — 시험 안내만 아직 심사 전(ready:false)인 상황 */
 let ALIM_CFG = { result: 'success', ready: true, smsFallback: false, has: { key: true, secret: true, pfId: true, from: false },
   templates: { absent: { label: '결석 안내', text: 'x', vars: [], ready: true },
-               notice: { label: '공지 안내', text: '[이수경국어학원] 새 공지\n#{학생명} 학생에게 새 공지가 도착했어요.\n\n▶ #{제목}\n\n학생 페이지에서 내용을 확인해 주세요.', vars: ['학생명', '제목', '접근코드'], ready: true,
-                         buttons: [{ name: '학생 페이지 열기', type: 'WL', linkMo: 'https://coke4497-sys.github.io/shueguk-report/s.html?key=#{접근코드}', linkPc: 'https://coke4497-sys.github.io/shueguk-report/s.html?key=#{접근코드}' }] } } };
+               notice_sched: ntpl('수업 일정 안내', true), notice_exam: ntpl('시험 안내', false), notice_hw: ntpl('과제 안내', true), notice_ops: ntpl('학원 운영 안내', true) } };
 const posts = [];   // 백엔드 POST 본문
 let NOTICES = [];   // 학생 페이지에 줄 공지
 const reads = [];   // notice_read_submit 호출
@@ -81,9 +85,17 @@ const alimSends = () => posts.filter(b => b.action === 'alimSend');
   const NURL = 'http://127.0.0.1:' + PORT + '/notice.html';
 
   console.log('① 공지 등록 화면 — 알림톡');
+  /* 종류 드롭다운은 체크박스와 같은 label 안에 있어 체크가 잠기면 Playwright가 select도 잠긴 것으로 봐서(브라우저에서는 정상 동작) 값을 직접 넣는다 */
+  const pickKind = k => page.evaluate(k => { const s = document.getElementById('alimKind'); s.value = k; s.dispatchEvent(new Event('change')); }, k);
   await page.goto(NURL, { waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => !document.getElementById('alimOn').disabled, { timeout: 8000 });
   ok(true, '설정이 준비되면 [알림톡도 보내기] 체크가 열린다');
+  ok((await page.$$eval('#alimKind option', els => els.map(o => o.value + ':' + o.textContent))).join('|') === 'notice_sched:수업 일정 안내|notice_exam:시험 안내 (준비 전)|notice_hw:과제 안내|notice_ops:학원 운영 안내', '종류 드롭다운 = 네 종류, 심사 전은 “(준비 전)”');
+  ok(await page.$eval('#alimKind', e => e.value) === 'notice_sched' && /“수업 일정 안내” 알림톡/.test(await page.$eval('#alimNote', e => e.textContent)), '기본 종류 = 준비된 첫 종류(수업 일정 안내) + 안내 문구');
+  await pickKind('notice_exam');
+  ok(await page.$eval('#alimOn', e => e.disabled && !e.checked) && /이 종류의 템플릿은 아직 없어요/.test(await page.$eval('#alimNote', e => e.textContent)), '준비 전 종류를 고르면 체크가 잠기고 안내');
+  await pickKind('notice_sched');
+  ok(!(await page.$eval('#alimOn', e => e.disabled)), '준비된 종류로 돌리면 다시 열린다');
   await page.waitForFunction(() => document.querySelectorAll('#picker .sp-summary').length === 1 && !/불러오는/.test(document.getElementById('picker').textContent));
   // 학년 고1 선택은 위젯 조작 대신 선택값을 직접 넣는다(위젯 자체는 다른 E2E가 검사)
   await page.evaluate(() => { currentSel = { type: '학년', target: '2026 고등 1학년', count: 120, summary: '2026 고등 1학년 — 120명' }; });
@@ -96,7 +108,7 @@ const alimSends = () => posts.filter(b => b.action === 'alimSend');
   ok(posts.some(b => b.action === 'addNotice' && b.title === '추석 휴강 안내' && b.target === '2026 고등 1학년'), '공지 등록 POST');
   const boxTxt = await page.$eval('#alimBox', e => e.textContent);
   ok(/120명/.test(boxTxt) && /학생 번호로/.test(boxTxt) && /50명씩/.test(boxTxt), '확인 상자: 120명 · 학생 번호 · 50명씩 나눠 보냄 (' + boxTxt.slice(0, 60).replace(/\s+/g, ' ') + ')');
-  ok(/고일001 학생에게 새 공지가 도착했어요/.test(boxTxt) && /▶ 추석 휴강 안내/.test(boxTxt), '미리보기에 학생명·제목이 채워진다');
+  ok(/고일001 학생에게 수업 일정 안내가 도착했어요/.test(boxTxt) && /▶ 추석 휴강 안내/.test(boxTxt) && /공지 알림톡 · 수업 일정 안내/.test(boxTxt), '미리보기 = 고른 종류(수업 일정 안내) 문구에 학생명·제목이 채워진다');
   ok(await page.$eval('#alimBox .alim-btn', e => e.textContent) === '학생 페이지 열기', '미리보기 아래 템플릿 버튼 [학생 페이지 열기]');
   ok(!/연락처가 없어/.test(boxTxt), '고1은 전원 번호 있음 → 안내 없음');
   await page.click('#alimGo');
@@ -104,7 +116,7 @@ const alimSends = () => posts.filter(b => b.action === 'alimSend');
   const sends = alimSends();
   ok(sends.length === 3 && sends.map(b => b.items.length).join(',') === '50,50,20', 'alimSend 3번(50·50·20명)');
   const it0 = sends[0].items[0];
-  ok(sends.every(b => b.kind === 'notice') && it0.who === '학생' && it0.to === '01011000000' && it0.cls === '공지', 'kind notice · 학생 번호 · 반 “공지”');
+  ok(sends.every(b => b.kind === 'notice_sched') && it0.who === '학생' && it0.to === '01011000000' && it0.cls === '공지', 'kind = 고른 종류(notice_sched) · 학생 번호 · 반 “공지”');
   ok(/^N:\d{4}-\d{2}-\d{2}\|추석 휴강 안내$/.test(it0.date) && it0.vars['제목'] === '추석 휴강 안내' && it0.vars['학생명'] === '고일001' && it0.vars['접근코드'] === 'c10', '중복 키 N:날짜|제목 + 변수(학생명·제목·접근코드=학생 페이지 키)');
   const st = await page.$eval('#status', e => e.textContent);
   ok(/119건 보냈어요/.test(st) && /이미 보낸 1명/.test(st), '결과 문구: 119건 + 중복 1명 (' + st + ')');
@@ -114,6 +126,7 @@ const alimSends = () => posts.filter(b => b.action === 'alimSend');
   posts.length = 0;
   await page.evaluate(() => { currentSel = { type: '학년', target: '2026 고등 2학년', count: 4, summary: '2026 고등 2학년 — 4명' }; });
   await page.fill('#title', '모의고사 안내');
+  await pickKind('notice_ops');
   await page.check('#alimOn'); await page.selectOption('#alimWho', '학부모1');
   await page.click('#submitBtn');
   await page.waitForFunction(() => document.getElementById('alimBox').style.display === 'block' && document.getElementById('alimGo'), { timeout: 8000 });
@@ -124,6 +137,7 @@ const alimSends = () => posts.filter(b => b.action === 'alimSend');
   await page.click('#alimGo');
   await page.waitForFunction(() => /공지 알림톡 1건/.test(document.getElementById('status').textContent), { timeout: 8000 });
   ok(alimSends().length === 1 && alimSends()[0].items[0].student === '박보검' && alimSends()[0].items[0].to === '01032220001' && alimSends()[0].items[0].who === '학부모1', '박보검 학부모1 번호로 1건');
+  ok(alimSends()[0].kind === 'notice_ops' && /학원 운영 안내가 도착했어요/.test(t2), '다른 종류(학원 운영 안내)를 고르면 그 종류로 보낸다');
 
   console.log('①-c 개인 공지 · 동명이인 토큰 · 숨김 공지 · 설정 전');
   posts.length = 0;
@@ -142,10 +156,10 @@ const alimSends = () => posts.filter(b => b.action === 'alimSend');
   await page.waitForFunction(() => /등록됐어요/.test(document.getElementById('status').textContent), { timeout: 8000 });
   await sleep(400);
   ok(posts.some(b => b.action === 'addNotice' && b.hidden === true) && await page.$eval('#alimBox', e => e.style.display) === 'none', '숨김으로 저장한 공지는 알림톡을 묻지 않는다');
-  ALIM_CFG = Object.assign({}, ALIM_CFG, { templates: { absent: ALIM_CFG.templates.absent, notice: Object.assign({}, ALIM_CFG.templates.notice, { ready: false }) } });
+  ALIM_CFG = Object.assign({}, ALIM_CFG, { templates: { absent: ALIM_CFG.templates.absent, notice_sched: ntpl('수업 일정 안내', false), notice_exam: ntpl('시험 안내', false), notice_hw: ntpl('과제 안내', false), notice_ops: ntpl('학원 운영 안내', false) } });
   await page.goto(NURL, { waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => /템플릿이 아직 없어요/.test(document.getElementById('alimNote').textContent), { timeout: 8000 });
-  ok(await page.$eval('#alimOn', e => e.disabled), '공지 템플릿이 없으면 체크가 잠기고 안내');
+  ok(await page.$eval('#alimOn', e => e.disabled), '공지 템플릿이 하나도 없으면 체크가 잠기고 안내');
 
   console.log('② 학생 페이지 — 미확인 공지 팝업');
   NOTICES = [
