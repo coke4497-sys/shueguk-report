@@ -5625,13 +5625,13 @@ function openAlim(){
     '<p class="merr" id="al-cfg-err"></p><p class="req-msg" id="al-cfg-msg"></p>'+
     '<div class="mbtns"><button class="primary" onclick="alimCfgSave()">설정 저장</button></div>'+
     '<p class="mk-sec">채널 · 템플릿 — 솔라피에서 자동으로 가져오기</p>'+
-    '<p class="subnote">API 키를 저장한 뒤 누르면 연동된 카카오 채널(pfId)과 승인된 결석 안내 템플릿 ID를 솔라피에서 읽어 와 저장해요. 템플릿 심사가 끝난 뒤 한 번 더 누르세요.</p>'+
+    '<p class="subnote">API 키를 저장한 뒤 누르면 연동된 카카오 채널(pfId)과 승인된 템플릿 ID(결석 안내·공지 종류별)를 솔라피에서 읽어 와 저장해요. 템플릿 심사가 끝난 뒤 한 번 더 누르세요.</p>'+
     '<div class="al-line"><button id="al-disc-btn" onclick="alimDiscover()">솔라피에서 가져오기</button><span id="al-disc-msg" class="al-note"></span></div>'+
     '<div id="al-disc"></div>'+
     '<details class="al-cfg" style="margin-top:6px;"><summary>직접 입력 (자동 가져오기가 안 될 때)</summary>'+
     '<span class="req-lb">카카오 채널 pfId</span><input type="text" id="al-pfid" autocomplete="off" placeholder="KA01PF…">'+
     '<span class="req-lb">결석 안내 템플릿 ID</span><input type="text" id="al-tpl-absent" autocomplete="off" placeholder="KA01TP…">'+
-    '<span class="req-lb">공지 안내 템플릿 ID</span><input type="text" id="al-tpl-notice" autocomplete="off" placeholder="KA01TP…">'+
+    '<div id="al-tpl-notices"></div>'+   // 공지 종류별 템플릿 ID 칸 — alimRenderState가 채운다(종류 목록은 백엔드 alimConfig가 준다)
     '<div class="mbtns"><button class="primary" onclick="alimCfgSave()">저장</button></div>'+
     '</details>'+
     '</details>'+
@@ -5640,23 +5640,37 @@ function openAlim(){
   alimCfgEnsure(alimRenderState, true);
   alimRenderLog();
 }
+/* 공지 알림 종류 — 백엔드 alimConfig의 templates 중 notice 표시가 있는 것(옛 배포본이면 키가 notice로 시작하는 것) */
+function alimNoticeKinds(cfg){
+  var t = (cfg && cfg.templates) || {};
+  return Object.keys(t).filter(function(k){ return t[k].notice || /^notice/.test(k); });
+}
 function alimRenderState(cfg){
   var el = $('al-state'); if (!el) return;
-  var t = cfg.templates && cfg.templates.absent, tn = cfg.templates && cfg.templates.notice;
+  var t = cfg.templates && cfg.templates.absent;
+  var nk = alimNoticeKinds(cfg);
   if (cfg.error){ el.innerHTML = '<p class="merr">설정을 확인하지 못했어요: '+esc(cfg.error)+' (백엔드가 아직 옛 배포본이면 재배포가 필요해요)</p>'; return; }
   var items = [
     ['솔라피 API 키', cfg.has && cfg.has.key && cfg.has.secret],
     ['카카오 채널(pfId)', cfg.has && cfg.has.pfId],
-    ['결석 안내 템플릿', t && t.ready],
-    ['공지 안내 템플릿', tn && tn.ready],
-    ['문자 대체 발신번호', cfg.has && cfg.has.from]
+    ['결석 안내 템플릿', t && t.ready]
   ];
+  nk.forEach(function(k){ var tn = cfg.templates[k]; items.push([tn.label + ' 템플릿', tn.ready]); });
+  items.push(['문자 대체 발신번호', cfg.has && cfg.has.from]);
   el.innerHTML = '<div class="al-line">' + items.map(function(x){
     return '<span class="al-sent'+(x[1] ? '' : ' no')+'">'+esc(x[0])+' '+(x[1] ? '준비됨' : '없음')+'</span>';
   }).join('') + '</div>' +
   (t ? '<p class="mk-sec">결석 안내 문구 (솔라피 템플릿에 이 문구 그대로 등록)</p><div class="al-prev">'+esc(t.text)+'</div>' : '') +
-  (tn ? '<p class="mk-sec">공지 안내 문구 (공지 등록 화면에서 보내요 — 솔라피 템플릿에 이 문구 그대로 등록)</p><div class="al-prev">'+esc(tn.text)+'</div>' +
-        (tn.buttons && tn.buttons.length ? '<p class="subnote">템플릿 버튼도 함께 등록: ' + tn.buttons.map(function(b){ return '<b>'+esc(b.name)+'</b> (웹링크, 모바일·PC 모두 <code>'+esc(b.linkMo)+'</code>)'; }).join(', ') + ' — 주소의 #{접근코드} 자리는 학생마다 채워져요.</p>' : '') : '');
+  /* 공지 종류 넷(2026-09-17 — 카카오가 '새 공지' 하나짜리를 "제목이 포괄적"이라 반려해 용도별로 나눔). 공지 등록 화면에서 종류를 골라 보낸다. */
+  nk.map(function(k){
+    var tn = cfg.templates[k];
+    return '<p class="mk-sec">'+esc(tn.label)+' 문구 (공지 등록 화면에서 종류를 골라 보내요 — 솔라피 템플릿에 이 문구 그대로 등록)</p><div class="al-prev">'+esc(tn.text)+'</div>' +
+      (tn.buttons && tn.buttons.length ? '<p class="subnote">템플릿 버튼도 함께 등록: ' + tn.buttons.map(function(b){ return '<b>'+esc(b.name)+'</b> (웹링크, 모바일·PC 모두 <code>'+esc(b.linkMo)+'</code>)'; }).join(', ') + ' — 주소의 #{접근코드} 자리는 학생마다 채워져요.</p>' : '');
+  }).join('');
+  var inp = $('al-tpl-notices');
+  if (inp) inp.innerHTML = nk.map(function(k){
+    return '<span class="req-lb">'+esc(cfg.templates[k].label)+' 템플릿 ID</span><input type="text" class="al-tpl-notice" data-kind="'+esc(k)+'" autocomplete="off" placeholder="KA01TP…">';
+  }).join('');
 }
 function alimRenderLog(){
   var to = todayStr(), fd = new Date(); fd.setDate(fd.getDate() - 6);
@@ -5714,13 +5728,17 @@ function alimCfgSave(){
   var take = function(id, key){ var v = ($(id) ? $(id).value : '').trim(); if (v){ b[key] = v; any = true; } };
   take('al-key', 'apiKey'); take('al-secret', 'apiSecret'); take('al-pfid', 'pfId'); take('al-from', 'from');
   var tpl = ($('al-tpl-absent') ? $('al-tpl-absent').value : '').trim();
-  var tplN = ($('al-tpl-notice') ? $('al-tpl-notice').value : '').trim();
-  if (tpl || tplN){ b.tpl = {}; if (tpl) b.tpl.absent = tpl; if (tplN) b.tpl.notice = tplN; any = true; }
+  if (tpl){ b.tpl = { absent: tpl }; any = true; }
+  document.querySelectorAll('.al-tpl-notice').forEach(function(x){   // 공지 종류별 템플릿 ID(data-kind = 백엔드 종류 키)
+    var v = x.value.trim(); if (!v) return;
+    b.tpl = b.tpl || {}; b.tpl[x.getAttribute('data-kind')] = v; any = true;
+  });
   if (!any){ $('al-cfg-err').textContent = '채운 칸이 없어요.'; return; }
   $('al-cfg-err').textContent = '';
   post(b, '설정 저장 중…', function(res){
     if (res && res.result === 'success'){
-      ['al-key','al-secret','al-pfid','al-tpl-absent','al-tpl-notice','al-from'].forEach(function(id){ if ($(id)) $(id).value = ''; });
+      ['al-key','al-secret','al-pfid','al-tpl-absent','al-from'].forEach(function(id){ if ($(id)) $(id).value = ''; });
+      document.querySelectorAll('.al-tpl-notice').forEach(function(x){ x.value = ''; });
       if ($('al-cfg-msg')) $('al-cfg-msg').textContent = '저장했어요: ' + (res.saved || []).join(', ');
       alimCfgEnsure(alimRenderState, true);
       setStatus('알림톡 설정을 저장했어요.', 'ok');

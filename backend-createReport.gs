@@ -3989,6 +3989,24 @@ function 권한승인() {
  *  주의: UrlFetchApp — 외부 요청 권한은 2026-08-28 승인됨(editReqNotify_ 참고).
  * ══════════════════════════════════════════════════════════════════════ */
 var ALIM_PROP_ = { key:'SOLAPI_KEY', secret:'SOLAPI_SECRET', from:'SOLAPI_FROM', pfId:'KAKAO_PFID' };
+/* 공지 종류 템플릿 한 벌 — 이름(제목 줄·둘째 줄)과 속성 이름만 다르다. 템플릿 버튼(2026-09-16 사용자 "학생 페이지
+ * 열기 버튼을 템플릿에 추가"): 솔라피 템플릿 등록 때 이 버튼을 같이 넣는다 — 종류 웹링크(WL), 모바일·PC 링크 모두
+ * 아래 주소(도메인은 고정, 변수는 #{접근코드} 자리만). 알림톡(ATA)은 버튼이 템플릿에 붙어 있어 보낼 때 따로 싣지
+ * 않고 variables로 #{접근코드}만 채운다. 접근코드 = 학생 페이지 링크(s.html?key=)의 키. */
+function alimNoticeTpl_(name, prop) {
+  var link = 'https://coke4497-sys.github.io/shueguk-report/s.html?key=#{접근코드}';
+  return {
+    label: name, prop: prop, notice: true,
+    vars: ['학생명', '제목', '접근코드'],
+    text: '[이수경국어학원] ' + name + '\n' +
+          '#{학생명} 학생에게 ' + name + '가 도착했어요.\n' +
+          '\n' +
+          '▶ #{제목}\n' +
+          '\n' +
+          '학생 페이지에서 내용을 확인해 주세요.',
+    buttons: [{ name: '학생 페이지 열기', type: 'WL', linkMo: link, linkPc: link }]
+  };
+}
 var ALIM_TPL_ = {
   absent: {
     label: '결석 안내',
@@ -3999,24 +4017,14 @@ var ALIM_TPL_ = {
   },
   /* 공지 알림(2026-09-15 사용자 "공지사항을 올릴 때 푸시 팝업" → 알림톡 + 학생 페이지 팝업으로 결정).
    * 공지 등록 화면(notice.html)이 대상 학생(또는 학부모1)에게 보낸다. 중복 키(수업일 칸)는
-   * 'N:날짜|제목' — 같은 공지를 두 번 보내지 않되, 같은 날 다른 공지는 따로 간다. */
-  notice: {
-    label: '공지 안내',
-    prop: 'ALIM_TPL_NOTICE',
-    vars: ['학생명', '제목', '접근코드'],   // 접근코드 = 학생 페이지 링크(s.html?key=)의 키 — 버튼 주소 변수
-    text: '[이수경국어학원] 새 공지\n' +
-          '#{학생명} 학생에게 새 공지가 도착했어요.\n' +
-          '\n' +
-          '▶ #{제목}\n' +
-          '\n' +
-          '학생 페이지에서 내용을 확인해 주세요.',
-    /* 템플릿 버튼(2026-09-16 사용자 "학생 페이지 열기 버튼을 템플릿에 추가"). 솔라피 템플릿 등록 때 이 버튼을
-     * 같이 넣는다 — 종류 웹링크(WL), 모바일·PC 링크 모두 아래 주소(도메인은 고정, 변수는 #{접근코드} 자리만).
-     * 알림톡(ATA)은 버튼이 템플릿에 붙어 있어 보낼 때 따로 싣지 않고 variables로 #{접근코드}만 채운다. */
-    buttons: [{ name: '학생 페이지 열기', type: 'WL',
-                linkMo: 'https://coke4497-sys.github.io/shueguk-report/s.html?key=#{접근코드}',
-                linkPc: 'https://coke4497-sys.github.io/shueguk-report/s.html?key=#{접근코드}' }]
-  }
+   * 'N:날짜|제목' — 같은 공지를 두 번 보내지 않되, 같은 날 다른 공지는 따로 간다.
+   * 종류 넷(2026-09-17): 솔라피/카카오가 '새 공지' 하나짜리 템플릿을 "제목이 너무 포괄적 — 용도가 특정되는
+   * 제목으로 나눌 것"으로 반려해서(2026-09-16), 공지 화면에서 종류를 고르고 그 종류의 템플릿으로 보낸다.
+   * 문구 모양은 넷이 같고 제목 줄·둘째 줄의 종류 이름만 다르다. 변수·버튼은 종류마다 동일. */
+  notice_sched: alimNoticeTpl_('수업 일정 안내', 'ALIM_TPL_NOTICE_SCHED'),   // 휴강·보강·시간 변경·방학 일정
+  notice_exam:  alimNoticeTpl_('시험 안내',      'ALIM_TPL_NOTICE_EXAM'),    // 내신 대비·모의고사·어휘·문법 테스트
+  notice_hw:    alimNoticeTpl_('과제 안내',      'ALIM_TPL_NOTICE_HW'),      // H WORK·숙제·학습 자료
+  notice_ops:   alimNoticeTpl_('학원 운영 안내', 'ALIM_TPL_NOTICE_OPS')      // 등원·시설·행사·기타
 };
 function alimProps_() { return PropertiesService.getScriptProperties(); }
 function alimSheet_(ss) {
@@ -4035,7 +4043,7 @@ function alimConfigGet() {
   var tpls = {};
   Object.keys(ALIM_TPL_).forEach(function(k) {
     var t = ALIM_TPL_[k];
-    tpls[k] = { label: t.label, text: t.text, vars: t.vars, buttons: t.buttons || [], ready: has(t.prop) };
+    tpls[k] = { label: t.label, text: t.text, vars: t.vars, buttons: t.buttons || [], notice: !!t.notice, ready: has(t.prop) };
   });
   var ready = has(ALIM_PROP_.key) && has(ALIM_PROP_.secret) && has(ALIM_PROP_.pfId);
   return json({ result:'success', ready: ready,
