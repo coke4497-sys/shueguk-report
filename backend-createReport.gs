@@ -4020,14 +4020,16 @@ var ALIM_TPL_ = {
    * 'N:날짜|제목' — 같은 공지를 두 번 보내지 않되, 같은 날 다른 공지는 따로 간다.
    * 종류(2026-09-17): 솔라피/카카오가 '새 공지' 하나짜리 템플릿을 "제목이 너무 포괄적 — 용도가 특정되는
    * 제목으로 나눌 것"으로 반려해서(2026-09-16), 공지 화면에서 종류를 고르고 그 종류의 템플릿으로 보낸다.
-   * 처음 넷(수업 일정·시험·과제·학원 운영)으로 나눴다가 같은 날 사용자가 아래 여섯으로 정했다.
+   * 처음 넷(수업 일정·시험·과제·학원 운영)으로 나눴다가 같은 날 사용자가 아래 여덟으로 정했다(결석 안내까지 합쳐 9종).
    * 문구 모양은 모두 같고 제목 줄·둘째 줄의 종류 이름만 다르다. 변수·버튼은 종류마다 동일. */
-  notice_mock:   alimNoticeTpl_('주말 실전 모의고사 신청 안내', 'ALIM_TPL_NOTICE_MOCK'),
-  notice_hwork:  alimNoticeTpl_('H WORK 안내',                'ALIM_TPL_NOTICE_HWORK'),
-  notice_report: alimNoticeTpl_('지필고사 리포트 업데이트 안내', 'ALIM_TPL_NOTICE_REPORT'),
-  notice_voca:   alimNoticeTpl_('어휘 테스트 참여 안내',       'ALIM_TPL_NOTICE_VOCA'),
-  notice_gramma: alimNoticeTpl_('문법 테스트 참여 안내',       'ALIM_TPL_NOTICE_GRAMMA'),
-  notice_event:  alimNoticeTpl_('행사 안내',                   'ALIM_TPL_NOTICE_EVENT')
+  notice_sched:    alimNoticeTpl_('수업 일정 안내',              'ALIM_TPL_NOTICE_SCHED'),
+  notice_mock:     alimNoticeTpl_('주말 실전 모의고사 신청 안내', 'ALIM_TPL_NOTICE_MOCK'),
+  notice_hwork:    alimNoticeTpl_('H WORK 안내',                'ALIM_TPL_NOTICE_HWORK'),
+  notice_report:   alimNoticeTpl_('지필고사 리포트 제작 안내',   'ALIM_TPL_NOTICE_REPORT'),
+  notice_reportup: alimNoticeTpl_('지필고사 리포트 업데이트 안내', 'ALIM_TPL_NOTICE_REPORTUP'),
+  notice_voca:     alimNoticeTpl_('어휘 테스트 참여 안내',       'ALIM_TPL_NOTICE_VOCA'),
+  notice_gramma:   alimNoticeTpl_('문법 테스트 참여 안내',       'ALIM_TPL_NOTICE_GRAMMA'),
+  notice_event:    alimNoticeTpl_('행사 안내',                   'ALIM_TPL_NOTICE_EVENT')
 };
 function alimProps_() { return PropertiesService.getScriptProperties(); }
 function alimSheet_(ss) {
