@@ -193,7 +193,7 @@ r = J(fns.alimConfigGet());
 const NK = Object.keys(r.templates).filter(k => r.templates[k].notice);
 eq('공지 종류 여섯(notice 표시) — 옛 단일 notice 없음', [NK, 'notice' in r.templates, r.templates.absent.notice],
    [['notice_mock', 'notice_hwork', 'notice_report', 'notice_voca', 'notice_gramma', 'notice_event'], false, false]);
-eq('종류 이름', NK.map(k => r.templates[k].label), ['주말 실전 모의고사 신청 안내', 'H WORK 안내', '지필고사 리포트 제작 안내', '어휘 테스트 참여 안내', '문법 테스트 참여 안내', '행사 안내']);
+eq('종류 이름', NK.map(k => r.templates[k].label), ['주말 실전 모의고사 신청 안내', 'H WORK 안내', '지필고사 리포트 업데이트 안내', '어휘 테스트 참여 안내', '문법 테스트 참여 안내', '행사 안내']);
 eq('설정 목록에 공지 템플릿(아직 ID 없음)', [typeof r.templates.notice_mock.text, r.templates.notice_mock.ready, r.templates.notice_mock.vars], ['string', false, ['학생명', '제목', '접근코드']]);
 eq('문구 = 제목 줄·둘째 줄에 종류 이름, 나머지 동일',
    NK.map(k => r.templates[k].text === '[이수경국어학원] ' + r.templates[k].label + '\n#{학생명} 학생에게 ' + r.templates[k].label + '가 도착했어요.\n\n▶ #{제목}\n\n학생 페이지에서 내용을 확인해 주세요.'),

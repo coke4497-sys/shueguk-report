@@ -4024,7 +4024,7 @@ var ALIM_TPL_ = {
    * 문구 모양은 모두 같고 제목 줄·둘째 줄의 종류 이름만 다르다. 변수·버튼은 종류마다 동일. */
   notice_mock:   alimNoticeTpl_('주말 실전 모의고사 신청 안내', 'ALIM_TPL_NOTICE_MOCK'),
   notice_hwork:  alimNoticeTpl_('H WORK 안내',                'ALIM_TPL_NOTICE_HWORK'),
-  notice_report: alimNoticeTpl_('지필고사 리포트 제작 안내',   'ALIM_TPL_NOTICE_REPORT'),
+  notice_report: alimNoticeTpl_('지필고사 리포트 업데이트 안내', 'ALIM_TPL_NOTICE_REPORT'),
   notice_voca:   alimNoticeTpl_('어휘 테스트 참여 안내',       'ALIM_TPL_NOTICE_VOCA'),
   notice_gramma: alimNoticeTpl_('문법 테스트 참여 안내',       'ALIM_TPL_NOTICE_GRAMMA'),
   notice_event:  alimNoticeTpl_('행사 안내',                   'ALIM_TPL_NOTICE_EVENT')

@@ -33,7 +33,7 @@ const ntpl = (label, ready) => ({ label, notice: true, ready, vars: ['학생명'
 /* 공지 종류 여섯(2026-09-17) — H WORK 안내만 아직 심사 전(ready:false)인 상황 */
 let ALIM_CFG = { result: 'success', ready: true, smsFallback: false, has: { key: true, secret: true, pfId: true, from: false },
   templates: { absent: { label: '결석 안내', text: 'x', vars: [], ready: true },
-               notice_mock: ntpl('주말 실전 모의고사 신청 안내', true), notice_hwork: ntpl('H WORK 안내', false), notice_report: ntpl('지필고사 리포트 제작 안내', true),
+               notice_mock: ntpl('주말 실전 모의고사 신청 안내', true), notice_hwork: ntpl('H WORK 안내', false), notice_report: ntpl('지필고사 리포트 업데이트 안내', true),
                notice_voca: ntpl('어휘 테스트 참여 안내', true), notice_gramma: ntpl('문법 테스트 참여 안내', true), notice_event: ntpl('행사 안내', true) } };
 const posts = [];   // 백엔드 POST 본문
 let NOTICES = [];   // 학생 페이지에 줄 공지
@@ -91,7 +91,7 @@ const alimSends = () => posts.filter(b => b.action === 'alimSend');
   await page.goto(NURL, { waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => !document.getElementById('alimOn').disabled, { timeout: 8000 });
   ok(true, '설정이 준비되면 [알림톡도 보내기] 체크가 열린다');
-  ok((await page.$$eval('#alimKind option', els => els.map(o => o.value + ':' + o.textContent))).join('|') === 'notice_mock:주말 실전 모의고사 신청 안내|notice_hwork:H WORK 안내 (준비 전)|notice_report:지필고사 리포트 제작 안내|notice_voca:어휘 테스트 참여 안내|notice_gramma:문법 테스트 참여 안내|notice_event:행사 안내', '종류 드롭다운 = 여섯 종류, 심사 전은 “(준비 전)”');
+  ok((await page.$$eval('#alimKind option', els => els.map(o => o.value + ':' + o.textContent))).join('|') === 'notice_mock:주말 실전 모의고사 신청 안내|notice_hwork:H WORK 안내 (준비 전)|notice_report:지필고사 리포트 업데이트 안내|notice_voca:어휘 테스트 참여 안내|notice_gramma:문법 테스트 참여 안내|notice_event:행사 안내', '종류 드롭다운 = 여섯 종류, 심사 전은 “(준비 전)”');
   ok(await page.$eval('#alimKind', e => e.value) === 'notice_mock' && /“주말 실전 모의고사 신청 안내” 알림톡/.test(await page.$eval('#alimNote', e => e.textContent)), '기본 종류 = 준비된 첫 종류(모의고사 신청 안내) + 안내 문구');
   await pickKind('notice_hwork');
   ok(await page.$eval('#alimOn', e => e.disabled && !e.checked) && /이 종류의 템플릿은 아직 없어요/.test(await page.$eval('#alimNote', e => e.textContent)), '준비 전 종류를 고르면 체크가 잠기고 안내');
