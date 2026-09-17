@@ -24,8 +24,8 @@ const PHONES = [
 const TPL = '[이수경국어학원] 결석 안내\n#{학생명} 학생이 #{수업일} #{반이름} 수업에 결석했습니다.';
 let cfg = { result:'success', ready:true, has:{ key:true, secret:true, from:false, pfId:true }, smsFallback:false,
             templates:{ absent:{ label:'결석 안내', text: TPL, vars:['학생명','수업일','반이름'], ready:true },
-                        notice_sched:{ label:'수업 일정 안내', notice:true, text:'[이수경국어학원] 수업 일정 안내\n…', vars:['학생명','제목','접근코드'], ready:true, buttons:[{ name:'학생 페이지 열기', type:'WL', linkMo:'https://coke4497-sys.github.io/shueguk-report/s.html?key=#{접근코드}', linkPc:'https://coke4497-sys.github.io/shueguk-report/s.html?key=#{접근코드}' }] },
-                        notice_exam:{ label:'시험 안내', notice:true, text:'[이수경국어학원] 시험 안내\n…', vars:['학생명','제목','접근코드'], ready:false, buttons:[] } } };
+                        notice_mock:{ label:'주말 실전 모의고사 신청 안내', notice:true, text:'[이수경국어학원] 주말 실전 모의고사 신청 안내\n…', vars:['학생명','제목','접근코드'], ready:true, buttons:[{ name:'학생 페이지 열기', type:'WL', linkMo:'https://coke4497-sys.github.io/shueguk-report/s.html?key=#{접근코드}', linkPc:'https://coke4497-sys.github.io/shueguk-report/s.html?key=#{접근코드}' }] },
+                        notice_hwork:{ label:'H WORK 안내', notice:true, text:'[이수경국어학원] H WORK 안내\n…', vars:['학생명','제목','접근코드'], ready:false, buttons:[] } } };
 let logRows = [];
 const posts = [];
 (async () => {
@@ -131,7 +131,7 @@ const posts = [];
   const st = await page.textContent('#al-state');
   ok('설정 상태 배지', st.includes('솔라피 API 키 준비됨') && st.includes('결석 안내 템플릿 준비됨') && st.includes('발신번호 없음'));
   ok('문구 표시', st.includes('결석 안내'));
-  ok('공지 종류별 상태·문구(2026-09-17)', st.includes('수업 일정 안내 템플릿 준비됨') && st.includes('시험 안내 템플릿 없음') && st.includes('[이수경국어학원] 수업 일정 안내') && st.includes('학생 페이지 열기'));
+  ok('공지 종류별 상태·문구(2026-09-17)', st.includes('주말 실전 모의고사 신청 안내 템플릿 준비됨') && st.includes('H WORK 안내 템플릿 없음') && st.includes('[이수경국어학원] 주말 실전 모의고사 신청 안내') && st.includes('학생 페이지 열기'));
   ok('기록 줄', (await page.textContent('#al-log')).includes('박지우'));
   await page.click('#al-cfg summary');
   await page.click('#al-disc-btn');
@@ -140,15 +140,15 @@ const posts = [];
   ok('자동 가져오기 결과 표시', disc.includes('KA01PF260912155016737BPjigUV32pr') && disc.includes('이수경국어') && disc.includes('승인 전'));
   ok('alimDiscover POST', posts.some(p => p.action === 'alimDiscover'));
   await page.click('#al-cfg details summary');
-  ok('직접 입력 칸도 공지 종류별', (await page.$$eval('#al-tpl-notices input', els => els.map(e => e.getAttribute('data-kind')))).join() === 'notice_sched,notice_exam');
+  ok('직접 입력 칸도 공지 종류별', (await page.$$eval('#al-tpl-notices input', els => els.map(e => e.getAttribute('data-kind')))).join() === 'notice_mock,notice_hwork');
   await page.fill('#al-tpl-absent', 'KA01TP_NEW');
-  await page.fill('#al-tpl-notices input[data-kind="notice_exam"]', 'KA01TP_EXAM');
+  await page.fill('#al-tpl-notices input[data-kind="notice_hwork"]', 'KA01TP_EXAM');
   await page.fill('#al-from', '031-111-2222');
   await page.click('#al-cfg .primary');
   await page.waitForFunction(() => (document.getElementById('al-cfg-msg') || {}).textContent.includes('저장'));
   const pc = posts.filter(p => p.action === 'alimConfigSet').pop();
-  ok('설정 저장은 채운 칸만(공지 종류 키 그대로)', pc && pc.tpl && pc.tpl.absent === 'KA01TP_NEW' && pc.tpl.notice_exam === 'KA01TP_EXAM' && !('notice_sched' in pc.tpl) && pc.from === '031-111-2222' && !('apiKey' in pc) && !('apiSecret' in pc), JSON.stringify(pc));
-  ok('저장 뒤 칸 비움', (await page.inputValue('#al-tpl-absent')) === '' && (await page.inputValue('#al-tpl-notices input[data-kind="notice_exam"]')) === '');
+  ok('설정 저장은 채운 칸만(공지 종류 키 그대로)', pc && pc.tpl && pc.tpl.absent === 'KA01TP_NEW' && pc.tpl.notice_hwork === 'KA01TP_EXAM' && !('notice_mock' in pc.tpl) && pc.from === '031-111-2222' && !('apiKey' in pc) && !('apiSecret' in pc), JSON.stringify(pc));
+  ok('저장 뒤 칸 비움', (await page.inputValue('#al-tpl-absent')) === '' && (await page.inputValue('#al-tpl-notices input[data-kind="notice_hwork"]')) === '');
   await page.evaluate(() => closeModal());
 
   // 7) 설정 전이면 창 없음 + 출석 창 안내
