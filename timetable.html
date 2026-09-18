@@ -3046,17 +3046,20 @@ function calExamChip(x){
     ' title="' + esc(x.school + ' ' + x.text + (first ? ' · 시험 첫째날' : '')) + '">' +
     (first ? '<span class="cal-exam-first">첫째날</span> ' : '') + txt + '</div>';
 }
+/* 조회 실패를 '일정 없음'과 구분한다 — 통신이 잠깐 끊기면 "일정이 사라졌다"로 보였던 소동 방지 (2026-09-18) */
+var exsLoadFail = false;
 function loadExamSched(from, to, done){
   fetch(ENDPOINT + '?action=examSched&pw=' + encodeURIComponent(pw) + '&from=' + from + '&to=' + to + '&t=' + Date.now())
     .then(function(r){ return r.json(); })
     .then(function(d){
       if (d && d.result === 'success'){
+        exsLoadFail = false;
         examPeriods = d.periods || [];
         examSubjects = {};
         (d.subjects || []).forEach(function(x){ (examSubjects[x.date] = examSubjects[x.date] || []).push(x); });
-      }
+      } else exsLoadFail = true;
       done();
-    }).catch(function(){ done(); });
+    }).catch(function(){ exsLoadFail = true; done(); });
 }
 function exsReload(){
   if (mode === 'exs'){ exsLoadAndRender(); return; }
@@ -3110,6 +3113,13 @@ function examSchedView(){
   var box = document.createElement('div');
   box.className = 'memobox';
   var clusters = exsClusters();
+  if (!clusters.length && exsLoadFail){
+    // 통신 실패 — 일정이 지워진 게 아니라 못 불러온 것. '없어요'로 보여주면 큰일 난 줄 안다.
+    box.innerHTML = '<p class="memotitle">지필고사 일정</p>' +
+      '<p class="exs-none">일정을 <b>불러오지 못했어요</b> (일시적인 통신 문제) — 등록한 일정이 지워진 게 아니에요.</p>' +
+      '<div class="exs-add"><button onclick="exsReload()">다시 불러오기</button></div>';
+    return box;
+  }
   var schoolYearOf = function(d){ return (+d.slice(5,7) >= 3) ? +d.slice(0,4) : +d.slice(0,4) - 1; };
   var infos = clusters.map(function(cl){
     var r = exsClusterRange(cl);
