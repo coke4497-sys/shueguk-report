@@ -3124,15 +3124,24 @@ function examSchedView(){
   var sy = schoolYearOf(td);
   var seasons = infos.slice();
   seasons.forEach(function(x){ x.past = x.mx < td; });
+  // 보통 시기(사용자 확인): 1학기 중간 4월말~5월 2주 · 1학기 기말 6월말~7월 2주 · 2학기 중간 9~10월 · 2학기 기말 11월말~12월
   [
-    { name: '1학기 중간', ord: sy + '-04-15', until: sy + '-05-31' },
+    { name: '1학기 중간', ord: sy + '-04-25', until: sy + '-05-31' },
     { name: '1학기 기말', ord: sy + '-06-25', until: sy + '-07-31' },
     { name: '2학기 중간', ord: sy + '-09-25', until: sy + '-10-31' },
-    { name: '2학기 기말', ord: (sy + 1) + '-01-31', until: (sy + 1) + '-01-31' }
+    { name: '2학기 기말', ord: sy + '-12-01', until: (sy + 1) + '-01-31' }
   ].forEach(function(s){
     if (infos.some(function(x){ return x.base === s.name && x.sy === sy; })) return;   // 데이터로 이미 존재
     seasons.push({ cl: null, key: 'std:' + s.name, mn: s.ord, mx: '', name: s.name, empty: true, past: s.until < td });
   });
+  // 다가오는 빈 시즌은 가장 가까운 하나만 미리 보여준다 — 3월이 되면 그해 '1학기 중간'이 자동으로 나타남
+  // (학년도가 바뀌면 sy가 따라 바뀌므로 해마다 손댈 것 없음, 2027년 이후 자동)
+  var firstUp = true;
+  seasons.forEach(function(x){
+    if (!x.empty || x.past) return;
+    if (firstUp) firstUp = false; else x.hide = true;
+  });
+  seasons = seasons.filter(function(x){ return !x.hide; });
   seasons.sort(function(a, b){ return a.mn.localeCompare(b.mn); });
   // 지난 시즌은 [지난 시즌] 토글을 켰을 때만 (2026-09-18 사용자 요청 — 골라 둔 시즌은 항상 표시)
   var showPast = false;
