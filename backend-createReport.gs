@@ -2554,6 +2554,7 @@ function doPost(e) {
     if (data && data.action === 'attendMakeupSet')  { return attendMakeupSet(data); }
     if (data && data.action === 'ttMemoSet')        { return ttMemoSet(data); }
     if (data && data.action === 'editReqAdd')       { return editReqAdd(data); }
+    if (data && data.action === 'grammaReport')     { return grammaReport(data); }
     if (data && data.action === 'editReqSet')       { return editReqSet(data); }
     if (data && data.action === 'editReqTokenSet')  { return editReqTokenSet(data); }
     if (data && data.action === 'alimSend')         { return alimSend(data); }
@@ -3916,6 +3917,10 @@ function editReqAdd(data) {
   if (String(data.pw || '') !== TEACHER_PW) return json({ result:'error', message:'unauthorized' });
   var text = String(data.text || '').trim();
   if (!text) return json({ result:'error', message:'내용을 적어 주세요.' });
+  return editReqAppend_(String(data.writer || '').trim(), String(data.screen || '').trim(), text);
+}
+/** '수정요청' 탭에 한 줄 추가 + 즉시 알림 — editReqAdd(교사)·grammaReport(학생) 공용 */
+function editReqAppend_(writer, screen, text) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sh = editReqSheet_(ss);
   var lock = LockService.getScriptLock();
@@ -3924,13 +3929,29 @@ function editReqAdd(data) {
     var row = sh.getLastRow() + 1;
     var rg = sh.getRange(row, 1, 1, 7);
     rg.setNumberFormats([['yyyy-mm-dd hh:mm', '@', '@', '@', '@', '@', '@']]);
-    rg.setValues([[new Date(), String(data.writer || '').trim(), String(data.screen || '').trim(), text, '접수됨', '', '']]);
+    rg.setValues([[new Date(), writer, screen, text, '접수됨', '', '']]);
   } finally {
     try { lock.releaseLock(); } catch (e) {}
   }
   // 등록 직후 클로드 자동 호출 — 실패해도 등록은 이미 끝난 뒤라 무해 (2026-08-28)
-  try { editReqNotify_(String(data.writer || '').trim(), String(data.screen || '').trim(), text); } catch (e) {}
+  try { editReqNotify_(writer, screen, text); } catch (e) {}
   return json({ result:'success' });
+}
+/** 문법 테스트 오류 제보(2026-09-18 사용자 "수정 요청함처럼 문법 테스트 오류 제보 메뉴" + "클로슈가 읽고 알려 주면 수정 여부는 함께 결정").
+ *  학생 플레이 화면(shueguk-gramma play.html·test.html)에서 오므로 비밀번호 없음 — 대신 길이 제한·내용 필수.
+ *  { name, school, grade, cat, level, round, qno, start, kind, text, mine, answer, preview }
+ *  → '수정요청' 탭에 화면 '문법 테스트'로 한 줄(작성자 '이름 (학교 학년)' 또는 '선생님(미리보기)'). 처리 정책은 CLAUDE.md '시간표 수정 요청함' 절. */
+var GRAMMA_REPORT_SCREEN = '문법 테스트';
+function grammaReport(data) {
+  var cut = function(v, n) { return String(v == null ? '' : v).replace(/[\r\n]+/g, ' ').trim().slice(0, n); };
+  var text = String(data.text || '').trim().slice(0, 500);
+  if (!text) return json({ result:'error', message:'어떤 점이 이상한지 적어 주세요.' });
+  var writer = data.preview ? '선생님(미리보기)' : (cut(data.name, 20) || '(이름 없음)');
+  if (!data.preview && (cut(data.school, 20) || cut(data.grade, 10))) writer += ' (' + [cut(data.school, 20), cut(data.grade, 10)].filter(function(x) { return x; }).join(' ') + ')';
+  var where = [cut(data.cat, 20) + (cut(data.level, 10) ? ' ' + cut(data.level, 10) : ''), '스테이지 ' + cut(data.round, 6), cut(data.qno, 6) + '번' + (cut(data.start, 60) ? ' ' + cut(data.start, 60) : '')].join(' · ');
+  var body = '[' + where + ']\n종류: ' + (cut(data.kind, 30) || '기타') + '\n내용: ' + text;
+  if (cut(data.mine, 120) || cut(data.answer, 120)) body += '\n내 답: ' + (cut(data.mine, 120) || '-') + ' / 정답: ' + (cut(data.answer, 120) || '-');
+  return editReqAppend_(writer, GRAMMA_REPORT_SCREEN, body);
 }
 /** 요청 접수 즉시 클로드 호출 — 알림 채널 PR(#329, 항상 열어 두는 PR)에 댓글을 달면
  *  그 PR을 구독 중인 클로드 세션이 댓글 이벤트로 깨어나 요청함을 바로 처리한다
@@ -3951,7 +3972,7 @@ function editReqNotify_(writer, screen, text) {
     headers: { 'Authorization': 'Bearer ' + token, 'Accept': 'application/vnd.github+json' },
     muteHttpExceptions: true,
     payload: JSON.stringify({
-      body: '[수정 요청 접수] 티쳐스 \'수정 요청함\'에 새 요청이 등록됐습니다.\n\n' +
+      body: (screen === GRAMMA_REPORT_SCREEN ? '[문법 오류 제보 접수] 문법 테스트 화면에서 오류 제보가 들어왔습니다(CLAUDE.md 「시간표 수정 요청함」 절의 \'문법 테스트 오류 제보\' 정책 — 데이터를 고치지 말고 확인 결과만 보류로 남긴다).\n\n' : '[수정 요청 접수] 티쳐스 \'수정 요청함\'에 새 요청이 등록됐습니다.\n\n') +
             '- 작성자: ' + (writer || '(미기재)') + ' / 화면: ' + (screen || '-') + '\n' +
             '- 내용: ' + text + '\n\n' +
             "구독 세션 처리 안내: CLAUDE.md 「시간표 수정 요청함」 절의 '자동 순찰(Routine)' 정책 그대로 — " +
