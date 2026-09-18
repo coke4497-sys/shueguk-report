@@ -142,7 +142,7 @@
 조교·선생님이 티쳐스 페이지에서 시간표 오류·수정 사항을 적어 두면 **클로드 코드 세션이 읽어 처리하고 결과를 남기는** 창구.
 - **화면**: timetable.html 상단 '출석 관리' 옆 [수정 요청] 버튼 → 모달에서 등록(화면 선택 + 내용 + 작성자(선택, localStorage `tt_req_writer` 기억)) + 아래에 요청 목록(상태 칩 + 처리 결과 메모). '접수됨' 건만 [지우기] 가능. 함수 접두 `req`, 스타일 `.req-*`.
 - **저장**: 리포트 스프레드시트 '수정요청' 탭 A:기록일시 B:작성자 C:화면 D:내용 E:상태 F:처리메모 G:처리일시. 상태 값은 **'접수됨' / '처리 완료' / '보류' 세 가지 문자열 그대로** — 페이지 칩 색이 이 문자열로 갈린다.
-- **API**: GET `editReqList&pw=` / POST `editReqAdd{writer,screen,text}` / POST **`grammaReport{name,school,grade,cat,level,round,qno,start,kind,text,mine,answer,preview}`**(비밀번호 없음 — 문법 학생 페이지용, 화면 '문법 테스트'로 저장, 2026-09-18 @125, 공용 `editReqAppend_`) / POST `editReqSet{row,ts,status,note,del}` — `ts`(목록 응답의 기록일시 문자열)를 함께 보내면 행이 밀렸을 때 엉뚱한 줄을 고치지 않게 대조한다(어긋나면 '새로고침' 오류). `del`=1이면 그 줄 삭제. 검증: 가짜 시트 스텁 왕복 테스트 통과(등록→목록→상태 변경→ts 대조→삭제→행 밀림).
+- **API**: GET `editReqList&pw=` / POST `editReqAdd{writer,screen,text}` / POST **`grammaReport{name,school,grade,cat,level,round,qno,start,kind,text,mine,answer,preview}`**(비밀번호 없음 — 문법 학생 페이지용, 화면 '문법 테스트'로 저장, 2026-09-18 배포 @128, 공용 `editReqAppend_` — 배포본에서 등록→목록→삭제 왕복 확인) / POST `editReqSet{row,ts,status,note,del}` — `ts`(목록 응답의 기록일시 문자열)를 함께 보내면 행이 밀렸을 때 엉뚱한 줄을 고치지 않게 대조한다(어긋나면 '새로고침' 오류). `del`=1이면 그 줄 삭제. 검증: 가짜 시트 스텁 왕복 테스트 통과(등록→목록→상태 변경→ts 대조→삭제→행 밀림).
 - **클로드 처리 절차** — 사용자가 "수정 요청 확인해줘"라고 하면:
   1. `curl -sL "<리포트 exec>?action=editReqList&pw=sh"` 로 목록을 받아 **'접수됨' 건을 사용자에게 보여 준다**.
   2. 각 건을 조사·수정한다. **데이터를 지우거나 명단을 바꾸는 등 판단이 필요한 요청은 임의 처리하지 말고 사용자에게 먼저 확인**받는다.
