@@ -9,6 +9,7 @@ class Range{
   constructor(sh,r,c,nr,nc){ this.sh=sh; this.r=r; this.c=c; this.nr=nr; this.nc=nc; }
   setNumberFormat(){return this;} setNumberFormats(){return this;} setFontWeight(){return this;} setBackground(){return this;}
   setValue(v){ this.setValues([[v]]); return this; }
+  getValue(){ return this.getValues()[0][0]; }
   setValues(vals){ const rows=SHEETS[this.sh];
     for(let i=0;i<this.nr;i++){ const row=rows[this.r-1+i]||(rows[this.r-1+i]=[]);
       for(let j=0;j<this.nc;j++){ while(row.length<this.c-1+j) row.push(''); row[this.c-1+j]=vals[i][j]; } }
@@ -46,4 +47,5 @@ let src=fs.readFileSync(__dirname+'/../backend-createReport.gs','utf8');
 eval(src);
 function J(r){ return JSON.parse(r.__t !== undefined ? r.__t : r); }
 module.exports={ SHEETS, mkSheet, J, get fns(){ return { timetableMove, timetableAdd, timetableRemove, timetableRenameStudent, timetableMoveClass, TEACHER_PW,
-    alimSend, alimConfigGet, alimConfigSet, alimLogGet, alimDiscover, ALIM_TPL_ }; } };
+    alimSend, alimConfigGet, alimConfigSet, alimLogGet, alimDiscover, ALIM_TPL_,
+    editReqAdd, grammaReport, getEditReqList, editReqSet }; } };
