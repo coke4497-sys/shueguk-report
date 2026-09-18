@@ -587,6 +587,24 @@
   .blk.wkoff{opacity:.62;border-style:dashed;border-width:1.5px;border-color:var(--btn);}
   .blk.wkoff .bt .nm{text-decoration:line-through;text-decoration-thickness:1px;}
   .blk.wkoff .wkflag{text-decoration:none;}
+  /* 휴강 얇은 띠 — 그리드에서 자리 다툼 없이 시작 칸 아래에 한 줄로 (2026-09-18 사용자 '1안' 승인) */
+  .blk.wkband{align-self:end;justify-self:stretch;opacity:.68;min-height:0;height:auto;
+    padding:0 7px;margin:0 2px 2px;font-size:.66rem;line-height:1.5;z-index:3;
+    border:1px dashed var(--btn);border-radius:6px;cursor:pointer;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .blk.wkband s{text-decoration-thickness:1px;}
+  /* 휴강 묶음 카드 — 목록에서 2건 이상이면 한 장으로 */
+  .blk.wksum{opacity:.8;border-style:dashed;border-width:1.5px;border-color:var(--btn);cursor:pointer;}
+  .blk.wksum .wksum-list{display:flex;flex-direction:column;gap:3px;margin-top:5px;}
+  .blk.wksum .wksum-list button{font:inherit;font-size:.7rem;text-align:left;
+    background:rgba(255,255,255,.55);border:0;border-radius:4px;padding:3px 7px;
+    color:var(--ink-soft);cursor:pointer;}
+  .blk.wksum .wksum-list button s{text-decoration-thickness:1px;}
+  .blk.wksum .wksum-list button em{font-style:normal;color:var(--btn);margin-left:6px;font-size:.64rem;}
+  /* 개요 작은 카드 — 휴강 묶음·휴강 1건 흐림 */
+  .wk-mini.wkoffsum{opacity:.72;border-style:dashed;}
+  .wk-mini.offm{opacity:.55;border-style:dashed;}
+  .wk-mini.offm b{text-decoration:line-through;text-decoration-thickness:1px;}
   /* 이 주만 이동해 나간 자리 — 개요 카드·옆 요일 막대도 연하게 (2026-08-26) */
   .wk-mini.mvd,.wk-bar.mvd{opacity:.52;border-style:dashed;}
   .wk-mini.mvd b{text-decoration:line-through;text-decoration-thickness:1px;}
@@ -3781,12 +3799,23 @@ function buildDayGrid(list){
   cols.forEach(function(cinfo, ci){
     for (var r = 0; r < nrows; r++) addCell(g, ci+2, r, dname, cinfo, lo, 1);
   });
-  var placed = [];
+  var placed = [], bandAt = {};
   list.forEach(function(c){
     var r0 = Math.floor((mins(c.start)-lo)/30), r1 = Math.ceil((minsEnd(c)-lo)/30);
     if (r1 <= r0) r1 = r0+1;
-    var b = blockEl(c);
     var col = (colIdx[c.loc+'|'+c.teacher]||0)+2;
+    var off = wkOffAt(c.id, todayStr());
+    if (off){
+      // 오늘 휴강은 얇은 띠 — 자리 다툼에 끼지 않아 실제 수업이 원래 폭을 쓴다 (2026-09-18 '1안')
+      var band = offBandEl(c, off, todayStr(), false);
+      var bk = col + '|' + r0, bi = bandAt[bk] || 0; bandAt[bk] = bi + 1;
+      band.style.gridColumn = String(col);
+      band.style.gridRow = String(r0+1);
+      if (bi) band.style.marginBottom = (2 + bi*20) + 'px';
+      g.appendChild(band);
+      return;
+    }
+    var b = blockEl(c);
     b.style.gridColumn = String(col);
     b.style.gridRow = (r0+1) + ' / ' + (r1+1);
     g.appendChild(b);
@@ -3822,7 +3851,7 @@ function mviewToggleBtn(){
   return tg;
 }
 /* 구역(정리정독→화정센터→민트초코→본원)별로 묶고 구역 안에서 시간순 정렬한 카드 목록 */
-function locGroupList(list, makeCard){
+function locGroupList(list, makeCard, offCtx){
   var box = document.createElement('div');
   box.className = 'daylist';
   var ord = function(t){ var i = TEACHER_ORDER.indexOf(t); return i < 0 ? 99 : i; };
@@ -3831,16 +3860,28 @@ function locGroupList(list, makeCard){
     return (lord(a.loc)-lord(b.loc)) || (mins(a.start)-mins(b.start)) || (ord(a.teacher)-ord(b.teacher));
   });
   var lastLoc = null;
+  // 같은 구역의 휴강은 모아 뒀다가 구간 끝에 — 2건 이상이면 한 장으로 (2026-09-18 '1안')
+  var pendingOff = [];
+  var flushOff = function(){
+    if (!pendingOff.length) return;
+    if (pendingOff.length >= 2) box.appendChild(offSummaryCard(pendingOff, offCtx.dstr, offCtx.canManage, offCtx.flag));
+    else box.appendChild(makeCard(pendingOff[0].c));   // 1건은 지금처럼 낱장 흐린 카드
+    pendingOff = [];
+  };
   sorted.forEach(function(c){
     if (c.loc !== lastLoc){
+      flushOff();
       lastLoc = c.loc;
       var h = document.createElement('div');
       h.className = 'dl-time';
       h.textContent = c.loc || '기타';
       box.appendChild(h);
     }
+    var off = offCtx ? wkOffAt(c.id, offCtx.dstr) : null;
+    if (off){ pendingOff.push({ c: c, off: off }); return; }
     box.appendChild(makeCard(c));
   });
+  flushOff();
   requestAnimationFrame(function(){ applySearchHits(); applyMultiSel(); });
   return box;
 }
@@ -3852,7 +3893,7 @@ function buildDayList(list){
     if (nowM >= mins(c.start) && nowM < minsEnd(c)) b.classList.add('dl-now');
     else if (minsEnd(c) <= nowM) b.classList.add('dl-past');
     return b;
-  });
+  }, { dstr: todayStr(), canManage: false, flag: '오늘 휴강' });
 }
 /* 요일 선택 탭 — 전체 시간표·주차별 목록 보기 공용 */
 function dayTabsEl(cur, labelOfDay, onPick){
@@ -3905,9 +3946,49 @@ function buildWeekList(){
     em.textContent = weekListDay + '요일에는 등록된 ' + book + ' 수업이 없어요.';
     wrap.appendChild(em);
   } else {
-    wrap.appendChild(locGroupList(list, function(c){ return weekBlockEl(c, dstr, true); }));
+    wrap.appendChild(locGroupList(list, function(c){ return weekBlockEl(c, dstr, true); },
+                                  { dstr: dstr, canManage: true, flag: '이 주 휴강' }));
   }
   return wrap;
+}
+/* ── 휴강 표시 정리 (2026-09-18 사용자 '1안' 승인 — 중2 전 학년 휴강 주에 흐린 카드가
+ * 수업 카드를 덮어 가독성이 떨어진 문제) ──
+ * 그리드 = 휴강을 얇은 띠(offBandEl)로 시작 칸에 두고 자리 다툼(spreadOverlaps)에서 뺀다.
+ * 목록·개요 = 같은 구역에 휴강이 2건 이상이면 한 장(offSummaryCard/개요 wkoffsum)으로 묶는다.
+ * 1건은 지금처럼 낱장 흐린 카드 — 조교가 실수로 넣은 휴강은 종전대로 바로 보이고 되돌린다. */
+function offBandEl(c, off, dstr, canManage){
+  var b = document.createElement('div');
+  b.className = 'blk wkband ' + colorOf(c.cls);
+  b.setAttribute('data-cid', c.id);
+  var flag = canManage ? '이 주 휴강' : '오늘 휴강';
+  b.innerHTML = '<s>' + esc(c.cls) + ' ' + esc(c.start) + '</s> · ' + flag;
+  b.title = c.cls + ' ' + c.start + '~' + c.end + ' — ' + flag +
+            (off.reason ? ' · ' + off.reason : '') + (canManage ? ' (누르면 되돌리기)' : '');
+  if (canManage) b.addEventListener('click', function(e){ e.stopPropagation(); openWeekClassOffManage(c, dstr, off); });
+  else b.style.cursor = 'default';
+  return b;
+}
+function offSummaryCard(items, dstr, canManage, flag){   // items = [{c, off}]
+  var b = document.createElement('div');
+  b.className = 'blk wkoff wksum';
+  var rows = items.map(function(it, i){
+    return '<button type="button" data-i="' + i + '"><s>' + esc(it.c.cls) + ' ' + esc(it.c.start) + '</s>' +
+           (it.off.reason ? ' — ' + esc(it.off.reason) : '') + (canManage ? '<em>되돌리기</em>' : '') + '</button>';
+  }).join('');
+  b.innerHTML = '<div class="bt"><span class="nm">' + esc(flag) + ' ' + items.length + '건</span>' +
+                '<small>누르면 목록이 열려요</small></div>' +
+                '<div class="wksum-list" hidden>' + rows + '</div>';
+  b.addEventListener('click', function(e){
+    var row = e.target.closest('button[data-i]');
+    if (row && canManage){
+      var it = items[parseInt(row.getAttribute('data-i'), 10)];
+      openWeekClassOffManage(it.c, dstr, it.off);
+      return;
+    }
+    var listEl = b.querySelector('.wksum-list');
+    listEl.hidden = !listEl.hidden;
+  });
+  return b;
 }
 /* 주차별 반 카드 — 그리드·목록 공용 (그 날짜의 출석·1회 이동·보존 기록 칩 포함) */
 function weekBlockEl(c, dstr, forList){
@@ -4245,7 +4326,7 @@ function zoomTuneRows(g, nrows){
     applyMultiSel();
   });
 }
-function zoomCenterGrids(big, dname, list, makeBlock){
+function zoomCenterGrids(big, dname, list, makeBlock, makeBand){
   var order = [], byLoc = {};
   list.forEach(function(c){
     if (!byLoc[c.loc]){ byLoc[c.loc] = []; order.push(c.loc); }
@@ -4291,12 +4372,22 @@ function zoomCenterGrids(big, dname, list, makeBlock){
         addCell(g, j + 2, r, dname, { key: loc + '|' + cols[j], loc: loc, teacher: cols[j] }, lo, 2);
       }
     }
-    var placedZ = [];
+    var placedZ = [], bandAt = {};
     cl.forEach(function(c){
       var r0 = Math.floor((mins(c.start) - lo) / 30), r1 = Math.ceil((minsEnd(c) - lo) / 30);
       if (r1 <= r0) r1 = r0 + 1;
-      var b = makeBlock(c);
       var col = cols.indexOf(c.teacher) + 2;
+      var band = makeBand ? makeBand(c) : null;
+      if (band){
+        // 휴강 띠 — 자리 다툼에 끼지 않는다 (2026-09-18 '1안')
+        var bk = col + '|' + r0, bi = bandAt[bk] || 0; bandAt[bk] = bi + 1;
+        band.style.gridColumn = String(col);
+        band.style.gridRow = String(r0 + 2);
+        if (bi) band.style.marginBottom = (2 + bi*20) + 'px';
+        g.appendChild(band);
+        return;
+      }
+      var b = makeBlock(c);
       b.style.gridColumn = String(col);
       b.style.gridRow = (r0 + 2) + ' / ' + (r1 + 2);
       g.appendChild(b);
@@ -4482,14 +4573,43 @@ function buildWeekOverview(){
     col.appendChild(wkDayHeader(dname, dates, '', function(){ weekZoomDay = dname; keepScroll = false; render(); }));
     var list = wkDayClasses(dname, dstr);
     var lastLoc = null;
+    var zoomHere = function(){ weekZoomDay = dname; keepScroll = false; render(); };
+    // 같은 센터의 휴강은 모아 뒀다가 구간 끝에 — 2건 이상이면 한 장으로 (2026-09-18 '1안')
+    var pendingOff = [];
+    var flushOff = function(){
+      if (!pendingOff.length) return;
+      var m = document.createElement('button');
+      m.type = 'button';
+      if (pendingOff.length >= 2){
+        m.className = 'wk-mini wkoffsum';
+        m.innerHTML = '<b>이 주 휴강 ' + pendingOff.length + '건</b><small>' +
+                      pendingOff.map(function(it){ return esc(it.c.start); }).join(' · ') + '</small>';
+        m.title = pendingOff.map(function(it){ return it.c.cls + ' ' + it.c.start; }).join(', ') +
+                  ' — 누르면 ' + dname + '요일 확대';
+      } else {
+        var it = pendingOff[0];
+        m.className = 'wk-mini offm ' + colorOf(it.c.cls);
+        m.setAttribute('data-cid', it.c.id);
+        m.innerHTML = '<b>'+esc(it.c.cls)+'</b><small>'+esc(it.c.start)+'~'+esc(it.c.end)+
+                      ' · 이 주 휴강</small><span class="sum"><i class="none">휴강</i></span>';
+        m.title = it.c.cls + ' — 이 주 휴강' + (it.off.reason ? ' · ' + it.off.reason : '');
+        durHeight(m, it.c, DUR_PX.week);
+      }
+      m.addEventListener('click', zoomHere);
+      col.appendChild(m);
+      pendingOff = [];
+    };
     list.forEach(function(c){
       if (c.loc !== lastLoc){
+        flushOff();
         lastLoc = c.loc;
         var cl = document.createElement('div');
         cl.className = 'wk-ctr';
         cl.textContent = wkLocLabel(c.loc);
         col.appendChild(cl);
       }
+      var off = wkOffAt(c.id, dstr);
+      if (off){ pendingOff.push({ c: c, off: off }); return; }
       var m = document.createElement('button');
       m.type = 'button';
       var mvd = wkMovedAway(c.id, dstr);
@@ -4508,9 +4628,10 @@ function buildWeekOverview(){
       m.title = mvd ? esc(c.cls) + ' — 이 주는 ' + wkMovedToLabel(mvd) + ' 에서 해요'
                     : esc(c.cls) + ' — 누르면 ' + dname + '요일 확대';
       durHeight(m, c, DUR_PX.week);
-      m.addEventListener('click', function(){ weekZoomDay = dname; keepScroll = false; render(); });
+      m.addEventListener('click', zoomHere);
       col.appendChild(m);
     });
+    flushOff();
     if (!list.length){
       var em = document.createElement('div'); em.className = 'wk-empty'; em.textContent = '수업 없음';
       col.appendChild(em);
@@ -4531,8 +4652,10 @@ function buildWeekZoom(dname){
       wkDayClasses(dy, ymdOf(dates[dy])).forEach(function(c){
         var b = document.createElement('div');
         var mvB = wkMovedAway(c.id, ymdOf(dates[dy]));
-        b.className = 'wk-bar ' + colorOf(c.cls) + (mvB ? ' mvd' : '');
-        b.title = c.cls + ' ' + c.start + '~' + c.end + (mvB ? ' — 이 주는 ' + wkMovedToLabel(mvB) + ' 에서' : '');
+        var offB = wkOffAt(c.id, ymdOf(dates[dy]));
+        b.className = 'wk-bar ' + colorOf(c.cls) + ((mvB || offB) ? ' mvd' : '');
+        b.title = c.cls + ' ' + c.start + '~' + c.end +
+                  (mvB ? ' — 이 주는 ' + wkMovedToLabel(mvB) + ' 에서' : offB ? ' — 이 주 휴강' : '');
         durHeight(b, c, DUR_PX.bar, true);
         slim.appendChild(b);
       });
@@ -4554,7 +4677,8 @@ function buildWeekZoom(dname){
       var em = document.createElement('div'); em.className = 'wk-empty'; em.textContent = '이 요일에는 수업이 없어요.';
       big.appendChild(em);
     }
-    zoomCenterGrids(big, dy, list, function(c){ return weekBlockEl(c, dstr); });
+    zoomCenterGrids(big, dy, list, function(c){ return weekBlockEl(c, dstr); },
+                    function(c){ var off = wkOffAt(c.id, dstr); return off ? offBandEl(c, off, dstr, true) : null; });
     wrap.appendChild(big);
   });
   requestAnimationFrame(function(){ applySearchHits(); });
