@@ -115,6 +115,7 @@
   .exs-season button small{font-size:.68rem;font-weight:400;}
   .exs-season button.on{border-color:var(--accent);color:var(--accent);background:var(--icon-bg);}
   .exs-season button:hover{border-color:var(--accent);}
+  .exs-season button.past-tg{font-size:.78rem;font-weight:400;border-style:dashed;padding:7px 12px;align-self:center;}
   .exs-desc{font-size:.78rem;color:var(--ink-soft);margin:8px 0 10px;}
   .exs-row{display:flex;align-items:center;gap:9px;border:1px solid var(--line-soft,#E5EDE8);border-radius:10px;
     padding:7px 10px;margin-bottom:6px;font-size:.84rem;flex-wrap:wrap;}
@@ -3094,6 +3095,10 @@ function exsSeasonName(cl){
   return sem + ' ' + (mid ? '중간' : '기말');
 }
 function exsSetSeason(k){ try { sessionStorage.setItem('tt_exs_season', k); } catch(e){} render(); }
+function exsTogglePast(){
+  try { sessionStorage.setItem('tt_exs_past', sessionStorage.getItem('tt_exs_past') === '1' ? '0' : '1'); } catch(e){}
+  render();
+}
 function exsMd(d){ return d ? d.slice(5).replace(/^0/,'').replace('-0','/').replace('-','/') + '(' + mkDayOf(d) + ')' : ''; }
 function exsMdN(d){ return d ? (+d.slice(5,7)) + '/' + (+d.slice(8,10)) : ''; }   // 요일 없는 짧은 표기 (막대 안)
 function exsDayDiff(a, b){
@@ -3114,21 +3119,25 @@ function examSchedView(){
   infos.forEach(function(x){ nameCnt[x.name] = (nameCnt[x.name] || 0) + 1; });
   infos.forEach(function(x){ if (nameCnt[x.name] > 1) x.name = x.mn.slice(2,4) + '년 ' + x.name; });
   var td = todayStr();
-  // 기간을 아직 하나도 안 넣은 다가오는 시즌도 버튼을 미리 보여준다(예: 기말 입력 전의 '2학기 기말') —
+  // 기간을 아직 하나도 안 넣은 시즌도 버튼을 미리 보여준다(예: 기말 입력 전의 '2학기 기말') —
   // 눌러서 [+ 시험 기간 추가]로 바로 채우기 시작 (2026-09-18 사용자 요청)
   var sy = schoolYearOf(td);
   var seasons = infos.slice();
+  seasons.forEach(function(x){ x.past = x.mx < td; });
   [
     { name: '1학기 중간', ord: sy + '-04-15', until: sy + '-05-31' },
     { name: '1학기 기말', ord: sy + '-06-25', until: sy + '-07-31' },
     { name: '2학기 중간', ord: sy + '-09-25', until: sy + '-10-31' },
     { name: '2학기 기말', ord: (sy + 1) + '-01-31', until: (sy + 1) + '-01-31' }
   ].forEach(function(s){
-    if (s.until < td) return;   // 이미 지난 시즌
     if (infos.some(function(x){ return x.base === s.name && x.sy === sy; })) return;   // 데이터로 이미 존재
-    seasons.push({ cl: null, key: 'std:' + s.name, mn: s.ord, mx: '', name: s.name, empty: true });
+    seasons.push({ cl: null, key: 'std:' + s.name, mn: s.ord, mx: '', name: s.name, empty: true, past: s.until < td });
   });
   seasons.sort(function(a, b){ return a.mn.localeCompare(b.mn); });
+  // 지난 시즌은 [지난 시즌] 토글을 켰을 때만 (2026-09-18 사용자 요청 — 골라 둔 시즌은 항상 표시)
+  var showPast = false;
+  try { showPast = sessionStorage.getItem('tt_exs_past') === '1'; } catch(e){}
+  var anyPast = seasons.some(function(x){ return x.past; });
   var selKey = '';
   try { selKey = sessionStorage.getItem('tt_exs_season') || ''; } catch(e){}
   var sel = null;
@@ -3154,11 +3163,15 @@ function examSchedView(){
   var h = '<p class="memotitle">지필고사 일정' +
     (cnt || dday ? '<span class="exs-cnt">  ' + cnt + (dday ? ' · ' + dday : '') + '</span>' : '') + '</p>';
   if (seasons.length){
-    h += '<div class="exs-season">' + seasons.map(function(x){
+    h += '<div class="exs-season">' + seasons.filter(function(x){
+      return showPast || !x.past || (sel && x.key === sel.key);
+    }).map(function(x){
       return '<button type="button" class="' + (sel && x.key === sel.key ? 'on' : '') + '"' +
         ' onclick="exsSetSeason(\'' + x.key + '\')">' + esc(x.name) +
-        '<small>' + (x.empty ? '기간 입력 전' : exsMdN(x.mn) + '~' + exsMdN(x.mx)) + '</small></button>';
-    }).join('') + '</div>';
+        '<small>' + (x.empty ? (x.past ? '기록 없음' : '기간 입력 전') : exsMdN(x.mn) + '~' + exsMdN(x.mx)) + '</small></button>';
+    }).join('') +
+    (anyPast ? '<button type="button" class="past-tg" onclick="exsTogglePast()">' +
+               (showPast ? '지난 시즌 감추기' : '지난 시즌 보기') + '</button>' : '') + '</div>';
   }
   if (!ps.length){
     h += '<p class="exs-none">' + (sel ? esc(sel.name) + ' 시험 기간이 아직 없어요' : '등록된 시험 기간이 없어요') +
