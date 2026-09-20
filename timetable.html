@@ -2234,14 +2234,18 @@
       var loc = String(b.loc || '').trim(), teacher = String(b.teacher || '').trim(), cls = String(b.cls || '').trim();
       if (!d || !st || !en || !cls) return Promise.resolve({ result:'error', message:'요일·시간·반이름을 입력해 주세요.' });
       if ('월화수목금토일'.indexOf(d) < 0) return Promise.resolve({ result:'error', message:'요일이 올바르지 않아요.' });
+      // 반ID 접두는 시간표별 관례를 따른다(정규 r### / 내신 n###) — 전엔 내신에도 r을 매겨
+      // 원본·시트 사본의 ID가 어긋났다(2026-09-20 논술B 수학 이전에서 발견).
+      var pre = (book === '내신') ? 'n' : 'r';
+      var preRe = new RegExp('^' + pre + '(\\d+)$');
       function attempt(left){
         return fetchClasses(book).then(function(cs){
           var maxN = 0;
           cs.forEach(function(c){
-            var m = String(c.id || '').match(/^r(\d+)$/);
+            var m = String(c.id || '').match(preRe);
             if (m) maxN = Math.max(maxN, parseInt(m[1], 10));
           });
-          var id = 'r' + ('000' + (maxN + 1)).slice(-3);
+          var id = pre + ('000' + (maxN + 1)).slice(-3);
           return sbWrite('POST', '/tt_classes', { book: book, class_id: id, day: d, start_time: st,
                                                   end_time: en, location: loc, teacher: teacher,
                                                   name: cls, roster: '' })

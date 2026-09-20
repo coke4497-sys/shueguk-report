@@ -3408,13 +3408,17 @@ function timetableAddClass(data) {
     // 시트 사본이 원본과 같은 ID를 가져야 한다). 형식이 다르거나 이미 있으면 새로 만든다.
     var id = String(data.id || '').trim(), used = {};
     for (var u = 1; u < v.length; u++) used[String(v[u][0] || '').trim()] = true;
-    if (!/^r\d{3,4}$/.test(id) || used[id]) {
+    // 내신 반ID는 n### — r만 허용하던 옛 검증이 내신 사본 ID를 거절해 원본과 어긋났다
+    // (2026-09-20 논술B 수학 이전에서 발견 — n118 사본이 r002로 적힘).
+    var pre = (book === '내신') ? 'n' : 'r';
+    if (!/^[rn]\d{3,4}$/.test(id) || used[id]) {
+      var preRe = new RegExp('^' + pre + '(\\d+)$');
       var maxN = 0;
       for (var i = 1; i < v.length; i++) {
-        var m = String(v[i][0] || '').trim().match(/^r(\d+)$/);
+        var m = String(v[i][0] || '').trim().match(preRe);
         if (m) maxN = Math.max(maxN, parseInt(m[1], 10));
       }
-      id = 'r' + ('000' + (maxN + 1)).slice(-3);
+      id = pre + ('000' + (maxN + 1)).slice(-3);
     }
     var rg = sh.getRange(sh.getLastRow() + 1, 1, 1, 8);
     rg.setNumberFormat('@');
