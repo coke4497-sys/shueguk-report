@@ -620,6 +620,11 @@ anon 의 표 권한 회수 + 정책을 `to authenticated` 로. 배포(머지→P
 - 검증: `PGHOST=/home/pgtest PGPORT=5499 PGUSER=postgres bash tools/gramma-sql-test.sh`(로컬 PostgreSQL에 001~012를 순서대로 얹은 뒤 027·028 — 판정·재응시·status·bundle·권한 assert).
 - 적용 상태: **2026-09-13 실제 수파베이스에 027·028 적용 완료** — 공개 키로 표 직접 읽기 차단(42501)·gramma_submit(95%→star·first, 재응시→first 아님)·gramma_status 왕복 확인 뒤 시험 행 삭제(표 0행에서 시작).
 
+## '이 주만' 반의 수업 종류 — 직전보강 표시 (2026-09-20, 030)
+- `tt_classes.kind text not null default ''` — 빈 값=보통, `'직보'`=직전보강. 슈국 스케쥴이 '이 주만' 반을 만들 때 넣고, 오늘·주차별 카드에 빨간 동그라미 '직'으로 표시한다(자세한 것은 리포트 CLAUDE.md '직전보강 표시' 절).
+- 시트에는 이 열이 없다('이 주만' 반 자체가 시트에 없음). 일일 점검은 w* 행을 건너뛰고 열 집합을 비교하지 않으므로 무변경.
+- **적용 전에도 페이지는 동작한다** — select가 400이면 옛 열로 다시 읽고 저장 때 kind를 빼서 보낸다(그동안은 직전보강을 골라도 표시가 붙지 않음). 실제 수파베이스에 `migrations/030_tt_class_kind.sql`을 실행해야 표시가 살아난다.
+
 ## 재동기화(델타) 방법
 시트가 원본인 데이터가 수파베이스와 어긋났을 때: 백엔드 시트 xlsx 다운로드 →
 `tools/extract_from_xlsx.py`로 추출 → 키 기준 비교(출석 date+book+반+이름, 시간표 book+반ID,
