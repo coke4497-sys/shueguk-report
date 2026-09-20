@@ -2556,7 +2556,6 @@ function doPost(e) {
     if (data && data.action === 'editReqAdd')       { return editReqAdd(data); }
     if (data && data.action === 'grammaReport')     { return grammaReport(data); }
     if (data && data.action === 'editReqSet')       { return editReqSet(data); }
-    if (data && data.action === 'extSheetWrite')    { return extSheetWrite(data); }
     if (data && data.action === 'editReqTokenSet')  { return editReqTokenSet(data); }
     if (data && data.action === 'alimSend')         { return alimSend(data); }
     if (data && data.action === 'alimConfigSet')    { return alimConfigSet(data); }
@@ -4347,34 +4346,6 @@ function editReqSet(data) {
   } finally {
     try { lock.releaseLock(); } catch (e) {}
   }
-}
-
-/* ── 외부 시트 쓰기 (2026-09-20 사용자 요청 "수강료 월별 정리" 시트에 10월 수업 회차 리스트 "구글 시트에 작성해줘") ──
- * POST extSheetWrite{pw, sheetId, tab, values:[[…],…], clear?, bold1?, freeze1?}
- * 클로드 세션이 수파베이스에서 계산한 표(월별 수업 회차 등)를 원장님 시트에 그대로 넣는 용도.
- * 이 스크립트는 소유자(coke4497) 권한으로 돌아 소유자 드라이브의 어느 시트든 열 수 있으므로,
- * 비밀번호(공개 페이지에 내장)만으로는 막을 수 없어 EXT_SHEET_IDS 허용 목록에 있는 시트만 쓴다.
- * 새 시트에 쓸 일이 생기면 목록에 ID를 더하고 재배포. */
-var EXT_SHEET_IDS = [
-  '103V8feS9dojzYcyoTY-XMJrp22aSN2rftFwcXUQTgPI'   // 수강료 월별 정리(테스트)
-];
-function extSheetWrite(data) {
-  if (String(data.pw || '') !== TEACHER_PW) return json({ result:'error', message:'unauthorized' });
-  var id = String(data.sheetId || '').trim();
-  if (EXT_SHEET_IDS.indexOf(id) < 0) return json({ result:'error', message:'허용 목록에 없는 시트예요.' });
-  var vals = data.values;
-  if (!Array.isArray(vals) || !vals.length) return json({ result:'error', message:'values가 필요합니다.' });
-  var w = 0;
-  vals = vals.map(function(r){ var o = Array.isArray(r) ? r.slice() : [r]; if (o.length > w) w = o.length; return o; });
-  vals = vals.map(function(r){ while (r.length < w) r.push(''); return r.map(function(v){ return v == null ? '' : v; }); });
-  var ss = SpreadsheetApp.openById(id);
-  var tab = String(data.tab || '').trim();
-  var sh = tab ? (ss.getSheetByName(tab) || ss.insertSheet(tab)) : ss.getSheets()[0];
-  if (data.clear) sh.clear();
-  sh.getRange(1, 1, vals.length, w).setValues(vals);
-  if (data.bold1) sh.getRange(1, 1, 1, w).setFontWeight('bold');
-  if (data.freeze1) sh.setFrozenRows(1);
-  return json({ result:'success', tab: sh.getName(), rows: vals.length, cols: w });
 }
 
 /* ── 통합 부팅 조회 (접속 지연 대책, 2026-08-19) ─────────────────
