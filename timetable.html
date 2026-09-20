@@ -610,6 +610,17 @@
   .wk-mini.mvd b{text-decoration:line-through;text-decoration-thickness:1px;}
   .blk .wkflag{font-style:normal;font-size:.66rem;font-weight:700;color:var(--accent);
     background:var(--icon-bg);border-radius:5px;padding:0 5px;margin-left:4px;vertical-align:1px;}
+  /* 직전보강 표시 — 빨간 동그라미 안 '직' (2026-09-20 사용자 지정: 오늘·주차별 카드에서 바로 알아보게) */
+  .jb{display:inline-flex;align-items:center;justify-content:center;width:17px;height:17px;border-radius:50%;
+    background:#C8463F;color:#fff;font-style:normal;font-size:.66rem;font-weight:700;line-height:1;
+    margin-left:4px;vertical-align:1px;flex:none;letter-spacing:0;}
+  .wk-mini .jb{width:15px;height:15px;font-size:.6rem;margin-left:3px;}
+  .wk-mini b{display:flex;align-items:center;}
+  .wk-bar.jb-bar{box-shadow:inset 0 0 0 1.5px #C8463F;}
+  .nc-kind{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;}
+  .nc-kind label{display:inline-flex;align-items:center;gap:6px;font-size:.9rem;padding:6px 12px;border-radius:999px;
+    background:var(--icon-bg);cursor:pointer;}
+  .nc-kind input{margin:0;}
   .eset-grp{display:inline-flex;gap:6px;flex-wrap:wrap;}
   .hint-x{color:var(--ink-soft);opacity:.85;}
 
@@ -1110,15 +1121,34 @@
   function copyClassYmdOf(g){
     return (g.kind === '주간반이동' || g.kind === '주간반보강') ? weekClassYmd(g.to_class_id) : '';
   }
+  /* 수업 종류 열(kind — 030 마이그레이션, 2026-09-20): '직보'면 직전보강.
+   * 열이 아직 없는 DB(마이그레이션 전)에서는 select가 400으로 떨어지므로 한 번 실패하면
+   * 옛 열 목록으로 다시 읽고(kindCol=false) 이후 쓰기에서도 kind를 빼서 보낸다. */
+  var kindCol = true;
+  var CLS_COLS = 'class_id,day,start_time,end_time,location,teacher,name,roster';
   function fetchClasses(book){
-    return sbGet('/tt_classes?book=eq.' + q(book) + '&order=id&select=class_id,day,start_time,end_time,location,teacher,name,roster')
+    var usedKind = kindCol;   // 이 요청이 kind를 넣었는지 — 정규·내신을 나란히 읽을 때 둘 다 각자 다시 읽게
+    var sel = CLS_COLS + (usedKind ? ',kind' : '');
+    return sbGet('/tt_classes?book=eq.' + q(book) + '&order=id&select=' + sel)
+      .catch(function(e){
+        if (!usedKind || !/sb 400/.test(String(e && e.message))) throw e;
+        kindCol = false;   // kind 열이 없는 DB — 옛 열로 다시
+        return sbGet('/tt_classes?book=eq.' + q(book) + '&order=id&select=' + CLS_COLS);
+      })
       .then(function(rows){
         return rows.map(function(r){
           return { id: r.class_id, day: r.day, start: r.start_time, end: r.end_time,
                    loc: r.location, teacher: r.teacher, cls: r.name, wk: weekClassYmd(r.class_id),
+                   kind: String(r.kind || '').trim(),
                    students: String(r.roster || '').trim().split(/\s+/).filter(String) };
         });
       });
+  }
+  /* 새 반 행에 kind를 붙인다 — 열이 없는 DB면 붙이지 않는다(그때는 표시 없이 저장) */
+  function withKind(row, kind){
+    var k = String(kind || '').trim();
+    if (k && kindCol) row.kind = k;
+    return row;
   }
   /* 그 주에만 적용되는 명단 변경 — 1회 이동과 같은 기록(tt_log)에 종류만 다르게 쌓는다.
    * '주간추가'(to만) · '주간빼기'(from만) — 정규 명단은 건드리지 않으므로 다른 주차엔 영향이 없다. */
@@ -1431,10 +1461,10 @@
     return freshWeekId(book, pre)
       .then(function(id){
         if (!id) return { result:'error', message:'그 날짜에는 더 만들 수 없어요.' };
-        return sbWrite('POST', '/tt_classes', { book: book, class_id: id, day: String(b.day || from.day),
+        return sbWrite('POST', '/tt_classes', withKind({ book: book, class_id: id, day: String(b.day || from.day),
                          start_time: String(b.start || from.start), end_time: String(b.end || from.end),
                          location: String(b.loc || from.loc), teacher: String(b.teacher || from.teacher),
-                         name: from.cls, roster: '' })
+                         name: from.cls, roster: '' }, b.kind))
           .then(function(){
             // 이동은 원본을 숨겨야 하므로 '원래 날짜', 보강은 숨기지 않으므로 '새 날짜'로 기록
             return insertLog({ kind: kind, student:'', book: book,
@@ -1829,16 +1859,25 @@
       return freshWeekId(book, pre)
         .then(function(id){
           if (!id) return { result:'error', message:'그 날짜에는 더 만들 수 없어요.' };
-          return sbWrite('POST', '/tt_classes', { book: book, class_id: id, day: String(b.day || ''),
+          return sbWrite('POST', '/tt_classes', withKind({ book: book, class_id: id, day: String(b.day || ''),
                            start_time: String(b.start || ''), end_time: String(b.end || ''),
                            location: String(b.loc || ''), teacher: String(b.teacher || ''),
-                           name: cls, roster: '' })
+                           name: cls, roster: '' }, b.kind))
             .then(function(){
               return insertLog({ kind:'주간반추가', student:'', book: book, to_class_id: id, to_class: cls,
                                  reason: String(b.reason || ''), apply_date: d })
                 .then(function(){ return ok({ id: id, date: d }); }, function(){ return ok({ id: id, date: d }); });
             });
         });
+    },
+    /* '이 주만' 반의 수업 종류 바꾸기 — 직전보강 표시 붙이기/지우기 (2026-09-20).
+     * 명단·기록은 건드리지 않고 kind 열만 고친다. 열이 없는 DB면 안내만. */
+    timetableWeekClassKind: function(b){
+      var book = bookOf(b.book), id = String(b.classId || '').trim(), k = String(b.kind || '').trim();
+      if (!id) return Promise.resolve({ result:'error', message:'반ID가 필요합니다.' });
+      if (!kindCol) return Promise.resolve({ result:'error', message:'수업 종류 열이 아직 준비되지 않았어요(DB 마이그레이션 030).' });
+      return sbWrite('PATCH', '/tt_classes?book=eq.' + q(book) + '&class_id=eq.' + q(id), { kind: k })
+        .then(function(){ return ok({ id: id, kind: k }); });
     },
     /* 반 전체 보충 — 원래 수업은 그대로 두고, 같은 반을 그 주에 한 번 더 연다.
      * (이동과 달리 원본을 숨기지 않는다 — 2026-08-23 사용자 요청 "추가 보충") */
@@ -3531,6 +3570,18 @@ function countLabel(c, awayOf, temps){
   var out = Object.keys(awayOf || {}).length, inn = (temps || []).length;
   return c.students.length + (out ? '-' + out : '') + (inn ? '+' + inn : '') + '명';   // 나간 것 먼저, 온 것 나중
 }
+/* 직전보강 반인가 — tt_classes.kind === '직보' (030). 반이름은 보지 않는다(출석 현황의 asIsJikbo만 이름도 본다) */
+function isJb(c){ return !!c && String(c.kind || '') === '직보'; }
+/* 카드 이름 옆 빨간 동그라미 '직' — 오늘·주차별 카드·주간 개요 공용 */
+function jbBadge(c){ return isJb(c) ? ' <i class="jb" title="직전보강 수업">직</i>' : ''; }
+/* 반 만들기 창의 수업 종류 선택 — 보통 / 직전보강 (radio, 값 ''·'직보') */
+function kindSelHtml(cur){
+  return '<label style="font-size:.8rem;color:var(--ink-soft);display:block;margin-top:8px;">수업 종류</label>'+
+    '<div class="nc-kind">'+
+    '<label><input type="radio" name="nc-kind" value=""'+(cur==='직보'?'':' checked')+'> 보통 수업</label>'+
+    '<label><input type="radio" name="nc-kind" value="직보"'+(cur==='직보'?' checked':'')+'> 직전보강 <i class="jb">직</i></label></div>';
+}
+function kindSelVal(){ var el = document.querySelector('input[name="nc-kind"]:checked'); return el ? el.value : ''; }
 /* 반 블록 요소 (내용·클릭 공통) — 위치는 호출한 쪽에서 지정 */
 function blockEl(c, forList){
   var b = document.createElement('div');
@@ -3543,7 +3594,7 @@ function blockEl(c, forList){
   b.setAttribute('data-cid', c.id);
   if (mvdToday){
     // 오늘 이동해 나간 자리 — 출석 대상이 아니므로 학생 칩 없이 어디로 갔는지만 연하게
-    b.innerHTML = '<div class="bt"><span class="nm">'+esc(c.cls)+' <em class="wkflag">오늘 이동</em></span>'+
+    b.innerHTML = '<div class="bt"><span class="nm">'+esc(c.cls)+jbBadge(c)+' <em class="wkflag">오늘 이동</em></span>'+
                   '<small>'+esc(c.start)+'~'+esc(c.end)+
                   (forList ? ' · '+esc(c.teacher)+'T'+(c.loc ? ' · '+esc(c.loc) : '') : '')+'</small></div>'+
                   '<div class="stus"><span class="empty-note">→ '+esc(wkMovedToLabel(mvdToday))+' 에서 해요'+
@@ -3553,7 +3604,7 @@ function blockEl(c, forList){
   }
   if (offToday){
     // 오늘은 수업이 없는 반 — 출석 대상이 아니므로 학생 칩 없이 휴강만 알린다
-    b.innerHTML = '<div class="bt"><span class="nm">'+esc(c.cls)+' <em class="wkflag">오늘 휴강</em></span>'+
+    b.innerHTML = '<div class="bt"><span class="nm">'+esc(c.cls)+jbBadge(c)+' <em class="wkflag">오늘 휴강</em></span>'+
                   '<small>'+esc(c.start)+'~'+esc(c.end)+
                   (forList ? ' · '+esc(c.teacher)+'T'+(c.loc ? ' · '+esc(c.loc) : '') : '')+'</small></div>'+
                   '<div class="stus"><span class="empty-note">오늘은 수업이 없어요'+
@@ -3653,7 +3704,7 @@ function blockEl(c, forList){
   var meta = esc(c.start)+'~'+esc(c.end)+
              (forList ? ' · '+esc(c.teacher)+'T'+(c.loc ? ' · '+esc(c.loc) : '') : '')+
              ' · '+cntLabel;
-  b.innerHTML = '<div class="bt"><span class="nm">'+esc(c.cls)+(c.wk ? ' <em class="wkflag">이 주만</em>' : '')+'</span>'+
+  b.innerHTML = '<div class="bt"><span class="nm">'+esc(c.cls)+jbBadge(c)+(c.wk ? ' <em class="wkflag">이 주만</em>' : '')+'</span>'+
                 '<small>'+meta+'</small></div>'+
                 btnRow +
                 '<div class="stus">'+chips+'</div>';
@@ -3999,7 +4050,7 @@ function weekBlockEl(c, dstr, forList){
   b.setAttribute('data-cid', c.id);
   if (mvd){
     // 이동해 나간 자리 — 어디로 갔는지 연하게 남긴다 (2026-08-26 사용자 요청)
-    b.innerHTML = '<div class="bt"><span class="nm">'+esc(c.cls)+' <em class="wkflag">이 주 이동</em></span>'+
+    b.innerHTML = '<div class="bt"><span class="nm">'+esc(c.cls)+jbBadge(c)+' <em class="wkflag">이 주 이동</em></span>'+
                   '<small>'+esc(c.start)+'~'+esc(c.end)+
                   (forList ? ' · '+esc(c.teacher)+'T'+(c.loc ? ' · '+esc(c.loc) : '') : '')+'</small></div>'+
                   '<div class="stus"><span class="empty-note">→ '+esc(wkMovedToLabel(mvd))+' 에서 해요'+
@@ -4008,7 +4059,7 @@ function weekBlockEl(c, dstr, forList){
     return b;
   }
   if (off){
-    b.innerHTML = '<div class="bt"><span class="nm">'+esc(c.cls)+' <em class="wkflag">이 주 휴강</em></span>'+
+    b.innerHTML = '<div class="bt"><span class="nm">'+esc(c.cls)+jbBadge(c)+' <em class="wkflag">이 주 휴강</em></span>'+
                   '<small>'+esc(c.start)+'~'+esc(c.end)+
                   (forList ? ' · '+esc(c.teacher)+'T'+(c.loc ? ' · '+esc(c.loc) : '') : '')+'</small></div>'+
                   '<div class="stus"><span class="empty-note">이 주는 수업이 없어요'+
@@ -4060,7 +4111,7 @@ function weekBlockEl(c, dstr, forList){
   var meta = esc(c.start)+'~'+esc(c.end)+
              (forList ? ' · '+esc(c.teacher)+'T'+(c.loc ? ' · '+esc(c.loc) : '') : '')+
              ' · '+countLabel(c, awayOf, temps);
-  b.innerHTML = '<div class="bt"><span class="nm">'+esc(c.cls)+(c.wk ? ' <em class="wkflag">이 주만</em>' : '')+'</span>'+
+  b.innerHTML = '<div class="bt"><span class="nm">'+esc(c.cls)+jbBadge(c)+(c.wk ? ' <em class="wkflag">이 주만</em>' : '')+'</span>'+
                 '<small>'+meta+'</small></div>'+
                 '<div class="stus">'+chips+'</div>';
   b.addEventListener('click', function(e){ onWeekClick(e, c, dstr); });
@@ -4590,7 +4641,7 @@ function buildWeekOverview(){
         var it = pendingOff[0];
         m.className = 'wk-mini offm ' + colorOf(it.c.cls);
         m.setAttribute('data-cid', it.c.id);
-        m.innerHTML = '<b>'+esc(it.c.cls)+'</b><small>'+esc(it.c.start)+'~'+esc(it.c.end)+
+        m.innerHTML = '<b>'+esc(it.c.cls)+jbBadge(it.c)+'</b><small>'+esc(it.c.start)+'~'+esc(it.c.end)+
                       ' · 이 주 휴강</small><span class="sum"><i class="none">휴강</i></span>';
         m.title = it.c.cls + ' — 이 주 휴강' + (it.off.reason ? ' · ' + it.off.reason : '');
         durHeight(m, it.c, DUR_PX.week);
@@ -4622,7 +4673,7 @@ function buildWeekOverview(){
           (s.cnt['지각'] ? '<i class="late">'+s.cnt['지각']+'</i>' : '') +
           (s.cnt['결석'] ? '<i class="abs">'+s.cnt['결석']+'</i>' : '')
         : '<i class="none">—</i>';
-      m.innerHTML = '<b>'+esc(c.cls)+'</b><small>'+
+      m.innerHTML = '<b>'+esc(c.cls)+jbBadge(c)+'</b><small>'+
                     (mvd ? '→ '+esc(wkMovedToLabel(mvd)) : esc(c.start)+'~'+esc(c.end)+' · '+c.students.length+'명')+
                     '</small><span class="sum">'+att+'</span>';
       m.title = mvd ? esc(c.cls) + ' — 이 주는 ' + wkMovedToLabel(mvd) + ' 에서 해요'
@@ -4653,8 +4704,8 @@ function buildWeekZoom(dname){
         var b = document.createElement('div');
         var mvB = wkMovedAway(c.id, ymdOf(dates[dy]));
         var offB = wkOffAt(c.id, ymdOf(dates[dy]));
-        b.className = 'wk-bar ' + colorOf(c.cls) + ((mvB || offB) ? ' mvd' : '');
-        b.title = c.cls + ' ' + c.start + '~' + c.end +
+        b.className = 'wk-bar ' + colorOf(c.cls) + ((mvB || offB) ? ' mvd' : '') + (isJb(c) ? ' jb-bar' : '');
+        b.title = (isJb(c) ? '[직전보강] ' : '') + c.cls + ' ' + c.start + '~' + c.end +
                   (mvB ? ' — 이 주는 ' + wkMovedToLabel(mvB) + ' 에서' : offB ? ' — 이 주 휴강' : '');
         durHeight(b, c, DUR_PX.bar, true);
         slim.appendChild(b);
@@ -5042,7 +5093,7 @@ function asSlotLabel(bk){ return (bk === '내신') ? ['진도', '확인'] : ['�
 function asSlotTime(c){ return c ? (c.day + c.start) : ''; }
 /* 시험 직전 주에는 기존 수업이 사라지고 직전보강으로 바뀐다 (2026-08-23 사용자 설명).
  * 아직 그런 반이 시간표에 없어서, 반이름에 '직보'·'직전'·'보강'이 들어오면 자동으로 잡힌다. */
-function asIsJikbo(c){ return !!c && /직보|직전|보강/.test(String(c.cls || '')); }
+function asIsJikbo(c){ return !!c && (isJb(c) || /직보|직전|보강/.test(String(c.cls || ''))); }
 /* 그 주에서 그 요일의 날짜 */
 var AS_DOW = ['월','화','수','목','금','토','일'];
 function asDateOf(wk, day){
@@ -6603,6 +6654,7 @@ function openAddWeekClass(){
       '<label style="display:block;font-size:.9rem;margin-top:4px;"><input type="radio" name="nc-mode" value="move"> 원래 수업은 이 주에 안 함 — 시간만 옮김</label>'+
     '</div>'+
     classFormHtml('', 15)+
+    kindSelHtml('')+
     '<label style="font-size:.8rem;color:var(--ink-soft);display:block;margin-top:8px;">사유 메모 (선택)</label>'+
     '<textarea id="nc-reason" placeholder="예: 시험 대비 보충, 휴일 보강"></textarea>'+
     '<p class="merr" id="nc-err"></p>'+
@@ -6631,6 +6683,8 @@ function submitAddWeekClass(){
   var d = $('nc-day').value, st = $('nc-start').value, en = $('nc-end').value;
   var loc = $('nc-loc').value.trim(), teacher = $('nc-teacher').value.trim(), cls = $('nc-cls').value.trim();
   var reason = ($('nc-reason') ? $('nc-reason').value : '').trim();
+  var kind = kindSelVal();   // '' 보통 / '직보' 직전보강 (2026-09-20)
+  var kindNote = kind === '직보' ? ' 직전보강 표시(직)를 붙였어요.' : '';
   if (!cls){ $('nc-err').textContent = '반이름을 입력해 주세요.'; return; }
   var st0 = mins(st), en0 = mins(en);
   if (en0 <= st0) en0 += 12*60;
@@ -6650,12 +6704,12 @@ function submitAddWeekClass(){
     closeModal();
     post({ action: isMove ? 'timetableWeekClassMove' : 'timetableWeekClassExtra',
            book:book, fromId:src.id, date:srcDate, newDate:dstr,
-           day:d, start:st, end:en, loc:loc, teacher:teacher, reason:reason },
+           day:d, start:st, end:en, loc:loc, teacher:teacher, reason:reason, kind:kind },
       '반을 만드는 중…', function(res){
         if (res && res.result === 'success'){
           setStatus(src.cls + ' — ' + wkDayLabel(dstr) + ' ' + st + '~' + en + ' 에 열었어요. 학생 ' +
                     src.students.length + '명이 그대로 따라왔어요.' +
-                    (isMove ? ' 원래 수업(' + wkDayLabel(srcDate) + ')은 이 주에 열리지 않아요.' : ' 원래 수업도 그대로예요.'), 'ok');
+                    (isMove ? ' 원래 수업(' + wkDayLabel(srcDate) + ')은 이 주에 열리지 않아요.' : ' 원래 수업도 그대로예요.') + kindNote, 'ok');
           load(true);
         } else setStatus('반 추가 실패: ' + ((res && res.message) || '오류'), 'err');
       });
@@ -6664,10 +6718,10 @@ function submitAddWeekClass(){
   if (!wkOverlapOk(dstr, d, st0, en0, teacher, '')) return;
   closeModal();
   post({ action:'timetableWeekClass', book:book, date:dstr, day:d, start:st, end:en,
-         loc:loc, teacher:teacher, cls:cls, reason:reason },
+         loc:loc, teacher:teacher, cls:cls, reason:reason, kind:kind },
     '반을 만드는 중…', function(res){
       if (res && res.result === 'success'){
-        setStatus(cls + ' — ' + wkDayLabel(dstr) + ' 하루만 만들었어요. [이 주만 학생 추가]로 학생을 넣어주세요.', 'ok');
+        setStatus(cls + ' — ' + wkDayLabel(dstr) + ' 하루만 만들었어요.' + kindNote + ' [이 주만 학생 추가]로 학생을 넣어주세요.', 'ok');
         load(true);
       } else setStatus('반 추가 실패: ' + ((res && res.message) || '오류'), 'err');
     });
@@ -6758,6 +6812,7 @@ function openWeekClassExtra(c, dstr){
     (c.teacher ? ' · '+esc(c.teacher)+'T' : '')+(c.loc ? ' · '+esc(c.loc) : '')+'</p>'+
     '<p class="mdesc hint-x">원래 수업은 그대로 두고, 같은 반이 이 주에 한 번 더 열려요. 명단은 원래 반을 그대로 따라갑니다.</p>'+
     classFormHtml('', 15)+
+    kindSelHtml('')+
     '<label style="font-size:.8rem;color:var(--ink-soft);display:block;margin-top:8px;">사유 메모 (선택)</label>'+
     '<textarea id="nc-reason" placeholder="예: 시험 대비 보충, 진도 보충"></textarea>'+
     '<p class="merr" id="nc-err"></p>'+
@@ -6786,12 +6841,14 @@ function submitWeekClassExtra(cid, d){
     $('nc-err').textContent = '원래 수업과 같은 요일·시간이에요. 보충할 시간을 골라주세요.'; return;
   }
   if (!wkOverlapOk(nd, day, st0, en0, teacher, '')) return;   // 보충은 원래 수업도 그대로라 자기 자신도 겹침 대상
+  var kind = kindSelVal();
   closeModal();
   post({ action:'timetableWeekClassExtra', book:book, fromId:cid, date:d, newDate:nd,
-         day:day, start:st, end:en, loc:loc, teacher:teacher, reason:reason },
+         day:day, start:st, end:en, loc:loc, teacher:teacher, reason:reason, kind:kind },
     '보충을 만드는 중…', function(res){
       if (res && res.result === 'success'){
-        setStatus(c.cls + ' 보충 — ' + wkDayLabel(nd) + ' ' + st + '~' + en + ' 에 한 번 더 열었어요. 원래 수업은 그대로예요.', 'ok');
+        setStatus(c.cls + ' 보충 — ' + wkDayLabel(nd) + ' ' + st + '~' + en + ' 에 한 번 더 열었어요. 원래 수업은 그대로예요.' +
+                  (kind === '직보' ? ' 직전보강 표시(직)를 붙였어요.' : ''), 'ok');
         load(true);
       } else setStatus('보충 추가 실패: ' + ((res && res.message) || '오류'), 'err');
     });
@@ -6812,6 +6869,7 @@ function openWeekClassMove(c, dstr){
     weekSelHtml('nc-week', weekStart)+
     '<div style="margin-top:8px;"></div>'+
     classFormHtml('', 15)+
+    kindSelHtml('')+
     '<label style="font-size:.8rem;color:var(--ink-soft);display:block;margin-top:8px;">사유 메모 (선택)</label>'+
     '<textarea id="nc-reason" placeholder="예: 학교 행사로 하루 당김, 공휴일 보강"></textarea>'+
     '<p class="merr" id="nc-err"></p>'+
@@ -6846,14 +6904,16 @@ function submitWeekClassMove(cid, d){
     $('nc-err').textContent = '바뀐 것이 없어요. 옮길 주나 요일·시간을 고쳐주세요.'; return;
   }
   if (!wkOverlapOk(nd, day, st0, en0, teacher, (nd === d) ? cid : '')) return;   // 같은 날짜면 원본은 어차피 숨어 제외
+  var kind = kindSelVal();
   closeModal();
   post({ action:'timetableWeekClassMove', book:book, fromId:cid, date:d, newDate:nd,
-         day:day, start:st, end:en, loc:loc, teacher:teacher, reason:reason },
+         day:day, start:st, end:en, loc:loc, teacher:teacher, reason:reason, kind:kind },
     '옮기는 중…', function(res){
       if (res && res.result === 'success'){
-        setStatus(sameWeek
+        setStatus((sameWeek
           ? c.cls + ' — ' + wkDayLabel(nd) + ' ' + st + '~' + en + ' 으로 이 주만 옮겼어요.'
-          : c.cls + ' — ' + wkDayLabel(nd) + ' ' + st + '~' + en + ' 으로 옮겼어요. 이 주(' + wkDayLabel(d) + ') 수업은 열리지 않아요.', 'ok');
+          : c.cls + ' — ' + wkDayLabel(nd) + ' ' + st + '~' + en + ' 으로 옮겼어요. 이 주(' + wkDayLabel(d) + ') 수업은 열리지 않아요.') +
+          (kind === '직보' ? ' 직전보강 표시(직)를 붙였어요.' : ''), 'ok');
         load(true);
       } else setStatus('이동 실패: ' + ((res && res.message) || '오류'), 'err');
     });
@@ -6871,14 +6931,18 @@ function openWeekClassManage(c, dstr){
   // 만들 때 적은 사유 메모 — 적어 두고도 볼 곳이 없었다 (2026-09-04 수정 요청함 이종민)
   var memo = (mv && mv.reason)
     ? '<p class="mdesc" style="background:var(--icon-bg);border-radius:8px;padding:8px 10px;">메모: '+esc(mv.reason)+'</p>' : '';
+  // 직전보강 표시 — 만들 때 놓쳤으면 여기서 붙이고, 잘못 붙였으면 지운다 (2026-09-20)
+  var jbLine = isJb(c) ? '<p class="mdesc"><i class="jb">직</i> 직전보강 수업으로 표시돼 있어요.</p>' : '';
   openModal(
     '<h3>이 주만 있는 반</h3>'+
-    '<p class="mdesc"><b>'+esc(c.cls)+'</b><br>'+esc(wkDayLabel(d))+' '+esc(c.start)+'~'+esc(c.end)+
+    '<p class="mdesc"><b>'+esc(c.cls)+'</b>'+jbBadge(c)+'<br>'+esc(wkDayLabel(d))+' '+esc(c.start)+'~'+esc(c.end)+
     (c.teacher ? ' · '+esc(c.teacher)+'T' : '')+(c.loc ? ' · '+esc(c.loc) : '')+'</p>'+
-    origin+memo+
+    origin+memo+jbLine+
     '<p class="mdesc hint-x">이 날 하루만 있는 반이에요. 정규 시간표와 다른 주차에는 나타나지 않아요.</p>'+
     '<div class="mbtns">'+
     '<button onclick="closeModal(); openWeekAdd(classes.find(function(x){return x.id===\''+esc(c.id)+'\';}), \''+esc(d)+'\')">학생 넣기</button>'+
+    '<button onclick="setWeekClassKind(\''+esc(c.id)+'\', \''+(isJb(c) ? '' : '직보')+'\')">'+
+      (isJb(c) ? '직전보강 표시 지우기' : '직전보강으로 표시')+'</button>'+
     '<button onclick="closeModal(); openWeekBulkAdd(classes.find(function(x){return x.id===\''+esc(c.id)+'\';}), \''+esc(d)+'\')">다른 반 학생 한꺼번에 넣기</button>'+
     '<button onclick="delWeekClass(\''+esc(c.id)+'\',\''+esc(c.cls)+'\')">'+
       ((wkMovedFrom(c.id) || {}).kind === '주간반이동' ? '원래 시간으로 되돌리기'
@@ -6887,6 +6951,17 @@ function openWeekClassManage(c, dstr){
   );
 }
 
+/* '이 주만' 반의 직전보강 표시 붙이기·지우기 — kind 열만 바꾼다(명단·기록 무변경) */
+function setWeekClassKind(cid, kind){
+  var c = classes.find(function(x){ return x.id === cid; }); if (!c) return;
+  closeModal();
+  post({ action:'timetableWeekClassKind', book:book, classId:cid, kind:kind }, '표시를 바꾸는 중…', function(res){
+    if (res && res.result === 'success'){
+      setStatus(c.cls + ' — ' + (kind === '직보' ? '직전보강 표시(직)를 붙였어요.' : '직전보강 표시를 지웠어요.'), 'ok');
+      load(true);
+    } else setStatus('표시 변경 실패: ' + ((res && res.message) || '오류'), 'err');
+  });
+}
 /* 다른 반 학생을 한꺼번에 넣기 — 이미 만들어 둔 '이 주만' 반을 뒤늦게 채울 때
  * (한 명씩 넣던 수고를 덜기 위해 — 2026-08-23 사용자 지적 "학생들이 따라오지 않아요") */
 function openWeekBulkAdd(c, dstr){
