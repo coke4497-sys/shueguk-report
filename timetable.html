@@ -7405,11 +7405,68 @@ function openWeekManage(c, nm, o, dir){
     '<p class="mdesc hint-x">정규 명단·다른 주차·학생 개별 페이지는 그대로예요.</p>'+
     '<div class="mbtns">'+
     (mode === 'week'
-      ? '<button onclick="weekEditCancel('+o.row+',\''+esc(nm)+'\',\''+esc(o.kind)+'\')">되돌리기</button>'
+      ? (added ? '<button onclick="openWeekTempMove(\''+esc(c.id)+'\',\''+esc(nm)+'\','+o.row+',\''+esc(o.date || attDate)+'\')">다른 반으로 옮기기</button>' : '')+
+        '<button onclick="weekEditCancel('+o.row+',\''+esc(nm)+'\',\''+esc(o.kind)+'\')">되돌리기</button>'
       : '')+
     '<button onclick="closeModal()">닫기</button></div>'
   );
   attTelFill(nm);
+}
+/* '이 주만 추가'된 학생을 그 주 다른 반으로 옮기기 (2026-09-20 수정 요청함 김상우 —
+ * 주간추가 학생 창에는 1회 이동 메뉴가 없어 옮길 방법이 없었다).
+ * 명단 학생이 아니라 '1회' 기록을 쓰지 않는다 — 새 반에 '주간추가'를 넣고
+ * 원래 '주간추가' 기록을 지우는 방식(기록 종류·되돌리기 칩 모두 기존 그대로). */
+function openWeekTempMove(cid, nm, row, d){
+  var c = classes.find(function(x){ return x.id === cid; }); if (!c) return;
+  openModal(
+    '<h3>다른 반으로 옮기기</h3>'+
+    '<p class="mdesc"><b>'+esc(plainName(nm))+'</b> — '+esc(labelOf(c))+' <span class="subnote">(이 주만 추가된 학생)</span><br>지금 수업: '+esc(wkDayLabel(d))+'</p>'+
+    '<p class="mdesc hint-x">이 주만 추가된 학생이라, 옮기면 이 반의 <b>이 주</b> 표시가 사라지고 옮긴 반에 <b>이 주</b> 학생으로 들어가요.</p>'+
+    '<label style="font-size:.8rem;color:var(--ink-soft);">옮길 주</label>'+
+    weekSelHtml('sm-week', weekStart)+
+    '<label style="font-size:.8rem;color:var(--ink-soft);display:block;margin-top:8px;">옮길 반 (새로 만든 \'이 주만\' 반도 고를 수 있어요)</label>'+
+    '<select id="sm-cls" onchange="smClsChange()" style="font:inherit;font-size:.92rem;border:1.5px solid var(--line);border-radius:10px;padding:8px 10px;width:100%;margin-top:6px;">'+
+    smClsOptions(cid)+'</select>'+
+    '<label style="font-size:.8rem;color:var(--ink-soft);display:block;margin-top:8px;">사유 메모 (선택)</label>'+
+    '<textarea id="sm-reason" placeholder="예: 시간이 맞지 않아 다른 반으로"></textarea>'+
+    '<p class="merr" id="sm-err"></p>'+
+    '<div class="mbtns"><button onclick="closeModal()">취소</button>'+
+    '<button class="primary" onclick="submitWeekTempMove(\''+esc(cid)+'\',\''+esc(nm)+'\','+row+',\''+esc(d)+'\')">옮기기</button></div>'
+  );
+}
+function submitWeekTempMove(cid, nm, row, d){
+  var t = classes.find(function(x){ return x.id === ($('sm-cls') ? $('sm-cls').value : ''); });
+  if (!t){ $('sm-err').textContent = '옮길 반을 골라주세요.'; return; }
+  var nd;
+  if (t.wk){
+    nd = t.wk;   // '이 주만' 반은 날짜가 반에 정해져 있다
+  } else {
+    var tw = $('sm-week') ? wedOfYmd($('sm-week').value) : new Date(weekStart);
+    if (periodOf(tw) !== book){
+      $('sm-err').textContent = '그 주는 ' + periodOf(tw) + ' 기간이라 이 ' + book + ' 시간표가 나타나지 않아요.'; return;
+    }
+    nd = ymdOf(weekDatesOf(tw)[t.day]);
+  }
+  if (nd === d && t.id === cid){
+    $('sm-err').textContent = '지금과 같은 주·같은 반이에요. 옮길 주나 반을 골라주세요.'; return;
+  }
+  var reason = ($('sm-reason') ? $('sm-reason').value : '').trim();
+  closeModal();
+  // 새 반에 먼저 넣고, 성공하면 원래 '이 주만 추가' 기록을 지운다 — 중간에 실패해도 학생이 사라지지 않게
+  post({ action:'timetableWeekAdd', book:book, student:nm, toId:t.id, date:nd, reason:reason },
+    '옮기는 중…', function(res){
+      if (!res || res.result !== 'success'){
+        setStatus('옮기기 실패: ' + ((res && res.message) || '오류'), 'err'); return;
+      }
+      post({ action:'timetableWeekCancel', row:row }, '원래 기록을 정리하는 중…', function(res2){
+        if (res2 && res2.result === 'success'){
+          setStatus(plainName(nm) + ' — ' + wkDayLabel(nd) + ' ' + t.cls + ' 로 옮겼어요.', 'ok');
+        } else {
+          setStatus(plainName(nm) + ' — ' + wkDayLabel(nd) + ' ' + t.cls + ' 에 추가는 됐지만, 원래 반의 [이 주] 표시를 지우지 못했어요. 원래 반에서 칩을 눌러 [되돌리기]를 해 주세요.', 'err');
+        }
+        loadWeek();
+      });
+    });
 }
 function onceEditReason(row, nm){
   var reason = $('om-reason').value.trim();
