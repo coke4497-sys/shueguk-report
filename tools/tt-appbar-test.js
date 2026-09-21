@@ -2,7 +2,7 @@
 /* 앱 바 검증 (timetable.html, 2026-09-21 사용자 요청 "화면 위아래의 너저분한 것 없이 앱처럼").
  *   NODE_PATH=$(npm root -g) node tools/tt-appbar-test.js
  * 확인 대상 — ① 백링크 줄·설명 문단·푸터·팁이 사라졌고 ② 앱 바가 화면 위에 붙어 스크롤해도 남으며
- * ③ 기간은 작은 칩(자세한 문장은 title) ④ 보기 탭 6개가 한 줄 ⑤ ⋯ 메뉴가 열리고 바깥·Esc로 닫히며
+ * ③ 기간은 작은 칩(자세한 문장은 title) ④ 보기 탭 6개가 한 줄 ⑤ 창으로 여는 기능 세 개는 상시 버튼(⋯ 안에 숨기지 않음)
  * ⑥ 상태 문구는 화면 아래 알림(비면 안 보임) ⑦ 안내문은 한 줄 + ⓘ로 펼침(세션 기억)
  * ⑧ 휴대폰: 탭 한 줄 가로 스크롤 · 오늘 보충 패널 기본 접힘 · 칩에서 날짜 숨김 ⑨ 옆 패널은 바 아래에서 시작. */
 const { chromium } = require('playwright');
@@ -46,7 +46,8 @@ const ok = (n, c, x) => { if (c) pass++; else { fail++; console.log('  ✗ ' + n
   ok('설명 문단(.sub) 없음', !(await page.$('.sub')));
   ok('푸터 없음', !(await page.$('footer')));
   ok('Ctrl+Shift+R 팁 줄 없음', !(await page.$('p.tip')));
-  ok('Ctrl+Shift+R 안내는 ⋯ 메뉴 안에', (await page.textContent('#ab-pop .ab-note')).includes('Ctrl+Shift+R'));
+  ok('⋯ 메뉴 없음(기능을 숨기지 않는다)', !(await page.$('#ab-more')));
+  ok('Ctrl+Shift+R 안내는 안내문 줄에', (await page.textContent('.hintline .ab-note')).includes('Ctrl+Shift+R'));
 
   /* ② 앱 바 — 화면 위에 붙어 스크롤해도 남는다 */
   const barCss = await page.$eval('#bar', el => [getComputedStyle(el).position, el.getBoundingClientRect().top]);
@@ -57,7 +58,7 @@ const ok = (n, c, x) => { if (c) pass++; else { fail++; console.log('  ✗ ' + n
   ok('스크롤해도 앱 바가 화면 위에 남음', Math.round(afterScroll) === 0, String(afterScroll));
   await page.evaluate(() => window.scrollTo(0, 0));
   const barH = await page.$eval('#bar', el => el.offsetHeight);
-  ok('앱 바는 낮다(120px 이하)', barH <= 120, String(barH));
+  ok('앱 바는 낮다(150px 이하)', barH <= 150, String(barH));
 
   /* ③ 기간 = 작은 칩, 자세한 문장은 title */
   const pb = await page.$eval('#period-badge', el => [el.textContent, el.title, el.offsetHeight, getComputedStyle(el).borderRadius]);
@@ -76,21 +77,18 @@ const ok = (n, c, x) => { if (c) pass++; else { fail++; console.log('  ✗ ' + n
   ok('출석 현황도 탭으로 전환', await page.evaluate(() => mode === 'att' && document.getElementById('v-att').classList.contains('on')));
   await page.click('#v-today'); await page.waitForTimeout(300);
 
-  /* ⑤ ⋯ 메뉴 */
-  ok('메뉴는 처음엔 닫힘', await page.$eval('#ab-pop', e => e.hasAttribute('hidden')));
-  await page.click('#ab-more');
-  const items = await page.$$eval('#ab-pop button', bs => bs.map(x => x.textContent.trim()));
-  ok('메뉴 항목 3개', JSON.stringify(items) === JSON.stringify(['결석자 관리','알림톡','수정 요청']), JSON.stringify(items));
-  ok('열림 표시(aria·버튼 색)', await page.$eval('#ab-more', e => e.getAttribute('aria-expanded') === 'true' && e.classList.contains('on')));
-  await page.evaluate(() => { window.__hit = 0; window.openMakeup = function(){ window.__hit = 1; }; });
-  await page.click('#ab-pop button');
-  ok('항목을 누르면 그 기능이 열리고 메뉴는 닫힘', await page.evaluate(() => window.__hit === 1 && document.getElementById('ab-pop').hasAttribute('hidden')));
-  await page.click('#ab-more');
-  await page.click('.today-head');
-  ok('바깥을 누르면 닫힘', await page.$eval('#ab-pop', e => e.hasAttribute('hidden')));
-  await page.click('#ab-more');
-  await page.keyboard.press('Escape');
-  ok('Esc로 닫힘', await page.$eval('#ab-pop', e => e.hasAttribute('hidden')));
+  /* ⑤ 창으로 여는 기능 — 예전처럼 상시 버튼 (2026-09-21 "수정 요청 메뉴가 사라졌어요") */
+  const tools = await page.$$eval('.ab-tools button', bs => bs.map(x => [x.id, x.textContent.trim(), x.offsetTop, x.offsetWidth > 0]));
+  ok('도구 버튼 3개 · 순서', JSON.stringify(tools.map(t => t[0])) === JSON.stringify(['ab-makeup','ab-alim','ab-req']), JSON.stringify(tools));
+  ok('이름 그대로', JSON.stringify(tools.map(t => t[1])) === JSON.stringify(['결석자 관리','알림톡','수정 요청']), JSON.stringify(tools.map(t => t[1])));
+  ok('세 개 모두 처음부터 보인다(한 줄)', tools.every(t => t[3] && t[2] === tools[0][2]), JSON.stringify(tools));
+  ok('출석 관리 묶음 라벨', (await page.textContent('.ab-tools .cluster .clabel')).trim() === '출석 관리');
+  await page.evaluate(() => { window.__hit = ''; window.openEditReq = function(){ window.__hit = 'req'; };
+                              window.openMakeup = function(){ window.__hit += 'mk'; }; });
+  await page.click('#ab-req');
+  ok('[수정 요청]을 누르면 요청함이 열린다', await page.evaluate(() => window.__hit === 'req'));
+  await page.click('#ab-makeup');
+  ok('[결석자 관리]도 그대로', await page.evaluate(() => window.__hit === 'reqmk'));
 
   /* ⑥ 상태 문구 = 화면 아래 알림 */
   await page.evaluate(() => setStatus(''));
@@ -107,8 +105,10 @@ const ok = (n, c, x) => { if (c) pass++; else { fail++; console.log('  ✗ ' + n
   const h0 = await page.$eval('.hint', e => [getComputedStyle(e).whiteSpace, e.offsetHeight]);
   ok('안내문은 기본 한 줄', h0[0] === 'nowrap' && h0[1] < 34, JSON.stringify(h0));
   ok('뒷문장은 접혀 있음', await page.$eval('.hint .hint-x', e => getComputedStyle(e).display === 'none'));
+  ok('새로고침 안내도 접혀 있음', await page.$eval('.hintline .ab-note', e => getComputedStyle(e).display === 'none'));
   await page.click('#hint-i');
   ok('ⓘ 누르면 펼쳐짐', await page.$eval('.hint .hint-x', e => getComputedStyle(e).display !== 'none'));
+  ok('펼치면 새로고침 안내도 보임', await page.$eval('.hintline .ab-note', e => getComputedStyle(e).display !== 'none'));
   ok('펼침을 세션에 기억', await page.evaluate(() => sessionStorage.getItem('tt_hintopen') === '1'));
   await page.reload(); await page.waitForSelector('#hint-i'); await page.waitForTimeout(400);
   ok('새로고침해도 펼친 상태', await page.$eval('#hintline', e => e.classList.contains('open')));
@@ -138,7 +138,10 @@ const ok = (n, c, x) => { if (c) pass++; else { fail++; console.log('  ✗ ' + n
   ok('색 범례는 감춤', await m.$eval('.legend', e => getComputedStyle(e).display === 'none'));
   ok('출석 도구줄 한 줄', await m.$$eval('.attbar button', bs => bs.every(x => x.offsetTop === bs[0].offsetTop)));
   const mbar = await m.$eval('#bar', e => e.offsetHeight);
-  ok('휴대폰 앱 바도 낮다(120px 이하)', mbar <= 120, String(mbar));
+  ok('휴대폰 앱 바도 낮다(150px 이하)', mbar <= 150, String(mbar));
+  const mtools = await m.$$eval('.ab-tools button', bs => bs.map(x => [x.offsetTop, x.offsetWidth > 0]));
+  ok('휴대폰에서도 도구 버튼 세 개가 한 줄로 보인다', mtools.length === 3 && mtools.every(t => t[1] && t[0] === mtools[0][0]), JSON.stringify(mtools));
+  ok('[수정 요청]이 화면 안에 들어온다', await m.$eval('#ab-req', e => { const r = e.getBoundingClientRect(); return r.right <= innerWidth + 1 && r.left >= -1; }));
   await b.close(); srv.close();
   console.log(fail ? ('통과 ' + pass + ' / 실패 ' + fail) : ('✓ ' + pass + '건 통과'));
   process.exit(fail ? 1 : 0);
