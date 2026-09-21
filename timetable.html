@@ -23,13 +23,8 @@
   html,body{margin:0;padding:0;}
   body{background:var(--bg);color:var(--ink);
     font-family:"Gowun Dodum","Apple SD Gothic Neo","Malgun Gothic",-apple-system,system-ui,sans-serif;
-    font-size:16px;line-height:1.5;-webkit-font-smoothing:antialiased;padding:0 0 70px;}
+    font-size:16px;line-height:1.5;-webkit-font-smoothing:antialiased;padding:0 0 26px;}
   .wrap{max-width:1180px;margin:0 auto;padding:0 14px;}
-  header{padding:6px 4px 8px;text-align:center;}
-  .backlink{display:inline-flex;align-items:center;gap:6px;margin:18px 0 0;color:var(--ink-soft);text-decoration:none;font-size:.86rem;}
-  .backlink:hover{color:var(--accent);}
-  .brand{font-family:"Gowun Batang",serif;font-size:1.35rem;font-weight:700;color:var(--accent);margin:0;}
-  .sub{color:var(--ink-soft);font-size:.85rem;margin:4px 0 0;}
 
   .gate{background:var(--surface);border:1px solid var(--line-soft);border-radius:var(--radius);
     padding:26px 22px;margin:26px auto;max-width:380px;text-align:center;}
@@ -39,11 +34,36 @@
     border:none;border-radius:12px;padding:13px;cursor:pointer;}
   .gate .err{color:#B4574E;font-size:.85rem;min-height:1.2em;margin:8px 0 0;}
 
-  .bar{background:var(--surface);border:1px solid var(--line-soft);border-radius:var(--radius);
-    padding:12px 14px;margin:10px 0;display:none;}
-  .viewtabs{display:flex;gap:6px;align-items:center;margin-bottom:8px;flex-wrap:wrap;}
-  .viewtabs button{font:inherit;font-size:.92rem;background:#fff;border:1px solid var(--line);
-    border-radius:10px;padding:6px 14px;color:var(--ink);cursor:pointer;}
+  /* 앱 바 — 제목·기간·보기 탭을 한 덩어리로 화면 맨 위에 붙인다 (2026-09-21 사용자 요청 "앱처럼 깔끔하게") */
+  .bar{position:sticky;top:0;z-index:45;display:none;
+    background:rgba(255,255,255,.94);backdrop-filter:saturate(1.3) blur(8px);-webkit-backdrop-filter:saturate(1.3) blur(8px);
+    border:1px solid var(--line-soft);border-top:none;border-radius:0 0 var(--radius) var(--radius);
+    padding:8px 12px 9px;margin:0 0 10px;box-shadow:0 2px 10px rgba(42,51,47,.06);}
+  .ab-top{display:flex;align-items:center;gap:8px;min-width:0;}
+  .ab-top .sp{flex:1;}
+  .ab-home{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;flex:none;
+    color:var(--ink-soft);border-radius:10px;text-decoration:none;}
+  .ab-home svg{width:18px;height:18px;}
+  .ab-home:hover{background:var(--icon-bg);color:var(--accent);}
+  .ab-title{font-family:"Gowun Batang",serif;font-size:1.06rem;font-weight:700;color:var(--accent);white-space:nowrap;}
+  /* 창으로 여는 기능(결석자 관리·알림톡·수정 요청)은 예전처럼 상시 버튼 — 보기 탭 아래 한 줄.
+     2026-09-21 사용자 "수정 요청 메뉴가 사라졌어요" → ⋯ 메뉴에 숨기지 않는다(되돌리지 말 것). */
+  .ab-tools{display:flex;gap:6px;align-items:center;margin:7px 0 0;overflow-x:auto;
+    scrollbar-width:none;-ms-overflow-style:none;}
+  .ab-tools::-webkit-scrollbar{display:none;}
+  .cluster{display:inline-flex;align-items:center;gap:6px;background:#F6F9F7;border:1px solid var(--line-soft);
+    border-radius:12px;padding:4px 7px 4px 11px;flex:none;}
+  .cluster .clabel{font-size:.76rem;color:var(--ink-soft);font-weight:700;white-space:nowrap;}
+  .cluster button,.ab-tools>button{font:inherit;font-size:.82rem;background:#fff;border:1px solid var(--line-soft);
+    border-radius:9px;padding:5px 11px;cursor:pointer;color:var(--ink);white-space:nowrap;flex:none;}
+  .ab-tools>button{background:var(--icon-bg);}
+  .cluster button:hover,.ab-tools>button:hover{color:var(--accent);}
+  /* 보기 탭 — 개별 알약 한 줄, 좁으면 가로로 민다 (2026-08-22 사용자 확정: 붙은 세그먼트 금지) */
+  .viewtabs{display:flex;gap:6px;align-items:center;margin:8px 0 0;overflow-x:auto;
+    scrollbar-width:none;-ms-overflow-style:none;padding-bottom:1px;}
+  .viewtabs::-webkit-scrollbar{display:none;}
+  .viewtabs button{font:inherit;font-size:.9rem;background:#fff;border:1px solid var(--line);
+    border-radius:999px;padding:6px 15px;color:var(--ink);cursor:pointer;white-space:nowrap;flex:none;}
   /* 선택 = 기존 버튼 유지 + 채도 20% 증가 + 테두리, 스프링 애니메이션 */
   @keyframes ppyong{0%{transform:scale(.78)}45%{transform:scale(1.13)}70%{transform:scale(.95)}100%{transform:scale(1)}}
   .viewtabs button.on{background:var(--icon-bg);filter:saturate(1.2);
@@ -74,9 +94,11 @@
   .today-sum b{color:var(--accent);}
   /* 슈국 캘린더 */
   /* 주차 안내 배너 — 정규/내신 모두 연한 그레이 (내신은 살짝 진하게) */
-  .pbadge{display:none;font-size:.88rem;font-weight:700;color:#454D51;background:#EAEDEF;
-    border:1px solid #D8DDE0;border-radius:10px;padding:7px 14px;margin:0 0 8px;}
+  .pbadge{display:none;align-items:center;font-size:.78rem;font-weight:700;color:#454D51;background:#EAEDEF;
+    border:1px solid #D8DDE0;border-radius:999px;padding:3px 11px;margin:0;white-space:nowrap;
+    overflow:hidden;text-overflow:ellipsis;}
   .pbadge.exam{background:#DDE1E4;border-color:#C9CFD3;}
+  @media (max-width:560px){ .pbadge .pb-range{display:none;} }
   .cal-head{display:flex;align-items:center;gap:10px;margin:14px 4px 10px;flex-wrap:wrap;}
   .cal-head button{font:inherit;font-size:.88rem;background:var(--icon-bg);border:1px solid var(--line-soft);border-radius:10px;padding:6px 12px;cursor:pointer;color:var(--ink);}
   .cal-head b{font-family:"Gowun Batang",serif;font-size:1.05rem;color:var(--accent);}
@@ -191,18 +213,10 @@
   .att-btns button.pick-ok.on{background:var(--btn);border-color:var(--btn);color:#fff;}
   .att-btns button.pick-late.on{background:#B08A3E;border-color:#B08A3E;color:#fff;}
   .att-btns button.pick-abs.on{background:#B4574E;border-color:#B4574E;color:#fff;}
-  .viewtabs .sp{flex:1;}
-  /* 메인 메뉴 — 보기 탭은 개별 버튼(2026-08-22 사용자 확정: 붙은 세그먼트는 모바일 이어 컴퓨터에서도 분리) */
-  .viewtabs .seg{display:inline-flex;gap:6px;flex-wrap:wrap;}
-  .cluster{display:inline-flex;align-items:center;gap:6px;background:#F6F9F7;border:1px solid var(--line-soft);
-    border-radius:12px;padding:4px 7px 4px 11px;flex-wrap:wrap;}
-  .cluster .clabel{font-size:.76rem;color:var(--ink-soft);font-weight:700;white-space:nowrap;}
-  .cluster button{font:inherit;font-size:.82rem;background:#fff;border:1px solid var(--line-soft);
-    border-radius:9px;padding:5px 11px;cursor:pointer;color:var(--ink);white-space:nowrap;}
-  .cluster button:hover{color:var(--accent);}
-  .viewtabs .iconbtn{width:34px;height:34px;display:inline-flex;align-items:center;justify-content:center;flex:none;
+  .iconbtn{width:32px;height:32px;display:inline-flex;align-items:center;justify-content:center;flex:none;
     padding:0;background:var(--icon-bg);border:1px solid var(--line-soft);border-radius:10px;color:var(--accent);cursor:pointer;}
-  .viewtabs .iconbtn svg{width:17px;height:17px;}
+  .iconbtn svg{width:17px;height:17px;}
+  .iconbtn.on{background:var(--btn);border-color:var(--btn);color:#fff;}
   /* 시간표 카드 안 도구줄 */
   .toolline{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
   .toolline .sp{flex:1;}
@@ -213,6 +227,13 @@
   .attbar{display:none;gap:6px;align-items:center;flex-wrap:wrap;
     background:#F6F9F7;border:1px solid var(--line-soft);border-radius:12px;padding:6px 10px;}
   .attbar.show{display:flex;}
+  @media (max-width:760px){
+    .attbar,.editbar{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;-ms-overflow-style:none;}
+    .attbar::-webkit-scrollbar,.editbar::-webkit-scrollbar{display:none;}
+    .attbar button,.editbar button,.attbar .elabel,.editbar .elabel{flex:none;white-space:nowrap;}
+    .searchbar,.searchbar .searchbox{flex:1;min-width:0;}
+    .searchbar input{width:100%;}
+  }
   .attbar .elabel{font-size:.78rem;color:var(--ink-soft);margin-right:2px;}
   .attbar button{font:inherit;font-size:.84rem;background:var(--icon-bg);border:1px solid var(--line-soft);
     border-radius:9px;padding:5px 12px;color:var(--ink);cursor:pointer;}
@@ -258,9 +279,24 @@
   .dayhead:first-child{margin-top:2px;}
   .dayhead small{font-family:"Gowun Dodum",sans-serif;font-weight:400;color:var(--ink-soft);font-size:.78rem;margin-left:8px;}
   .day-empty{color:var(--ink-soft);font-size:.82rem;margin:0 4px 10px;}
-  .hint{font-size:.8rem;color:var(--ink-soft);margin:0;}
-  .hintline{display:flex;gap:14px;align-items:baseline;flex-wrap:wrap;margin:8px 2px 4px;}
-  .legend{display:flex;gap:10px;flex-wrap:wrap;font-size:.75rem;color:var(--ink-soft);margin-left:auto;}
+  /* 안내문은 기본 한 줄 — ⓘ 를 누르면 펼쳐진다 (2026-09-21) */
+  .hint{font-size:.8rem;color:var(--ink-soft);margin:0;min-width:0;flex:1;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .hintline.open .hint{white-space:normal;overflow:visible;}
+  .hint .hint-x{display:none;}
+  .hintline.open .hint .hint-x{display:inline;}
+  .hintline{display:flex;gap:10px;align-items:center;margin:9px 2px 2px;}
+  .hint-i{flex:none;width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;
+    padding:0;background:none;border:none;border-radius:999px;color:var(--ink-soft);cursor:pointer;}
+  .hint-i svg{width:15px;height:15px;}
+  .hint-i:hover{background:var(--icon-bg);color:var(--accent);}
+  .hintline.open .hint-i{background:var(--icon-bg);color:var(--accent);}
+  /* 새로고침 안내 — 옛 ⋯ 메뉴 안 한 줄. 안내문을 ⓘ로 펼쳤을 때만 보인다 */
+  .ab-note{display:none;font-size:.73rem;color:var(--ink-soft);flex:none;margin:0;}
+  .hintline.open .ab-note{display:block;}
+  .ab-note b{color:var(--accent);}
+  .legend{display:flex;gap:9px;flex-wrap:wrap;font-size:.72rem;color:var(--ink-soft);margin-left:auto;flex:none;}
+  @media (max-width:760px){ .legend{display:none;} }
   .legend i{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:4px;vertical-align:-1px;border:1px solid rgba(0,0,0,.06);}
 
   /* 이동 모드 바 */
@@ -272,9 +308,14 @@
   .movebar button{font:inherit;font-size:.85rem;background:rgba(255,255,255,.16);color:#fff;
     border:1px solid rgba(255,255,255,.45);border-radius:9px;padding:5px 12px;cursor:pointer;}
 
-  .status{min-height:1.3em;font-size:.85rem;margin:6px 4px;color:var(--ink-soft);}
-  .status.ok{color:#4C8A5C;}
-  .status.err{color:#B4574E;}
+  /* 상태 문구 — 자리를 차지하던 줄에서 화면 아래 알림으로 (2026-09-21) */
+  .status{position:fixed;left:50%;bottom:16px;z-index:90;margin:0;max-width:min(92vw,560px);
+    font-size:.85rem;color:#fff;background:rgba(42,51,47,.93);border-radius:999px;padding:9px 18px;
+    box-shadow:0 6px 20px rgba(42,51,47,.2);text-align:center;
+    opacity:0;pointer-events:none;transform:translateX(-50%) translateY(8px);transition:opacity .18s ease,transform .18s ease;}
+  .status:not(:empty){opacity:1;transform:translateX(-50%) translateY(0);}
+  .status.ok{background:#4C8A5C;}
+  .status.err{background:#B4574E;}
 
   /* 시간표 카드(도구줄 + 시간표) */
   .sheetcard{background:var(--surface);border:1px solid var(--line-soft);border-radius:var(--radius);
@@ -569,10 +610,6 @@
   body.moving .blk .stus button{pointer-events:none;}
   body.moving .blk .stus button.sel{pointer-events:auto;}
   .empty-day{text-align:center;color:var(--ink-soft);padding:30px 0;font-size:.9rem;}
-  footer{text-align:center;margin-top:34px;color:var(--ink-soft);font-size:.8rem;}
-  .tip{text-align:center; font-size:12px; color:#65726B; background:#EBF0ED;
-    border:1px solid #E5EDE8; border-radius:10px; padding:7px 12px; margin:22px auto 8px; max-width:560px; line-height:1.55;}
-  .tip b{color:#4C6E66;}
 
   .hint b{color:var(--accent);}
   /* 그 주에만 있는 반 — 점선 테두리 + 작은 표시 (2026-08-23) */
@@ -625,7 +662,7 @@
   .hint-x{color:var(--ink-soft);opacity:.85;}
 
   /* 변경사항 패널 — 주차별·전체 시간표 오른쪽에 접었다 폈다 (2026-08-23 사용자 요청) */
-  .chpanel{position:fixed;top:96px;bottom:18px;right:0;width:330px;max-width:88vw;z-index:60;
+  .chpanel{position:fixed;top:calc(var(--abh, 96px) + 12px);bottom:18px;right:0;width:330px;max-width:88vw;z-index:60;
     display:flex;align-items:flex-start;transition:transform .22s ease;}
   @media (min-width:1100px){
     body.ch-on main.wrap{padding-right:376px;max-width:100%;transition:padding-right .22s ease;}
@@ -800,14 +837,6 @@
 </head>
 <body>
 <main class="wrap">
-  <a class="backlink" href="https://coke4497-sys.github.io/shueguk-hub/index.html">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;"><path d="M19 12H5M11 18l-6-6 6-6"/></svg>
-    티쳐스 메인 페이지로 가기
-  </a>
-  <header>
-    <p class="brand">슈국 스케쥴</p>
-    <p class="sub">Shueguk · 반 편성 확인과 학생 이동 (교사용) — 이동은 저장 즉시 리포트·학생 페이지에 반영</p>
-  </header>
 
   <!-- 비밀번호 게이트 -->
   <div class="gate" id="gate">
@@ -817,30 +846,34 @@
     <p class="err" id="gate-err"></p>
   </div>
 
-  <!-- 상단 컨트롤 — 메인 메뉴(화면 이동·기록 조회)만. 시간표 조작 도구는 아래 시간표 카드 안에 (2026-08-22 사용자 확정 시안) -->
+  <!-- 앱 바 — 제목·기간 칩·보기 탭 한 덩어리. 창으로 여는 기능은 ⋯ 안에 (2026-09-21 사용자 요청 "앱처럼 깔끔하게") -->
   <div class="bar" id="bar">
-    <div id="period-badge" class="pbadge"></div>
-    <div class="viewtabs">
-      <span class="seg">
-        <button id="v-today" onclick="setMode('today')">오늘의 시간표</button>
-        <button id="v-week" onclick="setMode('week')">주차별 시간표</button>
-        <button id="v-all" onclick="setMode('all')">★ 전체 시간표</button>
-        <button id="v-cal" onclick="setMode('cal')">슈국 캘린더</button>
-        <button id="v-exs" onclick="setMode('exs')">지필고사 일정</button>
-      </span>
+    <div class="ab-top">
+      <a class="ab-home" href="https://coke4497-sys.github.io/shueguk-hub/index.html" title="티쳐스 메인 페이지로 가기" aria-label="티쳐스 메인 페이지로 가기">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M11 18l-6-6 6-6"/></svg>
+      </a>
+      <b class="ab-title">슈국 스케쥴</b>
+      <span id="period-badge" class="pbadge"></span>
       <span class="sp"></span>
-      <span class="cluster">
-        <span class="clabel">출석 관리</span>
-        <button onclick="openMakeup()">결석자 관리</button>
-        <button id="v-att" onclick="setMode('att')">출석 현황</button>
-        <button onclick="openAlim()">알림톡</button>
-      </span>
-      <span class="cluster">
-        <button onclick="openEditReq()">수정 요청</button>
-      </span>
       <button class="iconbtn" onclick="load(true)" title="다시 불러오기" aria-label="다시 불러오기">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
       </button>
+    </div>
+    <div class="viewtabs">
+      <button id="v-today" onclick="setMode('today')">오늘</button>
+      <button id="v-week" onclick="setMode('week')">주차별</button>
+      <button id="v-all" onclick="setMode('all')">전체</button>
+      <button id="v-att" onclick="setMode('att')">출석 현황</button>
+      <button id="v-cal" onclick="setMode('cal')">캘린더</button>
+      <button id="v-exs" onclick="setMode('exs')">지필고사</button>
+    </div>
+    <div class="ab-tools">
+      <span class="cluster">
+        <span class="clabel">출석 관리</span>
+        <button id="ab-makeup" onclick="openMakeup()">결석자 관리</button>
+        <button id="ab-alim" onclick="openAlim()">알림톡</button>
+      </span>
+      <button id="ab-req" onclick="openEditReq()">수정 요청</button>
     </div>
   </div>
 
@@ -891,8 +924,12 @@
         <span id="searchResults"></span>
       </div>
     </div>
-    <div class="hintline">
+    <div class="hintline" id="hintline">
+      <button class="hint-i" id="hint-i" onclick="hintToggle()" aria-expanded="false" title="안내 자세히 보기" aria-label="안내 자세히 보기">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 7.6v.2"/></svg>
+      </button>
       <p class="hint">학생 이름을 누르면 이동 모드가 켜져요. 옮길 반(다른 요일 포함)을 누르면 이동됩니다.</p>
+      <p class="ab-note">화면이 예전 그대로면 <b>Ctrl+Shift+R</b> 로 새로고침해 주세요.</p>
       <div class="legend">
         <span><i style="background:var(--g1)"></i>고1</span>
         <span><i style="background:var(--g2)"></i>고2</span>
@@ -905,7 +942,6 @@
     <div class="sheet" id="sheet"></div>
   </div>
 
-  <footer>이수경국어 Shueguk · 슈국 스케쥴</footer>
 </main>
 
 <!-- 변경사항 — 주차별·전체 시간표에서만 보이는 오른쪽 접이식 패널 -->
@@ -2793,6 +2829,7 @@ function setMode(m){
   clearEdit();
   cancelMove();
   renderTabs();
+  abHeight();
   if (m === 'cal'){ calLoadAndRender(); return; }
   if (m === 'exs'){ exsLoadAndRender(); return; }
   if (m === 'att'){ asLoad(); return; }
@@ -2809,15 +2846,16 @@ function setBook(b){
 function renderTabs(){
   var auto = (mode==='today' || mode==='week');   // 캘린더 기간이 시간표를 결정
   var pb = $('period-badge');
-  pb.style.display = auto ? 'block' : 'none';
+  pb.style.display = auto ? 'inline-flex' : 'none';
   if (auto){
     var bk = autoBookFor();
     var ws = (mode==='week') ? weekStart : weekStartOf(new Date());
     var wf = new Date(ws); wf.setDate(wf.getDate()-2);
     var wt = new Date(ws); wt.setDate(wt.getDate()+4);
     var dk = ['일','월','화','수','목','금','토'];
-    pb.textContent = mdOf(wf) + '(' + dk[wf.getDay()] + ') ~ ' + mdOf(wt) + '(' + dk[wt.getDay()] + ') 주차는 ' +
-                     bk + ' 시간표로 운영합니다.';
+    pb.innerHTML = esc(bk) + ' 주간<span class="pb-range"> · ' + mdOf(wf) + '~' + mdOf(wt) + '</span>';
+    pb.title = mdOf(wf) + '(' + dk[wf.getDay()] + ') ~ ' + mdOf(wt) + '(' + dk[wt.getDay()] + ') 주차는 ' +
+               bk + ' 시간표로 운영합니다.';
     pb.className = 'pbadge' + (bk==='내신' ? ' exam' : '');
   }
   $('v-today').classList.toggle('on', mode==='today');
@@ -7705,7 +7743,10 @@ function saveMakeup(i, doneVal){
  * 그 자리에서 출석 완료 처리한다. 올 친구가 없는 날에도 패널에 '없습니다'로 알린다. */
 var vmList = null, vmBusy = false;   // null = 아직 조회 전 ([다시 불러오기]가 비운다)
 var vmHadAny = false;                // 오늘 원래 올 사람이 있었는지 — 빈 문구 구분용
-var vmOpen = sessionStorage.getItem('tt_vmopen') !== '0';   // 기본은 펼침
+/* 기본은 펼침 — 다만 좁은 화면에선 패널이 시간표를 통째로 덮어서 접어 둔다 (2026-09-21) */
+var vmOpen = (sessionStorage.getItem('tt_vmopen') != null)
+  ? sessionStorage.getItem('tt_vmopen') === '1'
+  : window.innerWidth >= 1100;
 function vmPlanMD(plan){
   var m = /(\d{1,2})\s*\/\s*(\d{1,2})/.exec(String(plan || ''));
   return m ? (+m[1]) + '/' + (+m[2]) : '';
@@ -8161,6 +8202,23 @@ function chMore(){
   chLoad(true);
 }
 
+/* ── 앱 바 (2026-09-21) ── */
+/* 안내문 — 기본 한 줄, ⓘ 를 누르면 전부 펼친다 */
+function hintToggle(){
+  var on = !$('hintline').classList.contains('open');
+  hintSet(on);
+  sessionStorage.setItem('tt_hintopen', on ? '1' : '0');
+}
+function hintSet(on){
+  $('hintline').classList.toggle('open', on);
+  $('hint-i').setAttribute('aria-expanded', on ? 'true' : 'false');
+}
+/* 앱 바가 화면 위에 붙어 있으므로, 옆 패널·이동 바가 그 아래에서 시작하도록 높이를 알려 준다 */
+function abHeight(){
+  var bar = $('bar');
+  if (bar) document.documentElement.style.setProperty('--abh', bar.offsetHeight + 'px');
+}
+
 /* ── 시작 ── */
 $('gate').style.display = 'none';
 $('bar').style.display = 'block';
@@ -8172,7 +8230,11 @@ if (mode === 'today' || mode === 'week'){
   book = autoBookFor();
   sessionStorage.setItem('tt_book', book);
 }
+hintSet(sessionStorage.getItem('tt_hintopen') === '1');
 renderTabs();
+abHeight();
+window.addEventListener('resize', abHeight);
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(abHeight);
 /* 캐시로 즉시 그리며 불러오기 시작 + 주별 기간은 동시에 최신 확인.
  * 기간이 달라진 드문 경우에만 그 기간의 시간표로 다시 불러온다. */
 if (mode === 'cal'){
@@ -8201,6 +8263,5 @@ if (document.fonts && document.fonts.ready){
 }
 </script>
 
-<p class="tip">화면이 예전 그대로거나 방금 바꾼 내용이 안 보이면 <b>Ctrl+Shift+R</b> 로 새로고침해 주세요.</p>
 </body>
 </html>
