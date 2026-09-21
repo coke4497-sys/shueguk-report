@@ -46,18 +46,18 @@
   .ab-home svg{width:18px;height:18px;}
   .ab-home:hover{background:var(--icon-bg);color:var(--accent);}
   .ab-title{font-family:"Gowun Batang",serif;font-size:1.06rem;font-weight:700;color:var(--accent);white-space:nowrap;}
-  /* 더보기(⋯) — 창으로 여는 기능은 여기에 모은다 */
-  .abmenu{position:relative;flex:none;}
-  .ab-pop{position:absolute;right:0;top:38px;z-index:70;min-width:158px;padding:5px;
-    background:var(--surface);border:1px solid var(--line-soft);border-radius:12px;
-    box-shadow:0 8px 22px rgba(42,51,47,.14);display:flex;flex-direction:column;gap:2px;}
-  .ab-pop[hidden]{display:none;}
-  .ab-pop button{font:inherit;font-size:.9rem;text-align:left;background:none;border:none;border-radius:9px;
-    padding:9px 11px;color:var(--ink);cursor:pointer;white-space:nowrap;}
-  .ab-pop button:hover{background:var(--icon-bg);color:var(--accent);}
-  .ab-pop .ab-note{font-size:.73rem;color:var(--ink-soft);line-height:1.5;padding:7px 11px 3px;
-    border-top:1px solid var(--line-soft);margin-top:3px;}
-  .ab-pop .ab-note b{color:var(--accent);}
+  /* 창으로 여는 기능(결석자 관리·알림톡·수정 요청)은 예전처럼 상시 버튼 — 보기 탭 아래 한 줄.
+     2026-09-21 사용자 "수정 요청 메뉴가 사라졌어요" → ⋯ 메뉴에 숨기지 않는다(되돌리지 말 것). */
+  .ab-tools{display:flex;gap:6px;align-items:center;margin:7px 0 0;overflow-x:auto;
+    scrollbar-width:none;-ms-overflow-style:none;}
+  .ab-tools::-webkit-scrollbar{display:none;}
+  .cluster{display:inline-flex;align-items:center;gap:6px;background:#F6F9F7;border:1px solid var(--line-soft);
+    border-radius:12px;padding:4px 7px 4px 11px;flex:none;}
+  .cluster .clabel{font-size:.76rem;color:var(--ink-soft);font-weight:700;white-space:nowrap;}
+  .cluster button,.ab-tools>button{font:inherit;font-size:.82rem;background:#fff;border:1px solid var(--line-soft);
+    border-radius:9px;padding:5px 11px;cursor:pointer;color:var(--ink);white-space:nowrap;flex:none;}
+  .ab-tools>button{background:var(--icon-bg);}
+  .cluster button:hover,.ab-tools>button:hover{color:var(--accent);}
   /* 보기 탭 — 개별 알약 한 줄, 좁으면 가로로 민다 (2026-08-22 사용자 확정: 붙은 세그먼트 금지) */
   .viewtabs{display:flex;gap:6px;align-items:center;margin:8px 0 0;overflow-x:auto;
     scrollbar-width:none;-ms-overflow-style:none;padding-bottom:1px;}
@@ -291,6 +291,10 @@
   .hint-i svg{width:15px;height:15px;}
   .hint-i:hover{background:var(--icon-bg);color:var(--accent);}
   .hintline.open .hint-i{background:var(--icon-bg);color:var(--accent);}
+  /* 새로고침 안내 — 옛 ⋯ 메뉴 안 한 줄. 안내문을 ⓘ로 펼쳤을 때만 보인다 */
+  .ab-note{display:none;font-size:.73rem;color:var(--ink-soft);flex:none;margin:0;}
+  .hintline.open .ab-note{display:block;}
+  .ab-note b{color:var(--accent);}
   .legend{display:flex;gap:9px;flex-wrap:wrap;font-size:.72rem;color:var(--ink-soft);margin-left:auto;flex:none;}
   @media (max-width:760px){ .legend{display:none;} }
   .legend i{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:4px;vertical-align:-1px;border:1px solid rgba(0,0,0,.06);}
@@ -854,17 +858,6 @@
       <button class="iconbtn" onclick="load(true)" title="다시 불러오기" aria-label="다시 불러오기">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
       </button>
-      <div class="abmenu">
-        <button class="iconbtn" id="ab-more" onclick="moreToggle(event)" aria-haspopup="true" aria-expanded="false" title="더보기" aria-label="더보기">
-          <svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>
-        </button>
-        <div class="ab-pop" id="ab-pop" hidden>
-          <button onclick="moreGo(openMakeup)">결석자 관리</button>
-          <button onclick="moreGo(openAlim)">알림톡</button>
-          <button onclick="moreGo(openEditReq)">수정 요청</button>
-          <p class="ab-note">화면이 예전 그대로면 <b>Ctrl+Shift+R</b> 로 새로고침해 주세요.</p>
-        </div>
-      </div>
     </div>
     <div class="viewtabs">
       <button id="v-today" onclick="setMode('today')">오늘</button>
@@ -873,6 +866,14 @@
       <button id="v-att" onclick="setMode('att')">출석 현황</button>
       <button id="v-cal" onclick="setMode('cal')">캘린더</button>
       <button id="v-exs" onclick="setMode('exs')">지필고사</button>
+    </div>
+    <div class="ab-tools">
+      <span class="cluster">
+        <span class="clabel">출석 관리</span>
+        <button id="ab-makeup" onclick="openMakeup()">결석자 관리</button>
+        <button id="ab-alim" onclick="openAlim()">알림톡</button>
+      </span>
+      <button id="ab-req" onclick="openEditReq()">수정 요청</button>
     </div>
   </div>
 
@@ -928,6 +929,7 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 7.6v.2"/></svg>
       </button>
       <p class="hint">학생 이름을 누르면 이동 모드가 켜져요. 옮길 반(다른 요일 포함)을 누르면 이동됩니다.</p>
+      <p class="ab-note">화면이 예전 그대로면 <b>Ctrl+Shift+R</b> 로 새로고침해 주세요.</p>
       <div class="legend">
         <span><i style="background:var(--g1)"></i>고1</span>
         <span><i style="background:var(--g2)"></i>고2</span>
@@ -8201,26 +8203,6 @@ function chMore(){
 }
 
 /* ── 앱 바 (2026-09-21) ── */
-/* ⋯ 메뉴 — 창으로 여는 기능(결석자 관리·알림톡·수정 요청) */
-function moreToggle(e){
-  if (e) e.stopPropagation();
-  var pop = $('ab-pop'), open = pop.hasAttribute('hidden');
-  if (open) pop.removeAttribute('hidden'); else pop.setAttribute('hidden', '');
-  $('ab-more').setAttribute('aria-expanded', open ? 'true' : 'false');
-  $('ab-more').classList.toggle('on', open);
-}
-function moreClose(){
-  var pop = $('ab-pop');
-  if (!pop || pop.hasAttribute('hidden')) return;
-  pop.setAttribute('hidden', '');
-  $('ab-more').setAttribute('aria-expanded', 'false');
-  $('ab-more').classList.remove('on');
-}
-function moreGo(fn){ moreClose(); fn(); }
-document.addEventListener('click', function(e){
-  if (!e.target.closest || !e.target.closest('.abmenu')) moreClose();
-});
-document.addEventListener('keydown', function(e){ if (e.key === 'Escape') moreClose(); });
 /* 안내문 — 기본 한 줄, ⓘ 를 누르면 전부 펼친다 */
 function hintToggle(){
   var on = !$('hintline').classList.contains('open');
