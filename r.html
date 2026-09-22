@@ -354,6 +354,7 @@ function boot(){
       document.getElementById('loading').style.display='none';
       document.getElementById('formView').style.display='block';
       document.getElementById('formBar').style.display='flex';
+      prefillStudent();
       autoBlankIfNeeded();
     })
     .catch(function(){ showError('연결에 실패했습니다.', '인터넷 상태를 확인하고 새로고침해주세요.'); });
@@ -488,6 +489,24 @@ function saveBlankImage(){
     document.body.appendChild(a); a.click(); a.remove();
     toast('✓ 리포트 이미지를 저장했어요.');
   }).catch(function(){ restore(); toast('이미지 저장에 실패했어요. 다시 시도해주세요.'); });
+}
+
+/* 학생 개별 페이지(s.html)에서 넘어온 값으로 기본 정보를 채운다.
+ * 직접 주소로 들어오면 넘어오는 값이 없어 예전처럼 빈칸으로 둔다.
+ * 전학·동명이인 같은 경우가 있으므로 읽기 전용으로 잠그지는 않는다. */
+function prefillStudent(){
+  var qs;
+  try { qs = new URLSearchParams(location.search); } catch(e){ return; }
+  if(qs.get('blank')==='1') return;            // 티쳐스 빈 양식 이미지는 비워 둔다
+  function put(id, v){
+    var el=document.getElementById(id);
+    if(el && !el.value && v) el.value=v;
+  }
+  put('f_name',   (qs.get('name')||'').trim());
+  put('f_school', (qs.get('school')||'').trim());
+  put('f_grade',  (qs.get('grade')||'').trim());
+  var p8=(qs.get('p8')||'').trim();
+  if(/^\d{8}$/.test(p8)) put('f_parent', p8);
 }
 
 /* ?blank=1 로 열리면(티쳐스 페이지에서) 자동으로 빈 양식 이미지 저장 */
