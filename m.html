@@ -1045,6 +1045,15 @@ function collect(){
 function validateForm(data){
   if(!data.title){ document.getElementById('f_title').focus(); return '시험 제목을 입력해주세요.'; }
   if(!EDIT_MODE && !periodOf(data.title)){ document.getElementById('f_title').focus(); return '시험 기간을 먼저 골라주세요 (제목이 26-1-중간 같은 기간으로 시작해야 해요).'; }
+  /* 학교를 고르고 학년을 비워 두면 제목이 '지도중'처럼 학년 없이 만들어진다(composeTitle의 school+(gradeN||'')).
+   * 2026-09-23 실제로 그렇게 등록된 리포트가 있어(26-2-중간-지도중-국어, 실제는 지도중 2학년) 등록에서 막는다. */
+  if(!EDIT_MODE){
+    var _sc=document.getElementById('f_school'), _gn=document.getElementById('f_gradeN');
+    if(_sc && _gn && _sc.value && !_gn.value){
+      _gn.focus();
+      return '학년을 골라주세요. 학년이 빠지면 제목이 ‘'+_sc.value+'’처럼 만들어져서, 나중에 어느 학년 시험인지 구분되지 않아요.';
+    }
+  }
   var sel = assignSel || (assignPicker && assignPicker.getSelection());
   if(!sel && !EDIT_MODE){ return '이 시험을 볼 학생을 배정해주세요. (전 학년 / 학년 / 개인 / 일부 중 선택)'; }
   var blocks=document.querySelectorAll('#blockList > .block');
