@@ -72,7 +72,15 @@ body{font-family:'Noto Sans KR',sans-serif; background:var(--sage-fog); color:va
 .q-tag.multi{background:#E7DCF2; color:#6b4fa0; font-weight:700;}
 .q-group-label{font-size:12.5px; font-weight:700; color:var(--sage-deep); margin:16px 4px 2px; display:flex; align-items:center; gap:5px;}
 .q.in-group{margin-left:10px; border-left:3px solid var(--sage-soft);}
-#scopeBox{white-space:pre-wrap;}
+#scopeBox.sp-plain{white-space:pre-wrap;}
+/* 시험 범위 — 라벨은 소제목, 세부 항목은 도트 (r.html·t.html 두 벌) */
+.sp-sec{margin-top:15px;} .sp-sec:first-child{margin-top:0;}
+.sp-h{font-weight:700; color:var(--sage-deep); margin-bottom:6px;}
+.sp-li{position:relative; padding-left:14px; margin:4px 0;}
+.sp-li::before{content:''; position:absolute; left:3px; top:.66em; width:4px; height:4px; border-radius:50%; background:var(--sage-mid);}
+/* 총평 문단 소제목 */
+.rv-h{font-family:'Noto Serif KR',serif; font-weight:700; color:var(--sage-deep); margin:17px 0 5px;}
+.rv-h:first-child{margin-top:0;}
 .q-mark{flex-shrink:0; width:26px; height:26px; border:2px solid var(--sage-mid); border-radius:8px; display:flex; align-items:center; justify-content:center; background:#fff; margin-top:6px;}
 .q-mark svg{width:15px; height:15px; opacity:0;}
 .q.wrong{border-color:var(--sage-deep); background:#FCFDFC;}
@@ -376,13 +384,12 @@ function renderReport(){
   if(enm){ if(etitle){ enm.textContent=etitle; enm.style.display=''; } else { enm.style.display='none'; } }
   if(etitle){ document.title=etitle+' · 시험 복기'; }
 
-  document.getElementById('reviewBox').innerHTML =
-    REPORT.review.map(function(p){ return '<p>'+esc(p)+'</p>'; }).join('');
+  document.getElementById('reviewBox').innerHTML = reviewHtml(REPORT.review);
 
   // 시험 범위 (있을 때만 표시)
   var spSec=document.getElementById('scopeSec');
   if(REPORT.scope && String(REPORT.scope).trim()){
-    document.getElementById('scopeBox').textContent=REPORT.scope;
+    renderScope(document.getElementById('scopeBox'), REPORT.scope);
     spSec.style.display='';
   } else { spSec.style.display='none'; }
 
@@ -424,6 +431,49 @@ function renderReport(){
 }
 function updateCount(){ document.getElementById('wcount').textContent=Object.keys(wrong).length; }
 function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+/* 시험 범위·총평 표시 (r.html·t.html 두 벌 — 고치면 둘 다 고칠 것)
+ *  범위: '교과서: …' 같은 라벨 줄을 소제목으로 올리고, 그 아래 줄들을 도트 항목으로 그린다.
+ *        라벨이 하나도 없는 옛 기록은 예전처럼 줄바꿈 그대로 보여 준다(sp-plain).
+ *  총평: 문단 첫 줄이 '## '로 시작하면 그 줄을 소제목으로 올린다. 없으면 예전 그대로. */
+var SCOPE_LABELS = ['교과서 내 범위','교과서 외 범위','추가 자료','교과서'];   // 긴 라벨 먼저 — '교과서'가 앞서면 나머지를 삼킨다
+function scopeSections(text){
+  var secs = [], cur = null;
+  String(text == null ? '' : text).split('\n').forEach(function(raw){
+    var line = raw.trim();
+    if (!line) return;
+    var head = '';
+    for (var i = 0; i < SCOPE_LABELS.length; i++){
+      var L = SCOPE_LABELS[i];
+      if (line.indexOf(L + ':') === 0){ head = L; line = line.slice(L.length + 1).trim(); break; }
+    }
+    if (head){ cur = { h: head, items: [] }; secs.push(cur); if (line) cur.items.push(line); }
+    else if (cur){ cur.items.push(line); }
+    else { cur = { h: '', items: [line] }; secs.push(cur); }
+  });
+  return secs;
+}
+function renderScope(el, text){
+  if (!el) return;
+  var secs = scopeSections(text);
+  var known = secs.some(function(s){ return !!s.h; });
+  if (el.classList) el.classList.toggle('sp-plain', !known);
+  if (!known){ el.textContent = String(text == null ? '' : text); return; }
+  el.innerHTML = secs.map(function(s){
+    return '<div class="sp-sec">' + (s.h ? '<div class="sp-h">' + esc(s.h) + '</div>' : '') +
+      s.items.map(function(x){ return '<div class="sp-li">' + esc(x) + '</div>'; }).join('') + '</div>';
+  }).join('');
+}
+function reviewHtml(paras){
+  return (paras || []).map(function(p){
+    var lines = String(p == null ? '' : p).split('\n');
+    var h = '';
+    if (lines.length && /^##\s+/.test(lines[0])) h = lines.shift().replace(/^##\s+/, '').trim();
+    var body = lines.join('\n').trim();
+    return (h ? '<div class="rv-h">' + esc(h) + '</div>' : '') + (body ? '<p>' + esc(body) + '</p>' : '');
+  }).join('');
+}
+
 
 function txt(v){ return v && v.trim() ? v.replace(/</g,'&lt;') : '<span class="r-empty">작성하지 않음</span>'; }
 

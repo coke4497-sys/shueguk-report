@@ -99,6 +99,15 @@ body{font-family:'Noto Sans KR',sans-serif; background:var(--sage-fog); color:va
 .wrong-item .wr{font-family:'Noto Serif KR',serif; font-size:13.5px; color:var(--ink-deep); line-height:1.7; background:var(--sage-fog); border-radius:8px; padding:11px 13px;}
 .vow-box, .teacher-box{font-family:'Noto Serif KR',serif; font-size:14px; line-height:1.8; color:var(--ink-deep); background:var(--sage-fog); border-radius:10px; padding:16px 18px; white-space:pre-wrap;}
 .teacher-box{background:#fff; border:1.5px solid var(--sage-soft); min-height:90px;}
+#rScope{white-space:normal;} #rScope.sp-plain{white-space:pre-wrap;}
+/* 시험 범위 — 라벨은 소제목, 세부 항목은 도트 (r.html·t.html 두 벌) */
+.sp-sec{margin-top:15px;} .sp-sec:first-child{margin-top:0;}
+.sp-h{font-weight:700; color:var(--sage-deep); margin-bottom:6px;}
+.sp-li{position:relative; padding-left:14px; margin:4px 0;}
+.sp-li::before{content:''; position:absolute; left:3px; top:.66em; width:4px; height:4px; border-radius:50%; background:var(--sage-mid);}
+/* 총평 문단 소제목 */
+.rv-h{font-family:'Noto Serif KR',serif; font-weight:700; color:var(--sage-deep); margin:17px 0 5px;}
+.rv-h:first-child{margin-top:0;}
 .r-foot{text-align:center; color:var(--ink-soft); font-size:11px; padding-top:24px; letter-spacing:.05em;}
 .chart-grid{display:flex; gap:0; align-items:stretch;}
 .chart-col{flex:1 1 0; min-width:0; padding:0 14px;}
@@ -701,6 +710,49 @@ var SCOPE = '';    // 현재 시험의 시험범위
 var QUESTIONS = [];// 현재 시험의 전체 문항 (영역·난도 그래프용)
 
 function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+/* 시험 범위·총평 표시 (r.html·t.html 두 벌 — 고치면 둘 다 고칠 것)
+ *  범위: '교과서: …' 같은 라벨 줄을 소제목으로 올리고, 그 아래 줄들을 도트 항목으로 그린다.
+ *        라벨이 하나도 없는 옛 기록은 예전처럼 줄바꿈 그대로 보여 준다(sp-plain).
+ *  총평: 문단 첫 줄이 '## '로 시작하면 그 줄을 소제목으로 올린다. 없으면 예전 그대로. */
+var SCOPE_LABELS = ['교과서 내 범위','교과서 외 범위','추가 자료','교과서'];   // 긴 라벨 먼저 — '교과서'가 앞서면 나머지를 삼킨다
+function scopeSections(text){
+  var secs = [], cur = null;
+  String(text == null ? '' : text).split('\n').forEach(function(raw){
+    var line = raw.trim();
+    if (!line) return;
+    var head = '';
+    for (var i = 0; i < SCOPE_LABELS.length; i++){
+      var L = SCOPE_LABELS[i];
+      if (line.indexOf(L + ':') === 0){ head = L; line = line.slice(L.length + 1).trim(); break; }
+    }
+    if (head){ cur = { h: head, items: [] }; secs.push(cur); if (line) cur.items.push(line); }
+    else if (cur){ cur.items.push(line); }
+    else { cur = { h: '', items: [line] }; secs.push(cur); }
+  });
+  return secs;
+}
+function renderScope(el, text){
+  if (!el) return;
+  var secs = scopeSections(text);
+  var known = secs.some(function(s){ return !!s.h; });
+  if (el.classList) el.classList.toggle('sp-plain', !known);
+  if (!known){ el.textContent = String(text == null ? '' : text); return; }
+  el.innerHTML = secs.map(function(s){
+    return '<div class="sp-sec">' + (s.h ? '<div class="sp-h">' + esc(s.h) + '</div>' : '') +
+      s.items.map(function(x){ return '<div class="sp-li">' + esc(x) + '</div>'; }).join('') + '</div>';
+  }).join('');
+}
+function reviewHtml(paras){
+  return (paras || []).map(function(p){
+    var lines = String(p == null ? '' : p).split('\n');
+    var h = '';
+    if (lines.length && /^##\s+/.test(lines[0])) h = lines.shift().replace(/^##\s+/, '').trim();
+    var body = lines.join('\n').trim();
+    return (h ? '<div class="rv-h">' + esc(h) + '</div>' : '') + (body ? '<p>' + esc(body) + '</p>' : '');
+  }).join('');
+}
+
 function setStatus(m){ document.getElementById('status').textContent = m||''; }
 
 // URL ?id= 가 있으면 기본 선택할 보고서로 기억
@@ -921,13 +973,13 @@ function renderReport(){
   // 시험 범위 (있을 때만 표시)
   var scopeH=document.getElementById('rScopeH'), scopeBox=document.getElementById('rScope');
   if(SCOPE && String(SCOPE).trim()){
-    scopeBox.textContent = SCOPE; scopeH.style.display=''; scopeBox.style.display='';
+    renderScope(scopeBox, SCOPE); scopeH.style.display=''; scopeBox.style.display='';
   } else {
     scopeH.style.display='none'; scopeBox.style.display='none';
   }
 
   document.getElementById('rReview').innerHTML = REVIEW.length
-    ? REVIEW.map(function(p){return '<p>'+esc(p)+'</p>';}).join('')
+    ? reviewHtml(REVIEW)
     : '<p class="empty">총평 데이터를 불러오지 못했습니다.</p>';
 
   // 문항 구성 막대그래프 (시험 전체 문항 기준)
