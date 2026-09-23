@@ -334,6 +334,8 @@ var ENDPOINT = "https://script.google.com/macros/s/AKfycbzhCncBwn-JlqXARC3wfrWUC
 
 var REPORT = null;          // 시트에서 불러온 데이터가 담깁니다
 var wrong = {};             // no -> reason
+/* 지문 묶음 라벨 아이콘 — 가는 라인 스트로크 (컬러 이모지 금지 지침, r.html·m.html 두 벌) */
+var BOOK_ICON='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;vertical-align:-2.5px;flex-shrink:0;" aria-hidden="true"><path d="M3.5 5.2h3.3c2 0 3.8.6 5.2 1.8v12.3c-1.4-1.2-3.2-1.8-5.2-1.8H3.5V5.2Z"/><path d="M20.5 5.2h-3.3c-2 0-3.8.6-5.2 1.8v12.3c1.4-1.2 3.2-1.8 5.2-1.8h3.3V5.2Z"/></svg>';
 var CHK='<svg viewBox="0 0 16 16" fill="none"><path d="M3 8.5L6.5 12L13 4.5" stroke="white" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
 // URL 의 ?id= 값 읽기
@@ -400,7 +402,7 @@ function renderReport(){
     // 지문 묶음 라벨: 같은 지문그룹이 시작될 때 한 번 표시
     if(q.group && q.group!==lastGroup){
       var gl=document.createElement('div'); gl.className='q-group-label';
-      gl.innerHTML='📖 지문 · '+esc(q.group);
+      gl.innerHTML=BOOK_ICON+'<span>지문 · '+esc(q.group)+'</span>';
       ql.appendChild(gl);
     }
     lastGroup=q.group||null;

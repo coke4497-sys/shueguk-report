@@ -131,6 +131,7 @@ body{font-family:'Noto Sans KR',sans-serif; background:var(--sage-fog); color:va
 .pv-scope{background:var(--sage-fog); border-radius:10px; padding:12px 14px; font-family:'Noto Serif KR',serif; font-size:13.5px; color:var(--ink-deep); line-height:1.7; white-space:pre-wrap; margin-bottom:8px;}
 .pv-review{background:var(--sage-fog); border-radius:12px; padding:15px 16px; font-family:'Noto Serif KR',serif; font-size:14px; line-height:1.85; color:var(--ink-deep);}
 .pv-review p{margin:0 0 10px;} .pv-review p:last-child{margin:0;}
+.b-label svg, .pv-group-label svg{margin-right:5px;}
 .pv-group-label{font-size:12px; font-weight:700; color:var(--sage-deep); margin:14px 0 6px; padding-left:2px;}
 .pv-q{border:1px solid var(--line-soft); border-radius:10px; padding:11px 13px; margin-top:8px;}
 .pv-q.in-group{margin-left:12px;}
@@ -937,11 +938,13 @@ function addSolo(scroll){
   return d;
 }
 
+/* 지문 묶음 라벨 아이콘 — 가는 라인 스트로크 (컬러 이모지 금지 지침, r.html·m.html 두 벌) */
+var BOOK_ICON='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;vertical-align:-2.5px;flex-shrink:0;" aria-hidden="true"><path d="M3.5 5.2h3.3c2 0 3.8.6 5.2 1.8v12.3c-1.4-1.2-3.2-1.8-5.2-1.8H3.5V5.2Z"/><path d="M20.5 5.2h-3.3c-2 0-3.8.6-5.2 1.8v12.3c1.4-1.2 3.2-1.8 5.2-1.8h3.3V5.2Z"/></svg>';
 /* ----- 지문 묶음 ----- */
 function addPassage(scroll){
   var d=document.createElement('div'); d.className='block passage';
   d.innerHTML =
-    '<div class="block-head"><span class="b-label">📖 지문 묶음</span>'+
+    '<div class="block-head"><span class="b-label">'+BOOK_ICON+'지문 묶음</span>'+
       '<button class="del" onclick="delBlock(this)">삭제</button></div>'+
     '<div class="group-fields">'+
       '<div class="cell pg-cell"><label>지문 이름 (한 번만 입력)</label>'+
@@ -989,7 +992,7 @@ function renumberAll(){
   document.getElementById('qCount').textContent=document.querySelectorAll('#blockList .no-in').length;
   document.querySelectorAll('#blockList .block.passage').forEach(function(b){
     var c=b.querySelectorAll('.subq').length;
-    b.querySelector('.b-label').textContent='📖 지문 묶음'+(c?' ('+c+'문항)':'');
+    b.querySelector('.b-label').innerHTML=BOOK_ICON+'지문 묶음'+(c?' ('+c+'문항)':'');
   });
 }
 function generateSolos(){
@@ -1085,7 +1088,7 @@ function togglePreview(){
   var lastGroup=null;
   d.questions.forEach(function(q){
     var lv=q.lv||'중';
-    if(q.group && q.group!==lastGroup){ html+='<div class="pv-group-label">📖 지문: '+esc(q.group)+'</div>'; }
+    if(q.group && q.group!==lastGroup){ html+='<div class="pv-group-label">'+BOOK_ICON+'지문: '+esc(q.group)+'</div>'; }
     lastGroup=q.group||null;
     var tags='<span class="pv-tag">'+esc(q.area||'-')+'</span>';
     if(q.detail){ tags+='<span class="pv-tag sub">'+esc(q.detail)+'</span>'; }
