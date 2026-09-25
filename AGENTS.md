@@ -35,7 +35,7 @@
 - 기록 시트는 꼬리만 읽습니다(`sheetTail_` — 출석 14일·이동 60일 여유). 그보다 먼 미래 날짜로 미리 기록하는 기능을 만들면 여유를 함께 늘려야 합니다.
 - **비밀 값(솔라피 API 키·시크릿, 카카오 채널 ID, 템플릿 ID, GitHub 토큰, 수파베이스 service 키)은 어떤 응답에도 담지 않고 저장소에도 커밋하지 않습니다.** 스크립트 속성에만 둡니다. 공개 가능한 것은 수파베이스 publishable 키뿐입니다.
 - 카카오 알림톡은 **자동 발송이 없습니다.** 조교가 확인 창에서 [보내기]를 눌러야 갑니다. 확인 없이 보내는 변경, 같은 종류·학생·수업일 중복 발송 방지(dup)를 우회하는 변경은 지적하세요. 템플릿 문구(`ALIM_TPL_`)를 한 글자라도 바꾸면 솔라피 재심사가 필요합니다.
-- 같은 규칙이 여러 벌 있는 곳은 함께 바뀌어야 합니다: `STAR_RULES`(백엔드·s.html·superstar.html 세 벌), 공지 대상 판정 `noticeMatches`(s.html·notice.html), 클리닉 대상 판정(클리닉 Code.gs·s.html·clinic_assign.html).
+- 같은 규칙이 여러 벌 있는 곳은 함께 바뀌어야 합니다: `STAR_RULES`(백엔드·s.html·superstar.html 세 벌), 공지 대상 판정 **네 벌**(`s.html`·`notice.html`의 `noticeMatches`, 백엔드 `noticeMatches_`, 수파베이스 `notice_matches_` — `supabase/migrations/022`; 한 벌만 바꾸면 백엔드 폴백에서 다른 공지가 보이거나 서버가 확인 처리를 거절합니다), 클리닉 대상 판정(클리닉 Code.gs·s.html·clinic_assign.html).
 
 ### 화면
 - `superstar.html`·`clinic_assign.html`은 **시작 호출을 스크립트 맨 끝**에 둡니다. 중간에 두면 아래의 `var` 선언이 값을 지웁니다.
