@@ -732,6 +732,12 @@ curl -s -X POST "https://api.supabase.com/v1/projects/bangdbhqpphqqdwcledg/datab
 - [x] 실제 프로젝트에 025 실행 (2026-09-06) — 실제 강사 설정으로 신청→예약 줄→cascade 삭제 왕복 확인.
 - **026 '명단' 상태**: 교사 화면 [명단으로 올리기]가 반 학생을 `status='명단'`으로 일괄 INSERT. `qq_arrive`·`qq_submit`·`clinic_queue_add_`가 예약과 명단을 같이 다루도록 재정의. [x] 실제 프로젝트 실행(2026-09-06).
 
+## 복습 영상 — 시청 시간·90% 완료 별 (2026-09-27, 031)
+- `migrations/031_review_videos.sql` — 표 3개(`review_videos`·`review_targets`·`review_watch`, 교사 authenticated 전용) + 학생 함수 `review_list`·`review_open`·`review_save`(anon) + `student_bundle`에 `review_done` 항목(029 본문 그대로 + 한 항목 — **다음에 student_bundle을 고칠 땐 031 본문에서 시작할 것**).
+- 완료 기준은 `review_done_pct()` = 90 한 곳. 화면(s.html)은 응답의 `done_pct`를 쓴다.
+- 검증: `PGHOST=/home/pgtest PGPORT=5499 PGUSER=postgres bash tools/review-sql-test.sh`(001~012·027~029 뒤 031, 재실행 안전 포함).
+- 적용 상태: **아직 적용 전**(2026-09-27). SQL Editor에 파일 내용을 붙여 넣고 Run, 또는 sbp_ 토큰으로 관리 API.
+
 ## ⚠ 2026-08-25 사고 기록 — anon 권한을 잘못 되돌렸다가 복구
 같은 날 다른 세션(`session_01C7786KiKeAoTXLsuvTaYfS`)이 3단계 잠그기(`015_lock_anon.sql`)를
 실행한 직후, 이 세션이 그 사실을 모른 채 **모든 표의 401을 장애로 판단하고 anon 권한을
