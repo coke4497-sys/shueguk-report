@@ -525,20 +525,20 @@
   <footer><p>이수경국어 Shueguk · 학생용</p></footer>
 </main></div>
 
-<!-- 복습 영상 (2026-09-27) — 선생님이 반에 배정한 유튜브 복습 영상. 90% 이상 보면 슈퍼스타 별 +1 -->
+<!-- 복습 영상 (2026-09-27) — 선생님이 배정한 유튜브 복습(결석 보충) 영상. 75% 이상 보면 완료 — 별은 없음(보충이라 포상 아님) -->
 <div id="reviewView"><main class="wrap gwrap">
   <div class="gv-bar">
     <button class="gv-back" onclick="rvBack()" id="rvBack"></button>
     <span class="gv-ttl" id="rvTtl">복습 영상</span>
   </div>
   <div id="rvListBox">
-    <p class="rv-note" style="margin:0 2px 12px">영상의 <b>90% 이상</b>을 보면 슈퍼스타 별 +1. 이 화면에서 볼 때만 기록돼요(유튜브 앱에서 보면 기록되지 않아요).</p>
+    <p class="rv-note" style="margin:0 2px 12px">영상의 <b>75% 이상</b>을 보면 완료예요. 이 화면에서 볼 때만 기록돼요(유튜브 앱에서 보면 기록되지 않아요).</p>
     <div id="rvList"></div>
   </div>
   <div id="rvPlayBox" style="display:none">
     <div class="rv-player"><div id="rvPlayer"></div></div>
     <div class="rv-warn" id="rvWarn"></div>
-    <div class="rv-star" id="rvStar">90% 시청 완료! 슈퍼스타 별 +1 ⭐</div>
+    <div class="rv-star" id="rvStar">시청 완료! 끝까지 잘 봤어요.</div>
     <div class="rv-files" id="rvFiles" style="display:none"></div>
     <div class="rv-stat">
       <p class="rv-big" id="rvPct">본 구간 0%</p>
@@ -934,7 +934,7 @@ function api(extra){
   function p2(n){ return ('0' + n).slice(-2); }
 
   /* ── 백엔드 규칙 이식 ── */
-  var STAR_RULES = { exam: 2, clinic: 1, voca: 1, hwork: 1, notice: 1, mock: 1, hwcheck: 1, gramma: 1, review: 1 };   // review = 복습 영상 90% 시청(031, 2026-09-27) · gramma = 문법 세트 클리어(스테이지 5개를 모두 70% 이상 — 2026-09-16, 옛 '회차마다 90%' 규칙 대체)
+  var STAR_RULES = { exam: 2, clinic: 1, voca: 1, hwork: 1, notice: 1, mock: 1, hwcheck: 1, gramma: 1 };   // 복습 영상은 별 없음(2026-09-27 사용자 "결석자 보충이므로 포상이 되면 안됨") · gramma = 문법 세트 클리어(스테이지 5개를 모두 70% 이상 — 2026-09-16, 옛 '회차마다 90%' 규칙 대체)
   function baseName(s){ return tr(s).replace(/[A-Za-z]$/, ''); }
   function schoolMatch(a, b){
     a = String(a || '').replace(/\s+/g, ''); b = String(b || '').replace(/\s+/g, '');
@@ -1136,7 +1136,7 @@ function api(extra){
       var notices = B.notices || [], reads = B.notice_reads || [], assigns = B.assignments || [],
           clinicRows = B.clinic_requests || [], hwsub = B.hwork_submissions || [], voca = B.voca_results || [],
           omr = B.omr_responses || [], hwc = B.hwcheck_records || [], signup = B.signup_entries || [],
-          bonusRows = B.star_bonus || [], cfg = B.report_config || [], subs = B.submissions || [], grammaSets = B.gramma_sets || [], reviewDone = B.review_done || [],
+          bonusRows = B.star_bonus || [], cfg = B.report_config || [], subs = B.submissions || [], grammaSets = B.gramma_sets || [],
           examList = B.exams || [], qRows = B.exam_questions || [],
           clinicSet = B.clinic_settings || [], signupSet = B.signup_settings || [];
 
@@ -1359,10 +1359,6 @@ function api(extra){
           grammaSet[tr(r.unit) + '|' + tr(r.set_no)] = true;
         });
         var grammaN = Object.keys(grammaSet).length;
-        /* 복습 영상 90% 시청(review_done — 031) — 영상 단위. 함수가 이미 이 학생(접근코드) 것만 준다 */
-        var reviewSet = {};
-        reviewDone.forEach(function(r){ reviewSet[tr(r.video_id)] = true; });
-        var reviewN = Object.keys(reviewSet).length;
         var bonus = { sum: 0, latest: null };
         bonusRows.forEach(function(r){
           var rid = tr(r.student_id).replace(/^'/, ''), rnm = tr(r.name), rsc = tr(r.school);
@@ -1386,10 +1382,10 @@ function api(extra){
           total: examCountStars * STAR_RULES.exam + clinicN * STAR_RULES.clinic
                + Object.keys(vocaRounds).length * STAR_RULES.voca + Object.keys(hworkSet).length * STAR_RULES.hwork
                + Object.keys(mockSet).length * STAR_RULES.mock + hwPerfect * STAR_RULES.hwcheck
-               + noticeN * STAR_RULES.notice + grammaN * STAR_RULES.gramma + reviewN * STAR_RULES.review + bonus.sum,
+               + noticeN * STAR_RULES.notice + grammaN * STAR_RULES.gramma + bonus.sum,
           breakdown: { exam: examCountStars, clinic: clinicN, voca: Object.keys(vocaRounds).length,
                        hwork: Object.keys(hworkSet).length, mock: Object.keys(mockSet).length,
-                       hwcheck: hwPerfect, notice: noticeN, gramma: grammaN, review: reviewN, bonus: bonus.sum },
+                       hwcheck: hwPerfect, notice: noticeN, gramma: grammaN, bonus: bonus.sum },
           latestBonus: bonus.latest
         };
 
@@ -1611,7 +1607,6 @@ function renderStars(){
       ['hwcheck','숙제 검사 만점',     bd.hwcheck,'주', bd.hwcheck],
       ['notice', '공지 확인',          bd.notice, '건', bd.notice],
       ['gramma', '문법 세트 클리어', bd.gramma || 0, '세트', bd.gramma || 0],
-      ['review', '복습 영상 시청', bd.review || 0, '개', bd.review || 0],
       ['bonus',  '수경쌤 깜짝 보너스', bd.bonus ? 1 : 0, '', bd.bonus]
     ].filter(function(s){ return s[2] > 0; });
     if(srcs.length){
@@ -1718,7 +1713,7 @@ function renderHub(){
   var rv0 = STATE.review || [];
   if(rv0.length){
     var rvTodo = rv0.filter(function(v){ return !v.done; }).length;
-    var rvDesc = rvTodo>0 ? ('볼 영상 '+rvTodo+'개 · 90% 보면 별 +1') : '모두 시청 완료';
+    var rvDesc = rvTodo>0 ? ('볼 영상 '+rvTodo+'개 · 75% 보면 완료') : '모두 시청 완료';
     var rvDot = rvTodo>0 ? '<span class="new-dot">'+(rvTodo>9?'9+':rvTodo)+'</span>' : '';
     html += '<button class="card t-mnt" onclick="openReview()">' +
               '<span class="icon">'+svg(ICON.play)+rvDot+'</span>' +
@@ -3087,7 +3082,7 @@ function mockTrendHtml(reps){
 
 /* ── 복습 영상 (2026-09-27, 수파베이스 031) ───────────────────────────────
  * 선생님이 반에 배정한 유튜브 영상을 이 페이지 안에서 재생하고, 본 구간·시청 시간을 기록한다.
- * 규칙(사용자 결정): 본 구간 90% 이상 = 완료 → 슈퍼스타 별 +1(서버 review_save 가 판정)
+ * 규칙(사용자 결정): 본 구간 75% 이상 = 완료(서버 review_save 가 판정, review_done_pct — 033). 별은 없다(결석 보충이라 포상 아님, 2026-09-27)
  *                   화면을 벗어나면(다른 탭·앱·화면 꺼짐) 영상을 멈추고 시간을 세지 않는다.
  *                   영상이 화면 밖으로 스크롤돼 절반 넘게 가려져도 세지 않는다.
  * 1초마다 플레이어의 현재 위치를 읽어, 앞 위치에서 3.5초 안쪽으로 이어졌으면 그 사이 초를 '본 구간'으로 적는다
@@ -3213,8 +3208,8 @@ function rvWarn(msg){ var w = $('rvWarn'); w.textContent = msg || ''; w.classNam
 function rvPaint(){
   var v = RV.cur; if (!v || !RV.st) return;
   var p = RVC.pct(RV.st.bits);
-  var done = v.done || p >= (v.done_pct || 90);
-  $('rvPct').textContent = '본 구간 ' + p + '%' + (done ? ' · 시청 완료 ✓' : ' · ' + (v.done_pct || 90) + '% 넘으면 별 +1');
+  var done = v.done || p >= (v.done_pct || 75);
+  $('rvPct').textContent = '본 구간 ' + p + '%' + (done ? ' · 시청 완료 ✓' : ' · ' + (v.done_pct || 75) + '% 넘으면 완료');
   $('rvBar').style.width = Math.min(100, p) + '%';
   $('rvBarBox').className = 'rv-bar' + (done ? ' done' : '');
   $('rvSec').textContent = '시청 시간 ' + RVC.fmt((v.sec || 0) + RV.st.addSec);

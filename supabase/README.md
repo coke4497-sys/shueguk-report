@@ -744,6 +744,10 @@ curl -s -X POST "https://api.supabase.com/v1/projects/bangdbhqpphqqdwcledg/datab
 - 로컬 검증은 storage 스키마 흉내(`tools/review-sql-test.sh`) — 실제 저장소 서버 동작은 적용 뒤 왕복으로 확인할 것.
 - 적용 상태: **2026-09-27 실제 수파베이스에 적용 완료** — 실제 왕복: 교사 올리기 성공, 공개 키 올리기 400, 창 열기 전 공개 키 받기 400, 없는 학생 거절, review_file_url 뒤 공개 키 받기 200·내용 일치, 공개 주소 400, 지우기 뒤 표·저장소 비어 있음.
 
+## 복습 영상 완료 기준 75% (2026-09-27, 033)
+- `migrations/033_review_done_75.sql` — `review_done_pct()`를 75로(사용자 "75%를 보면 완료, 별 없음 — 결석 보충") + 75% 이상인데 completed_at 이 비어 있던 줄을 채운다. 페이지는 별을 세지 않는다.
+- 적용 상태: **아직 적용 전**(2026-09-27).
+
 ## ⚠ 2026-08-25 사고 기록 — anon 권한을 잘못 되돌렸다가 복구
 같은 날 다른 세션(`session_01C7786KiKeAoTXLsuvTaYfS`)이 3단계 잠그기(`015_lock_anon.sql`)를
 실행한 직후, 이 세션이 그 사실을 모른 채 **모든 표의 401을 장애로 판단하고 anon 권한을

@@ -30,6 +30,7 @@ grant usage on schema storage to anon, authenticated;
 grant select, insert, delete on storage.objects to anon, authenticated;
 SQL
 for i in 1 2; do psql -v ON_ERROR_STOP=1 -q -d "$DB" -f supabase/migrations/032_review_files.sql >/dev/null; done
+psql -v ON_ERROR_STOP=1 -q -d "$DB" -f supabase/migrations/033_review_done_75.sql >/dev/null   # 033: 완료 기준 75%
 
 psql -v ON_ERROR_STOP=1 -q -d "$DB" <<'SQL'
 insert into students (student_id, name, school, grade, code, enrolled) values
@@ -69,12 +70,15 @@ begin
   -- 한 번에 받는 시청 시간은 120초 상한, 범위 밖은 잘림
   r := review_save('{"key":"tok-kim","video":1,"ranges":[[-5,0],[200,300],[80,85]],"add_sec":999}');
   assert (r->>'pct')::int = 65 and (r->>'sec')::int = 190, 'cap: ' || r::text;
-  -- 89% 는 완료 아님
-  r := review_save('{"key":"tok-kim","video":1,"ranges":[[60,80],[85,89]]}');
-  assert (r->>'pct')::int = 89 and not (r->>'done')::boolean, '89: ' || r::text;
-  -- 90% 도달 → done·first
-  r := review_save('{"key":"tok-kim","video":1,"ranges":[[89,90]]}');
-  assert (r->>'pct')::int = 90 and (r->>'done')::boolean and (r->>'first')::boolean, '90: ' || r::text;
+  -- 74% 는 완료 아님 (033 적용 뒤 기준 75%)
+  r := review_save('{"key":"tok-kim","video":1,"ranges":[[60,69]]}');
+  assert (r->>'pct')::int = 74 and not (r->>'done')::boolean and (r->>'done_pct')::int = 75, '74: ' || r::text;
+  -- 75% 도달 → done·first
+  r := review_save('{"key":"tok-kim","video":1,"ranges":[[69,70]]}');
+  assert (r->>'pct')::int = 75 and (r->>'done')::boolean and (r->>'first')::boolean, '75: ' || r::text;
+  -- 더 봐도 first 아님
+  r := review_save('{"key":"tok-kim","video":1,"ranges":[[70,90]]}');
+  assert (r->>'pct')::int = 90 and not (r->>'first')::boolean, '90: ' || r::text;
   -- 다시 저장 → done 이지만 first 아님
   r := review_save('{"key":"tok-kim","video":1,"ranges":[[90,100]]}');
   assert (r->>'pct')::int = 100 and (r->>'done')::boolean and not (r->>'first')::boolean, '100: ' || r::text;
@@ -143,6 +147,17 @@ reset role;
 -- 영상을 지우면 파일 목록도 사라진다
 delete from review_videos where title = '자료 영상';
 do $$ begin assert (select count(*) from review_files) = 0, 'cascade files'; end $$;
+
+-- 033 채움: 75% 이상인데 완료 표시가 없던 줄(옛 90% 기준)은 033 을 다시 돌리면 완료가 된다
+insert into review_videos (yt_id, title) values ('ccccccccccc', '채움 확인');
+insert into review_watch (video_id, code, pct) select id, 'tok-lee', 80 from review_videos where title = '채움 확인';
+insert into review_watch (video_id, code, pct) select id, 'tok-kim', 70 from review_videos where title = '채움 확인';
+\i supabase/migrations/033_review_done_75.sql
+do $$ begin
+  assert (select completed_at is not null from review_watch w join review_videos v on v.id = w.video_id where v.title = '채움 확인' and w.code = 'tok-lee'), '80% 줄 완료로 채움';
+  assert (select completed_at is null from review_watch w join review_videos v on v.id = w.video_id where v.title = '채움 확인' and w.code = 'tok-kim'), '70% 줄은 그대로';
+  assert review_done_pct() = 75, '기준 75';
+end $$;
 
 -- 권한: anon 은 표를 못 읽고 함수만
 set role anon;
