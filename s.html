@@ -178,6 +178,11 @@
     font-family:var(--sans);font-size:.84rem;padding:7px 12px;cursor:pointer;white-space:nowrap;}
   .rv-dl svg{width:15px;height:15px;}
   .rv-dl:disabled{opacity:.6;cursor:default;}
+  .rv-ios{margin-top:10px;background:#F4F7F5;border-radius:12px;padding:9px 13px;font-size:.84rem;color:var(--ink-soft);}
+  .rv-ios summary{cursor:pointer;color:var(--ink);font-weight:700;}
+  .rv-ios ol{margin:8px 0 2px;padding-left:20px;line-height:1.7;}
+  .rv-ios b{color:var(--ink);}
+  .rv-ios .ic{display:inline-block;width:15px;height:15px;vertical-align:-2px;}
   .hw-go{display:inline-flex;align-items:center;gap:5px;margin-top:12px;color:var(--accent);font-size:.84rem;font-weight:700;text-decoration:none;}
   .hw-go svg{width:15px;height:15px;}
   .hw-go:hover{opacity:.8;}
@@ -3250,8 +3255,19 @@ function rvRenderFiles(files){
   box.innerHTML = '<p class="t">수업 자료</p>' + files.map(function(f){
     return '<div class="rv-file"><span class="nm">' + esc(f.name || '자료') + '</span><span class="sz">' + rvSize(f.size) + '</span>' +
       '<button class="rv-dl" id="rvDl' + (+f.id) + '" onclick="rvDownload(' + (+f.id) + ')">' + dl + '내려받기</button></div>';
-  }).join('');
+  }).join('') + rvIosGuide();
   box.style.display = 'block';
+}
+/* 아이폰 저장 안내 (2026-09-27 사용자 "아이폰에서 어떻게 저장할 수 있는지 학생페이지에 안내") — 아이폰·아이패드면 펼쳐서 보여 준다 */
+function rvIsIOS(){ var u = navigator.userAgent || ''; return /iPad|iPhone|iPod/.test(u) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1); }
+function rvIosGuide(){
+  var share = '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M8 7l4-4 4 4"/><path d="M5 11v8a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-8"/></svg>';
+  return '<details class="rv-ios"' + (rvIsIOS() ? ' open' : '') + '><summary>아이폰에서 저장하는 법</summary><ol>' +
+    '<li><b>[내려받기]</b>를 누르고 <b>‘다운로드’</b>를 고르면 저장돼요.</li>' +
+    '<li>파일이 바로 열리면 화면의 <b>공유 버튼</b> ' + share + ' 을 누르고 <b>‘파일에 저장’</b>을 고르세요.</li>' +
+    '<li>저장한 파일은 <b>파일</b> 앱 → <b>나의 iPhone</b>(또는 iCloud Drive) → <b>다운로드</b> 폴더에서 찾을 수 있어요.</li>' +
+    '<li>카카오톡에서 연 화면에서는 저장이 안 될 수 있어요. 화면의 <b>···</b> 메뉴에서 <b>‘Safari로 열기’</b>(또는 ‘다른 브라우저로 열기’)를 누른 뒤 다시 내려받으세요.</li>' +
+    '</ol></details>';
 }
 function rvDownload(id){
   var btn = $('rvDl' + id), label = btn ? btn.innerHTML : '';
