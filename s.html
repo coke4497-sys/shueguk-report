@@ -168,6 +168,16 @@
   .rv-warn.on{display:block;}
   .rv-star{display:none;margin-top:10px;background:linear-gradient(160deg,#FFFDF6,#FBF3DC);color:#7A6330;border-radius:12px;padding:11px 14px;font-size:.9rem;font-weight:700;}
   .rv-star.on{display:block;}
+  .rv-files{background:var(--surface);border-radius:var(--radius);padding:14px 17px;margin-top:12px;}
+  .rv-files .t{font-family:var(--serif);font-weight:700;font-size:.95rem;margin:0 0 6px;}
+  .rv-file{display:flex;align-items:center;gap:10px;padding:8px 0;border-top:1px solid var(--line-soft);font-size:.9rem;}
+  .rv-file:first-of-type{border-top:none;}
+  .rv-file .nm{flex:1;min-width:0;overflow-wrap:anywhere;}
+  .rv-file .sz{color:var(--ink-soft);font-size:.78rem;white-space:nowrap;}
+  .rv-dl{display:inline-flex;align-items:center;gap:5px;border:none;border-radius:10px;background:#EDE4F4;color:#5A4A6A;
+    font-family:var(--sans);font-size:.84rem;padding:7px 12px;cursor:pointer;white-space:nowrap;}
+  .rv-dl svg{width:15px;height:15px;}
+  .rv-dl:disabled{opacity:.6;cursor:default;}
   .hw-go{display:inline-flex;align-items:center;gap:5px;margin-top:12px;color:var(--accent);font-size:.84rem;font-weight:700;text-decoration:none;}
   .hw-go svg{width:15px;height:15px;}
   .hw-go:hover{opacity:.8;}
@@ -524,6 +534,7 @@
     <div class="rv-player"><div id="rvPlayer"></div></div>
     <div class="rv-warn" id="rvWarn"></div>
     <div class="rv-star" id="rvStar">90% 시청 완료! 슈퍼스타 별 +1 ⭐</div>
+    <div class="rv-files" id="rvFiles" style="display:none"></div>
     <div class="rv-stat">
       <p class="rv-big" id="rvPct">본 구간 0%</p>
       <div class="rv-bar" id="rvBarBox"><i id="rvBar" style="width:0%"></i></div>
@@ -3172,7 +3183,7 @@ function rvRenderList(){
   if (!list.length){ $('rvList').innerHTML = '<div class="rv-empty">배정된 복습 영상이 없어요.</div>'; return; }
   $('rvList').innerHTML = list.map(function(v){
     var tag = v.done ? '<span class="rv-tag ok">시청 완료 ✓</span>' : (v.pct > 0 ? '' : '<span class="rv-tag no">아직 안 봄</span>');
-    var sub = (v.cls ? esc(v.cls) + ' · ' : '') + '본 구간 ' + (v.pct || 0) + '%' + (v.sec ? ' · 시청 ' + RVC.fmt(v.sec) : '');
+    var sub = (v.cls ? esc(v.cls) + ' · ' : '') + '본 구간 ' + (v.pct || 0) + '%' + (v.sec ? ' · 시청 ' + RVC.fmt(v.sec) : '') + (v.nfiles ? ' · 자료 ' + (+v.nfiles) + '개' : '');
     return '<button class="rv-item" onclick="rvOpen(' + (+v.id) + ')">' +
       '<span class="rv-thumb" style="background-image:url(https://i.ytimg.com/vi/' + encodeURIComponent(v.yt) + '/mqdefault.jpg)"></span>' +
       '<span class="rv-body"><p class="rv-ttl">' + esc(v.title || '복습 영상') + tag + '</p>' +
@@ -3208,11 +3219,12 @@ function rvOpen(id){
   $('rvTtl').textContent = '불러오는 중…';
   $('rvListBox').style.display = 'none'; $('rvPlayBox').style.display = 'block';
   $('rvBack').innerHTML = svg(ICON.back) + ' 영상 목록';
-  $('rvStar').className = 'rv-star'; rvWarn(''); $('rvSave').textContent = '';
+  $('rvStar').className = 'rv-star'; rvWarn(''); $('rvSave').textContent = ''; rvRenderFiles([]);
   rvRpc('review_open', { video: id }).then(function(r){
     if (!r || !r.ok){ rvWarn('영상을 열 수 없어요. 목록으로 돌아가 다시 눌러 주세요.'); $('rvTtl').textContent = '복습 영상'; return; }
     RV.cur = r;
     $('rvTtl').textContent = r.title || '복습 영상';
+    rvRenderFiles(r.files || []);
     RV.st = { lastT: null, bits: RVC.bitsFrom(r.bits, r.duration || 0), pending: [], addSec: 0 };
     rvPaint();
     return rvLoadApi().then(function(){
@@ -3227,6 +3239,36 @@ function rvOpen(id){
       });
     });
   }).catch(function(){ rvWarn('영상 플레이어를 불러오지 못했어요. 인터넷 상태를 확인하고 다시 열어 주세요.'); });
+}
+/* 수업 자료 파일 (2026-09-27, 032) — 배정받은 학생만. review_file_url 이 10분짜리 내려받기 창을 열면
+ * 저장소에서 공개 키로 받아 원래 파일 이름으로 저장한다. 경로는 누를 때만 받는다(목록에는 없음). */
+function rvSize(n){ n = +n || 0; return n >= 1048576 ? (n / 1048576).toFixed(1) + 'MB' : Math.max(1, Math.round(n / 1024)) + 'KB'; }
+function rvRenderFiles(files){
+  var box = $('rvFiles');
+  if (!files.length){ box.style.display = 'none'; box.innerHTML = ''; return; }
+  var dl = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7 10l5 5 5-5"/><path d="M5 20h14"/></svg>';
+  box.innerHTML = '<p class="t">수업 자료</p>' + files.map(function(f){
+    return '<div class="rv-file"><span class="nm">' + esc(f.name || '자료') + '</span><span class="sz">' + rvSize(f.size) + '</span>' +
+      '<button class="rv-dl" id="rvDl' + (+f.id) + '" onclick="rvDownload(' + (+f.id) + ')">' + dl + '내려받기</button></div>';
+  }).join('');
+  box.style.display = 'block';
+}
+function rvDownload(id){
+  var btn = $('rvDl' + id), label = btn ? btn.innerHTML : '';
+  if (btn){ btn.disabled = true; btn.textContent = '받는 중…'; }
+  function done(msg){ if (btn){ btn.disabled = false; btn.innerHTML = label; } if (msg) rvWarn(msg); }
+  rvRpc('review_file_url', { file: id }).then(function(r){
+    if (!r || !r.ok) throw new Error(r && r.error || 'x');
+    return fetch(QQ_REST.replace('/rest/v1', '') + '/storage/v1/object/authenticated/' + r.bucket + '/' + r.path.split('/').map(encodeURIComponent).join('/'), {
+      headers: { 'apikey': QQ_KEY, 'Authorization': 'Bearer ' + QQ_KEY }
+    }).then(function(res){ if (!res.ok) throw new Error('dl ' + res.status); return res.blob(); })
+      .then(function(b){
+        var u = URL.createObjectURL(b), a = document.createElement('a');
+        a.href = u; a.download = r.name || 'file'; document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(function(){ URL.revokeObjectURL(u); }, 30000);
+        done('');
+      });
+  }).catch(function(){ done('자료를 내려받지 못했어요. 잠시 후 다시 눌러 주세요.'); });
 }
 function rvCounting(){
   var p = RV.player;

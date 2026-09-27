@@ -738,6 +738,12 @@ curl -s -X POST "https://api.supabase.com/v1/projects/bangdbhqpphqqdwcledg/datab
 - 검증: `PGHOST=/home/pgtest PGPORT=5499 PGUSER=postgres bash tools/review-sql-test.sh`(001~012·027~029 뒤 031, 재실행 안전 포함).
 - 적용 상태: **2026-09-27 실제 수파베이스에 적용 완료**(SQL Editor) — 공개 키 함수 응답·anon 표 401·교사 표 조회·실제 학생 bundle의 review_done 확인.
 
+## 복습 영상 자료 파일 — 저장소 버킷 (2026-09-27, 032)
+- `migrations/032_review_files.sql` — **처음 쓰는 수파베이스 저장소(Storage)**: 비공개 버킷 `review-files`(20MB) + `review_files` 표 + `storage.objects` 정책 두 개(교사 전부 / anon은 `review_file_ok(name)` = `open_until`이 지나지 않은 파일만 읽기) + 학생 함수 `review_file_url` + `review_list`·`review_open` 재정의(nfiles·files).
+- 저장소 URL: 올리기 `POST /storage/v1/object/review-files/{path}`(교사 토큰), 학생 받기 `GET /storage/v1/object/authenticated/review-files/{path}`(공개 키, 창이 열린 동안), 지우기 `DELETE /storage/v1/object/review-files {prefixes:[…]}`.
+- 로컬 검증은 storage 스키마 흉내(`tools/review-sql-test.sh`) — 실제 저장소 서버 동작은 적용 뒤 왕복으로 확인할 것.
+- 적용 상태: **2026-09-27 실제 수파베이스에 적용 완료** — 실제 왕복: 교사 올리기 성공, 공개 키 올리기 400, 창 열기 전 공개 키 받기 400, 없는 학생 거절, review_file_url 뒤 공개 키 받기 200·내용 일치, 공개 주소 400, 지우기 뒤 표·저장소 비어 있음.
+
 ## ⚠ 2026-08-25 사고 기록 — anon 권한을 잘못 되돌렸다가 복구
 같은 날 다른 세션(`session_01C7786KiKeAoTXLsuvTaYfS`)이 3단계 잠그기(`015_lock_anon.sql`)를
 실행한 직후, 이 세션이 그 사실을 모른 채 **모든 표의 401을 장애로 판단하고 anon 권한을
