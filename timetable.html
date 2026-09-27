@@ -2270,14 +2270,18 @@
       var loc = String(b.loc || '').trim(), teacher = String(b.teacher || '').trim(), cls = String(b.cls || '').trim();
       if (!d || !st || !en || !cls) return Promise.resolve({ result:'error', message:'요일·시간·반이름을 입력해 주세요.' });
       if ('월화수목금토일'.indexOf(d) < 0) return Promise.resolve({ result:'error', message:'요일이 올바르지 않아요.' });
+      // 반ID 접두는 시간표별 관례를 따른다(정규 r### / 내신 n###) — 전엔 내신에도 r을 매겨
+      // 원본·시트 사본의 ID가 어긋났다(2026-09-20 논술B 수학 이전에서 발견).
+      var pre = (book === '내신') ? 'n' : 'r';
+      var preRe = new RegExp('^' + pre + '(\\d+)$');
       function attempt(left){
         return fetchClasses(book).then(function(cs){
           var maxN = 0;
           cs.forEach(function(c){
-            var m = String(c.id || '').match(/^r(\d+)$/);
+            var m = String(c.id || '').match(preRe);
             if (m) maxN = Math.max(maxN, parseInt(m[1], 10));
           });
-          var id = 'r' + ('000' + (maxN + 1)).slice(-3);
+          var id = pre + ('000' + (maxN + 1)).slice(-3);
           return sbWrite('POST', '/tt_classes', { book: book, class_id: id, day: d, start_time: st,
                                                   end_time: en, location: loc, teacher: teacher,
                                                   name: cls, roster: '' })
@@ -5036,7 +5040,7 @@ function ahMkBadge(x){
  * 데이터: timetableWeek(정규+내신) + roster(학년·학교) + attendAbsentList(결석 보충 상태).
  * 백엔드 변경 없음 — 지금 출석기록이 1,000건 안팎이라 화면에서 집계해도 가볍다.
  * ※ 기록이 쌓여 무거워지면 서버에서 학생별·주차별로 집계해 주는 액션을 따로 만들 것. */
-var asS = { weeks:4, view:'all', sort:'issue', q:'', sub:'', limit:40, open:{}, gclosed:{}, person:'' };
+var asS = { weeks:4, view:'all', sort:'issue', q:'', sub:'', sub2:'', limit:40, open:{}, gclosed:{}, person:'' };
 var asData = null, asRoster = null, asSeq = 0, asBusy = false, asErr = '';
 
 /* 일요일 논술 특강은 출석 집계에서 뺀다 (2026-08-23 사용자 확정) */
@@ -5395,8 +5399,14 @@ function asPool(){
   var q = asS.q.trim();
   return asData.list.filter(function(st){
     if (q && st.n.indexOf(q) < 0) return false;
-    if (asS.view === 'grade' && asS.sub && st.g !== asS.sub) return false;
-    if (asS.view === 'school' && asS.sub && st.s !== asS.sub) return false;
+    if (asS.view === 'grade' && asS.sub){
+      if (st.g !== asS.sub) return false;
+      if (asS.sub2 && st.s !== asS.sub2) return false;   // 학교+학년 조합(2026-09-27 수정 요청함 김상우)
+    }
+    if (asS.view === 'school' && asS.sub){
+      if (st.s !== asS.sub) return false;
+      if (asS.sub2 && st.g !== asS.sub2) return false;
+    }
     return true;
   });
 }
@@ -5414,7 +5424,8 @@ function asSort(list){
 function asSet(k, v){
   asS[k] = v;
   if (k === 'weeks'){ asS.limit = 40; asLoad(); return; }
-  if (k === 'view'){ asS.sub = ''; asS.gclosed = {}; }
+  if (k === 'view'){ asS.sub = ''; asS.sub2 = ''; asS.gclosed = {}; }
+  if (k === 'sub') asS.sub2 = '';
   if (k !== 'sort') asS.limit = 40;
   asRender();
 }
@@ -5425,10 +5436,31 @@ function asPills(opts, cur, key){
       esc(o.t) + '</button>';
   }).join('');
 }
+/* 두 번째 필터 알약 줄 — 학년을 골랐으면 그 학년 학생들의 학교, 학교를 골랐으면 그 학교의 학년.
+ * 학년·학교를 함께 좁혀 '화수중 중2' 같은 조합 명단을 본다 (2026-09-27 수정 요청함 김상우). */
+function asSub2Pills(){
+  if (!asS.sub || !asData) return '';
+  var grade = (asS.view === 'grade'), cnt = {};
+  asData.list.forEach(function(x){
+    if (!x.known) return;
+    if (grade){ if (x.g === asS.sub && x.s) cnt[x.s] = (cnt[x.s] || 0) + 1; }
+    else { if (x.s === asS.sub && x.g) cnt[x.g] = (cnt[x.g] || 0) + 1; }
+  });
+  var keys = Object.keys(cnt);
+  if (keys.length < 2) return '';   // 한 갈래뿐이면 좁힐 것이 없다
+  if (grade) keys.sort(function(a, b){ return cnt[b] - cnt[a]; });
+  else {
+    var ord = ['고1','고2','고3','중1','중2','중3'];
+    keys.sort(function(a, b){ return (ord.indexOf(a) + 1 || 99) - (ord.indexOf(b) + 1 || 99); });
+  }
+  return '<span class="as-grp"><span class="as-lab">' + (grade ? '학교' : '학년') + '</span>' +
+    asPills([{v:'',t:'전체'}].concat(keys.slice(0, 12).map(function(k){ return {v:k,t:k + ' ' + cnt[k]}; })), asS.sub2, 'sub2') +
+    '</span>';
+}
 function asScope(){
   if (asS.q) return '"' + asS.q + '" 검색';
-  if (asS.view === 'grade') return asS.sub || '전 학년';
-  if (asS.view === 'school') return asS.sub || '전 학교';
+  if (asS.view === 'grade') return asS.sub ? ((asS.sub2 ? asS.sub2 + ' ' : '') + asS.sub) : '전 학년';
+  if (asS.view === 'school') return asS.sub ? (asS.sub + (asS.sub2 ? ' ' + asS.sub2 : '')) : '전 학교';
   if (asS.view === 'person') return '개인 보기';
   return '전체';
 }
@@ -5465,18 +5497,19 @@ function asRender(){
     '<span class="as-grp"><span class="as-lab">검색</span>' +
       '<input class="as-q" id="as-q" type="search" placeholder="학생 이름" value="' + esc(asS.q) + '" autocomplete="off">' +
     '</span></div>';
-  // 학년·학교 고르기
+  // 학년·학교 고르기 — 하나를 고르면 반대쪽 두 번째 필터가 열린다
+  // (학교+학년 조합 명단 — 2026-09-27 수정 요청함 김상우 "화수중2 친구들만 보고 싶어요")
   if (asS.view === 'grade'){
     h += '<div class="as-ctrls"><span class="as-grp"><span class="as-lab">학년</span>' +
       asPills([{v:'',t:'전체'}].concat(['고1','고2','고3','중2','중3'].map(function(g){ return {v:g,t:g}; })), asS.sub, 'sub') +
-      '</span></div>';
+      '</span>' + asSub2Pills() + '</div>';
   } else if (asS.view === 'school'){
     var cnt = {};
     asData.list.forEach(function(x){ if (x.s) cnt[x.s] = (cnt[x.s] || 0) + 1; });
     var ss = Object.keys(cnt).sort(function(a, b){ return cnt[b] - cnt[a]; }).slice(0, 12);
     h += '<div class="as-ctrls"><span class="as-grp"><span class="as-lab">학교</span>' +
       asPills([{v:'',t:'전체'}].concat(ss.map(function(x){ return {v:x,t:x + ' ' + cnt[x]}; })), asS.sub, 'sub') +
-      '</span></div>';
+      '</span>' + asSub2Pills() + '</div>';
   }
   h += '<div id="as-body">' + asBodyHtml() + '</div>';
   h += '</div>';
@@ -7443,11 +7476,68 @@ function openWeekManage(c, nm, o, dir){
     '<p class="mdesc hint-x">정규 명단·다른 주차·학생 개별 페이지는 그대로예요.</p>'+
     '<div class="mbtns">'+
     (mode === 'week'
-      ? '<button onclick="weekEditCancel('+o.row+',\''+esc(nm)+'\',\''+esc(o.kind)+'\')">되돌리기</button>'
+      ? (added ? '<button onclick="openWeekTempMove(\''+esc(c.id)+'\',\''+esc(nm)+'\','+o.row+',\''+esc(o.date || attDate)+'\')">다른 반으로 옮기기</button>' : '')+
+        '<button onclick="weekEditCancel('+o.row+',\''+esc(nm)+'\',\''+esc(o.kind)+'\')">되돌리기</button>'
       : '')+
     '<button onclick="closeModal()">닫기</button></div>'
   );
   attTelFill(nm);
+}
+/* '이 주만 추가'된 학생을 그 주 다른 반으로 옮기기 (2026-09-20 수정 요청함 김상우 —
+ * 주간추가 학생 창에는 1회 이동 메뉴가 없어 옮길 방법이 없었다).
+ * 명단 학생이 아니라 '1회' 기록을 쓰지 않는다 — 새 반에 '주간추가'를 넣고
+ * 원래 '주간추가' 기록을 지우는 방식(기록 종류·되돌리기 칩 모두 기존 그대로). */
+function openWeekTempMove(cid, nm, row, d){
+  var c = classes.find(function(x){ return x.id === cid; }); if (!c) return;
+  openModal(
+    '<h3>다른 반으로 옮기기</h3>'+
+    '<p class="mdesc"><b>'+esc(plainName(nm))+'</b> — '+esc(labelOf(c))+' <span class="subnote">(이 주만 추가된 학생)</span><br>지금 수업: '+esc(wkDayLabel(d))+'</p>'+
+    '<p class="mdesc hint-x">이 주만 추가된 학생이라, 옮기면 이 반의 <b>이 주</b> 표시가 사라지고 옮긴 반에 <b>이 주</b> 학생으로 들어가요.</p>'+
+    '<label style="font-size:.8rem;color:var(--ink-soft);">옮길 주</label>'+
+    weekSelHtml('sm-week', weekStart)+
+    '<label style="font-size:.8rem;color:var(--ink-soft);display:block;margin-top:8px;">옮길 반 (새로 만든 \'이 주만\' 반도 고를 수 있어요)</label>'+
+    '<select id="sm-cls" onchange="smClsChange()" style="font:inherit;font-size:.92rem;border:1.5px solid var(--line);border-radius:10px;padding:8px 10px;width:100%;margin-top:6px;">'+
+    smClsOptions(cid)+'</select>'+
+    '<label style="font-size:.8rem;color:var(--ink-soft);display:block;margin-top:8px;">사유 메모 (선택)</label>'+
+    '<textarea id="sm-reason" placeholder="예: 시간이 맞지 않아 다른 반으로"></textarea>'+
+    '<p class="merr" id="sm-err"></p>'+
+    '<div class="mbtns"><button onclick="closeModal()">취소</button>'+
+    '<button class="primary" onclick="submitWeekTempMove(\''+esc(cid)+'\',\''+esc(nm)+'\','+row+',\''+esc(d)+'\')">옮기기</button></div>'
+  );
+}
+function submitWeekTempMove(cid, nm, row, d){
+  var t = classes.find(function(x){ return x.id === ($('sm-cls') ? $('sm-cls').value : ''); });
+  if (!t){ $('sm-err').textContent = '옮길 반을 골라주세요.'; return; }
+  var nd;
+  if (t.wk){
+    nd = t.wk;   // '이 주만' 반은 날짜가 반에 정해져 있다
+  } else {
+    var tw = $('sm-week') ? wedOfYmd($('sm-week').value) : new Date(weekStart);
+    if (periodOf(tw) !== book){
+      $('sm-err').textContent = '그 주는 ' + periodOf(tw) + ' 기간이라 이 ' + book + ' 시간표가 나타나지 않아요.'; return;
+    }
+    nd = ymdOf(weekDatesOf(tw)[t.day]);
+  }
+  if (nd === d && t.id === cid){
+    $('sm-err').textContent = '지금과 같은 주·같은 반이에요. 옮길 주나 반을 골라주세요.'; return;
+  }
+  var reason = ($('sm-reason') ? $('sm-reason').value : '').trim();
+  closeModal();
+  // 새 반에 먼저 넣고, 성공하면 원래 '이 주만 추가' 기록을 지운다 — 중간에 실패해도 학생이 사라지지 않게
+  post({ action:'timetableWeekAdd', book:book, student:nm, toId:t.id, date:nd, reason:reason },
+    '옮기는 중…', function(res){
+      if (!res || res.result !== 'success'){
+        setStatus('옮기기 실패: ' + ((res && res.message) || '오류'), 'err'); return;
+      }
+      post({ action:'timetableWeekCancel', row:row }, '원래 기록을 정리하는 중…', function(res2){
+        if (res2 && res2.result === 'success'){
+          setStatus(plainName(nm) + ' — ' + wkDayLabel(nd) + ' ' + t.cls + ' 로 옮겼어요.', 'ok');
+        } else {
+          setStatus(plainName(nm) + ' — ' + wkDayLabel(nd) + ' ' + t.cls + ' 에 추가는 됐지만, 원래 반의 [이 주] 표시를 지우지 못했어요. 원래 반에서 칩을 눌러 [되돌리기]를 해 주세요.', 'err');
+        }
+        loadWeek();
+      });
+    });
 }
 function onceEditReason(row, nm){
   var reason = $('om-reason').value.trim();
