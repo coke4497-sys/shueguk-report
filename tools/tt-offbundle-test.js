@@ -55,6 +55,7 @@ const OFFS = [
   // ① 오늘의 시간표 그리드 — 띠 + 원폭 + 회귀 분할
   let page = await open(wide, 'today', true);
   await page.waitForSelector('.grid.fitgrid .blk', { timeout: 15000 });
+  await page.waitForTimeout(500);   // 오늘 보충 패널이 열리며 본문 폭이 .22s 동안 줄어든다 — 그 뒤에 재야 카드 자리가 맞다
   let r = await page.evaluate(() => {
     const box = el => { const q = el.getBoundingClientRect(); return { l: q.left, r: q.right, w: q.width, t: q.top, h: q.height }; };
     const blks = [...document.querySelectorAll('.grid.fitgrid .blk:not(.wkband)')];

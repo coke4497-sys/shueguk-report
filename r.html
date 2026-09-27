@@ -71,8 +71,16 @@ body{font-family:'Noto Sans KR',sans-serif; background:var(--sage-fog); color:va
 .q-tag.sub{background:var(--line-soft);}
 .q-tag.multi{background:#E7DCF2; color:#6b4fa0; font-weight:700;}
 .q-group-label{font-size:12.5px; font-weight:700; color:var(--sage-deep); margin:16px 4px 2px; display:flex; align-items:center; gap:5px;}
-.q.in-group{margin-left:10px; border-left:3px solid var(--sage-soft);}
-#scopeBox{white-space:pre-wrap;}
+.q.in-group{margin-left:10px;}
+#scopeBox.sp-plain{white-space:pre-wrap;}
+/* 시험 범위 — 라벨은 소제목, 세부 항목은 도트 (r.html·t.html 두 벌) */
+.sp-sec{margin-top:15px;} .sp-sec:first-child{margin-top:0;}
+.sp-h{font-weight:700; color:var(--sage-deep); margin-bottom:6px;}
+.sp-li{position:relative; padding-left:14px; margin:4px 0;}
+.sp-li::before{content:''; position:absolute; left:3px; top:.66em; width:4px; height:4px; border-radius:50%; background:var(--sage-mid);}
+/* 총평 문단 소제목 */
+.rv-h{font-family:'Noto Serif KR',serif; font-weight:700; color:var(--sage-deep); margin:17px 0 5px;}
+.rv-h:first-child{margin-top:0;}
 .q-mark{flex-shrink:0; width:26px; height:26px; border:2px solid var(--sage-mid); border-radius:8px; display:flex; align-items:center; justify-content:center; background:#fff; margin-top:6px;}
 .q-mark svg{width:15px; height:15px; opacity:0;}
 .q.wrong{border-color:var(--sage-deep); background:#FCFDFC;}
@@ -176,7 +184,7 @@ body.capturing ::placeholder{ color:transparent !important; }
 
   <div class="sec">
     <h2 class="sec-h">다음 시험을 위한 다짐</h2>
-    <div class="fld"><textarea id="f_vow" rows="4" placeholder="예) 수능특강 본문을 평소에 한 단원씩 정리해서, 시험 직전에 몰아서 보지 않도록 하겠습니다."></textarea></div>
+    <div class="fld"><textarea id="f_vow" rows="4" placeholder="예) 고전시가를 시험 직전에 몰아서 봤습니다. 다음에는 수업한 작품을 그 주에 한 번씩 정리하겠습니다."></textarea></div>
   </div>
 </div>
 
@@ -326,6 +334,8 @@ var ENDPOINT = "https://script.google.com/macros/s/AKfycbzhCncBwn-JlqXARC3wfrWUC
 
 var REPORT = null;          // 시트에서 불러온 데이터가 담깁니다
 var wrong = {};             // no -> reason
+/* 지문 묶음 라벨 아이콘 — 가는 라인 스트로크 (컬러 이모지 금지 지침, r.html·m.html 두 벌) */
+var BOOK_ICON='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;vertical-align:-2.5px;flex-shrink:0;" aria-hidden="true"><path d="M3.5 5.2h3.3c2 0 3.8.6 5.2 1.8v12.3c-1.4-1.2-3.2-1.8-5.2-1.8H3.5V5.2Z"/><path d="M20.5 5.2h-3.3c-2 0-3.8.6-5.2 1.8v12.3c1.4-1.2 3.2-1.8 5.2-1.8h3.3V5.2Z"/></svg>';
 var CHK='<svg viewBox="0 0 16 16" fill="none"><path d="M3 8.5L6.5 12L13 4.5" stroke="white" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
 // URL 의 ?id= 값 읽기
@@ -354,6 +364,7 @@ function boot(){
       document.getElementById('loading').style.display='none';
       document.getElementById('formView').style.display='block';
       document.getElementById('formBar').style.display='flex';
+      prefillStudent();
       autoBlankIfNeeded();
     })
     .catch(function(){ showError('연결에 실패했습니다.', '인터넷 상태를 확인하고 새로고침해주세요.'); });
@@ -375,13 +386,12 @@ function renderReport(){
   if(enm){ if(etitle){ enm.textContent=etitle; enm.style.display=''; } else { enm.style.display='none'; } }
   if(etitle){ document.title=etitle+' · 시험 복기'; }
 
-  document.getElementById('reviewBox').innerHTML =
-    REPORT.review.map(function(p){ return '<p>'+esc(p)+'</p>'; }).join('');
+  document.getElementById('reviewBox').innerHTML = reviewHtml(REPORT.review);
 
   // 시험 범위 (있을 때만 표시)
   var spSec=document.getElementById('scopeSec');
   if(REPORT.scope && String(REPORT.scope).trim()){
-    document.getElementById('scopeBox').textContent=REPORT.scope;
+    renderScope(document.getElementById('scopeBox'), REPORT.scope);
     spSec.style.display='';
   } else { spSec.style.display='none'; }
 
@@ -392,7 +402,7 @@ function renderReport(){
     // 지문 묶음 라벨: 같은 지문그룹이 시작될 때 한 번 표시
     if(q.group && q.group!==lastGroup){
       var gl=document.createElement('div'); gl.className='q-group-label';
-      gl.innerHTML='📖 지문 · '+esc(q.group);
+      gl.innerHTML=BOOK_ICON+'<span>지문 · '+esc(q.group)+'</span>';
       ql.appendChild(gl);
     }
     lastGroup=q.group||null;
@@ -423,6 +433,49 @@ function renderReport(){
 }
 function updateCount(){ document.getElementById('wcount').textContent=Object.keys(wrong).length; }
 function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+/* 시험 범위·총평 표시 (r.html·t.html 두 벌 — 고치면 둘 다 고칠 것)
+ *  범위: '교과서: …' 같은 라벨 줄을 소제목으로 올리고, 그 아래 줄들을 도트 항목으로 그린다.
+ *        라벨이 하나도 없는 옛 기록은 예전처럼 줄바꿈 그대로 보여 준다(sp-plain).
+ *  총평: 문단 첫 줄이 '## '로 시작하면 그 줄을 소제목으로 올린다. 없으면 예전 그대로. */
+var SCOPE_LABELS = ['교과서 내 범위','교과서 외 범위','추가 자료','교과서'];   // 긴 라벨 먼저 — '교과서'가 앞서면 나머지를 삼킨다
+function scopeSections(text){
+  var secs = [], cur = null;
+  String(text == null ? '' : text).split('\n').forEach(function(raw){
+    var line = raw.trim();
+    if (!line) return;
+    var head = '';
+    for (var i = 0; i < SCOPE_LABELS.length; i++){
+      var L = SCOPE_LABELS[i];
+      if (line.indexOf(L + ':') === 0){ head = L; line = line.slice(L.length + 1).trim(); break; }
+    }
+    if (head){ cur = { h: head, items: [] }; secs.push(cur); if (line) cur.items.push(line); }
+    else if (cur){ cur.items.push(line); }
+    else { cur = { h: '', items: [line] }; secs.push(cur); }
+  });
+  return secs;
+}
+function renderScope(el, text){
+  if (!el) return;
+  var secs = scopeSections(text);
+  var known = secs.some(function(s){ return !!s.h; });
+  if (el.classList) el.classList.toggle('sp-plain', !known);
+  if (!known){ el.textContent = String(text == null ? '' : text); return; }
+  el.innerHTML = secs.map(function(s){
+    return '<div class="sp-sec">' + (s.h ? '<div class="sp-h">' + esc(s.h) + '</div>' : '') +
+      s.items.map(function(x){ return '<div class="sp-li">' + esc(x) + '</div>'; }).join('') + '</div>';
+  }).join('');
+}
+function reviewHtml(paras){
+  return (paras || []).map(function(p){
+    var lines = String(p == null ? '' : p).split('\n');
+    var h = '';
+    if (lines.length && /^##\s+/.test(lines[0])) h = lines.shift().replace(/^##\s+/, '').trim();
+    var body = lines.join('\n').trim();
+    return (h ? '<div class="rv-h">' + esc(h) + '</div>' : '') + (body ? '<p>' + esc(body) + '</p>' : '');
+  }).join('');
+}
+
 
 function txt(v){ return v && v.trim() ? v.replace(/</g,'&lt;') : '<span class="r-empty">작성하지 않음</span>'; }
 
@@ -488,6 +541,24 @@ function saveBlankImage(){
     document.body.appendChild(a); a.click(); a.remove();
     toast('✓ 리포트 이미지를 저장했어요.');
   }).catch(function(){ restore(); toast('이미지 저장에 실패했어요. 다시 시도해주세요.'); });
+}
+
+/* 학생 개별 페이지(s.html)에서 넘어온 값으로 기본 정보를 채운다.
+ * 직접 주소로 들어오면 넘어오는 값이 없어 예전처럼 빈칸으로 둔다.
+ * 전학·동명이인 같은 경우가 있으므로 읽기 전용으로 잠그지는 않는다. */
+function prefillStudent(){
+  var qs;
+  try { qs = new URLSearchParams(location.search); } catch(e){ return; }
+  if(qs.get('blank')==='1') return;            // 티쳐스 빈 양식 이미지는 비워 둔다
+  function put(id, v){
+    var el=document.getElementById(id);
+    if(el && !el.value && v) el.value=v;
+  }
+  put('f_name',   (qs.get('name')||'').trim());
+  put('f_school', (qs.get('school')||'').trim());
+  put('f_grade',  (qs.get('grade')||'').trim());
+  var p8=(qs.get('p8')||'').trim();
+  if(/^\d{8}$/.test(p8)) put('f_parent', p8);
 }
 
 /* ?blank=1 로 열리면(티쳐스 페이지에서) 자동으로 빈 양식 이미지 저장 */
