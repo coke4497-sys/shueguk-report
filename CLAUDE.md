@@ -210,7 +210,7 @@
 - **슈퍼스타 별**: `STAR_RULES.review = 1` — 90% 시청 영상 하나당 +1. s.html(`student_bundle`의 `review_done` 항목, 031이 029 본문 + 한 항목으로 다시 정의)·superstar.html(`review_watch` completed_at 직접 조회, 접근코드로 학생 매칭 + 아웃 검색 `SB_SCAN`에 review_watch·review_targets) 두 벌. **백엔드 폴백(`collectStars_`)에는 넣지 않았다** — 시트 사본이 없는 기능이라 셀 수 없다(수파베이스 장애 때만 이 별이 빠진다). 별 내역 목록 두 벌(s.html·superstar `srcRows`)에 '복습 영상 시청' 줄.
 - 유튜브 영상은 **일부 공개 + 퍼가기 허용**이어야 재생된다(교사 화면 주소 칸 아래 안내). 유튜브 앱에서 본 것은 기록되지 않는다(학생 화면 안내).
 - 검증: `node tools/review-core-test.js`(27건 — 시간 계산) + `PGHOST=/home/pgtest PGPORT=5499 PGUSER=postgres bash tools/review-sql-test.sh`(031 함수·90%·first·상한·거절·bundle·권한) + hub `NODE_PATH=$(npm root -g) node tools/review-e2e-test.js`(38건 — 가짜 수파베이스·가짜 유튜브 플레이어로 교사 배정~결과, 학생 재생·화면 벗어남·스크롤·저장 본문·별 안내). **고치면 셋 다 함께.**
-- **적용 상태: 031은 아직 실제 수파베이스에 적용 전**(2026-09-27) — 적용 전에는 교사 화면이 '불러오지 못했어요', 학생 화면은 카드가 안 보인다(오류 없음).
+- **적용 상태: 031은 2026-09-27 실제 수파베이스에 적용 완료**(원장님이 SQL Editor에서 실행) — 공개 키로 review_done_pct=90·없는 학생 거절·표 직접 읽기 401, 교사 인증으로 세 표 조회, 실제 학생 키로 student_bundle의 review_done·review_list 응답 확인.
 
 ## 카카오 알림톡 — 결석 알림 (2026-09-11 구축, 사용자 결정 "솔라피로 할게요. 결석 알림부터")
 학부모에게 카카오 알림톡을 보내는 첫 기능. 카카오와 직접 계약이 아니라 **솔라피(solapi.com) 대행**을 거친다.
