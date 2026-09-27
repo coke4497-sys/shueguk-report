@@ -746,7 +746,7 @@ curl -s -X POST "https://api.supabase.com/v1/projects/bangdbhqpphqqdwcledg/datab
 
 ## 복습 영상 완료 기준 75% (2026-09-27, 033)
 - `migrations/033_review_done_75.sql` — `review_done_pct()`를 75로(사용자 "75%를 보면 완료, 별 없음 — 결석 보충") + 75% 이상인데 completed_at 이 비어 있던 줄을 채운다. 페이지는 별을 세지 않는다.
-- 적용 상태: **아직 적용 전**(2026-09-27).
+- 적용 상태: **2026-09-27 실제 수파베이스에 적용 완료** — 공개 키로 review_done_pct() = 75 확인(당시 시청 기록 0건이라 채움 대상 없음).
 
 ## ⚠ 2026-08-25 사고 기록 — anon 권한을 잘못 되돌렸다가 복구
 같은 날 다른 세션(`session_01C7786KiKeAoTXLsuvTaYfS`)이 3단계 잠그기(`015_lock_anon.sql`)를
