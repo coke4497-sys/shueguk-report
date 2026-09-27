@@ -140,6 +140,34 @@
   /* 클리닉 신청·확인 뷰 */
   #clinicView{display:none;}
   #questionView{display:none;}
+
+  /* 복습 영상 (2026-09-27) — 유튜브 복습 영상 시청. 화면이 보이는 동안 재생된 시간만 센다 */
+  #reviewView{display:none;}
+  .card.t-mnt .icon{background:#E3EDE7;color:#4C6E66;}
+  .rv-item{display:flex;align-items:center;gap:13px;width:100%;text-align:left;background:var(--surface);border:1px solid var(--line-soft);
+    border-radius:var(--radius);padding:15px 16px;margin-bottom:10px;cursor:pointer;font-family:var(--sans);color:var(--ink);}
+  .rv-item:active{opacity:.9;}
+  .rv-thumb{width:96px;flex:none;aspect-ratio:16/9;border-radius:10px;background:#E3EDE7 center/cover no-repeat;}
+  .rv-body{flex:1;min-width:0;}
+  .rv-ttl{font-family:var(--serif);font-weight:700;font-size:1rem;margin:0 0 3px;line-height:1.4;}
+  .rv-sub{font-size:.8rem;color:var(--ink-soft);margin:0;}
+  .rv-bar{height:6px;border-radius:6px;background:#EEF2EF;margin-top:8px;overflow:hidden;}
+  .rv-bar i{display:block;height:100%;background:#8FB3A7;border-radius:6px;}
+  .rv-bar.done i{background:#4C6E66;}
+  .rv-tag{display:inline-block;font-size:.74rem;font-weight:700;border-radius:20px;padding:2px 9px;margin-left:6px;vertical-align:1px;}
+  .rv-tag.ok{background:#DCE6E0;color:#3A6B5E;} .rv-tag.no{background:#F7E2DE;color:#B0736A;}
+  .rv-empty{background:var(--surface);border-radius:var(--radius);padding:22px;text-align:center;color:var(--ink-soft);font-size:.9rem;}
+  .rv-player{background:#000;border-radius:14px;overflow:hidden;aspect-ratio:16/9;width:100%;}
+  .rv-player iframe,.rv-player > div{width:100%;height:100%;display:block;border:0;}
+  .rv-stat{background:var(--surface);border-radius:var(--radius);padding:15px 17px;margin-top:12px;}
+  .rv-stat .rv-big{font-family:var(--serif);font-weight:700;font-size:1.05rem;margin:0;}
+  .rv-stat .rv-bar{height:9px;margin-top:10px;}
+  .rv-row{display:flex;justify-content:space-between;gap:10px;font-size:.84rem;color:var(--ink-soft);margin-top:9px;}
+  .rv-note{font-size:.8rem;color:var(--ink-soft);margin:10px 2px 0;line-height:1.6;}
+  .rv-warn{display:none;margin-top:10px;background:#F9EFD0;color:#7A6330;border-radius:12px;padding:9px 13px;font-size:.84rem;}
+  .rv-warn.on{display:block;}
+  .rv-star{display:none;margin-top:10px;background:linear-gradient(160deg,#FFFDF6,#FBF3DC);color:#7A6330;border-radius:12px;padding:11px 14px;font-size:.9rem;font-weight:700;}
+  .rv-star.on{display:block;}
   .hw-go{display:inline-flex;align-items:center;gap:5px;margin-top:12px;color:var(--accent);font-size:.84rem;font-weight:700;text-decoration:none;}
   .hw-go svg{width:15px;height:15px;}
   .hw-go:hover{opacity:.8;}
@@ -482,6 +510,30 @@
   <footer><p>이수경국어 Shueguk · 학생용</p></footer>
 </main></div>
 
+<!-- 복습 영상 (2026-09-27) — 선생님이 반에 배정한 유튜브 복습 영상. 90% 이상 보면 슈퍼스타 별 +1 -->
+<div id="reviewView"><main class="wrap gwrap">
+  <div class="gv-bar">
+    <button class="gv-back" onclick="rvBack()" id="rvBack"></button>
+    <span class="gv-ttl" id="rvTtl">복습 영상</span>
+  </div>
+  <div id="rvListBox">
+    <p class="rv-note" style="margin:0 2px 12px">영상의 <b>90% 이상</b>을 보면 슈퍼스타 별 +1. 이 화면에서 볼 때만 기록돼요(유튜브 앱에서 보면 기록되지 않아요).</p>
+    <div id="rvList"></div>
+  </div>
+  <div id="rvPlayBox" style="display:none">
+    <div class="rv-player"><div id="rvPlayer"></div></div>
+    <div class="rv-warn" id="rvWarn"></div>
+    <div class="rv-star" id="rvStar">90% 시청 완료! 슈퍼스타 별 +1 ⭐</div>
+    <div class="rv-stat">
+      <p class="rv-big" id="rvPct">본 구간 0%</p>
+      <div class="rv-bar" id="rvBarBox"><i id="rvBar" style="width:0%"></i></div>
+      <div class="rv-row"><span id="rvSec">시청 시간 0분</span><span id="rvSave"></span></div>
+    </div>
+    <p class="rv-note">화면이 보이고 영상이 재생되는 동안만 시간을 세요. 다른 앱이나 탭으로 가면 영상이 멈추고 그동안은 세지 않아요. 건너뛴 부분은 본 구간에 들어가지 않아요.</p>
+  </div>
+  <footer><p>이수경국어 Shueguk · 학생용</p></footer>
+</main></div>
+
 <!-- 질문하기 — 선생님별 질문 대기열 (2026-09-06) -->
 <div id="questionView"><main class="wrap gwrap">
   <div class="gv-bar">
@@ -612,6 +664,7 @@ var ICON = {
   bell:'<path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>',
   clip:'<path d="M9 3h6a1 1 0 0 1 1 1v1a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M16 5h2a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2"/><path d="M9 14l2 2 4-4"/>',
   check:'<path d="M20 6L9 17l-5-5"/>',
+  play:'<rect x="2.5" y="4.5" width="19" height="15" rx="3"/><path d="M10 9.2v5.6l4.8-2.8z"/>',
   ask:'<path d="M21 11.5a8.4 8.4 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7A8.5 8.5 0 1 1 21 11.5z"/><path d="M9.8 9.3a2.4 2.4 0 0 1 4.7.8c0 1.6-2.4 2.1-2.4 3.4"/><line x1="12.1" y1="16.6" x2="12.1" y2="16.7"/>'
 };
 function svg(inner){ return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">'+inner+'</svg>'; }
@@ -826,10 +879,10 @@ function hide(id){ $(id).style.display='none'; }
 
 var KEY = '';        // 접근코드(토큰) — 없으면 테스트용 id
 var IS_ID = false;
-var STATE = { info:null, authed:false, exams:null, examCount:0, notices:null, homework:null, analyses:null, clinic:null, stars:null, vocaOpen:null, vocaWeek:null, mockGrades:null, mockOpen:null, clinicEligible:null, vocaTaken:null, mockSignups:null, mockFromServer:false, mockGatesFromServer:false, vocaFromServer:false, clinicFromServer:false, hwcheck:null, qq:null, qqLoading:false, qqTeachers:null };
+var STATE = { info:null, authed:false, exams:null, examCount:0, notices:null, homework:null, analyses:null, clinic:null, stars:null, vocaOpen:null, vocaWeek:null, mockGrades:null, mockOpen:null, clinicEligible:null, vocaTaken:null, mockSignups:null, mockFromServer:false, mockGatesFromServer:false, vocaFromServer:false, clinicFromServer:false, hwcheck:null, qq:null, qqLoading:false, qqTeachers:null, review:null, reviewLoading:false };
 
 function showError(title, msg){
-  hide('loadBox'); hide('hubView'); $('gradeView').style.display='none'; $('mockHubView').style.display='none'; $('mockView').style.display='none'; $('clinicView').style.display='none'; $('hwcheckView').style.display='none'; $('questionView').style.display='none';
+  hide('loadBox'); hide('hubView'); $('gradeView').style.display='none'; $('mockHubView').style.display='none'; $('mockView').style.display='none'; $('clinicView').style.display='none'; $('hwcheckView').style.display='none'; $('questionView').style.display='none'; $('reviewView').style.display='none';
   $('errTitle').textContent = title || '불러올 수 없습니다';
   $('errMsg').textContent = msg || '';
   show('errBox');
@@ -865,7 +918,7 @@ function api(extra){
   function p2(n){ return ('0' + n).slice(-2); }
 
   /* ── 백엔드 규칙 이식 ── */
-  var STAR_RULES = { exam: 2, clinic: 1, voca: 1, hwork: 1, notice: 1, mock: 1, hwcheck: 1, gramma: 1 };   // gramma = 문법 세트 클리어(스테이지 5개를 모두 70% 이상 — 2026-09-16, 옛 '회차마다 90%' 규칙 대체)
+  var STAR_RULES = { exam: 2, clinic: 1, voca: 1, hwork: 1, notice: 1, mock: 1, hwcheck: 1, gramma: 1, review: 1 };   // review = 복습 영상 90% 시청(031, 2026-09-27) · gramma = 문법 세트 클리어(스테이지 5개를 모두 70% 이상 — 2026-09-16, 옛 '회차마다 90%' 규칙 대체)
   function baseName(s){ return tr(s).replace(/[A-Za-z]$/, ''); }
   function schoolMatch(a, b){
     a = String(a || '').replace(/\s+/g, ''); b = String(b || '').replace(/\s+/g, '');
@@ -1067,7 +1120,7 @@ function api(extra){
       var notices = B.notices || [], reads = B.notice_reads || [], assigns = B.assignments || [],
           clinicRows = B.clinic_requests || [], hwsub = B.hwork_submissions || [], voca = B.voca_results || [],
           omr = B.omr_responses || [], hwc = B.hwcheck_records || [], signup = B.signup_entries || [],
-          bonusRows = B.star_bonus || [], cfg = B.report_config || [], subs = B.submissions || [], grammaSets = B.gramma_sets || [],
+          bonusRows = B.star_bonus || [], cfg = B.report_config || [], subs = B.submissions || [], grammaSets = B.gramma_sets || [], reviewDone = B.review_done || [],
           examList = B.exams || [], qRows = B.exam_questions || [],
           clinicSet = B.clinic_settings || [], signupSet = B.signup_settings || [];
 
@@ -1290,6 +1343,10 @@ function api(extra){
           grammaSet[tr(r.unit) + '|' + tr(r.set_no)] = true;
         });
         var grammaN = Object.keys(grammaSet).length;
+        /* 복습 영상 90% 시청(review_done — 031) — 영상 단위. 함수가 이미 이 학생(접근코드) 것만 준다 */
+        var reviewSet = {};
+        reviewDone.forEach(function(r){ reviewSet[tr(r.video_id)] = true; });
+        var reviewN = Object.keys(reviewSet).length;
         var bonus = { sum: 0, latest: null };
         bonusRows.forEach(function(r){
           var rid = tr(r.student_id).replace(/^'/, ''), rnm = tr(r.name), rsc = tr(r.school);
@@ -1313,10 +1370,10 @@ function api(extra){
           total: examCountStars * STAR_RULES.exam + clinicN * STAR_RULES.clinic
                + Object.keys(vocaRounds).length * STAR_RULES.voca + Object.keys(hworkSet).length * STAR_RULES.hwork
                + Object.keys(mockSet).length * STAR_RULES.mock + hwPerfect * STAR_RULES.hwcheck
-               + noticeN * STAR_RULES.notice + grammaN * STAR_RULES.gramma + bonus.sum,
+               + noticeN * STAR_RULES.notice + grammaN * STAR_RULES.gramma + reviewN * STAR_RULES.review + bonus.sum,
           breakdown: { exam: examCountStars, clinic: clinicN, voca: Object.keys(vocaRounds).length,
                        hwork: Object.keys(hworkSet).length, mock: Object.keys(mockSet).length,
-                       hwcheck: hwPerfect, notice: noticeN, gramma: grammaN, bonus: bonus.sum },
+                       hwcheck: hwPerfect, notice: noticeN, gramma: grammaN, review: reviewN, bonus: bonus.sum },
           latestBonus: bonus.latest
         };
 
@@ -1523,6 +1580,7 @@ function renderStars(){
       notice:'<path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>',
       hwcheck:'<path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>',
       gramma:'<path d="M4 7V4h16v3"/><path d="M9 20h6"/><path d="M12 4v16"/>',
+      review:'<rect x="2.5" y="4.5" width="19" height="15" rx="3"/><path d="M10 9.2v5.6l4.8-2.8z"/>',
       bonus: '<path d="M12 2l2.9 6.2 6.8.8-5 4.7 1.3 6.7L12 17.1 6 20.4l1.3-6.7-5-4.7 6.8-.8z"/>'
     };
     function srcIcon(k){
@@ -1537,6 +1595,7 @@ function renderStars(){
       ['hwcheck','숙제 검사 만점',     bd.hwcheck,'주', bd.hwcheck],
       ['notice', '공지 확인',          bd.notice, '건', bd.notice],
       ['gramma', '문법 세트 클리어', bd.gramma || 0, '세트', bd.gramma || 0],
+      ['review', '복습 영상 시청', bd.review || 0, '개', bd.review || 0],
       ['bonus',  '수경쌤 깜짝 보너스', bd.bonus ? 1 : 0, '', bd.bonus]
     ].filter(function(s){ return s[2] > 0; });
     if(srcs.length){
@@ -1637,6 +1696,19 @@ function renderHub(){
             '<span class="icon">'+svg(ICON.clip)+hDot+'</span>' +
             '<h3>H-work</h3><p class="desc">'+esc(hDesc)+'</p>' +
             '<span class="go">'+(hCnt>0?'확인 ':'열기 ')+svg(ICON.arrow)+'</span></button>';
+
+  // 복습 영상 (2026-09-27) — 배정된 영상이 있을 때만 카드. 목록은 처음 한 번 뒤에서 받는다(rvRefresh)
+  if(STATE.review === null && !STATE.reviewLoading) rvRefresh(true);
+  var rv0 = STATE.review || [];
+  if(rv0.length){
+    var rvTodo = rv0.filter(function(v){ return !v.done; }).length;
+    var rvDesc = rvTodo>0 ? ('볼 영상 '+rvTodo+'개 · 90% 보면 별 +1') : '모두 시청 완료';
+    var rvDot = rvTodo>0 ? '<span class="new-dot">'+(rvTodo>9?'9+':rvTodo)+'</span>' : '';
+    html += '<button class="card t-mnt" onclick="openReview()">' +
+              '<span class="icon">'+svg(ICON.play)+rvDot+'</span>' +
+              '<h3>복습 영상</h3><p class="desc">'+esc(rvDesc)+'</p>' +
+              '<span class="go">'+(rvTodo>0?'보기 ':'열기 ')+svg(ICON.arrow)+'</span></button>';
+  }
 
   // 숙제 검사 — 정규 수업 검사 기록이 있는 학생에게만 카드 표시
   var hwc = STATE.hwcheck || [];
@@ -1767,7 +1839,7 @@ function renderHub(){
 
   renderStars();   // 슈퍼스타 별 카드 (백엔드가 stars를 주면 표시)
 
-  hide('loadBox'); hide('errBox'); $('gradeView').style.display='none'; $('noticeView').style.display='none'; $('homeworkView').style.display='none'; $('mockHubView').style.display='none'; $('mockView').style.display='none'; $('clinicView').style.display='none'; $('hwcheckView').style.display='none'; $('questionView').style.display='none'; show('hubView');
+  hide('loadBox'); hide('errBox'); $('gradeView').style.display='none'; $('noticeView').style.display='none'; $('homeworkView').style.display='none'; $('mockHubView').style.display='none'; $('mockView').style.display='none'; $('clinicView').style.display='none'; $('hwcheckView').style.display='none'; $('questionView').style.display='none'; $('reviewView').style.display='none'; show('hubView');
   noticePopupMaybe();   // 미확인 공지 팝업(허브 화면일 때만, 탭당 한 번)
 }
 
@@ -2997,6 +3069,243 @@ function mockTrendHtml(reps){
   return '<div class="tr-card"><h3 class="tr-ttl">성적 추이</h3>'+sum+chart+foot+grades+areaTbl+'</div>';
 }
 
+/* ── 복습 영상 (2026-09-27, 수파베이스 031) ───────────────────────────────
+ * 선생님이 반에 배정한 유튜브 영상을 이 페이지 안에서 재생하고, 본 구간·시청 시간을 기록한다.
+ * 규칙(사용자 결정): 본 구간 90% 이상 = 완료 → 슈퍼스타 별 +1(서버 review_save 가 판정)
+ *                   화면을 벗어나면(다른 탭·앱·화면 꺼짐) 영상을 멈추고 시간을 세지 않는다.
+ *                   영상이 화면 밖으로 스크롤돼 절반 넘게 가려져도 세지 않는다.
+ * 1초마다 플레이어의 현재 위치를 읽어, 앞 위치에서 3.5초 안쪽으로 이어졌으면 그 사이 초를 '본 구간'으로 적는다
+ * (건너뛰기는 빈 채로 남는다 — 배속 2배까지는 이어진 것으로 본다). 20초마다·멈출 때·화면을 떠날 때 저장.
+ * 순수 계산은 아래 REVIEW-CORE 블록 한 곳 — tools/review-core-test.js 가 이 블록만 떼어 검증한다. */
+/* ==REVIEW-CORE== */
+var RVC = (function(){
+  function bitsFrom(str, dur){
+    var b = new Uint8Array(Math.max(0, dur|0));
+    var s = String(str || '');
+    for (var i = 0; i < b.length && i < s.length; i++) b[i] = s.charCodeAt(i) === 49 ? 1 : 0;
+    return b;
+  }
+  function pct(bits){
+    if (!bits || !bits.length) return 0;
+    var n = 0; for (var i = 0; i < bits.length; i++) n += bits[i];
+    return Math.floor(n * 100 / bits.length);
+  }
+  function merge(ranges){
+    var r = (ranges || []).filter(function(x){ return x && x[1] > x[0]; })
+      .map(function(x){ return [x[0], x[1]]; }).sort(function(a, b){ return a[0] - b[0]; });
+    var out = [];
+    r.forEach(function(x){
+      var last = out[out.length - 1];
+      if (last && x[0] <= last[1]) last[1] = Math.max(last[1], x[1]); else out.push(x);
+    });
+    return out;
+  }
+  /* 한 번의 틱: st = {lastT, bits, pending, addSec}. counting=재생 중·화면 보임·영상이 화면 안.
+   * 돌려주는 값: 이번 틱에 새로 적은 초 수 */
+  function step(st, t, counting){
+    if (!counting || typeof t !== 'number' || isNaN(t)){ st.lastT = null; return 0; }
+    var marked = 0;
+    if (st.lastT !== null && t >= st.lastT && t - st.lastT <= 3.5){
+      var a = Math.floor(st.lastT), b = Math.min(st.bits.length, Math.floor(t) + 1);
+      if (b > a){
+        st.pending.push([a, b]);
+        for (var i = a; i < b; i++){ if (!st.bits[i]){ st.bits[i] = 1; marked++; } }
+      }
+      st.addSec += 1;
+    }
+    st.lastT = t;
+    return marked;
+  }
+  function fmt(sec){
+    sec = Math.max(0, Math.round(sec || 0));
+    var h = Math.floor(sec / 3600), m = Math.floor(sec % 3600 / 60), s2 = sec % 60;
+    if (h) return h + '시간 ' + m + '분';
+    if (m) return m + '분' + (s2 ? ' ' + s2 + '초' : '');
+    return s2 + '초';
+  }
+  function ytId(u){
+    var s = String(u || '').trim();
+    if (/^[\w-]{11}$/.test(s)) return s;
+    var m = s.match(/(?:youtu\.be\/|[?&]v=|\/embed\/|\/shorts\/|\/live\/)([\w-]{11})/);
+    return m ? m[1] : '';
+  }
+  return { bitsFrom: bitsFrom, pct: pct, merge: merge, step: step, fmt: fmt, ytId: ytId };
+})();
+/* ==/REVIEW-CORE== */
+
+var RV = { cur: null, player: null, st: null, timer: null, saveTimer: null, inView: true, saving: false, apiJob: null, hidPaused: false };
+function rvWho(){ return { key: IS_ID ? '' : KEY, student: IS_ID ? KEY : '' }; }
+function rvRpc(fn, extra){
+  var p = rvWho(); for (var k in (extra || {})) p[k] = extra[k];
+  return qqRpc(fn, { p: p });
+}
+function rvRefresh(quiet){
+  STATE.reviewLoading = true;
+  return rvRpc('review_list').then(function(r){
+    STATE.reviewLoading = false;
+    STATE.review = (r && r.ok) ? (r.items || []) : [];
+    if ($('reviewView').style.display === 'block' && !RV.cur) rvRenderList();
+    else if (quiet && $('hubView').style.display !== 'none') renderHub();
+  }).catch(function(){ STATE.reviewLoading = false; STATE.review = STATE.review || []; });
+}
+function openReview(){
+  hide('hubView'); $('reviewView').style.display = 'block'; window.scrollTo(0, 0);
+  rvShowList();
+  rvRefresh();
+}
+function rvShowList(){
+  var job = rvStop();
+  RV.cur = null;
+  $('rvTtl').textContent = '복습 영상';
+  $('rvPlayBox').style.display = 'none'; $('rvListBox').style.display = 'block';
+  $('rvBack').innerHTML = svg(ICON.back) + ' 메뉴';
+  rvRenderList();
+  return job;
+}
+function rvBack(){
+  if (RV.cur){ rvShowList().then(function(){ rvRefresh(); }); window.scrollTo(0, 0); return; }   // 저장이 끝난 뒤 목록 진행을 새로 받는다
+  $('reviewView').style.display = 'none'; show('hubView'); renderHub(); window.scrollTo(0, 0);
+}
+function rvRenderList(){
+  var list = STATE.review;
+  if (list === null){ $('rvList').innerHTML = '<div class="rv-empty">불러오는 중…</div>'; return; }
+  if (!list.length){ $('rvList').innerHTML = '<div class="rv-empty">배정된 복습 영상이 없어요.</div>'; return; }
+  $('rvList').innerHTML = list.map(function(v){
+    var tag = v.done ? '<span class="rv-tag ok">시청 완료 ✓</span>' : (v.pct > 0 ? '' : '<span class="rv-tag no">아직 안 봄</span>');
+    var sub = (v.cls ? esc(v.cls) + ' · ' : '') + '본 구간 ' + (v.pct || 0) + '%' + (v.sec ? ' · 시청 ' + RVC.fmt(v.sec) : '');
+    return '<button class="rv-item" onclick="rvOpen(' + (+v.id) + ')">' +
+      '<span class="rv-thumb" style="background-image:url(https://i.ytimg.com/vi/' + encodeURIComponent(v.yt) + '/mqdefault.jpg)"></span>' +
+      '<span class="rv-body"><p class="rv-ttl">' + esc(v.title || '복습 영상') + tag + '</p>' +
+      '<p class="rv-sub">' + sub + '</p>' +
+      '<span class="rv-bar' + (v.done ? ' done' : '') + '" style="display:block"><i style="width:' + Math.min(100, v.pct || 0) + '%"></i></span></span></button>';
+  }).join('');
+}
+function rvLoadApi(){
+  if (window.YT && window.YT.Player) return Promise.resolve();
+  if (RV.apiJob) return RV.apiJob;
+  RV.apiJob = new Promise(function(resolve, reject){
+    var prev = window.onYouTubeIframeAPIReady;
+    window.onYouTubeIframeAPIReady = function(){ if (typeof prev === 'function') try{ prev(); }catch(e){} resolve(); };
+    var s = document.createElement('script');
+    s.src = 'https://www.youtube.com/iframe_api';
+    s.onerror = function(){ RV.apiJob = null; reject(new Error('yt api')); };
+    document.head.appendChild(s);
+  });
+  return RV.apiJob;
+}
+function rvWarn(msg){ var w = $('rvWarn'); w.textContent = msg || ''; w.className = 'rv-warn' + (msg ? ' on' : ''); }
+function rvPaint(){
+  var v = RV.cur; if (!v || !RV.st) return;
+  var p = RVC.pct(RV.st.bits);
+  var done = v.done || p >= (v.done_pct || 90);
+  $('rvPct').textContent = '본 구간 ' + p + '%' + (done ? ' · 시청 완료 ✓' : ' · ' + (v.done_pct || 90) + '% 넘으면 별 +1');
+  $('rvBar').style.width = Math.min(100, p) + '%';
+  $('rvBarBox').className = 'rv-bar' + (done ? ' done' : '');
+  $('rvSec').textContent = '시청 시간 ' + RVC.fmt((v.sec || 0) + RV.st.addSec);
+}
+function rvOpen(id){
+  rvStop();
+  $('rvTtl').textContent = '불러오는 중…';
+  $('rvListBox').style.display = 'none'; $('rvPlayBox').style.display = 'block';
+  $('rvBack').innerHTML = svg(ICON.back) + ' 영상 목록';
+  $('rvStar').className = 'rv-star'; rvWarn(''); $('rvSave').textContent = '';
+  rvRpc('review_open', { video: id }).then(function(r){
+    if (!r || !r.ok){ rvWarn('영상을 열 수 없어요. 목록으로 돌아가 다시 눌러 주세요.'); $('rvTtl').textContent = '복습 영상'; return; }
+    RV.cur = r;
+    $('rvTtl').textContent = r.title || '복습 영상';
+    RV.st = { lastT: null, bits: RVC.bitsFrom(r.bits, r.duration || 0), pending: [], addSec: 0 };
+    rvPaint();
+    return rvLoadApi().then(function(){
+      $('rvPlayer').outerHTML = '<div id="rvPlayer"></div>';
+      RV.player = new YT.Player('rvPlayer', {
+        videoId: r.yt, width: '100%', height: '100%',
+        playerVars: { rel: 0, playsinline: 1, modestbranding: 1, start: (r.pos > 5 && !r.done && r.pos < (r.duration || 1e9) - 5) ? Math.floor(r.pos) : 0 },
+        events: {
+          onReady: function(){ rvStart(); },
+          onStateChange: function(e){ if (e.data === 2 || e.data === 0) rvSave(); }
+        }
+      });
+    });
+  }).catch(function(){ rvWarn('영상 플레이어를 불러오지 못했어요. 인터넷 상태를 확인하고 다시 열어 주세요.'); });
+}
+function rvCounting(){
+  var p = RV.player;
+  return !!(p && p.getPlayerState && p.getPlayerState() === 1 && !document.hidden && RV.inView);
+}
+function rvTick(){
+  var p = RV.player, v = RV.cur; if (!p || !v || !p.getCurrentTime) return;
+  // 영상 길이는 플레이어에서 — 처음 보는 영상이면 서버가 이 값으로 채운다
+  if (!v.duration && p.getDuration && p.getDuration() > 0){
+    v.duration = Math.round(p.getDuration());
+    RV.st.bits = RVC.bitsFrom('', v.duration);
+  }
+  if (!RV.st.bits.length) return;
+  var playing = p.getPlayerState && p.getPlayerState() === 1;
+  if (playing && !RV.inView) rvWarn('영상이 화면에 보여야 시간이 쌓여요. 영상이 보이게 올려 주세요.');
+  else if (!RV.hidPaused) rvWarn('');
+  RVC.step(RV.st, p.getCurrentTime(), rvCounting());
+  rvPaint();
+}
+function rvStart(){
+  clearInterval(RV.timer); clearInterval(RV.saveTimer);
+  RV.timer = setInterval(rvTick, 1000);
+  RV.saveTimer = setInterval(function(){ rvSave(); }, 20000);
+  if ('IntersectionObserver' in window){
+    if (RV.io) RV.io.disconnect();
+    RV.io = new IntersectionObserver(function(es){ es.forEach(function(e){ RV.inView = e.intersectionRatio >= 0.5; }); }, { threshold: [0, 0.5, 1] });
+    RV.io.observe(document.querySelector('.rv-player'));
+  }
+}
+function rvStop(){
+  clearInterval(RV.timer); clearInterval(RV.saveTimer); RV.timer = RV.saveTimer = null;
+  if (RV.io){ RV.io.disconnect(); RV.io = null; }
+  var job = RV.cur ? rvSave(true) : Promise.resolve();
+  if (RV.player && RV.player.destroy){ try{ RV.player.destroy(); }catch(e){} }
+  RV.player = null; RV.inView = true; RV.hidPaused = false;
+  return job;
+}
+function rvSave(bg){
+  var v = RV.cur, st = RV.st;
+  if (!v || !st || (!st.pending.length && !st.addSec) || !v.duration) return Promise.resolve();
+  var ranges = RVC.merge(st.pending), add = st.addSec;
+  var pos = RV.player && RV.player.getCurrentTime ? Math.floor(RV.player.getCurrentTime()) : 0;
+  st.pending = []; st.addSec = 0;
+  v.sec = (v.sec || 0) + add;
+  var body = JSON.stringify({ p: Object.assign(rvWho(), { video: v.id, duration: v.duration, ranges: ranges, add_sec: add, pos: pos }) });
+  var req = fetch(QQ_REST + '/rpc/review_save', {
+    method: 'POST', keepalive: !!bg,
+    headers: { 'apikey': QQ_KEY, 'Authorization': 'Bearer ' + QQ_KEY, 'Content-Type': 'application/json' },
+    body: body
+  }).then(function(r){ if (!r.ok) throw new Error('save ' + r.status); return r.json(); });
+  if (bg) return req.catch(function(){});
+  return req.then(function(r){
+    if (!r || !r.ok) throw new Error(r && r.error || 'x');
+    if (RV.cur !== v) return;
+    if (r.first){ $('rvStar').className = 'rv-star on'; STATE.review = null; }
+    if (r.done) v.done = true;
+    $('rvSave').textContent = '저장됨';
+    rvPaint();
+  }).catch(function(){
+    if (RV.cur !== v) return;
+    st.pending = st.pending.concat(ranges); st.addSec += add; v.sec -= add;   // 다음 저장 때 다시 보낸다
+    $('rvSave').textContent = '저장 대기 중';
+  });
+}
+// 화면을 벗어나면: 영상을 멈추고(그동안 세지 않음) 지금까지 본 것을 저장
+document.addEventListener('visibilitychange', function(){
+  if (!RV.player || !RV.cur) return;
+  if (document.hidden){
+    if (RV.player.getPlayerState && RV.player.getPlayerState() === 1){
+      try{ RV.player.pauseVideo(); }catch(e){}
+      RV.hidPaused = true;
+      rvWarn('화면을 벗어나서 영상을 멈췄어요. 그동안은 시간을 세지 않았어요. ▶ 를 눌러 이어 보세요.');
+    }
+    RV.st && (RV.st.lastT = null);
+    rvSave(true);
+  } else if (RV.hidPaused){ setTimeout(function(){ RV.hidPaused = false; }, 6000); }
+});
+window.addEventListener('pagehide', function(){ if (RV.cur) rvSave(true); });
+
 /* ---- 시작 ---- */
 function boot(){
   $('gvBack').innerHTML = svg(ICON.back) + ' 메뉴';
@@ -3006,6 +3315,7 @@ function boot(){
   $('hwBack').innerHTML = svg(ICON.back) + ' 메뉴';
   $('clBack').innerHTML = svg(ICON.back) + ' 메뉴';
   $('qqBack').innerHTML = svg(ICON.back) + ' 클리닉';
+  $('rvBack').innerHTML = svg(ICON.back) + ' 메뉴';
   $('pwIcon').innerHTML = svg(ICON.lock);
   $('pwInput').addEventListener('keydown', function(e){ if(e.key==='Enter') submitPw(); });
 
