@@ -5002,7 +5002,7 @@ function ahMkBadge(x){
  * 데이터: timetableWeek(정규+내신) + roster(학년·학교) + attendAbsentList(결석 보충 상태).
  * 백엔드 변경 없음 — 지금 출석기록이 1,000건 안팎이라 화면에서 집계해도 가볍다.
  * ※ 기록이 쌓여 무거워지면 서버에서 학생별·주차별로 집계해 주는 액션을 따로 만들 것. */
-var asS = { weeks:4, view:'all', sort:'issue', q:'', sub:'', limit:40, open:{}, gclosed:{}, person:'' };
+var asS = { weeks:4, view:'all', sort:'issue', q:'', sub:'', sub2:'', limit:40, open:{}, gclosed:{}, person:'' };
 var asData = null, asRoster = null, asSeq = 0, asBusy = false, asErr = '';
 
 /* 일요일 논술 특강은 출석 집계에서 뺀다 (2026-08-23 사용자 확정) */
@@ -5361,8 +5361,14 @@ function asPool(){
   var q = asS.q.trim();
   return asData.list.filter(function(st){
     if (q && st.n.indexOf(q) < 0) return false;
-    if (asS.view === 'grade' && asS.sub && st.g !== asS.sub) return false;
-    if (asS.view === 'school' && asS.sub && st.s !== asS.sub) return false;
+    if (asS.view === 'grade' && asS.sub){
+      if (st.g !== asS.sub) return false;
+      if (asS.sub2 && st.s !== asS.sub2) return false;   // 학교+학년 조합(2026-09-27 수정 요청함 김상우)
+    }
+    if (asS.view === 'school' && asS.sub){
+      if (st.s !== asS.sub) return false;
+      if (asS.sub2 && st.g !== asS.sub2) return false;
+    }
     return true;
   });
 }
@@ -5380,7 +5386,8 @@ function asSort(list){
 function asSet(k, v){
   asS[k] = v;
   if (k === 'weeks'){ asS.limit = 40; asLoad(); return; }
-  if (k === 'view'){ asS.sub = ''; asS.gclosed = {}; }
+  if (k === 'view'){ asS.sub = ''; asS.sub2 = ''; asS.gclosed = {}; }
+  if (k === 'sub') asS.sub2 = '';
   if (k !== 'sort') asS.limit = 40;
   asRender();
 }
@@ -5391,10 +5398,31 @@ function asPills(opts, cur, key){
       esc(o.t) + '</button>';
   }).join('');
 }
+/* 두 번째 필터 알약 줄 — 학년을 골랐으면 그 학년 학생들의 학교, 학교를 골랐으면 그 학교의 학년.
+ * 학년·학교를 함께 좁혀 '화수중 중2' 같은 조합 명단을 본다 (2026-09-27 수정 요청함 김상우). */
+function asSub2Pills(){
+  if (!asS.sub || !asData) return '';
+  var grade = (asS.view === 'grade'), cnt = {};
+  asData.list.forEach(function(x){
+    if (!x.known) return;
+    if (grade){ if (x.g === asS.sub && x.s) cnt[x.s] = (cnt[x.s] || 0) + 1; }
+    else { if (x.s === asS.sub && x.g) cnt[x.g] = (cnt[x.g] || 0) + 1; }
+  });
+  var keys = Object.keys(cnt);
+  if (keys.length < 2) return '';   // 한 갈래뿐이면 좁힐 것이 없다
+  if (grade) keys.sort(function(a, b){ return cnt[b] - cnt[a]; });
+  else {
+    var ord = ['고1','고2','고3','중1','중2','중3'];
+    keys.sort(function(a, b){ return (ord.indexOf(a) + 1 || 99) - (ord.indexOf(b) + 1 || 99); });
+  }
+  return '<span class="as-grp"><span class="as-lab">' + (grade ? '학교' : '학년') + '</span>' +
+    asPills([{v:'',t:'전체'}].concat(keys.slice(0, 12).map(function(k){ return {v:k,t:k + ' ' + cnt[k]}; })), asS.sub2, 'sub2') +
+    '</span>';
+}
 function asScope(){
   if (asS.q) return '"' + asS.q + '" 검색';
-  if (asS.view === 'grade') return asS.sub || '전 학년';
-  if (asS.view === 'school') return asS.sub || '전 학교';
+  if (asS.view === 'grade') return asS.sub ? ((asS.sub2 ? asS.sub2 + ' ' : '') + asS.sub) : '전 학년';
+  if (asS.view === 'school') return asS.sub ? (asS.sub + (asS.sub2 ? ' ' + asS.sub2 : '')) : '전 학교';
   if (asS.view === 'person') return '개인 보기';
   return '전체';
 }
@@ -5431,18 +5459,19 @@ function asRender(){
     '<span class="as-grp"><span class="as-lab">검색</span>' +
       '<input class="as-q" id="as-q" type="search" placeholder="학생 이름" value="' + esc(asS.q) + '" autocomplete="off">' +
     '</span></div>';
-  // 학년·학교 고르기
+  // 학년·학교 고르기 — 하나를 고르면 반대쪽 두 번째 필터가 열린다
+  // (학교+학년 조합 명단 — 2026-09-27 수정 요청함 김상우 "화수중2 친구들만 보고 싶어요")
   if (asS.view === 'grade'){
     h += '<div class="as-ctrls"><span class="as-grp"><span class="as-lab">학년</span>' +
       asPills([{v:'',t:'전체'}].concat(['고1','고2','고3','중2','중3'].map(function(g){ return {v:g,t:g}; })), asS.sub, 'sub') +
-      '</span></div>';
+      '</span>' + asSub2Pills() + '</div>';
   } else if (asS.view === 'school'){
     var cnt = {};
     asData.list.forEach(function(x){ if (x.s) cnt[x.s] = (cnt[x.s] || 0) + 1; });
     var ss = Object.keys(cnt).sort(function(a, b){ return cnt[b] - cnt[a]; }).slice(0, 12);
     h += '<div class="as-ctrls"><span class="as-grp"><span class="as-lab">학교</span>' +
       asPills([{v:'',t:'전체'}].concat(ss.map(function(x){ return {v:x,t:x + ' ' + cnt[x]}; })), asS.sub, 'sub') +
-      '</span></div>';
+      '</span>' + asSub2Pills() + '</div>';
   }
   h += '<div id="as-body">' + asBodyHtml() + '</div>';
   h += '</div>';
