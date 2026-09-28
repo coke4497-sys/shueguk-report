@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # 수업 리포트(034) 검증 — 로컬 PostgreSQL.
-# 001·003 뒤 034를 두 번 얹고(재실행 안전) class_report_list 의 본인 확인·공개 여부·기간·정렬과
+# 001·003 뒤 034를 두 번 얹고(재실행 안전) class_report_list(주간 리포트)의 본인 확인·공개 여부·기간·정렬과
 # 표 권한(공개 키는 표를 못 읽고 함수만)을 assert 로 확인한다.
 # 사용:  PGHOST=/home/pgtest PGPORT=5499 PGUSER=postgres bash tools/class-report-sql-test.sh   (원격에는 절대 돌리지 말 것)
 set -euo pipefail
@@ -34,15 +34,15 @@ do $$ begin
 end $$;
 SQL
 psql -v ON_ERROR_STOP=1 -q -d "$DB" <<'SQL'
-insert into class_reports (book, class_id, ymd, week, class_name, class_time, code, student_id, name, body, published) values
-  ('내신','n081', current_date,      current_date,      '고2 확인', '금 5:30~7:00', 'tok-park','12345678','박보검', '{"attend":"출석","summary":"오늘"}', true),
-  ('내신','n080', current_date - 2,  current_date - 2,  '고2 화정A','수 5:30~7:00', 'tok-park','12345678','박보검', '{"attend":"지각"}', true),
-  ('내신','n079', current_date - 1,  current_date - 1,  '고2 비공개','목 5:30~7:00','tok-park','12345678','박보검', '{}', false),
-  ('정규','r001', current_date - 200,current_date - 200,'고2 옛날', '수 5:30~7:00', 'tok-park','12345678','박보검', '{}', true),
-  ('내신','n081', current_date,      current_date,      '고2 확인', '금 5:30~7:00', 'tok-kim','87654321','김하늘', '{"attend":"결석"}', true);
+insert into class_reports (week, book, code, student_id, name, body, published) values
+  (current_date,       '내신', 'tok-park','12345678','박보검', '{"parts":[{"part":"진도","summary":"오늘"}]}', true),
+  (current_date - 7,   '내신', 'tok-park','12345678','박보검', '{"parts":[]}', true),
+  (current_date - 14,  '내신', 'tok-park','12345678','박보검', '{}', false),
+  (current_date - 200, '정규', 'tok-park','12345678','박보검', '{}', true),
+  (current_date,       '내신', 'tok-kim','87654321','김하늘', '{"hw":{"pct":50}}', true);
 do $$ begin
   begin
-    insert into class_reports (book, class_id, ymd, week, code) values ('내신','n081', current_date, current_date, 'tok-park');
+    insert into class_reports (week, code) values (current_date, 'tok-park');
     raise exception 'dup report allowed';
   exception when unique_violation then null; end;
 end $$;
@@ -51,14 +51,13 @@ declare r jsonb;
 begin
   r := class_report_list('{"key":"tok-park"}');
   assert (r->>'ok')::boolean, 'ok: ' || r::text;
-  assert jsonb_array_length(r->'items') = 2, '공개·최근 16주만 2건: ' || r::text;
-  assert r->'items'->0->>'cls' = '고2 확인' and r->'items'->1->>'cls' = '고2 화정A', '최근 날짜 먼저: ' || r::text;
-  assert r->'items'->0->'body'->>'summary' = '오늘', 'body';
-  assert r->'items'->0->>'time' = '금 5:30~7:00' and r->'items'->0->>'book' = '내신', 'time/book';
+  assert jsonb_array_length(r->'items') = 2, '공개·최근 16주만 2주: ' || r::text;
+  assert (r->'items'->0->>'week')::date = current_date and (r->'items'->1->>'week')::date = current_date - 7, '최근 주 먼저: ' || r::text;
+  assert r->'items'->0->'body'->'parts'->0->>'summary' = '오늘' and r->'items'->0->>'book' = '내신', 'body/book';
   r := class_report_list('{"student":"12345678"}');
   assert jsonb_array_length(r->'items') = 2, '학생ID로도';
   r := class_report_list('{"key":"tok-kim"}');
-  assert jsonb_array_length(r->'items') = 1 and r->'items'->0->'body'->>'attend' = '결석', '다른 학생은 자기 것만';
+  assert jsonb_array_length(r->'items') = 1 and (r->'items'->0->'body'->'hw'->>'pct')::int = 50, '다른 학생은 자기 것만';
   r := class_report_list('{"key":"nope"}');
   assert r->>'error' = 'no_student', '없는 키';
   r := class_report_list('{"student":"11112222"}');
