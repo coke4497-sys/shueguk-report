@@ -54,6 +54,8 @@ const STUDENTS = [
       if (/\/class_notes/.test(u)){
         if (m === 'POST'){ const x = body[0]; const k = x.book + '|' + x.class_id; st.notes[k] = Object.assign({ id: 1, report_status: '' }, st.notes[k] || {}, x); return json(201, [st.notes[k]]); }
         const cid = (u.match(/class_id=eq\.([^&]+)/) || [])[1];
+        const ins = (u.match(/class_id=in\.\(([^)]*)\)/) || [])[1];
+        if (ins){ (st.sibGets = st.sibGets || []).push(u); const ids = ins.split(',').map(x => x.replace(/"/g, '')); return json(200, Object.values(st.notes).filter(n => ids.includes(n.class_id))); }
         return json(200, Object.values(st.notes).filter(n => !cid || n.class_id === cid));
       }
       if (/\/naeshin_records/.test(u)){ if (m === 'GET') return json(200, st.ns); return r.fulfill({ status: 201, body: '' }); }
@@ -253,6 +255,36 @@ const STUDENTS = [
   await sp.evaluate(() => closeClassReport());
   ok('닫으면 허브로', await sp.evaluate(() => document.getElementById('crView').style.display === 'none'));
   await c2.close();
+
+  // ⑥ 같은 이름 반 기록 가져오기 (2026-09-29)
+  ({ ctx, page, st } = await ctxOf({ book: '정규',
+    rows: [row('r001', '고2 가', '지원', '박보검 김하늘'), Object.assign(row('r002', '고2 가', '은지', '최다은'), { start_time: '7:30', end_time: '9:00' }),
+           Object.assign(row('r003', '고1 가', '슈', '최다은'), { start_time: '2:00', end_time: '3:30' })],
+    att: [{ class_id: 'r001', student: '박보검', status: '출석' }] }));
+  st.notes['정규|r002'] = { id: 2, book: '정규', class_id: 'r002', ymd: TODAYSTR, progress: '문학 — 관동별곡 1~3연', homework: '관동별곡 학습지', report_status: '' };
+  st.notes['정규|r003'] = { id: 3, book: '정규', class_id: 'r003', ymd: TODAYSTR, progress: '다른 반 진도', homework: '', report_status: '' };
+  await page.waitForSelector('.blk[data-cid="r001"] .crbtn', { timeout: 15000 });
+  await page.evaluate(() => document.querySelector('.blk[data-cid="r001"] .crbtn').click());
+  await page.waitForSelector('#crpanel:not([hidden]) .cr-card', { timeout: 8000 });
+  r = await page.evaluate(() => ({ bar: (document.querySelector('.cr-sib') || {}).textContent || '', opts: document.querySelectorAll('#cr-sib-sel option').length }));
+  ok('같은 이름 반(고2 가 · 은지T) 기록만 보이고 다른 반(고1 가)은 없다', /같은 이름 반 기록/.test(r.bar) && /은지T/.test(r.bar) && /관동별곡/.test(r.bar) && r.opts === 1 && !/다른 반 진도/.test(r.bar), JSON.stringify(r));
+  ok('조회는 같은 이름 반 ID만 · 이번 주 범위', (st.sibGets || []).some(u => /class_id=in\.\("r002"\)/.test(u) && /ymd=gte\./.test(u) && /ymd=lte\./.test(u)), JSON.stringify(st.sibGets));
+  await page.fill('#cr-prog', '임시로 적은 내용');
+  await page.click('#cr-sib-go');
+  r = await page.evaluate(() => ({ p: document.getElementById('cr-prog').value, t: document.getElementById('cr-task').value, msg: document.getElementById('cr-msg').textContent }));
+  ok('[가져오기] → 수업 내용·과제가 채워진다(덮어쓰기 확인 뒤)', r.p === '문학 — 관동별곡 1~3연' && r.t === '관동별곡 학습지' && /가져왔습니다/.test(r.msg), JSON.stringify(r));
+  ok('가져오기만으로는 저장하지 않는다', !st.writes.some(w => /class_notes/.test(w.u)));
+  await page.click('#cr-save');
+  await page.waitForFunction(() => /저장했어요/.test(document.getElementById('cr-msg').textContent), null, { timeout: 8000 });
+  const sibW = st.writes.filter(w => /class_notes/.test(w.u)).pop();
+  ok('[저장] → 이 반(r001)에만 저장, 원래 반(r002)은 그대로', sibW && sibW.body[0].class_id === 'r001' && sibW.body[0].progress === '문학 — 관동별곡 1~3연' && st.notes['정규|r002'].homework === '관동별곡 학습지', JSON.stringify(sibW && sibW.body));
+  await ctx.close();
+  ({ ctx, page, st } = await ctxOf({ book: '정규', rows: [row('r001', '고2 가', '지원', '박보검')], att: [] }));
+  await page.waitForSelector('.blk[data-cid="r001"] .crbtn', { timeout: 15000 });
+  await page.evaluate(() => document.querySelector('.blk[data-cid="r001"] .crbtn').click());
+  await page.waitForSelector('#crpanel:not([hidden]) .cr-card', { timeout: 8000 });
+  ok('같은 이름 반이 없으면 가져오기 줄도 없다', !(await page.$('.cr-sib')) && !(st.sibGets || []).length);
+  await ctx.close();
 
   ok('페이지 오류 없음', perr === 0);
   console.log((fail ? '실패 ' + fail + ' / ' : '') + '통과 ' + pass + '건');
