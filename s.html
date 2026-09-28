@@ -2065,7 +2065,7 @@ function crpRender(){
     if (units.length) h += '<div class="crp-kv"><span class="k">나간 범위</span><div class="crp-units">' + units.map(function(u){ return '<span>' + esc(u) + '</span>'; }).join('') + '</div></div>';
     if (pt.summary) h += '<div class="crp-kv"><span class="k">수업 내용</span><p>' + esc(pt.summary) + '</p></div>';
     var hwk = (pt.homework || []).filter(Boolean);
-    if (hwk.length) h += '<div class="crp-kv"><span class="k">다음 수업까지 과제</span><ul>' + hwk.map(function(x){ return '<li>' + esc(x) + '</li>'; }).join('') + '</ul></div>';
+    if (hwk.length) h += '<div class="crp-kv"><span class="k">다음 수업까지 숙제</span><ul>' + hwk.map(function(x){ return '<li>' + esc(x) + '</li>'; }).join('') + '</ul></div>';
     if (pt.hw) h += '<div class="crp-kv"><span class="k">' + (pt.part === '확인' ? '과제 검사' : '숙제 검사') + '</span>' + crpHwHtml(pt.hw, '이 수업') + '</div>';
     h += '</section>';
   });
