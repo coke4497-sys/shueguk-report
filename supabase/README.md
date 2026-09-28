@@ -760,7 +760,7 @@ curl -s -X POST "https://api.supabase.com/v1/projects/bangdbhqpphqqdwcledg/datab
 - 이유: 사용자 "가 수업과 나 수업의 진도와 숙제 검사는 각각 기록되어야 해요" — 수업마다 만점이면 별 1개씩, 숙제 검사 페이지는 보기 전용. 자세한 것은 CLAUDE.md '숙제 검사는 수업마다 따로 — 035' 절.
 - **적용 순서 주의**: 수업 기록 창(class_id로 읽고 on_conflict=week,token,class_id로 씀)·superstar(select class_id)가 이 열을 쓰므로 **페이지 반영(머지) 전에 적용**할 것. 먼저 머지하면 적용 전까지 수업 기록 창의 숙제 검사가 '불러오지 못했어요'가 되고 슈퍼스타 순위 조회가 실패한다.
 - 검증: `PGHOST=/home/pgtest PGPORT=5499 PGUSER=postgres bash tools/hwcheck-class-sql-test.sh`.
-- 적용 상태: **아직 적용 전**.
+- 적용 상태: **2026-09-28 실제 수파베이스에 적용 완료**(관리 API) — 유일 조건이 (week, token, class_id) 하나로 바뀐 것, 기존 481줄은 모두 class_id ''로 남은 것 확인. 교사 인증으로 가상 학생(ztest, 2020-01-01 주)에 가·나 두 줄 저장 → 같은 수업 다시 저장은 덮어쓰기 → 조회 → 지움(남은 줄 없음). superstar 조회(select class_id) 정상, 공개 키 표 직접 읽기 401 유지, 실제 재원생 키로 student_bundle의 hwcheck 항목에 class_id·part·class_name 들어온 것 확인.
 
 ## ⚠ 2026-08-25 사고 기록 — anon 권한을 잘못 되돌렸다가 복구
 같은 날 다른 세션(`session_01C7786KiKeAoTXLsuvTaYfS`)이 3단계 잠그기(`015_lock_anon.sql`)를
