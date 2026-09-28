@@ -143,6 +143,34 @@
 
   /* 복습 영상 (2026-09-27) — 유튜브 복습 영상 시청. 화면이 보이는 동안 재생된 시간만 센다 */
   #reviewView{display:none;}
+
+  /* 수업 리포트 (2026-09-28) — 수업마다 한 장, 주차로 묶어 넘긴다 */
+  #crView{display:none;}
+  .crp-nav{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 2px 12px;}
+  .crp-nb{width:38px;height:38px;border:0;border-radius:12px;background:var(--surface);color:var(--ink-soft);font-size:1.3rem;cursor:pointer;}
+  .crp-nb:disabled{opacity:.35;cursor:default;}
+  .crp-wk{font-family:var(--serif);font-weight:700;font-size:1.02rem;text-align:center;}
+  .crp-wk small{display:block;font-family:var(--sans);font-weight:400;font-size:.76rem;color:var(--ink-soft);}
+  .crp-who{font-family:'Do Hyeon',var(--sans);font-size:1.5rem;margin:2px 4px 12px;line-height:1.2;}
+  .crp-who small{display:block;font-family:var(--sans);font-size:.8rem;color:var(--ink-soft);margin-top:3px;}
+  .crp-card{background:var(--surface);border-radius:var(--radius);padding:16px 17px;margin-bottom:12px;}
+  .crp-top{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;padding-bottom:10px;margin-bottom:10px;border-bottom:1px solid var(--line-soft);}
+  .crp-when{font-weight:700;font-size:.92rem;font-variant-numeric:tabular-nums;}
+  .crp-cls{font-size:.84rem;color:var(--ink-soft);flex:1;min-width:0;}
+  .crp-at{font-size:.76rem;border-radius:7px;padding:2px 9px;background:#EEF1EF;color:#65726B;}
+  .crp-at.ok{background:#DCE8E5;color:#3F6159;} .crp-at.late{background:#F9EFD0;color:#7A6230;} .crp-at.abs{background:#F7E2DE;color:#9A5A52;}
+  .crp-an{font-size:.84rem;color:#7A6230;background:#FBF6E6;border-radius:9px;padding:7px 10px;margin:0 0 10px;}
+  .crp-card section{margin-top:10px;}
+  .crp-card section:first-of-type{margin-top:0;}
+  .crp-card h4{font-family:var(--serif);font-size:.92rem;color:#4C6E66;margin:0 0 4px;}
+  .crp-card p{font-size:.9rem;line-height:1.75;margin:0;color:var(--ink);}
+  .crp-card ul{margin:0;padding-left:19px;font-size:.9rem;line-height:1.7;}
+  .crp-hw{display:flex;align-items:center;gap:10px;margin-bottom:4px;}
+  .crp-track{flex:1;height:7px;border-radius:7px;background:#EEF2EF;overflow:hidden;}
+  .crp-track i{display:block;height:100%;background:#B9A5CC;border-radius:7px;}
+  .crp-hw b{font-size:.88rem;font-variant-numeric:tabular-nums;}
+  .crp-miss{color:#9A5A52 !important;font-weight:700;}
+  .crp-foot{font-size:.76rem;color:var(--ink-soft);text-align:center;margin:4px 0 0;}
   .card.t-mnt .icon{background:#E3EDE7;color:#4C6E66;}
   .rv-item{display:flex;align-items:center;gap:13px;width:100%;text-align:left;background:var(--surface);border:1px solid var(--line-soft);
     border-radius:var(--radius);padding:15px 16px;margin-bottom:10px;cursor:pointer;font-family:var(--sans);color:var(--ink);}
@@ -482,6 +510,17 @@
     </footer>
   </main>
 </div>
+
+<!-- 수업 리포트 (2026-09-28) — 선생님 수업 기록 + 출석·숙제 검사를 클로슈가 정리한 보고서 -->
+<div id="crView"><main class="wrap gwrap">
+  <div class="gv-bar">
+    <button class="gv-back" onclick="closeClassReport()" id="crBack"></button>
+    <span class="gv-ttl">수업 리포트</span>
+  </div>
+  <div class="crp-nav" id="crNav"></div>
+  <div id="crList"></div>
+  <footer><p>이수경국어 Shueguk · 학생용</p></footer>
+</main></div>
 
 <!-- 숙제 검사 -->
 <div id="hwcheckView"><main class="wrap gwrap">
@@ -895,10 +934,10 @@ function hide(id){ $(id).style.display='none'; }
 
 var KEY = '';        // 접근코드(토큰) — 없으면 테스트용 id
 var IS_ID = false;
-var STATE = { info:null, authed:false, exams:null, examCount:0, notices:null, homework:null, analyses:null, clinic:null, stars:null, vocaOpen:null, vocaWeek:null, mockGrades:null, mockOpen:null, clinicEligible:null, vocaTaken:null, mockSignups:null, mockFromServer:false, mockGatesFromServer:false, vocaFromServer:false, clinicFromServer:false, hwcheck:null, qq:null, qqLoading:false, qqTeachers:null, review:null, reviewLoading:false };
+var STATE = { info:null, authed:false, exams:null, examCount:0, notices:null, homework:null, analyses:null, clinic:null, stars:null, vocaOpen:null, vocaWeek:null, mockGrades:null, mockOpen:null, clinicEligible:null, vocaTaken:null, mockSignups:null, mockFromServer:false, mockGatesFromServer:false, vocaFromServer:false, clinicFromServer:false, hwcheck:null, qq:null, qqLoading:false, qqTeachers:null, review:null, reviewLoading:false, creport:null, creportLoading:false };
 
 function showError(title, msg){
-  hide('loadBox'); hide('hubView'); $('gradeView').style.display='none'; $('mockHubView').style.display='none'; $('mockView').style.display='none'; $('clinicView').style.display='none'; $('hwcheckView').style.display='none'; $('questionView').style.display='none'; $('reviewView').style.display='none';
+  hide('loadBox'); hide('hubView'); $('gradeView').style.display='none'; $('mockHubView').style.display='none'; $('mockView').style.display='none'; $('clinicView').style.display='none'; $('hwcheckView').style.display='none'; $('questionView').style.display='none'; $('reviewView').style.display='none'; $('crView').style.display='none';
   $('errTitle').textContent = title || '불러올 수 없습니다';
   $('errMsg').textContent = msg || '';
   show('errBox');
@@ -1721,6 +1760,17 @@ function renderHub(){
               '<span class="go">'+(rvTodo>0?'보기 ':'열기 ')+svg(ICON.arrow)+'</span></button>';
   }
 
+  // 수업 리포트 (2026-09-28) — 공개된 리포트가 있을 때만 카드. 목록은 처음 한 번 뒤에서 받는다(crpRefresh)
+  if(STATE.creport === null && !STATE.creportLoading) crpRefresh(true);
+  var cr0 = STATE.creport || [];
+  if(cr0.length){
+    var crLast = cr0.reduce(function(a, x){ return (x.ymd > a.ymd) ? x : a; }, cr0[0]);
+    html += '<button class="card t-lav" onclick="openClassReport()">' +
+              '<span class="icon">'+svg(ICON.paper)+'</span>' +
+              '<h3>수업 리포트</h3><p class="desc">'+esc('최근 ' + crpDay(crLast.ymd) + ' ' + (crLast.cls || ''))+'</p>' +
+              '<span class="go">열기 '+svg(ICON.arrow)+'</span></button>';
+  }
+
   // 숙제 검사 — 정규 수업 검사 기록이 있는 학생에게만 카드 표시
   var hwc = STATE.hwcheck || [];
   if(hwc.length){
@@ -1850,7 +1900,7 @@ function renderHub(){
 
   renderStars();   // 슈퍼스타 별 카드 (백엔드가 stars를 주면 표시)
 
-  hide('loadBox'); hide('errBox'); $('gradeView').style.display='none'; $('noticeView').style.display='none'; $('homeworkView').style.display='none'; $('mockHubView').style.display='none'; $('mockView').style.display='none'; $('clinicView').style.display='none'; $('hwcheckView').style.display='none'; $('questionView').style.display='none'; $('reviewView').style.display='none'; show('hubView');
+  hide('loadBox'); hide('errBox'); $('gradeView').style.display='none'; $('noticeView').style.display='none'; $('homeworkView').style.display='none'; $('mockHubView').style.display='none'; $('mockView').style.display='none'; $('clinicView').style.display='none'; $('hwcheckView').style.display='none'; $('questionView').style.display='none'; $('reviewView').style.display='none'; $('crView').style.display='none'; show('hubView');
   noticePopupMaybe();   // 미확인 공지 팝업(허브 화면일 때만, 탭당 한 번)
 }
 
@@ -1913,6 +1963,78 @@ function renderHwcheck(){
 }
 function openHwcheck(){ renderHwcheck(); hide('hubView'); $('hwcheckView').style.display='block'; window.scrollTo(0,0); }
 function closeHwcheck(){ $('hwcheckView').style.display='none'; show('hubView'); window.scrollTo(0,0); }
+
+/* ── 수업 리포트 (2026-09-28, 수파베이스 034) ───────────────────────────────
+ * 선생님이 수업마다 적은 진도·과제·코멘트에 출석·숙제 검사를 합쳐 클로슈가 쓴 보고서.
+ * 학생·학부모가 같은 링크로 본다. 표는 못 읽고 함수 class_report_list 만 부른다(015 규칙).
+ * 한 수업 = 한 장, 주차(수요일 시작, 월·화는 다가오는 수요일 주)로 묶어 ‹ › 로 넘긴다. */
+var CRP = { weeks: [], idx: 0 };
+function crpRefresh(quiet){
+  STATE.creportLoading = true;
+  return rvRpc('class_report_list').then(function(r){
+    STATE.creportLoading = false;
+    STATE.creport = (r && r.ok) ? (r.items || []) : [];
+    crpGroup();
+    if ($('crView').style.display === 'block') crpRender();
+    else if (quiet && $('hubView').style.display !== 'none' && STATE.creport.length) renderHub();
+  }).catch(function(){ STATE.creportLoading = false; STATE.creport = STATE.creport || []; });
+}
+function crpGroup(){
+  var by = {};
+  (STATE.creport || []).forEach(function(it){ (by[it.week] = by[it.week] || []).push(it); });
+  CRP.weeks = Object.keys(by).sort().reverse().map(function(w){
+    return { week: w, items: by[w].sort(function(a, b){ return a.ymd < b.ymd ? -1 : a.ymd > b.ymd ? 1 : String(a.time).localeCompare(String(b.time)); }) };
+  });
+  if (CRP.idx >= CRP.weeks.length) CRP.idx = 0;
+}
+function crpYmd(s){ var p = String(s || '').split('-'); return new Date(Date.UTC(+p[0], +p[1] - 1, +p[2])); }
+function crpMd(d){ return (d.getUTCMonth() + 1) + '/' + d.getUTCDate(); }
+function crpWeekLabel(w){
+  var wed = crpYmd(w), mon = new Date(wed.getTime() - 2 * 864e5), sun = new Date(wed.getTime() + 4 * 864e5);
+  return crpMd(mon) + ' ~ ' + crpMd(sun);
+}
+function crpDay(ymd){ var d = crpYmd(ymd); return crpMd(d) + ' (' + DOW_KO.charAt(d.getUTCDay()) + ')'; }
+function openClassReport(){
+  hide('hubView'); $('crView').style.display = 'block'; window.scrollTo(0, 0);
+  $('crBack').innerHTML = svg(ICON.back) + ' 메뉴';
+  CRP.idx = 0; crpRender(); crpRefresh();
+}
+function closeClassReport(){ $('crView').style.display = 'none'; show('hubView'); renderHub(); window.scrollTo(0, 0); }
+function crpStep(d){ var n = CRP.idx + d; if (n < 0 || n >= CRP.weeks.length) return; CRP.idx = n; crpRender(); window.scrollTo(0, 0); }
+function crpRender(){
+  var box = $('crList');
+  if (STATE.creport === null){ box.innerHTML = '<div class="rv-empty">불러오는 중…</div>'; $('crNav').innerHTML = ''; return; }
+  if (!CRP.weeks.length){ box.innerHTML = '<div class="rv-empty">아직 공개된 수업 리포트가 없어요.</div>'; $('crNav').innerHTML = ''; return; }
+  var wk = CRP.weeks[CRP.idx];
+  $('crNav').innerHTML =
+    '<button class="crp-nb" onclick="crpStep(1)"' + (CRP.idx >= CRP.weeks.length - 1 ? ' disabled' : '') + ' aria-label="지난 주">‹</button>' +
+    '<span class="crp-wk">' + esc(crpWeekLabel(wk.week)) + ' 주' + '<small>수업 ' + wk.items.length + '회</small></span>' +
+    '<button class="crp-nb" onclick="crpStep(-1)"' + (CRP.idx <= 0 ? ' disabled' : '') + ' aria-label="다음 주">›</button>';
+  var name = (STATE.info && STATE.info.name) || '';
+  box.innerHTML = '<p class="crp-who">' + esc(name) + '<small>' + esc(((STATE.info && STATE.info.school) || '') + ' ' + ((STATE.info && STATE.info.grade) || '')) + '</small></p>' +
+    wk.items.map(crpCard).join('') +
+    '<p class="crp-foot">담당 선생님의 수업 기록과 출석·숙제 검사 데이터를 바탕으로 작성했습니다.</p>';
+}
+function crpCard(it){
+  var b = it.body || {};
+  var at = String(b.attend || ''), atc = at === '출석' ? 'ok' : at === '지각' ? 'late' : at === '결석' ? 'abs' : '';
+  var h = '<article class="crp-card"><div class="crp-top"><span class="crp-when">' + esc(crpDay(it.ymd)) + ' ' + esc(String(it.time || '').replace(/^\S+\s/, '')) + '</span>' +
+    '<span class="crp-cls">' + esc(it.cls) + (it.teacher ? ' · ' + esc(it.teacher) + 'T' : '') + '</span>' +
+    (at ? '<span class="crp-at ' + atc + '">' + esc(at) + '</span>' : '') + '</div>';
+  if (b.attend_note) h += '<p class="crp-an">' + esc(b.attend_note) + '</p>';
+  if (b.summary) h += '<section><h4>수업 내용</h4><p>' + esc(b.summary) + '</p></section>';
+  var hwk = (b.homework || []).filter(Boolean);
+  if (hwk.length) h += '<section><h4>다음 수업까지 과제</h4><ul>' + hwk.map(function(x){ return '<li>' + esc(x) + '</li>'; }).join('') + '</ul></section>';
+  if (b.hw && (b.hw.text || b.hw.pct != null || b.hw.missing)){
+    var pct = Math.max(0, Math.min(100, +b.hw.pct || 0));
+    h += '<section><h4>숙제 검사</h4>' +
+      (b.hw.missing ? '<p class="crp-miss">미제출</p>'
+                    : '<div class="crp-hw"><span class="crp-track"><i style="width:' + pct + '%"></i></span><b>' + pct + '%</b></div>') +
+      (b.hw.text ? '<p>' + esc(b.hw.text) + '</p>' : '') + '</section>';
+  }
+  if (b.comment) h += '<section><h4>선생님 코멘트</h4><p>' + esc(b.comment) + '</p></section>';
+  return h + '</article>';
+}
 
 /* ---- 질문하기 — 선생님별 질문 대기열 (2026-09-06) ----
  * 원본은 수파베이스 question_queue(024 마이그레이션). 학생 화면은 표를 읽지 않고

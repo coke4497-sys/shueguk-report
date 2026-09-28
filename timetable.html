@@ -385,6 +385,55 @@
   .blk .bbtn:hover{background:var(--accent);border-color:var(--accent);color:#fff;}
   .blk a.bbtn{text-decoration:none;display:inline-block;}
   body.moving .blk .btns{visibility:hidden;}
+
+  /* 수업 기록 — 오늘의 시간표 왼쪽 창 (2026-09-28 사용자 "오늘의 시간표에 왼쪽 팝업") */
+  .blk .bbtn.crbtn.done{background:#EDE4F4;border-color:#D6C9E4;color:#5A4A6A;}
+  .blk .bbtn.crbtn.pub{background:#5A4A6A;border-color:#5A4A6A;color:#fff;}
+  .cr-bg{position:fixed;inset:0;background:rgba(42,51,47,.28);z-index:80;}
+  .cr-bg[hidden],.crpanel[hidden]{display:none;}
+  .crpanel{position:fixed;top:0;left:0;bottom:0;width:440px;max-width:100vw;z-index:81;background:var(--surface);
+    box-shadow:4px 0 24px rgba(0,0,0,.16);display:flex;flex-direction:column;
+    padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);}
+  .cr-head{position:relative;padding:16px 50px 12px 18px;border-bottom:1px solid var(--line-soft);}
+  .cr-head small{display:block;font-size:.72rem;color:var(--ink-soft);letter-spacing:.06em;}
+  .cr-head h3{margin:2px 0 2px;font-family:"Gowun Batang",serif;font-size:1.08rem;}
+  .cr-head .cr-meta{font-size:.8rem;color:var(--ink-soft);}
+  .cr-x{position:absolute;right:12px;top:14px;width:32px;height:32px;border:0;border-radius:9px;background:var(--icon-bg);
+    color:var(--ink-soft);cursor:pointer;display:grid;place-items:center;}
+  .cr-body{flex:1;overflow:auto;padding:14px 18px;display:flex;flex-direction:column;gap:14px;}
+  .cr-f{display:flex;flex-direction:column;gap:5px;}
+  .cr-f label{font-size:.8rem;color:var(--ink-soft);}
+  .cr-f textarea{font:inherit;font-size:.9rem;color:var(--ink);background:#F6F8F7;border:1px solid var(--line);
+    border-radius:10px;padding:9px 11px;resize:vertical;min-height:60px;}
+  .cr-sh{display:flex;justify-content:space-between;align-items:baseline;font-size:.84rem;}
+  .cr-sh span{font-size:.74rem;color:var(--ink-soft);}
+  .cr-stu{display:flex;flex-direction:column;gap:6px;}
+  .cr-row{display:grid;grid-template-columns:76px 46px 54px 1fr;gap:7px;align-items:center;font-size:.84rem;}
+  .cr-row b{font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .cr-chip{font-size:.7rem;padding:2px 0;border-radius:6px;text-align:center;background:#EEF1EF;color:#65726B;}
+  .cr-chip.ok{background:#DCE8E5;color:#3F6159;} .cr-chip.late{background:#F9EFD0;color:#7A6230;}
+  .cr-chip.abs{background:#F7E2DE;color:#9A5A52;}
+  .cr-hw{font-size:.76rem;color:var(--ink-soft);font-variant-numeric:tabular-nums;}
+  .cr-hw.miss{color:#9A5A52;}
+  .cr-row input{font:inherit;font-size:.8rem;color:var(--ink);background:#F6F8F7;border:1px solid var(--line);
+    border-radius:8px;padding:5px 8px;min-width:0;}
+  .cr-check{background:#F2F5F3;border-radius:10px;padding:10px 12px;font-size:.8rem;color:var(--ink-soft);
+    display:flex;flex-direction:column;gap:2px;}
+  .cr-check b{color:var(--ink);} .cr-check .ok{color:#3F6159;} .cr-check .warn{color:#7A6230;}
+  .cr-state{border-radius:10px;padding:9px 12px;font-size:.8rem;background:#EDE4F4;color:#5A4A6A;}
+  .cr-state.hold{background:#F7E2DE;color:#9A5A52;}
+  .cr-foot{padding:12px 18px 16px;border-top:1px solid var(--line-soft);display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+  .cr-btn{font:inherit;font-size:.9rem;border:0;border-radius:10px;padding:9px 15px;cursor:pointer;background:#EEF1EF;color:#4F5C56;}
+  .cr-btn.lav{background:#EDE4F4;color:#5A4A6A;}
+  .cr-btn:hover{filter:brightness(.97);}
+  .cr-btn:disabled{opacity:.5;cursor:default;}
+  .cr-msg{font-size:.78rem;color:var(--ink-soft);flex:1 1 100%;}
+  .cr-msg.err{color:#B4574E;}
+  @media (max-width:520px){
+    .crpanel{width:100vw;}
+    .cr-row{grid-template-columns:70px 44px 1fr;}
+    .cr-row input{grid-column:1/-1;}
+  }
   .cell{border-top:1px dotted #BFCFC9;}
   .tlab{border-top:1px dotted #BFCFC9;}
   .thead{border-top:none;}
@@ -988,6 +1037,25 @@
       </button>
     </div>
     <div class="ch-list" id="vm-side"><span class="ch-none">불러오는 중…</span></div>
+  </div>
+</aside>
+
+<!-- 수업 기록 — 오늘의 시간표에서 반 카드의 [수업 기록]을 누르면 왼쪽에 열린다 (2026-09-28) -->
+<div class="cr-bg" id="cr-bg" hidden onclick="crClose()"></div>
+<aside class="crpanel" id="crpanel" hidden aria-label="수업 기록">
+  <div class="cr-head">
+    <small>수업 기록</small>
+    <h3 id="cr-ttl"></h3>
+    <div class="cr-meta" id="cr-meta"></div>
+    <button class="cr-x" onclick="crClose()" aria-label="닫기">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+    </button>
+  </div>
+  <div class="cr-body" id="cr-body"></div>
+  <div class="cr-foot">
+    <button class="cr-btn" id="cr-save" onclick="crSave()">저장</button>
+    <button class="cr-btn lav" id="cr-gen" onclick="crGenerate()">리포트 생성</button>
+    <span class="cr-msg" id="cr-msg"></span>
   </div>
 </aside>
 
@@ -2929,6 +2997,7 @@ function renderView(){
   host.innerHTML = '';
   if (mode === 'att'){ if (!bootKicked.att) asLoad(); asRender(); return; }
   if (mode === 'today'){
+    crEnsureToday();   // 수업 기록 상태(기록됨·공개됨)를 한 번 받아 카드 버튼에 표시
     var td = todayDay();
     var list = classes.filter(function(c){ return c.day===td && wkVisible(c, todayStr()); });
     var head = document.createElement('p');
@@ -3739,6 +3808,7 @@ function blockEl(c, forList){
   if (!chips) chips = '<span class="empty-note">비어 있음</span>';
   var btnRow = (mode === 'today')
     ? '<div class="btns"><button class="bbtn attall" title="기록 없는 학생을 모두 출석 처리">전체 출석</button>' +
+      crBtnHtml(c) +
       '<a class="bbtn" href="hwcheck.html?slot=' + encodeURIComponent(c.day + c.start) + '&cid=' + encodeURIComponent(c.id) + '" target="_blank" rel="noopener"' +
       ' onclick="event.stopPropagation()" title="이 반의 숙제 검사로 이동">숙제 검사</a></div>'
     : '';   // 편집 기능은 상단 편집 도구줄에서
@@ -6104,8 +6174,11 @@ function reqRenderList(){
   var box = $('req-list');
   if (!box) return;
   if (reqRows === null){ box.innerHTML = '<p class="mdesc">목록을 불러오지 못했어요. 인터넷을 확인해 주세요.</p>'; return; }
-  if (!reqRows.length){ box.innerHTML = '<p class="mdesc">아직 남긴 요청이 없어요.</p>'; return; }
-  box.innerHTML = reqRows.map(function(r, i){
+  var shown = reqRows.map(function(r, i){ return { r: r, i: i }; })
+    .filter(function(x){ return x.r.screen !== CR_SCREEN; });   // 수업 리포트 요청은 '수업 기록' 창에서 상태를 본다
+  if (!shown.length){ box.innerHTML = '<p class="mdesc">아직 남긴 요청이 없어요.</p>'; return; }
+  box.innerHTML = shown.map(function(x){
+    var r = x.r, i = x.i;
     var st = r.status === '처리 완료' ? 'done' : (r.status === '보류' ? 'hold' : 'wait');
     return '<div class="req-item">'+
       '<div class="req-top">'+
@@ -6169,6 +6242,7 @@ $('stu-q').addEventListener('input', searchStudent);
 function labelOf(c){ return c.cls + ' (' + c.day + c.start + ' ' + c.teacher + 'T)'; }
 function onBlockClick(e, c){
   if (mode === 'today'){
+    if (e.target.closest('.crbtn')){ openClassNote(c); return; }
     var aa = e.target.closest('.attall');
     if (aa){ bulkAttend(c); return; }
     if (multiMode){
@@ -6209,6 +6283,187 @@ function onBlockClick(e, c){
   if (c.id === moving.fromId) return;
   openMoveModal(c);
 }
+/* ══ 수업 기록 → 수업 리포트 (2026-09-28, 수파베이스 034) ═══════════════════════
+ * 사용자 결정: 수업마다 선생님이 진도·과제·학생별 코멘트를 적는다(오늘의 시간표 왼쪽 창) →
+ * 데이터가 다 모이면 [리포트 생성] → 클로슈(클로드 세션)가 출석·숙제 검사와 합쳐 학생별 보고서를 써서
+ * 학생 개인 페이지에 공개한다. 작성 요청은 수정 요청함 통로(editReqAdd, 화면 CR_SCREEN)로 보낸다 —
+ * 등록 즉시 알림 PR 댓글로 클로드 세션이 깨어나고, 매시 순찰이 안전망(CLAUDE.md '수업 리포트' 절).
+ *  · class_notes: (시간표, 반ID, 날짜)마다 한 줄 — 이 창이 직접 쓴다(교사 인증).
+ *    report_status '' 작성 전 / '요청' / '공개' / '보류'(report_note에 이유)
+ *  · 학생 목록 = 오늘 카드에 보이는 학생(명단 − 이 주 빠짐/1회 이동 + 오늘 들어온 학생) + 오늘 출석 기록이 있는 학생 */
+var CR_SCREEN = '수업 리포트';
+var CR_REST = 'https://bangdbhqpphqqdwcledg.supabase.co/rest/v1';
+var CR_KEY = 'sb_publishable_dE9d1KIbpgYaQkaS2MSrlg_-7SiRJuT';
+var CR = { c: null, ymd: '', bk: '', note: null, hw: null, names: [], busy: false };
+var crToday = { ymd: '', map: null, busy: false };   // 오늘 기록 상태: 'book|cid' → {st, has}
+function crHdr(x){
+  var h = { apikey: CR_KEY, Authorization: 'Bearer ' + CR_KEY, 'Content-Type': 'application/json' };
+  for (var k in (x || {})) h[k] = x[k];
+  return h;
+}
+function crGet(path){
+  return fetch(CR_REST + path, { headers: crHdr() }).then(function(r){
+    if (!r.ok) return r.text().then(function(t){ throw new Error(r.status + ' ' + t.slice(0, 120)); });
+    return r.json();
+  });
+}
+function crEnsureToday(){
+  var t = todayStr();
+  if (crToday.ymd === t && (crToday.map || crToday.busy)) return;
+  crToday.ymd = t; crToday.busy = true;
+  crGet('/class_notes?ymd=eq.' + t + '&select=book,class_id,report_status,progress')
+    .then(function(rows){
+      var m = {};
+      rows.forEach(function(r){ m[r.book + '|' + r.class_id] = { st: r.report_status || '', has: !!String(r.progress || '').trim() }; });
+      crToday.map = m;
+    })
+    .catch(function(e){ console.warn('수업 기록 상태 조회 실패', e); crToday.map = {}; })
+    .then(function(){ crToday.busy = false; if (mode === 'today') render(); });
+}
+function crBtnHtml(c){
+  var s = crToday.map && crToday.map[book + '|' + c.id];
+  var cls = '', label = '수업 기록', tip = '진도·과제·코멘트를 적고 수업 리포트를 만들어요';
+  if (s && s.st === '공개'){ cls = ' pub'; label = '리포트 공개'; tip = '학생 페이지에 리포트가 공개됐어요'; }
+  else if (s && s.st === '요청'){ cls = ' done'; label = '리포트 작성 중'; tip = '클로슈가 리포트를 쓰고 있어요'; }
+  else if (s && s.has){ cls = ' done'; label = '기록함'; tip = '진도를 적어 두었어요 — 리포트는 아직'; }
+  return '<button class="bbtn crbtn' + cls + '" title="' + tip + '">' + label + '</button>';
+}
+/* 오늘 이 카드에 보이는 학생 — blockEl의 오늘 규칙과 같게 */
+function crNamesOf(c){
+  var t = todayStr(), away = {}, out = [], seen = {};
+  onceOutThisWeek().forEach(function(o){
+    if (o.fromId !== c.id) return;
+    if (o.kind === '주간빼기' && o.ymd && o.ymd !== t) return;
+    away[plainName(o.student)] = 1;
+  });
+  function add(nm){ var p = plainName(nm); if (!p || seen[p]) return; seen[p] = 1; out.push({ nm: nm, p: p }); }
+  sortNames(c.students).forEach(function(nm){
+    if (!away[plainName(nm)] || attend[attKey(c.id, nm)]) add(nm);
+  });
+  onceInToday().forEach(function(o){ if (o.toId === c.id) add(o.student); });
+  Object.keys(attend).forEach(function(k){ if (k.indexOf(c.id + '|') === 0) add(k.slice(c.id.length + 1)); });
+  return out;
+}
+function crHwOf(p){
+  var m = CR.hw || {};
+  return m[p] || (/A$/.test(p) ? m[p.slice(0, -1)] : m[p + 'A']) || null;
+}
+function openClassNote(c){
+  CR = { c: c, ymd: todayStr(), bk: book, note: null, hw: null, names: crNamesOf(c), busy: false };
+  $('cr-ttl').textContent = c.cls + ' · ' + c.day + ' ' + c.start + '~' + c.end;
+  $('cr-meta').textContent = c.teacher + 'T' + (c.loc ? ' · ' + c.loc : '') + ' · ' + mdOf(new Date()) + ' (' + todayDay() + ') 수업 · ' + CR.names.length + '명 · ' + book;
+  $('cr-body').innerHTML = '<p class="mdesc">불러오는 중…</p>';
+  $('cr-msg').textContent = ''; $('cr-msg').className = 'cr-msg';
+  $('cr-bg').hidden = false; $('crpanel').hidden = false;
+  var wed = ymdOf(weekStartOf(new Date()));
+  Promise.all([
+    crGet('/class_notes?book=eq.' + encodeURIComponent(book) + '&class_id=eq.' + encodeURIComponent(c.id) + '&ymd=eq.' + CR.ymd + '&select=*'),
+    crGet('/hwcheck_records?week=eq.' + wed + '&select=name,pct,missing').catch(function(){ return null; })
+  ]).then(function(r){
+    if (CR.c !== c) return;
+    CR.note = r[0][0] || null;
+    CR.hw = null;
+    if (r[1]){ CR.hw = {}; r[1].forEach(function(x){ CR.hw[plainName(x.name)] = x; }); }
+    crRender();
+  }).catch(function(e){
+    $('cr-body').innerHTML = '<p class="mdesc">기록을 불러오지 못했어요. 인터넷을 확인하고 다시 열어 주세요.</p>';
+    console.warn('수업 기록 조회 실패', e);
+  });
+}
+function crClose(){ $('cr-bg').hidden = true; $('crpanel').hidden = true; CR.c = null; }
+function crRender(){
+  var n = CR.note || {}, cm = n.comments || {};
+  var unchecked = 0, hwDone = 0;
+  var rows = CR.names.map(function(x, i){
+    var a = attend[attKey(CR.c.id, x.nm)];
+    var ch = a ? (a.status === '출석' ? 'ok' : a.status === '지각' ? 'late' : 'abs') : '';
+    if (!a) unchecked++;
+    var hw = crHwOf(x.p), hwTxt = '—', hwCls = '';
+    if (hw){ hwDone++; if (hw.missing){ hwTxt = '미제출'; hwCls = ' miss'; } else hwTxt = (hw.pct | 0) + '%'; }
+    return '<div class="cr-row"><b title="' + esc(x.nm) + '">' + esc(x.p) + '</b>' +
+      '<span class="cr-chip ' + ch + '">' + (a ? esc(a.status) : '미체크') + '</span>' +
+      '<span class="cr-hw' + hwCls + '" title="이번 주 숙제 검사">' + hwTxt + '</span>' +
+      '<input id="cr-c-' + i + '" maxlength="200" placeholder="코멘트 (선택)" value="' + esc(cm[x.p] || '') + '"></div>';
+  }).join('');
+  var st = '';
+  if (n.report_status === '요청') st = '<div class="cr-state">클로슈가 리포트를 쓰고 있어요' + (n.requested_at ? ' (요청 ' + crHm(n.requested_at) + ')' : '') + '. 보통 몇 분 안에 학생 페이지에 공개돼요.</div>';
+  else if (n.report_status === '공개') st = '<div class="cr-state">학생 페이지에 공개됐어요' + (n.reported_at ? ' (' + crHm(n.reported_at) + ')' : '') + '. 내용을 고친 뒤 [리포트 생성]을 다시 누르면 새로 써요.</div>';
+  else if (n.report_status === '보류') st = '<div class="cr-state hold">리포트를 만들지 못했어요' + (n.report_note ? ': ' + esc(n.report_note) : '') + '</div>';
+  var hasP = !!String(n.progress || '').trim(), hasH = !!String(n.homework || '').trim();
+  var chk = '<div class="cr-check"><b>리포트 준비 확인</b>' +
+    '<span class="' + (hasP ? 'ok' : 'warn') + '">' + (hasP ? '진도 입력함' : '진도를 아직 적지 않았어요') + '</span>' +
+    '<span class="' + (hasH ? 'ok' : 'warn') + '">' + (hasH ? '과제 입력함' : '과제가 비어 있어요 (없으면 비워 두어도 돼요)') + '</span>' +
+    '<span class="' + (unchecked ? 'warn' : 'ok') + '">' + (unchecked ? '출석 미체크 ' + unchecked + '명' : '출석 ' + CR.names.length + '명 모두 체크') + '</span>' +
+    '<span class="' + (CR.hw === null ? 'warn' : (hwDone < CR.names.length ? 'warn' : 'ok')) + '">' +
+      (CR.hw === null ? '숙제 검사 기록을 불러오지 못했어요' : '이번 주 숙제 검사 ' + hwDone + ' / ' + CR.names.length + '명') + '</span></div>';
+  $('cr-body').innerHTML = st +
+    '<div class="cr-f"><label for="cr-prog">오늘 진도</label><textarea id="cr-prog" maxlength="600" placeholder="예) 문학 — 「사미인곡」 표현상 특징 정리, 갈래 복합 지문 2개 풀이">' + esc(n.progress || '') + '</textarea></div>' +
+    '<div class="cr-f"><label for="cr-task">다음 시간까지 과제 <small>(한 줄에 하나)</small></label><textarea id="cr-task" maxlength="600" placeholder="예) 「속미인곡」 비교 학습지 1장">' + esc(n.homework || '') + '</textarea></div>' +
+    '<div class="cr-stu"><div class="cr-sh"><b>학생별</b><span>출석 · 숙제 검사 · 코멘트</span></div>' +
+      (rows || '<p class="mdesc">오늘 이 반에 학생이 없어요.</p>') + '</div>' + chk;
+  ['cr-prog', 'cr-task'].forEach(function(id){ $(id).addEventListener('input', crDirty); });
+}
+function crDirty(){ var m = $('cr-msg'); if (m && m.textContent.indexOf('저장했') === 0) m.textContent = ''; }
+function crHm(iso){ var d = new Date(iso); return isNaN(d) ? '' : (d.getMonth() + 1) + '/' + d.getDate() + ' ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); }
+function crCollect(){
+  var cm = {};
+  CR.names.forEach(function(x, i){ var el = $('cr-c-' + i), v = el ? el.value.trim() : ''; if (v) cm[x.p] = v; });
+  var c = CR.c;
+  return { book: CR.bk, class_id: c.id, ymd: CR.ymd, class_name: c.cls, teacher: c.teacher,
+           class_time: c.day + ' ' + c.start + '~' + c.end,
+           progress: ($('cr-prog') ? $('cr-prog').value : '').trim(),
+           homework: ($('cr-task') ? $('cr-task').value : '').trim(),
+           comments: cm, writer: c.teacher + 'T', updated_at: new Date().toISOString() };
+}
+function crMsg(t, err){ var m = $('cr-msg'); m.textContent = t; m.className = 'cr-msg' + (err ? ' err' : ''); }
+function crBusy(on){ CR.busy = on; $('cr-save').disabled = on; $('cr-gen').disabled = on; }
+function crUpsert(extra){
+  var body = crCollect();
+  for (var k in (extra || {})) body[k] = extra[k];
+  return fetch(CR_REST + '/class_notes?on_conflict=book,class_id,ymd', {
+    method: 'POST', headers: crHdr({ Prefer: 'resolution=merge-duplicates,return=representation' }), body: JSON.stringify(body)
+  }).then(function(r){
+    if (!r.ok) return r.text().then(function(t){ throw new Error(r.status + ' ' + t.slice(0, 120)); });
+    return r.json();
+  }).then(function(rows){
+    CR.note = rows[0] || CR.note;
+    if (crToday.map) crToday.map[CR.bk + '|' + CR.c.id] = { st: CR.note.report_status || '', has: !!String(CR.note.progress || '').trim() };
+    return CR.note;
+  });
+}
+function crSave(){
+  if (!CR.c || CR.busy) return;
+  crBusy(true); crMsg('저장하는 중…');
+  crUpsert().then(function(){ crBusy(false); crRender(); crMsg('저장했어요.'); render(); })
+    .catch(function(e){ crBusy(false); crMsg('저장하지 못했어요. 다시 눌러 주세요. (' + e.message + ')', true); });
+}
+function crGenerate(){
+  if (!CR.c || CR.busy) return;
+  var prog = ($('cr-prog') ? $('cr-prog').value : '').trim();
+  if (!prog){ crMsg('오늘 진도를 먼저 적어 주세요.', true); $('cr-prog').focus(); return; }
+  var unchecked = CR.names.filter(function(x){ return !attend[attKey(CR.c.id, x.nm)]; }).length;
+  if (unchecked && !confirm('출석을 체크하지 않은 학생이 ' + unchecked + '명 있어요.\n그 학생은 리포트에서 빠져요. 그래도 만들까요?')) return;
+  var c = CR.c, st = CR.note && CR.note.report_status;
+  if (st === '요청' && !confirm('이미 리포트를 쓰고 있어요. 한 번 더 요청할까요?')) return;
+  crBusy(true); crMsg('저장하고 리포트를 요청하는 중…');
+  crUpsert({ report_status: '요청', report_note: '', requested_at: new Date().toISOString() }).then(function(){
+    var text = '[수업 리포트] ' + CR.bk + ' ' + c.id + ' ' + CR.ymd + ' · ' + c.cls + ' · ' + c.day + ' ' + c.start + '~' + c.end + ' · ' + c.teacher + 'T' +
+               ' · 학생 ' + CR.names.length + '명';
+    var guard = setTimeout(function(){ if (CR.busy){ crBusy(false); crMsg('응답이 없어요. 인터넷을 확인하고 다시 눌러 주세요.', true); } }, 25000);
+    post({ action: 'editReqAdd', writer: c.teacher + 'T', screen: CR_SCREEN, text: text }, '수업 리포트를 요청하는 중…', function(res){
+      clearTimeout(guard);
+      crBusy(false);
+      if (!res || res.result !== 'success'){
+        crMsg('기록은 저장했지만 요청을 보내지 못했어요. [리포트 생성]을 다시 눌러 주세요.', true);
+        return;
+      }
+      setStatus('수업 리포트를 요청했어요.', 'ok');
+      crRender(); crMsg('요청했어요. 클로슈가 쓰면 학생 페이지에 공개돼요.'); render();
+    });
+  }).catch(function(e){ crBusy(false); crMsg('저장하지 못했어요. 다시 눌러 주세요. (' + e.message + ')', true); });
+}
+document.addEventListener('keydown', function(e){ if (e.key === 'Escape' && CR.c && !$('crpanel').hidden) crClose(); });
+
 function cancelMove(){
   var wasClass = !!classMoving;
   var wasOnce = !!(moving && moving.once);
