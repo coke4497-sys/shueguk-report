@@ -188,7 +188,8 @@ const STUDENTS = [
       parts: [
         { part: '가', cls: '고2 가', teacher: '지원', ymd: '2026-09-23', time: '수 5:30~7:00', attend: '출석', summary: '「사미인곡」 표현상 특징을 정리했습니다.', homework: ['비교 학습지 1장'],
           hw: { items: [{ name: '숙제 수행', score: 6 }, { name: '오답 처리', score: 5 }], pct: 92, missing: false, text: '지난 과제를 모두 제출했습니다.' } },
-        { part: '나', cls: '고2 나', teacher: '현지', ymd: '2026-09-26', time: '토 2:00~3:30', attend: '', pending: true } ],
+        { part: '나', cls: '고2 나', teacher: '현지', ymd: '2026-09-26', time: '토 2:00~3:30', attend: '', pending: true },
+        { part: '', cls: '고2 논술', teacher: '슈', ymd: '2026-09-27', time: '일 11:00~12:30', attend: '출석', summary: '논술 개요를 짰습니다.', hw: { none: true, text: '확인할 것이 없습니다.' } } ],
       comments: [{ teacher: '지원', text: '정서 변화를 정확히 짚었습니다.' }] } },
     { week: '2026-09-16', book: '내신', body: {
       parts: [{ part: '진도', cls: '고2 화정A', teacher: '주혜', ymd: '2026-09-16', time: '수 5:30~7:00', attend: '지각', attend_note: '10분 늦게 도착했습니다.', units: ['사미인곡', '속미인곡'], summary: '표현 방식을 비교했습니다.', homework: [] },
@@ -223,7 +224,9 @@ const STUDENTS = [
     att: [...document.querySelectorAll('.crp-att > div')].map(x => x.textContent), parts: [...document.querySelectorAll('.crp-part')].map(x => x.textContent),
     rows: document.querySelectorAll('.crp-hwrow').length, bar: document.querySelector('.crp-track i').style.width }));
   ok('주 제목·정규 주간·브랜드', /9\/21 ~ 9\/27/.test(r.nav) && /정규 주간/.test(r.nav) && r.brand === '슈퍼스타 주간 리포트', JSON.stringify(r));
-  ok('출석 칸 둘 — 가 출석 / 나 기록 전', r.att.length === 2 && /가 수업/.test(r.att[0]) && /출석/.test(r.att[0]) && /나 수업/.test(r.att[1]) && /기록 전/.test(r.att[1]), JSON.stringify(r.att));
+  ok('출석 칸 둘 — 가 출석 / 나 기록 전', r.att.length === 3 && /가 수업/.test(r.att[0]) && /출석/.test(r.att[0]) && /나 수업/.test(r.att[1]) && /기록 전/.test(r.att[1]), JSON.stringify(r.att));
+  ok('숙제 검사를 비운 수업은 "확인할 것이 없습니다." 한 줄', /확인할 것이 없습니다\./.test(r.parts[2]) && !/0%/.test(r.parts[2]), r.parts[2]);
+  r.parts.splice(2, 1);
   ok('가 수업 칸(내용·과제·그 수업 숙제 검사) · 나 수업 기록 전 · 코멘트', r.parts.length === 3 && /사미인곡/.test(r.parts[0]) && /비교 학습지/.test(r.parts[0]) &&
      /이 수업 숙제 검사92%/.test(r.parts[0]) && /6 \/ 6/.test(r.parts[0]) && /아직 수업 기록 전/.test(r.parts[1]) && !/숙제 검사/.test(r.parts[1]) && /정서 변화/.test(r.parts[2]) && /지원T/.test(r.parts[2]), JSON.stringify(r.parts));
   ok('숙제 검사 막대 2줄(6/6 = 100%)', r.rows === 2 && r.bar === '100%', JSON.stringify([r.rows, r.bar]));

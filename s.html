@@ -2028,6 +2028,7 @@ function crpAtChip(at){
 }
 /* 숙제 검사 상자 — 2026-09-28(035)부터 수업마다(parts[].hw), 그 전 리포트는 주 단위(body.hw) */
 function crpHwHtml(hw, lb){
+  if (hw.none) return '<p>' + esc(hw.text || '확인할 것이 없습니다.') + '</p>';   // 숙제 검사를 비워 둔 수업(2026-09-29 원장님 안내문)
   var items = (hw.items || []).filter(function(x){ return x && x.name; });
   return '<div class="crp-hwbox">' +
     (hw.missing ? '<p class="crp-miss">미제출</p>'
