@@ -2066,7 +2066,7 @@ function crpRender(){
     if (pt.summary) h += '<div class="crp-kv"><span class="k">수업 내용</span><p>' + esc(pt.summary) + '</p></div>';
     var hwk = (pt.homework || []).filter(Boolean);
     if (hwk.length) h += '<div class="crp-kv"><span class="k">다음 수업까지 숙제</span><ul>' + hwk.map(function(x){ return '<li>' + esc(x) + '</li>'; }).join('') + '</ul></div>';
-    if (pt.hw) h += '<div class="crp-kv"><span class="k">' + (pt.part === '확인' ? '과제 검사' : '숙제 검사') + '</span>' + crpHwHtml(pt.hw, '이 수업') + '</div>';
+    if (pt.hw) h += '<div class="crp-kv"><span class="k">' + '숙제 검사' + '</span>' + crpHwHtml(pt.hw, '이 수업') + '</div>';
     h += '</section>';
   });
   // 수업별 숙제 검사 이전(035 전)에 쓴 리포트는 주 단위 한 칸(b.hw)

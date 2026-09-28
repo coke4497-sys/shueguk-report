@@ -6402,7 +6402,7 @@ function crEnsureToday(){
 function crHasNote(r){ return !!(String(r.progress || '').trim() || String(r.homework || '').trim() || (r.units && r.units.length)); }
 function crBtnHtml(c){
   var s = crToday.map && crToday.map[book + '|' + c.id];
-  var cls = '', label = '수업 기록', tip = '진도·과제·숙제 검사·코멘트를 적고 주간 리포트를 만들어요';
+  var cls = '', label = '수업 기록', tip = '진도·숙제·숙제 검사·코멘트를 적고 주간 리포트를 만들어요';
   if (s && s.st === '공개'){ cls = ' pub'; label = '리포트 공개'; tip = '학생 페이지에 주간 리포트가 공개됐어요'; }
   else if (s && s.st === '요청'){ cls = ' done'; label = '리포트 작성 중'; tip = '클로슈가 주간 리포트를 쓰고 있어요'; }
   else if (s && s.has){ cls = ' done'; label = '기록함'; tip = '수업 기록을 적어 두었어요 — 리포트는 아직'; }
@@ -6570,20 +6570,20 @@ function crRender(){
   var top = '';
   if (part === '진도' && CR.ns) top = crNsHtml(n);
   else if (part === '확인')
-    top = '<div class="cr-f"><label for="cr-prog">확인 수업 내용 <small>(선택)</small></label><textarea id="cr-prog" maxlength="600" placeholder="예) 진도 수업 과제 점검, 서술형 3문항 첨삭">' + esc(n.progress || '') + '</textarea></div>' +
+    top = '<div class="cr-f"><label for="cr-prog">확인 수업 내용 <small>(선택)</small></label><textarea id="cr-prog" maxlength="600" placeholder="예) 진도 수업 숙제 점검, 서술형 3문항 첨삭">' + esc(n.progress || '') + '</textarea></div>' +
           // 확인 수업에서도 추가 과제가 자주 나간다(2026-09-29 원장님) — 같은 칸을 둔다
           '<div class="cr-f"><label for="cr-task">다음 수업까지 숙제 <small>(한 줄에 하나 · 없다면 비워 두세요)</small></label><textarea id="cr-task" maxlength="600" placeholder="예) 서술형 오답 다시 쓰기">' + esc(n.homework || '') + '</textarea></div>';
   else
     top = '<div class="cr-f"><label for="cr-prog">오늘 진도</label><textarea id="cr-prog" maxlength="600" placeholder="예) 문학 — 「사미인곡」 표현상 특징 정리, 갈래 복합 지문 2개 풀이">' + esc(n.progress || '') + '</textarea></div>' +
           '<div class="cr-f"><label for="cr-task">다음 수업까지 숙제 <small>(한 줄에 하나 · 없다면 비워 두세요)</small></label><textarea id="cr-task" maxlength="600" placeholder="예) 「속미인곡」 비교 학습지 1장">' + esc(n.homework || '') + '</textarea></div>';
-  var hwHead = part === '확인' ? '출석 · 과제 검사 · 코멘트' : '출석 · 이 수업 숙제 검사 · 코멘트';
-  var hint = part === '진도' ? '<div class="cr-hint">진도 수업의 숙제 검사는 기록할 것이 없으면 비워 두셔도 됩니다. 과제 검사는 확인 수업에서 해요.</div>'
+  var hwHead = part === '확인' ? '출석 · 숙제 검사 · 코멘트' : '출석 · 이 수업 숙제 검사 · 코멘트';
+  var hint = part === '진도' ? '<div class="cr-hint">진도 수업의 숙제 검사는 기록할 것이 없으면 비워 두셔도 됩니다. 숙제 검사는 주로 확인 수업에서 해요.</div>'
            : '<div class="cr-hint">별을 누르면 바로 저장됩니다. 숙제 검사는 수업마다 따로 기록돼요(가·나 수업이 각각).</div>';
   var hasP = part === '진도' ? (crNsUnitsOfWeek(CR.ns || { cleared: {} }).length > 0 || !!String(n.progress || '').trim()) : !!String(n.progress || '').trim();
   var chk = '<div class="cr-check"><b>리포트 준비 확인</b>' +
     (part === '확인' ? '' : '<span class="' + (hasP ? 'ok' : 'warn') + '">' + (hasP ? '진도 입력함' : '진도를 아직 적지 않았어요') + '</span>') +
     '<span class="' + (unchecked ? 'warn' : 'ok') + '">' + (unchecked ? '출석 미체크 ' + unchecked + '명' : '출석 ' + CR.names.length + '명 모두 체크') + '</span>' +
-    (CR.hwOk ? '<span class="' + (hwDone < CR.names.length && part !== '진도' ? 'warn' : 'ok') + '">' + (part === '확인' ? '과제 검사 ' : '숙제 검사 ') + hwDone + ' / ' + CR.names.length + '명</span>'
+    (CR.hwOk ? '<span class="' + (hwDone < CR.names.length && part !== '진도' ? 'warn' : 'ok') + '">' + '숙제 검사 ' + hwDone + ' / ' + CR.names.length + '명</span>'
              : '<span class="warn">숙제 검사 기록을 불러오지 못했어요</span>') + '</div>';
   $('cr-body').innerHTML = st + top +
     '<div class="cr-stu"><div class="cr-sh"><b>학생별</b><span>' + hwHead + '</span></div>' + hint +
