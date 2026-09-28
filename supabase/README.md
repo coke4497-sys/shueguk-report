@@ -748,6 +748,13 @@ curl -s -X POST "https://api.supabase.com/v1/projects/bangdbhqpphqqdwcledg/datab
 - `migrations/033_review_done_75.sql` — `review_done_pct()`를 75로(사용자 "75%를 보면 완료, 별 없음 — 결석 보충") + 75% 이상인데 completed_at 이 비어 있던 줄을 채운다. 페이지는 별을 세지 않는다.
 - 적용 상태: **2026-09-27 실제 수파베이스에 적용 완료** — 공개 키로 review_done_pct() = 75 확인(당시 시청 기록 0건이라 채움 대상 없음).
 
+## 슈퍼스타 주간 리포트 — 수업 기록·주간 보고서 (2026-09-28, 034)
+- `migrations/034_class_reports.sql` — 표 2개(`class_notes` = 수업마다 수업 구분(part)·진도·단원(units)·과제·학생별 코멘트·리포트 상태 / `class_reports` = **학생 × 주차 한 장**(week·code 유일), 클로슈가 쓴 주간 리포트 `body` jsonb) — 교사 authenticated 전용 + 학생 함수 `class_report_list(p {key|student})`(anon, 최근 16주·published만). student_bundle은 건드리지 않았다.
+- 숙제 검사(`hwcheck_records`)·시험범위/단원/주차 메모(`naeshin_records`)는 **기존 표를 그대로** 쓴다 — 수업 기록 창이 숙제 검사 페이지·내신대비 피드백과 같은 행을 읽고 쓴다.
+- 쓰는 곳: 선생님 = timetable.html 오늘의 시간표 왼쪽 '수업 기록' 창 / 클로슈 = `tools/class_report.py`(data·publish·hold·pending — 교사 인증). 처리 절차는 CLAUDE.md '슈퍼스타 주간 리포트' 절.
+- 검증: `PGHOST=/home/pgtest PGPORT=5499 PGUSER=postgres bash tools/class-report-sql-test.sh`(001·003 뒤 034 두 번).
+- 적용 상태: **2026-09-28 실제 수파베이스에 적용 완료**(관리 API) — 공개 키로 두 표 읽기 401·함수 응답 확인, 교사 인증으로 임시 학생(퇴원 표시)·임시 수업 기록(없는 반ID ztest)을 만들어 `class_report.py publish` → 공개 키 `class_report_list`로 주간 리포트 조회 → class_notes '공개' 확인 → 셋 다 지움(표 비어 있음). 실제 지난 수업(n101 9/27)으로 `data` 읽기도 확인.
+
 ## ⚠ 2026-08-25 사고 기록 — anon 권한을 잘못 되돌렸다가 복구
 같은 날 다른 세션(`session_01C7786KiKeAoTXLsuvTaYfS`)이 3단계 잠그기(`015_lock_anon.sql`)를
 실행한 직후, 이 세션이 그 사실을 모른 채 **모든 표의 401을 장애로 판단하고 anon 권한을
