@@ -3845,7 +3845,7 @@ function blockEl(c, forList){
     ? '<div class="btns"><button class="bbtn attall" title="기록 없는 학생을 모두 출석 처리">전체 출석</button>' +
       crBtnHtml(c) +
       '<a class="bbtn" href="hwcheck.html?slot=' + encodeURIComponent(c.day + c.start) + '&cid=' + encodeURIComponent(c.id) + '" target="_blank" rel="noopener"' +
-      ' onclick="event.stopPropagation()" title="이 반의 숙제 검사 기록 보기(검사는 [수업 기록]에서 합니다)">검사 기록</a></div>'
+      ' onclick="event.stopPropagation()" title="이 반의 과제 검사 기록 보기(검사는 [수업 기록]에서 합니다)">검사 기록</a></div>'
     : '';   // 편집 기능은 상단 편집 도구줄에서
   var cntLabel = (mode === 'today') ? countLabel(c, awayOf, temps) : (c.students.length + '명');
   var meta = esc(c.start)+'~'+esc(c.end)+
@@ -6332,7 +6332,8 @@ var CR_SCREEN = '수업 리포트';
 var CR_REST = 'https://bangdbhqpphqqdwcledg.supabase.co/rest/v1';
 var CR_KEY = 'sb_publishable_dE9d1KIbpgYaQkaS2MSrlg_-7SiRJuT';
 var CR_STARS = 6;
-var CR_HW_DEFAULT = ['숙제 수행', '오답 처리'];
+var CR_HW_DEFAULT = ['숙제 수행', '오답 처리'];   // 저장 키(바꾸면 지난 기록과 끊김) — 화면 표시는 itemLabel
+function itemLabel(n){ return String(n == null ? '' : n).replace(/숙제/g, '과제'); }   // 검사 항목 표시 이름 — 저장 키 '숙제 수행'은 그대로, 화면만 '과제'(2026-09-29 원장님 용어 지침)
 var CR = { c: null };
 var crToday = { ymd: '', map: null, busy: false };   // 오늘 기록 상태: 'book|cid' → {st, has}
 var crStudents = null;                               // 재원 명단(이름·학교·학년·접근코드) — 한 번 받아 둔다
@@ -6574,8 +6575,8 @@ function crStarsHtml(i, code){
   var h = code ? CR.hw[code] : null;
   return CR.items.map(function(it, ii){
     var sc = h ? (parseInt(h.scores[it], 10) || 0) : 0, b = '';
-    for (var k = 1; k <= CR_STARS; k++) b += '<button type="button" class="' + (k <= sc ? 'on' : '') + '" data-star="' + i + '|' + ii + '|' + k + '" aria-label="' + esc(it) + ' ' + k + '점">★</button>';
-    return '<div class="cr-item"><span>' + esc(it) + '</span><span class="cr-stars">' + b + '</span></div>';
+    for (var k = 1; k <= CR_STARS; k++) b += '<button type="button" class="' + (k <= sc ? 'on' : '') + '" data-star="' + i + '|' + ii + '|' + k + '" aria-label="' + esc(itemLabel(it)) + ' ' + k + '점">★</button>';
+    return '<div class="cr-item"><span>' + esc(itemLabel(it)) + '</span><span class="cr-stars">' + b + '</span></div>';
   }).join('');
 }
 function crRender(){

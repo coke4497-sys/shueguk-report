@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
-<title>숙제 검사 · 이수경국어</title>
-<meta name="description" content="이수경국어 정규 수업 숙제 검사 — 항목별 별점 · 주차별 점수 기록" />
+<title>과제 검사 · 이수경국어</title>
+<meta name="description" content="이수경국어 정규 수업 과제 검사 — 항목별 별점 · 주차별 점수 기록" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=Gowun+Dodum&display=swap" rel="stylesheet" />
@@ -186,8 +186,8 @@
     학습 관리로 가기
   </a>
   <header>
-    <p class="brand">숙제 검사</p>
-    <p class="sub">Shueguk · 숙제 검사 기록 보기 (교사·조교용)</p>
+    <p class="brand">과제 검사</p>
+    <p class="sub">Shueguk · 과제 검사 기록 보기 (교사·조교용)</p>
   </header>
 
   <!-- 비밀번호 게이트 -->
@@ -225,7 +225,7 @@
         <button class="items-btn" onclick="toggleItems()">검사 항목 관리</button>
       </span>
     </div>
-    <p class="view-note">이 화면은 <b>기록 보기 전용</b>입니다. 숙제 검사는 <a href="timetable.html">오늘의 시간표</a> → 반 카드 <b>[수업 기록]</b>에서 수업마다 합니다. 가·나(진도·확인) 수업 기록이 따로 보여요.</p>
+    <p class="view-note">이 화면은 <b>기록 보기 전용</b>입니다. 과제 검사는 <a href="timetable.html">오늘의 시간표</a> → 반 카드 <b>[수업 기록]</b>에서 수업마다 합니다. 가·나(진도·확인) 수업 기록이 따로 보여요.</p>
     <div class="items-panel" id="items-panel">
       <div id="chips"></div>
       <div class="addrow">
@@ -240,7 +240,7 @@
   <div class="list" id="list"></div>
   <div class="plans-wrap" id="plans"></div>
 
-  <footer>이수경국어 Shueguk · 숙제 검사</footer>
+  <footer>이수경국어 Shueguk · 과제 검사</footer>
 </main>
 
 <script>
@@ -394,7 +394,7 @@
   /* 명단 미러(students) → 백엔드 studentLinksData_와 같은 모양·같은 규칙.
    * 재원여부가 퇴원류면 빼고, 시트 행 순서(seq)를 유지한다. */
   var ITEMS_KEY = '숙제검사 항목';
-  var DEFAULT_ITEMS = ['숙제 수행', '오답 처리'];
+  var DEFAULT_ITEMS = ['숙제 수행', '오답 처리'];   // 저장 키 — 화면 표시는 itemLabel('과제 수행')
   var LEFT_RE = /^(퇴원|n|no|off|x|중단|비재원)$/i;
   var STU_COLS = 'student_id,name,school,grade,teacher,memo,class_a,class_b,naeshin_a,naeshin_b,enrolled,code,reg_date';
   function studentLinks(rows){
@@ -945,9 +945,10 @@ function toggleItems(){
   var p = $('items-panel');
   p.style.display = (p.style.display === 'block') ? 'none' : 'block';
 }
+function itemLabel(n){ return String(n == null ? '' : n).replace(/숙제/g, '과제'); }   // 검사 항목 표시 이름 — 저장 키 '숙제 수행'은 그대로, 화면만 '과제'(2026-09-29 원장님 용어 지침)
 function renderChips(){
   $('chips').innerHTML = items.map(function(it, i){
-    return '<span class="chip"><b>' + esc(it) + '</b>' +
+    return '<span class="chip"><b>' + esc(itemLabel(it)) + '</b>' +
       (items.length > 1 ? '<button onclick="removeItem(' + i + ')" title="삭제">×</button>' : '') + '</span>';
   }).join('');
 }
@@ -1005,7 +1006,7 @@ function recHtml(r){
   var rows = r.missing ? '' : recItems(r).map(function(it){
     var sc = parseInt(r.scores[it], 10) || 0, st = '';
     for (var k = 1; k <= STARS_MAX; k++) st += '<span class="' + (k <= sc ? 'on' : '') + '">★</span>';
-    return '<div class="itemrow"><span class="lb">' + esc(it) + '</span><span class="stars">' + st + '</span></div>';
+    return '<div class="itemrow"><span class="lb">' + esc(itemLabel(it)) + '</span><span class="stars">' + st + '</span></div>';
   }).join('');
   function line(cls, lb, v){ v = String(v || '').trim(); return v ? '<p class="rec-line' + cls + '"><b>' + lb + '</b>' + esc(v) + '</p>' : ''; }
   return '<div class="rec"><div class="rec-top"><span class="rec-lb">' + recLabel(r) + '</span><span class="rec-pct">' + pctHtml + '</span></div>' +

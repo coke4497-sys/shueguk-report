@@ -540,7 +540,7 @@
 <div id="hwcheckView"><main class="wrap gwrap">
   <div class="gv-bar">
     <button class="gv-back" onclick="closeHwcheck()" id="hwcBack"></button>
-    <span class="gv-ttl">숙제 검사 · 주차별 기록</span>
+    <span class="gv-ttl">과제 검사 · 주차별 기록</span>
   </div>
   <div id="hwcheckList"></div>
   <footer><p>이수경국어 Shueguk · 학생용</p></footer>
@@ -1660,7 +1660,7 @@ function renderStars(){
       ['mock',   '실전 모의고사 응시', bd.mock,   '회', bd.mock],
       ['clinic', '클리닉 신청',        bd.clinic, '회', bd.clinic],
       ['hwork',  'H-work 과제',        bd.hwork,  '개', bd.hwork],
-      ['hwcheck','숙제 검사 만점',     bd.hwcheck,'회', bd.hwcheck],
+      ['hwcheck','과제 검사 만점',     bd.hwcheck,'회', bd.hwcheck],
       ['notice', '공지 확인',          bd.notice, '건', bd.notice],
       ['gramma', '문법 세트 클리어', bd.gramma || 0, '세트', bd.gramma || 0],
       ['bonus',  '수경쌤 깜짝 보너스', bd.bonus ? 1 : 0, '', bd.bonus]
@@ -1795,7 +1795,7 @@ function renderHub(){
     var hwcDesc = hwcWeekLabel(latest.week) + (latest.part ? ' ' + latest.part + ' 수업' : '') + ' · ' + (latest.missing ? '미제출' : latest.pct + '%');
     html += '<button class="card t-sky" onclick="openHwcheck()">' +
               '<span class="icon">'+svg(ICON.check)+'</span>' +
-              '<h3>숙제 검사</h3><p class="desc">'+esc(hwcDesc)+'</p>' +
+              '<h3>과제 검사</h3><p class="desc">'+esc(hwcDesc)+'</p>' +
               '<span class="go">열기 '+svg(ICON.arrow)+'</span></button>';
   }
 
@@ -1974,7 +1974,7 @@ function renderHwcheck(){
       var sc = parseInt(r.scores[name],10)||0;
       var stars = '';
       for(var k=0;k<6;k++){ stars += (k<sc ? '★' : '☆'); }
-      return esc(name)+' <b>'+stars+'</b>';
+      return esc(itemLabel(name))+' <b>'+stars+'</b>';
     }).join('<br>');
     return '<div class="hwc-week">' +
       '<div class="wk-top"><span class="wk-name">'+esc(hwcWeekLabel(r.week))+(r.cls ? '<small class="wk-part">'+esc((r.part ? r.part+' 수업 · ' : '')+(r.clsName || ''))+'</small>' : '')+'</span>'+pctHtml+'</div>' +
@@ -2027,12 +2027,13 @@ function crpAtChip(at){
   return at ? '<span class="crp-at ' + c + '">' + esc(at) + '</span>' : '<span class="crp-at">기록 전</span>';
 }
 /* 숙제 검사 상자 — 2026-09-28(035)부터 수업마다(parts[].hw), 그 전 리포트는 주 단위(body.hw) */
+function itemLabel(n){ return String(n == null ? '' : n).replace(/숙제/g, '과제'); }   // 검사 항목 표시 이름 — 저장 키 '숙제 수행'은 그대로, 화면만 '과제'(2026-09-29 원장님 용어 지침)
 function crpHwHtml(hw, lb){
   if (hw.none) return '<p>' + esc(hw.text || '확인할 것이 없습니다.') + '</p>';   // 숙제 검사를 비워 둔 수업(2026-09-29 원장님 안내문)
   var items = (hw.items || []).filter(function(x){ return x && x.name; });
   return '<div class="crp-hwbox">' +
     (hw.missing ? '<p class="crp-miss">미제출</p>'
-      : items.map(function(x){ var sc = Math.max(0, Math.min(6, +x.score || 0)); return '<div class="crp-hwrow"><span>' + esc(x.name) + '</span><span class="crp-track"><i style="width:' + Math.round(sc / 6 * 100) + '%"></i></span><b>' + sc + ' / 6</b></div>'; }).join('') +
+      : items.map(function(x){ var sc = Math.max(0, Math.min(6, +x.score || 0)); return '<div class="crp-hwrow"><span>' + esc(itemLabel(x.name)) + '</span><span class="crp-track"><i style="width:' + Math.round(sc / 6 * 100) + '%"></i></span><b>' + sc + ' / 6</b></div>'; }).join('') +
         '<div class="crp-hwtot"><span>' + esc(lb) + ' 과제 검사</span><b>' + Math.max(0, Math.min(100, +hw.pct || 0)) + '%' + ((+hw.pct || 0) >= 100 ? ' 🏆' : '') + '</b></div>') +
     '</div>' + (hw.text ? '<p>' + esc(hw.text) + '</p>' : '');
 }

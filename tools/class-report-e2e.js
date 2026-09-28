@@ -96,6 +96,7 @@ const STUDENTS = [
   const card = n => r.cards.find(x => x.nm === n) || {};
   ok('학생 3명·출석 칩', r.cards.length === 3 && card('박보검').at === '출석' && card('김하늘').at === '지각' && card('최다은').at === '미체크', JSON.stringify(r.cards));
   ok('숙제 검사 항목 2줄·기존 기록 50%·별 6개 켜짐', card('김하늘').rows === 2 && /50%/.test(card('김하늘').pct) && card('김하늘').on === 6 && /미검사/.test(card('박보검').pct), JSON.stringify(r.cards));
+  ok('검사 항목은 화면에서 "과제 수행"(저장 키는 숙제 수행) · 창에 "숙제" 없음', await page.$eval('#crpanel', e => /과제 수행/.test(e.textContent) && !/숙제/.test(e.textContent)));
   ok('안내·머리 문구', /이 수업 과제 검사/.test(r.head) && /바로 저장/.test(r.hint) && /수업마다 따로/.test(r.hint));
   await page.fill('#cr-prog', '문학 — 「사미인곡」');
   await page.fill('#cr-task', '비교 학습지 1장\n오답 노트');
@@ -242,6 +243,7 @@ const STUDENTS = [
   r.parts.splice(2, 1);
   ok('가 수업 칸(내용·과제·그 수업 숙제 검사) · 나 수업 기록 전 · 코멘트', r.parts.length === 3 && /사미인곡/.test(r.parts[0]) && /비교 학습지/.test(r.parts[0]) &&
      /이 수업 과제 검사92%/.test(r.parts[0]) && /6 \/ 6/.test(r.parts[0]) && /아직 수업 기록 전/.test(r.parts[1]) && !/과제 검사/.test(r.parts[1]) && /정서 변화/.test(r.parts[2]) && /지원T/.test(r.parts[2]), JSON.stringify(r.parts));
+  ok('학생 리포트 항목도 "과제 수행"', r.parts.some(t => /과제 수행/.test(t)) && !r.parts.some(t => /숙제/.test(t)), JSON.stringify(r.parts));
   ok('숙제 검사 막대 2줄(6/6 = 100%)', r.rows === 2 && r.bar === '100%', JSON.stringify([r.rows, r.bar]));
   await sp.click('#crNav .crp-nb');
   r = await sp.evaluate(() => ({ nav: document.getElementById('crNav').textContent, txt: document.getElementById('crList').textContent, units: document.querySelectorAll('.crp-units span').length }));
