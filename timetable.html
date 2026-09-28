@@ -6573,7 +6573,7 @@ function crRender(){
     top = '<div class="cr-f"><label for="cr-prog">확인 수업 내용 <small>(선택)</small></label><textarea id="cr-prog" maxlength="600" placeholder="예) 진도 수업 과제 점검, 서술형 3문항 첨삭">' + esc(n.progress || '') + '</textarea></div>';
   else
     top = '<div class="cr-f"><label for="cr-prog">오늘 진도</label><textarea id="cr-prog" maxlength="600" placeholder="예) 문학 — 「사미인곡」 표현상 특징 정리, 갈래 복합 지문 2개 풀이">' + esc(n.progress || '') + '</textarea></div>' +
-          '<div class="cr-f"><label for="cr-task">다음 시간까지 과제 <small>(한 줄에 하나)</small></label><textarea id="cr-task" maxlength="600" placeholder="예) 「속미인곡」 비교 학습지 1장">' + esc(n.homework || '') + '</textarea></div>';
+          '<div class="cr-f"><label for="cr-task">다음 시간까지 과제 <small>(한 줄에 하나 · 없다면 비워 두세요)</small></label><textarea id="cr-task" maxlength="600" placeholder="예) 「속미인곡」 비교 학습지 1장">' + esc(n.homework || '') + '</textarea></div>';
   var hwHead = part === '확인' ? '출석 · 과제 검사 · 코멘트' : '출석 · 이 수업 숙제 검사 · 코멘트';
   var hint = part === '진도' ? '<div class="cr-hint">진도 수업의 숙제 검사는 기록할 것이 없으면 비워 두셔도 됩니다. 과제 검사는 확인 수업에서 해요.</div>'
            : '<div class="cr-hint">별을 누르면 바로 저장됩니다. 숙제 검사는 수업마다 따로 기록돼요(가·나 수업이 각각).</div>';
@@ -6609,7 +6609,7 @@ function crNsHtml(n){
   var wr = ns.weekRec || {};
   return scope + unit +
     '<div class="cr-f"><label for="cr-prog">메모 <small>(수업 내용·특이사항)</small></label><textarea id="cr-prog" maxlength="600" placeholder="예) 서술형 대비 — 표현 방식 비교 정리">' + esc(n.progress != null && n.progress !== '' ? n.progress : (wr.prog || '')) + '</textarea></div>' +
-    '<div class="cr-f"><label for="cr-task">다음 시간까지 과제 <small>(한 줄에 하나)</small></label><textarea id="cr-task" maxlength="600" placeholder="예) 교과서 문제 1~6번">' + esc(n.homework || wr.hw || '') + '</textarea></div>';
+    '<div class="cr-f"><label for="cr-task">다음 시간까지 과제 <small>(한 줄에 하나 · 없다면 비워 두세요)</small></label><textarea id="cr-task" maxlength="600" placeholder="예) 교과서 문제 1~6번">' + esc(n.homework || wr.hw || '') + '</textarea></div>';
 }
 function mdOfYmdStr(y){ var p = String(y).split('-'); return (+p[1]) + '/' + (+p[2]); }
 function crHm(iso){ var d = new Date(iso); return isNaN(d) ? '' : (d.getMonth() + 1) + '/' + d.getDate() + ' ' + crPad(d.getHours()) + ':' + crPad(d.getMinutes()); }
