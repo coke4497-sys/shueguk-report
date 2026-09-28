@@ -2033,7 +2033,7 @@ function crpHwHtml(hw, lb){
   return '<div class="crp-hwbox">' +
     (hw.missing ? '<p class="crp-miss">미제출</p>'
       : items.map(function(x){ var sc = Math.max(0, Math.min(6, +x.score || 0)); return '<div class="crp-hwrow"><span>' + esc(x.name) + '</span><span class="crp-track"><i style="width:' + Math.round(sc / 6 * 100) + '%"></i></span><b>' + sc + ' / 6</b></div>'; }).join('') +
-        '<div class="crp-hwtot"><span>' + esc(lb) + ' 숙제 검사</span><b>' + Math.max(0, Math.min(100, +hw.pct || 0)) + '%' + ((+hw.pct || 0) >= 100 ? ' 🏆' : '') + '</b></div>') +
+        '<div class="crp-hwtot"><span>' + esc(lb) + ' 과제 검사</span><b>' + Math.max(0, Math.min(100, +hw.pct || 0)) + '%' + ((+hw.pct || 0) >= 100 ? ' 🏆' : '') + '</b></div>') +
     '</div>' + (hw.text ? '<p>' + esc(hw.text) + '</p>' : '');
 }
 function crpRender(){
@@ -2065,17 +2065,17 @@ function crpRender(){
     if (units.length) h += '<div class="crp-kv"><span class="k">나간 범위</span><div class="crp-units">' + units.map(function(u){ return '<span>' + esc(u) + '</span>'; }).join('') + '</div></div>';
     if (pt.summary) h += '<div class="crp-kv"><span class="k">수업 내용</span><p>' + esc(pt.summary) + '</p></div>';
     var hwk = (pt.homework || []).filter(Boolean);
-    if (hwk.length) h += '<div class="crp-kv"><span class="k">다음 수업까지 숙제</span><ul>' + hwk.map(function(x){ return '<li>' + esc(x) + '</li>'; }).join('') + '</ul></div>';
-    if (pt.hw) h += '<div class="crp-kv"><span class="k">' + '숙제 검사' + '</span>' + crpHwHtml(pt.hw, '이 수업') + '</div>';
+    if (hwk.length) h += '<div class="crp-kv"><span class="k">다음 수업까지 과제</span><ul>' + hwk.map(function(x){ return '<li>' + esc(x) + '</li>'; }).join('') + '</ul></div>';
+    if (pt.hw) h += '<div class="crp-kv"><span class="k">' + '과제 검사' + '</span>' + crpHwHtml(pt.hw, '이 수업') + '</div>';
     h += '</section>';
   });
   // 수업별 숙제 검사 이전(035 전)에 쓴 리포트는 주 단위 한 칸(b.hw)
-  if (b.hw) h += '<section class="crp-part"><div class="crp-ph"><h4>숙제 검사</h4></div>' + crpHwHtml(b.hw, '이번 주') + '</section>';
+  if (b.hw) h += '<section class="crp-part"><div class="crp-ph"><h4>과제 검사</h4></div>' + crpHwHtml(b.hw, '이번 주') + '</section>';
   var cms = (b.comments || []).filter(function(x){ return x && x.text; });
   if (cms.length) h += '<section class="crp-part"><div class="crp-ph"><h4>선생님 코멘트</h4></div>' + cms.map(function(x){
     return '<p>' + esc(x.text) + (x.teacher ? ' <small class="crp-by">— ' + esc(x.teacher) + 'T</small>' : '') + '</p>';
   }).join('') + '</section>';
-  h += '<p class="crp-foot">담당 선생님의 수업 기록과 출석·숙제 검사를 바탕으로 작성했습니다.</p></article>';
+  h += '<p class="crp-foot">담당 선생님의 수업 기록과 출석·과제 검사를 바탕으로 작성했습니다.</p></article>';
   box.innerHTML = h;
 }
 
