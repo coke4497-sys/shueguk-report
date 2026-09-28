@@ -2028,6 +2028,7 @@ function crpAtChip(at){
 }
 /* 숙제 검사 상자 — 2026-09-28(035)부터 수업마다(parts[].hw), 그 전 리포트는 주 단위(body.hw) */
 function crpHwHtml(hw, lb){
+  if (hw.none) return '<p>' + esc(hw.text || '확인할 것이 없습니다.') + '</p>';   // 숙제 검사를 비워 둔 수업(2026-09-29 원장님 안내문)
   var items = (hw.items || []).filter(function(x){ return x && x.name; });
   return '<div class="crp-hwbox">' +
     (hw.missing ? '<p class="crp-miss">미제출</p>'
@@ -2064,7 +2065,7 @@ function crpRender(){
     if (units.length) h += '<div class="crp-kv"><span class="k">나간 범위</span><div class="crp-units">' + units.map(function(u){ return '<span>' + esc(u) + '</span>'; }).join('') + '</div></div>';
     if (pt.summary) h += '<div class="crp-kv"><span class="k">수업 내용</span><p>' + esc(pt.summary) + '</p></div>';
     var hwk = (pt.homework || []).filter(Boolean);
-    if (hwk.length) h += '<div class="crp-kv"><span class="k">다음 수업까지 과제</span><ul>' + hwk.map(function(x){ return '<li>' + esc(x) + '</li>'; }).join('') + '</ul></div>';
+    if (hwk.length) h += '<div class="crp-kv"><span class="k">다음 수업까지 숙제</span><ul>' + hwk.map(function(x){ return '<li>' + esc(x) + '</li>'; }).join('') + '</ul></div>';
     if (pt.hw) h += '<div class="crp-kv"><span class="k">' + (pt.part === '확인' ? '과제 검사' : '숙제 검사') + '</span>' + crpHwHtml(pt.hw, '이 수업') + '</div>';
     h += '</section>';
   });
