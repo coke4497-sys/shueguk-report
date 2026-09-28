@@ -177,8 +177,11 @@ const STUDENTS = [
   r = await page.evaluate(() => ({ kind: document.getElementById('cr-kind').textContent, head: document.querySelector('.cr-sh').textContent,
     names: [...document.querySelectorAll('.cr-top b')].map(x => x.textContent), chk: document.querySelector('.cr-check').textContent, scope: !!document.getElementById('cr-scope') }));
   ok('확인 수업: 표시·과제 검사·앞 괄호 뗀 이름·시험범위 칸 없음', r.kind === '확인 수업' && /과제 검사/.test(r.head) && r.names.join() === '김하늘,박보검' && !r.scope && !/진도/.test(r.chk), JSON.stringify(r));
+  ok('확인 수업에도 다음 수업까지 숙제 칸', !!(await page.$('#cr-task')) && /다음 수업까지 숙제/.test(await page.$eval('label[for=cr-task]', e => e.textContent)));
+  await page.fill('#cr-task', '서술형 오답 다시 쓰기');
   await page.click('#cr-gen');
   await page.waitForFunction(() => /요청했어요/.test(document.getElementById('cr-msg').textContent), null, { timeout: 8000 });
+  ok('확인 수업 숙제도 저장', st.writes.some(w => /class_notes/.test(w.u) && w.body && w.body[0] && w.body[0].homework === '서술형 오답 다시 쓰기'));
   ok('확인 수업은 진도 없이도 생성', st.gas.some(g => g.action === 'editReqAdd' && /n002/.test(g.text) && /확인 수업/.test(g.text)));
   await ctx.close();
 

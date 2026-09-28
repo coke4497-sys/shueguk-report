@@ -6570,7 +6570,9 @@ function crRender(){
   var top = '';
   if (part === '진도' && CR.ns) top = crNsHtml(n);
   else if (part === '확인')
-    top = '<div class="cr-f"><label for="cr-prog">확인 수업 내용 <small>(선택)</small></label><textarea id="cr-prog" maxlength="600" placeholder="예) 진도 수업 과제 점검, 서술형 3문항 첨삭">' + esc(n.progress || '') + '</textarea></div>';
+    top = '<div class="cr-f"><label for="cr-prog">확인 수업 내용 <small>(선택)</small></label><textarea id="cr-prog" maxlength="600" placeholder="예) 진도 수업 과제 점검, 서술형 3문항 첨삭">' + esc(n.progress || '') + '</textarea></div>' +
+          // 확인 수업에서도 추가 과제가 자주 나간다(2026-09-29 원장님) — 같은 칸을 둔다
+          '<div class="cr-f"><label for="cr-task">다음 수업까지 숙제 <small>(한 줄에 하나 · 없다면 비워 두세요)</small></label><textarea id="cr-task" maxlength="600" placeholder="예) 서술형 오답 다시 쓰기">' + esc(n.homework || '') + '</textarea></div>';
   else
     top = '<div class="cr-f"><label for="cr-prog">오늘 진도</label><textarea id="cr-prog" maxlength="600" placeholder="예) 문학 — 「사미인곡」 표현상 특징 정리, 갈래 복합 지문 2개 풀이">' + esc(n.progress || '') + '</textarea></div>' +
           '<div class="cr-f"><label for="cr-task">다음 수업까지 숙제 <small>(한 줄에 하나 · 없다면 비워 두세요)</small></label><textarea id="cr-task" maxlength="600" placeholder="예) 「속미인곡」 비교 학습지 1장">' + esc(n.homework || '') + '</textarea></div>';
