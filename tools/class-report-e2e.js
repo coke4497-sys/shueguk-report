@@ -132,10 +132,20 @@ const STUDENTS = [
      nw.body[0].comments['박보검'] === '정서 변화를 정확히 짚음' && Object.keys(nw.body[0].comments).length === 1 && !('report_status' in nw.body[0]), JSON.stringify(nw && nw.body));
   ok('정규는 naeshin 기록을 안 건드림', !st.writes.some(w => /naeshin_records/.test(w.u)));
   await page.click('#cr-gen');
-  await page.waitForFunction(() => /요청했어요/.test(document.getElementById('cr-msg').textContent), null, { timeout: 8000 });
+  await page.waitForFunction(() => /마쳤습니다/.test(document.getElementById('cr-msg').textContent), null, { timeout: 8000 });
   const rq = st.gas.filter(g => g.action === 'editReqAdd').pop();
   ok('생성 → 요청 글(가 수업·반ID·날짜)', rq && rq.screen === '수업 리포트' && rq.text.indexOf('[수업 리포트] 정규 r001 ' + TODAYSTR) === 0 && /가 수업/.test(rq.text), rq && rq.text);
-  ok('카드 버튼 리포트 작성 중', await page.$eval('.blk .crbtn', e => e.textContent) === '리포트 작성 중');
+  ok('생성 성공 → 창의 [리포트 생성] 버튼에서 하트 14개', await page.evaluate(() => { const l = document.querySelector('.cr-hb'); return !!l && l.querySelectorAll('.heart svg').length === 14; }));
+  ok('창 안내 = 수업 기록을 마쳤습니다', /수업 기록을 마쳤습니다/.test(await page.$eval('#crpanel', e => e.textContent)));
+  await page.waitForTimeout(1900);
+  ok('하트는 잠시 뒤 사라진다', !(await page.$('.cr-hb')));
+  await page.evaluate(() => crClose());
+  r = await page.evaluate(() => { const b = document.querySelector('.blk .crbtn'); const l = document.querySelector('.cr-hb');
+    return { t: b.textContent, fin: b.classList.contains('fin'), pop: b.classList.contains('popin'), hearts: l ? l.querySelectorAll('.heart').length : 0 }; });
+  ok('창을 닫으면 카드 버튼 [기록 완료 ✓]·완료 색·팡 + 하트', r.t === '기록 완료 ✓' && r.fin && r.pop && r.hearts === 14, JSON.stringify(r));
+  await page.evaluate(() => render());
+  r = await page.evaluate(() => document.querySelector('.blk .crbtn').classList.contains('popin'));
+  ok('다시 그리면 팡은 한 번만(완료 표시는 유지)', !r && await page.$eval('.blk .crbtn', e => e.textContent) === '기록 완료 ✓');
   // ④
   r = await page.evaluate(() => { var d = document.createElement('div'); d.id = 'req-list'; document.body.appendChild(d);
     reqRows = [{ ts: 'a', screen: '수업 리포트', text: 'x', status: '접수됨' }, { ts: 'b', screen: '오늘의 시간표', text: '명단 확인', status: '접수됨' }];
@@ -180,7 +190,7 @@ const STUDENTS = [
   ok('확인 수업에도 다음 수업까지 숙제 칸', !!(await page.$('#cr-task')) && /다음 수업까지 과제/.test(await page.$eval('label[for=cr-task]', e => e.textContent)));
   await page.fill('#cr-task', '서술형 오답 다시 쓰기');
   await page.click('#cr-gen');
-  await page.waitForFunction(() => /요청했어요/.test(document.getElementById('cr-msg').textContent), null, { timeout: 8000 });
+  await page.waitForFunction(() => /마쳤습니다/.test(document.getElementById('cr-msg').textContent), null, { timeout: 8000 });
   ok('확인 수업 숙제도 저장', st.writes.some(w => /class_notes/.test(w.u) && w.body && w.body[0] && w.body[0].homework === '서술형 오답 다시 쓰기'));
   ok('확인 수업은 진도 없이도 생성', st.gas.some(g => g.action === 'editReqAdd' && /n002/.test(g.text) && /확인 수업/.test(g.text)));
   await ctx.close();
