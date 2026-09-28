@@ -163,7 +163,17 @@ def cmd_data(book, cid, ymd):
         c = find_student(t, studs)
         s = c[0] if len(c) == 1 else None
         sessions = {}
-        # 그 주 이 학생의 수업: 명단에 있는 반의 그 요일 + 출석 기록이 있는 반
+        # 이 주에 빠진 수업(1회 이동은 원래 반의 그 주 전체, 이 주만 빼기는 그 날짜)
+        gone = set()
+        for l in logs:
+            if plain(l.get('student') or '') != p:
+                continue
+            if l['kind'] == '1회':
+                gone.add((l['from_class_id'], None))
+            elif l['kind'] == '주간빼기':
+                gone.add((l['from_class_id'], str(l['apply_date'])))
+        today = dt.date.today()
+        # 그 주 이 학생의 수업: 명단에 있는 반의 그 요일(지난 날짜는 출석 기록이 있을 때만) + 출석 기록이 있는 반
         for cl in cls_by.values():
             cidx = cl['class_id']
             if cidx.startswith('w'):
@@ -174,8 +184,11 @@ def cmd_data(book, cid, ymd):
             if not roster_has(cl.get('roster'), p):
                 continue
             for x in dates:
-                if mon <= x <= sun and (cidx, str(x)) not in off:
-                    sessions[(cidx, str(x))] = cl
+                if not (mon <= x <= sun) or (cidx, str(x)) in off or (cidx, None) in gone or (cidx, str(x)) in gone:
+                    continue
+                if x < today:
+                    continue   # 지난 날짜는 아래 출석 기록으로만 잡는다(기록이 없으면 휴강·이동 등이라 칸을 만들지 않음)
+                sessions[(cidx, str(x))] = cl
         for a in att:
             if plain(a['student']) == p and a['class_id'] in cls_by:
                 sessions[(a['class_id'], str(a['date']))] = cls_by[a['class_id']]
