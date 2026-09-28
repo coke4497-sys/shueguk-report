@@ -132,6 +132,23 @@
   .save-dot.ok{color:#4C8A5C;}
   .save-dot.err{color:#B4574E;}
   .empty{text-align:center;color:var(--ink-soft);font-size:.9rem;padding:30px 0;}
+  /* 보기 전용(2026-09-28) — 수업별 기록 한 줄씩 */
+  .view-note{font-size:.8rem;color:var(--ink);background:#E9EDF8;border-radius:10px;padding:8px 11px;margin:8px 0 0;line-height:1.55;}
+  .view-note a{color:#44578A;}
+  .rec{background:#F6F9F7;border-radius:12px;padding:9px 12px;margin-top:8px;}
+  .rec-top{display:flex;align-items:baseline;justify-content:space-between;gap:8px;}
+  .rec-lb{font-size:.84rem;color:var(--ink);font-weight:700;}
+  .rec-lb small{font-weight:400;color:var(--ink-soft);margin-left:4px;}
+  .rec-pct b{font-family:"Gowun Batang",serif;font-size:1.02rem;color:var(--accent);}
+  .rec-pct .full{color:var(--star);}
+  .rec .itemrow{margin-top:4px;}
+  .rec .stars span{font-size:1.15rem;line-height:1;color:var(--star-empty);}
+  .rec .stars span.on{color:var(--star);}
+  .rec-line{font-size:.82rem;color:var(--ink);margin:5px 0 0;line-height:1.5;}
+  .rec-line b{font-weight:700;color:var(--ink-soft);margin-right:4px;}
+  .rec-line.plan b{color:#B4574E;}
+  .rec-none{font-size:.82rem;color:var(--ink-soft);margin:8px 0 0;}
+  .plan-card .pc{font-size:.76rem;color:#44578A;margin-left:6px;}
 
   /* 미제출 대책 목록 */
   .plans-btn{font:inherit;font-size:.8rem;background:none;border:1px solid var(--line);
@@ -170,7 +187,7 @@
   </a>
   <header>
     <p class="brand">숙제 검사</p>
-    <p class="sub">Shueguk · 정규 수업 과제 검사 (교사·조교용)</p>
+    <p class="sub">Shueguk · 숙제 검사 기록 보기 (교사·조교용)</p>
   </header>
 
   <!-- 비밀번호 게이트 -->
@@ -208,14 +225,14 @@
         <button class="items-btn" onclick="toggleItems()">검사 항목 관리</button>
       </span>
     </div>
-    <p class="crit-note">평가 기준 (조교 참고) — <b>모두 수행: 별 5개</b> · <b>완벽한 수행: 별 6개</b></p>
+    <p class="view-note">이 화면은 <b>기록 보기 전용</b>입니다. 숙제 검사는 <a href="timetable.html">오늘의 시간표</a> → 반 카드 <b>[수업 기록]</b>에서 수업마다 합니다. 가·나(진도·확인) 수업 기록이 따로 보여요.</p>
     <div class="items-panel" id="items-panel">
       <div id="chips"></div>
       <div class="addrow">
         <input id="new-item" placeholder="새 항목 이름 (예: 단어 암기)" maxlength="20" />
         <button onclick="addItem()">추가</button>
       </div>
-      <p class="hint">항목마다 별 0~6개로 검사해요. 항목을 바꿔도 이미 저장된 주차 기록은 그대로 남아요.</p>
+      <p class="hint">항목마다 별 0~6개로 검사해요([수업 기록] 창에 바로 반영). 항목을 바꿔도 이미 저장된 주차 기록은 그대로 남아요.</p>
     </div>
   </div>
   <p class="status" id="status"></p>
@@ -416,10 +433,12 @@
         sbGet('/report_config?key=eq.' + q(ITEMS_KEY) + '&select=value')
         ]).then(function(S){ S.book = book; return S; });
       }).then(function(S){
-        var records = {};
+        var records = {};   // 접근코드 → 수업별 기록 목록(035 — 한 주에 가·나 수업이 각각 한 줄)
         S[0].forEach(function(r){
-          records[r.token] = { scores: r.scores || {}, pct: r.pct || 0, pub: r.pub, priv: r.priv,
-                               missing: !!r.missing, plan: r.plan };
+          (records[r.token] = records[r.token] || []).push({
+            cls: r.class_id || '', part: r.part || '', clsName: r.class_name || '',
+            scores: r.scores || {}, pct: r.pct || 0, pub: r.pub, priv: r.priv,
+            missing: !!r.missing, plan: r.plan });
         });
         var raw = (S[5][0] && S[5][0].value) || '';
         var items = raw.split(',').map(function(x){ return x.trim(); }).filter(Boolean);
@@ -447,10 +466,11 @@
       });
     },
     hwcheckPlans: function(){
-      return sbGet('/hwcheck_records?or=(missing.is.true,plan.neq.%22%22)&select=week,token,name,school,grade,plan,missing,plan_done')
+      return sbGet('/hwcheck_records?or=(missing.is.true,plan.neq.%22%22)&select=week,token,name,school,grade,plan,missing,plan_done,class_id,part,class_name')
         .then(function(rows){
           var out = rows.map(function(r){
             return { week: r.week, token: r.token, name: r.name, school: r.school, grade: r.grade,
+                     cls: r.class_id || '', part: r.part || '', clsName: r.class_name || '',
                      plan: String(r.plan || '').trim(), missing: !!r.missing, done: !!r.plan_done };
           }).filter(function(x){ return x.missing || x.plan; });
           out.sort(function(a, b){ return a.week < b.week ? 1 : (a.week > b.week ? -1 : a.name.localeCompare(b.name, 'ko')); });
@@ -504,7 +524,7 @@
     hwcheckPlanDone: function(b){
       var week = String(b.week || '').trim(), token = String(b.token || '').trim();
       if (!week || !token) return Promise.resolve({ result:'error', message:'기록 식별 정보가 없습니다.' });
-      return sbWrite('PATCH', '/hwcheck_records?week=eq.' + q(week) + '&token=eq.' + q(token),
+      return sbWrite('PATCH', '/hwcheck_records?week=eq.' + q(week) + '&token=eq.' + q(token) + '&class_id=eq.' + q(b.cls || ''),
                      { plan_done: String(b.done || '') === '1' }, { 'Prefer': 'return=representation' })
         .then(function(rows){
           if (!rows || !rows.length) return { result:'error', message:'기록을 찾을 수 없습니다. 새로고침 후 다시 시도해 주세요.' };
@@ -549,9 +569,8 @@ var STARS_MAX = 6;
 var pw = 'sh';   // 티쳐스 페이지 비밀번호 제거(접속 간소화, 2026-08-14) — 백엔드 TEACHER_PW 내장
 var roster = [];         // studentLinks: {name, school, grade, teacher, classA, classB, code}
 var items = [];          // 검사 항목 이름들
-var records = {};        // token -> {scores, pct, pub, priv}
+var records = {};        // token -> 수업별 기록 목록 [{cls, part, clsName, scores, pct, pub, priv, missing, plan}]
 var week = weekStartOf(new Date());
-var saveTimers = {};     // token -> debounce timer
 
 function $(id){ return document.getElementById(id); }
 function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
@@ -953,20 +972,45 @@ function removeItem(i){
   saveItems(items.filter(function(_, j){ return j !== i; }));
 }
 
-/* ── 학생 목록 렌더 ── */
-function recOf(token){
-  if (!records[token]) records[token] = { scores: {}, pct: 0, pub: '', priv: '', missing: false, plan: '' };
-  return records[token];
+/* ── 학생 목록 — 보기 전용 (2026-09-28, 035) ──
+ * 사용자 "가 수업과 나 수업의 진도와 숙제 검사는 각각 기록되어야 해요" → 숙제 검사는 오늘의 시간표 [수업 기록] 창에서
+ * 수업마다 따로 하고, 이 화면은 한 주의 기록을 학생별로 모아 수업(가·나 / 진도·확인)마다 한 줄씩 보여 준다.
+ * records[접근코드] = 수업별 기록 목록. 옛 백엔드 폴백은 학생당 객체 하나를 줄 수 있어 recsOf 가 목록으로 맞춘다.
+ * 035 이전(반 구분 전) 기록은 cls 가 빈 값 → '반 구분 전 기록'. */
+var PART_RANK = { '가': 1, '진도': 1, '나': 2, '확인': 2 };
+function recsOf(token){
+  var v = records[token];
+  var list = Array.isArray(v) ? v.slice() : (v ? [v] : []);
+  return list.sort(function(a, b){
+    var ca = a.cls === urlCid ? 0 : 1, cb = b.cls === urlCid ? 0 : 1;   // 시간표에서 넘어온 반이 먼저
+    if (ca !== cb) return ca - cb;
+    return (PART_RANK[a.part] || 3) - (PART_RANK[b.part] || 3) || String(a.cls || '').localeCompare(String(b.cls || ''));
+  });
 }
-function isChecked(rec){ return !!(rec && (hasAnyScore(rec) || rec.missing)); }
-function pctOf(rec){
-  var sum = 0;
-  items.forEach(function(it){ sum += (parseInt(rec.scores[it], 10) || 0); });
-  var full = items.length * STARS_MAX;
-  return full ? Math.round(sum / full * 100) : 0;
+function hasAnyScore(rec){ return !!rec && Object.keys(rec.scores || {}).length > 0; }
+function isChecked(list){ return (list || []).some(function(r){ return hasAnyScore(r) || r.missing; }); }
+function recLabel(r){
+  if (!r.cls) return '반 구분 전 기록';
+  var nm = r.clsName || (ttClasses && ttClasses[r.cls] ? ttClasses[r.cls].label : '') || r.cls;
+  return (r.part ? r.part + ' 수업' : '수업') + '<small>' + esc(nm) + '</small>';
 }
-function hasAnyScore(rec){
-  return items.some(function(it){ return rec.scores[it] != null; });
+function recItems(r){
+  var keys = Object.keys(r.scores || {});
+  return items.filter(function(it){ return keys.indexOf(it) >= 0; }).concat(keys.filter(function(k){ return items.indexOf(k) < 0; }));
+}
+function recHtml(r){
+  var pct = Number(r.pct) || 0;
+  var pctHtml = r.missing ? '<span class="miss-lb">미제출</span>'
+    : (hasAnyScore(r) ? '<b class="' + (pct >= 100 ? 'full' : '') + '">' + pct + '%</b>' + (pct >= 100 ? ' 🏆' : '') : '<span style="font-size:.8rem;">점수 없음</span>');
+  var rows = r.missing ? '' : recItems(r).map(function(it){
+    var sc = parseInt(r.scores[it], 10) || 0, st = '';
+    for (var k = 1; k <= STARS_MAX; k++) st += '<span class="' + (k <= sc ? 'on' : '') + '">★</span>';
+    return '<div class="itemrow"><span class="lb">' + esc(it) + '</span><span class="stars">' + st + '</span></div>';
+  }).join('');
+  function line(cls, lb, v){ v = String(v || '').trim(); return v ? '<p class="rec-line' + cls + '"><b>' + lb + '</b>' + esc(v) + '</p>' : ''; }
+  return '<div class="rec"><div class="rec-top"><span class="rec-lb">' + recLabel(r) + '</span><span class="rec-pct">' + pctHtml + '</span></div>' +
+    rows + (r.missing ? line(' plan', '대책', r.plan || '미기록') : line(' plan', '대책', r.plan)) +
+    line('', '코멘트', r.pub) + line('', '비공개 메모', r.priv) + '</div>';
 }
 function render(){
   updateCidNote();
@@ -980,8 +1024,8 @@ function render(){
   var baseSet = {};
   baseStudents().forEach(function(s){ baseSet[s.code] = true; });
   var checked = 0;
-  stus.forEach(function(s){ if (isChecked(records[s.code])) checked++; });
-  $('count-note').textContent = '검사 ' + checked + '명 / 전체 ' + stus.length + '명' +
+  stus.forEach(function(s){ if (isChecked(recsOf(s.code))) checked++; });
+  $('count-note').textContent = '검사 기록 ' + checked + '명 / 전체 ' + stus.length + '명' +
     (awayCnt ? ' · 결석 ' + awayCnt + '명(맨 아래)' : '');
   /* 나눠 그리기(2026-09-12): 485명을 한 번에 그리면 느린 휴대폰에서 1.3초 넘게 멈춘다.
    * 처음 RENDER_CHUNK 명만 바로 그리고 나머지는 한 덩어리씩 뒤이어 붙인다. 그 사이 다시
@@ -1009,219 +1053,18 @@ function renderFlush(){
   while (p.i < p.stus.length) renderStep();
 }
 function cardHtml(s, baseSet, away){
-    var rec = records[s.code];
-    var extra = !baseSet[s.code];
-    var pct = rec ? pctOf(rec) : null;
-    var starsHtml = items.map(function(it, ii){
-      var sc = rec ? (parseInt(rec.scores[it], 10) || 0) : 0;
-      var btns = '';
-      for (var k = 1; k <= STARS_MAX; k++){
-        btns += '<button class="' + (k <= sc ? 'on' : '') + '" onclick="tapStar(\'' + esc(s.code) + '\',' + ii + ',' + k + ')">★</button>';
-      }
-      return '<div class="itemrow"><span class="lb">' + esc(it) + '</span><span class="stars" id="stars-' + esc(s.code) + '-' + ii + '">' + btns + '</span></div>';
-    }).join('');
-    var showPct = (rec && hasAnyScore(rec)) ? pct : null;
-    var pctHtml = (rec && rec.missing) ? '<span class="miss-lb">미제출</span>'
-      : (showPct == null ? '<span style="font-size:.8rem;">미검사</span>'
-        : '<b class="' + (showPct >= 100 ? 'full' : '') + '">' + showPct + '%</b>' + (showPct >= 100 ? ' 🏆' : ''));
-    /* 대책·메모 칸은 비워 두고 열 때 만든다(ensurePlan/ensureMemo) — 접힌 칸이 화면 요소의 57%였다.
-     * 미제출로 이미 펼쳐 보이는 대책 칸만 지금 채운다. */
-    var missing = !!(rec && rec.missing);
-    return '<div class="stu' + (missing ? ' missing' : '') + (away[s.code] ? ' away' : '') + '" id="stu-' + esc(s.code) + '">' +
-      '<div class="top"><span class="nm">' + esc(s.name) + '<small>' + esc(s.school) + ' · ' + esc(s.grade) + '</small>' +
-      (away[s.code] ? '<span class="away-badge">이번 주 결석</span>' : '') +
-      (extra ? '<span class="extra-badge">추가됨</span><button class="extra-rm" onclick="removeExtra(\'' + esc(s.code) + '\')" title="목록에서 빼기">×</button>' : '') + '</span>' +
-      '<span class="pct"><span id="pct-' + esc(s.code) + '">' + pctHtml + '</span>' +
-      '<span class="save-dot" id="dot-' + esc(s.code) + '"></span></span></div>' +
-      ttInfoHtml(s) +
-      starsHtml +
-      '<div class="memo-btns">' +
-        '<button class="missbtn ' + (missing ? 'on' : '') + '" onclick="toggleMissing(\'' + esc(s.code) + '\')">미제출</button>' +
-        '<button id="pubbtn-' + esc(s.code) + '" class="' + (rec && rec.pub ? 'has' : '') + '" onclick="toggleMemo(\'' + esc(s.code) + '\',\'pub\')">공개 메모</button>' +
-        '<button id="privbtn-' + esc(s.code) + '" class="' + (rec && rec.priv ? 'has' : '') + '" onclick="toggleMemo(\'' + esc(s.code) + '\',\'priv\')">비공개 메모</button>' +
-      '</div>' +
-      '<div class="plan-area" id="plan-' + esc(s.code) + '" style="' + (missing ? 'display:block;' : '') + '"' + (missing ? ' data-built="1"' : '') + '>' +
-        (missing ? planAreaHtml(s.code, rec) : '') + '</div>' +
-      '<div class="memo-area" id="memo-pub-' + esc(s.code) + '"></div>' +
-      '<div class="memo-area" id="memo-priv-' + esc(s.code) + '"></div>' +
-    '</div>';
-}
-function planAreaHtml(token, rec){
-  return '<label>이후 대책 — 버튼을 누르면 문장이 자동으로 만들어져요</label>' +
-    planPickerHtml(token) +
-    '<input onblur="planChanged(\'' + esc(token) + '\')" id="ta-plan-' + esc(token) + '" placeholder="예: 8/13 목 5:30에 재검사 약속" value="' + esc(rec ? rec.plan : '') + '" />';
-}
-function ensurePlan(token){
-  var el = $('plan-' + token);
-  if (!el || el.getAttribute('data-built')) return el;
-  el.setAttribute('data-built', '1');
-  el.innerHTML = planAreaHtml(token, records[token]);
-  return el;
-}
-function ensureMemo(token, kind){
-  var el = $('memo-' + kind + '-' + token);
-  if (!el || el.getAttribute('data-built')) return el;
-  el.setAttribute('data-built', '1');
-  var rec = records[token];
-  el.innerHTML = (kind === 'pub' ? '<label>공개 메모 — 학생 개별 페이지에 보여요</label>' : '<label>비공개 메모 — 교사·조교만 봐요</label>') +
-    '<textarea onblur="memoChanged(\'' + esc(token) + '\')" id="ta-' + kind + '-' + esc(token) + '">' + esc(rec ? (rec[kind] || '') : '') + '</textarea>';
-  return el;
-}
-
-/* ── 입력 → 자동 저장 ── */
-function tapStar(token, itemIdx, k){
-  var it = items[itemIdx];
-  var rec = recOf(token);
-  var cur = parseInt(rec.scores[it], 10) || 0;
-  rec.scores[it] = (cur === k) ? k - 1 : k;   // 같은 별을 다시 누르면 1개 줄이기 (1→0 포함)
-  items.forEach(function(name){ if (rec.scores[name] == null) rec.scores[name] = 0; });
-  updateCard(token);
-  queueSave(token);
-}
-/* 그 학생 카드의 별·%만 갱신 — 화면 전체를 다시 그리지 않아 열린 메모창이 닫히지 않는다 */
-function updateCard(token){
-  var rec = recOf(token);
-  items.forEach(function(it, ii){
-    var box = $('stars-' + token + '-' + ii);
-    if (!box) return;
-    var sc = parseInt(rec.scores[it], 10) || 0;
-    var btns = box.querySelectorAll('button');
-    for (var k = 0; k < btns.length; k++) btns[k].classList.toggle('on', k < sc);
-  });
-  var pctEl = $('pct-' + token);
-  if (pctEl){
-    var pct = pctOf(rec);
-    pctEl.innerHTML = rec.missing ? '<span class="miss-lb">미제출</span>'
-      : '<b class="' + (pct >= 100 ? 'full' : '') + '">' + pct + '%</b>' + (pct >= 100 ? ' 🏆' : '');
-  }
-  var card = $('stu-' + token);
-  if (card) card.classList.toggle('missing', !!rec.missing);
-  var plan = rec.missing ? ensurePlan(token) : $('plan-' + token);
-  if (plan) plan.style.display = rec.missing ? 'block' : 'none';
-  var stus = currentStudents(), checked = 0;
-  stus.forEach(function(s){ if (isChecked(records[s.code])) checked++; });
-  $('count-note').textContent = '검사 ' + checked + '명 / 전체 ' + stus.length + '명';
-}
-function toggleMissing(token){
-  var rec = recOf(token);
-  rec.missing = !rec.missing;
-  items.forEach(function(name){ if (rec.scores[name] == null) rec.scores[name] = 0; });
-  var btn = document.querySelector('#stu-' + CSS.escape(token) + ' .missbtn');
-  if (btn) btn.classList.toggle('on', rec.missing);
-  updateCard(token);
-  queueSave(token);
-}
-function planChanged(token){
-  var rec = recOf(token);
-  rec.plan = $('ta-plan-' + token).value;
-  if (rec.plan.trim()) lastPlan = rec.plan.trim();
-  items.forEach(function(name){ if (rec.scores[name] == null) rec.scores[name] = 0; });
-  queueSave(token);
-}
-
-/* ── 대책 간편 입력: 무엇을 → 언제 → 몇 시, 세 번 탭이면 문장 완성 ── */
-var PLAN_TYPES = [['재검사', '재검사 약속'], ['남아서 검사', '남아서 검사'], ['보충', '보충 수업'], ['전화 상담', '전화 상담']];
-var PLAN_TIMES = ['11:00', '12:30', '2:00', '3:30', '5:30', '7:00', '8:30'];
-var DOW_KO = '일월화수목금토';
-var planPick = {};   // token -> {type(문구), date, time}
-var lastPlan = '';   // 직전에 기록한 대책 — '이전과 동일' 버튼용
-function planDates(from, count){
-  var out = [];
-  for (var i = 0; i < count; i++){
-    var d = new Date(); d.setDate(d.getDate() + from + i);
-    out.push((d.getMonth()+1) + '/' + d.getDate() + ' ' + DOW_KO.charAt(d.getDay()));
-  }
-  return out;
-}
-function planPickerHtml(token){
-  function chips(kind, list){
-    return list.map(function(v){
-      var label = Array.isArray(v) ? v[0] : v, val = Array.isArray(v) ? v[1] : v;
-      return '<button data-k="' + kind + '" onclick="pickPlan(\'' + esc(token) + '\',\'' + kind + '\',\'' + esc(val) + '\',this)">' + esc(label) + '</button>';
-    }).join('');
-  }
-  return (lastPlan ? '<button class="qp-same" onclick="samePlan(\'' + esc(token) + '\')">이전과 동일: ' + esc(lastPlan.length > 18 ? lastPlan.slice(0,18) + '…' : lastPlan) + '</button>' : '') +
-    '<div class="qp-row"><span class="qp-lb">무엇을</span>' + chips('type', PLAN_TYPES) + '</div>' +
-    '<div class="qp-row"><span class="qp-lb">언제</span>' + chips('date', planDates(0, 7)) + '</div>' +
-    '<div class="qp-row"><span class="qp-lb">다음 주</span>' + chips('date', planDates(7, 7)) + '</div>' +
-    '<div class="qp-row"><span class="qp-lb">몇 시</span>' + chips('time', PLAN_TIMES) + '</div>' +
-    '<p class="qp-hint">가까운 시간대를 선택해주세요.</p>';
-}
-function pickPlan(token, kind, val, btn){
-  var p = planPick[token] = planPick[token] || {};
-  var wasOn = p[kind] === val;
-  p[kind] = wasOn ? '' : val;
-  // 같은 종류 버튼 표시 갱신 (누른 것만 켜기, 다시 누르면 끄기) — 날짜는 두 줄(이번 주/다음 주)에 걸쳐 있어 함께 끈다
-  var box = btn.closest ? btn.closest('.plan-area') : null;
-  var sib = (box || btn.parentNode).querySelectorAll('button[data-k="' + kind + '"]');
-  for (var i = 0; i < sib.length; i++) sib[i].classList.remove('on');
-  if (!wasOn) btn.classList.add('on');
-  composePlan(token);
-}
-function composePlan(token){
-  var p = planPick[token] || {};
-  if (!p.type && !p.date && !p.time) return;
-  var when = [p.date, p.time].filter(Boolean).join(' ');
-  var text = when
-    ? when + (p.type ? '에 ' + p.type : '')
-    : (p.type || '');
-  var input = $('ta-plan-' + token);
-  input.value = text;
-  var rec = recOf(token);
-  rec.plan = text;
-  if (text.trim()) lastPlan = text.trim();
-  items.forEach(function(name){ if (rec.scores[name] == null) rec.scores[name] = 0; });
-  queueSave(token);
-}
-function samePlan(token){
-  if (!lastPlan) return;
-  var input = $('ta-plan-' + token);
-  input.value = lastPlan;
-  var rec = recOf(token);
-  rec.plan = lastPlan;
-  items.forEach(function(name){ if (rec.scores[name] == null) rec.scores[name] = 0; });
-  queueSave(token);
-}
-function toggleMemo(token, kind){
-  var el = ensureMemo(token, kind);
-  el.style.display = (el.style.display === 'block') ? 'none' : 'block';
-  if (el.style.display === 'block') $('ta-' + kind + '-' + token).focus();
-}
-function memoChanged(token){
-  var rec = recOf(token);
-  var tp = $('ta-pub-' + token), tv = $('ta-priv-' + token);   // 아직 안 연 칸은 기록값 그대로
-  rec.pub = tp ? tp.value : (rec.pub || '');
-  rec.priv = tv ? tv.value : (rec.priv || '');
-  $('pubbtn-' + token).classList.toggle('has', !!rec.pub.trim());
-  $('privbtn-' + token).classList.toggle('has', !!rec.priv.trim());
-  if (!isChecked(rec) && !rec.pub.trim() && !rec.priv.trim() && !(rec.plan||'').trim()) return;   // 아무것도 없으면 저장 안 함
-  items.forEach(function(name){ if (rec.scores[name] == null) rec.scores[name] = 0; });
-  queueSave(token);
-}
-function queueSave(token){
-  var dot = $('dot-' + token);
-  if (dot){ dot.textContent = '저장 중…'; dot.className = 'save-dot'; }
-  clearTimeout(saveTimers[token]);
-  saveTimers[token] = setTimeout(function(){ doSave(token); }, 900);
-}
-function doSave(token){
-  var s = roster.find(function(x){ return x.code === token; });
-  var rec = recOf(token);
-  var scores = {};
-  items.forEach(function(it){ scores[it] = parseInt(rec.scores[it], 10) || 0; });
-  postJSON({ action:'hwcheckSave', pw: pw, week: week, token: token,
-             name: s ? s.name : '', school: s ? s.school : '', grade: s ? s.grade : '',
-             scores: scores, pub: rec.pub || '', priv: rec.priv || '',
-             missing: rec.missing ? '1' : '', plan: rec.plan || '' })
-    .then(function(r){
-      var dot = $('dot-' + token);
-      if (r && r.result === 'success'){ rec.pct = r.pct; if (dot){ dot.textContent = '저장됨 ✓'; dot.className = 'save-dot ok'; setTimeout(function(){ if (dot.textContent === '저장됨 ✓') dot.textContent = ''; }, 2500); } }
-      else if (dot){ dot.textContent = '저장 실패 — 다시 눌러주세요'; dot.className = 'save-dot err'; }
-    })
-    .catch(function(){
-      var dot = $('dot-' + token);
-      if (dot){ dot.textContent = '저장 실패 — 다시 눌러주세요'; dot.className = 'save-dot err'; }
-    });
+  var list = recsOf(s.code);
+  var extra = !baseSet[s.code];
+  var missing = list.some(function(r){ return r.missing; });
+  var full = list.filter(function(r){ return !r.missing && (Number(r.pct) || 0) >= 100; }).length;
+  return '<div class="stu' + (missing ? ' missing' : '') + (away[s.code] ? ' away' : '') + '" id="stu-' + esc(s.code) + '">' +
+    '<div class="top"><span class="nm">' + esc(s.name) + '<small>' + esc(s.school) + ' · ' + esc(s.grade) + '</small>' +
+    (away[s.code] ? '<span class="away-badge">이번 주 결석</span>' : '') +
+    (extra ? '<span class="extra-badge">추가됨</span><button class="extra-rm" onclick="removeExtra(\'' + esc(s.code) + '\')" title="목록에서 빼기">×</button>' : '') + '</span>' +
+    '<span class="pct">' + (list.length ? '기록 ' + list.length + '개' + (full ? ' · 만점 ' + full + ' 🏆' : '') : '<span style="font-size:.8rem;">미검사</span>') + '</span></div>' +
+    ttInfoHtml(s) +
+    (list.length ? list.map(recHtml).join('') : '<p class="rec-none">이번 주 검사 기록이 아직 없어요.</p>') +
+  '</div>';
 }
 
 /* ── 미제출 대책 목록 (전 주차) ── */
@@ -1236,10 +1079,10 @@ function refreshPlansBadge(){
     })
     .catch(function(){});
 }
-/* 상단 버튼: 목록 화면에선 "미제출 확인", 미제출 화면에선 "검사하러 가기"로 바뀐다 */
+/* 상단 버튼: 목록 화면에선 "미제출 확인", 미제출 화면에선 "검사 기록 보기"로 바뀐다 */
 function updatePlansBtn(){
   var pending = plans.filter(function(p){ return !p.done; }).length;
-  $('plans-lb').textContent = plansOpen ? '검사하러 가기' : '미제출 확인';
+  $('plans-lb').textContent = plansOpen ? '검사 기록 보기' : '미제출 확인';
   $('plans-btn').classList.toggle('back', plansOpen);
   var cnt = $('plans-cnt');
   cnt.textContent = pending;
@@ -1269,14 +1112,14 @@ function weekLabelOf(wk){
 }
 function renderPlans(){
   updatePlansBtn();
-  var backBtn = '<button class="plans-back" onclick="togglePlans()">검사하러 가기</button>';
+  var backBtn = '<button class="plans-back" onclick="togglePlans()">검사 기록 보기</button>';
   if (!plans.length){ $('plans').innerHTML = '<p class="empty">미제출·대책 기록이 없어요.</p>' + backBtn; return; }
   var html = '', curWeek = null;
   plans.forEach(function(p, i){
     if (p.week !== curWeek){ curWeek = p.week; html += '<p class="pw-week">' + weekLabelOf(p.week) + '</p>'; }
     html += '<div class="plan-card' + (p.done ? ' done' : '') + '">' +
-      '<div class="pb"><div class="pn">' + esc(p.name) + '<small>' + esc(p.school) + ' · ' + esc(p.grade) + (p.missing ? ' · 미제출' : '') + '</small></div>' +
-      '<p class="pt' + (p.plan ? '' : ' none') + '">' + (p.plan ? esc(p.plan) : '대책 미기록 — 검사 화면에서 적어주세요') + '</p></div>' +
+      '<div class="pb"><div class="pn">' + esc(p.name) + '<small>' + esc(p.school) + ' · ' + esc(p.grade) + (p.missing ? ' · 미제출' : '') + '</small>' + (p.cls ? '<span class="pc">' + esc((p.part ? p.part + ' 수업 · ' : '') + (p.clsName || p.cls)) + '</span>' : '') + '</div>' +
+      '<p class="pt' + (p.plan ? '' : ' none') + '">' + (p.plan ? esc(p.plan) : '대책 미기록 — 오늘의 시간표 [수업 기록]에서 적어 주세요') + '</p></div>' +
       '<button class="okbtn' + (p.done ? ' on' : '') + '" onclick="togglePlanDone(' + i + ')">' + (p.done ? '완료 ✓' : '확인') + '</button>' +
     '</div>';
   });
@@ -1287,7 +1130,7 @@ function togglePlanDone(i){
   var next = !p.done;
   p.done = next;   // 화면 먼저 반영
   renderPlans();
-  postJSON({ action:'hwcheckPlanDone', pw: pw, week: p.week, token: p.token, done: next ? '1' : '0' })
+  postJSON({ action:'hwcheckPlanDone', pw: pw, week: p.week, token: p.token, cls: p.cls || '', done: next ? '1' : '0' })
     .then(function(r){
       if (!r || r.result !== 'success'){ p.done = !next; renderPlans(); alert('표시를 저장하지 못했어요: ' + ((r && r.message) || '연결 오류')); }
     })

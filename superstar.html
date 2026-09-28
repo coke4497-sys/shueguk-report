@@ -697,7 +697,7 @@
       sbAll('/omr_responses?select=id,submitted_at,student_id,name,school,exam,grade&order=id'),
       sbAll('/star_bonus?select=id,at,student_id,name,school,stars,grade&order=id'),
       sbAll('/notice_reads?select=id,at,student_id,name,school,notice_key&order=id'),
-      sbAll('/hwcheck_records?select=id,at,week,token,pct&pct=gte.100&order=id'),
+      sbAll('/hwcheck_records?select=id,at,week,token,pct,class_id&pct=gte.100&order=id'),
       sbAll('/gramma_sets?select=id,cleared_at,name,school,grade,phone8,unit,set_no&order=id').catch(function(){ return []; })   // 세트 클리어 기록(029) — 표가 아직 없으면 0으로
     ]).then(function(g){
       var sv = g[0], subs = g[1], clin = g[2], voca = g[3], hwk = g[4], omr = g[5], bonus = g[6], reads = g[7], hwc = g[8], gram = g[9] || [];
@@ -783,10 +783,10 @@
         var k = resolve(r.student_id, r.name, r.school);
         if (k >= 0) mark_(stus[k].notice, tr_(r.notice_key) || ('r' + i), tsOf_(r.at));
       });
-      hwc.forEach(function(r, i){                        // 숙제 검사 만점 주차 (접근코드 매칭)
+      hwc.forEach(function(r, i){                        // 숙제 검사 만점 — 수업마다(주차+반ID, 035) 별 1개 (접근코드 매칭)
         var tk = tr_(r.token);
         if (!tk || byToken[tk] == null) return;
-        mark_(stus[byToken[tk]].hwcheck, tr_(r.week) || ('r' + i), tsOf_(r.at));
+        mark_(stus[byToken[tk]].hwcheck, tr_(r.week) ? tr_(r.week) + '|' + tr_(r.class_id) : ('r' + i), tsOf_(r.at));
       });
       gram.forEach(function(r, i){                       // 문법 세트 클리어 (카테고리|세트 단위, 8자리=학생ID로 동명이인 구분)
         if (!tr_(r.name)) return;
@@ -1933,7 +1933,7 @@
       ['mock',  '실전 모의고사 응시', bd.mock,   '회', bd.mock],
       ['clinic','클리닉 신청',        bd.clinic, '회', bd.clinic],
       ['hwork', 'H-work 과제',        bd.hwork,  '개', bd.hwork],
-      ['hwcheck','숙제 검사 만점',    bd.hwcheck || 0, '주', bd.hwcheck || 0],   // 2026-09-16 사용자 신고 "숙제검사 별이 탑 30에 안 보여요" — 집계(computeRanking)에는 있었고 이 목록에만 빠져 있었다
+      ['hwcheck','숙제 검사 만점',    bd.hwcheck || 0, '회', bd.hwcheck || 0],   // 2026-09-16 사용자 신고 "숙제검사 별이 탑 30에 안 보여요" — 집계(computeRanking)에는 있었고 이 목록에만 빠져 있었다
       ['notice','공지 확인',          bd.notice, '건', bd.notice],
       ['gramma','문법 세트 클리어', bd.gramma || 0, '세트', bd.gramma || 0],
       ['bonus', '깜짝 보너스',        bd.bonus ? 1 : 0, '', bd.bonus]

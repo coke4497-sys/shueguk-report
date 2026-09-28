@@ -57,7 +57,7 @@ const STUDENTS = [
         return json(200, Object.values(st.notes).filter(n => !cid || n.class_id === cid));
       }
       if (/\/naeshin_records/.test(u)){ if (m === 'GET') return json(200, st.ns); return r.fulfill({ status: 201, body: '' }); }
-      if (/\/hwcheck_records/.test(u)){ if (m === 'GET') return json(200, opt.hw || []); return r.fulfill({ status: 201, body: '' }); }
+      if (/\/hwcheck_records/.test(u)){ if (m === 'GET'){ (st.hwGets = st.hwGets || []).push(decodeURIComponent(u)); return json(200, opt.hw || []); } return r.fulfill({ status: 201, body: '' }); }
       if (/\/report_config/.test(u)) return json(200, [{ value: '숙제 수행, 오답 처리' }]);
       if (/\/students\?/.test(u)) return json(200, STUDENTS);
       if (/\/tt_period/.test(u)) return json(200, WEDS.map(w => ({ week_wednesday: w, book: opt.book })));
@@ -96,7 +96,7 @@ const STUDENTS = [
   const card = n => r.cards.find(x => x.nm === n) || {};
   ok('학생 3명·출석 칩', r.cards.length === 3 && card('박보검').at === '출석' && card('김하늘').at === '지각' && card('최다은').at === '미체크', JSON.stringify(r.cards));
   ok('숙제 검사 항목 2줄·기존 기록 50%·별 6개 켜짐', card('김하늘').rows === 2 && /50%/.test(card('김하늘').pct) && card('김하늘').on === 6 && /미검사/.test(card('박보검').pct), JSON.stringify(r.cards));
-  ok('안내·머리 문구', /이번 주 숙제 검사/.test(r.head) && /바로 저장/.test(r.hint));
+  ok('안내·머리 문구', /이 수업 숙제 검사/.test(r.head) && /바로 저장/.test(r.hint) && /수업마다 따로/.test(r.hint));
   await page.fill('#cr-prog', '문학 — 「사미인곡」');
   await page.fill('#cr-task', '비교 학습지 1장\n오답 노트');
   const iPark = await page.evaluate(() => CR.names.map(x => x.p).indexOf('박보검'));
@@ -107,9 +107,12 @@ const STUDENTS = [
   ok('별을 눌러도 쓰던 진도·코멘트가 남는다', r.prog === '문학 — 「사미인곡」' && r.cm === '정서 변화를 정확히 짚음', JSON.stringify(r));
   await page.waitForFunction(() => /저장됨/.test(document.querySelector('.cr-dot.ok') ? document.querySelector('.cr-dot.ok').textContent : ''), null, { timeout: 5000 });
   let hwW = st.writes.filter(w => /hwcheck_records/.test(w.u)).pop();
-  ok('별 → hwcheck_records 저장(최근 수요일 주차·두 항목·83%)', hwW && /on_conflict=week,token/.test(hwW.u) && hwW.body[0].week === PREVWED && hwW.body[0].token === 'k-park' &&
+  const CID = await page.evaluate(() => CR.c.id);
+  ok('숙제 검사는 이 수업 것만 읽는다(class_id)', (st.hwGets || []).some(g => g.includes('class_id=eq.' + CID)), JSON.stringify(st.hwGets));
+  ok('수업마다 한 줄 — 반ID·가·반이름, on_conflict=week,token,class_id', hwW && /on_conflict=week,token,class_id/.test(hwW.u) && hwW.body[0].class_id === CID && hwW.body[0].part === '가' && !!hwW.body[0].class_name, JSON.stringify(hwW && hwW.body));
+  ok('별 → hwcheck_records 저장(최근 수요일 주차·두 항목·83%)', hwW && hwW.body[0].week === PREVWED && hwW.body[0].token === 'k-park' &&
      hwW.body[0].scores['숙제 수행'] === 6 && hwW.body[0].scores['오답 처리'] === 4 && hwW.body[0].pct === 83 && hwW.body[0].max === 12, JSON.stringify(hwW && hwW.body));
-  ok('시트 사본 hwcheckSave', st.gas.some(g => g.action === 'hwcheckSave' && g.token === 'k-park' && g.week === PREVWED));
+  ok('시트 사본 hwcheckSave(반ID·수업 함께)', st.gas.some(g => g.action === 'hwcheckSave' && g.token === 'k-park' && g.week === PREVWED && g.cls === CID && g.part === '가'));
   const iKim = await page.evaluate(() => CR.names.map(x => x.p).indexOf('김하늘'));
   await page.click(`[data-star="${iKim}|0|1"]`);
   await page.waitForTimeout(1000);
@@ -183,9 +186,9 @@ const STUDENTS = [
   const REP = [
     { week: '2026-09-23', book: '정규', body: {
       parts: [
-        { part: '가', cls: '고2 가', teacher: '지원', ymd: '2026-09-23', time: '수 5:30~7:00', attend: '출석', summary: '「사미인곡」 표현상 특징을 정리했습니다.', homework: ['비교 학습지 1장'] },
+        { part: '가', cls: '고2 가', teacher: '지원', ymd: '2026-09-23', time: '수 5:30~7:00', attend: '출석', summary: '「사미인곡」 표현상 특징을 정리했습니다.', homework: ['비교 학습지 1장'],
+          hw: { items: [{ name: '숙제 수행', score: 6 }, { name: '오답 처리', score: 5 }], pct: 92, missing: false, text: '지난 과제를 모두 제출했습니다.' } },
         { part: '나', cls: '고2 나', teacher: '현지', ymd: '2026-09-26', time: '토 2:00~3:30', attend: '', pending: true } ],
-      hw: { items: [{ name: '숙제 수행', score: 6 }, { name: '오답 처리', score: 5 }], pct: 92, missing: false, text: '지난 과제를 모두 제출했습니다.' },
       comments: [{ teacher: '지원', text: '정서 변화를 정확히 짚었습니다.' }] } },
     { week: '2026-09-16', book: '내신', body: {
       parts: [{ part: '진도', cls: '고2 화정A', teacher: '주혜', ymd: '2026-09-16', time: '수 5:30~7:00', attend: '지각', attend_note: '10분 늦게 도착했습니다.', units: ['사미인곡', '속미인곡'], summary: '표현 방식을 비교했습니다.', homework: [] },
@@ -221,13 +224,14 @@ const STUDENTS = [
     rows: document.querySelectorAll('.crp-hwrow').length, bar: document.querySelector('.crp-track i').style.width }));
   ok('주 제목·정규 주간·브랜드', /9\/21 ~ 9\/27/.test(r.nav) && /정규 주간/.test(r.nav) && r.brand === '슈퍼스타 주간 리포트', JSON.stringify(r));
   ok('출석 칸 둘 — 가 출석 / 나 기록 전', r.att.length === 2 && /가 수업/.test(r.att[0]) && /출석/.test(r.att[0]) && /나 수업/.test(r.att[1]) && /기록 전/.test(r.att[1]), JSON.stringify(r.att));
-  ok('가 수업 칸(내용·과제) · 나 수업 기록 전 · 숙제 검사 · 코멘트', r.parts.length === 4 && /사미인곡/.test(r.parts[0]) && /비교 학습지/.test(r.parts[0]) &&
-     /아직 수업 기록 전/.test(r.parts[1]) && /92%/.test(r.parts[2]) && /6 \/ 6/.test(r.parts[2]) && /정서 변화/.test(r.parts[3]) && /지원T/.test(r.parts[3]), JSON.stringify(r.parts));
+  ok('가 수업 칸(내용·과제·그 수업 숙제 검사) · 나 수업 기록 전 · 코멘트', r.parts.length === 3 && /사미인곡/.test(r.parts[0]) && /비교 학습지/.test(r.parts[0]) &&
+     /이 수업 숙제 검사92%/.test(r.parts[0]) && /6 \/ 6/.test(r.parts[0]) && /아직 수업 기록 전/.test(r.parts[1]) && !/숙제 검사/.test(r.parts[1]) && /정서 변화/.test(r.parts[2]) && /지원T/.test(r.parts[2]), JSON.stringify(r.parts));
   ok('숙제 검사 막대 2줄(6/6 = 100%)', r.rows === 2 && r.bar === '100%', JSON.stringify([r.rows, r.bar]));
   await sp.click('#crNav .crp-nb');
   r = await sp.evaluate(() => ({ nav: document.getElementById('crNav').textContent, txt: document.getElementById('crList').textContent, units: document.querySelectorAll('.crp-units span').length }));
   ok('‹ 지난 주 — 내신 주간·진도/확인·나간 범위 칩·지각 안내·미제출', /9\/14 ~ 9\/20/.test(r.nav) && /내신 주간/.test(r.nav) && /진도 수업/.test(r.txt) && /확인 수업/.test(r.txt) &&
      r.units === 2 && /10분 늦게/.test(r.txt) && /미제출/.test(r.txt) && !/선생님 코멘트/.test(r.txt), JSON.stringify(r));
+  ok('035 이전 리포트(주 단위 body.hw)도 그대로 보인다', /숙제 검사/.test(r.txt) && /과제를 제출하지 않았습니다/.test(r.txt), r.txt);
   await sp.evaluate(() => closeClassReport());
   ok('닫으면 허브로', await sp.evaluate(() => document.getElementById('crView').style.display === 'none'));
   await c2.close();

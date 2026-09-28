@@ -3835,7 +3835,7 @@ function blockEl(c, forList){
     ? '<div class="btns"><button class="bbtn attall" title="기록 없는 학생을 모두 출석 처리">전체 출석</button>' +
       crBtnHtml(c) +
       '<a class="bbtn" href="hwcheck.html?slot=' + encodeURIComponent(c.day + c.start) + '&cid=' + encodeURIComponent(c.id) + '" target="_blank" rel="noopener"' +
-      ' onclick="event.stopPropagation()" title="이 반의 숙제 검사로 이동">숙제 검사</a></div>'
+      ' onclick="event.stopPropagation()" title="이 반의 숙제 검사 기록 보기(검사는 [수업 기록]에서 합니다)">검사 기록</a></div>'
     : '';   // 편집 기능은 상단 편집 도구줄에서
   var cntLabel = (mode === 'today') ? countLabel(c, awayOf, temps) : (c.students.length + '명');
   var meta = esc(c.start)+'~'+esc(c.end)+
@@ -6310,7 +6310,8 @@ function onBlockClick(e, c){
 }
 /* ══ 수업 기록 → 슈퍼스타 주간 리포트 (2026-09-28, 수파베이스 034) ═══════════════════════
  * 사용자 결정: 수업마다 선생님이 오늘의 시간표 왼쪽 창에 진도·과제·학생별 코멘트를 적고, **숙제 검사도 여기서 한다**
- * (숙제 검사 페이지와 같은 hwcheck_records — 한 주·한 학생당 한 기록이라 가·나 수업 창이 같은 별점을 함께 쓴다).
+ * (hwcheck_records — **수업마다 따로** 한 줄: (주차, 학생, 반ID). 2026-09-28 사용자 "가 수업과 나 수업의 진도와 숙제 검사는
+ * 각각 기록되어야 해요" → 035. 가·나(내신 진도·확인) 수업 창이 각자 기록하고, 수업마다 만점이면 별 1개씩).
  * 내신 진도 수업은 **시험범위 입력(담당 교사)·단원 진도**를 내신대비 피드백과 같은 naeshin_records에 저장한다.
  * 반마다 [리포트 생성] → 수정 요청함 통로(editReqAdd, 화면 CR_SCREEN)로 클로슈를 불러 그 학생들의 **주간 리포트**를
  * 새로 쓰게 한다(CLAUDE.md '슈퍼스타 주간 리포트' 절).
@@ -6465,7 +6466,7 @@ function openClassNote(c){
   var mine = CR;
   Promise.all([
     crGet('/class_notes?book=eq.' + encodeURIComponent(book) + '&class_id=eq.' + encodeURIComponent(c.id) + '&ymd=eq.' + ymd + '&select=*'),
-    crGet('/hwcheck_records?week=eq.' + CR.hwWeek + '&select=token,scores,pct,pub,priv,missing,plan').catch(function(){ return null; }),
+    crGet('/hwcheck_records?week=eq.' + CR.hwWeek + '&class_id=eq.' + encodeURIComponent(c.id) + '&select=token,scores,pct,pub,priv,missing,plan').catch(function(){ return null; }),
     crGet('/report_config?key=eq.' + encodeURIComponent('숙제검사 항목') + '&select=value').catch(function(){ return []; }),
     crStudentsEnsure().catch(function(){ return null; }),
     CR.ns ? crNsLoad(CR.ns, c.id) : Promise.resolve()
@@ -6573,14 +6574,14 @@ function crRender(){
   else
     top = '<div class="cr-f"><label for="cr-prog">오늘 진도</label><textarea id="cr-prog" maxlength="600" placeholder="예) 문학 — 「사미인곡」 표현상 특징 정리, 갈래 복합 지문 2개 풀이">' + esc(n.progress || '') + '</textarea></div>' +
           '<div class="cr-f"><label for="cr-task">다음 시간까지 과제 <small>(한 줄에 하나)</small></label><textarea id="cr-task" maxlength="600" placeholder="예) 「속미인곡」 비교 학습지 1장">' + esc(n.homework || '') + '</textarea></div>';
-  var hwHead = part === '확인' ? '출석 · 과제 검사 · 코멘트' : '출석 · 이번 주 숙제 검사 · 코멘트';
+  var hwHead = part === '확인' ? '출석 · 과제 검사 · 코멘트' : '출석 · 이 수업 숙제 검사 · 코멘트';
   var hint = part === '진도' ? '<div class="cr-hint">진도 수업의 숙제 검사는 기록할 것이 없으면 비워 두셔도 됩니다. 과제 검사는 확인 수업에서 해요.</div>'
-           : '<div class="cr-hint">별을 누르면 바로 저장돼요(숙제 검사 페이지와 같은 기록). 같은 주의 다른 수업 창에도 그대로 보여요.</div>';
+           : '<div class="cr-hint">별을 누르면 바로 저장됩니다. 숙제 검사는 수업마다 따로 기록돼요(가·나 수업이 각각).</div>';
   var hasP = part === '진도' ? (crNsUnitsOfWeek(CR.ns || { cleared: {} }).length > 0 || !!String(n.progress || '').trim()) : !!String(n.progress || '').trim();
   var chk = '<div class="cr-check"><b>리포트 준비 확인</b>' +
     (part === '확인' ? '' : '<span class="' + (hasP ? 'ok' : 'warn') + '">' + (hasP ? '진도 입력함' : '진도를 아직 적지 않았어요') + '</span>') +
     '<span class="' + (unchecked ? 'warn' : 'ok') + '">' + (unchecked ? '출석 미체크 ' + unchecked + '명' : '출석 ' + CR.names.length + '명 모두 체크') + '</span>' +
-    (CR.hwOk ? '<span class="' + (hwDone < CR.names.length && part !== '진도' ? 'warn' : 'ok') + '">' + (part === '확인' ? '과제 검사 ' : '이번 주 숙제 검사 ') + hwDone + ' / ' + CR.names.length + '명</span>'
+    (CR.hwOk ? '<span class="' + (hwDone < CR.names.length && part !== '진도' ? 'warn' : 'ok') + '">' + (part === '확인' ? '과제 검사 ' : '숙제 검사 ') + hwDone + ' / ' + CR.names.length + '명</span>'
              : '<span class="warn">숙제 검사 기록을 불러오지 못했어요</span>') + '</div>';
   $('cr-body').innerHTML = st + top +
     '<div class="cr-stu"><div class="cr-sh"><b>학생별</b><span>' + hwHead + '</span></div>' + hint +
@@ -6674,12 +6675,14 @@ function crHwSave(i){
   var pct = crHwPct(h);
   var row = { week: week, token: s.code, name: s.name, school: s.school, grade: s.grade, scores: scores,
               max: CR.items.length * CR_STARS, pct: pct, pub: h.pub || '', priv: h.priv || '',
-              missing: !!h.missing, plan: h.plan || '', at: new Date().toISOString() };
-  return crSend('POST', '/hwcheck_records?on_conflict=week,token', [row], 'resolution=merge-duplicates,return=minimal')
+              missing: !!h.missing, plan: h.plan || '', at: new Date().toISOString(),
+              class_id: CR.c.id, part: CR.part || '', class_name: CR.c.cls || '' };
+  return crSend('POST', '/hwcheck_records?on_conflict=week,token,class_id', [row], 'resolution=merge-duplicates,return=minimal')
     .then(function(){
       h.saved = true;
       crLegacy({ action: 'hwcheckSave', week: week, token: s.code, name: s.name, school: s.school, grade: s.grade,
-                 scores: scores, pub: row.pub, priv: row.priv, missing: row.missing ? '1' : '', plan: row.plan });
+                 scores: scores, pub: row.pub, priv: row.priv, missing: row.missing ? '1' : '', plan: row.plan,
+                 cls: row.class_id, part: row.part, clsName: row.class_name });
       var dot = $('cr-dot-' + i); if (dot){ dot.textContent = '저장됨'; dot.className = 'cr-dot ok'; }
       var pl = $('cr-pct-' + i); if (pl) pl.innerHTML = crHwLabel(s.code);
     })

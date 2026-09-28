@@ -115,6 +115,7 @@
   .hwc-week{background:var(--surface,#fff);border:1px solid #E5EDE8;border-radius:16px;padding:14px 16px;margin-bottom:10px;}
   .hwc-week .wk-top{display:flex;justify-content:space-between;align-items:baseline;gap:8px;}
   .hwc-week .wk-name{font-family:"Gowun Batang",serif;font-weight:700;}
+  .hwc-week .wk-part{display:block;font-family:"Gowun Dodum",sans-serif;font-weight:400;font-size:.78rem;color:#65726B;}
   .hwc-week .wk-pct{font-family:"Gowun Batang",serif;font-weight:700;color:#4C6E66;}
   .hwc-week .wk-pct.full{color:#E8B93E;}
   .hwc-week .wk-pct.miss{color:#B4574E;font-size:.9rem;}
@@ -1341,13 +1342,16 @@ function api(extra){
         /* 숙제 검사 — collectHwchecks_ */
         var hwcheck = [];
         if (tr(key)) {
+          /* 2026-09-28(035): 한 주에 수업(가·나 / 진도·확인)마다 한 줄 — (주차, 반ID)로 묶는다. 만점이면 수업마다 별 1개 */
           var byWeek = {};
           hwc.forEach(function(r){
             var wk = String(r.week || '').trim();
             if (!wk) return;
-            byWeek[wk] = { week: wk, pct: Number(r.pct) || 0, scores: r.scores || {}, pub: tr(r.pub), missing: !!r.missing };
+            var cls = tr(r.class_id);
+            byWeek[wk + '|' + cls] = { week: wk, cls: cls, part: tr(r.part), clsName: tr(r.class_name),
+                                       pct: Number(r.pct) || 0, scores: r.scores || {}, pub: tr(r.pub), missing: !!r.missing };
           });
-          hwcheck = Object.keys(byWeek).sort().reverse().slice(0, 20).map(function(k){ return byWeek[k]; });
+          hwcheck = Object.keys(byWeek).map(function(k){ return byWeek[k]; }).sort(hwcOrder).slice(0, 40);
         }
 
         /* 별 집계 — collectStars_ */
@@ -1656,7 +1660,7 @@ function renderStars(){
       ['mock',   '실전 모의고사 응시', bd.mock,   '회', bd.mock],
       ['clinic', '클리닉 신청',        bd.clinic, '회', bd.clinic],
       ['hwork',  'H-work 과제',        bd.hwork,  '개', bd.hwork],
-      ['hwcheck','숙제 검사 만점',     bd.hwcheck,'주', bd.hwcheck],
+      ['hwcheck','숙제 검사 만점',     bd.hwcheck,'회', bd.hwcheck],
       ['notice', '공지 확인',          bd.notice, '건', bd.notice],
       ['gramma', '문법 세트 클리어', bd.gramma || 0, '세트', bd.gramma || 0],
       ['bonus',  '수경쌤 깜짝 보너스', bd.bonus ? 1 : 0, '', bd.bonus]
@@ -1788,7 +1792,7 @@ function renderHub(){
   var hwc = STATE.hwcheck || [];
   if(hwc.length){
     var latest = hwc[0];
-    var hwcDesc = hwcWeekLabel(latest.week) + ' · ' + (latest.missing ? '미제출' : latest.pct + '%');
+    var hwcDesc = hwcWeekLabel(latest.week) + (latest.part ? ' ' + latest.part + ' 수업' : '') + ' · ' + (latest.missing ? '미제출' : latest.pct + '%');
     html += '<button class="card t-sky" onclick="openHwcheck()">' +
               '<span class="icon">'+svg(ICON.check)+'</span>' +
               '<h3>숙제 검사</h3><p class="desc">'+esc(hwcDesc)+'</p>' +
@@ -1954,6 +1958,12 @@ function hwcWeekLabel(wk){
   var sun = new Date(+p[0], +p[1]-1, +p[2]+4);
   return (wed.getMonth()+1)+'/'+wed.getDate()+'~'+(sun.getMonth()+1)+'/'+sun.getDate()+' 주차';
 }
+/* 숙제 검사 기록 순서 — 최근 주 먼저, 같은 주는 가(진도) → 나(확인) → 반 구분 전 */
+var HWC_PART = { '가': 1, '진도': 1, '나': 2, '확인': 2 };
+function hwcOrder(a, b){
+  if (a.week !== b.week) return a.week < b.week ? 1 : -1;
+  return (HWC_PART[a.part] || (a.cls ? 3 : 4)) - (HWC_PART[b.part] || (b.cls ? 3 : 4)) || String(a.cls || '').localeCompare(String(b.cls || ''));
+}
 function renderHwcheck(){
   var list = STATE.hwcheck || [];
   var html = list.map(function(r){
@@ -1967,7 +1977,7 @@ function renderHwcheck(){
       return esc(name)+' <b>'+stars+'</b>';
     }).join('<br>');
     return '<div class="hwc-week">' +
-      '<div class="wk-top"><span class="wk-name">'+esc(hwcWeekLabel(r.week))+'</span>'+pctHtml+'</div>' +
+      '<div class="wk-top"><span class="wk-name">'+esc(hwcWeekLabel(r.week))+(r.cls ? '<small class="wk-part">'+esc((r.part ? r.part+' 수업 · ' : '')+(r.clsName || ''))+'</small>' : '')+'</span>'+pctHtml+'</div>' +
       (itemsHtml && !r.missing ? '<p class="wk-items">'+itemsHtml+'</p>' : '') +
       (r.pub ? '<p class="wk-memo">💬 '+esc(r.pub)+'</p>' : '') +
     '</div>';
@@ -2016,6 +2026,15 @@ function crpAtChip(at){
   var c = at === '출석' ? 'ok' : at === '지각' ? 'late' : at === '결석' ? 'abs' : '';
   return at ? '<span class="crp-at ' + c + '">' + esc(at) + '</span>' : '<span class="crp-at">기록 전</span>';
 }
+/* 숙제 검사 상자 — 2026-09-28(035)부터 수업마다(parts[].hw), 그 전 리포트는 주 단위(body.hw) */
+function crpHwHtml(hw, lb){
+  var items = (hw.items || []).filter(function(x){ return x && x.name; });
+  return '<div class="crp-hwbox">' +
+    (hw.missing ? '<p class="crp-miss">미제출</p>'
+      : items.map(function(x){ var sc = Math.max(0, Math.min(6, +x.score || 0)); return '<div class="crp-hwrow"><span>' + esc(x.name) + '</span><span class="crp-track"><i style="width:' + Math.round(sc / 6 * 100) + '%"></i></span><b>' + sc + ' / 6</b></div>'; }).join('') +
+        '<div class="crp-hwtot"><span>' + esc(lb) + ' 숙제 검사</span><b>' + Math.max(0, Math.min(100, +hw.pct || 0)) + '%' + ((+hw.pct || 0) >= 100 ? ' 🏆' : '') + '</b></div>') +
+    '</div>' + (hw.text ? '<p>' + esc(hw.text) + '</p>' : '');
+}
 function crpRender(){
   var box = $('crList');
   if (STATE.creport === null){ box.innerHTML = '<div class="rv-empty">불러오는 중…</div>'; $('crNav').innerHTML = ''; return; }
@@ -2046,16 +2065,11 @@ function crpRender(){
     if (pt.summary) h += '<div class="crp-kv"><span class="k">수업 내용</span><p>' + esc(pt.summary) + '</p></div>';
     var hwk = (pt.homework || []).filter(Boolean);
     if (hwk.length) h += '<div class="crp-kv"><span class="k">다음 수업까지 과제</span><ul>' + hwk.map(function(x){ return '<li>' + esc(x) + '</li>'; }).join('') + '</ul></div>';
+    if (pt.hw) h += '<div class="crp-kv"><span class="k">' + (pt.part === '확인' ? '과제 검사' : '숙제 검사') + '</span>' + crpHwHtml(pt.hw, '이 수업') + '</div>';
     h += '</section>';
   });
-  if (b.hw){
-    var items = (b.hw.items || []).filter(function(x){ return x && x.name; });
-    h += '<section class="crp-part"><div class="crp-ph"><h4>숙제 검사</h4></div><div class="crp-hwbox">' +
-      (b.hw.missing ? '<p class="crp-miss">미제출</p>'
-        : items.map(function(x){ var sc = Math.max(0, Math.min(6, +x.score || 0)); return '<div class="crp-hwrow"><span>' + esc(x.name) + '</span><span class="crp-track"><i style="width:' + Math.round(sc / 6 * 100) + '%"></i></span><b>' + sc + ' / 6</b></div>'; }).join('') +
-          '<div class="crp-hwtot"><span>이번 주 숙제 검사</span><b>' + Math.max(0, Math.min(100, +b.hw.pct || 0)) + '%' + ((+b.hw.pct || 0) >= 100 ? ' 🏆' : '') + '</b></div>') +
-      '</div>' + (b.hw.text ? '<p>' + esc(b.hw.text) + '</p>' : '') + '</section>';
-  }
+  // 수업별 숙제 검사 이전(035 전)에 쓴 리포트는 주 단위 한 칸(b.hw)
+  if (b.hw) h += '<section class="crp-part"><div class="crp-ph"><h4>숙제 검사</h4></div>' + crpHwHtml(b.hw, '이번 주') + '</section>';
   var cms = (b.comments || []).filter(function(x){ return x && x.text; });
   if (cms.length) h += '<section class="crp-part"><div class="crp-ph"><h4>선생님 코멘트</h4></div>' + cms.map(function(x){
     return '<p>' + esc(x.text) + (x.teacher ? ' <small class="crp-by">— ' + esc(x.teacher) + 'T</small>' : '') + '</p>';
