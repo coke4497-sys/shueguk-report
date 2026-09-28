@@ -755,6 +755,13 @@ curl -s -X POST "https://api.supabase.com/v1/projects/bangdbhqpphqqdwcledg/datab
 - 검증: `PGHOST=/home/pgtest PGPORT=5499 PGUSER=postgres bash tools/class-report-sql-test.sh`(001·003 뒤 034 두 번).
 - 적용 상태: **2026-09-28 실제 수파베이스에 적용 완료**(관리 API) — 공개 키로 두 표 읽기 401·함수 응답 확인, 교사 인증으로 임시 학생(퇴원 표시)·임시 수업 기록(없는 반ID ztest)을 만들어 `class_report.py publish` → 공개 키 `class_report_list`로 주간 리포트 조회 → class_notes '공개' 확인 → 셋 다 지움(표 비어 있음). 실제 지난 수업(n101 9/27)으로 `data` 읽기도 확인.
 
+## 숙제 검사 수업별 기록 (2026-09-28, 035)
+- `migrations/035_hwcheck_per_class.sql` — `hwcheck_records`에 `class_id`·`part`·`class_name` 열, 유일 조건 (week, token) → **(week, token, class_id)**(옛 조건은 열 구성으로 찾아 지움 — 재실행 안전). 이전 기록은 class_id '' 그대로(반 구분 전 기록). `student_bundle`은 031 본문 그대로 + hwcheck 항목에 세 열.
+- 이유: 사용자 "가 수업과 나 수업의 진도와 숙제 검사는 각각 기록되어야 해요" — 수업마다 만점이면 별 1개씩, 숙제 검사 페이지는 보기 전용. 자세한 것은 CLAUDE.md '숙제 검사는 수업마다 따로 — 035' 절.
+- **적용 순서 주의**: 수업 기록 창(class_id로 읽고 on_conflict=week,token,class_id로 씀)·superstar(select class_id)가 이 열을 쓰므로 **페이지 반영(머지) 전에 적용**할 것. 먼저 머지하면 적용 전까지 수업 기록 창의 숙제 검사가 '불러오지 못했어요'가 되고 슈퍼스타 순위 조회가 실패한다.
+- 검증: `PGHOST=/home/pgtest PGPORT=5499 PGUSER=postgres bash tools/hwcheck-class-sql-test.sh`.
+- 적용 상태: **아직 적용 전**.
+
 ## ⚠ 2026-08-25 사고 기록 — anon 권한을 잘못 되돌렸다가 복구
 같은 날 다른 세션(`session_01C7786KiKeAoTXLsuvTaYfS`)이 3단계 잠그기(`015_lock_anon.sql`)를
 실행한 직후, 이 세션이 그 사실을 모른 채 **모든 표의 401을 장애로 판단하고 anon 권한을

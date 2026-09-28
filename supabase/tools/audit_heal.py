@@ -151,7 +151,9 @@ def extract(xlsx):
         if not re.match(r'^\d{4}-\d{2}-\d{2}$', wk) or not tok: continue
         try: scores = json.loads(txt(col(r,6)) or '{}')
         except Exception: scores = {}
-        hw[(wk, tok)] = {'week': wk, 'token': tok, 'name': txt(col(r,3)), 'school': txt(col(r,4)),
+        cls = txt(col(r,14))   # 2026-09-28(035): O반ID — 수업마다 한 줄(빈 값 = 반 구분 전 기록)
+        hw[(wk, tok, cls)] = {'week': wk, 'token': tok, 'class_id': cls, 'part': txt(col(r,15)), 'class_name': txt(col(r,16)),
+                         'name': txt(col(r,3)), 'school': txt(col(r,4)),
                          'grade': txt(col(r,5)), 'scores': scores, 'max': int(col(r,7) or 0), 'pct': int(col(r,8) or 0),
                          'pub': text_restore(col(r,9)), 'priv': text_restore(col(r,10)),
                          'missing': txt(col(r,11)) == '미제출', 'plan': text_restore(col(r,12)),
@@ -537,8 +539,8 @@ def main():
         lambda r: (r['date'], r['book'], r['class_id'], r['student_plain']), heal,
         '이중 기록 지연·실패 가능 — 다음 점검에도 남으면 확인')
     insert_missing('tt_memo', d['tt_memo'], lambda r: r['date'], lambda r: r['date'], heal, '시트 미러 지연')
-    insert_missing('hwcheck_records', d['hwcheck_records'], lambda r: (r['week'], r['token']),
-        lambda r: (r['week'], r['token']), heal, '이중 기록 지연·실패 가능')
+    insert_missing('hwcheck_records', d['hwcheck_records'], lambda r: (r['week'], r['token'], r.get('class_id') or ''),
+        lambda r: (r['week'], r['token'], r.get('class_id') or ''), heal, '이중 기록 지연·실패 가능')
     insert_missing('naeshin_records', d['naeshin_records'],
         lambda r: (r['period'], r['class_key'], r['kind'], r['week'], r['student']),
         lambda r: (r['period'], r['class_key'], r['kind'], r['week'], r['student']), heal, '이중 기록 지연·실패 가능')

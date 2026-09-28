@@ -7,7 +7,8 @@
   2) python3 tools/class_report.py data 내신 n081 2026-09-27 > /tmp/…/data.json
        → 그 수업의 진도·과제·코멘트 + 학생별 출석·숙제 검사·접근코드를 한 파일로
   3) 클로슈가 data.json 을 읽고 학생마다 그 주 전체를 담은 body 를 쓴 publish.json 을 만든다
-       {"book","class_id","ymd","reports":[{"code","body":{parts:[…],hw,comments:[…]}}]}
+       {"book","class_id","ymd","reports":[{"code","body":{parts:[{…, hw}],comments:[…]}}]}
+       (숙제 검사는 수업마다 parts[].hw — 2026-09-28, 035. body.hw 는 반 구분 전 주 단위 기록이 있을 때만)
   4) python3 tools/class_report.py publish publish.json
        → class_reports 에 저장(같은 주·학생은 덮어씀) + 요청한 수업의 class_notes 상태 '공개'
      못 쓰는 경우: python3 tools/class_report.py hold 내신 n081 2026-09-27 "이유"
@@ -152,8 +153,10 @@ def cmd_data(book, cid, ymd):
             toks.append(a['student'])
     studs = [s for s in (rest('GET', '/students?select=name,school,grade,code,student_id,enrolled') or [])
              if not LEFT_RE.match(str(s.get('enrolled') or '').strip())]
-    hws = rest('GET', '/hwcheck_records?week=eq.%s&select=token,scores,max,pct,missing,pub' % wed) or []
-    hw_by = {h['token']: h for h in hws if h.get('token')}
+    # 숙제 검사는 수업마다 한 줄(035 — class_id). 숙제 검사 주차 = 수업일의 가장 최근 수요일(월·화 수업은 지난주)
+    hws = rest('GET', '/hwcheck_records?week=gte.%s&week=lte.%s&select=week,token,class_id,scores,max,pct,missing,pub' % (wed - dt.timedelta(days=7), wed)) or []
+    hw_by = {(h['token'], h.get('class_id') or '', str(h['week'])): h for h in hws if h.get('token')}
+    HWK = ('scores', 'pct', 'missing', 'pub', 'max')
     prev = rest('GET', '/class_reports?week=eq.%s&select=code,body' % wed) or []
     prev_by = {r['code']: r['body'] for r in prev}
     days = [mon + dt.timedelta(days=i) for i in range(7)]
@@ -196,6 +199,8 @@ def cmd_data(book, cid, ymd):
         for (cidx, day), cl in sorted(sessions.items(), key=lambda kv: kv[0][1]):
             a = next((x for x in att if x['class_id'] == cidx and str(x['date']) == day and plain(x['student']) == p), None)
             n = note_by.get((cidx, day))
+            dd = ymd_of(day)
+            h = hw_by.get((s['code'], cidx, str(dd - dt.timedelta(days=(dd.weekday() - 2) % 7)))) if s else None
             parts.append({
                 'class_id': cidx, 'ymd': day, 'part': part_of(cl['name'], book), 'cls': cl['name'], 'teacher': cl['teacher'],
                 'time': '%s %s~%s' % (cl['day'], cl['start_time'], cl['end_time']),
@@ -203,8 +208,9 @@ def cmd_data(book, cid, ymd):
                 'note': n and {'progress': n.get('progress', ''), 'units': n.get('units') or [], 'homework': n.get('homework', ''),
                                'comment': (n.get('comments') or {}).get(p, ''), 'status': n.get('report_status', '')},
                 'pending': not n or not a,
+                'hw': h and {k: h[k] for k in HWK},
             })
-        hw = hw_by.get(s['code']) if s else None
+        hw = hw_by.get((s['code'], '', str(wed))) if s else None   # 반 구분 전(035 이전) 주 단위 기록
         out.append({
             'token': t, 'name': p, 'note': note_of(t),
             'code': s['code'] if s else '', 'student_id': s['student_id'] if s else '',
@@ -222,7 +228,7 @@ def cmd_data(book, cid, ymd):
 
 
 BODY_KEYS = ('parts', 'hw', 'comments')
-PART_KEYS = ('part', 'cls', 'teacher', 'ymd', 'time', 'attend', 'attend_note', 'summary', 'units', 'homework', 'pending')
+PART_KEYS = ('part', 'cls', 'teacher', 'ymd', 'time', 'attend', 'attend_note', 'summary', 'units', 'homework', 'pending', 'hw')
 
 
 def cmd_publish(path):

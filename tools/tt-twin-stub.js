@@ -12,7 +12,7 @@ class Range{
   getValue(){ return this.getValues()[0][0]; }
   setValues(vals){ const rows=SHEETS[this.sh];
     for(let i=0;i<this.nr;i++){ const row=rows[this.r-1+i]||(rows[this.r-1+i]=[]);
-      for(let j=0;j<this.nc;j++){ while(row.length<this.c-1+j) row.push(''); row[this.c-1+j]=vals[i][j]; } }
+      for(let j=0;j<this.nc;j++){ while(row.length<this.c-1+j) row.push(''); const v=vals[i][j]; row[this.c-1+j]=(typeof v==='string'&&v.charAt(0)==="'")?v.slice(1):v; } }   // 시트처럼 앞 ' (텍스트 표시)는 값에 남지 않는다
     return this; }
   getValues(){ const rows=SHEETS[this.sh]; const out=[];
     for(let i=0;i<this.nr;i++){ const row=rows[this.r-1+i]||[]; const o=[];
@@ -48,4 +48,5 @@ eval(src);
 function J(r){ return JSON.parse(r.__t !== undefined ? r.__t : r); }
 module.exports={ SHEETS, mkSheet, J, get fns(){ return { timetableMove, timetableAdd, timetableRemove, timetableRenameStudent, timetableMoveClass, TEACHER_PW,
     alimSend, alimConfigGet, alimConfigSet, alimLogGet, alimDiscover, ALIM_TPL_,
-    editReqAdd, grammaReport, getEditReqList, editReqSet }; } };
+    editReqAdd, grammaReport, getEditReqList, editReqSet,
+    hwcheckSave, hwcheckData_, collectHwchecks_, countHwcheckPerfect_, getHwcheckPlans, hwcheckPlanDone, TAB_HWCHECK }; } };

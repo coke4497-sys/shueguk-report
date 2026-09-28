@@ -42,7 +42,7 @@ var CLINIC_TAB      = '응답';     // 제출시각|이름|학교|전화뒤4|클
 // (모든 항목이 '단위' 기준 — 같은 것을 여러 번 제출·신청해도 별은 1회분만)
 // 깜짝 보너스(수동): '별' 탭에 로그로 기록 (star.html에서 부여)
 var TAB_STARS  = '별';   // A:일시 B:학생ID C:이름 D:학교 E:별 F:사유
-var STAR_RULES = { exam: 2, clinic: 1, voca: 1, hwork: 1, notice: 1, mock: 1, hwcheck: 1, gramma: 1 };   // notice = 공지 확인 1건당, mock = 모의고사 응시 회차당, hwcheck = 숙제 검사 만점(100%) 주차당, gramma = 문법 세트 클리어당(2026-09-16 — 스테이지 5개를 모두 70% 이상, 옛 '회차마다 90%' 규칙 대체)
+var STAR_RULES = { exam: 2, clinic: 1, voca: 1, hwork: 1, notice: 1, mock: 1, hwcheck: 1, gramma: 1 };   // notice = 공지 확인 1건당, mock = 모의고사 응시 회차당, hwcheck = 숙제 검사 만점(100%) 수업당(2026-09-28 — 가·나 수업 각각, 한 주 최대 2개), gramma = 문법 세트 클리어당(2026-09-16 — 스테이지 5개를 모두 70% 이상, 옛 '회차마다 90%' 규칙 대체)
 // 문법 세트 규칙(폴백 집계용 — 원본은 수파베이스 gramma_sets, 029 마이그레이션. 문법 저장소 stage.js와 같은 값): 통과 70%, 세트 = 회차 5개씩(마지막은 남는 만큼).
 // GRAMMA_ROUNDS = 카테고리(unit 라벨)별 전체 회차 수 — 마지막 세트가 5개 미만일 때 판정에 필요. **문법 manifest에 회차를 더하면 여기도 갱신할 것**(모르는 카테고리는 5개 꽉 찬 세트만 센다).
 var GRAMMA_PASS = 70, GRAMMA_SET = 5;
@@ -1325,8 +1325,11 @@ function hwcheckSheet_(ss) {
   var sh = ss.getSheetByName(TAB_HWCHECK);
   if (!sh) {
     sh = ss.insertSheet(TAB_HWCHECK);
-    sh.appendRow(['일시', '주차', '접근코드', '이름', '학교', '학년', '항목점수(JSON)', '만점', '점수%', '공개메모', '비공개메모', '상태', '대책', '대책완료']);
-    sh.getRange(1, 1, 1, 14).setFontWeight('bold').setBackground('#DDE5E1');
+    sh.appendRow(['일시', '주차', '접근코드', '이름', '학교', '학년', '항목점수(JSON)', '만점', '점수%', '공개메모', '비공개메모', '상태', '대책', '대책완료', '반ID', '수업', '반이름']);
+    sh.getRange(1, 1, 1, 17).setFontWeight('bold').setBackground('#DDE5E1');
+  } else if (String(sh.getRange(1, 15).getValue() || '') !== '반ID') {
+    // 2026-09-28(035): 숙제 검사를 수업마다 따로 — O반ID·P수업·Q반이름 열 보충(옛 줄은 빈 값 = 반 구분 전 기록)
+    sh.getRange(1, 15, 1, 3).setValues([['반ID', '수업', '반이름']]).setFontWeight('bold').setBackground('#DDE5E1');
   }
   return sh;
 }
@@ -1366,25 +1369,30 @@ function hwcheckData_(weekParam) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var week = String(weekParam || '').trim();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(week)) week = hwcheckWeekKey_(new Date());
-  var records = {};
+  var byKey = {}, records = {};
   var v = tabValues_(ss, TAB_HWCHECK);
   if (v) for (var i = 1; i < v.length; i++) {
     if (hwcheckWeekStr_(v[i][1]) !== week) continue;
     var tok = String(v[i][2] || '').trim();
     if (!tok) continue;
+    var cls = String(v[i][14] || '').trim();
     var scores = {}; try { scores = JSON.parse(v[i][6] || '{}'); } catch (e) {}
-    records[tok] = { scores: scores, pct: Number(v[i][8]) || 0,
+    byKey[tok + '|' + cls] = { tok: tok, cls: cls, part: String(v[i][15] || '').trim(), clsName: String(v[i][16] || '').trim(),
+                     scores: scores, pct: Number(v[i][8]) || 0,
                      pub: hwcheckTextStr_(v[i][9]), priv: hwcheckTextStr_(v[i][10]),
                      missing: String(v[i][11] || '').trim() === '미제출',
                      plan: hwcheckTextStr_(v[i][12]) };   // 뒤 행이 최신(같은 키 중복 대비)
   }
+  // 학생마다 수업별 기록 목록(2026-09-28 — 숙제 검사 페이지는 보기 전용, 가·나 수업을 한 줄씩)
+  Object.keys(byKey).forEach(function (k) { var r = byKey[k]; (records[r.tok] = records[r.tok] || []).push(r); delete r.tok; });
   return { week: week, items: hwcheckItems_(ss), records: records };
 }
 function getHwcheckData(weekParam) {
   var d = hwcheckData_(weekParam);
   return json({ result: 'success', week: d.week, items: d.items, records: d.records });
 }
-/** 한 학생의 주차 기록 저장(덮어쓰기). { pw, week, token, name, school, grade, scores:{항목:0~6}, pub, priv } */
+/** 한 학생·한 수업의 주차 기록 저장(덮어쓰기). { pw, week, token, cls, part, clsName, name, school, grade, scores:{항목:0~6}, pub, priv }
+ *  2026-09-28(035): 기준이 (주차, 학생) → (주차, 학생, 반ID). cls 가 없으면 반 구분 전 기록(빈 반ID) 한 줄. */
 function hwcheckSave(data) {
   if (String(data.pw || '') !== TEACHER_PW) return json({ result: 'error', message: 'unauthorized' });
   var week = String(data.week || '').trim();
@@ -1408,6 +1416,7 @@ function hwcheckSave(data) {
              String(data.grade || '').trim(), JSON.stringify(scores), full, pct,
              String(data.pub || ''), String(data.priv || ''),
              missing ? '미제출' : '', String(data.plan || '')];
+  var cls = String(data.cls || '').trim();
   var lock = LockService.getScriptLock();
   try { lock.waitLock(8000); } catch (e) { return json({ result: 'error', message: '잠시 후 다시 시도해 주세요.' }); }
   try {
@@ -1415,14 +1424,17 @@ function hwcheckSave(data) {
     var at = -1, last = sh.getLastRow();
     if (last > 1) {
       var keys = sh.getRange(2, 2, last - 1, 2).getValues();   // B주차·C접근코드만 읽어 가볍게 탐색
+      var clsCol = sh.getRange(2, 15, last - 1, 1).getValues();  // O반ID
       for (var i = 0; i < keys.length; i++) {
-        if (hwcheckWeekStr_(keys[i][0]) === week && String(keys[i][1] || '').trim() === token) { at = i + 2; break; }
+        if (hwcheckWeekStr_(keys[i][0]) === week && String(keys[i][1] || '').trim() === token &&
+            String(clsCol[i][0] || '').trim() === cls) { at = i + 2; break; }
       }
     }
     row.push(at > 0 ? String(sh.getRange(at, 14).getValue() || '') : '');   // N대책완료는 저장 시 유지 (완료 표시는 별도 API)
+    row.push(cls, String(data.part || '').trim(), String(data.clsName || '').trim());   // O반ID·P수업·Q반이름
     // J공개·K비공개·M대책 등 문구 열은 '@'(텍스트)로 강제 — 시트가 "8/16 일 11:00"을 날짜로 바꾸는 것 방지
-    var rg = sh.getRange(at > 0 ? at : sh.getLastRow() + 1, 1, 1, 14);
-    rg.setNumberFormats([['yyyy-mm-dd hh:mm','@','@','@','@','@','@','0','0','@','@','@','@','@']]);
+    var rg = sh.getRange(at > 0 ? at : sh.getLastRow() + 1, 1, 1, 17);
+    rg.setNumberFormats([['yyyy-mm-dd hh:mm','@','@','@','@','@','@','0','0','@','@','@','@','@','@','@','@']]);
     rg.setValues([row]);
     dropTab_(TAB_HWCHECK);
     return json({ result: 'success', week: week, pct: pct });
@@ -1454,12 +1466,13 @@ function getHwcheckPlans() {
     out.push({ week: hwcheckWeekStr_(v[i][1]), token: String(v[i][2] || '').trim(),
                name: String(v[i][3] || '').trim(), school: String(v[i][4] || '').trim(),
                grade: String(v[i][5] || '').trim(), plan: plan, missing: missing,
-               done: String(v[i][13] || '').trim() === '완료' });
+               done: String(v[i][13] || '').trim() === '완료',
+               cls: String(v[i][14] || '').trim(), part: String(v[i][15] || '').trim(), clsName: String(v[i][16] || '').trim() });
   }
   out.sort(function (a, b) { return a.week < b.week ? 1 : (a.week > b.week ? -1 : a.name.localeCompare(b.name, 'ko')); });
   return json({ result: 'success', plans: out });
 }
-/** 대책 완료/취소 표시. { pw, week, token, done: '1'|'0' } */
+/** 대책 완료/취소 표시. { pw, week, token, cls, done: '1'|'0' } — cls = 반ID(없으면 반 구분 전 기록) */
 function hwcheckPlanDone(data) {
   if (String(data.pw || '') !== TEACHER_PW) return json({ result: 'error', message: 'unauthorized' });
   var week = String(data.week || '').trim(), token = String(data.token || '').trim();
@@ -1469,8 +1482,11 @@ function hwcheckPlanDone(data) {
     if (!sh) return json({ result: 'error', message: '기록이 없습니다.' });
     var last = sh.getLastRow();
     var keys = last > 1 ? sh.getRange(2, 2, last - 1, 2).getValues() : [];
+    var clsCol = last > 1 ? sh.getRange(2, 15, last - 1, 1).getValues() : [];
+    var cls = String(data.cls || '').trim();
     for (var i = 0; i < keys.length; i++) {
-      if (hwcheckWeekStr_(keys[i][0]) === week && String(keys[i][1] || '').trim() === token) {
+      if (hwcheckWeekStr_(keys[i][0]) === week && String(keys[i][1] || '').trim() === token &&
+          String(clsCol[i][0] || '').trim() === cls) {
         sh.getRange(i + 2, 14).setValue(String(data.done || '') === '1' ? '완료' : '');
         dropTab_(TAB_HWCHECK);
         return json({ result: 'success' });
@@ -1479,7 +1495,8 @@ function hwcheckPlanDone(data) {
     return json({ result: 'error', message: '기록을 찾을 수 없습니다. 새로고침 후 다시 시도해 주세요.' });
   }, 8000);
 }
-/** 학생 개별 페이지용 — 주차별 점수 %·항목 점수·공개 메모(최신순 20주). 비공개 메모 제외. */
+/** 학생 개별 페이지용 — 주차·수업별 점수 %·항목 점수·공개 메모(최신순 40줄). 비공개 메모 제외.
+ *  2026-09-28(035): (주차, 반ID)마다 한 줄 — 만점이면 수업마다 별 1개(countHwcheckPerfect_). */
 function collectHwchecks_(ss, key) {
   key = String(key || '').trim();
   if (!key) return [];
@@ -1490,11 +1507,13 @@ function collectHwchecks_(ss, key) {
     if (String(v[i][2] || '').trim() !== key) continue;
     var wk = hwcheckWeekStr_(v[i][1]);
     if (!wk) continue;
+    var cls = String(v[i][14] || '').trim();
     var scores = {}; try { scores = JSON.parse(v[i][6] || '{}'); } catch (e) {}
-    byWeek[wk] = { week: wk, pct: Number(v[i][8]) || 0, scores: scores, pub: String(v[i][9] || '').trim(),
+    byWeek[wk + '|' + cls] = { week: wk, cls: cls, part: String(v[i][15] || '').trim(), clsName: String(v[i][16] || '').trim(),
+                   pct: Number(v[i][8]) || 0, scores: scores, pub: String(v[i][9] || '').trim(),
                    missing: String(v[i][11] || '').trim() === '미제출' };   // 대책(M열)은 교사용 — 학생에겐 보내지 않음
   }
-  return Object.keys(byWeek).sort().reverse().slice(0, 20).map(function (k) { return byWeek[k]; });
+  return Object.keys(byWeek).sort().reverse().slice(0, 40).map(function (k) { return byWeek[k]; });
 }
 /** 만점(100%) 주차 수 — 슈퍼스타 별 집계용 */
 function countHwcheckPerfect_(ss, key) {
@@ -1667,7 +1686,8 @@ function starRankingData_() {
       if (!(Number(hcv[hc][8]) >= 100)) continue;
       var htk = String(hcv[hc][2] || '').trim();
       if (!htk || byToken[htk] == null) continue;
-      mark_(stus[byToken[htk]].hwcheck, hwcheckWeekStr_(hcv[hc][1]) || ('r' + hc), tsOf_(hcv[hc][0]));
+      var hwk = hwcheckWeekStr_(hcv[hc][1]);   // 수업마다(주차+반ID) 별 1개 — 2026-09-28(035)
+      mark_(stus[byToken[htk]].hwcheck, hwk ? hwk + '|' + String(hcv[hc][14] || '').trim() : ('r' + hc), tsOf_(hcv[hc][0]));
     }
   }
   // 문법 세트 클리어 — 회차별 최고 정답률을 모아 세트(5개 모두 70% 이상)를 센다. GRAMMA_SHEET_ID 비면 건너뜀
