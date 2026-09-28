@@ -2076,7 +2076,7 @@ function crpRender(){
   if (cms.length) h += '<section class="crp-part"><div class="crp-ph"><h4>선생님 코멘트</h4></div>' + cms.map(function(x){
     return '<p>' + esc(x.text) + (x.teacher ? ' <small class="crp-by">— ' + esc(x.teacher) + 'T</small>' : '') + '</p>';
   }).join('') + '</section>';
-  h += '<p class="crp-foot">담당 선생님의 수업 기록과 출석·과제 검사를 바탕으로 작성했습니다.</p></article>';
+  h += '</article>';   // 아래 '담당 선생님의 수업 기록과…' 안내 줄은 2026-09-29 원장님 요청으로 뺐다
   box.innerHTML = h;
 }
 
