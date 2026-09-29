@@ -542,7 +542,7 @@
   - [초안 요청](`drRequest`): `exam_drafts` POST(status '요청') → 저장소 `exam-drafts/d{id}/{무작위}.{확장자}`에 원본 그대로 올림 → files PATCH(`{path,name,kind:'시험지'|'정답지',size,mime}`, 고른 순서 = 페이지 순서) → 백엔드 `editReqAdd`(화면 **'지필 초안'**, 글 `[지필 초안] d{id} · 제목 · 시험지 n개 · 정답지 m개`). 시험지를 하나도 못 올리면 줄을 지우고 실패 안내. 알림만 실패하면 목록의 [다시 알리기].
   - 목록의 [리포트 만들기](`drOpen`): 제목·학교·학년·과목·범위·총평·문항을 수동 화면에 채움(`fillQuestions` — 수정 모드 프리필과 공용, 목록 밖 값은 `drCleanQ`가 정리), 위에 안내 배너 + '원장님이 확인할 점'. 등록이 성공하면 `drMarkReport`가 그 초안에 `report_id`를 적는다. [옮긴 글 보기](정답·확인할 점·옮긴 글·복사) · [원본 보기](교사 신분으로 받아 새 탭).
   - 교사 인증 조각이 m.html에서는 `/storage/v1`에도 교사 신분을 붙인다(review.html과 같음).
-- **DB(036)**: `exam_drafts`(title·period·school·grade·subject·scope·memo·files·status('요청'/'완료'/'보류')·draft jsonb·note·report_id) + 비공개 버킷 `exam-drafts` — 둘 다 교사(authenticated)만, 학생·공개 키 접근 없음. **실제 수파베이스 적용 전**(원장님 SQL 창 실행 필요).
+- **DB(036)**: `exam_drafts`(title·period·school·grade·subject·scope·memo·files·status('요청'/'완료'/'보류')·draft jsonb·note·report_id) + 비공개 버킷 `exam-drafts` — 둘 다 교사(authenticated)만, 학생·공개 키 접근 없음. **2026-09-29 실제 수파베이스 적용 완료**(왕복 확인 — supabase/README.md).
 - **클로슈 처리 절차 — 수정 요청함에 화면 '지필 초안' 건이 오면**(순찰·즉시 알림 세션 모두, 묻지 말고 처리):
   1. 글의 `d{id}`로 `python3 tools/exam_draft.py get <id> <스크래치>/d<id>` → 파일(시험지-01.jpg…, 정답지-01.pdf…)과 meta.json(제목·범위·메모). 파일을 Read로 전부 읽는다(PDF는 pages 나눠 읽기).
   2. `draft.json` 작성 — `{text, answers:[{no,ans}], scope, review:[문단], questions:[{no,group,area,detail,type,lv,txt,multi}], notes:[]}`:

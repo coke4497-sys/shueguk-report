@@ -765,7 +765,7 @@ curl -s -X POST "https://api.supabase.com/v1/projects/bangdbhqpphqqdwcledg/datab
 ## 지필 리포트 자동 생성 (2026-09-29, 036)
 - `migrations/036_exam_drafts.sql` — 표 `exam_drafts`(자동 생성 요청 한 건 = 한 줄: 제목·기간·학교·학년·과목·범위·메모·files·status('요청'/'완료'/'보류')·draft jsonb·note·report_id) + **비공개 버킷 `exam-drafts`**(파일당 20MB, 경로 `d{id}/{무작위}.{확장자}`). 둘 다 교사(authenticated)만 — 공개 키(anon)는 표·버킷 모두 접근 없음. 파일은 지우지 않고 보관한다(원장님 결정). 재실행 안전.
 - 이유: 원장님 "시험지 사진과 정답지를 넣으면 문항 분석·총평을 만들어 주는 메뉴" — m.html '자동 생성'에서 올리고 클로슈가 `tools/exam_draft.py`로 초안을 채운다. 자세한 것은 CLAUDE.md '지필 리포트 자동 생성' 절.
-- 적용 상태: **아직 실제 수파베이스에 적용 전** — SQL Editor에서 036 전체 실행.
+- 적용 상태: **2026-09-29 실제 수파베이스에 적용 완료**(원장님 SQL Editor 실행) — 교사 신분으로 줄 만들기·파일 올리기·`tools/exam_draft.py` get·put, 공개 키로 표(401)·파일(없음 처리)·공개 주소(버킷 없음) 막힘 확인, 시험 줄·파일은 지움.
 - 검증: `PGHOST=/home/pgtest PGPORT=5499 PGUSER=postgres bash tools/exam-draft-sql-test.sh`(저장소 스키마 흉내 + 036 두 번).
 
 ## ⚠ 2026-08-25 사고 기록 — anon 권한을 잘못 되돌렸다가 복구
