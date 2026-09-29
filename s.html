@@ -176,7 +176,7 @@
   .crp-an{font-size:.84rem !important;color:#7A6230 !important;background:#FBF6E6;border-radius:9px;padding:7px 10px;}
   .crp-pend{font-size:.84rem !important;color:var(--ink-soft) !important;background:#F2F5F3;border-radius:9px;padding:7px 10px;}
   .crp-hwbox{background:#F2F5F3;border-radius:12px;padding:10px 12px;display:flex;flex-direction:column;gap:6px;}
-  .crp-hwrow{display:grid;grid-template-columns:74px 1fr auto;gap:8px;align-items:center;font-size:.8rem;color:var(--ink-soft);}
+  .crp-hwrow{display:grid;grid-template-columns:minmax(74px,1.6fr) minmax(40px,1fr) auto;gap:8px;align-items:center;font-size:.8rem;color:var(--ink-soft);}
   .crp-hwrow b{font-variant-numeric:tabular-nums;color:var(--ink);font-weight:400;}
   .crp-track{height:7px;border-radius:7px;background:#fff;overflow:hidden;}
   .crp-track i{display:block;height:100%;background:#B9A5CC;border-radius:7px;}
@@ -1973,7 +1973,7 @@ function renderHwcheck(){
     var itemsHtml = Object.keys(r.scores||{}).map(function(name){
       var sc = parseInt(r.scores[name],10)||0;
       var stars = '';
-      for(var k=0;k<6;k++){ stars += (k<sc ? '★' : '☆'); }
+      for(var k=0;k<hwItemMax(name);k++){ stars += (k<sc ? '★' : '☆'); }
       return esc(itemLabel(name))+' <b>'+stars+'</b>';
     }).join('<br>');
     return '<div class="hwc-week">' +
@@ -2028,12 +2028,13 @@ function crpAtChip(at){
 }
 /* 숙제 검사 상자 — 2026-09-28(035)부터 수업마다(parts[].hw), 그 전 리포트는 주 단위(body.hw) */
 function itemLabel(n){ return String(n == null ? '' : n).replace(/숙제/g, '과제'); }   // 검사 항목 표시 이름 — 저장 키 '숙제 수행'은 그대로, 화면만 '과제'(2026-09-29 원장님 용어 지침)
+function hwItemMax(name){ return /\((학습량|깊이)\)$/.test(String(name || '')) ? 5 : 6; }   // 과제별 검사(2026-09-29)는 학습량·깊이 별 5개, 옛 항목은 6개
 function crpHwHtml(hw, lb){
   if (hw.none) return '<p>' + esc(hw.text || '확인할 것이 없습니다.') + '</p>';   // 숙제 검사를 비워 둔 수업(2026-09-29 원장님 안내문)
   var items = (hw.items || []).filter(function(x){ return x && x.name; });
   return '<div class="crp-hwbox">' +
     (hw.missing ? '<p class="crp-miss">미제출</p>'
-      : items.map(function(x){ var sc = Math.max(0, Math.min(6, +x.score || 0)); return '<div class="crp-hwrow"><span>' + esc(itemLabel(x.name)) + '</span><span class="crp-track"><i style="width:' + Math.round(sc / 6 * 100) + '%"></i></span><b>' + sc + ' / 6</b></div>'; }).join('') +
+      : items.map(function(x){ var mx = +x.max || hwItemMax(x.name), sc = Math.max(0, Math.min(mx, +x.score || 0)); return '<div class="crp-hwrow"><span>' + esc(itemLabel(x.name)) + '</span><span class="crp-track"><i style="width:' + Math.round(sc / mx * 100) + '%"></i></span><b>' + sc + ' / ' + mx + '</b></div>'; }).join('') +
         '<div class="crp-hwtot"><span>' + esc(lb) + ' 과제 검사</span><b>' + Math.max(0, Math.min(100, +hw.pct || 0)) + '%' + ((+hw.pct || 0) >= 100 ? ' 🏆' : '') + '</b></div>') +
     '</div>' + (hw.text ? '<p>' + esc(hw.text) + '</p>' : '');
 }

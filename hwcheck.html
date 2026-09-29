@@ -999,13 +999,14 @@ function recItems(r){
   var keys = Object.keys(r.scores || {});
   return items.filter(function(it){ return keys.indexOf(it) >= 0; }).concat(keys.filter(function(k){ return items.indexOf(k) < 0; }));
 }
+function hwItemMax(name){ return /\((학습량|깊이)\)$/.test(String(name || '')) ? 5 : 6; }   // 과제별 검사(2026-09-29)는 학습량·깊이 별 5개, 옛 항목은 6개
 function recHtml(r){
   var pct = Number(r.pct) || 0;
   var pctHtml = r.missing ? '<span class="miss-lb">미제출</span>'
     : (hasAnyScore(r) ? '<b class="' + (pct >= 100 ? 'full' : '') + '">' + pct + '%</b>' + (pct >= 100 ? ' 🏆' : '') : '<span style="font-size:.8rem;">점수 없음</span>');
   var rows = r.missing ? '' : recItems(r).map(function(it){
     var sc = parseInt(r.scores[it], 10) || 0, st = '';
-    for (var k = 1; k <= STARS_MAX; k++) st += '<span class="' + (k <= sc ? 'on' : '') + '">★</span>';
+    for (var k = 1; k <= hwItemMax(it); k++) st += '<span class="' + (k <= sc ? 'on' : '') + '">★</span>';
     return '<div class="itemrow"><span class="lb">' + esc(itemLabel(it)) + '</span><span class="stars">' + st + '</span></div>';
   }).join('');
   function line(cls, lb, v){ v = String(v || '').trim(); return v ? '<p class="rec-line' + cls + '"><b>' + lb + '</b>' + esc(v) + '</p>' : ''; }
