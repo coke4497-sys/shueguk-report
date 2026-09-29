@@ -4890,9 +4890,7 @@ function openTeacherOff(date, teacher){
            esc(o.teacher)+'T · '+esc(wkDayLabel(o.date))+(o.reason?' · '+esc(o.reason):'')+'</button>';
   }).join('') + '</div>' : '';
   openModal(
-    '<h3>교사 임시 휴무 설정</h3>'+
-    '<p class="mdesc">선생님의 근무 표시만 바꿉니다. 수업·출석·회차에는 영향을 주지 않습니다.</p>'+
-    '<p class="mdesc hint-x">회차는 언제나 원래 수업 날짜 기준이에요.</p>'+
+    '<h3>휴무일 변경 기록</h3>'+
     '<div class="toff-form">'+
       '<label>선생님<select id="toff-teacher" onchange="teacherOffFormSync(true)">'+tOpts+'</select></label>'+
       '<label>휴무일<select id="toff-date" onchange="teacherOffFormSync(true)">'+dOpts+'</select></label>'+
