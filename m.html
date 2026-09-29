@@ -838,7 +838,7 @@ function areaCellHtml(){
            '<select class="detail-in"><option value="">—</option></select></div>';
 }
 /* ── 문항 내용: 자주 쓰는 패턴 드롭다운 + 기타(직접 입력) ──
- * 유형 목록은 TXT_COMMON(영역 공통)·TXT_LIT(문학)만 고치면 됩니다. 목록에 없는 내용은
+ * 유형 목록은 TXT_COMMON(영역 공통)·TXT_READ(독서)·TXT_WRITE(작문)·TXT_LIT(문학)만 고치면 됩니다. 목록에 없는 내용은
  * 등록 시 이 기기(브라우저)에 저장되어 다음부터 드롭다운에 자동으로 나타납니다. */
 /* 기본 문항 유형 (수경쌤 확정 목록 — 여기만 고치면 됩니다) */
 var TXT_COMMON = [   // 영역 공통
@@ -855,6 +855,16 @@ var TXT_LIT = [      // 문학 영역 전용
   '핵심 소재에 대한 이해',
   '인물의 심리와 성격 분석'
 ];
+var TXT_READ = [     // 독서 영역 (2026-09-29 추가 — 백양고2 독서와 작문에서 필요)
+  '내용 전개 방식',
+  '핵심 개념의 비교 이해'
+];
+var TXT_WRITE = [    // 작문 영역 (2026-09-29 추가 — 기존 목록이 문학 중심이라 작문 문항을 담을 것이 없었다)
+  '글쓰기 전략의 이해',
+  '자료·글감의 평가',
+  '작문 맥락의 파악',
+  '자료를 활용한 글의 구체화'
+];
 var BOGI_RE = /[<〈]\s*보기\s*[>〉]/;   // 패턴에 <보기>가 언급되면 보기 내용 칸 표시
 function txtOptionsHtml(){
   function grp(label, arr){
@@ -862,6 +872,8 @@ function txtOptionsHtml(){
   }
   return '<option value="">— 선택 —</option>'
     + grp('영역 공통', TXT_COMMON)
+    + grp('독서', TXT_READ)
+    + grp('작문', TXT_WRITE)
     + grp('문학', TXT_LIT)
     + '<option value="__custom__">기타 (직접 입력)</option>';
 }
