@@ -149,6 +149,52 @@ body{font-family:'Noto Sans KR',sans-serif; background:var(--sage-fog); color:va
 .b-중{background:var(--line-soft); color:var(--ink-mid);}
 .pv-q .qno{font-weight:700; color:var(--accent-dark); margin-right:4px;}
 .pv-q .t{font-family:'Noto Serif KR',serif; font-size:13.5px; color:var(--ink-deep); line-height:1.55;}
+
+/* ===== 자동 생성 / 수동 생성 (036, 2026-09-29) ===== */
+.mk-choices{display:grid; grid-template-columns:1fr 1fr; gap:12px; margin:4px 0 6px;}
+.mk-choice{display:flex; flex-direction:column; align-items:flex-start; gap:6px; text-align:left; border:none; border-radius:14px; padding:18px 16px; background:var(--sage-fog); cursor:pointer; font-family:'Noto Sans KR'; color:var(--ink-deep);}
+.mk-choice:hover{background:#F7E4DF;}
+.mk-ico{width:38px; height:38px; border-radius:11px; background:#F0CFC7; color:#8E5147; display:flex; align-items:center; justify-content:center;}
+.mk-ico svg{width:21px; height:21px;}
+.mk-t{font-size:16px; font-weight:700;}
+.mk-d{font-size:12.5px; color:var(--ink-mid); line-height:1.6;}
+@media (max-width:520px){ .mk-choices{grid-template-columns:1fr;} }
+.mk-back{display:inline-block; margin:0 0 10px; font-size:13px; color:var(--ink-mid); text-decoration:none;}
+.mk-back:hover{color:#8E5147;}
+.dr-list{display:flex; flex-direction:column; gap:8px;}
+.dr-empty{font-size:13px; color:var(--ink-soft); margin:4px 0;}
+.dr-row{background:var(--sage-fog); border-radius:12px; padding:12px 14px;}
+.dr-top{display:flex; align-items:center; gap:8px; flex-wrap:wrap;}
+.dr-ttl{font-weight:700; font-size:14px; word-break:break-all;}
+.dr-st{font-size:11.5px; font-weight:700; padding:3px 10px; border-radius:11px;}
+.dr-st.s-요청{background:#F7EBC9; color:#7A6021;}
+.dr-st.s-완료{background:#DCE8E3; color:#3F5650;}
+.dr-st.s-보류{background:#F3DAD6; color:#8E4A42;}
+.dr-st.s-등록{background:#E7DCF2; color:#5B4585;}
+.dr-meta{font-size:12px; color:var(--ink-soft); margin-top:3px;}
+.dr-note{font-size:12.5px; color:var(--ink-mid); margin-top:5px; line-height:1.6;}
+.dr-btns{display:flex; gap:6px; flex-wrap:wrap; margin-top:8px;}
+.dr-btns .btn{padding:7px 12px; font-size:12.5px; border-radius:8px;}
+.dr-btns .btn.ghost{background:#fff;}
+.dr-sel{list-style:none; margin:6px 0 0; padding:0; font-size:12.5px; color:var(--ink-mid);}
+.dr-sel li.bad{color:#B5544E;}
+.dr-banner{background:#F7E4DF; border-radius:12px; padding:12px 14px; font-size:13px; line-height:1.7; color:#6E3E36; margin:4px 0 14px;}
+.dr-banner ul{margin:6px 0 0; padding-left:18px;}
+.dr-banner a{color:#8E5147; font-weight:700;}
+.dr-modal{position:fixed; inset:0; background:rgba(46,61,56,.35); z-index:50; display:flex; align-items:center; justify-content:center; padding:16px;}
+.dr-box{background:#fff; border-radius:16px; width:100%; max-width:720px; max-height:88vh; display:flex; flex-direction:column; box-shadow:0 8px 30px rgba(46,61,56,.18);}
+.dr-box-h{display:flex; align-items:center; gap:10px; padding:14px 18px; border-bottom:1px solid var(--line-soft);}
+.dr-box-h b{flex:1; font-size:15px;}
+.dr-x{border:none; background:var(--sage-fog); border-radius:8px; padding:6px 12px; cursor:pointer; font-family:'Noto Sans KR'; color:var(--ink-mid);}
+.dr-box-b{padding:14px 18px 18px; overflow:auto; font-size:13.5px; line-height:1.75;}
+.dr-box-b h4{font-size:13px; margin:14px 0 6px; color:var(--sage-deep);}
+.dr-box-b h4:first-child{margin-top:0;}
+.dr-text{white-space:pre-wrap; font-family:'Noto Serif KR',serif; background:var(--sage-fog); border-radius:10px; padding:12px 14px; margin:0;}
+.dr-ans{display:flex; flex-wrap:wrap; gap:6px;}
+.dr-ans span{background:var(--sage-fog); border-radius:8px; padding:3px 9px; font-size:12.5px;}
+.dr-files{list-style:none; padding:0; margin:0;}
+.dr-files li{padding:6px 0; border-bottom:1px solid var(--line-soft);}
+.dr-files button{border:none; background:none; color:#8E5147; font-weight:700; cursor:pointer; font-family:'Noto Sans KR'; font-size:13.5px; padding:0;}
 </style>
 </head>
 <body>
@@ -170,11 +216,85 @@ body{font-family:'Noto Sans KR',sans-serif; background:var(--sage-fog); color:va
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M11 18l-6-6 6-6"/></svg>
     지필고사 리포트로 가기
   </a>
-  <div class="panel-card">
+  <!-- ① 방법 고르기 (2026-09-29 원장님 "자동 생성 / 수동 생성 중 선택") — ?id=(수정)로 오면 건너뛴다 -->
+  <div class="panel-card" id="chooseView" style="display:none;">
+    <div class="panel-head">
+      <img src="icon-192.png" alt="">
+      <h1>지필고사 리포트 제작</h1>
+    </div>
+    <p class="desc">어떤 방법으로 만들지 골라 주세요.</p>
+    <div class="mk-choices">
+      <button type="button" class="mk-choice" id="mkAuto" onclick="showMode('auto')">
+        <span class="mk-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M12 17v-6M9.5 13.5 12 11l2.5 2.5"/></svg></span>
+        <span class="mk-t">자동 생성</span>
+        <span class="mk-d">시험지·정답지(사진·PDF)를 올리면 클로슈가 문항 분석과 총평 초안을 만듭니다. 몇 분에서 10분쯤 걸려요.</span>
+      </button>
+      <button type="button" class="mk-choice" id="mkManual" onclick="showMode('manual')">
+        <span class="mk-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg></span>
+        <span class="mk-t">수동 생성</span>
+        <span class="mk-d">지금까지처럼 범위·문항·총평을 직접 입력합니다.</span>
+      </button>
+    </div>
+    <h2 class="sec-h">자동 생성 목록 <span class="n">· 최근 20건</span></h2>
+    <div id="drList" class="dr-list"><p class="dr-empty">불러오는 중…</p></div>
+  </div>
+
+  <!-- ② 자동 생성 — 시험지·정답지 올리기 -->
+  <div class="panel-card" id="autoView" style="display:none;">
+    <a class="mk-back" href="javascript:void(0)" onclick="showMode('choose')">← 방법 다시 고르기</a>
+    <div class="panel-head">
+      <img src="icon-192.png" alt="">
+      <h1>자동 생성</h1>
+    </div>
+    <p class="desc">시험지와 정답지를 올리고 [초안 요청]을 누르십시오. 클로슈가 옮긴 글·문항 분석·총평 초안을 만들면 목록에 '완료'로 표시됩니다. 창을 닫아도 괜찮아요.</p>
+    <div class="fld">
+      <label>시험 기간 <span class="req">*</span></label>
+      <div id="drPeriodChips" style="display:flex;gap:7px;flex-wrap:wrap;margin:2px 0 4px;"></div>
+    </div>
+    <div class="fld">
+      <label>학교 · 학년 · 과목 <span class="req">*</span></label>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <select id="dr_school" onchange="drTitle()" style="width:auto;flex:1;min-width:130px;"><option value="">학교 선택</option></select>
+        <select id="dr_gradeN" onchange="drTitle()" style="width:auto;flex:0 0 104px;">
+          <option value="">학년</option>
+          <option value="1">1학년</option><option value="2">2학년</option><option value="3">3학년</option>
+        </select>
+        <input type="text" id="dr_subject" oninput="drTitle()" placeholder="과목명 (예: 공통국어2)" autocomplete="off" style="width:auto;flex:1.4;min-width:150px;">
+      </div>
+      <p class="hint">리포트 제목: <b id="drTitlePv">—</b></p>
+    </div>
+    <div class="fld">
+      <label>시험지 (사진·PDF) <span class="req">*</span></label>
+      <input type="file" id="drExam" multiple accept="image/*,application/pdf" onchange="drPicked()">
+      <ul class="dr-sel" id="drExamSel"></ul>
+      <p class="hint">페이지 순서대로 골라 주세요. 파일 하나에 20MB까지 올릴 수 있습니다.</p>
+    </div>
+    <div class="fld">
+      <label>정답지 (사진·PDF)</label>
+      <input type="file" id="drKey" multiple accept="image/*,application/pdf" onchange="drPicked()">
+      <ul class="dr-sel" id="drKeySel"></ul>
+    </div>
+    <div class="fld">
+      <label>시험 범위 (알고 있으면)</label>
+      <textarea id="dr_scope" rows="2" placeholder="예) 천재(정) 1~3단원, 수능특강 문학 현대시"></textarea>
+    </div>
+    <div class="fld">
+      <label>참고 메모</label>
+      <textarea id="dr_memo" rows="3" placeholder="예) 서술형 2문항이 변별 문항이었어요. 학생들이 어려워한 부분, 총평에 꼭 넣을 말 등"></textarea>
+      <p class="hint">적어 주시면 총평 초안에 반영합니다.</p>
+    </div>
+    <div class="status" id="drStatus"></div>
+    <div class="actions"><button class="btn" id="drGo" onclick="drRequest()">초안 요청</button></div>
+  </div>
+
+  <!-- ③ 수동 생성(기존 입력 화면) — 자동 생성 초안도 여기에 채워진다 -->
+  <div class="panel-card" id="manualView">
+    <a class="mk-back" id="mkBackManual" href="javascript:void(0)" onclick="showMode('choose')" style="display:none;">← 방법 다시 고르기</a>
     <div class="panel-head">
       <img src="icon-192.png" alt="">
       <h1>SHUEGUK 시험 등록</h1>
     </div>
+    <div id="drBanner" class="dr-banner" style="display:none;"></div>
     <p class="desc">새 시험의 제목·범위·문항·총평을 입력하고 <b>학생을 배정</b>해 등록하면, 배정된 학생의 개별 페이지에 표시되고 복기 링크도 만들어집니다. 입력한 내용은 구글시트의 ‘보고서목록’·‘문항’ 탭에 저장됩니다.</p>
     <p style="margin:0 0 6px;"><a href="analyses.html" style="display:inline-flex;align-items:center;gap:6px;color:var(--sage-deep);font-weight:700;font-size:13.5px;text-decoration:none;">지난 분석지에 학생 배정하기 →</a></p>
 
@@ -258,6 +378,14 @@ body{font-family:'Noto Sans KR',sans-serif; background:var(--sage-fog); color:va
       </div>
     </div>
   </div>
+
+  <!-- 옮긴 글 · 원본 보기 창 -->
+  <div id="drModal" class="dr-modal" style="display:none;" onclick="if(event.target===this) drClose()">
+    <div class="dr-box">
+      <div class="dr-box-h"><b id="drModalT"></b><button type="button" class="dr-x" onclick="drClose()" aria-label="닫기">닫기</button></div>
+      <div id="drModalB" class="dr-box-b"></div>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -327,7 +455,7 @@ body{font-family:'Noto Sans KR',sans-serif; background:var(--sage-fog); color:va
   }
   window.fetch = function(url, opts){
     var u = (typeof url === 'string') ? url : ((url && url.url) || '');
-    if (u.indexOf(SB_URL + '/rest/v1') !== 0) return raw(url, opts);
+    if (u.indexOf(SB_URL + '/rest/v1') !== 0 && u.indexOf(SB_URL + '/storage/v1') !== 0) return raw(url, opts);   // 자동 생성: 시험지 파일 올리기(저장소)에도 교사 신분 (036)
     return auth().then(function(t){
       return raw(url, withAuth(url, opts, t)).then(function(r){
         if (r.status !== 401) return r;
@@ -719,6 +847,7 @@ document.addEventListener('DOMContentLoaded',function(){
   initPeriodChips();
   loadSchoolList();
   maybeLoadEdit();   // ?id= 있으면 기존 리포트 수정 모드로 불러오기
+  drInit();          // 자동 생성 / 수동 생성 고르기 (036)
 });
 
 /* ===== 제목 조합: 기간-학교학년-과목 (예: 26-2-중간-화정고1-공통국어2) ===== */
@@ -734,6 +863,8 @@ function loadSchoolList(){
       ROSTER.forEach(function(s){ if(s.school && !seen[s.school]){ seen[s.school]=1; schools.push(s.school); } });
       schools.sort(function(a,b){ return a.localeCompare(b,'ko'); });
       sel.innerHTML='<option value="">학교 선택</option>'+schools.map(function(s){ return '<option>'+s.replace(/</g,'&lt;')+'</option>'; }).join('');
+      var ds=document.getElementById('dr_school');
+      if(ds){ var keep=ds.value; ds.innerHTML=sel.innerHTML; if(keep) ds.value=keep; }
     }).catch(function(){});
 }
 function composeTitle(){
@@ -1156,6 +1287,7 @@ function saveReport(){
     try{ var j=JSON.parse(t); if(j.result && j.result!=='success'){ ok=false; msg=j.message||''; } }catch(e){}
     if(!ok){ btn.disabled=false; setStatus('등록에 실패했습니다. '+msg, 'err'); return; }
     setStatus('✓ 등록되었습니다. 배정된 학생의 개별 페이지에 표시됩니다.', 'ok');
+    drMarkReport(data.id);
     showLinks(data.id);
     // 이어서 또 고칠 수 있도록 버튼을 다시 활성화 (수정 모드 연속 저장 대비)
     var doneLabel = EDIT_MODE ? '✓ 저장됨 — 다시 저장 가능' : '✓ 등록됨';
@@ -1323,8 +1455,13 @@ function prefillForm(d, id){
   if(apHint) apHint.innerHTML='배정을 바꾸려면 아래에서 다시 선택하세요. <b>그대로 두면 기존 배정이 그대로 유지</b>됩니다.';
   document.getElementById('f_scope').value=d.scope||'';
   document.getElementById('f_review').value=(d.review||[]).join('\n\n');
+  fillQuestions(d.questions||[]);
+  SUPPRESS_SCROLL=false;
+}
+/* 문항 목록 → 블록(지문 묶음·단독). 수정 모드 프리필과 자동 생성 초안이 함께 쓴다 */
+function fillQuestions(qs){
   var listEl=document.getElementById('blockList'); listEl.innerHTML='';
-  var qs=d.questions||[]; var i=0;
+  var i=0;
   while(i<qs.length){
     var q=qs[i];
     if(q.group){
@@ -1336,7 +1473,6 @@ function prefillForm(d, id){
     }
   }
   renumberAll();
-  SUPPRESS_SCROLL=false;
 }
 function fillSolo_(block, q){
   block.querySelector('.no-in').value=q.no||'';
@@ -1365,6 +1501,311 @@ function buildPassageFromData(groupName, subs){
     var mi=sq.querySelector('.multi-in'); if(mi) mi.checked=!!q.multi;
   });
 }
+
+/* ===== 자동 생성 — 시험지·정답지 → 클로슈 초안 (036, 2026-09-29 원장님) =====
+ * 흐름: 방법 고르기(chooseView) → 자동 생성(autoView)에서 파일을 올리고 [초안 요청]
+ *   → exam_drafts 한 줄(status '요청') + 저장소 exam-drafts/d{id}/… + 수정 요청함(화면 DR_SCREEN)으로 클로슈 호출
+ *   → 클로슈가 tools/exam_draft.py put 으로 draft 를 채우면 '완료'
+ *   → 목록의 [리포트 만들기] = 수동 화면(manualView)에 초안을 채움 → 원장님이 확인·배정·등록(등록되면 report_id 기록).
+ * 파일은 지우지 않고 보관한다(원장님 결정). ?id=(수정)으로 오면 방법 고르기 없이 수동 화면. */
+var DR_SCREEN = '지필 초안';
+var DR_REST = 'https://bangdbhqpphqqdwcledg.supabase.co/rest/v1';
+var DR_STORE = 'https://bangdbhqpphqqdwcledg.supabase.co/storage/v1';
+var DR_KEY = 'sb_publishable_dE9d1KIbpgYaQkaS2MSrlg_-7SiRJuT';
+var DR_MAX = 20 * 1024 * 1024;
+var DR = { rows: [], timer: null, mode: '', from: null, period: '' };
+
+function drSb(method, path, body, prefer){
+  var h = { 'apikey': DR_KEY, 'Content-Type': 'application/json' };
+  if (prefer) h['Prefer'] = prefer;
+  return fetch(DR_REST + path, { method: method, headers: h, body: body == null ? undefined : JSON.stringify(body) })
+    .then(function(r){ return r.text().then(function(t){
+      if (!r.ok) throw new Error(method + ' ' + r.status + ' ' + t.slice(0, 160));
+      return t ? JSON.parse(t) : null;
+    }); });
+}
+function drObjUrl(path){ return DR_STORE + '/object/exam-drafts/' + path.split('/').map(encodeURIComponent).join('/'); }
+function drRnd(){ var a = new Uint8Array(12); crypto.getRandomValues(a); return Array.prototype.map.call(a, function(b){ return ('0' + b.toString(16)).slice(-2); }).join(''); }
+function drSize(n){ n = +n || 0; return n >= 1048576 ? (n / 1048576).toFixed(1) + 'MB' : Math.max(1, Math.round(n / 1024)) + 'KB'; }
+function drWhen(ts){
+  var d = new Date(ts); if (isNaN(d)) return '';
+  var p = function(n){ return ('0' + n).slice(-2); };
+  return (d.getMonth() + 1) + '/' + d.getDate() + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+}
+
+/* ── 화면 전환 ── */
+function showMode(m){
+  DR.mode = m;
+  document.getElementById('chooseView').style.display = m === 'choose' ? '' : 'none';
+  document.getElementById('autoView').style.display = m === 'auto' ? '' : 'none';
+  document.getElementById('manualView').style.display = m === 'manual' ? '' : 'none';
+  document.getElementById('mkBackManual').style.display = (m === 'manual' && !EDIT_MODE) ? '' : 'none';
+  if (m === 'auto') drFromManual();
+  if (m === 'choose') drLoad();
+  window.scrollTo(0, 0);
+}
+function drInit(){
+  if (EDIT_MODE){ showMode('manual'); return; }
+  drPeriodChips();
+  showMode('choose');
+}
+
+/* ── 자동 생성 입력 ── */
+function drPeriodChips(){
+  var box = document.getElementById('drPeriodChips'); if (!box) return;
+  box.innerHTML = periodOptions().map(function(p){
+    return '<button type="button" class="period-chip" data-p="' + p + '" onclick="drPickPeriod(\'' + p + '\')" ' +
+      'style="font:inherit;font-size:13.5px;padding:8px 13px;border:1.5px solid var(--line);border-radius:20px;background:#fff;cursor:pointer;color:var(--ink-mid);">' + p + '</button>';
+  }).join('');
+}
+function drPickPeriod(p){
+  DR.period = p;
+  document.querySelectorAll('#drPeriodChips .period-chip').forEach(function(b){
+    var on = b.getAttribute('data-p') === p;
+    b.style.background = on ? 'var(--sage-deep)' : '#fff';
+    b.style.color = on ? '#fff' : 'var(--ink-mid)';
+    b.style.borderColor = on ? 'var(--sage-deep)' : 'var(--line)';
+    b.style.fontWeight = on ? '700' : '400';
+  });
+  drTitle();
+}
+function drTitleOf(){
+  var school = document.getElementById('dr_school').value, g = document.getElementById('dr_gradeN').value,
+      subj = document.getElementById('dr_subject').value.trim();
+  if (!DR.period || !school || !g || !subj) return '';
+  return DR.period + '-' + school + g + '-' + subj;
+}
+function drTitle(){ document.getElementById('drTitlePv').textContent = drTitleOf() || '기간·학교·학년·과목을 모두 고르면 만들어져요'; }
+/* 수동 화면에 이미 들어온 값(내신대비 피드백에서 넘어온 기간·학교·학년·범위)을 자동 생성 칸으로 */
+function drFromManual(){
+  var p = periodOf(document.getElementById('f_title').value);
+  if (p && !DR.period) drPickPeriod(p);
+  [['f_school', 'dr_school'], ['f_gradeN', 'dr_gradeN'], ['f_subject', 'dr_subject'], ['f_scope', 'dr_scope']].forEach(function(x){
+    var a = document.getElementById(x[0]), b = document.getElementById(x[1]);
+    if (a && b && a.value && !b.value){ if (b.tagName === 'SELECT' && !b.querySelector('option[value="' + a.value.replace(/"/g, '') + '"]')) b.innerHTML += '<option>' + esc(a.value) + '</option>'; b.value = a.value; }
+  });
+  drTitle();
+}
+function drPicked(){
+  [['drExam', 'drExamSel'], ['drKey', 'drKeySel']].forEach(function(x){
+    var fs = Array.prototype.slice.call(document.getElementById(x[0]).files || []);
+    document.getElementById(x[1]).innerHTML = fs.map(function(f, i){
+      var bad = !f.size || f.size > DR_MAX;
+      return '<li' + (bad ? ' class="bad"' : '') + '>' + (i + 1) + '. ' + esc(f.name) + ' · ' + drSize(f.size) +
+        (f.size > DR_MAX ? ' — 20MB가 넘어 올리지 않습니다' : (!f.size ? ' — 빈 파일이라 올리지 않습니다' : '')) + '</li>';
+    }).join('');
+  });
+}
+function drStatus(m, kind){ var el = document.getElementById('drStatus'); el.textContent = m || ''; el.className = 'status' + (kind ? ' ' + kind : ''); }
+function drUpload(id, f, kind){
+  var m = String(f.name || '').toLowerCase().match(/\.([a-z0-9]{1,8})$/);
+  var path = 'd' + id + '/' + drRnd() + (m ? '.' + m[1] : (f.type === 'application/pdf' ? '.pdf' : ''));
+  return fetch(drObjUrl(path), { method: 'POST', headers: { 'apikey': DR_KEY, 'Content-Type': f.type || 'application/octet-stream', 'x-upsert': 'false' }, body: f })
+    .then(function(r){ if (!r.ok) return r.text().then(function(t){ throw new Error('upload ' + r.status + ' ' + t.slice(0, 120)); }); })
+    .then(function(){ return { path: path, name: f.name, kind: kind, size: f.size, mime: f.type || '' }; });
+}
+function drNotify(row){
+  var files = row.files || [];
+  var nE = files.filter(function(f){ return f.kind === '시험지'; }).length, nK = files.length - nE;
+  var text = '[지필 초안] d' + row.id + ' · ' + row.title + ' · 시험지 ' + nE + '개' + (nK ? ' · 정답지 ' + nK + '개' : '') +
+    '\n시험 등록 화면(지필고사 리포트 제작 → 자동 생성)에서 올린 파일로 리포트 초안을 만들어 주세요.';
+  return fetch(ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify({ action: 'editReqAdd', pw: SERVER_PW, writer: '지필 리포트 제작', screen: DR_SCREEN, text: text }) })
+    .then(function(r){ return r.json(); })
+    .then(function(j){ if (!j || j.result !== 'success') throw new Error((j && j.message) || 'editReqAdd'); });
+}
+function drRequest(){
+  var title = drTitleOf();
+  if (!title){ drStatus('시험 기간·학교·학년·과목을 모두 골라 주세요. 리포트 제목이 됩니다.', 'err'); return; }
+  var pick = function(id){ return Array.prototype.slice.call(document.getElementById(id).files || []).filter(function(f){ return f.size > 0 && f.size <= DR_MAX; }); };
+  var exam = pick('drExam'), key = pick('drKey');
+  if (!exam.length){ drStatus('시험지 파일을 1개 이상 골라 주세요.', 'err'); return; }
+  var btn = document.getElementById('drGo'); btn.disabled = true;
+  drStatus('요청을 만드는 중입니다…');
+  var row = { title: title, period: DR.period, school: document.getElementById('dr_school').value,
+              grade: document.getElementById('dr_gradeN').value, subject: document.getElementById('dr_subject').value.trim(),
+              scope: document.getElementById('dr_scope').value.trim(), memo: document.getElementById('dr_memo').value.trim(), status: '요청' };
+  var list = exam.map(function(f){ return [f, '시험지']; }).concat(key.map(function(f){ return [f, '정답지']; }));
+  var up = [], fail = [];
+  drSb('POST', '/exam_drafts', row, 'return=representation')
+    .then(function(rows){
+      row = rows && rows[0]; if (!row || !row.id) throw new Error('no id');
+      return list.reduce(function(p, x, i){
+        return p.then(function(){
+          drStatus('파일 올리는 중… (' + (i + 1) + '/' + list.length + ')');
+          return drUpload(row.id, x[0], x[1]).then(function(o){ up.push(o); }, function(e){ fail.push(x[0].name); console.error(e); });
+        });
+      }, Promise.resolve());
+    })
+    .then(function(){
+      if (!up.some(function(f){ return f.kind === '시험지'; })){
+        return drSb('DELETE', '/exam_drafts?id=eq.' + row.id, null, 'return=minimal').catch(function(){})
+          .then(function(){ throw new Error('시험지를 올리지 못했습니다'); });
+      }
+      row.files = up;
+      return drSb('PATCH', '/exam_drafts?id=eq.' + row.id, { files: up }, 'return=minimal');
+    })
+    .then(function(){
+      drStatus('클로슈에게 알리는 중…');
+      return drNotify(row).then(function(){ return true; }, function(e){ console.error(e); return false; });
+    })
+    .then(function(told){
+      btn.disabled = false;
+      ['drExam', 'drKey', 'dr_memo'].forEach(function(id){ document.getElementById(id).value = ''; });
+      drPicked();
+      var msg = '초안을 요청했습니다.' + (fail.length ? ' 못 올린 파일: ' + fail.join(', ') + '.' : '') +
+        (told ? ' 완료되면 목록에 표시돼요.' : ' 다만 클로슈에게 알리지 못했어요. 목록에서 [다시 알리기]를 눌러 주세요.');
+      showMode('choose');
+      drListNote(msg, told && !fail.length ? 'ok' : 'err');
+    })
+    .catch(function(e){
+      btn.disabled = false; console.error(e);
+      drStatus('요청하지 못했습니다. ' + (String(e.message || '').indexOf('시험지') >= 0 ? e.message + '. ' : '') + '잠시 뒤 다시 눌러 주세요.', 'err');
+    });
+}
+
+/* ── 자동 생성 목록 ── */
+function drListNote(msg, kind){
+  var el = document.getElementById('drListNote');
+  if (!el){ el = document.createElement('div'); el.id = 'drListNote'; var L = document.getElementById('drList'); L.parentNode.insertBefore(el, L); }
+  el.className = 'status' + (kind ? ' ' + kind : ''); el.textContent = msg || '';
+}
+function drLoad(){
+  clearTimeout(DR.timer);
+  return drSb('GET', '/exam_drafts?select=id,title,status,note,files,report_id,created_at,updated_at&order=id.desc&limit=20')
+    .then(function(rows){ DR.rows = rows || []; drRender(); })
+    .catch(function(e){ console.error(e); document.getElementById('drList').innerHTML = '<p class="dr-empty">목록을 불러오지 못했습니다. <a href="javascript:void(0)" onclick="drLoad()">다시 불러오기</a></p>'; })
+    .then(function(){
+      if (DR.mode === 'choose' && DR.rows.some(function(r){ return r.status === '요청'; })) DR.timer = setTimeout(drLoad, 20000);
+    });
+}
+function drRender(){
+  var el = document.getElementById('drList');
+  if (!DR.rows.length){ el.innerHTML = '<p class="dr-empty">아직 자동 생성 요청이 없습니다.</p>'; return; }
+  el.innerHTML = DR.rows.map(function(r){
+    var files = r.files || [];
+    var nE = files.filter(function(f){ return f.kind === '시험지'; }).length, nK = files.length - nE;
+    var st = r.report_id ? '<span class="dr-st s-등록">리포트 등록됨</span>'
+      : '<span class="dr-st s-' + esc(r.status) + '">' + (r.status === '요청' ? '만드는 중' : esc(r.status)) + '</span>';
+    var b = [];
+    if (r.status === '완료') b.push('<button class="btn" onclick="drOpen(' + r.id + ')">리포트 만들기</button>',
+                                     '<button class="btn ghost" onclick="drShowText(' + r.id + ')">옮긴 글 보기</button>');
+    b.push('<button class="btn ghost" onclick="drShowFiles(' + r.id + ')">원본 보기</button>');
+    if (r.status === '요청') b.push('<button class="btn ghost" onclick="drRenotify(' + r.id + ')">다시 알리기</button>');
+    return '<div class="dr-row" data-id="' + r.id + '"><div class="dr-top"><span class="dr-ttl">' + esc(r.title || '(제목 없음)') + '</span>' + st + '</div>' +
+      '<div class="dr-meta">' + drWhen(r.created_at) + ' 요청 · 시험지 ' + nE + '개' + (nK ? ' · 정답지 ' + nK + '개' : '') +
+        (r.report_id ? ' · 등록한 리포트: ' + esc(r.report_id) : '') + '</div>' +
+      (r.note ? '<div class="dr-note">' + esc(r.note) + '</div>' : '') +
+      '<div class="dr-btns">' + b.join('') + '</div></div>';
+  }).join('');
+}
+function drRow(id){ for (var i = 0; i < DR.rows.length; i++) if (DR.rows[i].id === id) return DR.rows[i]; return null; }
+function drRenotify(id){
+  var r = drRow(id); if (!r) return;
+  drListNote('클로슈에게 다시 알리는 중…');
+  drNotify(r).then(function(){ drListNote('다시 알렸습니다. 완료되면 목록에 표시돼요.', 'ok'); },
+                   function(){ drListNote('알리지 못했습니다. 잠시 뒤 다시 눌러 주세요.', 'err'); });
+}
+
+/* ── 초안 → 수동 화면 ── */
+var DR_LV = ['중','중상','상','최상'];
+function drCleanQ(q){
+  var area = AREA_OPTS.indexOf(q.area) >= 0 ? q.area : '';
+  return { no: String(q.no == null ? '' : q.no), group: String(q.group || ''), area: area,
+           detail: (SUBTYPES[area] || []).indexOf(q.detail) >= 0 ? q.detail : '',
+           type: FORM_OPTS.indexOf(q.type) >= 0 ? q.type : '객관식', lv: DR_LV.indexOf(q.lv) >= 0 ? q.lv : '상',
+           txt: String(q.txt || ''), multi: !!q.multi };
+}
+function drHasInput(){
+  if (document.getElementById('f_scope').value.trim() || document.getElementById('f_review').value.trim()) return true;
+  var any = false;
+  document.querySelectorAll('#blockList .txt-sel, #blockList .area-in').forEach(function(x){ if (x.value) any = true; });
+  return any;
+}
+function drOpen(id){
+  drListNote('초안을 불러오는 중…');
+  drSb('GET', '/exam_drafts?id=eq.' + id + '&select=id,title,period,school,grade,subject,scope,draft')
+    .then(function(rows){
+      var r = rows && rows[0], d = r && r.draft;
+      if (!d || !Array.isArray(d.questions)){ drListNote('이 요청에는 아직 초안이 없습니다.', 'err'); return; }
+      if (drHasInput() && !confirm('수동 화면에 적어 둔 범위·문항·총평을 이 초안으로 바꿀까요?')){ drListNote(''); return; }
+      drListNote('');
+      showMode('manual');
+      var t = document.getElementById('f_title');
+      var sc = document.getElementById('f_school');
+      if (r.school && !sc.querySelector('option[value="' + String(r.school).replace(/"/g, '') + '"]')) sc.innerHTML += '<option>' + esc(r.school) + '</option>';
+      sc.value = r.school || ''; document.getElementById('f_gradeN').value = r.grade || '';
+      document.getElementById('f_subject').value = r.subject || '';
+      t.value = r.title || ''; syncPeriodChips();
+      document.getElementById('f_scope').value = String(d.scope || r.scope || '');
+      document.getElementById('f_review').value = (Array.isArray(d.review) ? d.review : [String(d.review || '')]).join('\n\n').trim();
+      SUPPRESS_SCROLL = true; fillQuestions(d.questions.map(drCleanQ)); SUPPRESS_SCROLL = false;
+      DR.from = r.id;
+      var notes = Array.isArray(d.notes) ? d.notes.filter(Boolean) : [];
+      var bn = document.getElementById('drBanner');
+      bn.innerHTML = '<b>클로슈가 만든 초안으로 채웠습니다.</b> 문항·총평을 확인하고 고친 뒤, 학생을 배정하고 등록하십시오. 등록 전에는 학생에게 보이지 않아요.' +
+        (notes.length ? '<ul>' + notes.map(function(n){ return '<li>' + esc(n) + '</li>'; }).join('') + '</ul>' : '') +
+        '<div style="margin-top:6px;"><a href="javascript:void(0)" onclick="drShowText(' + r.id + ')">옮긴 글 보기</a> · <a href="javascript:void(0)" onclick="drShowFiles(' + r.id + ')">원본 보기</a></div>';
+      bn.style.display = '';
+      setStatus('초안을 채웠습니다. 확인 후 학생을 배정하고 [시트에 등록]을 누르십시오.', 'ok');
+    })
+    .catch(function(e){ console.error(e); drListNote('초안을 불러오지 못했습니다. 다시 눌러 주세요.', 'err'); });
+}
+function drMarkReport(reportId){
+  if (!DR.from || !reportId) return;
+  drSb('PATCH', '/exam_drafts?id=eq.' + DR.from, { report_id: String(reportId), updated_at: new Date().toISOString() }, 'return=minimal')
+    .catch(function(e){ console.error(e); });
+}
+
+/* ── 옮긴 글 · 원본 보기 ── */
+function drModal(title, html){
+  document.getElementById('drModalT').textContent = title;
+  document.getElementById('drModalB').innerHTML = html;
+  document.getElementById('drModal').style.display = '';
+}
+function drClose(){ document.getElementById('drModal').style.display = 'none'; }
+function drShowText(id){
+  drSb('GET', '/exam_drafts?id=eq.' + id + '&select=title,draft').then(function(rows){
+    var r = rows && rows[0], d = (r && r.draft) || {};
+    var ans = Array.isArray(d.answers) ? d.answers : [];
+    var notes = Array.isArray(d.notes) ? d.notes.filter(Boolean) : [];
+    var html = '';
+    if (notes.length) html += '<h4>원장님이 확인할 점</h4><ul>' + notes.map(function(n){ return '<li>' + esc(n) + '</li>'; }).join('') + '</ul>';
+    if (ans.length) html += '<h4>정답</h4><div class="dr-ans">' + ans.map(function(a){ return '<span>' + esc(a.no) + '번 ' + esc(a.ans) + '</span>'; }).join('') + '</div>';
+    html += '<h4>옮긴 글 <button type="button" class="dr-x" id="drCopy" onclick="drCopyText()" style="margin-left:6px;">복사</button></h4>' +
+      '<pre class="dr-text" id="drText">' + esc(d.text || '(옮긴 글이 없습니다)') + '</pre>';
+    drModal((r && r.title) || '옮긴 글', html);
+  }).catch(function(){ alert('불러오지 못했습니다.'); });
+}
+function drCopyText(){
+  var t = document.getElementById('drText').textContent, b = document.getElementById('drCopy');
+  var done = function(){ b.textContent = '복사됨'; setTimeout(function(){ b.textContent = '복사'; }, 1800); };
+  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(t).then(done, function(){});
+}
+function drShowFiles(id){
+  var r = drRow(id);
+  var go = function(files, title){
+    DR.files = files;
+    drModal(title || '원본 파일', files.length ? '<ul class="dr-files">' + files.map(function(f, i){
+      return '<li>' + esc(f.kind) + ' · <button type="button" onclick="drOpenFile(' + i + ')">' + esc(f.name || '파일') + '</button> <span style="color:var(--ink-soft);font-size:12px;">' + drSize(f.size) + '</span></li>';
+    }).join('') + '</ul>' : '<p class="dr-empty">올린 파일이 없습니다.</p>');
+  };
+  if (r) return go(r.files || [], r.title);
+  drSb('GET', '/exam_drafts?id=eq.' + id + '&select=title,files').then(function(rows){ go((rows[0] || {}).files || [], (rows[0] || {}).title); });
+}
+function drOpenFile(i){
+  var f = (DR.files || [])[i]; if (!f) return;
+  var w = window.open('', '_blank');
+  fetch(drObjUrl(f.path), { headers: { 'apikey': DR_KEY } })
+    .then(function(r){ if (!r.ok) throw new Error('dl ' + r.status); return r.blob(); })
+    .then(function(b){
+      var u = URL.createObjectURL(b.type ? b : new Blob([b], { type: f.mime || 'application/octet-stream' }));
+      if (w) w.location.href = u; else location.href = u;
+      setTimeout(function(){ URL.revokeObjectURL(u); }, 120000);
+    })
+    .catch(function(){ if (w) w.close(); alert('파일을 열지 못했습니다.'); });
+}
+document.addEventListener('keydown', function(e){ if (e.key === 'Escape') drClose(); });
 
 /* 시작: 빈 상태에서 선생님이 직접 문항을 추가합니다 */
 renumberAll();
