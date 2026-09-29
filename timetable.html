@@ -89,6 +89,28 @@
     border:1px solid var(--line-soft);border-radius:10px;padding:6px 12px;cursor:pointer;}
   .weeknav-tt b{font-family:"Gowun Batang",serif;font-size:1.05rem;color:var(--accent);}
   .weeknav-tt small{color:var(--ink-soft);}
+  .weeknav-tt .toff-open{margin-left:auto;background:#EDE4F4;color:#665D79;border:0;}
+  .toff-strip{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin:0 4px 10px;
+    padding:8px 10px;background:#F6F7F6;border:1px solid var(--line-soft);border-radius:11px;}
+  .toff-strip>strong{font-size:.76rem;color:var(--ink-soft);margin-right:2px;}
+  .toff-chip{font:inherit;font-size:.76rem;color:#4F5853;background:#E7E9E8;border:0;border-radius:999px;
+    padding:4px 10px;cursor:pointer;}
+  .toff-chip b{color:#343B37;}
+  .toff-day{display:block;margin-top:3px;font-size:.61rem;font-weight:400;line-height:1.25;
+    color:#fff;opacity:.9;white-space:normal;}
+  .toff-form{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:12px;}
+  .toff-form label{font-size:.78rem;color:var(--ink-soft);}
+  .toff-form select,.toff-form input{display:block;width:100%;margin-top:4px;font:inherit;font-size:.9rem;
+    color:var(--ink);background:#fff;border:1.5px solid var(--line);border-radius:10px;padding:8px 10px;}
+  .toff-form .wide{grid-column:1/-1;}
+  .toff-remain{font-size:.78rem;color:#8A5A3C;background:#F7EFE8;border-radius:9px;padding:7px 9px;margin:9px 0 0;}
+  .toff-existing{display:flex;gap:6px;flex-wrap:wrap;margin-top:12px;}
+  @media (max-width:560px){
+    .weeknav-tt{flex-wrap:wrap;}
+    .weeknav-tt .toff-open{margin-left:0;}
+    .toff-form{grid-template-columns:1fr;}
+    .toff-form .wide{grid-column:auto;}
+  }
   .dhead small{font-weight:400;font-size:.72rem;opacity:.9;margin-left:4px;}
   .today-sum{font-size:.82rem;color:var(--ink-soft);margin:0 4px 10px;}
   .today-sum b{color:var(--accent);}
@@ -1333,6 +1355,14 @@
     if (book) p += '&book=eq.' + q(book);
     return sbGet(p);
   }
+  function fetchTeacherOffs(from, to){
+    if (!from || !to) return Promise.resolve([]);
+    return sbGet('/tt_teacher_days_off?off_date=gte.' + q(from) + '&off_date=lte.' + q(to) +
+                 '&select=off_date,teacher,reason&order=off_date,teacher');
+  }
+  function teacherOffShape(r){
+    return { date: r.off_date, teacher: String(r.teacher || '').trim(), reason: String(r.reason || '').trim() };
+  }
   function attTodayShape(a){ return { classId: a.class_id, student: a.student, status: a.status, memo: a.memo }; }
   function attWeekShape(a){ return { date: a.date, classId: a.class_id, student: a.student, status: a.status, memo: a.memo }; }
 
@@ -1350,7 +1380,8 @@
         dateStr ? fetchAttendRange(dateStr, dateStr, book) : Promise.resolve([]),
         mfrom ? sbGet('/tt_memo?date=gte.' + q(mfrom) + '&date=lte.' + q(mto)) : Promise.resolve([]),
         sbGet('/tt_period?select=week_wednesday,book'),
-        (wfrom && wto) ? fetchAttendRange(wfrom, wto, book) : Promise.resolve(null)
+        (wfrom && wto) ? fetchAttendRange(wfrom, wto, book) : Promise.resolve(null),
+        (wfrom && wto) ? fetchTeacherOffs(wfrom, wto) : Promise.resolve(null)
       ];
       return Promise.all(jobs).then(function(rs){
         var t = tYmd(), span = 8 * 86400000;
@@ -1369,7 +1400,7 @@
                       .map(function(m){ return { date: m.date, memo: m.memo }; }),
           periods: rs[4].map(function(x){ return { week: x.week_wednesday, book: x.book }; }) };
         if (rs[5]){
-          out.week = { attend: rs[5].map(attWeekShape),
+          out.week = { attend: rs[5].map(attWeekShape), teacherOffs: (rs[6] || []).map(teacherOffShape),
             onceMoves: rs[1].filter(function(g){
               if (g.book !== book) return false;
               var a = applyYmdOf(g), c = copyClassYmdOf(g);
@@ -1395,8 +1426,10 @@
       var book = bookOf(p.get('book'));
       var from = (p.get('from') || '').trim(), to = (p.get('to') || '').trim();
       if (!from || !to) return Promise.resolve({ result:'error', message:'기간이 필요합니다.' });
-      return Promise.all([fetchAttendRange(from, to, book), fetchOnceLogs(from, WEEK_KINDS, 120)]).then(function(rs){
+      return Promise.all([fetchAttendRange(from, to, book), fetchOnceLogs(from, WEEK_KINDS, 120),
+                          fetchTeacherOffs(from, to)]).then(function(rs){
         return ok({ from: from, to: to, attend: rs[0].map(attWeekShape),
+          teacherOffs: rs[2].map(teacherOffShape),
           onceMoves: rs[1].filter(function(g){
             if (g.book !== book) return false;
             // 반 전체 이동·보강은 숨는 날짜(적용일)와 복사본이 열리는 날짜 중
@@ -2065,6 +2098,24 @@
                      '&from_class_id=eq.' + q(id) + '&apply_date=eq.' + q(d))
         .then(function(){ return ok({}); });
     },
+    /* 교사 임시 휴무 — 수업·출석·회차와 무관한 날짜별 표시만 저장한다. */
+    ttTeacherOffSet: function(b){
+      var d = String(b.date || '').trim(), teacher = String(b.teacher || '').trim();
+      var reason = String(b.reason || '').trim();
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(d) || !teacher)
+        return Promise.resolve({ result:'error', message:'날짜와 선생님을 확인해 주세요.' });
+      return sbWrite('POST', '/tt_teacher_days_off?on_conflict=off_date,teacher',
+        [{ off_date:d, teacher:teacher, reason:reason }],
+        { 'Prefer':'resolution=merge-duplicates,return=minimal' })
+        .then(function(){ return ok({ date:d, teacher:teacher, reason:reason }); });
+    },
+    ttTeacherOffDelete: function(b){
+      var d = String(b.date || '').trim(), teacher = String(b.teacher || '').trim();
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(d) || !teacher)
+        return Promise.resolve({ result:'error', message:'날짜와 선생님을 확인해 주세요.' });
+      return sbWrite('DELETE', '/tt_teacher_days_off?off_date=eq.' + q(d) + '&teacher=eq.' + q(teacher))
+        .then(function(){ return ok({}); });
+    },
     timetableWeekClassDel: function(b){
       var book = bookOf(b.book), id = String(b.classId || '').trim();
       if (!/^w\d{6}/.test(id)) return Promise.resolve({ result:'error', message:'그 주에만 있는 반이 아니에요.' });
@@ -2541,6 +2592,7 @@ var memoDraft = null;  // 다시 그릴 때 저장 전 입력 보존용
 var periods = {};      // 주별 기간: 주차 수요일(yyyy-MM-dd) -> '정규'|'내신' (미설정=정규)
 var calMonth = null;   // 캘린더가 보는 달 (그 달 1일 Date)
 var weekOnce = [];     // 주차 1회 이동
+var teacherOffs = [];  // [{date,teacher,reason}] — 수업·출석·회차와 독립된 교사 임시 휴무 표시
 var attDate = null;    // 출석 모달이 다루는 날짜
 var editMode = null;        // 'move' | 'add' | 'del' — 편집 도구줄에서 선택
 var multiMode = false;      // 오늘 보기 복수 선택 모드
@@ -2639,9 +2691,11 @@ function loadWeek(){
     weekAttend = {};
     (cw.attend || []).forEach(function(a){ weekAttend[wkAttKey(a.date, a.classId, a.student)] = { status:a.status, memo:a.memo }; });
     weekOnce = cw.onceMoves || [];
+    teacherOffs = cw.teacherOffs || [];
     render();
     setStatus('최신 데이터 확인 중…');
   } else {
+    teacherOffs = [];
     setStatus('주차 기록을 불러오는 중…');
   }
   var pWeek = fetch(ENDPOINT + '?action=timetableWeek&pw=' + encodeURIComponent(pw) + '&book=' + encodeURIComponent(book) +
@@ -2654,12 +2708,13 @@ function loadWeek(){
       weekAttend = {}; weekOnce = [];
       (d.attend || []).forEach(function(a){ weekAttend[wkAttKey(a.date, a.classId, a.student)] = { status:a.status, memo:a.memo }; });
       weekOnce = d.onceMoves || [];
-      cacheSet(ck, { attend: d.attend || [], onceMoves: d.onceMoves || [] });
+      teacherOffs = d.teacherOffs || [];
+      cacheSet(ck, { attend: d.attend || [], onceMoves: d.onceMoves || [], teacherOffs: teacherOffs });
       setStatus('');
     } else if (cw){
       setStatus('');   // 캐시 화면 유지
     } else {
-      weekAttend = {}; weekOnce = [];
+      weekAttend = {}; weekOnce = []; teacherOffs = [];
       setStatus('주차 기록을 불러오지 못했어요.', 'err');
     }
     render();
@@ -2779,6 +2834,7 @@ function load(isReload, cb){
           weekAttend = {};
           (cwk.attend || []).forEach(function(a){ weekAttend[wkAttKey(a.date, a.classId, a.student)] = { status:a.status, memo:a.memo }; });
           weekOnce = cwk.onceMoves || [];
+          teacherOffs = cwk.teacherOffs || [];
         }
       }
       renderTabs();
@@ -2836,7 +2892,8 @@ function load(isReload, cb){
       weekAttend = {}; weekOnce = [];
       (d.week.attend || []).forEach(function(a){ weekAttend[wkAttKey(a.date, a.classId, a.student)] = { status:a.status, memo:a.memo }; });
       weekOnce = d.week.onceMoves || [];
-      cacheSet('week:' + book + ':' + wfrom, { attend: d.week.attend || [], onceMoves: weekOnce });
+      teacherOffs = d.week.teacherOffs || [];
+      cacheSet('week:' + book + ':' + wfrom, { attend: d.week.attend || [], onceMoves: weekOnce, teacherOffs: teacherOffs });
     }
     setStatus(isReload ? '최신 시간표로 다시 불러왔어요.' : '', isReload ? 'ok' : '');
     renderTabs();
@@ -3120,8 +3177,10 @@ function renderView(){
   nav.className = 'weeknav-tt';
   nav.innerHTML = '<button onclick="moveWeek(-1)">지난주</button>'+
     '<b>' + mdOf(wfrom) + ' ~ ' + mdOf(to) + ' 주차</b>' + (isThis ? '<small>(이번 주)</small>' : '')+
-    '<button onclick="moveWeek(1)">다음주</button>';
+    '<button onclick="moveWeek(1)">다음주</button>'+
+    '<button class="toff-open" onclick="openTeacherOff()">교사 휴무 설정</button>';
   host.appendChild(nav);
+  var offStrip = teacherOffStrip(); if (offStrip) host.appendChild(offStrip);
   if (narrowScreen()) host.appendChild(mviewToggleBtn());
   host.appendChild(useListView() ? buildWeekList()
                  : (weekZoomDay ? buildWeekZoom(weekZoomDay) : buildWeekOverview()));
@@ -4769,12 +4828,118 @@ function wkAttSummary(cid, dstr){
   });
   return { cnt: cnt, any: any };
 }
+/* 교사 임시 휴무는 수업 변경 기록과 분리한다. 표시만 하며 반·출석·회차를 바꾸지 않는다. */
+function teacherOffAt(dstr, teacher){
+  for (var i = 0; i < teacherOffs.length; i++){
+    if (teacherOffs[i].date === dstr && teacherOffs[i].teacher === teacher) return teacherOffs[i];
+  }
+  return null;
+}
+function teacherOffsAt(dstr){
+  return teacherOffs.filter(function(o){ return o.date === dstr; })
+    .sort(function(a,b){ return wkTeacherRank(a.teacher) - wkTeacherRank(b.teacher) || a.teacher.localeCompare(b.teacher,'ko'); });
+}
+function teacherOffDayHtml(dstr){
+  var rows = teacherOffsAt(dstr);
+  if (!rows.length) return '';
+  return '<span class="toff-day">교사 휴무 · ' + rows.map(function(o){ return esc(o.teacher) + 'T'; }).join(' · ') + '</span>';
+}
+function teacherOffStrip(){
+  if (!teacherOffs.length) return null;
+  var dates = weekDates(), dayOf = {};
+  WEEK_VIEW_ORDER.forEach(function(dy){ dayOf[ymdOf(dates[dy])] = dy; });
+  var box = document.createElement('div');
+  box.className = 'toff-strip';
+  box.innerHTML = '<strong>교사 임시 휴무</strong>' + teacherOffs.slice().sort(function(a,b){
+    return a.date.localeCompare(b.date) || wkTeacherRank(a.teacher) - wkTeacherRank(b.teacher);
+  }).map(function(o){
+    var note = o.reason ? ' · ' + esc(o.reason) : '';
+    return '<button class="toff-chip" onclick="openTeacherOff(\'' + esc(o.date) + '\',\'' + esc(o.teacher) + '\')">' +
+           '<b>' + esc(o.teacher) + 'T 휴무</b> · ' + esc(dayOf[o.date] || '') + ' ' + esc(mdOfYmdStr(o.date)) + note + '</button>';
+  }).join('');
+  return box;
+}
+function teacherOffTeachers(){
+  var seen = {}, out = [];
+  TEACHER_ORDER.concat(classes.map(function(c){ return c.teacher; })).forEach(function(t){
+    t = String(t || '').trim();
+    if (t && !seen[t]){ seen[t] = 1; out.push(t); }
+  });
+  return out;
+}
+function teacherClassesAt(dstr, teacher){
+  var d = new Date(+dstr.slice(0,4), +dstr.slice(5,7)-1, +dstr.slice(8,10));
+  var dy = ['일','월','화','수','목','금','토'][d.getDay()];
+  return classes.filter(function(c){
+    if (String(c.teacher || '').trim() !== teacher) return false;
+    if (c.wk ? c.wk !== dstr : c.day !== dy) return false;
+    return !wkOffAt(c.id, dstr) && !wkMovedAway(c.id, dstr);
+  });
+}
+function openTeacherOff(date, teacher){
+  var dates = weekDates(), defDate = date || ymdOf(dates[todayDay()] || dates['수']);
+  var teachers = teacherOffTeachers(), defTeacher = teacher || teachers[0] || '';
+  var existing = teacherOffAt(defDate, defTeacher);
+  var dOpts = WEEK_VIEW_ORDER.map(function(dy){
+    var y = ymdOf(dates[dy]);
+    return '<option value="'+y+'"'+(y===defDate?' selected':'')+'>'+dy+' '+mdOf(dates[dy])+'</option>';
+  }).join('');
+  var tOpts = teachers.map(function(t){ return '<option value="'+esc(t)+'"'+(t===defTeacher?' selected':'')+'>'+esc(t)+'T</option>'; }).join('');
+  var existingBtns = teacherOffs.length ? '<div class="toff-existing">' + teacherOffs.map(function(o){
+    return '<button class="toff-chip" onclick="openTeacherOff(\''+esc(o.date)+'\',\''+esc(o.teacher)+'\')">'+
+           esc(o.teacher)+'T · '+esc(wkDayLabel(o.date))+(o.reason?' · '+esc(o.reason):'')+'</button>';
+  }).join('') + '</div>' : '';
+  openModal(
+    '<h3>교사 임시 휴무 설정</h3>'+
+    '<p class="mdesc">선생님의 근무 표시만 바꿉니다. 수업·출석·회차에는 영향을 주지 않습니다.</p>'+
+    '<p class="mdesc hint-x">회차는 언제나 원래 수업 날짜 기준이에요.</p>'+
+    '<div class="toff-form">'+
+      '<label>선생님<select id="toff-teacher" onchange="teacherOffFormSync(true)">'+tOpts+'</select></label>'+
+      '<label>휴무일<select id="toff-date" onchange="teacherOffFormSync(true)">'+dOpts+'</select></label>'+
+      '<label class="wide">사유 (선택)<input id="toff-reason" maxlength="80" placeholder="예: 월 직보" value="'+esc(existing ? existing.reason : '')+'"></label>'+
+    '</div><p id="toff-remain"></p>'+ existingBtns +
+    '<div class="mbtns"><button onclick="closeModal()">취소</button>'+
+    '<button id="toff-del" onclick="deleteTeacherOff()"'+(existing?'':' style="display:none"')+'>휴무 해제</button>'+
+    '<button class="primary" onclick="saveTeacherOff()">휴무 저장</button></div>'
+  );
+  teacherOffFormSync(false);
+}
+function teacherOffFormSync(fillReason){
+  var t = $('toff-teacher').value, d = $('toff-date').value, old = teacherOffAt(d, t);
+  if (fillReason) $('toff-reason').value = old ? old.reason : '';
+  $('toff-del').style.display = old ? '' : 'none';
+  var n = teacherClassesAt(d, t).length, p = $('toff-remain');
+  p.className = n ? 'toff-remain' : '';
+  p.textContent = n ? ('이 날짜에 ' + t + 'T 수업 ' + n + '개가 남아 있습니다. 수업은 자동으로 바뀌지 않아요.') : '';
+}
+function saveTeacherOff(){
+  var t = $('toff-teacher').value, d = $('toff-date').value, reason = $('toff-reason').value.trim();
+  if (!t || !d) return;
+  closeModal();
+  post({ action:'ttTeacherOffSet', date:d, teacher:t, reason:reason }, '교사 휴무를 저장하는 중…', function(res){
+    if (res && res.result === 'success'){
+      setStatus(t + 'T · ' + wkDayLabel(d) + ' 임시 휴무를 표시했습니다.', 'ok');
+      load(true);
+    } else setStatus('교사 휴무 저장 실패: ' + ((res && res.message) || '오류'), 'err');
+  });
+}
+function deleteTeacherOff(){
+  var t = $('toff-teacher').value, d = $('toff-date').value;
+  closeModal();
+  post({ action:'ttTeacherOffDelete', date:d, teacher:t }, '교사 휴무를 해제하는 중…', function(res){
+    if (res && res.result === 'success'){
+      setStatus(t + 'T · ' + wkDayLabel(d) + ' 임시 휴무를 해제했습니다.', 'ok');
+      load(true);
+    } else setStatus('교사 휴무 해제 실패: ' + ((res && res.message) || '오류'), 'err');
+  });
+}
 function wkDayHeader(dname, dates, cls, onClick){
   var dstr = ymdOf(dates[dname]);
   var h = document.createElement('button');
   h.type = 'button';
   h.className = 'wk-dayh' + (cls ? ' ' + cls : '') + (dstr === todayStr() ? ' today' : '');
-  h.innerHTML = esc(dname) + '<small>' + mdOf(dates[dname]) + (dstr === todayStr() ? ' · 오늘' : '') + '</small>';
+  h.innerHTML = esc(dname) + '<small>' + mdOf(dates[dname]) + (dstr === todayStr() ? ' · 오늘' : '') + '</small>' +
+                teacherOffDayHtml(dstr);
   h.addEventListener('click', onClick);
   return h;
 }
@@ -4885,7 +5050,7 @@ function buildWeekZoom(dname){
     hh.type = 'button';
     hh.className = 'wk-dayh bigh' + (dstr === todayStr() ? ' today' : '');
     hh.innerHTML = esc(dy) + ' ' + mdOf(dates[dy]) + (dstr === todayStr() ? ' (오늘)' : '') +
-                   '<small>— 누르면 주간 개요로 돌아가요</small>';
+                   '<small>— 누르면 주간 개요로 돌아가요</small>' + teacherOffDayHtml(dstr);
     hh.addEventListener('click', function(){ weekZoomDay = null; keepScroll = false; render(); });
     big.appendChild(hh);
     var list = wkZoomSorted(dy, dstr);
