@@ -103,8 +103,9 @@ body{font-family:'Noto Sans KR',sans-serif; background:var(--sage-fog); color:va
 /* 시험 범위 — 라벨은 소제목, 세부 항목은 도트 (r.html·t.html 두 벌) */
 .sp-sec{margin-top:15px;} .sp-sec:first-child{margin-top:0;}
 .sp-h{font-weight:700; color:var(--sage-deep); margin-bottom:6px;}
-.sp-li{position:relative; padding-left:14px; margin:4px 0;}
-.sp-li::before{content:''; position:absolute; left:3px; top:.66em; width:4px; height:4px; border-radius:50%; background:var(--sage-mid);}
+.sp-li, .rv-li{position:relative; padding-left:14px; margin:4px 0;}
+.sp-li::before, .rv-li::before{content:''; position:absolute; left:3px; top:.66em; width:4px; height:4px; border-radius:50%; background:var(--sage-mid);}
+.rv-li{margin:5px 0;}
 /* 총평 문단 소제목 */
 .rv-h{font-family:'Noto Serif KR',serif; font-weight:700; color:var(--sage-deep); margin:17px 0 5px;}
 .rv-h:first-child{margin-top:0;}
@@ -748,8 +749,16 @@ function reviewHtml(paras){
     var lines = String(p == null ? '' : p).split('\n');
     var h = '';
     if (lines.length && /^##\s+/.test(lines[0])) h = lines.shift().replace(/^##\s+/, '').trim();
-    var body = lines.join('\n').trim();
-    return (h ? '<div class="rv-h">' + esc(h) + '</div>' : '') + (body ? '<p>' + esc(body) + '</p>' : '');
+    var out = h ? '<div class="rv-h">' + esc(h) + '</div>' : '', buf = [];
+    function flush(){ if (buf.length){ out += '<p>' + esc(buf.join(' ')) + '</p>'; buf = []; } }
+    lines.forEach(function(raw){
+      var t = raw.trim();
+      if (!t){ flush(); return; }
+      if (/^-\s+/.test(t)){ flush(); out += '<div class="rv-li">' + esc(t.replace(/^-\s+/, '')) + '</div>'; }
+      else buf.push(t);            // 옛 총평처럼 줄바꿈만 있는 문단은 전과 같이 한 덩어리로 합친다
+    });
+    flush();
+    return out;
   }).join('');
 }
 
