@@ -35,7 +35,7 @@ let ALIM_CFG = { result: 'success', ready: true, smsFallback: false, has: { key:
   templates: { absent: { label: '결석 안내', text: 'x', vars: [], ready: true },
                notice_sched: ntpl('수업 일정 안내', true), notice_mock: ntpl('주말 실전 모의고사 신청 안내', true), notice_hwork: ntpl('H WORK 안내', false),
                notice_report: ntpl('지필고사 리포트 제작 안내', true), notice_reportup: ntpl('지필고사 리포트 업데이트 안내', true),
-               notice_voca: ntpl('어휘 테스트 참여 안내', true), notice_gramma: ntpl('문법 테스트 참여 안내', true), notice_event: ntpl('행사 안내', true) } };
+               notice_voca: ntpl('어휘 테스트 참여 안내', true), notice_gramma: ntpl('문법 테스트 참여 안내', true) } };
 const posts = [];   // 백엔드 POST 본문
 let NOTICES = [];   // 학생 페이지에 줄 공지
 const reads = [];   // notice_read_submit 호출
@@ -88,29 +88,31 @@ const alimSends = () => posts.filter(b => b.action === 'alimSend');
 
   console.log('① 공지 등록 화면 — 알림톡');
   /* 종류 드롭다운은 체크박스와 같은 label 안에 있어 체크가 잠기면 Playwright가 select도 잠긴 것으로 봐서(브라우저에서는 정상 동작) 값을 직접 넣는다 */
+  async function setWho(ws){ await page.$$eval('.alimWho', (els, ws) => els.forEach(e => { e.checked = ws.includes(e.value); }), ws); }
   const pickKind = k => page.evaluate(k => { const s = document.getElementById('alimKind'); s.value = k; s.dispatchEvent(new Event('change')); }, k);
   await page.goto(NURL, { waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => !document.getElementById('alimOn').disabled, { timeout: 8000 });
   ok(true, '설정이 준비되면 [알림톡도 보내기] 체크가 열린다');
-  ok((await page.$$eval('#alimKind option', els => els.map(o => o.value + ':' + o.textContent))).join('|') === 'notice_sched:수업 일정 안내|notice_mock:주말 실전 모의고사 신청 안내|notice_hwork:H WORK 안내 (준비 전)|notice_report:지필고사 리포트 제작 안내|notice_reportup:지필고사 리포트 업데이트 안내|notice_voca:어휘 테스트 참여 안내|notice_gramma:문법 테스트 참여 안내|notice_event:행사 안내', '종류 드롭다운 = 여덟 종류, 심사 전은 “(준비 전)”');
+  ok((await page.$$eval('#alimKind option', els => els.map(o => o.value + ':' + o.textContent))).join('|') === 'notice_sched:수업 일정 안내|notice_mock:주말 실전 모의고사 신청 안내|notice_hwork:H WORK 안내 (준비 전)|notice_report:지필고사 리포트 제작 안내|notice_reportup:지필고사 리포트 업데이트 안내|notice_voca:어휘 테스트 참여 안내|notice_gramma:문법 테스트 참여 안내', '종류 드롭다운 = 일곱 종류, 심사 전은 “(준비 전)”');
   ok(await page.$eval('#alimKind', e => e.value) === 'notice_sched' && /“수업 일정 안내” 알림톡/.test(await page.$eval('#alimNote', e => e.textContent)), '기본 종류 = 준비된 첫 종류(수업 일정 안내) + 안내 문구');
   await pickKind('notice_mock');
   await pickKind('notice_hwork');
   ok(await page.$eval('#alimOn', e => e.disabled && !e.checked) && /이 종류의 템플릿은 아직 없어요/.test(await page.$eval('#alimNote', e => e.textContent)), '준비 전 종류를 고르면 체크가 잠기고 안내');
   await pickKind('notice_mock');
   ok(!(await page.$eval('#alimOn', e => e.disabled)), '준비된 종류로 돌리면 다시 열린다');
+  ok((await page.$$eval('.alimWho', els => els.filter(e => e.checked).map(e => e.value))).join() === '학생,학부모1,학부모2', '받는 분 기본 = 학생·학부모1·학부모2 모두 체크');
   await page.waitForFunction(() => document.querySelectorAll('#picker .sp-summary').length === 1 && !/불러오는/.test(document.getElementById('picker').textContent));
   // 학년 고1 선택은 위젯 조작 대신 선택값을 직접 넣는다(위젯 자체는 다른 E2E가 검사)
   await page.evaluate(() => { currentSel = { type: '학년', target: '2026 고등 1학년', count: 120, summary: '2026 고등 1학년 — 120명' }; });
   await page.fill('#title', '추석 휴강 안내');
   await page.fill('#body', '9/25~9/27 휴강입니다.');
   await page.check('#alimOn');
-  await page.selectOption('#alimWho', '학생');
+  await setWho(['학생']);
   await page.click('#submitBtn');
   await page.waitForFunction(() => document.getElementById('alimBox').style.display === 'block' && document.getElementById('alimGo'), { timeout: 8000 });
   ok(posts.some(b => b.action === 'addNotice' && b.title === '추석 휴강 안내' && b.target === '2026 고등 1학년'), '공지 등록 POST');
   const boxTxt = await page.$eval('#alimBox', e => e.textContent);
-  ok(/120명/.test(boxTxt) && /학생 번호로/.test(boxTxt) && /50명씩/.test(boxTxt), '확인 상자: 120명 · 학생 번호 · 50명씩 나눠 보냄 (' + boxTxt.slice(0, 60).replace(/\s+/g, ' ') + ')');
+  ok(/120명<\/b>?의 학생에게|120명의 학생에게/.test(boxTxt) && /120건/.test(boxTxt) && /50건씩/.test(boxTxt), '확인 상자: 120명 · 학생 · 50건씩 나눠 보냄 (' + boxTxt.slice(0, 60).replace(/\s+/g, ' ') + ')');
   ok(/고일001 학생에게 주말 실전 모의고사 신청 안내가 도착했어요/.test(boxTxt) && /▶ 추석 휴강 안내/.test(boxTxt) && /공지 알림톡 · 주말 실전 모의고사 신청 안내/.test(boxTxt), '미리보기 = 고른 종류(모의고사 신청 안내) 문구에 학생명·제목이 채워진다');
   ok(await page.$eval('#alimBox .alim-btn', e => e.textContent) === '학생 페이지 열기', '미리보기 아래 템플릿 버튼 [학생 페이지 열기]');
   ok(!/연락처가 없어/.test(boxTxt), '고1은 전원 번호 있음 → 안내 없음');
@@ -122,33 +124,50 @@ const alimSends = () => posts.filter(b => b.action === 'alimSend');
   ok(sends.every(b => b.kind === 'notice_mock') && it0.who === '학생' && it0.to === '01011000000' && it0.cls === '공지', 'kind = 고른 종류(notice_mock) · 학생 번호 · 반 “공지”');
   ok(/^N:\d{4}-\d{2}-\d{2}\|추석 휴강 안내$/.test(it0.date) && it0.vars['제목'] === '추석 휴강 안내' && it0.vars['학생명'] === '고일001' && it0.vars['접근코드'] === 'c10', '중복 키 N:날짜|제목 + 변수(학생명·제목·접근코드=학생 페이지 키)');
   const st = await page.$eval('#status', e => e.textContent);
-  ok(/119건 보냈어요/.test(st) && /이미 보낸 1명/.test(st), '결과 문구: 119건 + 중복 1명 (' + st + ')');
+  ok(/119건 보냈어요/.test(st) && /이미 보낸 1건/.test(st), '결과 문구: 119건 + 중복 1명 (' + st + ')');
   ok(await page.$eval('#alimBox', e => e.style.display) === 'none', '보낸 뒤 상자 닫힘');
 
   console.log('①-b 학부모1 · 연락처 없음 · 동명이인 · 퇴원 제외');
   posts.length = 0;
   await page.evaluate(() => { currentSel = { type: '학년', target: '2026 고등 2학년', count: 4, summary: '2026 고등 2학년 — 4명' }; });
   await page.fill('#title', '모의고사 안내');
-  await pickKind('notice_event');
-  await page.check('#alimOn'); await page.selectOption('#alimWho', '학부모1');
+  await pickKind('notice_gramma');
+  await page.check('#alimOn'); await setWho(['학부모1']);
   await page.click('#submitBtn');
   await page.waitForFunction(() => document.getElementById('alimBox').style.display === 'block' && document.getElementById('alimGo'), { timeout: 8000 });
   const t2 = await page.$eval('#alimBox', e => e.textContent);
-  ok(/1명에게 학부모1 번호로/.test(t2), '학부모1 번호가 있는 1명만 (' + t2.match(/\d+명에게[^.]*/)[0] + ')');
+  ok(/1명의 학부모1에게 1건/.test(t2), '학부모1 번호가 있는 1명만 (' + t2.slice(0, 80) + ')');
   ok(/연락처가 없어 못 보내는 학생 3명: 김없음, 한동명, 한동명/.test(t2), '학부모1 번호 없는 3명 안내(퇴원생은 아예 제외)');
   ok(/접근코드가 없어 못 보내는 학생 1명: 김코드없음/.test(t2), '접근코드 없는 학생은 번호가 있어도 제외하고 따로 안내');
   await page.click('#alimGo');
   await page.waitForFunction(() => /공지 알림톡 1건/.test(document.getElementById('status').textContent), { timeout: 8000 });
   ok(alimSends().length === 1 && alimSends()[0].items[0].student === '박보검' && alimSends()[0].items[0].to === '01032220001' && alimSends()[0].items[0].who === '학부모1', '박보검 학부모1 번호로 1건');
-  ok(alimSends()[0].kind === 'notice_event' && /행사 안내가 도착했어요/.test(t2), '다른 종류(행사 안내)를 고르면 그 종류로 보낸다');
+  ok(alimSends()[0].kind === 'notice_gramma' && /문법 테스트 참여 안내가 도착했어요/.test(t2), '다른 종류(문법 테스트 참여 안내)를 고르면 그 종류로 보낸다');
+
+  console.log('①-b2 학생·학부모 함께 (2026-09-29)');
+  posts.length = 0;
+  await page.evaluate(() => { currentSel = { type: '일부', target: '박보검', count: 1, summary: '일부 — 1명' }; });
+  await page.fill('#title', '함께 안내'); await page.check('#alimOn'); await setWho(['학생', '학부모1', '학부모2']);
+  await page.click('#submitBtn');
+  await page.waitForFunction(() => document.getElementById('alimBox').style.display === 'block' && document.getElementById('alimGo'), { timeout: 8000 });
+  const t3 = await page.$eval('#alimBox', e => e.textContent);
+  await page.click('#alimGo');
+  await page.waitForFunction(() => /공지 알림톡/.test(document.getElementById('status').textContent), { timeout: 8000 });
+  const w3 = alimSends()[0].items.map(x => x.who + ':' + x.to);
+  ok(w3.length >= 2 && w3.some(x => x.startsWith('학생:')) && w3.some(x => x.startsWith('학부모1:')) && alimSends()[0].items.every(x => x.student === '박보검'), '한 학생에게 받는 분마다 한 건씩 (' + w3.join(' ') + ' / ' + t3.slice(0, 70) + ')');
+  posts.length = 0;
+  await page.fill('#title', '아무도 안 고름'); await page.check('#alimOn'); await setWho([]);
+  await page.click('#submitBtn'); await sleep(300);
+  ok(!posts.some(b => b.action === 'addNotice') && /받는 분을 한 명 이상/.test(await page.$eval('#status', e => e.textContent)), '받는 분을 하나도 안 고르면 등록 전에 막는다');
+  await setWho(['학생']);
 
   console.log('①-c 개인 공지 · 동명이인 토큰 · 숨김 공지 · 설정 전');
   posts.length = 0;
   await page.evaluate(() => { currentSel = { type: '일부', target: '한동명|능곡고|2026고등2학년, 박보검', count: 2, summary: '일부 — 2명' }; });
-  await page.fill('#title', '개별 안내'); await page.check('#alimOn'); await page.selectOption('#alimWho', '학생');
+  await page.fill('#title', '개별 안내'); await page.check('#alimOn'); await setWho(['학생']);
   await page.click('#submitBtn');
   await page.waitForFunction(() => document.getElementById('alimBox').style.display === 'block' && document.getElementById('alimGo'), { timeout: 8000 });
-  ok(/2명에게 학생 번호로/.test(await page.$eval('#alimBox', e => e.textContent)), '일부(동명이인 토큰 포함) → 2명');
+  ok(/2명의 학생에게 2건/.test(await page.$eval('#alimBox', e => e.textContent)), '일부(동명이인 토큰 포함) → 2명');
   await page.click('#alimGo');
   await page.waitForFunction(() => /공지 알림톡 2건/.test(document.getElementById('status').textContent), { timeout: 8000 });
   ok(alimSends()[0].items.map(x => x.to).sort().join() === '01031110001,01031110005', '능곡고 한동명(01031110005)만 — 화정고 한동명은 제외');
@@ -159,7 +178,7 @@ const alimSends = () => posts.filter(b => b.action === 'alimSend');
   await page.waitForFunction(() => /등록됐어요/.test(document.getElementById('status').textContent), { timeout: 8000 });
   await sleep(400);
   ok(posts.some(b => b.action === 'addNotice' && b.hidden === true) && await page.$eval('#alimBox', e => e.style.display) === 'none', '숨김으로 저장한 공지는 알림톡을 묻지 않는다');
-  ALIM_CFG = Object.assign({}, ALIM_CFG, { templates: { absent: ALIM_CFG.templates.absent, notice_sched: ntpl('수업 일정 안내', false), notice_mock: ntpl('주말 실전 모의고사 신청 안내', false), notice_event: ntpl('행사 안내', false) } });
+  ALIM_CFG = Object.assign({}, ALIM_CFG, { templates: { absent: ALIM_CFG.templates.absent, notice_sched: ntpl('수업 일정 안내', false), notice_mock: ntpl('주말 실전 모의고사 신청 안내', false), notice_gramma: ntpl('문법 테스트 참여 안내', false) } });
   await page.goto(NURL, { waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => /템플릿이 아직 없어요/.test(document.getElementById('alimNote').textContent), { timeout: 8000 });
   ok(await page.$eval('#alimOn', e => e.disabled), '공지 템플릿이 하나도 없으면 체크가 잠기고 안내');

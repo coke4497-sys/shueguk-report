@@ -4041,8 +4041,10 @@ var ALIM_PROP_ = { key:'SOLAPI_KEY', secret:'SOLAPI_SECRET', from:'SOLAPI_FROM',
  * 아래 주소(도메인은 고정, 변수는 #{접근코드} 자리만). 알림톡(ATA)은 버튼이 템플릿에 붙어 있어 보낼 때 따로 싣지
  * 않고 variables로 #{접근코드}만 채운다. 접근코드 = 학생 페이지 링크(s.html?key=)의 키. */
 var ALIM_STU_LINK_ = 'https://coke4497-sys.github.io/shueguk-report/s.html?key=#{접근코드}';
-function alimTail_(line) { return line + '\n' + ALIM_STU_LINK_; }   // 마지막 줄 + 학생 페이지 주소 줄
-function alimNoticeTpl_(name, prop, tail) {
+// 주소 줄은 문구에서 뺐다(2026-09-29 사용자 "링크 말고 버튼으로 등록") — 학생 페이지는 [학생 페이지 열기] 버튼으로만 연다.
+// 버튼 주소에 #{접근코드}가 쓰이므로 변수는 그대로 둔다.
+function alimTail_(line) { return line; }
+function alimNoticeTpl_(name, prop, tail, btnName) {
   return {
     label: name, prop: prop, notice: true,
     vars: ['학생명', '제목', '접근코드'],
@@ -4052,7 +4054,7 @@ function alimNoticeTpl_(name, prop, tail) {
           '▶ #{제목}\n' +
           '\n' +
           (tail || '학생 페이지에서 내용을 확인해 주세요.'),   // 마지막 줄만 종류별로 다르게 둘 수 있다(사용자 지정 문구)
-    buttons: [{ name: '학생 페이지 열기', type: 'WL', linkMo: ALIM_STU_LINK_, linkPc: ALIM_STU_LINK_ }]
+    buttons: [{ name: btnName || '학생 페이지 링크', type: 'WL', linkMo: ALIM_STU_LINK_, linkPc: ALIM_STU_LINK_ }]
   };
 }
 var ALIM_TPL_ = {
@@ -4070,11 +4072,12 @@ var ALIM_TPL_ = {
    * 제목으로 나눌 것"으로 반려해서(2026-09-16), 공지 화면에서 종류를 고르고 그 종류의 템플릿으로 보낸다.
    * 처음 넷(수업 일정·시험·과제·학원 운영)으로 나눴다가 같은 날 사용자가 아래 여덟으로 정했다(결석 안내까지 합쳐 9종).
    * 문구 모양은 모두 같고 제목 줄·둘째 줄의 종류 이름만 다르다. 변수·버튼은 종류마다 동일. */
-  notice_sched:    alimNoticeTpl_('수업 일정 안내',              'ALIM_TPL_NOTICE_SCHED'),
   /* 마지막 줄은 종류마다 '어느 메뉴에서 무엇을 하면 되는지'를 적고(2026-09-17 사용자 "학생 페이지에서 내용을 확인해 주세요를 좀더
    * 명확하게"), 그 아래 학생 페이지 주소를 한 줄 더 둔다(주소의 키 자리는 #{접근코드} — 버튼과 같은 주소). 메뉴 이름은 s.html 카드 이름. */
+  /* 수업 일정 안내는 2026-09-17 솔라피 등록·승인본에 맞춘다(2026-09-29 원장님 캡처 — 마지막 줄 '학생 페이지에서 내용을
+   * 확인해 주세요.', 버튼 이름 '학생 페이지 링크'). 다시 심사받지 않으려고 코드 쪽을 등록본에 맞췄다 — 바꾸지 말 것. */
   notice_sched:    alimNoticeTpl_('수업 일정 안내',              'ALIM_TPL_NOTICE_SCHED',
-                     alimTail_('학생 페이지의 알려드립니다 메뉴에서 바뀐 수업 일정을 확인해 주세요.')),
+                     '학생 페이지에서 내용을 확인해 주세요.', '학생 페이지 링크'),
   notice_mock:     alimNoticeTpl_('주말 실전 모의고사 신청 안내', 'ALIM_TPL_NOTICE_MOCK',
                      alimTail_('학생 페이지의 주말 실전 모의고사 메뉴에서 신청할 수 있습니다.')),
   notice_hwork:    alimNoticeTpl_('H WORK 안내',                'ALIM_TPL_NOTICE_HWORK',
@@ -4086,9 +4089,8 @@ var ALIM_TPL_ = {
   notice_voca:     alimNoticeTpl_('어휘 테스트 참여 안내',       'ALIM_TPL_NOTICE_VOCA',
                      alimTail_('학생 페이지의 어휘 테스트 메뉴에서 이번 주 테스트에 참여해 주세요.')),
   notice_gramma:   alimNoticeTpl_('문법 테스트 참여 안내',       'ALIM_TPL_NOTICE_GRAMMA',
-                     alimTail_('학생 페이지의 문법 테스트 메뉴에서 배정된 테스트에 참여해 주세요.')),
-  notice_event:    alimNoticeTpl_('행사 안내',                   'ALIM_TPL_NOTICE_EVENT',
-                     alimTail_('학생 페이지의 알려드립니다 메뉴에서 행사 내용을 확인해 주세요.'))
+                     alimTail_('학생 페이지의 문법 테스트 메뉴에서 배정된 테스트에 참여해 주세요.'))
+  // 행사 안내(notice_event)는 2026-09-29 사용자 "행사 안내는 삭제"로 뺐다 — 공지 알림은 일곱 종류(결석까지 8종).
 };
 function alimProps_() { return PropertiesService.getScriptProperties(); }
 function alimSheet_(ss) {
@@ -4150,7 +4152,7 @@ function alimYmd_(v) {
   return /^\d{4}-\d{2}-\d{2}/.test(s) ? s.slice(0, 10) : s;   // 날짜가 아닌 키('N:날짜|제목' — 공지)는 통째로
 }
 /** 발송. { pw, kind:'absent', items:[{ student, to, who, vars:{학생명,수업일,반이름}, cls, date }], force? }
- *  같은 종류·학생·수업일로 이미 성공한 기록이 있으면 force가 아니면 건너뛴다(dup) — 조교 둘이 겹쳐 눌러도 두 번 안 감.
+ *  한 학생에게 받는 분(학생·학부모1·학부모2)마다 item 하나씩. 같은 종류·학생·수업일·받는 분으로 이미 성공한 기록이 있으면 force가 아니면 건너뛴다(dup) — 조교 둘이 겹쳐 눌러도 두 번 안 감.
  *  응답: { result:'success', sent:[{student,ok,message,dup}], okCount, failCount } */
 function alimSend(data) {
   if (String(data.pw || '') !== TEACHER_PW) return json({ result:'error', message:'unauthorized' });
@@ -4175,21 +4177,23 @@ function alimSend(data) {
   if (String(data.force || '') !== '1') {
     var tail = sheetTail_(sh, 0, Date.now() - 7 * 24 * 3600 * 1000).rows;
     tail.forEach(function(r) {
-      if (String(r[1]) === kind && String(r[7]) === '성공') done[String(r[2]).trim() + '|' + alimYmd_(r[6])] = true;
+      // 받는 분(D열)까지 키에 넣는다 — 학생·학부모에게 함께 보내므로(2026-09-29 사용자 "학생, 학부모님 모두에게")
+      // 한 사람에게 간 기록이 다른 사람 발송을 막지 않게.
+      if (String(r[1]) === kind && String(r[7]) === '성공') done[String(r[2]).trim() + '|' + alimYmd_(r[6]) + '|' + String(r[3]).trim()] = true;
     });
   }
   var msgs = [], sent = [], pending = [];
   items.forEach(function(it) {
-    var student = String(it.student).trim(), date = String(it.date || '').trim();
+    var student = String(it.student).trim(), date = String(it.date || '').trim(), who = String(it.who || '').trim();
     var to = String(it.to).replace(/\D/g, '');
-    if (done[student + '|' + date]) { sent.push({ student: student, ok: true, dup: true, message: '이미 보냈어요' }); return; }
-    if (!/^01\d{8,9}$/.test(to)) { sent.push({ student: student, ok: false, message: '휴대폰 번호 형식이 아니에요: ' + to }); return; }
+    if (done[student + '|' + date + '|' + who]) { sent.push({ student: student, who: who, ok: true, dup: true, message: '이미 보냈어요' }); return; }
+    if (!/^01\d{8,9}$/.test(to)) { sent.push({ student: student, who: who, ok: false, message: '휴대폰 번호 형식이 아니에요: ' + to }); return; }
     var vars = {};
     tpl.vars.forEach(function(v) { vars['#{' + v + '}'] = String((it.vars || {})[v] || '').trim(); });
     var m = { to: to, type: 'ATA', kakaoOptions: { pfId: pfId, templateId: tplId, variables: vars, disableSms: !from } };
     if (from) m.from = from;
     msgs.push(m);
-    pending.push({ student: student, to: to, who: String(it.who || '').trim(), cls: String(it.cls || '').trim(), date: date });
+    pending.push({ student: student, to: to, who: who, cls: String(it.cls || '').trim(), date: date });
   });
   var groupId = '';
   if (msgs.length) {
@@ -4214,7 +4218,7 @@ function alimSend(data) {
     var errAll = code === 200 ? '' : ('솔라피 오류 ' + (code || '') + ' ' + String(body.errorMessage || body.message || '')).trim();
     pending.forEach(function(p) {
       var err = errAll || failedByTo[p.to] || '';
-      sent.push({ student: p.student, ok: !err, message: err || '보냈어요' });
+      sent.push({ student: p.student, who: p.who, ok: !err, message: err || '보냈어요' });
     });
     // 기록 — 학생마다 한 줄
     var rows = pending.map(function(p) {
