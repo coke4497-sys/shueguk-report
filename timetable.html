@@ -6676,10 +6676,10 @@ function crSrcOf(x){
 var CR_XT_KEY = '__검사과제';
 function crXtHtml(){
   var xt = CR.xt || [], last = (CR.xtLast || []).filter(function(t){ return xt.indexOf(t) < 0; });
-  return '<div class="cr-xt"><div class="cr-xt-h"><b>반 전체 검사 과제 추가</b><small>교재 데일리 과제처럼 지난 수업 기록에 없는 과제를 적어 주십시오. 반 학생 모두에게 별 칸이 생겨요.</small></div>' +
+  return '<div class="cr-xt"><div class="cr-xt-h"><b>반 전체 검사 과제 추가</b><small>한 줄에 하나씩 추가하세요.</small></div>' +
     (xt.length ? '<div class="cr-units">' + xt.map(function(t){ return '<span class="cr-unit">' + esc(t) + '<button type="button" data-xtrm="' + esc(t) + '" aria-label="' + esc(t) + ' 빼기">×</button></span>'; }).join('') + '</div>' : '') +
     (last.length ? '<button type="button" class="cr-mini" id="cr-xt-last">지난번 과제 다시 넣기 · ' + esc(last.join(', ').slice(0, 60)) + '</button>' : '') +
-    '<div class="cr-xt-in"><textarea id="cr-xt" rows="2" maxlength="300" placeholder="한 줄에 하나 — 예) 데일리 독해 1회">' + esc(CR.xtDraft || '') + '</textarea>' +
+    '<div class="cr-xt-in"><textarea id="cr-xt" rows="2" maxlength="300" placeholder="예) 슈주간지 260930">' + esc(CR.xtDraft || '') + '</textarea>' +
     '<button type="button" class="cr-btn" id="cr-xt-add">반 전체에 추가</button></div></div>';
 }
 function crXtSet(next, msg){
