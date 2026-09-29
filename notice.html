@@ -514,8 +514,8 @@
   function alimFill(text, vars){ return String(text || '').replace(/#\{([^}]+)\}/g, function(_, k){ return vars[k] != null ? vars[k] : ''; }); }
   /* 종류별 추가 변수(모의고사 #{신청일} 등) — 기본 셋 밖의 변수는 확인 상자에 입력 칸을 만들고, 다 채워야 보낸다 */
   var ALIM_BASE_VARS = ['학생명', '제목', '접근코드'];
-  var ALIM_X_HINT = { '신청일': '예) 3/14(토), 3/15(일)', '장소': '예) 대감빌딩 5층 이수경 국어 본원' };
-  var ALIM_X_DEFAULT = { '장소': '대감빌딩 5층 이수경 국어 본원' };   // 늘 같은 값은 미리 채워 둔다(고칠 수 있음)
+  var ALIM_X_HINT = { '신청일': '예) 3/14(토), 3/15(일)', '장소': '예) 대감빌딩 5층 이수경 국어 본원', '정원': '예) 35 (숫자만)' };
+  var ALIM_X_DEFAULT = { '장소': '대감빌딩 5층 이수경 국어 본원', '정원': '35' };   // 늘 같은 값은 미리 채워 둔다(고칠 수 있음)
   function alimExtraVars(tpl){ return ((tpl && tpl.vars) || []).filter(function(v){ return ALIM_BASE_VARS.indexOf(v) < 0; }); }
   function alimXVals(){ var o = {}; Array.prototype.forEach.call(document.querySelectorAll('.alimX'), function(el){ o[el.getAttribute('data-var')] = el.value.trim(); }); return o; }
   function alimXChanged(){
