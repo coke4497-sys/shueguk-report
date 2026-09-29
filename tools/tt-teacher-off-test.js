@@ -1,0 +1,80 @@
+#!/usr/bin/env node
+/* 주차별 시간표의 교사 임시 휴무 검증.
+ *   NODE_PATH=$(npm root -g) node tools/tt-teacher-off-test.js
+ * 임시 휴무는 별도 표시이며 수업 카드·출석·회차를 바꾸지 않는다. */
+const { chromium } = require('playwright');
+const http = require('http'), fs = require('fs'), path = require('path');
+const ROOT = path.join(__dirname, '..');
+const srv = http.createServer((req, res) => {
+  const f = path.join(ROOT, decodeURIComponent(req.url.split('?')[0]));
+  if (!fs.existsSync(f) || fs.statSync(f).isDirectory()){ res.writeHead(404); return res.end(); }
+  res.writeHead(200, { 'Content-Type': 'text/html;charset=utf-8' }); fs.createReadStream(f).pipe(res);
+}).listen(0);
+const port = srv.address().port;
+const now = new Date();
+const mon = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+mon.setDate(mon.getDate() - ((mon.getDay() + 6) % 7));
+const ymd = d => d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+const MON = ymd(mon);
+const CLS = [{ id:'r001', day:'월', start:'4:00', end:'5:30', loc:'본원', teacher:'지원', cls:'고1 가', students:['김하나'] }];
+const OFF = [{ date:MON, teacher:'지원', reason:'월 직보' }];
+
+(async () => {
+  const b = await chromium.launch();
+  const ctx = await b.newContext({ viewport:{ width:1300, height:900 }, timezoneId:'Asia/Seoul' });
+  let writes = [], pass = 0, fail = 0;
+  const ok = (n, c, x) => { if (c) pass++; else { fail++; console.log('  ✗ ' + n + (x ? ' — ' + x : '')); } };
+  await ctx.route(/fonts\.g/, r => r.abort());
+  await ctx.route(/supabase\.co/, async r => {
+    const req = r.request();
+    if (/tt_teacher_days_off/.test(req.url()) && req.method() !== 'GET'){
+      writes.push({ method:req.method(), url:req.url(), body:req.postData() || '' });
+      return r.fulfill({ status:200, contentType:'application/json', body:'[]' });
+    }
+    if (req.method() === 'GET') return r.fulfill({ status:500, contentType:'application/json', body:'{}' });
+    await r.fulfill({ status:200, contentType:'application/json', body:'{}' });
+  });
+  await ctx.route(/script\.google\.com|googleusercontent/, r => r.fulfill({ status:200, contentType:'application/json', body:'{"result":"error"}' }));
+  const page = await ctx.newPage();
+  await page.addInitScript(({ cls, off, mon }) => {
+    sessionStorage.setItem('tt_mode', 'week'); sessionStorage.setItem('tt_book', '정규');
+    localStorage.setItem('ttc:list:정규', JSON.stringify({ t:Date.now(), d:{ classes:cls, onceMoves:[] } }));
+    localStorage.setItem('ttc:week:정규:' + mon, JSON.stringify({ t:Date.now(), d:{ attend:[], onceMoves:[], teacherOffs:off } }));
+  }, { cls:CLS, off:OFF, mon:MON });
+  await page.goto('http://127.0.0.1:' + port + '/timetable.html');
+  await page.waitForSelector('.toff-chip', { timeout:15000 });
+
+  let r = await page.evaluate(() => ({
+    strip: document.querySelector('.toff-strip').textContent,
+    monHead: [...document.querySelectorAll('.wk-dayh')].find(x => /^월/.test(x.textContent)).textContent,
+    cards: [...document.querySelectorAll('.wk-mini')].map(x => x.textContent)
+  }));
+  ok('요약: 선생님·휴무·사유 표시', /지원T 휴무/.test(r.strip) && /월 직보/.test(r.strip), r.strip);
+  ok('요일 머리글: 교사 휴무 표시', /교사 휴무.*지원T/.test(r.monHead), r.monHead);
+  ok('독립 정보: 원래 수업 카드 유지', r.cards.some(x => /고1 가/.test(x)), JSON.stringify(r.cards));
+
+  await page.click('.toff-strip .toff-chip');
+  r = await page.evaluate(() => ({
+    txt: document.getElementById('modal-box').textContent,
+    reason: document.getElementById('toff-reason').value,
+    placeholder: document.getElementById('toff-reason').placeholder,
+    del: getComputedStyle(document.getElementById('toff-del')).display
+  }));
+  ok('설정창: 독립 정보·원래 날짜 회차 원칙 안내', /수업·출석·회차에는 영향을 주지 않습니다/.test(r.txt) && /원래 수업 날짜 기준/.test(r.txt), r.txt);
+  ok('설정창: 사유 예시 월 직보', r.placeholder === '예: 월 직보');
+  ok('설정창: 기존 사유와 해제 버튼', r.reason === '월 직보' && r.del !== 'none', JSON.stringify(r));
+  ok('설정창: 남은 수업은 자동 변경하지 않음', /수업 1개가 남아 있습니다.*자동으로 바뀌지 않아요/.test(r.txt), r.txt);
+
+  await page.fill('#toff-reason', '월 직보 완료');
+  await page.click('button:text("휴무 저장")');
+  await page.waitForTimeout(100);
+  ok('저장: 별도 테이블 UPSERT', writes.some(x => x.method === 'POST' && /on_conflict=off_date,teacher/.test(x.url) && /월 직보 완료/.test(x.body)), JSON.stringify(writes));
+
+  await page.evaluate(({ mon }) => { teacherOffs = [{ date:mon, teacher:'지원', reason:'월 직보' }]; openTeacherOff(mon, '지원'); }, { mon:MON });
+  await page.click('#toff-del');
+  await page.waitForTimeout(100);
+  ok('해제: 해당 날짜·선생님 행만 DELETE', writes.some(x => x.method === 'DELETE' && /off_date=eq\./.test(x.url) && /teacher=eq\./.test(x.url)), JSON.stringify(writes));
+
+  console.log('통과 ' + pass + ' / 실패 ' + fail);
+  await b.close(); srv.close(); process.exit(fail ? 1 : 0);
+})().catch(e => { console.error(e); process.exit(1); });
