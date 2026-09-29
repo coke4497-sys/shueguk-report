@@ -1199,6 +1199,11 @@ function validateForm(data){
   }
   var sel = assignSel || (assignPicker && assignPicker.getSelection());
   if(!sel && !EDIT_MODE){ return '이 시험을 볼 학생을 배정해주세요. (전 학년 / 학년 / 개인 / 일부 중 선택)'; }
+  /* 자동 생성 초안: 배정 위젯의 기본값(전 학년)이나 앞 리포트의 선택이 그대로 등록되지 않게, 한 번은 직접 고르게 한다 */
+  if(typeof DR!=='undefined' && DR.from && !DR.assignOk && !EDIT_MODE){
+    var ap=document.getElementById('assignPicker'); if(ap && ap.scrollIntoView) ap.scrollIntoView({behavior:'smooth', block:'center'});
+    return '이 리포트를 볼 학생을 배정 칸에서 직접 골라 주세요. (전 학년 / 학년 / 개인 / 일부)';
+  }
   var blocks=document.querySelectorAll('#blockList > .block');
   if(data.questions.length===0){ return '문항을 1개 이상 입력해주세요.'; }
   for(var b=0;b<blocks.length;b++){
@@ -1740,7 +1745,17 @@ function drOpen(id){
       document.getElementById('f_scope').value = String(d.scope || r.scope || '');
       document.getElementById('f_review').value = (Array.isArray(d.review) ? d.review : [String(d.review || '')]).join('\n\n').trim();
       SUPPRESS_SCROLL = true; fillQuestions(d.questions.map(drCleanQ)); SUPPRESS_SCROLL = false;
+      /* 앞서 다른 초안을 열었거나 이 화면에서 이미 등록했다면 그때 고른 학생 배정을 비운다 —
+       * 남겨 두면 다시 고르지 않아도 검사를 통과해 앞 리포트의 학생에게 이 리포트가 공개된다(Codex 검토 P1).
+       * 처음 여는 초안은 내신대비 피드백에서 넘어온 자동 배정을 그대로 둔다. */
+      if (DR.from || DR.saved){
+        assignSel = null;
+        if (assignPicker && assignPicker.reset) assignPicker.reset();
+        var nsn = document.getElementById('nsAssignNote'); if (nsn) nsn.remove();
+        DR.saved = false;
+      }
       DR.from = r.id;
+      DR.assignOk = !!document.getElementById('nsAssignNote');   // 초안은 학생 배정을 직접 한 번 만져야 등록된다(validateForm)
       var notes = Array.isArray(d.notes) ? d.notes.filter(Boolean) : [];
       var bn = document.getElementById('drBanner');
       bn.innerHTML = '<b>클로슈가 만든 초안으로 채웠습니다.</b> 문항·총평을 확인하고 고친 뒤, 학생을 배정하고 등록하십시오. 등록 전에는 학생에게 보이지 않아요.' +
@@ -1752,6 +1767,7 @@ function drOpen(id){
     .catch(function(e){ console.error(e); drListNote('초안을 불러오지 못했습니다. 다시 눌러 주세요.', 'err'); });
 }
 function drMarkReport(reportId){
+  DR.saved = true;   // 이 화면에서 한 번 등록했다 — 다음 초안을 열 때 학생 배정을 비운다(drOpen)
   if (!DR.from || !reportId) return;
   drSb('PATCH', '/exam_drafts?id=eq.' + DR.from, { report_id: String(reportId), updated_at: new Date().toISOString() }, 'return=minimal')
     .catch(function(e){ console.error(e); });
@@ -1806,6 +1822,10 @@ function drOpenFile(i){
     .catch(function(){ if (w) w.close(); alert('파일을 열지 못했습니다.'); });
 }
 document.addEventListener('keydown', function(e){ if (e.key === 'Escape') drClose(); });
+/* 배정 칸을 직접 누르거나 바꾸면 '확인함'으로 본다 */
+['click', 'change', 'input'].forEach(function(ev){
+  document.addEventListener(ev, function(e){ var ap = document.getElementById('assignPicker'); if (ap && e.isTrusted && ap.contains(e.target)) DR.assignOk = true; }, true);
+});
 
 /* 시작: 빈 상태에서 선생님이 직접 문항을 추가합니다 */
 renumberAll();

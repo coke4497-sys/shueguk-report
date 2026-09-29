@@ -69,7 +69,7 @@ const ROWS0 = [
         const id = +((u.match(/id=eq\.(\d+)/) || [])[1] || 0);
         if (m === 'PATCH'){ const row = st.rows.find(x => x.id === id); if (row) Object.assign(row, body); return r.fulfill({ status: 204, body: '' }); }
         if (m === 'DELETE') return r.fulfill({ status: 204, body: '' });
-        if (id){ const row = st.rows.find(x => x.id === id); return json(200, row ? [Object.assign({ period: '26-2-중간', school: '화정고', grade: '1', subject: '공통국어2', scope: '', draft: id === 7 ? DRAFT : null }, row)] : []); }
+        if (id){ const row = st.rows.find(x => x.id === id); return json(200, row ? [Object.assign({ period: '26-2-중간', school: '화정고', grade: '1', subject: '공통국어2', scope: '', draft: (id === 7 || id === 5) ? DRAFT : null }, row)] : []); }
         return json(200, st.rows);
       }
       if (m !== 'GET') return json(201, []);
@@ -172,6 +172,11 @@ const ROWS0 = [
   ok('③ <보기> 내용·복수 선택', c.questions[1].txt === DRAFT.questions[1].txt && c.questions[1].multi === true);
   ok('③ 목록 밖 난이도 → 상, 직접 입력', c.questions[2].lv === '상' && c.questions[2].type === '서술형' && c.questions[2].txt === '말하기 방식의 특징을 서술하기');
   // 등록 → report_id
+  await page.evaluate(() => saveReport());
+  await page.waitForTimeout(300);
+  ok('③ 초안은 배정을 직접 고르기 전엔 등록 막힘', /직접 골라/.test(await page.textContent('#status')));
+  await page.click('#assignPicker .sp-tab >> nth=1');
+  ok('③ 배정 칸을 누르면 확인됨', await page.evaluate(() => DR.assignOk === true));
   await page.evaluate(() => { assignSel = { type: '학년', target: '고1', count: 1, summary: '고1' }; saveReport(); });
   await page.waitForTimeout(1200);
   const rp = st.rest.find(x => x.m === 'PATCH' && /id=eq\.7/.test(x.u) && x.body && x.body.report_id);
@@ -179,6 +184,20 @@ const ROWS0 = [
   // 되돌아가기
   await page.click('#mkBackManual');
   ok('③ 방법 다시 고르기', await vis(page, '#chooseView'));
+  // 등록 뒤 다른 초안을 열면 앞의 학생 배정이 남지 않는다(Codex 검토 P1)
+  st.rows.find(x => x.id === 5).status = '완료';
+  await page.evaluate(() => drLoad());
+  await page.waitForSelector('.dr-row[data-id="5"] button:has-text("리포트 만들기")');
+  await page.click('.dr-row[data-id="5"] button:has-text("리포트 만들기")');
+  await page.waitForFunction(() => document.getElementById('manualView').style.display !== 'none', null, { timeout: 4000 }).catch(() => {});
+  await page.waitForTimeout(200);
+  ok('③ 다음 초안에서 앞 배정(학년 고1) 비움', await page.evaluate(() => { const s = assignSel || (assignPicker && assignPicker.getSelection()); return !s || s.type !== '학년'; }));
+  const gasN = st.gas.filter(x => x.action === 'createReport').length;
+  await page.evaluate(() => saveReport());
+  await page.waitForTimeout(400);
+  ok('③ 다음 초안도 다시 확인 필요', await page.evaluate(() => DR.assignOk === false));
+  ok('③ 배정을 직접 고르기 전엔 등록 막힘', /직접 골라/.test(await page.textContent('#status')) && st.gas.filter(x => x.action === 'createReport').length === gasN);
+  await page.click('#mkBackManual');
   await ctx.close();
 
   // ⑤ 수정 모드
