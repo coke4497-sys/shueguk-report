@@ -60,7 +60,8 @@ const OFF = [{ date:MON, teacher:'지원', reason:'월 직보' }];
     placeholder: document.getElementById('toff-reason').placeholder,
     del: getComputedStyle(document.getElementById('toff-del')).display
   }));
-  ok('설정창: 독립 정보·원래 날짜 회차 원칙 안내', /수업·출석·회차에는 영향을 주지 않습니다/.test(r.txt) && /원래 수업 날짜 기준/.test(r.txt), r.txt);
+  ok('설정창: 제목 변경·불필요 안내 제거', /휴무일 변경 기록/.test(r.txt) &&
+     !/선생님의 근무 표시만|원래 수업 날짜 기준|회차/.test(r.txt), r.txt);
   ok('설정창: 사유 예시 월 직보', r.placeholder === '예: 월 직보');
   ok('설정창: 기존 사유와 해제 버튼', r.reason === '월 직보' && r.del !== 'none', JSON.stringify(r));
   ok('설정창: 남은 수업은 자동 변경하지 않음', /수업 1개가 남아 있습니다.*자동으로 바뀌지 않아요/.test(r.txt), r.txt);
