@@ -4044,7 +4044,7 @@ var ALIM_STU_LINK_ = 'https://coke4497-sys.github.io/shueguk-report/s.html?key=#
 // 주소 줄은 문구에서 뺐다(2026-09-29 사용자 "링크 말고 버튼으로 등록") — 학생 페이지는 [학생 페이지 열기] 버튼으로만 연다.
 // 버튼 주소에 #{접근코드}가 쓰이므로 변수는 그대로 둔다.
 function alimTail_(line) { return line; }
-function alimNoticeTpl_(name, prop, tail) {
+function alimNoticeTpl_(name, prop, tail, btnName) {
   return {
     label: name, prop: prop, notice: true,
     vars: ['학생명', '제목', '접근코드'],
@@ -4054,7 +4054,7 @@ function alimNoticeTpl_(name, prop, tail) {
           '▶ #{제목}\n' +
           '\n' +
           (tail || '학생 페이지에서 내용을 확인해 주세요.'),   // 마지막 줄만 종류별로 다르게 둘 수 있다(사용자 지정 문구)
-    buttons: [{ name: '학생 페이지 열기', type: 'WL', linkMo: ALIM_STU_LINK_, linkPc: ALIM_STU_LINK_ }]
+    buttons: [{ name: btnName || '학생 페이지 열기', type: 'WL', linkMo: ALIM_STU_LINK_, linkPc: ALIM_STU_LINK_ }]
   };
 }
 var ALIM_TPL_ = {
@@ -4072,11 +4072,12 @@ var ALIM_TPL_ = {
    * 제목으로 나눌 것"으로 반려해서(2026-09-16), 공지 화면에서 종류를 고르고 그 종류의 템플릿으로 보낸다.
    * 처음 넷(수업 일정·시험·과제·학원 운영)으로 나눴다가 같은 날 사용자가 아래 여덟으로 정했다(결석 안내까지 합쳐 9종).
    * 문구 모양은 모두 같고 제목 줄·둘째 줄의 종류 이름만 다르다. 변수·버튼은 종류마다 동일. */
-  notice_sched:    alimNoticeTpl_('수업 일정 안내',              'ALIM_TPL_NOTICE_SCHED'),
   /* 마지막 줄은 종류마다 '어느 메뉴에서 무엇을 하면 되는지'를 적고(2026-09-17 사용자 "학생 페이지에서 내용을 확인해 주세요를 좀더
    * 명확하게"), 그 아래 학생 페이지 주소를 한 줄 더 둔다(주소의 키 자리는 #{접근코드} — 버튼과 같은 주소). 메뉴 이름은 s.html 카드 이름. */
+  /* 수업 일정 안내는 2026-09-17 솔라피 등록·승인본에 맞춘다(2026-09-29 원장님 캡처 — 마지막 줄 '학생 페이지에서 내용을
+   * 확인해 주세요.', 버튼 이름 '학생 페이지 링크'). 다시 심사받지 않으려고 코드 쪽을 등록본에 맞췄다 — 바꾸지 말 것. */
   notice_sched:    alimNoticeTpl_('수업 일정 안내',              'ALIM_TPL_NOTICE_SCHED',
-                     alimTail_('학생 페이지의 알려드립니다 메뉴에서 바뀐 수업 일정을 확인해 주세요.')),
+                     '학생 페이지에서 내용을 확인해 주세요.', '학생 페이지 링크'),
   notice_mock:     alimNoticeTpl_('주말 실전 모의고사 신청 안내', 'ALIM_TPL_NOTICE_MOCK',
                      alimTail_('학생 페이지의 주말 실전 모의고사 메뉴에서 신청할 수 있습니다.')),
   notice_hwork:    alimNoticeTpl_('H WORK 안내',                'ALIM_TPL_NOTICE_HWORK',
