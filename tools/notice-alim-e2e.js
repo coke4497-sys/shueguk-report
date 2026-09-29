@@ -35,7 +35,7 @@ let ALIM_CFG = { result: 'success', ready: true, smsFallback: false, has: { key:
   templates: { absent: { label: '결석 안내', text: 'x', vars: [], ready: true },
                notice_sched: ntpl('수업 일정 안내', true), notice_mock: ntpl('주말 실전 모의고사 신청 안내', true), notice_hwork: ntpl('H WORK 안내', false),
                notice_report: ntpl('지필고사 리포트 제작 안내', true), notice_reportup: ntpl('지필고사 리포트 업데이트 안내', true),
-               notice_voca: ntpl('어휘 테스트 참여 안내', true), notice_gramma: ntpl('문법 테스트 참여 안내', true), notice_event: ntpl('행사 안내', true) } };
+               notice_voca: ntpl('어휘 테스트 참여 안내', true), notice_gramma: ntpl('문법 테스트 참여 안내', true) } };
 const posts = [];   // 백엔드 POST 본문
 let NOTICES = [];   // 학생 페이지에 줄 공지
 const reads = [];   // notice_read_submit 호출
@@ -93,7 +93,7 @@ const alimSends = () => posts.filter(b => b.action === 'alimSend');
   await page.goto(NURL, { waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => !document.getElementById('alimOn').disabled, { timeout: 8000 });
   ok(true, '설정이 준비되면 [알림톡도 보내기] 체크가 열린다');
-  ok((await page.$$eval('#alimKind option', els => els.map(o => o.value + ':' + o.textContent))).join('|') === 'notice_sched:수업 일정 안내|notice_mock:주말 실전 모의고사 신청 안내|notice_hwork:H WORK 안내 (준비 전)|notice_report:지필고사 리포트 제작 안내|notice_reportup:지필고사 리포트 업데이트 안내|notice_voca:어휘 테스트 참여 안내|notice_gramma:문법 테스트 참여 안내|notice_event:행사 안내', '종류 드롭다운 = 여덟 종류, 심사 전은 “(준비 전)”');
+  ok((await page.$$eval('#alimKind option', els => els.map(o => o.value + ':' + o.textContent))).join('|') === 'notice_sched:수업 일정 안내|notice_mock:주말 실전 모의고사 신청 안내|notice_hwork:H WORK 안내 (준비 전)|notice_report:지필고사 리포트 제작 안내|notice_reportup:지필고사 리포트 업데이트 안내|notice_voca:어휘 테스트 참여 안내|notice_gramma:문법 테스트 참여 안내', '종류 드롭다운 = 일곱 종류, 심사 전은 “(준비 전)”');
   ok(await page.$eval('#alimKind', e => e.value) === 'notice_sched' && /“수업 일정 안내” 알림톡/.test(await page.$eval('#alimNote', e => e.textContent)), '기본 종류 = 준비된 첫 종류(수업 일정 안내) + 안내 문구');
   await pickKind('notice_mock');
   await pickKind('notice_hwork');
@@ -131,7 +131,7 @@ const alimSends = () => posts.filter(b => b.action === 'alimSend');
   posts.length = 0;
   await page.evaluate(() => { currentSel = { type: '학년', target: '2026 고등 2학년', count: 4, summary: '2026 고등 2학년 — 4명' }; });
   await page.fill('#title', '모의고사 안내');
-  await pickKind('notice_event');
+  await pickKind('notice_gramma');
   await page.check('#alimOn'); await setWho(['학부모1']);
   await page.click('#submitBtn');
   await page.waitForFunction(() => document.getElementById('alimBox').style.display === 'block' && document.getElementById('alimGo'), { timeout: 8000 });
@@ -142,7 +142,7 @@ const alimSends = () => posts.filter(b => b.action === 'alimSend');
   await page.click('#alimGo');
   await page.waitForFunction(() => /공지 알림톡 1건/.test(document.getElementById('status').textContent), { timeout: 8000 });
   ok(alimSends().length === 1 && alimSends()[0].items[0].student === '박보검' && alimSends()[0].items[0].to === '01032220001' && alimSends()[0].items[0].who === '학부모1', '박보검 학부모1 번호로 1건');
-  ok(alimSends()[0].kind === 'notice_event' && /행사 안내가 도착했어요/.test(t2), '다른 종류(행사 안내)를 고르면 그 종류로 보낸다');
+  ok(alimSends()[0].kind === 'notice_gramma' && /문법 테스트 참여 안내가 도착했어요/.test(t2), '다른 종류(문법 테스트 참여 안내)를 고르면 그 종류로 보낸다');
 
   console.log('①-b2 학생·학부모 함께 (2026-09-29)');
   posts.length = 0;
@@ -178,7 +178,7 @@ const alimSends = () => posts.filter(b => b.action === 'alimSend');
   await page.waitForFunction(() => /등록됐어요/.test(document.getElementById('status').textContent), { timeout: 8000 });
   await sleep(400);
   ok(posts.some(b => b.action === 'addNotice' && b.hidden === true) && await page.$eval('#alimBox', e => e.style.display) === 'none', '숨김으로 저장한 공지는 알림톡을 묻지 않는다');
-  ALIM_CFG = Object.assign({}, ALIM_CFG, { templates: { absent: ALIM_CFG.templates.absent, notice_sched: ntpl('수업 일정 안내', false), notice_mock: ntpl('주말 실전 모의고사 신청 안내', false), notice_event: ntpl('행사 안내', false) } });
+  ALIM_CFG = Object.assign({}, ALIM_CFG, { templates: { absent: ALIM_CFG.templates.absent, notice_sched: ntpl('수업 일정 안내', false), notice_mock: ntpl('주말 실전 모의고사 신청 안내', false), notice_gramma: ntpl('문법 테스트 참여 안내', false) } });
   await page.goto(NURL, { waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => /템플릿이 아직 없어요/.test(document.getElementById('alimNote').textContent), { timeout: 8000 });
   ok(await page.$eval('#alimOn', e => e.disabled), '공지 템플릿이 하나도 없으면 체크가 잠기고 안내');

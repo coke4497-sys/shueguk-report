@@ -4089,9 +4089,8 @@ var ALIM_TPL_ = {
   notice_voca:     alimNoticeTpl_('어휘 테스트 참여 안내',       'ALIM_TPL_NOTICE_VOCA',
                      alimTail_('학생 페이지의 어휘 테스트 메뉴에서 이번 주 테스트에 참여해 주세요.')),
   notice_gramma:   alimNoticeTpl_('문법 테스트 참여 안내',       'ALIM_TPL_NOTICE_GRAMMA',
-                     alimTail_('학생 페이지의 문법 테스트 메뉴에서 배정된 테스트에 참여해 주세요.')),
-  notice_event:    alimNoticeTpl_('행사 안내',                   'ALIM_TPL_NOTICE_EVENT',
-                     alimTail_('학생 페이지의 알려드립니다 메뉴에서 행사 내용을 확인해 주세요.'))
+                     alimTail_('학생 페이지의 문법 테스트 메뉴에서 배정된 테스트에 참여해 주세요.'))
+  // 행사 안내(notice_event)는 2026-09-29 사용자 "행사 안내는 삭제"로 뺐다 — 공지 알림은 일곱 종류(결석까지 8종).
 };
 function alimProps_() { return PropertiesService.getScriptProperties(); }
 function alimSheet_(ss) {
