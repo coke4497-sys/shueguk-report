@@ -415,6 +415,11 @@
   .cr-f label{font-size:.8rem;color:var(--ink-soft);}
   .cr-f textarea{font:inherit;font-size:.9rem;color:var(--ink);background:#F6F8F7;border:1px solid var(--line);
     border-radius:10px;padding:9px 11px;resize:vertical;min-height:60px;}
+  .cr-xt{background:#F7F4FA;border-radius:12px;padding:10px 12px;margin:8px 0;display:flex;flex-direction:column;gap:7px;align-items:stretch;}
+  .cr-xt-h{display:flex;flex-direction:column;gap:2px;font-size:.84rem;} .cr-xt-h small{font-size:.74rem;color:var(--ink-soft);}
+  .cr-xt #cr-xt-last{align-self:flex-start;text-align:left;}
+  .cr-xt-in{display:flex;gap:6px;align-items:flex-end;} .cr-xt-in textarea{flex:1;min-width:0;font:inherit;font-size:.84rem;border:1px solid #DDD6E6;border-radius:9px;padding:7px 9px;background:#fff;resize:vertical;}
+  .cr-xt-in .cr-btn{white-space:nowrap;}
   .cr-sh{display:flex;justify-content:space-between;align-items:baseline;font-size:.84rem;}
   .cr-sh span{font-size:.74rem;color:var(--ink-soft);}
   .cr-stu{display:flex;flex-direction:column;gap:8px;}
@@ -6515,6 +6520,8 @@ function openClassNote(c){
   ]).then(function(r){
     if (CR !== mine) return;
     CR.note = r[0][0] || null;
+    CR.xt = crTasksOf(((CR.note || {}).comments || {})[CR_XT_KEY]);
+    CR.xtLast = (r[2] && r[2].xtLast) || [];
     if (r[1]){ CR.hwOk = !!r[3]; r[1].forEach(function(x){ CR.hw[x.token] = { scores: x.scores || {}, pub: x.pub || '', priv: x.priv || '', missing: !!x.missing, plan: x.plan || '', saved: true }; }); }
     CR.src = r[2];
     CR.names.forEach(function(x){ x.stu = crStuOf(x.nm); });
@@ -6624,8 +6631,11 @@ function crHwSrcLoad(c, bk, ymd){
   }
   var inIds = 'in.(' + ids.map(function(x){ return encodeURIComponent('"' + x + '"'); }).join(',') + ')';
   return crGet('/class_notes?book=eq.' + encodeURIComponent(bk) + '&class_id=' + inIds + '&ymd=gte.' + from + '&ymd=lte.' + ymd +
-               '&select=class_id,ymd,homework&order=ymd.desc')
+               '&select=class_id,ymd,homework,comments&order=ymd.desc')
     .then(function(rows){
+      // 이 반이 지난번에 반 전체로 넣은 과제(오늘 것 제외) — [지난번 과제 다시 넣기]
+      var xtLast = [];
+      (rows || []).some(function(r){ if (r.class_id !== c.id || r.ymd >= ymd) return false; xtLast = crTasksOf((r.comments || {})[CR_XT_KEY]); return xtLast.length > 0; });
       var byId = {}; classes.forEach(function(k){ byId[k.id] = k; });
       var myStart = mins(c.start);
       // 오늘보다 앞선 수업만(같은 날이면 지금 반보다 먼저 시작한 다른 반만), 과제가 적힌 것만, 최근 것부터
@@ -6645,14 +6655,59 @@ function crHwSrcLoad(c, bk, ymd){
         return { tasks: crTasksOf(r.homework), ymd: r.ymd, cls: k.cls || '', part: crPartOf(k, bk),
                  label: mdOfYmdStr(r.ymd) + ' (' + '일월화수목금토'.charAt(new Date(r.ymd + 'T00:00:00').getDay()) + ')' + (bk === '내신' && k.cls ? ' ' + crPartLabel(crPartOf(k, bk)) : '') };
       }
-      if (bk !== '내신') return { common: pack(cand.filter(function(r){ return r.class_id === c.id; })[0]) };
+      if (bk !== '내신') return { common: pack(cand.filter(function(r){ return r.class_id === c.id; })[0]), xtLast: xtLast };
       var by = {};
       CR.names.forEach(function(x){ by[x.p] = pack(cand.filter(function(r){ return mine[x.p].indexOf(r.class_id) >= 0; })[0]); });
-      return { by: by };
+      return { by: by, xtLast: xtLast };
     });
 }
 /* 이 학생이 오늘 검사할 과제 목록과 저장 키 */
-function crSrcOf(x){ var s = CR.src; if (!s) return null; return s.common !== undefined ? s.common : (s.by && s.by[x.p]) || null; }
+function crSrcOf(x){
+  var s = CR.src, base = !s ? null : s.common !== undefined ? s.common : (s.by && s.by[x.p]) || null;
+  var xt = CR.xt || [];
+  if (!xt.length) return base ? { tasks: base.tasks, head: base.label + ' 과제' } : null;
+  // 반 전체에 더한 과제(2026-09-29 원장님 "반 전체에 과제를 추가하는 기능" — 교재의 데일리 과제 등) — 지난 과제 뒤에 붙인다
+  var tasks = (base ? base.tasks : []).slice();
+  xt.forEach(function(t){ if (tasks.indexOf(t) < 0) tasks.push(t); });
+  return { tasks: tasks, head: base ? base.label + ' 과제 + 반 전체 추가 과제' : '반 전체에 추가한 과제' };
+}
+/* 반 전체 검사 과제 — class_notes.comments 의 예약 키에 한 줄에 하나로 둔다(학생 이름과 겹치지 않는 키, 새 열 없이).
+ * 교재에 딸린 데일리 과제처럼 매번 같은 과제가 많아서, 이 반이 지난번에 넣은 목록을 [지난번 과제 다시 넣기]로 한 번에 넣는다. */
+var CR_XT_KEY = '__검사과제';
+function crXtHtml(){
+  var xt = CR.xt || [], last = (CR.xtLast || []).filter(function(t){ return xt.indexOf(t) < 0; });
+  return '<div class="cr-xt"><div class="cr-xt-h"><b>반 전체 검사 과제 추가</b><small>교재 데일리 과제처럼 지난 수업 기록에 없는 과제를 적어 주십시오. 반 학생 모두에게 별 칸이 생겨요.</small></div>' +
+    (xt.length ? '<div class="cr-units">' + xt.map(function(t){ return '<span class="cr-unit">' + esc(t) + '<button type="button" data-xtrm="' + esc(t) + '" aria-label="' + esc(t) + ' 빼기">×</button></span>'; }).join('') + '</div>' : '') +
+    (last.length ? '<button type="button" class="cr-mini" id="cr-xt-last">지난번 과제 다시 넣기 · ' + esc(last.join(', ').slice(0, 60)) + '</button>' : '') +
+    '<div class="cr-xt-in"><textarea id="cr-xt" rows="2" maxlength="300" placeholder="한 줄에 하나 — 예) 데일리 독해 1회">' + esc(CR.xtDraft || '') + '</textarea>' +
+    '<button type="button" class="cr-btn" id="cr-xt-add">반 전체에 추가</button></div></div>';
+}
+function crXtSet(next, msg){
+  crKeepInputs();
+  var prev = CR.xt || [], draft = CR.xtDraft || '';
+  CR.xt = next; CR.xtDraft = '';
+  crRender();
+  crMsg('저장하는 중…');
+  return crUpsert().then(function(){
+    // 이미 별을 매긴 학생은 과제 수가 바뀌었으니 %를 다시 저장한다
+    CR.names.forEach(function(x, i){ if (x.stu && CR.hw[x.stu.code] && CR.hw[x.stu.code].saved) crHwQueue(i); });
+    crRender(); crMsg(msg);
+  }).catch(function(e){
+    CR.xt = prev; CR.xtDraft = draft; crRender();   // 저장이 안 됐으면 화면도 되돌린다
+    crMsg('과제를 저장하지 못했어요. 다시 눌러 주세요. (' + e.message + ')', true);
+  });
+}
+function crXtAdd(list){
+  var el = $('cr-xt'), add = list || crTasksOf(el ? el.value : '');
+  if (!add.length){ crMsg('추가할 과제를 한 줄에 하나씩 적어 주세요.', true); if (el) el.focus(); return; }
+  var next = (CR.xt || []).slice();
+  add.forEach(function(t){ if (next.indexOf(t) < 0) next.push(t); });
+  crXtSet(next, '반 전체에 과제 ' + add.length + '개를 추가했습니다. 학생마다 별을 매겨 주세요.');
+}
+function crXtRemove(t){
+  if (!confirm("'" + t + "' 과제를 반 전체에서 뺄까요? 이미 매긴 별은 %에서 빠져요.")) return;
+  crXtSet((CR.xt || []).filter(function(x){ return x !== t; }), '과제를 뺐습니다.');
+}
 function crItemsOf(x){
   var src = crSrcOf(x), out = [];
   if (src) src.tasks.forEach(function(t){ CR_HW_DIMS.forEach(function(d){ out.push(t + ' (' + d + ')'); }); });
@@ -6675,9 +6730,9 @@ function crHwLabel(code){
 }
 function crStarsHtml(i, code){
   var h = code ? CR.hw[code] : null, x = CR.names[i], src = crSrcOf(x);
-  if (!src) return '<div class="cr-note">지난 수업에 적힌 과제가 없어 오늘은 검사할 과제가 없습니다. 리포트에는 \'확인할 것이 없습니다\'로 들어가요.</div>';
+  if (!src) return '<div class="cr-note">지난 수업에 적힌 과제가 없습니다. 검사할 과제가 있으면 위 [반 전체 검사 과제 추가]에 적어 주십시오. 비워 두면 리포트에는 \'확인할 것이 없습니다\'로 들어가요.</div>';
   var ii = 0;
-  return '<div class="cr-src">' + esc(src.label) + ' 과제</div>' + src.tasks.map(function(t){
+  return '<div class="cr-src">' + esc(src.head) + '</div>' + src.tasks.map(function(t){
     return '<div class="cr-task"><div class="cr-tname">' + esc(t) + '</div>' + CR_HW_DIMS.map(function(d){
       var it = t + ' (' + d + ')', idx = ii++, sc = h ? (parseInt(h.scores[it], 10) || 0) : 0, b = '';
       for (var k = 1; k <= CR_HW_MAX; k++) b += '<button type="button" class="' + (k <= sc ? 'on' : '') + '" data-star="' + i + '|' + idx + '|' + k + '" aria-label="' + esc(t) + ' ' + d + ' ' + k + '점">★</button>';
@@ -6725,7 +6780,7 @@ function crRender(){
           '<div class="cr-f"><label for="cr-task">다음 수업까지 과제 <small>(한 줄에 하나 · 없다면 비워 두세요)</small></label><textarea id="cr-task" maxlength="600" placeholder="예) 「속미인곡」 비교 학습지 1장">' + esc(n.homework || '') + '</textarea></div>';
   top = crSibHtml() + top;
   var hwHead = part === '확인' ? '출석 · 과제 검사 · 코멘트' : '출석 · 이 수업 과제 검사 · 코멘트';
-  var hint = part === '진도' ? '<div class="cr-hint">진도 수업의 과제 검사는 기록할 것이 없으면 비워 두셔도 됩니다. 과제 검사는 주로 확인 수업에서 해요.</div>'
+  var hint = part === '진도' ? '<div class="cr-hint">진도 수업의 과제 검사는 기록할 것이 없으면 비워 두셔도 됩니다. 검사할 과제가 있으면 아래 [반 전체 검사 과제 추가]에 적어 주세요.</div>'
            : '<div class="cr-hint">지난 수업에서 낸 과제를 하나씩 학습량·깊이 별 5개로 매깁니다. 별은 누르는 즉시 저장돼요. 모든 과제가 5·5면 슈퍼스타 별 1개예요.</div>';
   var hasP = part === '진도' ? (crNsUnitsOfWeek(CR.ns || { cleared: {} }).length > 0 || !!String(n.progress || '').trim()) : !!String(n.progress || '').trim();
   var chk = '<div class="cr-check"><b>리포트 준비 확인</b>' +
@@ -6735,6 +6790,7 @@ function crRender(){
              : '<span class="warn">과제 검사 기록을 불러오지 못했어요</span>') + '</div>';
   $('cr-body').innerHTML = st + top +
     '<div class="cr-stu"><div class="cr-sh"><b>학생별</b><span>' + hwHead + '</span></div>' + hint +
+      (CR.hwOk && CR.names.length ? crXtHtml() : '') +
       (cards || '<p class="mdesc">오늘 이 반에 학생이 없어요.</p>') + '</div>' + chk;
 }
 /* 내신 진도 수업 — 시험범위(담당 교사 입력, 같은 학교·학년 반과 공유) + 단원 진도 + 메모·과제 */
@@ -6777,6 +6833,9 @@ document.addEventListener('click', function(e){
   if (b.hasAttribute('data-unrm')){ crNsUnit(b.getAttribute('data-unrm'), false); return; }
   if (b.id === 'cr-ns-save'){ crNsSaveScope(); return; }
   if (b.id === 'cr-sib-go'){ crSibImport(); return; }
+  if (b.id === 'cr-xt-add'){ crXtAdd(); return; }
+  if (b.id === 'cr-xt-last'){ crXtAdd((CR.xtLast || []).slice()); return; }
+  if (b.hasAttribute('data-xtrm')){ crXtRemove(b.getAttribute('data-xtrm')); return; }
 });
 document.addEventListener('change', function(e){
   if (!CR.c) return;
@@ -6793,6 +6852,7 @@ function crKeepInputs(){
   var n = CR.note = CR.note || {};
   if ($('cr-prog')) n.progress = $('cr-prog').value;
   if ($('cr-task')) n.homework = $('cr-task').value;
+  if ($('cr-xt')) CR.xtDraft = $('cr-xt').value;
   var cm = n.comments = Object.assign({}, n.comments || {});
   CR.names.forEach(function(x, i){ var el = $('cr-c-' + i); if (el) cm[x.p] = el.value; });
 }
@@ -6900,6 +6960,7 @@ function crCollect(){
   crKeepInputs();
   var n = CR.note || {}, c = CR.c, cm = {};
   CR.names.forEach(function(x){ var v = String((n.comments || {})[x.p] || '').trim(); if (v) cm[x.p] = v; });
+  if (CR.xt && CR.xt.length) cm[CR_XT_KEY] = CR.xt.join('\n');
   var body = { book: CR.bk, class_id: c.id, ymd: CR.ymd, class_name: c.cls, teacher: c.teacher,
                class_time: c.day + ' ' + c.start + '~' + c.end, part: CR.part,
                progress: String(n.progress || '').trim(), homework: String(n.homework || '').trim(),

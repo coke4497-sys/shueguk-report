@@ -227,8 +227,38 @@ const STUDENTS = [
       src: (c.querySelector('.cr-src') || {}).textContent || '', txt: c.textContent })));
     const pk = r.find(x => x.nm === '박보검') || {}, kh = r.find(x => x.nm === '김하늘') || {};
     ok('내신 확인: 박보검은 진도 수업 과제 2개 × 2줄', pk.tasks.join('|') === '교과서 1~6번|서술형 정리' && pk.rows === 4 && /진도/.test(pk.src), JSON.stringify(pk));
-    ok('내신 확인: 진도 반이 없는 김하늘은 검사할 과제 없음 안내', kh.rows === 0 && /검사할 과제가 없습니다/.test(kh.txt), JSON.stringify(kh));
+    ok('내신 확인: 진도 반이 없는 김하늘은 검사할 과제 없음 안내', kh.rows === 0 && /지난 수업에 적힌 과제가 없습니다/.test(kh.txt), JSON.stringify(kh));
     ok('내신 과제 조회 = 학생들의 내신 반 전체', (st.srcGets || []).some(u => /"n001"/.test(u) && /"n002"/.test(u)), JSON.stringify(st.srcGets));
+    await ctx.close();
+  }
+
+  // ②-3 반 전체 검사 과제 추가(교재 데일리 과제 등) — 지난 과제가 없는 진도 수업(2026-09-29)
+  {
+    const D7 = (() => { const d = new Date(T0); d.setDate(d.getDate() - 7); return ymd(d); })();
+    ({ ctx, page, st } = await ctxOf({ book: '내신',
+      rows: [row('n001', '고2 화정A(비상 문학)', '주혜', '박보검 김하늘')],
+      att: [], hw: [], prev: [{ class_id: 'n001', ymd: D7, homework: '', comments: { '__검사과제': '데일리 독해 1회\n어휘 10개' } }] }));
+    await openCard(page, '화정A');
+    r = await page.evaluate(() => ({ box: !!document.querySelector('.cr-xt'), last: (document.getElementById('cr-xt-last') || {}).textContent || '',
+      rows: document.querySelectorAll('.cr-item').length, note: [...document.querySelectorAll('.cr-card .cr-note')].length }));
+    ok('반 전체 과제 칸·지난번 과제 버튼·처음엔 별 칸 없음', r.box && /데일리 독해 1회/.test(r.last) && r.rows === 0 && r.note === 2, JSON.stringify(r));
+    await page.fill('#cr-xt', '교재 p.12~15');
+    await page.click('#cr-xt-add');
+    await page.waitForFunction(() => /추가했습니다/.test(document.getElementById('cr-msg').textContent), null, { timeout: 8000 });
+    let nw2 = st.writes.filter(w => /class_notes/.test(w.u)).pop();
+    r = await page.evaluate(() => ({ rows: document.querySelectorAll('.cr-item').length, head: (document.querySelector('.cr-src') || {}).textContent || '',
+      chips: [...document.querySelectorAll('.cr-xt .cr-unit')].map(x => x.firstChild.textContent) }));
+    ok('추가 → 학생마다 학습량·깊이 2줄 · 반 전체 추가 과제 표시', r.rows === 4 && /반 전체에 추가한 과제/.test(r.head) && r.chips.join() === '교재 p.12~15', JSON.stringify(r));
+    ok('추가한 과제는 class_notes.comments 예약 키에 저장', nw2 && nw2.body[0].comments['__검사과제'] === '교재 p.12~15', JSON.stringify(nw2 && nw2.body));
+    await page.click('#cr-xt-last');
+    await page.waitForFunction(() => document.querySelectorAll('.cr-xt .cr-unit').length === 3, null, { timeout: 8000 });
+    nw2 = st.writes.filter(w => /class_notes/.test(w.u)).pop();
+    ok('지난번 과제 다시 넣기 → 3개', nw2.body[0].comments['__검사과제'] === '교재 p.12~15\n데일리 독해 1회\n어휘 10개' && !(await page.$('#cr-xt-last')), JSON.stringify(nw2.body[0].comments));
+    const iP = await page.evaluate(() => CR.names.map(x => x.p).indexOf('박보검'));
+    await page.click(`[data-star="${iP}|0|5"]`);
+    await page.waitForFunction(() => /저장됨/.test(document.querySelector('.cr-dot.ok') ? document.querySelector('.cr-dot.ok').textContent : ''), null, { timeout: 5000 });
+    const hw2 = st.writes.filter(w => /hwcheck_records/.test(w.u)).pop();
+    ok('추가 과제 별 저장 — 키·만점 30', hw2 && hw2.body[0].scores['교재 p.12~15 (학습량)'] === 5 && hw2.body[0].max === 30 && hw2.body[0].class_id === 'n001', JSON.stringify(hw2 && hw2.body));
     await ctx.close();
   }
 
