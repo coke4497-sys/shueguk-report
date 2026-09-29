@@ -4054,7 +4054,7 @@ function alimNoticeTpl_(name, prop, tail, btnName) {
           '▶ #{제목}\n' +
           '\n' +
           (tail || '학생 페이지에서 내용을 확인해 주세요.'),   // 마지막 줄만 종류별로 다르게 둘 수 있다(사용자 지정 문구)
-    buttons: [{ name: btnName || '학생 페이지 열기', type: 'WL', linkMo: ALIM_STU_LINK_, linkPc: ALIM_STU_LINK_ }]
+    buttons: [{ name: btnName || '학생 페이지 링크', type: 'WL', linkMo: ALIM_STU_LINK_, linkPc: ALIM_STU_LINK_ }]
   };
 }
 var ALIM_TPL_ = {

@@ -211,7 +211,7 @@ eq('문구 = 제목 줄·둘째 줄에 종류 이름 + ▶ 제목 + 종류별 �
    NK.map(() => true));
 eq('공지 템플릿 버튼 = 학생 페이지 열기(웹링크, 접근코드 변수) — 결석은 버튼 없음',
    [NK.map(k => r.templates[k].buttons.map(b => [b.name, b.type, b.linkMo === b.linkPc, /s\.html\?key=#\{접근코드\}$/.test(b.linkMo)])), r.templates.absent.buttons],
-   [NK.map(k => [[k === 'notice_sched' ? '학생 페이지 링크' : '학생 페이지 열기', 'WL', true, true]]), []]);
+   [NK.map(() => [['학생 페이지 링크', 'WL', true, true]]), []]);
 const nitem = (student, to, title) => ({ student, to, who: '학생', cls: '공지', date: 'N:2026-09-15|' + title, vars: { 학생명: student, 제목: title, 접근코드: 'k-' + student } });
 r = J(fns.alimSend({ pw: 'sh', kind: 'notice_mock', items: [nitem('김하나', '01012345678', '추석 휴강 안내')] }));
 eq('템플릿 ID 없으면 거절', [r.result, /모의고사 신청 안내/.test(r.message)], ['error', true]);
