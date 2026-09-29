@@ -4041,7 +4041,9 @@ var ALIM_PROP_ = { key:'SOLAPI_KEY', secret:'SOLAPI_SECRET', from:'SOLAPI_FROM',
  * 아래 주소(도메인은 고정, 변수는 #{접근코드} 자리만). 알림톡(ATA)은 버튼이 템플릿에 붙어 있어 보낼 때 따로 싣지
  * 않고 variables로 #{접근코드}만 채운다. 접근코드 = 학생 페이지 링크(s.html?key=)의 키. */
 var ALIM_STU_LINK_ = 'https://coke4497-sys.github.io/shueguk-report/s.html?key=#{접근코드}';
-function alimTail_(line) { return line + '\n' + ALIM_STU_LINK_; }   // 마지막 줄 + 학생 페이지 주소 줄
+// 주소 줄은 문구에서 뺐다(2026-09-29 사용자 "링크 말고 버튼으로 등록") — 학생 페이지는 [학생 페이지 열기] 버튼으로만 연다.
+// 버튼 주소에 #{접근코드}가 쓰이므로 변수는 그대로 둔다.
+function alimTail_(line) { return line; }
 function alimNoticeTpl_(name, prop, tail) {
   return {
     label: name, prop: prop, notice: true,
@@ -4150,7 +4152,7 @@ function alimYmd_(v) {
   return /^\d{4}-\d{2}-\d{2}/.test(s) ? s.slice(0, 10) : s;   // 날짜가 아닌 키('N:날짜|제목' — 공지)는 통째로
 }
 /** 발송. { pw, kind:'absent', items:[{ student, to, who, vars:{학생명,수업일,반이름}, cls, date }], force? }
- *  같은 종류·학생·수업일로 이미 성공한 기록이 있으면 force가 아니면 건너뛴다(dup) — 조교 둘이 겹쳐 눌러도 두 번 안 감.
+ *  한 학생에게 받는 분(학생·학부모1·학부모2)마다 item 하나씩. 같은 종류·학생·수업일·받는 분으로 이미 성공한 기록이 있으면 force가 아니면 건너뛴다(dup) — 조교 둘이 겹쳐 눌러도 두 번 안 감.
  *  응답: { result:'success', sent:[{student,ok,message,dup}], okCount, failCount } */
 function alimSend(data) {
   if (String(data.pw || '') !== TEACHER_PW) return json({ result:'error', message:'unauthorized' });
@@ -4175,21 +4177,23 @@ function alimSend(data) {
   if (String(data.force || '') !== '1') {
     var tail = sheetTail_(sh, 0, Date.now() - 7 * 24 * 3600 * 1000).rows;
     tail.forEach(function(r) {
-      if (String(r[1]) === kind && String(r[7]) === '성공') done[String(r[2]).trim() + '|' + alimYmd_(r[6])] = true;
+      // 받는 분(D열)까지 키에 넣는다 — 학생·학부모에게 함께 보내므로(2026-09-29 사용자 "학생, 학부모님 모두에게")
+      // 한 사람에게 간 기록이 다른 사람 발송을 막지 않게.
+      if (String(r[1]) === kind && String(r[7]) === '성공') done[String(r[2]).trim() + '|' + alimYmd_(r[6]) + '|' + String(r[3]).trim()] = true;
     });
   }
   var msgs = [], sent = [], pending = [];
   items.forEach(function(it) {
-    var student = String(it.student).trim(), date = String(it.date || '').trim();
+    var student = String(it.student).trim(), date = String(it.date || '').trim(), who = String(it.who || '').trim();
     var to = String(it.to).replace(/\D/g, '');
-    if (done[student + '|' + date]) { sent.push({ student: student, ok: true, dup: true, message: '이미 보냈어요' }); return; }
-    if (!/^01\d{8,9}$/.test(to)) { sent.push({ student: student, ok: false, message: '휴대폰 번호 형식이 아니에요: ' + to }); return; }
+    if (done[student + '|' + date + '|' + who]) { sent.push({ student: student, who: who, ok: true, dup: true, message: '이미 보냈어요' }); return; }
+    if (!/^01\d{8,9}$/.test(to)) { sent.push({ student: student, who: who, ok: false, message: '휴대폰 번호 형식이 아니에요: ' + to }); return; }
     var vars = {};
     tpl.vars.forEach(function(v) { vars['#{' + v + '}'] = String((it.vars || {})[v] || '').trim(); });
     var m = { to: to, type: 'ATA', kakaoOptions: { pfId: pfId, templateId: tplId, variables: vars, disableSms: !from } };
     if (from) m.from = from;
     msgs.push(m);
-    pending.push({ student: student, to: to, who: String(it.who || '').trim(), cls: String(it.cls || '').trim(), date: date });
+    pending.push({ student: student, to: to, who: who, cls: String(it.cls || '').trim(), date: date });
   });
   var groupId = '';
   if (msgs.length) {
@@ -4214,7 +4218,7 @@ function alimSend(data) {
     var errAll = code === 200 ? '' : ('솔라피 오류 ' + (code || '') + ' ' + String(body.errorMessage || body.message || '')).trim();
     pending.forEach(function(p) {
       var err = errAll || failedByTo[p.to] || '';
-      sent.push({ student: p.student, ok: !err, message: err || '보냈어요' });
+      sent.push({ student: p.student, who: p.who, ok: !err, message: err || '보냈어요' });
     });
     // 기록 — 학생마다 한 줄
     var rows = pending.map(function(p) {

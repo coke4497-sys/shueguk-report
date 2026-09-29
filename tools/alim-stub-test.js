@@ -92,6 +92,13 @@ r = J(fns.alimSend({ pw: 'sh', kind: 'absent', items: [item('김하나', '010123
 eq('다른 수업일은 새로 보냄', r.okCount, 1);
 eq('모두 dup면 UrlFetch 안 부름', (() => { const n = CALLS.length; fns.alimSend({ pw: 'sh', kind: 'absent', items: [item('김하나', '01012345678', '2026-09-12')] }); return CALLS.length - n; })(), 0);
 
+console.log('5b) 받는 분마다 따로 — 학생·학부모 함께 보내기(2026-09-29)');
+const itw = (nm, to, d, who) => Object.assign(item(nm, to, d), { who: who });
+r = J(fns.alimSend({ pw: 'sh', kind: 'absent', items: [itw('김일곱', '01000000071', '2026-09-20', '학부모1'), itw('김일곱', '01000000072', '2026-09-20', '학생')] }));
+eq('한 학생 두 사람 모두 발송', [r.okCount, r.sent.map(x => x.who)], [2, ['학부모1', '학생']]);
+r = J(fns.alimSend({ pw: 'sh', kind: 'absent', items: [itw('김일곱', '01000000071', '2026-09-20', '학부모1'), itw('김일곱', '01000000073', '2026-09-20', '학부모2')] }));
+eq('학부모1은 dup, 학부모2는 새로 감', r.sent.map(x => [x.who, !!x.dup]), [['학부모1', true], ['학부모2', false]]);
+
 console.log('6) 실패 처리');
 reset();
 fns.alimConfigSet({ pw: 'sh', apiKey: 'K', apiSecret: 'S', pfId: 'P', tpl: { absent: 'T' } });
@@ -200,7 +207,7 @@ const TAILS = { notice_sched: '학생 페이지의 알려드립니다 메뉴에�
   notice_reportup: '학생 페이지의 지필고사 데이터 메뉴에서 새로 올라온 리포트를 확인해 주세요.', notice_voca: '학생 페이지의 어휘 테스트 메뉴에서 이번 주 테스트에 참여해 주세요.',
   notice_gramma: '학생 페이지의 문법 테스트 메뉴에서 배정된 테스트에 참여해 주세요.', notice_event: '학생 페이지의 알려드립니다 메뉴에서 행사 내용을 확인해 주세요.' };
 eq('문구 = 제목 줄·둘째 줄에 종류 이름 + ▶ 제목 + 종류별 마지막 줄 + 학생 페이지 주소(#{접근코드})',
-   NK.map(k => r.templates[k].text === '[이수경국어학원] ' + r.templates[k].label + '\n#{학생명} 학생에게 ' + r.templates[k].label + '가 도착했어요.\n\n▶ #{제목}\n\n' + TAILS[k] + '\nhttps://coke4497-sys.github.io/shueguk-report/s.html?key=#{접근코드}'),
+   NK.map(k => r.templates[k].text === '[이수경국어학원] ' + r.templates[k].label + '\n#{학생명} 학생에게 ' + r.templates[k].label + '가 도착했어요.\n\n▶ #{제목}\n\n' + TAILS[k]),
    NK.map(() => true));
 eq('공지 템플릿 버튼 = 학생 페이지 열기(웹링크, 접근코드 변수) — 결석은 버튼 없음',
    [NK.map(k => r.templates[k].buttons.map(b => [b.name, b.type, b.linkMo === b.linkPc, /s\.html\?key=#\{접근코드\}$/.test(b.linkMo)])), r.templates.absent.buttons],

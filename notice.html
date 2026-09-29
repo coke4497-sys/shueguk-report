@@ -57,6 +57,8 @@
   .status{font-size:13px;margin-top:12px;min-height:1.2em;color:var(--ink-soft);text-align:center;}
   /* 공지 알림톡(2026-09-15) — 등록 뒤 대상 학생·학부모에게 카카오 알림톡 */
   .alim-row{display:flex;flex-wrap:wrap;align-items:center;gap:8px;}
+  .alim-whos{display:inline-flex;gap:10px;}
+  .alim-whos label, .alim-row > label{display:inline-flex;align-items:center;gap:4px;cursor:pointer;margin:0;font-weight:inherit;font-size:inherit;color:inherit;}
   .alim-row select{font:inherit;font-size:13px;padding:5px 8px;border:1px solid var(--line-soft);border-radius:8px;background:#fff;color:var(--ink);}
   .alim-note{font-size:12px;color:var(--ink-soft);font-weight:400;}
   .alim-box{margin-top:14px;border-radius:12px;background:#F4F6F8;padding:14px 16px;font-size:13.5px;}
@@ -148,10 +150,10 @@
     <textarea id="body" placeholder="자세한 안내 내용을 적어주세요."></textarea>
 
     <label class="pub"><input type="checkbox" id="pub" checked /> 지금 바로 노출하기 (끄면 ‘숨김’으로 저장)</label>
-    <label class="pub alim-row"><input type="checkbox" id="alimOn" disabled /> 등록 뒤 카카오 알림톡도 보내기 — 종류
+    <div class="pub alim-row"><label><input type="checkbox" id="alimOn" disabled /> 등록 뒤 카카오 알림톡도 보내기</label> — 종류
       <select id="alimKind" onchange="alimKindChanged()"><option value="">확인 중…</option></select> 받는 분
-      <select id="alimWho"><option value="학생">학생</option><option value="학부모1">학부모1</option></select>
-      <span class="alim-note" id="alimNote">알림톡 설정 확인 중…</span></label>
+      <span class="alim-whos"><label><input type="checkbox" class="alimWho" value="학생" checked />학생</label><label><input type="checkbox" class="alimWho" value="학부모1" checked />학부모1</label><label><input type="checkbox" class="alimWho" value="학부모2" checked />학부모2</label></span>
+      <span class="alim-note" id="alimNote">알림톡 설정 확인 중…</span></div>
     <div class="alim-box" id="alimBox" style="display:none"></div>
 
     <button type="button" class="submit" id="submitBtn" onclick="submitNotice()">공지 등록</button>
@@ -503,12 +505,15 @@
     });
   }
   var LEFT_RE = /^(퇴원|n|no|off|x|중단|비재원)$/i;
-  var alimPending = null;   // { ref, title, who, items:[{student,to}], missing:[names] }
+  var alimPending = null;   // { ref, title, items:[{student,to,who,code}], missing:[names] }
+  // 받는 분 — 학생·학부모1·학부모2를 함께 고를 수 있다(2026-09-29 사용자 "학생, 학부모님 모두에게 발송"). 학부모2는 번호가 있는 학생만.
+  var ALIM_PHONE = { '학생': 'phone_student', '학부모1': 'phone_parent1', '학부모2': 'phone_parent2' };
+  function alimWhos(){ return Array.prototype.slice.call(document.querySelectorAll('.alimWho:checked')).map(function(x){ return x.value; }); }
   function alimFill(text, vars){ return String(text || '').replace(/#\{([^}]+)\}/g, function(_, k){ return vars[k] != null ? vars[k] : ''; }); }
   function todayKst(){ var d = new Date(Date.now() + 9 * 3600000), p = function(n){ return String(n).padStart(2, '0'); }; return d.getUTCFullYear() + '-' + p(d.getUTCMonth() + 1) + '-' + p(d.getUTCDate()); }
   /* 등록 성공 뒤 — 대상 학생을 골라 확인 상자를 띄운다 */
   function alimOfferNotice(sel, title, kind){
-    var box = document.getElementById('alimBox'), who = document.getElementById('alimWho').value;
+    var box = document.getElementById('alimBox'), whos = alimWhos();
     var tpl = alimCfg.templates[kind];
     box.style.display = 'block';
     box.innerHTML = '<h4>공지 알림톡 · ' + esc(tpl.label) + '</h4><p class="miss">대상 학생의 연락처를 확인하는 중…</p>';
@@ -516,28 +521,29 @@
           { headers: { apikey: 'sb_publishable_dE9d1KIbpgYaQkaS2MSrlg_-7SiRJuT' } })
       .then(function(r){ if (!r.ok) throw new Error('students ' + r.status); return r.json(); })
       .then(function(rows){
-        var items = [], missing = [], nocode = [];
+        var items = [], missing = [], nocode = [], people = 0;
         rows.forEach(function(r){
           if (!tr(r.name) || LEFT_RE.test(tr(r.enrolled))) return;
           var stu = { name: tr(r.name), school: tr(r.school), grade: tr(r.grade), sid: tr(r.student_id).replace(/^'/, ''), code: tr(r.code) };
           if (!noticeMatches(sel.type, sel.target, stu)) return;
-          var to = String(who === '학부모1' ? r.phone_parent1 : r.phone_student || '').replace(/\D/g, '');
-          if (!/^01\d{8,9}$/.test(to)) missing.push(stu.name);
+          var tos = whos.map(function(w){ return { who: w, to: String(r[ALIM_PHONE[w]] || '').replace(/\D/g, '') }; })
+                        .filter(function(t){ return /^01\d{8,9}$/.test(t.to); });
+          if (!tos.length) missing.push(stu.name);   // 고른 분 누구의 번호도 없음
           else if (!stu.code) nocode.push(stu.name);   // [학생 페이지 열기] 버튼 주소가 못 만들어지므로 보내지 않는다
-          else items.push({ student: stu.name, to: to, code: stu.code });
+          else { people++; tos.forEach(function(t){ items.push({ student: stu.name, to: t.to, who: t.who, code: stu.code }); }); }
         });
-        alimPending = { kind: kind, ref: 'N:' + todayKst() + '|' + title, title: title, who: who, items: items, missing: missing };
+        alimPending = { kind: kind, ref: 'N:' + todayKst() + '|' + title, title: title, items: items, missing: missing };
         var preview = alimFill(tpl.text, { '학생명': items[0] ? items[0].student : '○○○', '제목': title });
         var btns = (tpl.buttons || []).map(function(b){ return '<div class="alim-btn">' + esc(b.name) + '</div>'; }).join('');
         box.innerHTML = '<h4>공지 알림톡 · ' + esc(tpl.label) + '</h4>' +
-          '<div>' + esc(sel.summary) + ' 중 <b>' + items.length + '명</b>에게 ' + esc(who) + ' 번호로 보내요.' +
-          (items.length > ALIM_BATCH ? ' <span class="alim-note">(' + ALIM_BATCH + '명씩 나눠 보내요)</span>' : '') + '</div>' +
+          '<div>' + esc(sel.summary) + ' 중 <b>' + people + '명</b>의 ' + esc(whos.join('·')) + '에게 <b>' + items.length + '건</b> 보냅니다.' +
+          (items.length > ALIM_BATCH ? ' <span class="alim-note">(' + ALIM_BATCH + '건씩 나눠 보내요)</span>' : '') + '</div>' +
           '<div class="prev">' + esc(preview) + btns + '</div>' +
-          (missing.length ? '<p class="miss">' + esc(who) + ' 연락처가 없어 못 보내는 학생 ' + missing.length + '명: ' + esc(missing.join(', ')) + '</p>' : '') +
+          (missing.length ? '<p class="miss">연락처가 없어 못 보내는 학생 ' + missing.length + '명: ' + esc(missing.join(', ')) + '</p>' : '') +
           (nocode.length ? '<p class="miss">학생 페이지 접근코드가 없어 못 보내는 학생 ' + nocode.length + '명: ' + esc(nocode.join(', ')) + '</p>' : '') +
           (alimCfg.smsFallback ? '' : '<p class="miss">카카오톡을 받을 수 없는 번호는 문자로 대체되지 않아요 (발신번호 미설정).</p>') +
           '<div class="btns"><button type="button" onclick="alimCancel()">보내지 않기</button>' +
-          '<button type="button" class="go" id="alimGo" onclick="alimSendNotice()"' + (items.length ? '' : ' disabled') + '>알림톡 보내기 (' + items.length + '명)</button></div>';
+          '<button type="button" class="go" id="alimGo" onclick="alimSendNotice()"' + (items.length ? '' : ' disabled') + '>알림톡 보내기 (' + items.length + '건)</button></div>';
       })
       .catch(function(e){ box.innerHTML = '<h4>공지 알림톡</h4><p class="miss">연락처를 불러오지 못했어요 — ' + esc(e.message) + '</p><div class="btns"><button type="button" onclick="alimCancel()">닫기</button></div>'; });
   }
@@ -552,12 +558,12 @@
         if (err) return;
         return fetch(ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
           body: JSON.stringify({ action: 'alimSend', kind: p.kind,
-            items: chunk.map(function(it){ return { student: it.student, to: it.to, who: p.who, cls: '공지', date: p.ref, vars: { '학생명': it.student, '제목': p.title, '접근코드': it.code } }; }) }) })
+            items: chunk.map(function(it){ return { student: it.student, to: it.to, who: it.who, cls: '공지', date: p.ref, vars: { '학생명': it.student, '제목': p.title, '접근코드': it.code } }; }) }) })
           .then(function(r){ return r.json(); })
           .then(function(res){
             if (!res || res.result !== 'success'){ err = (res && res.message) || '오류'; return; }
             okCount += res.okCount || 0;
-            (res.sent || []).forEach(function(x){ if (x.dup) dup.push(x.student); else if (!x.ok) bad.push(x.student + ' (' + x.message + ')'); });
+            (res.sent || []).forEach(function(x){ var n = x.student + (x.who ? ' ' + x.who : ''); if (x.dup) dup.push(n); else if (!x.ok) bad.push(n + ' (' + x.message + ')'); });
           })
           .catch(function(){ err = '인터넷 연결을 확인해 주세요.'; });
       });
@@ -566,7 +572,7 @@
       alimCancel();
       if (err){ setStatus('알림톡 실패: ' + err + (okCount ? ' (그전 ' + okCount + '건은 보냈어요)' : ''), 'err'); return; }
       var msg = '공지 알림톡 ' + okCount + '건 보냈어요.';
-      if (dup.length) msg += ' 이미 보낸 ' + dup.length + '명은 건너뛰었어요.';
+      if (dup.length) msg += ' 이미 보낸 ' + dup.length + '건은 건너뛰었어요.';
       if (bad.length) msg += ' 실패: ' + bad.join(', ');
       setStatus(msg, bad.length ? 'err' : 'ok');
     });
@@ -585,6 +591,7 @@
     var body  = document.getElementById('body').value;
     if(!title && !body.trim()){ setStatus('제목 또는 내용을 입력해 주세요.', 'err'); return; }
     var hidden = !document.getElementById('pub').checked;
+    if(document.getElementById('alimOn').checked && !alimWhos().length){ setStatus('알림톡 받는 분을 한 명 이상 골라 주십시오.', 'err'); return; }
 
     var btn=document.getElementById('submitBtn');
     btn.disabled=true; var label=btn.textContent; btn.textContent='등록 중…';

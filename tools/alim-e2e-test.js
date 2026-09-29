@@ -74,45 +74,54 @@ const posts = [];
   await page.click('.att-btns .pick-abs');
   await page.waitForSelector('#al-rows', { timeout: 8000 });
   ok('창 제목 결석 알림톡', (await modalText()).includes('결석 알림톡'));
-  ok('받는 분 기본 학부모1', (await page.inputValue('#al-to0')).startsWith('학부모1|01033334444'));
-  ok('학부모2·학생도 선택지', (await page.$$('#al-to0 option')).length === 3);
-  ok('체크 기본 켜짐', await page.isChecked('#al-ck0'));
+  const whoBoxes = i => page.$$eval('#al-rows .al-row[data-i="' + i + '"] input[data-who]', els => els.map(e => e.getAttribute('data-who') + (e.checked ? '+' : '-')));
+  ok('받는 분 학부모1·학부모2·학생 모두 기본 체크', (await whoBoxes(0)).join() === '학부모1+,학부모2+,학생+', (await whoBoxes(0)).join());
   const prev = await page.textContent('.al-prev');
   ok('미리보기 채움', prev.includes('박지우 학생이') && prev.includes('고1 가 수업에') && prev.includes('5:30'), prev);
   ok('발신번호 없음 안내', (await modalText()).includes('문자로 대체되지 않아요'));
-  await page.selectOption('#al-to0', '학부모2|01055556666');
+  await page.uncheck('#al-t0_2');   // 학생은 빼고 학부모 둘에게
   await page.click('#al-go');
   await page.waitForFunction(() => document.getElementById('status').textContent.includes('보냈어요'));
   const p1 = posts.filter(p => p.action === 'alimSend').pop();
-  ok('POST alimSend 1건', p1 && p1.kind === 'absent' && p1.items.length === 1 && !p1.force, JSON.stringify(p1));
-  ok('보낸 항목 내용', p1 && p1.items[0].student === '박지우' && p1.items[0].who === '학부모2' && p1.items[0].to === '01055556666' && p1.items[0].date === ymd && p1.items[0].cls === '고1 가' && p1.items[0].vars['학생명'] === '박지우', JSON.stringify(p1 && p1.items[0]));
-  ok('상태 문구 1건', (await page.textContent('#status')).includes('1건 보냈어요'));
+  ok('POST alimSend 2건(받는 분마다 한 건)', p1 && p1.kind === 'absent' && p1.items.length === 2 && !p1.force, JSON.stringify(p1));
+  ok('보낸 항목 내용', p1 && p1.items.map(x => x.who + ':' + x.to).join() === '학부모1:01033334444,학부모2:01055556666' && p1.items.every(x => x.student === '박지우' && x.date === ymd && x.cls === '고1 가' && x.vars['학생명'] === '박지우'), JSON.stringify(p1 && p1.items));
+  ok('상태 문구 2건', (await page.textContent('#status')).includes('2건 보냈어요'));
 
   // 2) 출석 창에 '보냄' 표시 + 다시 보내기(force)
   await page.evaluate(() => openAttend(classes[0], '박지우'));
   await page.waitForFunction(() => (document.getElementById('att-alim') || {}).textContent.includes('보냄'), null, { timeout: 8000 });
-  ok('출석 창 보냄 표시', (await page.textContent('#att-alim')).includes('학부모2께 알림톡 보냄'));
+  const attTxt = await page.textContent('#att-alim');
+  ok('출석 창 보냄 표시 + 못 받은 분', attTxt.includes('학부모1·학부모2께 알림톡 보냄') && attTxt.includes('학생 아직 안 보냄'), attTxt);
   await page.click('#att-alim button');
   await page.waitForSelector('#al-rows');
-  ok('다시 보내기 창 체크 켜짐', await page.isChecked('#al-ck0'));
+  ok('다시 보내기 = 못 받은 학생만 체크', (await whoBoxes(0)).join() === '학부모1-,학부모2-,학생+', (await whoBoxes(0)).join());
   await page.click('#al-go');
-  await page.waitForFunction(() => document.getElementById('status').textContent.includes('보냈어요'));
+  await page.waitForFunction(() => document.getElementById('status').textContent.includes('1건 보냈어요'));
   const p2 = posts.filter(p => p.action === 'alimSend').pop();
-  ok('다시 보내기는 force=1', p2 && p2.force === '1');
+  ok('못 받은 분에게는 force 없이', p2 && !p2.force && p2.items.length === 1 && p2.items[0].who === '학생');
+  await page.evaluate(() => openAttend(classes[0], '박지우'));
+  await page.waitForFunction(() => (document.getElementById('att-alim') || {}).textContent.includes('학생께') || (document.getElementById('att-alim') || {}).textContent.includes('·학생'), null, { timeout: 8000 });
+  await page.click('#att-alim button');
+  await page.waitForSelector('#al-rows');
+  ok('모두 받은 뒤 다시 보내기 = 모두 체크', (await whoBoxes(0)).join() === '학부모1+,학부모2+,학생+', (await whoBoxes(0)).join());
+  await page.click('#al-go');
+  await page.waitForFunction(() => document.getElementById('status').textContent.includes('3건 보냈어요'));
+  const p2b = posts.filter(p => p.action === 'alimSend').pop();
+  ok('모두 받은 뒤 다시 보내기는 force=1', p2b && p2b.force === '1');
 
   // 3) 특이사항 괄호 이름 → 괄호 뗀 이름으로, 연락처 매칭
   await page.evaluate(() => openAttend(classes[0], '최민하(9/20부터)'));
   await page.click('.att-btns .pick-abs');
   await page.waitForSelector('#al-rows');
-  ok('괄호 뗀 이름·학부모1만', (await page.textContent('.al-row b')) === '최민하' && (await page.$$('#al-to0 option')).length === 1);
+  ok('괄호 뗀 이름·학부모1만', (await page.textContent('.al-row b')) === '최민하' && (await whoBoxes(0)).join() === '학부모1+');
   await page.click('.mbtns button');   // 보내지 않기
-  ok('보내지 않기 → POST 없음', posts.filter(p => p.action === 'alimSend').length === 2);
+  ok('보내지 않기 → POST 없음', posts.filter(p => p.action === 'alimSend').length === 3);
 
   // 4) 연락처 없는 학생
   await page.evaluate(() => openAttend(classes[0], '정서현'));
   await page.click('.att-btns .pick-abs');
   await page.waitForSelector('#al-rows');
-  ok('연락처 없음 → 체크 잠김·안내', await page.isDisabled('#al-ck0') && (await modalText()).includes('등록된 연락처가 없어요'));
+  ok('연락처 없음 → 체크 없음·안내', (await whoBoxes(0)).length === 0 && (await modalText()).includes('등록된 연락처가 없어요'));
   await page.click('#al-go');
   ok('보낼 학생 없으면 오류 문구', (await page.textContent('#al-err')).includes('체크'));
   await page.evaluate(() => closeModal());
@@ -121,8 +130,8 @@ const posts = [];
   await page.evaluate(() => { attend = {}; multiMode = true; multiSel = { a: { cid:'r010', nm:'박지우' }, b: { cid:'r010', nm:'최민하(9/20부터)' } }; multiApply('결석'); });
   await page.waitForSelector('#al-rows');
   ok('여러 명 창 2줄', (await page.$$('#al-rows .al-row')).length === 2 && (await modalText()).includes('(2명)'));
-  ok('이미 보낸 박지우는 체크 꺼짐·보냄 표시', !(await page.isChecked('#al-ck0')) && (await page.textContent('#al-rows .al-row')).includes('보냄'));
-  ok('최민하는 체크', await page.isChecked('#al-ck1'));
+  ok('이미 보낸 박지우는 체크 꺼짐·보냄 표시', (await whoBoxes(0)).every(x => x.endsWith('-')) && (await page.textContent('#al-rows .al-row')).includes('보냄'));
+  ok('최민하는 체크', (await whoBoxes(1)).join() === '학부모1+');
   await page.evaluate(() => closeModal());
 
   // 6) [알림톡] 창 — 상태·기록·설정 저장
