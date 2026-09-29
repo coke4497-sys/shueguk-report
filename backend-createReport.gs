@@ -4044,15 +4044,17 @@ var ALIM_STU_LINK_ = 'https://coke4497-sys.github.io/shueguk-report/s.html?key=#
 // 주소 줄은 문구에서 뺐다(2026-09-29 사용자 "링크 말고 버튼으로 등록") — 학생 페이지는 [학생 페이지 열기] 버튼으로만 연다.
 // 버튼 주소에 #{접근코드}가 쓰이므로 변수는 그대로 둔다.
 function alimTail_(line) { return line; }
-function alimNoticeTpl_(name, prop, tail, btnName) {
+// body(선택) = ▶ 제목 줄과 마지막 줄 사이에 넣는 고정 안내 문단, extra(선택) = 그 문단이 쓰는 변수(화면이 입력 칸을 만든다).
+function alimNoticeTpl_(name, prop, tail, btnName, body, extra) {
   return {
     label: name, prop: prop, notice: true,
-    vars: ['학생명', '제목', '접근코드'],
+    vars: ['학생명', '제목'].concat(extra || [], ['접근코드']),
     text: '[이수경국어학원] ' + name + '\n' +
           '#{학생명} 학생에게 ' + name + '가 도착했어요.\n' +
           '\n' +
           '▶ #{제목}\n' +
           '\n' +
+          (body ? body + '\n\n' : '') +
           (tail || '학생 페이지에서 내용을 확인해 주세요.'),   // 마지막 줄만 종류별로 다르게 둘 수 있다(사용자 지정 문구)
     buttons: [{ name: btnName || '학생 페이지 링크', type: 'WL', linkMo: ALIM_STU_LINK_, linkPc: ALIM_STU_LINK_ }]
   };
@@ -4078,8 +4080,15 @@ var ALIM_TPL_ = {
    * 확인해 주세요.', 버튼 이름 '학생 페이지 링크'). 다시 심사받지 않으려고 코드 쪽을 등록본에 맞췄다 — 바꾸지 말 것. */
   notice_sched:    alimNoticeTpl_('수업 일정 안내',              'ALIM_TPL_NOTICE_SCHED',
                      '학생 페이지에서 내용을 확인해 주세요.', '학생 페이지 링크'),
+  /* 주말 실전 모의고사는 안내 네 줄을 문구에 넣는다(2026-09-29 원장님 "이 내용이 추가되어야 해요" — 원장님 안내문 그대로).
+   * ▶ 제목 = '2027학년도 수능대비 실전 모의고사'처럼 회차 이름, #{신청일} = '3/14(토), 3/15(일)'처럼 매번 바뀌는 신청 요일. */
   notice_mock:     alimNoticeTpl_('주말 실전 모의고사 신청 안내', 'ALIM_TPL_NOTICE_MOCK',
-                     alimTail_('학생 페이지의 주말 실전 모의고사 메뉴에서 신청할 수 있습니다.')),
+                     alimTail_('학생 페이지의 주말 실전 모의고사 메뉴에서 신청할 수 있습니다.'), '',
+                     '1. 대감빌딩 5층 이수경 국어 본원에서 실시합니다.\n' +
+                     '2. 8:30까지 등원하여 8:40-10:00까지, 모의수능시험에 응시합니다. 8:35분이 지나면 출입을 통제하고 이후 입실이 <불가>합니다.\n' +
+                     '3. #{신청일} 중 택1하여 신청합니다. 마감되면 설문을 종료합니다.\n' +
+                     '4. 장소가 협소하므로 각 요일 35명 선착순으로 마감합니다. 임의로 요일을 이동할 수 없습니다.',
+                     ['신청일']),
   notice_hwork:    alimNoticeTpl_('H WORK 안내',                'ALIM_TPL_NOTICE_HWORK',
                      alimTail_('학생 페이지의 H-work 메뉴에서 과제를 확인하고 제출해 주세요.')),
   notice_report:   alimNoticeTpl_('지필고사 리포트 제작 안내',   'ALIM_TPL_NOTICE_REPORT',
@@ -4190,6 +4199,9 @@ function alimSend(data) {
     if (!/^01\d{8,9}$/.test(to)) { sent.push({ student: student, who: who, ok: false, message: '휴대폰 번호 형식이 아니에요: ' + to }); return; }
     var vars = {};
     tpl.vars.forEach(function(v) { vars['#{' + v + '}'] = String((it.vars || {})[v] || '').trim(); });
+    // 종류별 추가 변수(모의고사 #{신청일} 등)가 비면 빈칸 문구가 나가므로 보내지 않는다
+    var empty = tpl.vars.filter(function(v) { return ['학생명', '제목', '접근코드', '수업일', '반이름'].indexOf(v) < 0 && !vars['#{' + v + '}']; });
+    if (empty.length) { sent.push({ student: student, who: who, ok: false, message: empty.join('·') + ' 칸이 비어 있어요' }); return; }
     var m = { to: to, type: 'ATA', kakaoOptions: { pfId: pfId, templateId: tplId, variables: vars, disableSms: !from } };
     if (from) m.from = from;
     msgs.push(m);
