@@ -6747,7 +6747,7 @@ function crNsHtml(n){
     '<div class="cr-f"><label for="cr-ns-book">교과서</label><input id="cr-ns-book" value="' + esc(sp.book || crDefaultBook(CR.c.cls)) + '" placeholder="예) 창비 공통국어2"></div>' +
     '<div class="cr-f"><label for="cr-ns-in">교과서 안 범위 <small>(한 줄에 한 단원 — 진도 고르기 목록이 돼요)</small></label><textarea id="cr-ns-in" rows="4" placeholder="예) 현대시: 나는 오늘&#10;문법: 국어사">' + esc(sp.inRange || '') + '</textarea></div>' +
     '<div class="cr-f"><label for="cr-ns-out">교과서 밖 범위 <small>(한 줄에 하나)</small></label><textarea id="cr-ns-out" rows="2" placeholder="예) 학습지 프린트">' + esc(sp.outRange || '') + '</textarea></div>' +
-    '<div class="cr-inline"><button type="button" class="cr-btn" id="cr-ns-save">시험범위 저장</button><span class="cr-dim">내신대비 피드백 페이지와 같은 기록이에요</span></div></details>';
+    '<div class="cr-inline"><button type="button" class="cr-btn" id="cr-ns-save">시험범위 저장</button><span class="cr-dim">같은 학교·학년 반과 함께 쓰는 기록이에요</span></div></details>';
   var unit = '<div class="cr-f"><label>오늘 진도 <small>(시험범위에서 고르기)</small></label>' +
     (items.length
       ? '<select id="cr-ns-unit" aria-label="단원 고르기"><option value="">＋ 단원 고르기</option>' + items.map(function(it){
