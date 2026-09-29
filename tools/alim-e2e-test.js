@@ -91,7 +91,7 @@ const posts = [];
   await page.evaluate(() => openAttend(classes[0], '박지우'));
   await page.waitForFunction(() => (document.getElementById('att-alim') || {}).textContent.includes('보냄'), null, { timeout: 8000 });
   const attTxt = await page.textContent('#att-alim');
-  ok('출석 창 보냄 표시 + 못 받은 분', attTxt.includes('학부모1·학부모2께 알림톡 보냄') && attTxt.includes('학생 아직 안 보냄'), attTxt);
+  ok('출석 창 보냄 표시 + 못 받은 분', attTxt.includes('학부모님1·학부모님2께 알림톡 보냄') && attTxt.includes('학생 아직 안 보냄'), attTxt);
   await page.click('#att-alim button');
   await page.waitForSelector('#al-rows');
   ok('다시 보내기 = 못 받은 학생만 체크', (await whoBoxes(0)).join() === '학부모1-,학부모2-,학생+', (await whoBoxes(0)).join());

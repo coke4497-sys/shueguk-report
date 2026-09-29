@@ -152,7 +152,7 @@
     <label class="pub"><input type="checkbox" id="pub" checked /> 지금 바로 노출하기 (끄면 ‘숨김’으로 저장)</label>
     <div class="pub alim-row"><label><input type="checkbox" id="alimOn" disabled /> 등록 뒤 카카오 알림톡도 보내기</label> — 종류
       <select id="alimKind" onchange="alimKindChanged()"><option value="">확인 중…</option></select> 받는 분
-      <span class="alim-whos"><label><input type="checkbox" class="alimWho" value="학생" checked />학생</label><label><input type="checkbox" class="alimWho" value="학부모1" checked />학부모1</label><label><input type="checkbox" class="alimWho" value="학부모2" checked />학부모2</label></span>
+      <span class="alim-whos"><label><input type="checkbox" class="alimWho" value="학생" checked />학생</label><label><input type="checkbox" class="alimWho" value="학부모1" checked />학부모님1</label><label><input type="checkbox" class="alimWho" value="학부모2" checked />학부모님2</label></span>
       <span class="alim-note" id="alimNote">알림톡 설정 확인 중…</span></div>
     <div class="alim-box" id="alimBox" style="display:none"></div>
 
@@ -536,7 +536,7 @@
         var preview = alimFill(tpl.text, { '학생명': items[0] ? items[0].student : '○○○', '제목': title });
         var btns = (tpl.buttons || []).map(function(b){ return '<div class="alim-btn">' + esc(b.name) + '</div>'; }).join('');
         box.innerHTML = '<h4>공지 알림톡 · ' + esc(tpl.label) + '</h4>' +
-          '<div>' + esc(sel.summary) + ' 중 <b>' + people + '명</b>의 ' + esc(whos.join('·')) + '에게 <b>' + items.length + '건</b> 보냅니다.' +
+          '<div>' + esc(sel.summary) + ' 중 <b>' + people + '명</b>의 ' + esc(whos.join('·').replace(/학부모(?!님)/g, '학부모님')) + '에게 <b>' + items.length + '건</b> 보냅니다.' +
           (items.length > ALIM_BATCH ? ' <span class="alim-note">(' + ALIM_BATCH + '건씩 나눠 보내요)</span>' : '') + '</div>' +
           '<div class="prev">' + esc(preview) + btns + '</div>' +
           (missing.length ? '<p class="miss">연락처가 없어 못 보내는 학생 ' + missing.length + '명: ' + esc(missing.join(', ')) + '</p>' : '') +
@@ -563,7 +563,7 @@
           .then(function(res){
             if (!res || res.result !== 'success'){ err = (res && res.message) || '오류'; return; }
             okCount += res.okCount || 0;
-            (res.sent || []).forEach(function(x){ var n = x.student + (x.who ? ' ' + x.who : ''); if (x.dup) dup.push(n); else if (!x.ok) bad.push(n + ' (' + x.message + ')'); });
+            (res.sent || []).forEach(function(x){ var n = x.student + (x.who ? ' ' + String(x.who).replace(/학부모(?!님)/g, '학부모님') : ''); if (x.dup) dup.push(n); else if (!x.ok) bad.push(n + ' (' + x.message + ')'); });
           })
           .catch(function(){ err = '인터넷 연결을 확인해 주세요.'; });
       });

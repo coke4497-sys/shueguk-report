@@ -5978,7 +5978,7 @@ function alimOpenConfirm(items, ymd, log, cfg){
     var whos = tg.map(function(t, j){
       var done = byWho[t.who] && byWho[t.who].ok;
       return '<label class="al-who"><input type="checkbox" id="al-t'+i+'_'+j+'" data-who="'+esc(t.who)+'" data-to="'+esc(t.to)+'"'+(done ? '' : ' checked')+'>'+
-        esc(t.who)+' <small>'+esc(phoneFmt(t.to))+'</small>'+(done ? ' <span class="al-sent">'+esc(String(byWho[t.who].ts).slice(11))+' 보냄</span>' : '')+'</label>';
+        esc(whoLbl(t.who))+' <small>'+esc(phoneFmt(t.to))+'</small>'+(done ? ' <span class="al-sent">'+esc(String(byWho[t.who].ts).slice(11))+' 보냄</span>' : '')+'</label>';
     }).join('');
     return '<div class="al-row" data-i="'+i+'">'+
       '<b>'+esc(plainName(it.nm))+'</b>'+
@@ -6022,7 +6022,7 @@ function alimSendConfirm(ymd){
     var bad = (res.sent || []).filter(function(x){ return !x.ok; });
     var dup = (res.sent || []).filter(function(x){ return x.dup; });
     var msg = '결석 알림톡 ' + res.okCount + '건 보냈어요.';
-    var nm = function(x){ return x.student + (x.who ? ' ' + x.who : ''); };
+    var nm = function(x){ return x.student + (x.who ? ' ' + whoLbl(x.who) : ''); };
     if (dup.length) msg += ' ' + dup.map(nm).join('·') + '은(는) 이미 보낸 기록이 있어 건너뛰었어요.';
     if (bad.length) msg += ' 실패: ' + bad.map(function(x){ return nm(x) + ' (' + x.message + ')'; }).join(', ');
     setStatus(msg, bad.length ? 'err' : 'ok');
@@ -6038,14 +6038,16 @@ function alimAttLine(cid, nm, ymd){
       var s = log[plainName(nm)];
       var cidE = esc(cid), nmE = esc(nm), ymdE = esc(ymd);
       var missW = s && s.ok ? alimTargets(nm).filter(function(t){ return !(s.byWho && s.byWho[t.who] && s.byWho[t.who].ok); }).map(function(t){ return t.who; }) : [];
-      if (s && s.ok) el2.innerHTML = '<span class="al-sent">'+esc(s.who)+'께 알림톡 보냄 '+esc(s.ts.slice(5))+'</span>'+
-        (missW.length ? '<span class="al-sent no">'+esc(missW.join('·'))+' 아직 안 보냄</span>' : '')+
+      if (s && s.ok) el2.innerHTML = '<span class="al-sent">'+esc(whoLbl(s.who))+'께 알림톡 보냄 '+esc(s.ts.slice(5))+'</span>'+
+        (missW.length ? '<span class="al-sent no">'+esc(whoLbl(missW.join('·')))+' 아직 안 보냄</span>' : '')+
         '<button onclick="alimResend(\''+cidE+'\',\''+nmE+'\',\''+ymdE+'\')">다시 보내기</button>';
       else el2.innerHTML = (s ? '<span class="al-sent bad">알림톡 실패 · '+esc(s.message || '')+'</span>' : '<span class="al-sent no">결석 알림톡 아직 안 보냄</span>')+
         '<button onclick="alimResend(\''+cidE+'\',\''+nmE+'\',\''+ymdE+'\')">알림톡 보내기</button>';
     });
   });
 }
+/* 받는 분 표시 — 저장 값('학부모1')은 그대로 두고 화면에만 '학부모님1'(2026-09-29 사용자 "학부모라는 표현을 모두 학부모님으로") */
+function whoLbl(w){ return String(w || '').replace(/학부모(?!님)/g, '학부모님'); }
 function alimResend(cid, nm, ymd){
   stuPhonesEnsure(function(){
     alimCfgEnsure(function(cfg){
@@ -6138,7 +6140,7 @@ function alimRenderLog(){
       if (!rows.length){ el.innerHTML = '<p class="subnote">최근 7일에 보낸 알림톡이 없어요.</p>'; return; }
       el.innerHTML = rows.map(function(r){
         return '<div class="al-row"><span class="al-sent'+(r.ok ? '' : ' bad')+'">'+(r.ok ? '성공' : '실패')+'</span>'+
-          '<b>'+esc(r.student)+'</b><span class="grow al-note">'+esc(r.cls)+' · 수업일 '+esc(r.date)+' · '+esc(r.who)+' '+esc(phoneFmt(r.to))+
+          '<b>'+esc(r.student)+'</b><span class="grow al-note">'+esc(r.cls)+' · 수업일 '+esc(r.date)+' · '+esc(whoLbl(r.who))+' '+esc(phoneFmt(r.to))+
           (r.message && !r.ok ? ' · '+esc(r.message) : '')+'</span><small>'+esc(r.ts)+'</small></div>';
       }).join('');
     })
@@ -7247,8 +7249,8 @@ function attTelFill(nm){
     var s = stuPhoneOf(nm), parts = [];
     if (s){
       if (s.ps) parts.push('학생 <a href="tel:' + s.ps + '">' + phoneFmt(s.ps) + '</a>');
-      if (s.p1) parts.push('학부모1 <a href="tel:' + s.p1 + '">' + phoneFmt(s.p1) + '</a>');
-      if (s.p2) parts.push('학부모2 <a href="tel:' + s.p2 + '">' + phoneFmt(s.p2) + '</a>');
+      if (s.p1) parts.push('학부모님1 <a href="tel:' + s.p1 + '">' + phoneFmt(s.p1) + '</a>');
+      if (s.p2) parts.push('학부모님2 <a href="tel:' + s.p2 + '">' + phoneFmt(s.p2) + '</a>');
     }
     el.innerHTML = parts.length ? parts.join('<span class="tel-sep">·</span>')
                                 : '<span class="tel-none">등록된 연락처가 없어요</span>';

@@ -304,9 +304,9 @@
       </div>
       <label>학생 휴대폰</label>
       <input type="text" id="f-pstu" inputmode="numeric" placeholder="01012345678 (학생 본인 번호)" autocomplete="off" />
-      <label>학부모1 휴대폰 <span class="opt">— 뒤 8자리가 성적 확인 비밀번호가 돼요</span></label>
+      <label>학부모님1 휴대폰 <span class="opt">— 뒤 8자리가 성적 확인 비밀번호가 돼요</span></label>
       <input type="text" id="f-pp1" inputmode="numeric" placeholder="01012345678 (주로 어머님 번호)" autocomplete="off" />
-      <label>학부모2 휴대폰 <span class="opt">(선택)</span></label>
+      <label>학부모님2 휴대폰 <span class="opt">(선택)</span></label>
       <input type="text" id="f-pp2" inputmode="numeric" placeholder="비워 두어도 돼요" autocomplete="off" />
       <label>담당 교사 <span class="opt">(선택)</span></label>
       <input type="text" id="f-teacher" list="teacherList" placeholder="예) 남주혜" autocomplete="off" />
@@ -394,7 +394,7 @@
   <div id="tab-link" style="display:none;">
     <section class="card">
       <h2><span class="dot"></span>학생 개인 페이지 링크 · 정보</h2>
-      <p class="sub">링크 복사와 함께 <b>[수정]</b>으로 시간표·담당 교사도 바로 고칠 수 있어요. 링크는 학생·학부모에게만 전달하세요.</p>
+      <p class="sub">링크 복사와 함께 <b>[수정]</b>으로 시간표·담당 교사도 바로 고칠 수 있어요. 링크는 학생·학부모님께만 전달하세요.</p>
       <div class="lk-controls">
         <input type="text" id="lk-q" placeholder="이름 · 학교 검색" autocomplete="off" />
         <select id="lk-grade"><option value="">전체 학년</option></select>
@@ -1303,8 +1303,8 @@
     if(!name){ setReg('이름을 입력해 주세요.','err'); return; }
     if(!school || !grade){ setReg('학교와 학년을 입력해 주세요.','err'); return; }
     if(pstu.length<8 || pstu.length>11){ setReg('학생 휴대폰 번호를 확인해 주세요. (숫자 8~11자리)','err'); return; }
-    if(pp1.length<8 || pp1.length>11){ setReg('학부모1 휴대폰 번호를 확인해 주세요. (숫자 8~11자리)','err'); return; }
-    if(pp2 && (pp2.length<8 || pp2.length>11)){ setReg('학부모2 휴대폰 번호를 확인해 주세요. (없으면 비워두세요)','err'); return; }
+    if(pp1.length<8 || pp1.length>11){ setReg('학부모님1 휴대폰 번호를 확인해 주세요. (숫자 8~11자리)','err'); return; }
+    if(pp2 && (pp2.length<8 || pp2.length>11)){ setReg('학부모님2 휴대폰 번호를 확인해 주세요. (없으면 비워두세요)','err'); return; }
     var sid=pp1.slice(-8), sphone=pstu.slice(-8);
     hideWarn();
     // 반 선택 → 학생정보에는 종전처럼 '요일+시작' 시간 문구로 저장 (예: 토6:00)
@@ -1739,8 +1739,8 @@
       '<div class="row2"><div><label>내신 진도</label><input type="text" class="e-progress" value="'+esc(s.progress||'')+'" /></div>'+
       '<div><label>내신 확인</label><input type="text" class="e-checkup" value="'+esc(s.checkup||'')+'" /></div></div>'+
       '<label>학생 휴대폰</label><input type="text" class="e-pstu" inputmode="numeric" placeholder="01012345678" value="'+esc(s.phoneStu||'')+'" />'+
-      '<div class="row2"><div><label>학부모1 휴대폰</label><input type="text" class="e-pp1" inputmode="numeric" placeholder="01012345678" value="'+esc(s.phone1||'')+'" /></div>'+
-      '<div><label>학부모2 휴대폰 <span style="font-weight:400;color:#7a8a82;">(선택)</span></label><input type="text" class="e-pp2" inputmode="numeric" value="'+esc(s.phone2||'')+'" /></div></div>'+
+      '<div class="row2"><div><label>학부모님1 휴대폰</label><input type="text" class="e-pp1" inputmode="numeric" placeholder="01012345678" value="'+esc(s.phone1||'')+'" /></div>'+
+      '<div><label>학부모님2 휴대폰 <span style="font-weight:400;color:#7a8a82;">(선택)</span></label><input type="text" class="e-pp2" inputmode="numeric" value="'+esc(s.phone2||'')+'" /></div></div>'+
       '<label>메모</label><input type="text" class="e-memo" maxlength="80" value="'+esc(s.memo||'')+'" />'+
       '<label>등록일 <span style="font-weight:400;color:#7a8a82;">— 이 달 신입 목록에 뜨는 기준. 비우면 신입으로 안 뜸</span></label>'+
       '<div class="row2"><input type="text" class="e-regdate" placeholder="2026-08-23" value="'+esc(s.regDate||'')+'" />'+

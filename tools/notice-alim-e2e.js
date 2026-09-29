@@ -136,7 +136,7 @@ const alimSends = () => posts.filter(b => b.action === 'alimSend');
   await page.click('#submitBtn');
   await page.waitForFunction(() => document.getElementById('alimBox').style.display === 'block' && document.getElementById('alimGo'), { timeout: 8000 });
   const t2 = await page.$eval('#alimBox', e => e.textContent);
-  ok(/1명의 학부모1에게 1건/.test(t2), '학부모1 번호가 있는 1명만 (' + t2.slice(0, 80) + ')');
+  ok(/1명의 학부모님1에게 1건/.test(t2), '학부모1 번호가 있는 1명만 (' + t2.slice(0, 80) + ')');
   ok(/연락처가 없어 못 보내는 학생 3명: 김없음, 한동명, 한동명/.test(t2), '학부모1 번호 없는 3명 안내(퇴원생은 아예 제외)');
   ok(/접근코드가 없어 못 보내는 학생 1명: 김코드없음/.test(t2), '접근코드 없는 학생은 번호가 있어도 제외하고 따로 안내');
   await page.click('#alimGo');
