@@ -514,7 +514,8 @@
   function alimFill(text, vars){ return String(text || '').replace(/#\{([^}]+)\}/g, function(_, k){ return vars[k] != null ? vars[k] : ''; }); }
   /* 종류별 추가 변수(모의고사 #{신청일} 등) — 기본 셋 밖의 변수는 확인 상자에 입력 칸을 만들고, 다 채워야 보낸다 */
   var ALIM_BASE_VARS = ['학생명', '제목', '접근코드'];
-  var ALIM_X_HINT = { '신청일': '예) 3/14(토), 3/15(일)' };
+  var ALIM_X_HINT = { '신청일': '예) 3/14(토), 3/15(일)', '장소': '예) 대감빌딩 5층 이수경 국어 본원' };
+  var ALIM_X_DEFAULT = { '장소': '대감빌딩 5층 이수경 국어 본원' };   // 늘 같은 값은 미리 채워 둔다(고칠 수 있음)
   function alimExtraVars(tpl){ return ((tpl && tpl.vars) || []).filter(function(v){ return ALIM_BASE_VARS.indexOf(v) < 0; }); }
   function alimXVals(){ var o = {}; Array.prototype.forEach.call(document.querySelectorAll('.alimX'), function(el){ o[el.getAttribute('data-var')] = el.value.trim(); }); return o; }
   function alimXChanged(){
@@ -549,17 +550,17 @@
         var btns = (tpl.buttons || []).map(function(b){ return '<div class="alim-btn">' + esc(b.name) + '</div>'; }).join('');
         alimPending = { kind: kind, tpl: tpl, btns: btns, ref: 'N:' + todayKst() + '|' + title, title: title, items: items, missing: missing };
         var xs = alimExtraVars(tpl);
-        var preview = alimFill(tpl.text, { '학생명': items[0] ? items[0].student : '○○○', '제목': title });
+        var preview = alimFill(tpl.text, Object.assign({}, ALIM_X_DEFAULT, { '학생명': items[0] ? items[0].student : '○○○', '제목': title }));
         box.innerHTML = '<h4>공지 알림톡 · ' + esc(tpl.label) + '</h4>' +
           '<div>' + esc(sel.summary) + ' 중 <b>' + people + '명</b>의 ' + esc(whos.join('·').replace(/학부모(?!님)/g, '학부모님')) + '에게 <b>' + items.length + '건</b> 보냅니다.' +
           (items.length > ALIM_BATCH ? ' <span class="alim-note">(' + ALIM_BATCH + '건씩 나눠 보내요)</span>' : '') + '</div>' +
-          xs.map(function(v){ return '<label class="alim-x">' + esc(v) + ' <input type="text" class="alimX" data-var="' + esc(v) + '" maxlength="60" placeholder="' + esc(ALIM_X_HINT[v] || '') + '" oninput="alimXChanged()" autocomplete="off" /></label>'; }).join('') +
+          xs.map(function(v){ return '<label class="alim-x">' + esc(v) + ' <input type="text" class="alimX" data-var="' + esc(v) + '" maxlength="60" placeholder="' + esc(ALIM_X_HINT[v] || '') + '" value="' + esc(ALIM_X_DEFAULT[v] || '') + '" oninput="alimXChanged()" autocomplete="off" /></label>'; }).join('') +
           '<div class="prev" id="alimPrev">' + esc(preview) + btns + '</div>' +
           (missing.length ? '<p class="miss">연락처가 없어 못 보내는 학생 ' + missing.length + '명: ' + esc(missing.join(', ')) + '</p>' : '') +
           (nocode.length ? '<p class="miss">학생 페이지 접근코드가 없어 못 보내는 학생 ' + nocode.length + '명: ' + esc(nocode.join(', ')) + '</p>' : '') +
           (alimCfg.smsFallback ? '' : '<p class="miss">카카오톡을 받을 수 없는 번호는 문자로 대체되지 않아요 (발신번호 미설정).</p>') +
           '<div class="btns"><button type="button" onclick="alimCancel()">보내지 않기</button>' +
-          '<button type="button" class="go" id="alimGo" onclick="alimSendNotice()"' + (items.length && !xs.length ? '' : ' disabled') + '>알림톡 보내기 (' + items.length + '건)</button></div>';
+          '<button type="button" class="go" id="alimGo" onclick="alimSendNotice()"' + (items.length && xs.every(function(v){ return ALIM_X_DEFAULT[v]; }) ? '' : ' disabled') + '>알림톡 보내기 (' + items.length + '건)</button></div>';
       })
       .catch(function(e){ box.innerHTML = '<h4>공지 알림톡</h4><p class="miss">연락처를 불러오지 못했어요 — ' + esc(e.message) + '</p><div class="btns"><button type="button" onclick="alimCancel()">닫기</button></div>'; });
   }

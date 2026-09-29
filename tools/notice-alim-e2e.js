@@ -33,8 +33,8 @@ const ntpl = (label, ready) => ({ label, notice: true, ready, vars: ['학생명'
 /* 공지 종류 여덟(2026-09-17, 결석까지 9종) — H WORK 안내만 아직 심사 전(ready:false)인 상황 */
 let ALIM_CFG = { result: 'success', ready: true, smsFallback: false, has: { key: true, secret: true, pfId: true, from: false },
   templates: { absent: { label: '결석 안내', text: 'x', vars: [], ready: true },
-               notice_sched: ntpl('수업 일정 안내', true), notice_mock: Object.assign(ntpl('주말 실전 모의고사 신청 안내', true), { vars: ['학생명', '제목', '신청일', '접근코드'],
-                 text: '[이수경국어학원] 주말 실전 모의고사 신청 안내\n#{학생명} 학생에게 주말 실전 모의고사 신청 안내가 도착했어요.\n\n▶ #{제목}\n\n3. #{신청일} 중 택1하여 신청합니다.\n\n학생 페이지에서 내용을 확인해 주세요.' }),
+               notice_sched: ntpl('수업 일정 안내', true), notice_mock: Object.assign(ntpl('주말 실전 모의고사 신청 안내', true), { vars: ['학생명', '제목', '장소', '신청일', '접근코드'],
+                 text: '[이수경국어학원] 주말 실전 모의고사 신청 안내\n#{학생명} 학생에게 주말 실전 모의고사 신청 안내가 도착했어요.\n\n▶ #{제목}\n\n1. #{장소}에서 실시합니다.\n3. #{신청일} 중 택1하여 신청합니다.\n\n학생 페이지에서 내용을 확인해 주세요.' }),
                notice_hwork: ntpl('H WORK 안내', false),
                notice_report: ntpl('지필고사 리포트 제작 안내', true), notice_reportup: ntpl('지필고사 리포트 업데이트 안내', true),
                notice_voca: ntpl('어휘 테스트 참여 안내', true), notice_gramma: ntpl('문법 테스트 참여 안내', true) } };
@@ -118,8 +118,9 @@ const alimSends = () => posts.filter(b => b.action === 'alimSend');
   ok(/고일001 학생에게 주말 실전 모의고사 신청 안내가 도착했어요/.test(boxTxt) && /▶ 추석 휴강 안내/.test(boxTxt) && /공지 알림톡 · 주말 실전 모의고사 신청 안내/.test(boxTxt), '미리보기 = 고른 종류(모의고사 신청 안내) 문구에 학생명·제목이 채워진다');
   ok(await page.$eval('#alimBox .alim-btn', e => e.textContent) === '학생 페이지 열기', '미리보기 아래 템플릿 버튼 [학생 페이지 열기]');
   ok(!/연락처가 없어/.test(boxTxt), '고1은 전원 번호 있음 → 안내 없음');
-  ok(await page.$eval('#alimGo', e => e.disabled) && (await page.$$eval('#alimBox .alimX', els => els.map(e => e.getAttribute('data-var')))).join() === '신청일', '모의고사: 신청일 입력 칸이 생기고 채우기 전엔 [보내기] 잠김');
-  await page.fill('#alimBox .alimX', '3/14(토), 3/15(일)');
+  ok(await page.$eval('#alimGo', e => e.disabled) && (await page.$$eval('#alimBox .alimX', els => els.map(e => e.getAttribute('data-var') + '=' + e.value))).join() === '장소=대감빌딩 5층 이수경 국어 본원,신청일=', '모의고사: 장소(기본값 채움)·신청일 칸, 신청일 전엔 [보내기] 잠김');
+  ok(/1\. 대감빌딩 5층 이수경 국어 본원에서 실시합니다/.test(await page.$eval('#alimPrev', e => e.textContent)), '미리보기에 기본 장소');
+  await page.fill('#alimBox .alimX[data-var="신청일"]', '3/14(토), 3/15(일)');
   ok(!(await page.$eval('#alimGo', e => e.disabled)) && /3\/14\(토\), 3\/15\(일\) 중 택1/.test(await page.$eval('#alimPrev', e => e.textContent)), '신청일을 채우면 미리보기에 들어가고 [보내기]가 열림');
   await page.click('#alimGo');
   await page.waitForFunction(() => /공지 알림톡/.test(document.getElementById('status').textContent), { timeout: 8000 });
@@ -127,7 +128,7 @@ const alimSends = () => posts.filter(b => b.action === 'alimSend');
   ok(sends.length === 3 && sends.map(b => b.items.length).join(',') === '50,50,20', 'alimSend 3번(50·50·20명)');
   const it0 = sends[0].items[0];
   ok(sends.every(b => b.kind === 'notice_mock') && it0.who === '학생' && it0.to === '01011000000' && it0.cls === '공지', 'kind = 고른 종류(notice_mock) · 학생 번호 · 반 “공지”');
-  ok(/^N:\d{4}-\d{2}-\d{2}\|추석 휴강 안내$/.test(it0.date) && it0.vars['제목'] === '추석 휴강 안내' && it0.vars['학생명'] === '고일001' && it0.vars['접근코드'] === 'c10' && it0.vars['신청일'] === '3/14(토), 3/15(일)', '중복 키 N:날짜|제목 + 변수(학생명·제목·신청일·접근코드=학생 페이지 키)');
+  ok(/^N:\d{4}-\d{2}-\d{2}\|추석 휴강 안내$/.test(it0.date) && it0.vars['제목'] === '추석 휴강 안내' && it0.vars['학생명'] === '고일001' && it0.vars['접근코드'] === 'c10' && it0.vars['신청일'] === '3/14(토), 3/15(일)' && it0.vars['장소'] === '대감빌딩 5층 이수경 국어 본원', '중복 키 N:날짜|제목 + 변수(학생명·제목·신청일·접근코드=학생 페이지 키)');
   const st = await page.$eval('#status', e => e.textContent);
   ok(/119건 보냈어요/.test(st) && /이미 보낸 1건/.test(st), '결과 문구: 119건 + 중복 1명 (' + st + ')');
   ok(await page.$eval('#alimBox', e => e.style.display) === 'none', '보낸 뒤 상자 닫힘');
