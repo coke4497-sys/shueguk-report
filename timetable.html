@@ -6730,7 +6730,7 @@ function crHwLabel(code){
 }
 function crStarsHtml(i, code){
   var h = code ? CR.hw[code] : null, x = CR.names[i], src = crSrcOf(x);
-  if (!src) return '<div class="cr-note">지난 수업에 적힌 과제가 없습니다. 검사할 과제가 있으면 위 [반 전체 검사 과제 추가]에 적어 주십시오. 비워 두면 리포트에는 \'확인할 것이 없습니다\'로 들어가요.</div>';
+  if (!src) return '<div class="cr-note">지난 수업에 적힌 과제가 없습니다. 리포트에는 \'확인할 것이 없습니다\'로 들어갑니다.</div>';
   var ii = 0;
   return '<div class="cr-src">' + esc(src.head) + '</div>' + src.tasks.map(function(t){
     return '<div class="cr-task"><div class="cr-tname">' + esc(t) + '</div>' + CR_HW_DIMS.map(function(d){
