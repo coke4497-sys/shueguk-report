@@ -66,6 +66,8 @@
   .alim-box .prev{white-space:pre-wrap;background:#fff;border-radius:8px;padding:10px 12px;margin:8px 0;font-size:13px;line-height:1.55;}
   .alim-box .alim-btn{margin-top:10px;padding:8px 0;text-align:center;border-radius:6px;background:#F4F5F3;color:#4C6E66;font-size:13px;}   /* 템플릿 버튼 미리보기 */
   .alim-box .miss{color:var(--ink-soft);font-size:12.5px;margin:6px 0 0;}
+  .alim-box .alim-x{display:flex;align-items:center;gap:8px;margin:8px 0 0;font-size:13px;font-weight:600;}   /* 종류별 추가 변수 입력(모의고사 신청일) */
+  .alim-box .alim-x input{flex:1;min-width:0;padding:7px 10px;border:1px solid #D5DDD8;border-radius:8px;font:inherit;font-weight:400;}
   .alim-box .btns{display:flex;gap:8px;justify-content:flex-end;margin-top:10px;}
   .alim-box .btns button{font:inherit;font-size:13px;padding:8px 14px;border-radius:10px;border:1px solid var(--line-soft);background:#fff;cursor:pointer;}
   .alim-box .btns button.go{background:var(--accent);color:#fff;border-color:var(--accent);}
@@ -510,6 +512,18 @@
   var ALIM_PHONE = { '학생': 'phone_student', '학부모1': 'phone_parent1', '학부모2': 'phone_parent2' };
   function alimWhos(){ return Array.prototype.slice.call(document.querySelectorAll('.alimWho:checked')).map(function(x){ return x.value; }); }
   function alimFill(text, vars){ return String(text || '').replace(/#\{([^}]+)\}/g, function(_, k){ return vars[k] != null ? vars[k] : ''; }); }
+  /* 종류별 추가 변수(모의고사 #{신청일} 등) — 기본 셋 밖의 변수는 확인 상자에 입력 칸을 만들고, 다 채워야 보낸다 */
+  var ALIM_BASE_VARS = ['학생명', '제목', '접근코드'];
+  var ALIM_X_HINT = { '신청일': '예) 3/14(토), 3/15(일)' };
+  function alimExtraVars(tpl){ return ((tpl && tpl.vars) || []).filter(function(v){ return ALIM_BASE_VARS.indexOf(v) < 0; }); }
+  function alimXVals(){ var o = {}; Array.prototype.forEach.call(document.querySelectorAll('.alimX'), function(el){ o[el.getAttribute('data-var')] = el.value.trim(); }); return o; }
+  function alimXChanged(){
+    var p = alimPending; if (!p) return;
+    var xv = alimXVals(), full = alimExtraVars(p.tpl).every(function(v){ return xv[v]; });
+    var pv = document.getElementById('alimPrev');
+    if (pv) pv.innerHTML = esc(alimFill(p.tpl.text, Object.assign({ '학생명': p.items[0] ? p.items[0].student : '○○○', '제목': p.title }, xv))) + p.btns;
+    var go = document.getElementById('alimGo'); if (go) go.disabled = !(p.items.length && full);
+  }
   function todayKst(){ var d = new Date(Date.now() + 9 * 3600000), p = function(n){ return String(n).padStart(2, '0'); }; return d.getUTCFullYear() + '-' + p(d.getUTCMonth() + 1) + '-' + p(d.getUTCDate()); }
   /* 등록 성공 뒤 — 대상 학생을 골라 확인 상자를 띄운다 */
   function alimOfferNotice(sel, title, kind){
@@ -532,24 +546,27 @@
           else if (!stu.code) nocode.push(stu.name);   // [학생 페이지 열기] 버튼 주소가 못 만들어지므로 보내지 않는다
           else { people++; tos.forEach(function(t){ items.push({ student: stu.name, to: t.to, who: t.who, code: stu.code }); }); }
         });
-        alimPending = { kind: kind, ref: 'N:' + todayKst() + '|' + title, title: title, items: items, missing: missing };
-        var preview = alimFill(tpl.text, { '학생명': items[0] ? items[0].student : '○○○', '제목': title });
         var btns = (tpl.buttons || []).map(function(b){ return '<div class="alim-btn">' + esc(b.name) + '</div>'; }).join('');
+        alimPending = { kind: kind, tpl: tpl, btns: btns, ref: 'N:' + todayKst() + '|' + title, title: title, items: items, missing: missing };
+        var xs = alimExtraVars(tpl);
+        var preview = alimFill(tpl.text, { '학생명': items[0] ? items[0].student : '○○○', '제목': title });
         box.innerHTML = '<h4>공지 알림톡 · ' + esc(tpl.label) + '</h4>' +
           '<div>' + esc(sel.summary) + ' 중 <b>' + people + '명</b>의 ' + esc(whos.join('·').replace(/학부모(?!님)/g, '학부모님')) + '에게 <b>' + items.length + '건</b> 보냅니다.' +
           (items.length > ALIM_BATCH ? ' <span class="alim-note">(' + ALIM_BATCH + '건씩 나눠 보내요)</span>' : '') + '</div>' +
-          '<div class="prev">' + esc(preview) + btns + '</div>' +
+          xs.map(function(v){ return '<label class="alim-x">' + esc(v) + ' <input type="text" class="alimX" data-var="' + esc(v) + '" maxlength="60" placeholder="' + esc(ALIM_X_HINT[v] || '') + '" oninput="alimXChanged()" autocomplete="off" /></label>'; }).join('') +
+          '<div class="prev" id="alimPrev">' + esc(preview) + btns + '</div>' +
           (missing.length ? '<p class="miss">연락처가 없어 못 보내는 학생 ' + missing.length + '명: ' + esc(missing.join(', ')) + '</p>' : '') +
           (nocode.length ? '<p class="miss">학생 페이지 접근코드가 없어 못 보내는 학생 ' + nocode.length + '명: ' + esc(nocode.join(', ')) + '</p>' : '') +
           (alimCfg.smsFallback ? '' : '<p class="miss">카카오톡을 받을 수 없는 번호는 문자로 대체되지 않아요 (발신번호 미설정).</p>') +
           '<div class="btns"><button type="button" onclick="alimCancel()">보내지 않기</button>' +
-          '<button type="button" class="go" id="alimGo" onclick="alimSendNotice()"' + (items.length ? '' : ' disabled') + '>알림톡 보내기 (' + items.length + '건)</button></div>';
+          '<button type="button" class="go" id="alimGo" onclick="alimSendNotice()"' + (items.length && !xs.length ? '' : ' disabled') + '>알림톡 보내기 (' + items.length + '건)</button></div>';
       })
       .catch(function(e){ box.innerHTML = '<h4>공지 알림톡</h4><p class="miss">연락처를 불러오지 못했어요 — ' + esc(e.message) + '</p><div class="btns"><button type="button" onclick="alimCancel()">닫기</button></div>'; });
   }
   function alimCancel(){ alimPending = null; var box = document.getElementById('alimBox'); box.style.display = 'none'; box.innerHTML = ''; }
   function alimSendNotice(){
     var p = alimPending; if (!p || !p.items.length) return;
+    var xv = alimXVals(); if (!alimExtraVars(p.tpl).every(function(v){ return xv[v]; })) return;
     var btn = document.getElementById('alimGo'); btn.disabled = true; btn.textContent = '보내는 중…';
     var chunks = []; for (var i = 0; i < p.items.length; i += ALIM_BATCH) chunks.push(p.items.slice(i, i + ALIM_BATCH));
     var okCount = 0, dup = [], bad = [], err = '';
@@ -558,7 +575,7 @@
         if (err) return;
         return fetch(ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
           body: JSON.stringify({ action: 'alimSend', kind: p.kind,
-            items: chunk.map(function(it){ return { student: it.student, to: it.to, who: it.who, cls: '공지', date: p.ref, vars: { '학생명': it.student, '제목': p.title, '접근코드': it.code } }; }) }) })
+            items: chunk.map(function(it){ return { student: it.student, to: it.to, who: it.who, cls: '공지', date: p.ref, vars: Object.assign({}, xv, { '학생명': it.student, '제목': p.title, '접근코드': it.code }) }; }) }) })
           .then(function(r){ return r.json(); })
           .then(function(res){
             if (!res || res.result !== 'success'){ err = (res && res.message) || '오류'; return; }
