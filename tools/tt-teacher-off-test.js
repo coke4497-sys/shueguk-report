@@ -52,6 +52,7 @@ const OFF = [{ date:MON, teacher:'지원', reason:'월 직보' }];
   ok('주차별: 위쪽 휴무 요약 줄 없음(요일 칸에만 표시)', r.strip === '', r.strip);
   ok('요일 머리글: 교사 휴무 표시', /교사 휴무.*지원T/.test(r.monHead), r.monHead);
   ok('독립 정보: 원래 수업 카드 유지', r.cards.some(x => /고1 가/.test(x)), JSON.stringify(r.cards));
+  ok('개요 카드: 반이름 앞에 담당 선생님', r.cards.some(x => /^지원T\s*고1 가/.test(x)), JSON.stringify(r.cards));
 
   // 요일 확대: 휴무 강사 열 머리글에 표시
   await page.evaluate(() => { weekZoomDay = '월'; render(); });
