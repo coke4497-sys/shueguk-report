@@ -42,14 +42,14 @@ const OFF = [{ date:MON, teacher:'지원', reason:'월 직보' }];
     localStorage.setItem('ttc:week:정규:' + mon, JSON.stringify({ t:Date.now(), d:{ attend:[], onceMoves:[], teacherOffs:off } }));
   }, { cls:CLS, off:OFF, mon:MON });
   await page.goto('http://127.0.0.1:' + port + '/timetable.html');
-  await page.waitForSelector('.toff-chip', { timeout:15000 });
+  await page.waitForSelector('.toff-day', { timeout:15000 });
 
   let r = await page.evaluate(() => ({
-    strip: document.querySelector('.toff-strip').textContent,
+    strip: document.querySelector('.toff-strip') ? document.querySelector('.toff-strip').textContent : '',
     monHead: [...document.querySelectorAll('.wk-dayh')].find(x => /^월/.test(x.textContent)).textContent,
     cards: [...document.querySelectorAll('.wk-mini')].map(x => x.textContent)
   }));
-  ok('요약: 선생님·휴무·사유 표시', /지원T 휴무/.test(r.strip) && /월 직보/.test(r.strip), r.strip);
+  ok('주차별: 위쪽 휴무 요약 줄 없음(요일 칸에만 표시)', r.strip === '', r.strip);
   ok('요일 머리글: 교사 휴무 표시', /교사 휴무.*지원T/.test(r.monHead), r.monHead);
   ok('독립 정보: 원래 수업 카드 유지', r.cards.some(x => /고1 가/.test(x)), JSON.stringify(r.cards));
 
@@ -61,7 +61,8 @@ const OFF = [{ date:MON, teacher:'지원', reason:'월 직보' }];
   await page.evaluate(() => { weekZoomDay = null; render(); });
   await page.waitForTimeout(200);
 
-  await page.click('.toff-strip .toff-chip');
+  await page.click('.toff-open');
+  await page.click('#modal-box .toff-existing .toff-chip');
   r = await page.evaluate(() => ({
     txt: document.getElementById('modal-box').textContent,
     reason: document.getElementById('toff-reason').value,
