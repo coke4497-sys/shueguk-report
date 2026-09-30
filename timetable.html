@@ -3190,7 +3190,6 @@ function renderView(){
     '<button onclick="moveWeek(1)">다음주</button>'+
     '<button class="toff-open" onclick="openTeacherOff()">교사 휴무 설정</button>';
   host.appendChild(nav);
-  var offStrip = teacherOffStrip(); if (offStrip) host.appendChild(offStrip);
   if (narrowScreen()) host.appendChild(mviewToggleBtn());
   host.appendChild(useListView() ? buildWeekList()
                  : (weekZoomDay ? buildWeekZoom(weekZoomDay) : buildWeekOverview()));
@@ -4861,21 +4860,6 @@ function teacherOffDayHtml(dstr){
   var rows = teacherOffsAt(dstr);
   if (!rows.length) return '';
   return '<span class="toff-day">교사 휴무 · ' + rows.map(function(o){ return esc(o.teacher) + 'T'; }).join(' · ') + '</span>';
-}
-function teacherOffStrip(){
-  if (!teacherOffs.length) return null;
-  var dates = weekDates(), dayOf = {};
-  WEEK_VIEW_ORDER.forEach(function(dy){ dayOf[ymdOf(dates[dy])] = dy; });
-  var box = document.createElement('div');
-  box.className = 'toff-strip';
-  box.innerHTML = '<strong>교사 임시 휴무</strong>' + teacherOffs.slice().sort(function(a,b){
-    return a.date.localeCompare(b.date) || wkTeacherRank(a.teacher) - wkTeacherRank(b.teacher);
-  }).map(function(o){
-    var note = o.reason ? ' · ' + esc(o.reason) : '';
-    return '<button class="toff-chip" onclick="openTeacherOff(\'' + esc(o.date) + '\',\'' + esc(o.teacher) + '\')">' +
-           '<b>' + esc(o.teacher) + 'T 휴무</b> · ' + esc(dayOf[o.date] || '') + ' ' + esc(mdOfYmdStr(o.date)) + note + '</button>';
-  }).join('');
-  return box;
 }
 /* 오늘의 시간표 — 오늘 휴무인 선생님을 요약 줄과 강사 열 머리글에 표시한다(2026-09-30 사용자 요청).
    주차별과 마찬가지로 표시만 하고 수업·출석은 바꾸지 않는다. 설정·해제는 주차별 [교사 휴무 설정]에서. */
