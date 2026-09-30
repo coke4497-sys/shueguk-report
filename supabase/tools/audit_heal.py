@@ -544,9 +544,14 @@ def main():
     insert_missing('naeshin_records', d['naeshin_records'],
         lambda r: (r['period'], r['class_key'], r['kind'], r['week'], r['student']),
         lambda r: (r['period'], r['class_key'], r['kind'], r['week'], r['student']), heal, '이중 기록 지연·실패 가능')
-    insert_missing('submissions', d['submissions'],
-        lambda r: (ep(r['submitted_at']), r['name'].strip(), r['exam'].strip()),
-        lambda r: (ep(r['submitted_at']), r['name'].strip(), r['exam'].strip()), heal, '이중 기록 지연·실패 가능')
+    # 2026-09-30: submissions도 아래 tt_log와 같은 이유로 **대조·보고만** 한다.
+    # 복기 제출의 원본은 수파베이스(r.html이 mirror_submission으로 먼저 넣는다 — 2026-08-26 전환)이고
+    # 시트 '제출결과'는 뒤에서 보내는 사본이라, 제출시각이 페이지 시각과 앱스스크립트 서버 시각으로
+    # 몇 초 어긋난다. 초 단위 일치 키(insert_missing + ep)는 그 사본을 '빠진 행'으로 보고 되살려
+    # 제출마다 시트 시각 줄을 하나씩 더 만들었다(9/23~9/29 6명 분 정리). 3분 오차를 허용해 짝짓는다.
+    copy_compare('submissions', d['submissions'],
+        lambda r: (r['name'].strip(), r['exam'].strip(), str(r['score']), str(r['wrong_count'])),
+        lambda r: r['submitted_at'])
     # 2026-08-27: tt_log는 수파베이스가 원본(모든 시간표 쓰기가 페이지 먼저) — 시트
     # '시간표이동기록'은 뒤에서 보내는 사본이라 기록 시각이 몇 초~몇 분 어긋난다.
     # 초 단위 일치 키(insert_missing + ep)는 그 사본을 '빠진 행'으로 오인해 되살렸고,
