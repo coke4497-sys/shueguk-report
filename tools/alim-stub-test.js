@@ -200,7 +200,7 @@ r = J(fns.alimConfigGet());
 const NK = Object.keys(r.templates).filter(k => r.templates[k].notice);
 eq('공지 종류 여덟(notice 표시, 결석까지 9종) — 옛 단일 notice 없음', [NK, 'notice' in r.templates, r.templates.absent.notice, Object.keys(r.templates).length],
    [['notice_sched', 'notice_mock', 'notice_hwork', 'notice_report', 'notice_reportup', 'notice_voca', 'notice_gramma'], false, false, 8]);
-eq('종류 이름', NK.map(k => r.templates[k].label), ['수업 일정 안내', '주말 실전 모의고사 신청 안내', 'H WORK 안내', '지필고사 리포트 제작 안내', '지필고사 리포트 업데이트 안내', '어휘 테스트 참여 안내', '문법 테스트 참여 안내']);
+eq('종류 이름', NK.map(k => r.templates[k].label), ['수업 일정 안내', '주말 실전 모의고사 신청 안내', 'H WORK 과제 안내', '지필고사 리포트 제작 안내', '지필고사 리포트 업데이트 안내', '어휘 테스트 참여 안내', '문법 테스트 참여 안내']);
 eq('설정 목록에 공지 템플릿(아직 ID 없음)', [typeof r.templates.notice_mock.text, r.templates.notice_mock.ready, r.templates.notice_mock.vars, r.templates.notice_voca.vars], ['string', false, ['학생명', '제목', '장소', '신청일', '정원', '접근코드'], ['학생명', '제목', '접근코드']]);
 const MOCK_BODY = '1. #{장소}에서 실시합니다.\n2. 8:30까지 등원하여 8:40-10:00까지, 모의수능시험에 응시합니다. 8:35분이 지나면 출입을 통제하고 이후 입실이 <불가>합니다.\n3. #{신청일} 중 택1하여 신청합니다. 마감되면 설문을 종료합니다.\n4. 장소가 협소하므로 각 요일 #{정원}명 선착순으로 마감합니다. 임의로 요일을 이동할 수 없습니다.\n\n';
 const TAILS = { notice_sched: '학생 페이지에서 내용을 확인해 주세요.', notice_mock: '학생 페이지의 주말 실전 모의고사 메뉴에서 신청할 수 있습니다.',
