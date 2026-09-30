@@ -50,7 +50,7 @@ const OFF = [{ date:MON, teacher:'지원', reason:'월 직보' }];
     cards: [...document.querySelectorAll('.wk-mini')].map(x => x.textContent)
   }));
   ok('주차별: 위쪽 휴무 요약 줄 없음(요일 칸에만 표시)', r.strip === '', r.strip);
-  ok('요일 머리글: 교사 휴무 표시', /교사 휴무.*지원T/.test(r.monHead), r.monHead);
+  ok('요일 머리글: 지원T OFF (월 직보)', /지원T OFF \(월 직보\)/.test(r.monHead), r.monHead);
   ok('독립 정보: 원래 수업 카드 유지', r.cards.some(x => /고1 가/.test(x)), JSON.stringify(r.cards));
   ok('개요 카드: 반이름 앞에 담당 선생님', r.cards.some(x => /^지원T\s*고1 가/.test(x)), JSON.stringify(r.cards));
 
@@ -58,7 +58,7 @@ const OFF = [{ date:MON, teacher:'지원', reason:'월 직보' }];
   await page.evaluate(() => { weekZoomDay = '월'; render(); });
   await page.waitForTimeout(200);
   r = await page.evaluate(() => [...document.querySelectorAll('.wk-th')].map(x => x.textContent));
-  ok('확대: 강사 열 머리글에 휴무·사유', r.some(t => /지원T/.test(t) && /휴무 · 월 직보/.test(t)), JSON.stringify(r));
+  ok('확대: 강사 열 머리글에 휴무·사유', r.some(t => /지원T/.test(t) && /OFF \(월 직보\)/.test(t)), JSON.stringify(r));
   await page.evaluate(() => { weekZoomDay = null; render(); });
   await page.waitForTimeout(200);
 
@@ -104,9 +104,9 @@ const OFF = [{ date:MON, teacher:'지원', reason:'월 직보' }];
     heads: [...document.querySelectorAll('.thead')].map(x => x.textContent),
     cards: document.querySelectorAll('.blk').length
   }));
-  ok('오늘: 휴무 요약 줄', /오늘 교사 휴무/.test(r.strip) && /지원T 휴무/.test(r.strip) && /병원/.test(r.strip), r.strip);
-  ok('오늘: 휴무 강사 열 머리글 표시', r.heads.some(h => /지원/.test(h) && /오늘 휴무/.test(h)), JSON.stringify(r.heads));
-  ok('오늘: 다른 강사 머리글엔 없음', r.heads.filter(h => /은지/.test(h)).every(h => !/휴무/.test(h)), JSON.stringify(r.heads));
+  ok('오늘: 휴무 요약 줄', /오늘 교사 휴무/.test(r.strip) && /지원T OFF \(병원\)/.test(r.strip), r.strip);
+  ok('오늘: 휴무 강사 열 머리글 표시', r.heads.some(h => /지원/.test(h) && /OFF \(병원\)/.test(h)), JSON.stringify(r.heads));
+  ok('오늘: 다른 강사 머리글엔 없음', r.heads.filter(h => /은지/.test(h)).every(h => !/OFF/.test(h)), JSON.stringify(r.heads));
   ok('오늘: 수업 카드 그대로', r.cards >= 2, String(r.cards));
 
   // 휴대폰 목록 보기(주차별): 요일 탭에 휴무 표시
@@ -133,7 +133,7 @@ const OFF = [{ date:MON, teacher:'지원', reason:'월 직보' }];
   r = await p3.evaluate(() => ({ strip: (document.querySelector('.toff-strip') || {}).textContent || '',
     cache: localStorage.getItem('ttc:toff:' + todayStr()) || '' }));
   ok('어댑터: 오늘 날짜로 휴무 조회', offUrls.some(u => u.indexOf('off_date=gte.' + TD) >= 0 && u.indexOf('off_date=lte.' + TD) >= 0), JSON.stringify(offUrls));
-  ok('어댑터: 받은 휴무를 오늘 화면에 표시·캐시', /지원T 휴무/.test(r.strip) && /연수/.test(r.strip) && /연수/.test(r.cache), JSON.stringify(r));
+  ok('어댑터: 받은 휴무를 오늘 화면에 표시·캐시', /지원T OFF \(연수\)/.test(r.strip) && /연수/.test(r.cache), JSON.stringify(r));
   await ctx3.close();
 
   console.log('통과 ' + pass + ' / 실패 ' + fail);
