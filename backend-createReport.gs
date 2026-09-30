@@ -4091,7 +4091,8 @@ var ALIM_TPL_ = {
                      '3. #{신청일} 중 택1하여 신청합니다. 마감되면 설문을 종료합니다.\n' +
                      '4. 장소가 협소하므로 각 요일 #{정원}명 선착순으로 마감합니다. 임의로 요일을 이동할 수 없습니다.',
                      ['장소', '신청일', '정원']),
-  notice_hwork:    alimNoticeTpl_('H WORK 안내',                'ALIM_TPL_NOTICE_HWORK',
+  // 'H WORK 안내'는 카카오가 "'안내'만으로는 내용을 알 수 없다"로 반려(2026-09-30) → 원장님이 'H WORK 과제 안내'로 정함
+  notice_hwork:    alimNoticeTpl_('H WORK 과제 안내',           'ALIM_TPL_NOTICE_HWORK',
                      alimTail_('학생 페이지의 H-work 메뉴에서 과제를 확인하고 제출해 주세요.')),
   notice_report:   alimNoticeTpl_('지필고사 리포트 제작 안내',   'ALIM_TPL_NOTICE_REPORT',
                      alimTail_('학생 페이지의 지필고사 데이터 메뉴에서 시험 복기를 입력해 주세요.')),
