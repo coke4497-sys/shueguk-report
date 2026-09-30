@@ -749,12 +749,14 @@ function reviewHtml(paras){
     var lines = String(p == null ? '' : p).split('\n');
     var h = '';
     if (lines.length && /^##\s+/.test(lines[0])) h = lines.shift().replace(/^##\s+/, '').trim();
+    else if (lines.length === 1 && /^\d{1,2}\.\s*\S/.test(lines[0].trim()) && lines[0].trim().length <= 40)
+      h = lines.shift().trim();   // '1. 시험 구성' 꼴 한 줄 문단 = 번호 소제목 (2026-09-30 원장님 — ## 표시 금지)
     var out = h ? '<div class="rv-h">' + esc(h) + '</div>' : '', buf = [];
     function flush(){ if (buf.length){ out += '<p>' + esc(buf.join(' ')) + '</p>'; buf = []; } }
     lines.forEach(function(raw){
       var t = raw.trim();
       if (!t){ flush(); return; }
-      if (/^-\s+/.test(t)){ flush(); out += '<div class="rv-li">' + esc(t.replace(/^-\s+/, '')) + '</div>'; }
+      if (/^[-·•]\s+/.test(t)){ flush(); out += '<div class="rv-li">' + esc(t.replace(/^[-·•]\s+/, '')) + '</div>'; }
       else buf.push(t);            // 옛 총평처럼 줄바꿈만 있는 문단은 전과 같이 한 덩어리로 합친다
     });
     flush();
