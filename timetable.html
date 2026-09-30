@@ -98,6 +98,7 @@
   .toff-chip b{color:#343B37;}
   .toff-chip.static{cursor:default;}
   .toff-note{font-size:.7rem;color:var(--ink-soft);}
+  .toff-tab{color:#8A5A3C;font-weight:700;}
   .toff-head{display:block;margin-top:2px;font-size:.66rem;font-weight:700;color:#8A5A3C;}
   .toff-day{display:block;margin-top:3px;font-size:.61rem;font-weight:400;line-height:1.25;
     color:#fff;opacity:.9;white-space:normal;}
@@ -4220,7 +4221,8 @@ function buildWeekList(){
   }
   var wrap = document.createElement('div');
   wrap.appendChild(dayTabsEl(weekListDay,
-    function(dy){ return esc(dy) + '<small>' + mdOf(days[dy]) + '</small>'; },
+    function(dy){ return esc(dy) + '<small>' + mdOf(days[dy]) + '</small>' +
+                         (teacherOffsAt(ymdOf(days[dy])).length ? '<small class="toff-tab">휴무</small>' : ''); },
     function(dy){ weekListDay = dy; keepScroll = false; render(); }));
   var dstr = ymdOf(days[weekListDay]);
   var list = classes.filter(function(c){ return c.day === weekListDay && wkVisible(c, dstr); });
@@ -4610,7 +4612,7 @@ function zoomTuneRows(g, nrows){
     applyMultiSel();
   });
 }
-function zoomCenterGrids(big, dname, list, makeBlock, makeBand){
+function zoomCenterGrids(big, dname, list, makeBlock, makeBand, dstr){   // dstr = 주차별 날짜(교사 휴무 머리글 표시용)
   var order = [], byLoc = {};
   list.forEach(function(c){
     if (!byLoc[c.loc]){ byLoc[c.loc] = []; order.push(c.loc); }
@@ -4643,6 +4645,13 @@ function zoomCenterGrids(big, dname, list, makeBlock, makeBand){
       var th = document.createElement('div');
       th.className = 'wk-th';
       th.textContent = t + 'T';
+      var toff = dstr ? teacherOffAt(dstr, t) : null;   // 그 날 임시 휴무면 열 머리글에 표시 (2026-09-30)
+      if (toff){
+        var ts = document.createElement('span');
+        ts.className = 'toff-head';
+        ts.textContent = '휴무' + (toff.reason ? ' · ' + toff.reason : '');
+        th.appendChild(ts);
+      }
       g.appendChild(th);
     });
     for (var r = 0; r < n; r++){
@@ -5090,7 +5099,7 @@ function buildWeekZoom(dname){
       big.appendChild(em);
     }
     zoomCenterGrids(big, dy, list, function(c){ return weekBlockEl(c, dstr); },
-                    function(c){ var off = wkOffAt(c.id, dstr); return off ? offBandEl(c, off, dstr, true) : null; });
+                    function(c){ var off = wkOffAt(c.id, dstr); return off ? offBandEl(c, off, dstr, true) : null; }, dstr);
     wrap.appendChild(big);
   });
   requestAnimationFrame(function(){ applySearchHits(); });

@@ -53,6 +53,14 @@ const OFF = [{ date:MON, teacher:'지원', reason:'월 직보' }];
   ok('요일 머리글: 교사 휴무 표시', /교사 휴무.*지원T/.test(r.monHead), r.monHead);
   ok('독립 정보: 원래 수업 카드 유지', r.cards.some(x => /고1 가/.test(x)), JSON.stringify(r.cards));
 
+  // 요일 확대: 휴무 강사 열 머리글에 표시
+  await page.evaluate(() => { weekZoomDay = '월'; render(); });
+  await page.waitForTimeout(200);
+  r = await page.evaluate(() => [...document.querySelectorAll('.wk-th')].map(x => x.textContent));
+  ok('확대: 강사 열 머리글에 휴무·사유', r.some(t => /지원T/.test(t) && /휴무 · 월 직보/.test(t)), JSON.stringify(r));
+  await page.evaluate(() => { weekZoomDay = null; render(); });
+  await page.waitForTimeout(200);
+
   await page.click('.toff-strip .toff-chip');
   r = await page.evaluate(() => ({
     txt: document.getElementById('modal-box').textContent,
@@ -98,6 +106,11 @@ const OFF = [{ date:MON, teacher:'지원', reason:'월 직보' }];
   ok('오늘: 휴무 강사 열 머리글 표시', r.heads.some(h => /지원/.test(h) && /오늘 휴무/.test(h)), JSON.stringify(r.heads));
   ok('오늘: 다른 강사 머리글엔 없음', r.heads.filter(h => /은지/.test(h)).every(h => !/휴무/.test(h)), JSON.stringify(r.heads));
   ok('오늘: 수업 카드 그대로', r.cards >= 2, String(r.cards));
+
+  // 휴대폰 목록 보기(주차별): 요일 탭에 휴무 표시
+  await page.evaluate(() => { weekListDay = '월'; });
+  r = await page.evaluate(() => { var el = buildWeekList(); return [...el.querySelectorAll('.toff-tab')].length; });
+  ok('휴대폰 목록: 요일 탭에 휴무 표시', r === 1, String(r));
   await p2.close();
 
   // 어댑터: ttBoot 가 오늘 날짜 휴무를 함께 받아 온다
