@@ -76,12 +76,18 @@ const ROWS0 = [
         { name: '박보검', school: '화정고', grade: '2026 고등 1학년', enrolled: '재원' },
         { name: '김하늘', school: '서정고', grade: '2026 고등 2학년', enrolled: '재원' },
         { name: '최도래', school: '도래울고', grade: '2026 고등 1학년', enrolled: '재원' },
+        { name: '한예고', school: '고양예고', grade: '2026 고등 1학년', enrolled: '재원' },
         { name: '이퇴원', school: '퇴원고', grade: '2026 고등 1학년', enrolled: '퇴원' }]); }
       if (/\/naeshin_records\?/.test(u)){
         (st.nsGets = st.nsGets || []).push(u);
-        if (/class_key=eq\.공유:고1\|화정/.test(u) && /period=eq\.26-2-중간/.test(u) && /kind=eq\.범위/.test(u))
-          return json(200, [{ text1: '{"book":"천재(정)"}', text2: '교과서: 천재(정)\n교과서 내 범위: 1-(1) 운수 좋은 날' }]);
-        return json(200, []);
+        const keys = ((u.match(/class_key=in\.\(([^)]*)\)/) || [])[1] || '').split(',').map(x => x.replace(/"/g, ''));
+        const DB = {
+          '공유:고1|화정': { text1: '{"book":"천재(정)"}', text2: '교과서: 천재(정)\n교과서 내 범위: 1-(1) 운수 좋은 날' },
+          '공유:고2|서정': { text1: '{"book":"미래엔","inRange":"2-(1) 봄봄","extra":"","outRange":"수특 문학 3강"}', text2: '' },   // JSON만 남은 옛 기록
+          '공유:고1|고양예고': { text1: '', text2: '교과서: 비상(한)' },   // 약칭 끝이 '고'인 반
+        };
+        if (!/period=eq\.26-2-중간/.test(u) || !/kind=eq\.범위/.test(u)) return json(200, []);
+        return json(200, keys.filter(k => DB[k]).map(k => Object.assign({ class_key: k }, DB[k])));
       }
       if (m !== 'GET') return json(201, []);
       return json(200, []);
@@ -120,10 +126,10 @@ const ROWS0 = [
   await page.selectOption('#dr_gradeN', '1');
   await page.fill('#dr_subject', '공통국어2');
   ok('② 제목 미리보기', (await page.textContent('#drTitlePv')) === '26-2-중간-화정고1-공통국어2');
-  ok('② 학교 목록은 수파베이스에서(재원만)', st.stuGets >= 1 && await page.$$eval('#dr_school option', o => o.map(x => x.value).join(',')) === ',도래울고,서정고,화정고');   // 도래울고는 수파베이스에만 있음
+  ok('② 학교 목록은 수파베이스에서(재원만)', st.stuGets >= 1 && await page.$$eval('#dr_school option', o => o.map(x => x.value).join(',')) === ',고양예고,도래울고,서정고,화정고');   // 도래울고는 수파베이스에만 있음
   await page.waitForTimeout(300);
   ok('② 시험 범위 자동 불러오기', (await page.inputValue('#dr_scope')) === '교과서: 천재(정)\n교과서 내 범위: 1-(1) 운수 좋은 날' && /불러왔습니다/.test(await page.textContent('#drScopeNote')));
-  await page.selectOption('#dr_school', '서정고');
+  await page.selectOption('#dr_school', '도래울고');
   await page.waitForTimeout(300);
   ok('② 범위 없는 학교는 안내만, 적어 둔 범위 유지', /아직 없어요/.test(await page.textContent('#drScopeNote')) && /운수 좋은 날/.test(await page.inputValue('#dr_scope')));
   await page.fill('#dr_scope', '직접 적은 범위');
@@ -133,7 +139,17 @@ const ROWS0 = [
   await page.click('#drScopeBtn');
   await page.waitForTimeout(300);
   ok('② [불러오기]는 확인 뒤 바꿈', /운수 좋은 날/.test(await page.inputValue('#dr_scope')));
-  ok('② 범위 키·기간 규칙', st.nsGets.some(x => /class_key=eq\.공유:고1\|화정/.test(x)) && st.nsGets.some(x => /class_key=eq\.공유:고1\|서정/.test(x)));
+  ok('② 범위 키·기간 규칙', st.nsGets.some(x => /공유:고1\|화정/.test(x)) && st.nsGets.some(x => /공유:고1\|도래울/.test(x)));
+  // JSON만 남은 기록도 라벨 줄로 복원(Codex 검토) · 약칭 끝이 '고'인 학교(Codex 검토)
+  await page.fill('#dr_scope', '');
+  await page.selectOption('#dr_gradeN', '2'); await page.selectOption('#dr_school', '서정고');
+  await page.waitForTimeout(300);
+  ok('② JSON 범위 기록 복원', (await page.inputValue('#dr_scope')) === '교과서: 미래엔\n교과서 내 범위: 2-(1) 봄봄\n교과서 외 범위: 수특 문학 3강', await page.inputValue('#dr_scope'));
+  await page.fill('#dr_scope', '');
+  await page.selectOption('#dr_gradeN', '1'); await page.selectOption('#dr_school', '고양예고');
+  await page.waitForTimeout(300);
+  ok('② 약칭 끝이 고인 학교 키', (await page.inputValue('#dr_scope')) === '교과서: 비상(한)' && st.nsGets.some(x => /공유:고1\|고양예"/.test(x) && /공유:고1\|고양예고"/.test(x)), await page.inputValue('#dr_scope'));
+  await page.selectOption('#dr_school', '화정고'); await page.fill('#dr_scope', '천재(정) 1~3단원');
   await page.click('#drGo');
   ok('② 시험지 없으면 막기', /시험지 파일/.test(await page.textContent('#drStatus')));
   await page.setInputFiles('#drExam', [

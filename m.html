@@ -1611,22 +1611,44 @@ function drScopeKey(){
   var base = school.replace(/(고등학교|중학교|고|중)$/, '');
   return base ? DR.period + '#공유:' + lv + g + '|' + base : '';
 }
+/* 공유 키 후보 — 내신 반이름의 학교 부분(scopeKeyOf 가 '고1 화정A' → '화정')은 보통 학교 이름에서 '고'/'중'을 뗀 것이지만,
+ * '고1 고양예고A'처럼 약칭 끝이 '고'인 반은 '고양예고'로 저장된다(Codex 검토) — 뗀 것·학교 이름 그대로 둘 다 찾고 뗀 쪽을 먼저 쓴다. */
+function drScopeKeys(){
+  var k = drScopeKey(); if (!k) return [];
+  var school = String(document.getElementById('dr_school').value || '').trim().replace(/(등학교|학교)$/, '');
+  var i = k.indexOf('#'), first = k.slice(i + 1), head = first.slice(0, first.indexOf('|') + 1);
+  var out = [first]; if (head + school !== first) out.push(head + school);
+  return out;
+}
+/* 범위 기록 → 읽기용 글 — naeshin.html 어댑터(naeshinGet)와 같은 규칙: text2 가 있으면 그대로, 없으면 text1 JSON 을 라벨 줄로 */
+function drScopeText(r){
+  if (!r) return '';
+  var f = String(r.text1 || ''), g = String(r.text2 || '').trim(), parts = null;
+  if (/^\s*\{/.test(f)){ try { parts = JSON.parse(f); } catch (e) {} }
+  var t = g || (parts ? '' : f.trim());
+  if (!t && parts){
+    t = [['교과서', parts.book], ['교과서 내 범위', parts.inRange], ['추가 자료', parts.extra], ['교과서 외 범위', parts.outRange]]
+      .filter(function(x){ return x[1]; }).map(function(x){ return x[0] + ': ' + x[1]; }).join('\n');
+  }
+  return t.trim();
+}
 function drScopeNote(msg){ var el = document.getElementById('drScopeNote'); if (el) el.textContent = msg; }
 function drLoadScope(force){
   var k = drScopeKey(), ta = document.getElementById('dr_scope');
   if (!k){ if (force) drScopeNote('기간·학교·학년을 먼저 골라 주세요.'); return; }
   DR.scopeTried = k;
-  var i = k.indexOf('#'), period = k.slice(0, i), key = k.slice(i + 1);
+  var period = k.slice(0, k.indexOf('#'));
   drScopeNote('시험 범위를 불러오는 중…');
+  var keys = drScopeKeys();
   drSb('GET', '/naeshin_records?period=eq.' + encodeURIComponent(period) + '&kind=eq.' + encodeURIComponent('범위') +
-       '&class_key=eq.' + encodeURIComponent(key) + '&select=text1,text2&order=id.desc&limit=1')
+       '&class_key=in.(' + keys.map(function(x){ return '"' + encodeURIComponent(x) + '"'; }).join(',') + ')&select=class_key,text1,text2&order=id.desc')
     .then(function(rows){
       if (drScopeKey() !== k) return;   // 그사이 학교·학년을 바꿨다
-      var r = rows && rows[0], txt = '';
-      if (r){
-        txt = String(r.text2 || '').trim();
-        if (!txt && !/^\s*\{/.test(r.text1 || '')) txt = String(r.text1 || '').trim();
-      }
+      var txt = '';
+      keys.some(function(kk){
+        var r = (rows || []).filter(function(x){ return x.class_key === kk; })[0];
+        txt = drScopeText(r); return !!txt;
+      });
       if (!txt){ drScopeNote('내신대비 피드백에 이 학교·학년의 시험 범위가 아직 없어요. 알고 있으면 직접 적어 주세요.'); return; }
       var cur = ta.value.trim();
       if (cur === txt){ drScopeNote('내신대비 피드백의 시험 범위를 불러왔습니다.'); return; }
