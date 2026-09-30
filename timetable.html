@@ -4649,7 +4649,7 @@ function zoomCenterGrids(big, dname, list, makeBlock, makeBand, dstr){   // dstr
       if (toff){
         var ts = document.createElement('span');
         ts.className = 'toff-head';
-        ts.textContent = '휴무' + (toff.reason ? ' · ' + toff.reason : '');
+        ts.textContent = 'OFF' + (toff.reason ? ' (' + toff.reason + ')' : '');
         th.appendChild(ts);
       }
       g.appendChild(th);
@@ -4862,10 +4862,14 @@ function teacherOffsAt(dstr){
   return teacherOffs.filter(function(o){ return o.date === dstr; })
     .sort(function(a,b){ return wkTeacherRank(a.teacher) - wkTeacherRank(b.teacher) || a.teacher.localeCompare(b.teacher,'ko'); });
 }
+/* 교사 휴무 표기 — '현지T OFF (화 직보)' (2026-09-30 사용자 지정) */
+function teacherOffLabel(o){
+  return o.teacher + 'T OFF' + (o.reason ? ' (' + o.reason + ')' : '');
+}
 function teacherOffDayHtml(dstr){
   var rows = teacherOffsAt(dstr);
   if (!rows.length) return '';
-  return '<span class="toff-day">교사 휴무 · ' + rows.map(function(o){ return esc(o.teacher) + 'T'; }).join(' · ') + '</span>';
+  return '<span class="toff-day">' + rows.map(function(o){ return esc(teacherOffLabel(o)); }).join(' · ') + '</span>';
 }
 /* 오늘의 시간표 — 오늘 휴무인 선생님을 요약 줄과 강사 열 머리글에 표시한다(2026-09-30 사용자 요청).
    주차별과 마찬가지로 표시만 하고 수업·출석은 바꾸지 않는다. 설정·해제는 주차별 [교사 휴무 설정]에서. */
@@ -4877,7 +4881,7 @@ function todayOffOf(teacher){
 }
 function todayOffHeadHtml(teacher){
   var o = todayOffOf(teacher);
-  return o ? '<span class="toff-head">오늘 휴무' + (o.reason ? ' · ' + esc(o.reason) : '') + '</span>' : '';
+  return o ? '<span class="toff-head">OFF' + (o.reason ? ' (' + esc(o.reason) + ')' : '') + '</span>' : '';
 }
 function todayOffStrip(){
   var rows = todayOffs.filter(function(o){ return o.date === todayStr(); })
@@ -4886,8 +4890,7 @@ function todayOffStrip(){
   var box = document.createElement('div');
   box.className = 'toff-strip';
   box.innerHTML = '<strong>오늘 교사 휴무</strong>' + rows.map(function(o){
-    return '<span class="toff-chip static"><b>' + esc(o.teacher) + 'T 휴무</b>' +
-           (o.reason ? ' · ' + esc(o.reason) : '') + '</span>';
+    return '<span class="toff-chip static"><b>' + esc(teacherOffLabel(o)) + '</b></span>';
   }).join('') + '<small class="toff-note">수업은 그대로 두었어요. 바꾸려면 주차별의 [교사 휴무 설정]에서 하세요.</small>';
   return box;
 }
