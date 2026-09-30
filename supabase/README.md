@@ -762,6 +762,9 @@ curl -s -X POST "https://api.supabase.com/v1/projects/bangdbhqpphqqdwcledg/datab
 - 검증: `PGHOST=/home/pgtest PGPORT=5499 PGUSER=postgres bash tools/hwcheck-class-sql-test.sh`.
 - 적용 상태: **2026-09-28 실제 수파베이스에 적용 완료**(관리 API) — 유일 조건이 (week, token, class_id) 하나로 바뀐 것, 기존 481줄은 모두 class_id ''로 남은 것 확인. 교사 인증으로 가상 학생(ztest, 2020-01-01 주)에 가·나 두 줄 저장 → 같은 수업 다시 저장은 덮어쓰기 → 조회 → 지움(남은 줄 없음). superstar 조회(select class_id) 정상, 공개 키 표 직접 읽기 401 유지, 실제 재원생 키로 student_bundle의 hwcheck 항목에 class_id·part·class_name 들어온 것 확인.
 
+## 교사 임시 휴무 권한 정정 (2026-09-30, 038)
+- 037의 정책 조건 `private.is_active_teacher()`가 공용 교사 계정에서 거짓이라 **저장이 403으로 막혀 표가 비어 있었다**(주차별·오늘 화면에 휴무가 안 보인 원인). `migrations/038_teacher_days_off_policy.sql`로 034·036과 같은 `authenticated` 허용으로 바꾼다. 적용 전에는 [휴무 저장]이 실패한다.
+
 ## 지필 리포트 자동 생성 (2026-09-29, 036)
 - `migrations/036_exam_drafts.sql` — 표 `exam_drafts`(자동 생성 요청 한 건 = 한 줄: 제목·기간·학교·학년·과목·범위·메모·files·status('요청'/'완료'/'보류')·draft jsonb·note·report_id) + **비공개 버킷 `exam-drafts`**(파일당 20MB, 경로 `d{id}/{무작위}.{확장자}`). 둘 다 교사(authenticated)만 — 공개 키(anon)는 표·버킷 모두 접근 없음. 파일은 지우지 않고 보관한다(원장님 결정). 재실행 안전.
 - 이유: 원장님 "시험지 사진과 정답지를 넣으면 문항 분석·총평을 만들어 주는 메뉴" — m.html '자동 생성'에서 올리고 클로슈가 `tools/exam_draft.py`로 초안을 채운다. 자세한 것은 CLAUDE.md '지필 리포트 자동 생성' 절.
