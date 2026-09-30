@@ -96,6 +96,9 @@
   .toff-chip{font:inherit;font-size:.76rem;color:#4F5853;background:#E7E9E8;border:0;border-radius:999px;
     padding:4px 10px;cursor:pointer;}
   .toff-chip b{color:#343B37;}
+  .toff-chip.static{cursor:default;}
+  .toff-note{font-size:.7rem;color:var(--ink-soft);}
+  .toff-head{display:block;margin-top:2px;font-size:.66rem;font-weight:700;color:#8A5A3C;}
   .toff-day{display:block;margin-top:3px;font-size:.61rem;font-weight:400;line-height:1.25;
     color:#fff;opacity:.9;white-space:normal;}
   .toff-form{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:12px;}
@@ -1381,7 +1384,8 @@
         mfrom ? sbGet('/tt_memo?date=gte.' + q(mfrom) + '&date=lte.' + q(mto)) : Promise.resolve([]),
         sbGet('/tt_period?select=week_wednesday,book'),
         (wfrom && wto) ? fetchAttendRange(wfrom, wto, book) : Promise.resolve(null),
-        (wfrom && wto) ? fetchTeacherOffs(wfrom, wto) : Promise.resolve(null)
+        (wfrom && wto) ? fetchTeacherOffs(wfrom, wto) : Promise.resolve(null),
+        dateStr ? fetchTeacherOffs(dateStr, dateStr) : Promise.resolve([])
       ];
       return Promise.all(jobs).then(function(rs){
         var t = tYmd(), span = 8 * 86400000;
@@ -1398,7 +1402,8 @@
           attend: rs[2].map(attTodayShape),
           memos: rs[3].filter(function(m){ return String(m.memo || '').trim(); })
                       .map(function(m){ return { date: m.date, memo: m.memo }; }),
-          periods: rs[4].map(function(x){ return { week: x.week_wednesday, book: x.book }; }) };
+          periods: rs[4].map(function(x){ return { week: x.week_wednesday, book: x.book }; }),
+          todayOffs: (rs[7] || []).map(teacherOffShape) };
         if (rs[5]){
           out.week = { attend: rs[5].map(attWeekShape), teacherOffs: (rs[6] || []).map(teacherOffShape),
             onceMoves: rs[1].filter(function(g){
@@ -2593,6 +2598,7 @@ var periods = {};      // 주별 기간: 주차 수요일(yyyy-MM-dd) -> '정규
 var calMonth = null;   // 캘린더가 보는 달 (그 달 1일 Date)
 var weekOnce = [];     // 주차 1회 이동
 var teacherOffs = [];  // [{date,teacher,reason}] — 수업·출석·회차와 독립된 교사 임시 휴무 표시
+var todayOffs = [];    // 오늘 날짜의 교사 임시 휴무 — 오늘의 시간표 표시용(주차별 teacherOffs와 따로 받는다)
 var attDate = null;    // 출석 모달이 다루는 날짜
 var editMode = null;        // 'move' | 'add' | 'del' — 편집 도구줄에서 선택
 var multiMode = false;      // 오늘 보기 복수 선택 모드
@@ -2827,6 +2833,7 @@ function load(isReload, cb){
       attend = {};
       var ca = cacheGet('att:' + book + ':' + todayStr());
       if (ca) ca.forEach(function(x){ attend[attKey(x.classId, x.student)] = { status: x.status, memo: x.memo }; });
+      todayOffs = cacheGet('toff:' + todayStr()) || [];
       if (mode === 'week'){
         var wf0 = new Date(weekStart); wf0.setDate(wf0.getDate() - 2);
         var cwk = cacheGet('week:' + book + ':' + ymdOf(wf0));
@@ -2884,6 +2891,7 @@ function load(isReload, cb){
       attend[attKey(x.classId, x.student)] = { status: x.status, memo: x.memo };
     });
     cacheSet('att:' + book + ':' + todayStr(), d.attend || []);
+    if (d.todayOffs){ todayOffs = d.todayOffs; cacheSet('toff:' + todayStr(), todayOffs); }
     if (d.memos){
       Object.keys(memos).forEach(function(k){ if (k >= mfrom && k <= mto) delete memos[k]; });
       d.memos.forEach(function(m){ memos[m.date] = m.memo; });
@@ -3121,6 +3129,7 @@ function renderView(){
     sum.className = 'today-sum';
     sum.innerHTML = '출석 <b>' + cnt['출석'] + '</b> · 지각 <b>' + cnt['지각'] + '</b> · 결석 <b>' + cnt['결석'] + '</b>';
     host.appendChild(sum);
+    var tOff = todayOffStrip(); if (tOff) host.appendChild(tOff);
     if (!list.length){
       var em = document.createElement('p');
       em.className = 'empty-day';
@@ -4054,7 +4063,7 @@ function buildDayGrid(list){
   cols.forEach(function(c){
     var h = document.createElement('div');
     h.className = 'thead';
-    h.innerHTML = '<b>' + esc(c.teacher) + '</b>' + esc(c.loc);
+    h.innerHTML = '<b>' + esc(c.teacher) + '</b>' + esc(c.loc) + todayOffHeadHtml(c.teacher);
     hg.appendChild(h);
   });
 
@@ -4857,6 +4866,30 @@ function teacherOffStrip(){
     return '<button class="toff-chip" onclick="openTeacherOff(\'' + esc(o.date) + '\',\'' + esc(o.teacher) + '\')">' +
            '<b>' + esc(o.teacher) + 'T 휴무</b> · ' + esc(dayOf[o.date] || '') + ' ' + esc(mdOfYmdStr(o.date)) + note + '</button>';
   }).join('');
+  return box;
+}
+/* 오늘의 시간표 — 오늘 휴무인 선생님을 요약 줄과 강사 열 머리글에 표시한다(2026-09-30 사용자 요청).
+   주차별과 마찬가지로 표시만 하고 수업·출석은 바꾸지 않는다. 설정·해제는 주차별 [교사 휴무 설정]에서. */
+function todayOffOf(teacher){
+  for (var i = 0; i < todayOffs.length; i++){
+    if (todayOffs[i].date === todayStr() && todayOffs[i].teacher === teacher) return todayOffs[i];
+  }
+  return null;
+}
+function todayOffHeadHtml(teacher){
+  var o = todayOffOf(teacher);
+  return o ? '<span class="toff-head">오늘 휴무' + (o.reason ? ' · ' + esc(o.reason) : '') + '</span>' : '';
+}
+function todayOffStrip(){
+  var rows = todayOffs.filter(function(o){ return o.date === todayStr(); })
+    .sort(function(a,b){ return wkTeacherRank(a.teacher) - wkTeacherRank(b.teacher) || a.teacher.localeCompare(b.teacher,'ko'); });
+  if (!rows.length) return null;
+  var box = document.createElement('div');
+  box.className = 'toff-strip';
+  box.innerHTML = '<strong>오늘 교사 휴무</strong>' + rows.map(function(o){
+    return '<span class="toff-chip static"><b>' + esc(o.teacher) + 'T 휴무</b>' +
+           (o.reason ? ' · ' + esc(o.reason) : '') + '</span>';
+  }).join('') + '<small class="toff-note">수업은 그대로 두었어요. 바꾸려면 주차별의 [교사 휴무 설정]에서 하세요.</small>';
   return box;
 }
 function teacherOffTeachers(){
