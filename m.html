@@ -275,8 +275,9 @@ body{font-family:'Noto Sans KR',sans-serif; background:var(--sage-fog); color:va
       <ul class="dr-sel" id="drKeySel"></ul>
     </div>
     <div class="fld">
-      <label>시험 범위 (알고 있으면)</label>
-      <textarea id="dr_scope" rows="2" placeholder="예) 천재(정) 1~3단원, 수능특강 문학 현대시"></textarea>
+      <label style="display:flex;align-items:center;gap:8px;">시험 범위 <button type="button" class="btn ghost sm" id="drScopeBtn" onclick="drLoadScope(true)" style="padding:5px 10px;font-size:12px;">내신대비 피드백에서 불러오기</button></label>
+      <textarea id="dr_scope" rows="3" placeholder="예) 교과서: 천재(정)&#10;교과서 내 범위: 1~3단원"></textarea>
+      <p class="hint" id="drScopeNote">기간·학교·학년을 고르면 내신대비 피드백에 적어 둔 시험 범위를 자동으로 불러옵니다.</p>
     </div>
     <div class="fld">
       <label>참고 메모</label>
@@ -852,20 +853,36 @@ document.addEventListener('DOMContentLoaded',function(){
 
 /* ===== 제목 조합: 기간-학교학년-과목 (예: 26-2-중간-화정고1-공통국어2) ===== */
 var ROSTER=[];   // 학생 명단 — 학교 목록·내신 자동 배정용
+/* 학교 목록은 수파베이스 students 에서 먼저 받는다(2026-09-30 — 옛 백엔드 roster 는 실측 19초가 걸려
+ * 그동안 학교 드롭다운이 비어 있었다). 실패하면 옛 경로로. 재원생만(퇴원 등 제외 — class_report.py LEFT_RE 와 같은 규칙). */
+var ROSTER_LEFT_RE = /^(퇴원|n|no|off|x|중단|비재원)$/i;
+function fillSchools(list){
+  var sel=document.getElementById('f_school');
+  if(!sel) return;
+  ROSTER = list || [];
+  var seen={}, schools=[];
+  ROSTER.forEach(function(s){ if(s.school && !seen[s.school]){ seen[s.school]=1; schools.push(s.school); } });
+  schools.sort(function(a,b){ return a.localeCompare(b,'ko'); });
+  var keepF=sel.value;
+  sel.innerHTML='<option value="">학교 선택</option>'+schools.map(function(s){ return '<option>'+s.replace(/</g,'&lt;')+'</option>'; }).join('');
+  if(keepF){ if(!seen[keepF]) sel.innerHTML+='<option>'+keepF.replace(/</g,'&lt;')+'</option>'; sel.value=keepF; }
+  var ds=document.getElementById('dr_school');
+  if(ds){ var keep=ds.value; ds.innerHTML=sel.innerHTML; if(keep){ if(!ds.querySelector('option[value="'+keep.replace(/"/g,'')+'"]')) ds.innerHTML+='<option>'+keep.replace(/</g,'&lt;')+'</option>'; ds.value=keep; } }
+}
 function loadSchoolList(){
-  fetch(ENDPOINT + '?action=roster&t=' + Date.now())
-    .then(function(r){ return r.json(); })
-    .then(function(d){
-      var sel=document.getElementById('f_school');
-      if(!sel || !d || d.result!=='success') return;
-      ROSTER = d.students || [];
-      var seen={}, schools=[];
-      ROSTER.forEach(function(s){ if(s.school && !seen[s.school]){ seen[s.school]=1; schools.push(s.school); } });
-      schools.sort(function(a,b){ return a.localeCompare(b,'ko'); });
-      sel.innerHTML='<option value="">학교 선택</option>'+schools.map(function(s){ return '<option>'+s.replace(/</g,'&lt;')+'</option>'; }).join('');
-      var ds=document.getElementById('dr_school');
-      if(ds){ var keep=ds.value; ds.innerHTML=sel.innerHTML; if(keep) ds.value=keep; }
-    }).catch(function(){});
+  var legacy=function(){
+    return fetch(ENDPOINT + '?action=roster&t=' + Date.now())
+      .then(function(r){ return r.json(); })
+      .then(function(d){ if(d && d.result==='success') fillSchools(d.students || []); })
+      .catch(function(){});
+  };
+  drSb('GET', '/students?select=name,school,grade,enrolled&limit=5000')
+    .then(function(rows){
+      var list=(rows||[]).filter(function(r){ return r.name && !ROSTER_LEFT_RE.test(String(r.enrolled||'').trim()); })
+        .map(function(r){ return { name:r.name, school:r.school||'', grade:r.grade||'' }; });
+      if(!list.length) return legacy();
+      fillSchools(list);
+    }, legacy);
 }
 function composeTitle(){
   var t=document.getElementById('f_title');
@@ -1580,7 +1597,48 @@ function drTitleOf(){
   if (!DR.period || !school || !g || !subj) return '';
   return DR.period + '-' + school + g + '-' + subj;
 }
-function drTitle(){ document.getElementById('drTitlePv').textContent = drTitleOf() || '기간·학교·학년·과목을 모두 고르면 만들어져요'; }
+function drTitle(){
+  document.getElementById('drTitlePv').textContent = drTitleOf() || '기간·학교·학년·과목을 모두 고르면 만들어져요';
+  var k = drScopeKey();
+  if (k && k !== DR.scopeTried) drLoadScope(false);   // 기간·학교·학년이 바뀌면 한 번 불러 본다
+}
+/* 시험 범위 = 내신대비 피드백(naeshin.html)의 학교·학년 공유 범위 — 키 '공유:고1|화정'(naeshin.html scopeKeyOf 와 같은 규칙).
+ * 학교 이름 '화정고'·'화정고등학교' → '화정', 끝이 '중'이면 중학교. */
+function drScopeKey(){
+  var school = String(document.getElementById('dr_school').value || '').trim(), g = document.getElementById('dr_gradeN').value;
+  if (!DR.period || !school || !g) return '';
+  var lv = /중(학교)?$/.test(school) ? '중' : '고';
+  var base = school.replace(/(고등학교|중학교|고|중)$/, '');
+  return base ? DR.period + '#공유:' + lv + g + '|' + base : '';
+}
+function drScopeNote(msg){ var el = document.getElementById('drScopeNote'); if (el) el.textContent = msg; }
+function drLoadScope(force){
+  var k = drScopeKey(), ta = document.getElementById('dr_scope');
+  if (!k){ if (force) drScopeNote('기간·학교·학년을 먼저 골라 주세요.'); return; }
+  DR.scopeTried = k;
+  var i = k.indexOf('#'), period = k.slice(0, i), key = k.slice(i + 1);
+  drScopeNote('시험 범위를 불러오는 중…');
+  drSb('GET', '/naeshin_records?period=eq.' + encodeURIComponent(period) + '&kind=eq.' + encodeURIComponent('범위') +
+       '&class_key=eq.' + encodeURIComponent(key) + '&select=text1,text2&order=id.desc&limit=1')
+    .then(function(rows){
+      if (drScopeKey() !== k) return;   // 그사이 학교·학년을 바꿨다
+      var r = rows && rows[0], txt = '';
+      if (r){
+        txt = String(r.text2 || '').trim();
+        if (!txt && !/^\s*\{/.test(r.text1 || '')) txt = String(r.text1 || '').trim();
+      }
+      if (!txt){ drScopeNote('내신대비 피드백에 이 학교·학년의 시험 범위가 아직 없어요. 알고 있으면 직접 적어 주세요.'); return; }
+      var cur = ta.value.trim();
+      if (cur === txt){ drScopeNote('내신대비 피드백의 시험 범위를 불러왔습니다.'); return; }
+      if (cur && !(force && confirm('적어 둔 시험 범위를 내신대비 피드백의 범위로 바꿀까요?'))){
+        drScopeNote('내신대비 피드백에 시험 범위가 있습니다. 바꾸려면 [내신대비 피드백에서 불러오기]를 누르세요.');
+        return;
+      }
+      ta.value = txt;
+      drScopeNote('내신대비 피드백의 시험 범위를 불러왔습니다. 필요하면 고쳐 주세요.');
+    })
+    .catch(function(){ if (drScopeKey() === k){ DR.scopeTried = ''; drScopeNote('시험 범위를 불러오지 못했습니다. [내신대비 피드백에서 불러오기]를 다시 눌러 주세요.'); } });
+}
 /* 수동 화면에 이미 들어온 값(내신대비 피드백에서 넘어온 기간·학교·학년·범위)을 자동 생성 칸으로 */
 function drFromManual(){
   var p = periodOf(document.getElementById('f_title').value);

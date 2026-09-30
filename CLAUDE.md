@@ -554,6 +554,8 @@
   - [초안 요청](`drRequest`): `exam_drafts` POST(status '요청') → 저장소 `exam-drafts/d{id}/{무작위}.{확장자}`에 원본 그대로 올림 → files PATCH(`{path,name,kind:'시험지'|'정답지',size,mime}`, 고른 순서 = 페이지 순서) → 백엔드 `editReqAdd`(화면 **'지필 초안'**, 글 `[지필 초안] d{id} · 제목 · 시험지 n개 · 정답지 m개`). 시험지를 하나도 못 올리면 줄을 지우고 실패 안내. 알림만 실패하면 목록의 [다시 알리기].
   - 목록의 [리포트 만들기](`drOpen`): 제목·학교·학년·과목·범위·총평·문항을 수동 화면에 채움(`fillQuestions` — 수정 모드 프리필과 공용, 목록 밖 값은 `drCleanQ`가 정리), 위에 안내 배너 + '원장님이 확인할 점'. 등록이 성공하면 `drMarkReport`가 그 초안에 `report_id`를 적는다. **초안은 학생 배정을 직접 한 번 골라야 등록된다**(`DR.assignOk` — 배정 칸을 누르면 참, 내신대비 피드백 자동 배정이 있으면 참, 아니면 validateForm이 막음) — 배정 위젯 기본값(전 학년)이나 앞 리포트의 선택이 그대로 등록되지 않게(Codex 검토 P1). 앞서 다른 초안을 열었거나 이 화면에서 등록한 뒤 초안을 열면 배정을 비운다. [옮긴 글 보기](정답·확인할 점·옮긴 글·복사) · [원본 보기](교사 신분으로 받아 새 탭).
   - 교사 인증 조각이 m.html에서는 `/storage/v1`에도 교사 신분을 붙인다(review.html과 같음).
+  - **학교 목록은 수파베이스 `students`에서 먼저 받는다**(2026-09-30 원장님 "학교가 드롭다운으로 뜨지 않아요" — 옛 백엔드 `?action=roster`가 실측 19초라 그동안 수동·자동 두 화면의 학교 드롭다운이 비어 있었다): `loadSchoolList` → `drSb('/students')`(재원만, `ROSTER_LEFT_RE`) → `fillSchools`(ROSTER도 채움 — 내신대비 피드백 자동 배정용), 실패하거나 비면 옛 roster.
+  - **자동 생성의 시험 범위 = 내신대비 피드백의 학교·학년 공유 범위를 불러온다**(같은 날 원장님 "시험범위 불러오기가 안돼요"): 기간·학교·학년이 정해지면 `drLoadScope`가 `naeshin_records`(kind '범위', class_key `공유:고1|화정` — naeshin.html `scopeKeyOf`와 같은 규칙, 학교 이름에서 '고'/'중'·'고등학교'/'중학교'를 뗀 것이 base, 끝이 '중'이면 중학교)의 text2(읽기용 글)를 칸에 넣는다. **적어 둔 범위는 자동으로 덮지 않고**, [내신대비 피드백에서 불러오기] 버튼은 확인 창 뒤 바꾼다. 없으면 '아직 없어요' 안내(`#drScopeNote`).
 - **DB(036)**: `exam_drafts`(title·period·school·grade·subject·scope·memo·files·status('요청'/'완료'/'보류')·draft jsonb·note·report_id) + 비공개 버킷 `exam-drafts` — 둘 다 교사(authenticated)만, 학생·공개 키 접근 없음. **2026-09-29 실제 수파베이스 적용 완료**(왕복 확인 — supabase/README.md).
 - **클로슈 처리 절차 — 수정 요청함에 화면 '지필 초안' 건이 오면**(순찰·즉시 알림 세션 모두, 묻지 말고 처리):
   1. 글의 `d{id}`로 `python3 tools/exam_draft.py get <id> <스크래치>/d<id>` → 파일(시험지-01.jpg…, 정답지-01.pdf…)과 meta.json(제목·범위·메모). 파일을 Read로 전부 읽는다(PDF는 pages 나눠 읽기).
@@ -567,7 +569,7 @@
   3. `python3 tools/exam_draft.py check draft.json` → 통과할 때까지 고치고 `put <id> draft.json`(status '완료').
   4. 수정 요청함 그 건 = `editReqSet` '처리 완료' + 처리메모 '26-2-중간-화정고1-공통국어2 초안을 만들어 두었어요(문항 24개). 지필고사 리포트 제작 → 자동 생성 목록에서 [리포트 만들기]를 눌러 확인해 주세요.' 파일을 읽을 수 없으면 `hold <id> "이유"` + 요청함 '보류'.
   5. 마무리 메시지 한 줄 — 확인할 점이 있으면 '확인이 필요해요'.
-- 검증: `NODE_PATH=$(npm root -g) node tools/exam-draft-e2e.js`(52건 — 초안 배정 확인·다음 초안 배정 비움 포함, 방법 고르기·목록 상태·자동 생성 빈 칸 막기·POST·저장소 경로/교사 신분·files·요청함 글·다시 알리기·옮긴 글/원본·리포트 만들기 채우기(묶음·드롭다운·<보기>·복수 선택·정리)·등록 뒤 report_id·수정 모드·휴대폰) + `python3 tools/exam-draft-check-test.py`(15건 — 초안 형식 검사) + `PGHOST=/home/pgtest PGPORT=5499 PGUSER=postgres bash tools/exam-draft-sql-test.sh`(036 — 버킷·교사 읽기쓰기·상태 조건·공개 키 차단). **고치면 함께.** 영역·세부유형·형식·난이도 목록은 m.html과 `tools/exam_draft.py` 두 벌(문항 내용 목록은 도구가 m.html에서 직접 읽음).
+- 검증: `NODE_PATH=$(npm root -g) node tools/exam-draft-e2e.js`(58건 — 학교 목록 수파베이스·시험 범위 불러오기 포함, 초안 배정 확인·다음 초안 배정 비움 포함, 방법 고르기·목록 상태·자동 생성 빈 칸 막기·POST·저장소 경로/교사 신분·files·요청함 글·다시 알리기·옮긴 글/원본·리포트 만들기 채우기(묶음·드롭다운·<보기>·복수 선택·정리)·등록 뒤 report_id·수정 모드·휴대폰) + `python3 tools/exam-draft-check-test.py`(15건 — 초안 형식 검사) + `PGHOST=/home/pgtest PGPORT=5499 PGUSER=postgres bash tools/exam-draft-sql-test.sh`(036 — 버킷·교사 읽기쓰기·상태 조건·공개 키 차단). **고치면 함께.** 영역·세부유형·형식·난이도 목록은 m.html과 `tools/exam_draft.py` 두 벌(문항 내용 목록은 도구가 m.html에서 직접 읽음).
 
 ## 주말 실전 모의고사 — 통합형 (2026-08-15)
 - **내년부터 전 학년이 선택과목 없는 통합형**(현 고1·고2식)을 쓴다. 올해 남은 고3 출제를 위해 두 형식 병행, **기본값은 고3형**.
