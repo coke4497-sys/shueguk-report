@@ -781,6 +781,7 @@
     margin-left:4px;vertical-align:1px;flex:none;letter-spacing:0;}
   .wk-mini .jb{width:15px;height:15px;font-size:.6rem;margin-left:3px;}
   .wk-mini b{display:flex;align-items:center;}
+  .wk-mini b .wk-tname{color:var(--accent);}
   .wk-bar.jb-bar{box-shadow:inset 0 0 0 1.5px #C8463F;}
   .nc-kind{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;}
   .nc-kind label{display:inline-flex;align-items:center;gap:6px;font-size:.9rem;padding:6px 12px;border-radius:999px;
@@ -4846,6 +4847,11 @@ function wkAttSummary(cid, dstr){
   return { cnt: cnt, any: any };
 }
 /* 교사 임시 휴무는 수업 변경 기록과 분리한다. 표시만 하며 반·출석·회차를 바꾸지 않는다. */
+/* 주차별 개요 카드의 반이름 앞 담당 선생님 — '슈T 고3파이널A' (2026-09-30 사용자 요청) */
+function wkTeacherTag(c){
+  var t = String(c.teacher || '').trim();
+  return t ? '<span class="wk-tname">' + esc(t) + 'T</span> ' : '';
+}
 function teacherOffAt(dstr, teacher){
   for (var i = 0; i < teacherOffs.length; i++){
     if (teacherOffs[i].date === dstr && teacherOffs[i].teacher === teacher) return teacherOffs[i];
@@ -4995,7 +5001,7 @@ function buildWeekOverview(){
         var it = pendingOff[0];
         m.className = 'wk-mini offm ' + colorOf(it.c.cls);
         m.setAttribute('data-cid', it.c.id);
-        m.innerHTML = '<b>'+esc(it.c.cls)+jbBadge(it.c)+'</b><small>'+esc(it.c.start)+'~'+esc(it.c.end)+
+        m.innerHTML = '<b><span class="wk-nm">'+wkTeacherTag(it.c)+esc(it.c.cls)+'</span>'+jbBadge(it.c)+'</b><small>'+esc(it.c.start)+'~'+esc(it.c.end)+
                       ' · 이 주 휴강</small><span class="sum"><i class="none">휴강</i></span>';
         m.title = it.c.cls + ' — 이 주 휴강' + (it.off.reason ? ' · ' + it.off.reason : '');
         durHeight(m, it.c, DUR_PX.week);
@@ -5027,7 +5033,7 @@ function buildWeekOverview(){
           (s.cnt['지각'] ? '<i class="late">'+s.cnt['지각']+'</i>' : '') +
           (s.cnt['결석'] ? '<i class="abs">'+s.cnt['결석']+'</i>' : '')
         : '<i class="none">—</i>';
-      m.innerHTML = '<b>'+esc(c.cls)+jbBadge(c)+'</b><small>'+
+      m.innerHTML = '<b><span class="wk-nm">'+wkTeacherTag(c)+esc(c.cls)+'</span>'+jbBadge(c)+'</b><small>'+
                     (mvd ? '→ '+esc(wkMovedToLabel(mvd)) : esc(c.start)+'~'+esc(c.end)+' · '+c.students.length+'명')+
                     '</small><span class="sum">'+att+'</span>';
       m.title = mvd ? esc(c.cls) + ' — 이 주는 ' + wkMovedToLabel(mvd) + ' 에서 해요'
