@@ -42,15 +42,17 @@ const OFF = [{ date:MON, teacher:'지원', reason:'월 직보' }];
     localStorage.setItem('ttc:week:정규:' + mon, JSON.stringify({ t:Date.now(), d:{ attend:[], onceMoves:[], teacherOffs:off } }));
   }, { cls:CLS, off:OFF, mon:MON });
   await page.goto('http://127.0.0.1:' + port + '/timetable.html');
-  await page.waitForSelector('.toff-day', { timeout:15000 });
+  await page.waitForSelector('.toff-ctr', { timeout:15000 });
 
   let r = await page.evaluate(() => ({
     strip: document.querySelector('.toff-strip') ? document.querySelector('.toff-strip').textContent : '',
     monHead: [...document.querySelectorAll('.wk-dayh')].find(x => /^월/.test(x.textContent)).textContent,
+    ctrNote: (() => { const c = [...document.querySelectorAll('.wk-ov-col')].find(x => /^월/.test(x.querySelector('.wk-dayh').textContent)); const n = c && c.querySelector('.wk-ctr + .toff-ctr'); return n ? n.previousElementSibling.textContent + '|' + n.textContent + '|' + getComputedStyle(n).color : ''; })(),
     cards: [...document.querySelectorAll('.wk-mini')].map(x => x.textContent)
   }));
   ok('주차별: 위쪽 휴무 요약 줄 없음(요일 칸에만 표시)', r.strip === '', r.strip);
-  ok('요일 머리글: 지원T OFF (월 직보)', /지원T OFF \(월 직보\)/.test(r.monHead), r.monHead);
+  ok('요일 머리글에는 휴무 글자 없음', !/OFF/.test(r.monHead), r.monHead);
+  ok('센터 라벨 아래 빨간 글씨: 본원|지원T OFF (월 직보)', /^본원\|지원T OFF \(월 직보\)\|rgb\(200, 70, 63\)$/.test(r.ctrNote), r.ctrNote);
   ok('독립 정보: 원래 수업 카드 유지', r.cards.some(x => /고1 가/.test(x)), JSON.stringify(r.cards));
   ok('개요 카드: 반이름 앞에 담당 선생님', r.cards.some(x => /^지원T\s*고1 가/.test(x)), JSON.stringify(r.cards));
 
@@ -59,6 +61,8 @@ const OFF = [{ date:MON, teacher:'지원', reason:'월 직보' }];
   await page.waitForTimeout(200);
   r = await page.evaluate(() => [...document.querySelectorAll('.wk-th')].map(x => x.textContent));
   ok('확대: 강사 열 머리글에 휴무·사유', r.some(t => /지원T/.test(t) && /OFF \(월 직보\)/.test(t)), JSON.stringify(r));
+  r = await page.evaluate(() => { const n = document.querySelector('.wk-big .wk-ch + .toff-ctr'); return n ? n.textContent : ''; });
+  ok('확대: 센터 소제목 아래 빨간 휴무 줄', r === '지원T OFF (월 직보)', r);
   await page.evaluate(() => { weekZoomDay = null; render(); });
   await page.waitForTimeout(200);
 
