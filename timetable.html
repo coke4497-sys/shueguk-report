@@ -600,6 +600,7 @@
   .rc-tr.miss{background:#F6DCD5;}
   .rc-v{display:inline-block;font-size:.76rem;border-radius:999px;padding:3px 11px;background:#E9EEEA;color:#4C6E66;white-space:nowrap;}
   .rc-v.vol{font-family:'Do Hyeon',sans-serif;font-size:.92rem;padding:2px 12px;color:#2A332F;}
+  .rc-v.l2{background:#EDE4F4;color:#5A4A6A;}
   .rc-v.l1{background:#F8E3C8;color:#8A5A2B;} .rc-v.l0{background:#F2E1DE;color:#9A5A52;}
   .rc-v.none{background:transparent;color:#A3ADA7;padding:3px 0;}
   .rc-v.miss{background:#fff;color:#9A5A52;}
@@ -6632,8 +6633,13 @@ function crPrevWed(ymd){   // 가장 최근 수요일(오늘 포함) — 숙제 
   d.setDate(d.getDate() - ((d.getDay() + 4) % 7));
   return crYmd(d);
 }
+/* 중3·고3(고3파이널·정리정독 중3·논술)은 내신 기간에도 정규 수업이다(2026-10-01 사용자 "중3과 고3은 내신 기간에도 계속 정규 수업이에요").
+ * 내신 시간표의 짝 반(n###)에서 열어도 수업 구분·과제 검사·시험범위는 정규 규칙으로 — 저장 book 은 그 반의 시간표 그대로. */
+var CR_ALWAYS_REG = /고3|중3|논술/;
+function crRuleBook(c, bk){ return bk === '내신' && CR_ALWAYS_REG.test(String((c && c.cls) || '')) ? '정규' : bk; }
 function crPartOf(c, bk){
   var n = String(c.cls || '').trim();
+  bk = crRuleBook(c, bk);
   if (bk === '내신') return /확인/.test(n) ? '확인' : '진도';
   var m = n.replace(/\(.*\)\s*$/, '').trim().match(/(가|나)$/);
   return m ? m[1] : '';
@@ -6752,7 +6758,7 @@ function openClassNote(c){
   CR = { c: c, ymd: ymd, bk: book, part: part, note: null, names: crNamesOf(c), busy: false,
          hwWeek: crPrevWed(ymd), items: CR_HW_DEFAULT.slice(), hw: {}, hwOk: false, more: {},
          ns: null, sib: [] };
-  if (book === '내신' && part === '진도'){
+  if (crRuleBook(c, book) === '내신' && part === '진도'){
     var pers = crNsPeriods(ymd);
     CR.ns = { periods: pers, period: pers[0], key: crScopeKey(c.cls, c.id), week: crPrevWed(ymd),
               scope: null, cleared: {}, weekRec: null, open: false, loaded: false };
@@ -6898,10 +6904,25 @@ function crIsLv(it){ return hwItemMax(it) === 2; }
 function crHwSc(scores, it){ return Math.max(0, Math.min(hwItemMax(it), parseInt((scores || {})[it], 10) || 0)); }
 function crTasksOf(t){ return String(t || '').split('\n').map(function(x){ return x.replace(/^\s*[-·•]\s*/, '').trim(); }).filter(Boolean); }
 function crHwSrcLoad(c, bk, ymd){
+  // 중3·고3은 정규 규칙 — 지난주가 다른 기간이었으면 짝 반(정규 r### ↔ 내신 n###)에 적혀 있으므로 짝 반 기록도 같이 본다
+  if (CR_ALWAYS_REG.test(String(c.cls || ''))){
+    var other = bk === '정규' ? '내신' : '정규';
+    return crGet('/tt_classes?book=eq.' + encodeURIComponent(other) + '&name=eq.' + encodeURIComponent(c.cls) + '&select=class_id,day,start_time,teacher')
+      .catch(function(){ return []; })
+      .then(function(rows){
+        var hits = (rows || []).filter(function(r){ return !/^w/.test(r.class_id) && r.day === c.day && r.start_time === c.start; });
+        if (hits.length > 1) hits = hits.filter(function(r){ return r.teacher === c.teacher; });
+        return crHwSrcLoad2(c, bk, ymd, hits.length === 1 ? hits[0].class_id : '');
+      });
+  }
+  return crHwSrcLoad2(c, bk, ymd, '');
+}
+function crHwSrcLoad2(c, bk, ymd, twinId){
   var d = new Date(ymd + 'T00:00:00'); d.setDate(d.getDate() - 21);
   var from = d.getFullYear() + '-' + crPad(d.getMonth() + 1) + '-' + crPad(d.getDate());
   var ids = [c.id], mine = {};
-  if (bk === '내신'){
+  var books = twinId ? 'in.(' + encodeURIComponent('정규') + ',' + encodeURIComponent('내신') + ')' : 'eq.' + encodeURIComponent(bk);
+  if (crRuleBook(c, bk) === '내신'){
     // 학생마다 자기 내신 반(진도·확인) — 시간표 명단에서 이름으로 찾는다('이 주만' 반은 뺀다)
     CR.names.forEach(function(x){
       mine[x.p] = classes.filter(function(k){ return !/^w/.test(k.id) && (k.students || []).some(function(t){ return plainName(t) === x.p; }); }).map(function(k){ return k.id; });
@@ -6912,22 +6933,23 @@ function crHwSrcLoad(c, bk, ymd){
     // (2026-10-01 원장님 "원래 반")
     var moved = {};
     onceInToday().forEach(function(o){ if (o.kind === '1회' && o.toId === c.id && o.fromId) moved[plainName(o.student)] = o.fromId; });
-    CR.names.forEach(function(x){ mine[x.p] = [moved[x.p] || c.id]; });
+    CR.names.forEach(function(x){ mine[x.p] = moved[x.p] ? [moved[x.p]] : (twinId ? [c.id, twinId] : [c.id]); });
   }
   Object.keys(mine).forEach(function(k){ mine[k].forEach(function(id){ if (ids.indexOf(id) < 0) ids.push(id); }); });
   var inIds = 'in.(' + ids.map(function(x){ return encodeURIComponent('"' + x + '"'); }).join(',') + ')';
-  return crGet('/class_notes?book=eq.' + encodeURIComponent(bk) + '&class_id=' + inIds + '&ymd=gte.' + from + '&ymd=lte.' + ymd +
+  return crGet('/class_notes?book=' + books + '&class_id=' + inIds + '&ymd=gte.' + from + '&ymd=lte.' + ymd +
                '&select=class_id,ymd,homework,comments&order=ymd.desc')
     .then(function(rows){
       // 이 반이 지난번에 반 전체로 넣은 과제(오늘 것 제외) — [지난번 과제 다시 넣기]
       var xtLast = [];
-      (rows || []).some(function(r){ if (r.class_id !== c.id || r.ymd >= ymd) return false; xtLast = crTasksOf((r.comments || {})[CR_XT_KEY]); return xtLast.length > 0; });
+      (rows || []).some(function(r){ if ((r.class_id !== c.id && r.class_id !== twinId) || r.ymd >= ymd) return false; xtLast = crTasksOf((r.comments || {})[CR_XT_KEY]); return xtLast.length > 0; });
       var byId = {}; classes.forEach(function(k){ byId[k.id] = k; });
+      if (twinId) byId[twinId] = c;   // 짝 반 = 같은 수업
       var myStart = mins(c.start);
       // 오늘보다 앞선 수업만(같은 날이면 지금 반보다 먼저 시작한 다른 반만), 최근 것부터
       var ord = (rows || []).filter(function(r){
         if (r.ymd < ymd) return true;
-        if (r.ymd > ymd || r.class_id === c.id) return false;
+        if (r.ymd > ymd || r.class_id === c.id || (twinId && r.class_id === twinId)) return false;
         var k = byId[r.class_id]; return !!k && mins(k.start) < myStart;
       }).sort(function(a, b){
         if (a.ymd !== b.ymd) return a.ymd < b.ymd ? 1 : -1;
@@ -6938,8 +6960,8 @@ function crHwSrcLoad(c, bk, ymd){
         if (!r) return null;
         var k = byId[r.class_id] || {};
         var lb = mdOfYmdStr(r.ymd) + ' (' + '일월화수목금토'.charAt(new Date(r.ymd + 'T00:00:00').getDay()) + ')';
-        if (bk === '내신' && k.cls) lb += ' ' + crPartLabel(crPartOf(k, bk));
-        else if (r.class_id !== c.id && k.cls) lb += ' ' + k.cls;   // 정규 1회 이동 학생 — 원래 반 이름
+        if (crRuleBook(k, bk) === '내신' && k.cls) lb += ' ' + crPartLabel(crPartOf(k, bk));
+        else if (r.class_id !== c.id && r.class_id !== twinId && k.cls) lb += ' ' + k.cls;   // 정규 1회 이동 학생 — 원래 반 이름
         return { tasks: crRowTasks(r, nm), ymd: r.ymd, cls: k.cls || '', part: crPartOf(k, bk), label: lb };
       }
       var by = {};

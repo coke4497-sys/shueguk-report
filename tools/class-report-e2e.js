@@ -76,6 +76,7 @@ const STUDENTS = [
       if (/\/attendance\?/.test(u)) return json(200, opt.att.map(a => Object.assign({ date: TODAYSTR, book: opt.book, memo: '' }, a)));
       if (m !== 'GET') return json(201, []);
       if (/\/tt_classes\?/.test(u)){
+        if (/name=eq\./.test(u)) { (st.twinGets = st.twinGets || []).push(decodeURIComponent(u)); return json(200, opt.twin || []); }
         if (/class_id=like\./.test(u)) return json(200, []);
         return json(200, u.indexOf('book=eq.' + opt.book) >= 0 ? opt.rows : []);
       }
@@ -282,6 +283,23 @@ const STUDENTS = [
     ok('내신 확인: 박보검은 진도 수업 과제 2개 × 4줄', pk.tasks.join('|') === '교과서 1~6번|서술형 정리' && pk.rows === 8 && /진도/.test(pk.src), JSON.stringify(pk));
     ok('내신 확인: 진도 반이 없는 김하늘은 검사할 과제 없음 안내', kh.rows === 0 && /지난 수업에 적힌 과제가 없습니다/.test(kh.txt), JSON.stringify(kh));
     ok('내신 과제 조회 = 학생들의 내신 반 전체', (st.srcGets || []).some(u => /"n001"/.test(u) && /"n002"/.test(u)), JSON.stringify(st.srcGets));
+    await ctx.close();
+  }
+
+  // ②-4 중3·고3은 내신 기간에도 정규 수업(2026-10-01 사용자) — 진도/확인 구분·시험범위 없음, 지난 과제는 정규 짝 반에서도 찾는다
+  {
+    const D7 = (() => { const d = new Date(T0); d.setDate(d.getDate() - 7); return ymd(d); })();
+    const base = row('n015', '고3파이널A', '슈', '박보검 김하늘');
+    ({ ctx, page, st } = await ctxOf({ book: '내신', rows: [base],
+      twin: [{ class_id: 'r020', day: base.day, start_time: base.start_time, teacher: '슈' }],
+      att: [], hw: [], prev: [{ class_id: 'r020', ymd: D7, homework: '2-4회차 모의고사' }] }));
+    await openCard(page, '고3파이널A');
+    r = await page.evaluate(() => ({ kind: document.getElementById('cr-kind').textContent, scope: !!document.getElementById('cr-scope'),
+      tasks: [...document.querySelectorAll('.cr-card')][0] ? [...[...document.querySelectorAll('.cr-card')][0].querySelectorAll('.cr-tname')].map(x => x.textContent) : [] }));
+    ok('고3 내신 주: "수업"(진도 아님)·시험범위 칸 없음', r.kind === '수업' && !r.scope, JSON.stringify(r));
+    ok('고3 내신 주: 지난주 정규 짝 반(r020) 과제로 검사', r.tasks.join('|') === '2-4회차 모의고사', JSON.stringify(r));
+    ok('짝 반 찾기 = 정규 같은 이름 반 · 과제 조회 = 두 시간표·두 반', (st.twinGets || []).some(u => /book=eq\.정규/.test(u) && /name=eq\.고3파이널A/.test(u)) &&
+       (st.srcGets || []).some(u => /"n015"/.test(u) && /"r020"/.test(u) && /book=in\./.test(u)), JSON.stringify([st.twinGets, st.srcGets]));
     await ctx.close();
   }
 

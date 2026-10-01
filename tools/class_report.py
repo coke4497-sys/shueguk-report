@@ -106,9 +106,12 @@ def find_student(tok, studs):
 DOW = '월화수목금토일'
 
 
+ALWAYS_REG = re.compile(r'고3|중3|논술')   # 중3·고3은 내신 기간에도 정규 수업(timetable crRuleBook 과 같은 규칙)
+
+
 def part_of(name, book):
     n = str(name or '').strip()
-    if book == '내신':
+    if book == '내신' and not ALWAYS_REG.search(n):
         return '확인' if '확인' in n else '진도'
     m = re.search(r'(가|나)$', re.sub(r'\(.*\)\s*$', '', n).strip())
     return m.group(1) if m else ''
