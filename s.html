@@ -556,11 +556,11 @@
   <footer><p>이수경국어 Shueguk · 학생용</p></footer>
 </main></div>
 
-<!-- 학습 이력 (2026-10-01) — 선생님 수업 기록을 수업마다 쌓아 보여 준다 -->
+<!-- 수업 리포트(옛 이름 학습 이력, 2026-10-01) — 선생님 수업 기록을 수업마다 쌓아 보여 준다 -->
 <div id="lhView"><main class="wrap gwrap">
   <div class="gv-bar">
     <button class="gv-back" onclick="closeLearnHist()" id="lhBack"></button>
-    <span class="gv-ttl">학습 이력</span>
+    <span class="gv-ttl">수업 리포트</span>
   </div>
   <div id="lhSum"></div>
   <div id="lhList"></div>
@@ -1826,7 +1826,7 @@ function renderHub(){
   if(lh0.length){
     html += '<button class="card t-mnt" onclick="openLearnHist()">' +
               '<span class="icon">'+svg(ICON.hist)+'</span>' +
-              '<h3>학습 이력</h3><p class="desc">'+esc('최근 ' + crpDay(lh0[0].ymd) + ' · ' + crpPartName(lh0[0].part))+'</p>' +
+              '<h3>수업 리포트</h3><p class="desc">'+esc('최근 ' + crpDay(lh0[0].ymd) + ' · ' + crpPartName(lh0[0].part))+'</p>' +
               '<span class="go">열기 '+svg(ICON.arrow)+'</span></button>';
   }
 
@@ -2182,8 +2182,8 @@ function lhItemHtml(it){
 function lhRender(){
   var box = $('lhList'), items = STATE.lhist;
   if (items === undefined || (items === null && LH.loading)){ $('lhSum').innerHTML = ''; box.innerHTML = '<div class="rv-empty">불러오는 중…</div>'; return; }
-  if (items === null){ $('lhSum').innerHTML = ''; box.innerHTML = '<div class="rv-empty">학습 이력을 불러오지 못했어요. 잠시 뒤 다시 열어 주세요.</div>'; return; }
-  if (!items.length){ $('lhSum').innerHTML = ''; box.innerHTML = '<div class="rv-empty">아직 학습 이력이 없어요. 선생님이 수업 기록을 마치면 여기에 쌓여요.</div>'; return; }
+  if (items === null){ $('lhSum').innerHTML = ''; box.innerHTML = '<div class="rv-empty">수업 리포트를 불러오지 못했어요. 잠시 뒤 다시 열어 주세요.</div>'; return; }
+  if (!items.length){ $('lhSum').innerHTML = ''; box.innerHTML = '<div class="rv-empty">아직 수업 리포트가 없어요. 선생님이 수업 기록을 마치면 여기에 쌓여요.</div>'; return; }
   var att = items.filter(function(x){ return x.attend === '출석' || x.attend === '지각'; }).length;
   var hws = items.filter(function(x){ return x.hw; });
   var avg = hws.length ? Math.round(hws.reduce(function(a, x){ return a + (x.hw.missing ? 0 : Math.max(0, Math.min(100, +x.hw.pct || 0))); }, 0) / hws.length) : null;

@@ -7491,7 +7491,7 @@ function crPvRender(){
     '<button class="x" onclick="crPvClose()">닫기</button></div>' +
     warn.map(function(w){ return '<p class="crpv-warn">' + esc(w) + '</p>'; }).join('') +
     crPvHtml(it) +
-    '<p class="crpv-note">[리포트 생성]을 누르면 이 카드가 학생 페이지 \'학습 이력\'에 올라갑니다. 주간 리포트 글은 클로슈가 이 내용으로 다듬어 써요. 비공개 메모와 미제출 대책은 학생에게 보이지 않습니다.</p>';
+    '<p class="crpv-note">[리포트 생성]을 누르면 이 카드가 학생 페이지 \'수업 리포트\'에 올라갑니다. 주간 리포트 글은 클로슈가 이 내용으로 다듬어 써요. 비공개 메모와 미제출 대책은 학생에게 보이지 않습니다.</p>';
 }
 function crPvOpen(i){
   if (!CR.c || !CR.names || !CR.names.length){ crMsg('미리 볼 학생이 없어요.', true); return; }
