@@ -206,7 +206,8 @@ def cmd_data(book, cid, ymd):
                 'time': '%s %s~%s' % (cl['day'], cl['start_time'], cl['end_time']),
                 'attend': a and {'status': a['status'], 'memo': a['memo'], 'makeup_plan': a['makeup_plan'], 'makeup_done': a['makeup_done']},
                 'note': n and {'progress': n.get('progress', ''), 'units': n.get('units') or [], 'homework': n.get('homework', ''),
-                               'comment': (n.get('comments') or {}).get(p, ''), 'status': n.get('report_status', '')},
+                               'comment': (n.get('comments') or {}).get(p, ''),
+                               'attitude': ((n.get('comments') or {}).get('__태도') or {}).get(p, ''), 'status': n.get('report_status', '')},
                 'pending': not n or not a,
                 'hw': h and {k: h[k] for k in HWK},
             })

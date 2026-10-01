@@ -7,7 +7,9 @@
  * ② 내신 진도 수업 — 시험범위 입력(공유 키 공유:고2|화정) → 단원 고르기(클리어) → [저장] 시 naeshin 주차 기록 + units, 안내 문구
  * ③ 내신 확인 수업 — '확인 수업'·'숙제 검사', 진도 없이도 생성 가능
  * ④ 수정 요청 목록에서 '수업 리포트' 요청은 뺀다
- * ⑤ 학생 페이지 — 허브 '주간 리포트' 카드, 주간 한 장(출석 칸·가/나 칸·기록 전·숙제 검사 막대·코멘트), 내신 주(나간 범위 칩), ‹ › */
+ * ⑤ 학생 페이지 — 허브 '주간 리포트' 카드, 주간 한 장(출석 칸·가/나 칸·기록 전·숙제 검사 막대·코멘트), 내신 주(나간 범위 칩), ‹ ›
+ * ⑦ 수업 태도 3단계 알약 — comments.__태도 저장·다시 누르면 지움·닫아도 저장
+ * ⑧ 학생 페이지 학습 이력(039) — 허브 카드·요약·달별·수업 카드·더 보기 */
 const { chromium } = require('playwright');
 const http = require('http'), fs = require('fs'), path = require('path');
 const ROOT = path.join(__dirname, '..');
@@ -349,6 +351,91 @@ const STUDENTS = [
   await page.waitForSelector('#crpanel:not([hidden]) .cr-card', { timeout: 8000 });
   ok('같은 이름 반이 없으면 가져오기 줄도 없다', !(await page.$('.cr-sib')) && !(st.sibGets || []).length);
   await ctx.close();
+
+  // ⑦ 수업 태도 3단계 알약(2026-10-01) — 누르면 comments.__태도 로 저장, 다시 누르면 지움
+  ({ ctx, page, st } = await ctxOf({ book: '정규', rows: [row('r001', '고2 가', '지원', '박보검 김하늘')], att: [{ class_id: 'r001', student: '박보검', status: '출석' }] }));
+  await openCard(page, '고2 가');
+  r = await page.evaluate(() => [...document.querySelectorAll('.cr-card')].map(c => [...c.querySelectorAll('.cr-attp')].map(x => x.textContent).join('|')));
+  ok('학생마다 태도 알약 3개', r.length === 2 && r.every(x => x === '매우 좋음|좋음|노력 필요'), JSON.stringify(r));
+  ok('코멘트 칸 안내 — 학생 페이지에 보여요', await page.$eval('.cr-card input[id^="cr-c-"]', e => /학생 페이지에 보여요/.test(e.placeholder)));
+  const iA = await page.evaluate(() => CR.names.map(x => x.p).indexOf('박보검'));
+  const iB = await page.evaluate(() => CR.names.map(x => x.p).indexOf('김하늘'));
+  await page.fill('#cr-prog', '태도 저장 전에 쓰던 진도');
+  await page.click(`[data-att="${iA}"][data-lv="0"]`);
+  await page.click(`[data-att="${iB}"][data-lv="2"]`);
+  await page.waitForFunction(() => /수업 태도를 저장했어요/.test(document.getElementById('cr-msg').textContent), null, { timeout: 6000 });
+  let aw = st.writes.filter(w => /class_notes/.test(w.u));
+  ok('두 번 눌러도 한 번에 저장(0.7초 모음)', aw.length === 1, aw.length);
+  aw = aw.pop();
+  ok('comments.__태도 = {박보검: 매우 좋음, 김하늘: 노력 필요} + 진도도 함께', aw && aw.body[0].comments['__태도']['박보검'] === '매우 좋음' && aw.body[0].comments['__태도']['김하늘'] === '노력 필요' &&
+     aw.body[0].progress === '태도 저장 전에 쓰던 진도' && !aw.body[0].report_status, JSON.stringify(aw && aw.body));
+  r = await page.evaluate(i => ({ on: document.querySelector(`[data-att="${i}"].on`).textContent, prog: document.getElementById('cr-prog').value }), iA);
+  ok('고른 알약 표시·쓰던 진도 유지', r.on === '매우 좋음' && r.prog === '태도 저장 전에 쓰던 진도', JSON.stringify(r));
+  await page.click(`[data-att="${iA}"][data-lv="0"]`);
+  await page.waitForFunction(n => document.querySelectorAll('.cr-attp.on').length === 1, null, { timeout: 3000 });
+  await page.waitForTimeout(1200);
+  aw = st.writes.filter(w => /class_notes/.test(w.u)).pop();
+  ok('같은 알약을 다시 누르면 지운다', !aw.body[0].comments['__태도']['박보검'] && aw.body[0].comments['__태도']['김하늘'] === '노력 필요', JSON.stringify(aw.body[0].comments));
+  await page.click(`[data-att="${iA}"][data-lv="1"]`);
+  await page.evaluate(() => crClose());
+  await page.waitForTimeout(800);
+  aw = st.writes.filter(w => /class_notes/.test(w.u)).pop();
+  ok('창을 바로 닫아도 태도가 저장된다', aw.body[0].comments['__태도']['박보검'] === '좋음', JSON.stringify(aw.body[0].comments));
+  await ctx.close();
+
+  // ⑧ 학생 페이지 — 학습 이력(039 class_history)
+  const HIST = [
+    { ymd: '2026-09-30', book: '정규', part: '가', cls: '고2 가', teacher: '지원', time: '수 5:30~7:00', progress: '「사미인곡」 표현상 특징 정리', units: [], homework: '비교 학습지 1장\n- 오답 노트',
+      attend: '출석', comment: '집중이 좋았어요', attitude: '매우 좋음', hw: { scores: { '관동별곡 학습지 (학습량)': 5, '관동별곡 학습지 (깊이)': 4 }, max: 10, pct: 90, missing: false, text: '' } },
+    { ymd: '2026-09-28', book: '정규', part: '나', cls: '고2 나', teacher: '현지', time: '월 5:30~7:00', progress: '속미인곡', units: [], homework: '', attend: '결석', comment: '', attitude: '', hw: { scores: {}, max: 10, pct: 0, missing: true, text: '' } },
+    { ymd: '2026-08-29', book: '내신', part: '진도', cls: '고2 화정A', teacher: '주혜', time: '토 2:00~4:00', progress: '', units: ['사미인곡'], homework: '', attend: '지각', comment: '', attitude: '노력 필요', hw: null },
+  ];
+  const OLD = [{ ymd: '2026-08-20', book: '정규', part: '가', cls: '고2 가', teacher: '지원', time: '목 5:30~7:00', progress: '옛 수업', units: [], homework: '', attend: '출석', comment: '', attitude: '', hw: null }];
+  const c3 = await b.newContext();
+  const hp = await c3.newPage();
+  const hcalls = [];
+  hp.on('pageerror', e => { perr++; console.log('  ✗ pageerror(s.html 학습 이력)', e.message); });
+  await hp.route('**/*', rt => {
+    const u = rt.request().url();
+    const j = (o, stt) => rt.fulfill({ status: stt || 200, contentType: 'application/json', body: JSON.stringify(o) });
+    if (u.startsWith('http://127.0.0.1:' + port)) return rt.continue();
+    if (/\/rpc\/class_history/.test(u)){ const p = JSON.parse(rt.request().postData()).p; hcalls.push(p);
+      if (p.key !== 'abc') return j({ ok: false, error: 'no_student' });
+      return j(p.before ? { ok: true, items: OLD, more: false } : { ok: true, items: HIST, more: true }); }
+    if (/\/rpc\//.test(u)) return j({ error: 'nope' }, 500);
+    if (/supabase/.test(u)) return rt.fulfill({ status: 204, body: '' });
+    if (/script\.google/.test(u)){
+      const q = new URL(u).searchParams;
+      if (q.get('key')) return j({ result: 'success', info: { name: '박보검', id: '30000001', school: '화정고', grade: '2026 고등 2학년', teacher: '주혜', enrolled: '재원', classA: '수 5:30', classB: '' },
+        authed: false, examCount: 0, notices: [], homework: [], analyses: [], clinic: null, stars: { total: 3 }, mockGates: { grades: [], open: false }, clinicEligible: false, vocaTaken: false, mockSignups: [] });
+      return j({ result: 'success' });
+    }
+    return rt.fulfill({ status: 204, body: '' });
+  });
+  await hp.goto('http://127.0.0.1:' + port + '/s.html?key=abc', { waitUntil: 'domcontentloaded' });
+  await hp.waitForFunction(() => /학습 이력/.test((document.getElementById('menu') || {}).textContent || ''), null, { timeout: 15000 });
+  r = await hp.evaluate(() => { const c = [...document.querySelectorAll('#menu .card')].find(x => /학습 이력/.test(x.textContent)); return c && c.textContent; });
+  ok('허브 카드 — 학습 이력 · 최근 수업', /최근 9\/30 \(수\) · 가 수업/.test(r), r);
+  ok('본인 확인은 접근코드', hcalls.length >= 1 && hcalls[0].key === 'abc' && !hcalls[0].before, JSON.stringify(hcalls));
+  await hp.evaluate(() => openLearnHist());
+  await hp.waitForSelector('#lhList .lh-item', { timeout: 8000 });
+  r = await hp.evaluate(() => ({ sum: [...document.querySelectorAll('.lh-sum > div')].map(x => x.textContent), months: [...document.querySelectorAll('.lh-month')].map(x => x.textContent),
+    items: [...document.querySelectorAll('.lh-item')].map(x => x.textContent), tags: [...document.querySelectorAll('.lh-tag')].map(x => x.className + ':' + x.textContent),
+    li: [...document.querySelectorAll('.lh-item')][0].querySelectorAll('li').length, more: !!document.getElementById('lhMoreBtn') }));
+  ok('요약 — 수업 3 · 출석·지각 2 · 과제 검사 평균 45% · 매우 좋음 1', r.sum.join('/') === '3수업 기록/2출석·지각/45%과제 검사 평균/1태도 매우 좋음', JSON.stringify(r.sum));
+  ok('달별 묶음 — 9월·8월', r.months.join('|') === '2026년 9월|2026년 8월', JSON.stringify(r.months));
+  ok('9/30 — 날짜·가 수업·반·선생님·출석·태도·내용·과제 2줄·과제 검사·코멘트', /9\/30 \(수\)/.test(r.items[0]) && /가 수업/.test(r.items[0]) && /고2 가 · 지원T/.test(r.items[0]) && /출석/.test(r.items[0]) &&
+     /수업 태도 ?매우 좋음/.test(r.items[0]) && /사미인곡/.test(r.items[0]) && r.li === 2 && /오답 노트/.test(r.items[0]) && /이 수업 과제 검사90%/.test(r.items[0]) && /집중이 좋았어요/.test(r.items[0]), r.items[0]);
+  ok('태도 색 — 매우 좋음 a0 · 노력 필요 a2', r.tags.includes('lh-tag a0:매우 좋음') && r.tags.includes('lh-tag a2:노력 필요'), JSON.stringify(r.tags));
+  ok('9/28 — 결석·미제출, 태도·코멘트 없으면 줄도 없음', /결석/.test(r.items[1]) && /미제출/.test(r.items[1]) && !/수업 태도/.test(r.items[1]) && !/선생님 코멘트/.test(r.items[1]), r.items[1]);
+  ok('8/29 내신 진도 — 나간 범위 칩·과제 검사 없음', /진도 수업/.test(r.items[2]) && /나간 범위사미인곡/.test(r.items[2]) && !/과제 검사/.test(r.items[2]), r.items[2]);
+  ok('"숙제"라는 말이 없다', !r.items.some(t => /숙제/.test(t)));
+  await hp.click('#lhMoreBtn');
+  await hp.waitForFunction(() => document.querySelectorAll('.lh-item').length === 4, null, { timeout: 5000 });
+  ok('[지난 수업 더 보기] — before=마지막 날짜로 이어 받고 버튼이 사라진다', hcalls.some(p => p.before === '2026-08-29') && !(await hp.$('#lhMoreBtn')), JSON.stringify(hcalls));
+  await hp.evaluate(() => closeLearnHist());
+  ok('닫으면 허브로', await hp.evaluate(() => document.getElementById('lhView').style.display === 'none' && document.getElementById('hubView').style.display !== 'none'));
+  await c3.close();
 
   ok('페이지 오류 없음', perr === 0);
   console.log((fail ? '실패 ' + fail + ' / ' : '') + '통과 ' + pass + '건');

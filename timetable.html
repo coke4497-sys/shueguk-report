@@ -480,6 +480,10 @@
   .cr-card textarea{min-height:44px;resize:vertical;}
   .cr-more{align-self:flex-start;font:inherit;font-size:.7rem;border:0;background:none;color:var(--ink-soft);cursor:pointer;padding:0;text-decoration:underline;}
   .cr-note{font-size:.74rem;color:#7A6230;}
+  .cr-att{display:flex;align-items:center;gap:5px;flex-wrap:wrap;font-size:.74rem;color:var(--ink-soft);}
+  .cr-att span{margin-right:2px;}
+  .cr-attp{font:inherit;font-size:.74rem;border:0;border-radius:999px;padding:3px 10px;background:#fff;color:#65726B;cursor:pointer;}
+  .cr-attp.a0.on{background:#DCE8E5;color:#3F6159;} .cr-attp.a1.on{background:#EDE4F4;color:#5A4A6A;} .cr-attp.a2.on{background:#F7E2DE;color:#9A5A52;}
   /* 과제별 검사 (2026-09-29) */
   .cr-src{font-size:.72rem;color:var(--ink-soft);margin:2px 0 4px;}
   .cr-task{background:#F4F6F5;border-radius:9px;padding:6px 8px;margin-bottom:5px;}
@@ -6863,7 +6867,9 @@ function crNsUnitsOfWeek(ns){
   return crNsItems(ns).filter(function(it){ var c = ns.cleared[it]; return c && c.s <= ns.week && ns.week <= c.d; });
 }
 function crClose(){
-  crFlushHw(); $('cr-bg').hidden = true; $('crpanel').hidden = true; CR = { c: null };
+  crFlushHw();
+  if (crAttTimer){ clearTimeout(crAttTimer); crAttTimer = null; if (CR.c && !CR.busy) crUpsert().then(function(){ render(); }, function(e){ setStatus('수업 태도를 저장하지 못했어요. 창을 다시 열어 눌러 주세요.', 'err'); console.warn(e); }); }
+  $('cr-bg').hidden = true; $('crpanel').hidden = true; CR = { c: null };
   // 방금 리포트를 만든 반이면 창을 닫을 때 카드의 [기록 완료 ✓] 버튼에서도 하트가 한 번 더 터진다
   if (crJustDone){
     var key = crJustDone; render();
@@ -6962,6 +6968,40 @@ function crXtSet(next, msg){
     crMsg('과제를 저장하지 못했어요. 다시 눌러 주세요. (' + e.message + ')', true);
   });
 }
+/* 수업 태도 3단계(2026-10-01 사용자 결정) — 새 열 없이 comments 의 예약 키 '__태도' = {학생이름: 단계}.
+ * 알약을 누르면 0.7초 뒤 수업 기록을 저장한다([저장]과 같은 crUpsert). 같은 알약을 다시 누르면 지운다.
+ * 학생 페이지 '학습 이력'(039 class_history)이 [리포트 생성]을 누른 수업부터 보여 준다. */
+var CR_ATT_KEY = '__태도', CR_ATT_LEVELS = ['매우 좋음', '좋음', '노력 필요'], crAttTimer = null;
+function crAttOf(p){ var m = ((CR.note || {}).comments || {})[CR_ATT_KEY]; return (m && typeof m === 'object' && m[p]) || ''; }
+function crAttHtml(i, x){
+  var cur = crAttOf(x.p);
+  return '<div class="cr-att" role="group" aria-label="' + esc(x.p) + ' 수업 태도"><span>수업 태도</span>' + CR_ATT_LEVELS.map(function(lv, k){
+    return '<button type="button" class="cr-attp a' + k + (cur === lv ? ' on' : '') + '" data-att="' + i + '" data-lv="' + k + '" aria-pressed="' + (cur === lv) + '">' + lv + '</button>';
+  }).join('') + '</div>';
+}
+function crAttSet(i, k){
+  var x = CR.names[i], lv = CR_ATT_LEVELS[k]; if (!x || !lv) return;
+  crKeepInputs();
+  var cm = CR.note.comments, m = Object.assign({}, (cm[CR_ATT_KEY] && typeof cm[CR_ATT_KEY] === 'object') ? cm[CR_ATT_KEY] : {});
+  if (m[x.p] === lv) delete m[x.p]; else m[x.p] = lv;
+  cm[CR_ATT_KEY] = CR.attLatest = m;
+  crRender();
+  var dot = $('cr-dot-' + i); if (dot){ dot.textContent = '저장 중…'; dot.className = 'cr-dot'; }
+  clearTimeout(crAttTimer);
+  crAttTimer = setTimeout(crAttSave, 700);
+}
+function crAttSave(){
+  crAttTimer = null;
+  if (!CR.c) return;
+  if (CR.busy){ crAttTimer = setTimeout(crAttSave, 700); return; }
+  var cr = CR;
+  crUpsert().then(function(){
+    if (CR !== cr) return;   // 그사이 창을 닫았다
+    var cm = CR.note.comments = Object.assign({}, CR.note.comments || {});
+    if (CR.attLatest) cm[CR_ATT_KEY] = CR.attLatest;   // 저장 응답이 오는 사이 더 누른 값은 화면 쪽을 남긴다(다음 저장이 곧 따라온다)
+    crRender(); crMsg('수업 태도를 저장했어요.'); render();
+  }).catch(function(e){ crMsg('수업 태도를 저장하지 못했어요. 다시 눌러 주세요. (' + e.message + ')', true); });
+}
 function crXtAdd(list){
   var el = $('cr-xt'), add = list || crTasksOf(el ? el.value : '');
   if (!add.length){ crMsg('추가할 과제를 한 줄에 하나씩 적어 주세요.', true); if (el) el.focus(); return; }
@@ -7020,15 +7060,15 @@ function crRender(){
       : !code ? '<div class="cr-note">명단에서 이 학생을 찾지 못해 과제 검사를 저장할 수 없어요(동명이인·미등록).</div>'
       : crStarsHtml(i, code) +
         '<div class="cr-row2' + (crSrcOf(x) ? '' : ' one') + '">' + (crSrcOf(x) ? '<button type="button" class="cr-mini' + (miss ? ' on' : '') + '" data-miss="' + i + '">미제출</button>' : '') +
-        '<input id="cr-c-' + i + '" maxlength="200" placeholder="코멘트 (선택) — 리포트에 쓰여요" value="' + esc(cm[x.p] || '') + '" aria-label="' + esc(x.p) + ' 코멘트"></div>' +
+        '<input id="cr-c-' + i + '" maxlength="200" placeholder="코멘트 (선택) — 학생 페이지에 보여요" value="' + esc(cm[x.p] || '') + '" aria-label="' + esc(x.p) + ' 코멘트"></div>' +
         '<input class="cr-plan" id="cr-plan-' + i + '" maxlength="120" placeholder="미제출 대책 — 예) 9/30 수 5:30 재검사 약속" value="' + esc(h ? h.plan : '') + '"' + (miss ? '' : ' hidden') + '>' +
         '<button type="button" class="cr-more" data-more="' + i + '">' + (CR.more[i] ? '접기' : '더 보기') + '</button>' +
         (CR.more[i] ? '<textarea class="cr-priv" id="cr-priv-' + i + '" maxlength="300" placeholder="비공개 메모 — 교사·조교만 봐요">' + esc(h ? h.priv : '') + '</textarea>' : '');
-    if (!CR.hwOk || !code) hwPart += '<div class="cr-row2 one"><input id="cr-c-' + i + '" maxlength="200" placeholder="코멘트 (선택) — 리포트에 쓰여요" value="' + esc(cm[x.p] || '') + '"></div>';
+    if (!CR.hwOk || !code) hwPart += '<div class="cr-row2 one"><input id="cr-c-' + i + '" maxlength="200" placeholder="코멘트 (선택) — 학생 페이지에 보여요" value="' + esc(cm[x.p] || '') + '"></div>';
     return '<div class="cr-card" data-i="' + i + '"><div class="cr-top"><b title="' + esc(x.nm) + '">' + esc(x.p) + '</b>' +
       '<span class="cr-chip ' + ch + '">' + (a ? esc(a.status) : '미체크') + '</span>' +
       '<span id="cr-pct-' + i + '">' + (code && CR.hwOk ? crHwLabel(code) : '') + '</span>' +
-      '<span class="cr-dot" id="cr-dot-' + i + '"></span></div>' + hwPart + '</div>';
+      '<span class="cr-dot" id="cr-dot-' + i + '"></span></div>' + crAttHtml(i, x) + hwPart + '</div>';
   }).join('');
   var st = '';
   if (n.report_status === '요청') st = '<div class="cr-state">수업 기록을 마쳤습니다. 클로슈가 주간 리포트를 쓰고 있어요' + (n.requested_at ? ' (요청 ' + crHm(n.requested_at) + ')' : '') + '. 보통 몇 분 안에 학생 페이지에 공개돼요.</div>';
@@ -7092,6 +7132,7 @@ document.addEventListener('click', function(e){
   var b = e.target.closest('button');
   if (!b) return;
   if (b.hasAttribute('data-star')){ var s = b.getAttribute('data-star').split('|'); crStar(+s[0], +s[1], +s[2]); return; }
+  if (b.hasAttribute('data-att')){ crAttSet(+b.getAttribute('data-att'), +b.getAttribute('data-lv')); return; }
   if (b.hasAttribute('data-miss')){ crMiss(+b.getAttribute('data-miss')); return; }
   if (b.hasAttribute('data-more')){ var i = +b.getAttribute('data-more'); crKeepInputs(); CR.more[i] = !CR.more[i]; crRender(); return; }
   if (b.hasAttribute('data-per')){ crKeepInputs(); crNsPeriod(b.getAttribute('data-per')); return; }
@@ -7226,6 +7267,9 @@ function crCollect(){
   var n = CR.note || {}, c = CR.c, cm = {};
   CR.names.forEach(function(x){ var v = String((n.comments || {})[x.p] || '').trim(); if (v) cm[x.p] = v; });
   if (CR.xt && CR.xt.length) cm[CR_XT_KEY] = CR.xt.join('\n');
+  var at0 = (n.comments || {})[CR_ATT_KEY] || {}, at = {};
+  CR.names.forEach(function(x){ if (CR_ATT_LEVELS.indexOf(at0[x.p]) >= 0) at[x.p] = at0[x.p]; });
+  if (Object.keys(at).length) cm[CR_ATT_KEY] = at;
   var body = { book: CR.bk, class_id: c.id, ymd: CR.ymd, class_name: c.cls, teacher: c.teacher,
                class_time: c.day + ' ' + c.start + '~' + c.end, part: CR.part,
                progress: String(n.progress || '').trim(), homework: String(n.homework || '').trim(),
@@ -7241,10 +7285,11 @@ function crUpsert(extra){
   var jobs = [crSend('POST', '/class_notes?on_conflict=book,class_id,ymd', [body], 'resolution=merge-duplicates,return=representation')];
   // 내신 진도 수업은 그 주 메모·과제를 내신대비 피드백 기록에도 남긴다(같은 페이지에서 보이게)
   if (CR.ns) jobs.push(crNsWrite('주차', CR.c.id, CR.ns.week, body.progress, body.homework).then(function(){ CR.ns.weekRec = { prog: body.progress, hw: body.homework }; }));
+  var cr = CR, key = CR.bk + '|' + CR.c.id;   // 창을 닫은 뒤 응답이 와도(CR 이 바뀌어도) 그 수업 것으로 처리
   return Promise.all(jobs).then(function(r){
-    CR.note = (r[0] && r[0][0]) || CR.note;
-    if (crToday.map) crToday.map[CR.bk + '|' + CR.c.id] = { st: CR.note.report_status || '', has: crHasNote(CR.note) };
-    return CR.note;
+    cr.note = (r[0] && r[0][0]) || cr.note;
+    if (crToday.map) crToday.map[key] = { st: cr.note.report_status || '', has: crHasNote(cr.note) };
+    return cr.note;
   });
 }
 function crSave(){
