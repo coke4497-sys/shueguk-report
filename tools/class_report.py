@@ -210,7 +210,9 @@ ATTITUDES = ('', '매우 좋음', '좋음', '노력 필요')
 
 def cmd_publish(path):
     pub = json.load(open(path, encoding='utf-8'))
-    book, cid, ymd = pub['book'], pub['class_id'], pub['ymd']
+    book, cid, ymd = pub.get('book', ''), str(pub.get('class_id') or '').strip(), str(pub.get('ymd') or '').strip()
+    if not book or not cid or not ymd:   # 옛 주간 형식(반ID·날짜 없음)은 학생 화면에 안 나온다 — 042도 DB에서 거절
+        sys.exit('book·class_id·ymd 가 모두 있어야 해요 — 수업 한 번에 한 장 형식(CLAUDE.md 수업 리포트 절)으로 써 주세요.')
     d = ymd_of(ymd)
     wed = d - dt.timedelta(days=d.weekday()) + dt.timedelta(days=2)
     note = (rest('GET', '/class_notes?book=eq.%s&class_id=eq.%s&ymd=eq.%s&select=*' % (q(book), q(cid), ymd)) or [None])[0]
@@ -223,6 +225,8 @@ def cmd_publish(path):
         if code not in studs:
             sys.exit('접근코드가 명단에 없어요: %r (%s)' % (code, r.get('name', '')))
         b = r['body']
+        if 'parts' in b or 'comments' in b:   # 2026-10-01 이전 주간 리포트 형식
+            sys.exit('옛 주간 리포트 형식(parts·comments)이에요 — origin/main 의 CLAUDE.md 수업 리포트 절대로 body 를 써 주세요: %s' % studs[code]['name'])
         body = {k: b[k] for k in BODY_KEYS if k in b}
         if '베낌' in json.dumps(body, ensure_ascii=False):   # 비공개 표시가 학생 리포트로 새지 않게
             sys.exit('리포트에 비공개 표시(베낌 의심)가 들어 있어요: %s' % studs[code]['name'])
