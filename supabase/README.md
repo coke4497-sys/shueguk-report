@@ -748,6 +748,10 @@ curl -s -X POST "https://api.supabase.com/v1/projects/bangdbhqpphqqdwcledg/datab
 - `migrations/033_review_done_75.sql` — `review_done_pct()`를 75로(사용자 "75%를 보면 완료, 별 없음 — 결석 보충") + 75% 이상인데 completed_at 이 비어 있던 줄을 채운다. 페이지는 별을 세지 않는다.
 - 적용 상태: **2026-09-27 실제 수파베이스에 적용 완료** — 공개 키로 review_done_pct() = 75 확인(당시 시청 기록 0건이라 채움 대상 없음).
 
+## 출석 기록 — 학생 함수 attendance_history (2026-10-01, 041)
+- `migrations/041_attendance_history.sql` — 표 변경 없음. 함수 `attendance_history(p {key|student, before?})`(anon): 그 학생의 attendance 를 날짜 내림차순 120개씩 + 상태별 건수. 이름 대조는 039 의 ch_plain_/ch_who_. 출석 메모·보충 계획·보충 메모는 내보내지 않는다(결석은 보충 완료 여부만).
+- **적용 상태: 아직 적용 전** — 실제 수파베이스 적용에는 원장님의 sbp_ 토큰이 필요하다(저장하지 않음). 적용 전에는 학생 페이지 '출석 기록' 탭만 '불러오지 못했어요'로 보인다.
+
 ## 수업 리포트 — class_reports 수업별로 (2026-10-01, 040)
 - `migrations/040_class_reports_per_session.sql` — class_reports 를 학생 × 수업 한 번으로(열 6개 추가, 유일 조건 (book, class_id, ymd, code)), class_history 를 공개된 class_reports 읽기로 다시 정의, class_report_list 삭제. 주간 리포트와 학습 이력을 '수업 리포트' 하나로 합친 결정.
 - **적용 상태: 2026-10-01 실제 수파베이스에 적용 완료**(관리 API). 확인: 유일 조건 class_reports_session_key·열 6개, class_report_list 없음, 공개 키 class_history 없는 키 → no_student·class_reports 직접 읽기 401, class_report.py data 가 실제 수업(n015 10/1)을 읽음.

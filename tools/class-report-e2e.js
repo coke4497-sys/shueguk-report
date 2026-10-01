@@ -8,6 +8,7 @@
  * ③ 내신 확인 수업 — '확인 수업'·'숙제 검사', 진도 없이도 생성 가능
  * ④ 수정 요청 목록에서 '수업 리포트' 요청은 뺀다
  * ⑦ 수업 태도 3단계 알약 — comments.__태도 저장·다시 누르면 지움·닫아도 저장
+ * ⑧-1·⑧-3 출석 기록 탭(041 attendance_history) — 요약·줄·보충 표시·거르기·더 보기·탭 기억·리포트 없이 출석만 있을 때
  * ⑧ 학생 페이지 수업 리포트(040 — 주간 리포트와 합침, 클로슈가 쓴 수업별 카드) — 허브 카드·요약·달별·수업 카드·더 보기·주간 리포트 카드 없음 */
 const { chromium } = require('playwright');
 const http = require('http'), fs = require('fs'), path = require('path');
@@ -469,6 +470,14 @@ const STUDENTS = [
   const OLD = [{ ymd: '2026-08-20', book: '정규', part: '가', cls: '고2 가', teacher: '지원', time: '목 5:30~7:00', body: { attend: '출석', summary: '옛 수업',
     hw: { items: [{ name: '독서 학습지 (학습량)', score: 5, max: 5 }, { name: '독서 학습지 (채점)', score: 2, max: 2 }, { name: '독서 학습지 (학습 분석)', score: 2, max: 2 }, { name: '독서 학습지 (오답 분석)', score: 2, max: 2 }],
           pct: 100, missing: false, missing_items: [], text: '모든 과제를 완벽하게 했습니다.' } } }];
+  const AH = [
+    { ymd: '2026-09-30', book: '정규', class_id: 'r010', cls: '고2 가', day: '수', time: '5:30', status: '출석', makeup: null },
+    { ymd: '2026-09-28', book: '정규', class_id: 'r011', cls: '고2 나', day: '월', time: '5:30', status: '결석', makeup: false },
+    { ymd: '2026-09-26', book: '내신', class_id: 'n050', cls: '고2 확인', day: '토', time: '4:00', status: '지각', makeup: null },
+    { ymd: '2026-08-29', book: '내신', class_id: 'w260829a', cls: '', day: '', time: '', status: '결석', makeup: true },
+  ];
+  const AH_OLD = [{ ymd: '2026-08-20', book: '정규', class_id: 'r010', cls: '고2 가', day: '목', time: '5:30', status: '출석', makeup: null }];
+  const acalls = [];
   const c3 = await b.newContext();
   const hp = await c3.newPage();
   const hcalls = [];
@@ -480,6 +489,8 @@ const STUDENTS = [
     if (/\/rpc\/class_history/.test(u)){ const p = JSON.parse(rt.request().postData()).p; hcalls.push(p);
       if (p.key !== 'abc') return j({ ok: false, error: 'no_student' });
       return j(p.before ? { ok: true, items: OLD, more: false } : { ok: true, items: HIST, more: true }); }
+    if (/\/rpc\/attendance_history/.test(u)){ const p = JSON.parse(rt.request().postData()).p; acalls.push(p);
+      return j(p.before ? { ok: true, items: AH_OLD, more: false, counts: { 출석: 2, 지각: 1, 결석: 2 } } : { ok: true, items: AH, more: true, counts: { 출석: 2, 지각: 1, 결석: 2 } }); }
     if (/\/rpc\//.test(u)) return j({ error: 'nope' }, 500);
     if (/supabase/.test(u)) return rt.fulfill({ status: 204, body: '' });
     if (/script\.google/.test(u)){
@@ -526,6 +537,28 @@ const STUDENTS = [
   await hp.waitForTimeout(400);
   ok('이미 본 별은 다시 그려도 효과가 다시 나오지 않는다', await hp.evaluate(() => !document.querySelector('.lh-sb') && !document.querySelector('.lh-star1.popin') && !!document.querySelector('.lh-star1')));
   ok('[지난 수업 더 보기] — before=마지막 날짜로 이어 받고 버튼이 사라진다', hcalls.some(p => p.before === '2026-08-29') && !(await hp.$('#lhMoreBtn')), JSON.stringify(hcalls));
+  // ⑧-1 출석 기록 탭(041 attendance_history — 사용자 "학습이력에 출석 지각 내역도 기록하고 싶어요")
+  ok('탭 두 개 — 수업 리포트(선택)·출석 기록', await hp.evaluate(() => [...document.querySelectorAll('#lhTabs button')].map(x => x.textContent + (x.classList.contains('on') ? '*' : '')).join('|') === '수업 리포트*|출석 기록'));
+  await hp.click('#lhTabs button[data-t="att"]');
+  await hp.waitForSelector('.ah-row', { timeout: 5000 });
+  r = await hp.evaluate(() => ({ sum: [...document.querySelectorAll('.lh-sum > div')].map(x => x.textContent), rows: [...document.querySelectorAll('.ah-row')].map(x => x.textContent),
+    chips: [...document.querySelectorAll('.ah-row .crp-at')].map(x => x.className), months: [...document.querySelectorAll('.lh-month')].map(x => x.textContent),
+    note: (document.querySelector('.ah-note') || {}).textContent || '', items: document.querySelectorAll('.lh-item').length, more: !!document.getElementById('ahMoreBtn') }));
+  ok('출석 기록 요약 — 출석 2 · 지각 1 · 결석 2 · 출석률 60%', r.sum.join('/') === '2출석/1지각/2결석/60%출석률', JSON.stringify(r.sum));
+  ok('줄마다 날짜·시간·반·상태 칩(내신 표시·지운 반은 "수업")', r.rows.length === 4 && /^9\/30 \(수\)5:30 · 고2 가출석$/.test(r.rows[0]) && /4:00 · 고2 확인 · 내신지각/.test(r.rows[2]) && /^8\/29 \(토\)수업 · 내신/.test(r.rows[3]) &&
+     r.chips.join() === 'crp-at ok,crp-at abs,crp-at late,crp-at abs' && r.items === 0, JSON.stringify(r.rows));
+  ok('결석은 보충 전/보충 완료 표시', /보충 전결석/.test(r.rows[1]) && /보충 완료결석/.test(r.rows[3]), JSON.stringify(r.rows));
+  ok('달별 묶음·안내 문구·더 보기 버튼', r.months.join('|') === '2026년 9월|2026년 8월' && /선생님이 수업 시간표에 기록한 그대로/.test(r.note) && r.more, JSON.stringify(r));
+  await hp.click('.ah-chips button:nth-child(2)');
+  r = await hp.evaluate(() => [...document.querySelectorAll('.ah-row')].map(x => x.textContent));
+  ok('[지각만] 거르기', r.length === 1 && /고2 확인/.test(r[0]), JSON.stringify(r));
+  await hp.click('.ah-chips button:nth-child(1)');
+  await hp.click('#ahMoreBtn');
+  await hp.waitForFunction(() => document.querySelectorAll('.ah-row').length === 5, null, { timeout: 5000 });
+  ok('[지난 기록 더 보기] — before=마지막 날짜, 버튼 사라짐', acalls.some(p => p.before === '2026-08-29' && p.key === 'abc') && !(await hp.$('#ahMoreBtn')), JSON.stringify(acalls));
+  ok('고른 탭을 기억', await hp.evaluate(() => sessionStorage.getItem('lh_tab') === 'att'));
+  await hp.click('#lhTabs button[data-t="rep"]');
+  ok('수업 리포트 탭으로 돌아오면 카드가 다시 보인다', await hp.evaluate(() => document.querySelectorAll('.lh-item').length === 4 && !document.querySelector('.ah-row')));
   await hp.evaluate(() => closeLearnHist());
   ok('닫으면 허브로', await hp.evaluate(() => document.getElementById('lhView').style.display === 'none' && document.getElementById('hubView').style.display !== 'none'));
   await c3.close();
@@ -551,6 +584,32 @@ const STUDENTS = [
       const c = cs[t.indexOf('수업 리포트')]; return { pos: t.indexOf('수업 리포트') - t.indexOf('알려드립니다'), tag: c.tagName, cls: c.className, txt: c.textContent }; });
     ok('리포트가 없으면 알려드립니다 다음에 비활성 카드(누를 수 없음)', r.pos === 1 && r.tag === 'DIV' && /pending/.test(r.cls) && /아직 없음/.test(r.txt), JSON.stringify(r));
     await c4.close();
+  }
+
+  // ⑧-3 리포트는 없지만 출석 기록이 있으면 카드가 열리고 출석 기록 탭부터
+  {
+    const c5 = await b.newContext(), ap = await c5.newPage();
+    ap.on('pageerror', e => { perr++; console.log('  ✗ pageerror(s.html 출석 기록만)', e.message); });
+    await ap.route('**/*', rt => {
+      const u = rt.request().url();
+      const j = (o, stt) => rt.fulfill({ status: stt || 200, contentType: 'application/json', body: JSON.stringify(o) });
+      if (u.startsWith('http://127.0.0.1:' + port)) return rt.continue();
+      if (/\/rpc\/class_history/.test(u)) return j({ ok: true, items: [], more: false });
+      if (/\/rpc\/attendance_history/.test(u)) return j({ ok: true, items: AH.slice(0, 2), more: false, counts: { 출석: 1, 지각: 0, 결석: 1 } });
+      if (/\/rpc\//.test(u)) return j({ error: 'nope' }, 500);
+      if (/supabase/.test(u)) return rt.fulfill({ status: 204, body: '' });
+      if (/script\.google/.test(u) && new URL(u).searchParams.get('key')) return j({ result: 'success', info: { name: '박보검', id: '30000001', school: '화정고', grade: '2026 고등 2학년', teacher: '주혜', enrolled: '재원' },
+        authed: false, examCount: 0, notices: [], homework: [], analyses: [], clinic: null, stars: { total: 3 }, mockGates: { grades: [], open: false }, clinicEligible: false, vocaTaken: false, mockSignups: [] });
+      return /script\.google/.test(u) ? j({ result: 'success' }) : rt.fulfill({ status: 204, body: '' });
+    });
+    await ap.goto('http://127.0.0.1:' + port + '/s.html?key=abc', { waitUntil: 'domcontentloaded' });
+    await ap.waitForFunction(() => /출석 기록 2회/.test((document.getElementById('menu') || {}).textContent || ''), null, { timeout: 15000 });
+    r = await ap.evaluate(() => { const c = [...document.querySelectorAll('#menu .card')].find(x => /수업 리포트/.test(x.textContent)); return { tag: c.tagName, txt: c.textContent }; });
+    ok('리포트 없이 출석 기록만 있으면 카드가 열린다 — "출석 기록 2회 · 최근 9/30 (수)"', r.tag === 'BUTTON' && /출석 기록 2회 · 최근 9\/30 \(수\)/.test(r.txt), JSON.stringify(r));
+    await ap.evaluate(() => openLearnHist());
+    await ap.waitForSelector('.ah-row', { timeout: 5000 });
+    ok('열면 출석 기록 탭부터', await ap.evaluate(() => document.querySelector('#lhTabs button.on').getAttribute('data-t') === 'att' && document.querySelectorAll('.ah-row').length === 2));
+    await c5.close();
   }
 
   ok('페이지 오류 없음', perr === 0);
