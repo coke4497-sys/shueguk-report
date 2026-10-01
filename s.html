@@ -949,7 +949,17 @@ function refreshOnReturn(){
     // 않아 '신청 완료' 표시가 한 박자 늦던 문제 수정 (loadGradeGates와 같은 처리)
     if ($('mockHubView').style.display === 'block') renderMockHub();
     if ($('clinicView').style.display === 'block') renderClinic();
-    if ($('gradeView').style.display === 'block') renderExamTodo();   // 복기를 내고 돌아오면 입력 카드가 사라지게
+    if ($('gradeView').style.display === 'block'){
+      renderExamTodo();   // 복기를 내고 돌아오면 입력 카드가 사라지게
+      // 방금 낸 복기 기록도 보이도록 잠금 안쪽 목록을 다시 받는다(비밀번호 재입력 없이)
+      if (GRADE_PW) api('&pw='+encodeURIComponent(GRADE_PW)).then(function(g){
+        if(!g || g.result!=='success' || !g.authed) return;
+        var before = (STATE.exams||[]).length;
+        STATE.exams = g.exams || [];
+        if (STATE.exams.length !== before) GRADE_SEL = 0;   // 새 기록이 생기면 맨 앞(최신)을 보여 준다
+        if ($('gradeView').style.display === 'block') drawGrades();
+      }).catch(function(){});
+    }
   }).catch(function(){});
 }
 document.addEventListener('visibilitychange', function(){ if(!document.hidden) refreshOnReturn(); });
@@ -2798,12 +2808,17 @@ function examCardHtml(x){
 }
 
 var GRADE_SEL = 0;   // 선택한 시험 인덱스
+var GRADE_PW = '';   // 이 화면에서 넣은 8자리(메모리에만 — 저장하지 않음). 복기를 내고 돌아오면 기록을 다시 받는 데 쓴다
 
 function renderExamTodo(){
   var todo = (STATE.analyses||[]).filter(function(a){ return !a.done; });
   $('examTodo').innerHTML = todo.map(analysisNoticeHtml).join('');
 }
 function renderGrades(){
+  drawGrades();
+  hide('hubView'); $('gradeView').style.display='block'; window.scrollTo(0,0);
+}
+function drawGrades(){
   var exams = STATE.exams || [];
   var tabs = $('examTabs'), list = $('examList');
   // 아직 입력하지 않은 복기 — 알려드립니다와 같은 카드를 지필고사 데이터 맨 위에도 보여 준다(2026-10-01 사용자 요청)
@@ -2823,7 +2838,6 @@ function renderGrades(){
     }
     list.innerHTML = examCardHtml(exams[GRADE_SEL]);
   }
-  hide('hubView'); $('gradeView').style.display='block'; window.scrollTo(0,0);
 }
 
 function pickExam(i){
@@ -2875,7 +2889,7 @@ function submitPw(){
       btn.disabled=false; btn.textContent='확인';
       if(d.result!=='success'){ $('pwErr').textContent=d.message||'오류가 발생했습니다.'; return; }
       if(!d.authed){ $('pwErr').textContent='비밀번호가 일치하지 않습니다.'; return; }
-      STATE.authed=true; STATE.exams=d.exams||[];
+      STATE.authed=true; STATE.exams=d.exams||[]; GRADE_PW=pw;
       closePw(); renderGrades();
     })
     .catch(function(){ btn.disabled=false; btn.textContent='확인'; $('pwErr').textContent='연결 실패 — 다시 시도해주세요.'; });
