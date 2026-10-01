@@ -935,7 +935,7 @@ function syncPeriodChips(){
 }
 
 /* ===== 학생 배정 위젯 (공지·H WORK와 동일한 StudentPicker) ===== */
-var assignPicker=null, assignSel=null, pickerInited=false;
+var assignPicker=null, assignSel=null, pickerInited=false, assignTouched=false;   // assignTouched: 사람이 배정 칸을 직접 눌렀는지
 function initPicker(){
   if(pickerInited) return; pickerInited=true;
   var el=document.getElementById('assignPicker');
@@ -1286,7 +1286,9 @@ function saveReport(){
   var btn=document.getElementById('saveBtn');
   btn.disabled=true; setStatus('등록하는 중입니다...', '');
 
-  var sel = assignSel || (assignPicker && assignPicker.getSelection());
+  /* 수정 모드: 배정 칸을 직접 고치지 않았으면 배정을 보내지 않는다(빈 값 = 기존 배정 유지).
+     위젯 기본값(전 학년)이 그대로 실려 고2 리포트가 전 학생에게 배정된 일이 있었다(2026-10-01). */
+  var sel = (EDIT_MODE && !assignTouched) ? null : (assignSel || (assignPicker && assignPicker.getSelection()));
   var payload = {
     action: 'createReport',
     id: data.id,
@@ -1904,7 +1906,7 @@ function drOpenFile(i){
 document.addEventListener('keydown', function(e){ if (e.key === 'Escape') drClose(); });
 /* 배정 칸을 직접 누르거나 바꾸면 '확인함'으로 본다 */
 ['click', 'change', 'input'].forEach(function(ev){
-  document.addEventListener(ev, function(e){ var ap = document.getElementById('assignPicker'); if (ap && e.isTrusted && ap.contains(e.target)) DR.assignOk = true; }, true);
+  document.addEventListener(ev, function(e){ var ap = document.getElementById('assignPicker'); if (ap && e.isTrusted && ap.contains(e.target)) { DR.assignOk = true; assignTouched = true; } }, true);
 });
 
 /* 시작: 빈 상태에서 선생님이 직접 문항을 추가합니다 */
