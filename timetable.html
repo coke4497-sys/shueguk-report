@@ -5846,9 +5846,34 @@ function asPool(){
     return true;
   });
 }
+/* 요일순 정렬의 기준 수업 — 가장 최근 주에서 진도(가) 칸의 수업, 없으면 확인(나) 칸.
+ * 한 칸에 수업이 여럿이면 요일(월~일)·시작 시간이 가장 이른 것 (2026-10-01 사용자 요청
+ * "출석 현황을 학년별로 고른 후 요일별 소트") */
+function asDayKey(st){
+  if (st._dk !== undefined) return st._dk;
+  var best = null;
+  for (var i = (st.wk || []).length - 1; i >= 0 && !best; i--){
+    var sl = st.wk[i].slots;
+    for (var gi = 0; gi < 2 && !best; gi++){
+      (sl[gi] || []).forEach(function(s){
+        var c = s.c; if (!c) return;
+        var d = DAYS.indexOf(c.day); if (d < 0) return;
+        var k = { d: d, m: mins(c.start) || 0, day: c.day, time: asSlotTime(c) };
+        if (!best || k.d < best.d || (k.d === best.d && k.m < best.m)) best = k;
+      });
+    }
+  }
+  st._dk = best;
+  return best;
+}
 function asSort(list){
   var k = asS.sort;
   return list.slice().sort(function(a, b){
+    if (k === 'day'){
+      var x = asDayKey(a), y = asDayKey(b);
+      if (!x || !y) return (x ? -1 : y ? 1 : 0) || a.n.localeCompare(b.n, 'ko');
+      return x.d - y.d || x.m - y.m || a.n.localeCompare(b.n, 'ko');
+    }
     if (k === 'issue') return b.t.issue - a.t.issue || a.n.localeCompare(b.n, 'ko');
     if (k === 'rate'){
       var ra = (a.t.rate == null ? 101 : a.t.rate), rb = (b.t.rate == null ? 101 : b.t.rate);
@@ -5929,7 +5954,7 @@ function asRender(){
                {v:'warn',t:'결석·지각'}], asS.view, 'view') + '</span>' +
     (asS.view === 'person' || asS.view === 'warn' ? '' :
       '<span class="as-grp"><span class="as-lab">정렬</span>' +
-      asPills([{v:'issue',t:'문제 많은 순'},{v:'rate',t:'출석률 낮은 순'},{v:'name',t:'이름순'}], asS.sort, 'sort') + '</span>') +
+      asPills([{v:'issue',t:'문제 많은 순'},{v:'rate',t:'출석률 낮은 순'},{v:'day',t:'요일순'},{v:'name',t:'이름순'}], asS.sort, 'sort') + '</span>') +
     '<span class="as-grp"><span class="as-lab">검색</span>' +
       '<input class="as-q" id="as-q" type="search" placeholder="학생 이름" value="' + esc(asS.q) + '" autocomplete="off">' +
     '</span></div>';
@@ -6103,7 +6128,20 @@ function asMatrix(list){
   } else {
     var sorted = asSort(list);
     var shown = Math.min(asS.limit, sorted.length);
-    sorted.slice(0, shown).forEach(function(x, i){ body += asBookRow(x, i + 1); });
+    var dayCnt = {}, lastDay = null;
+    if (asS.sort === 'day') sorted.forEach(function(x){ var dk = asDayKey(x), d = dk ? dk.day : ''; dayCnt[d] = (dayCnt[d] || 0) + 1; });
+    sorted.slice(0, shown).forEach(function(x, i){
+      if (asS.sort === 'day'){
+        var dk = asDayKey(x), d = dk ? dk.day : '';
+        if (d !== lastDay){
+          lastDay = d;
+          body += '<tr class="as-g as-dd"><td class="as-no"></td><th class="as-cn" style="text-align:left">' +
+            esc(d ? d + '요일' : '수업 없음') + '<span class="as-gcnt">' + dayCnt[d] + '명</span></th>' +
+            '<td colspan="' + (asS.weeks * 3) + '"></td></tr>';
+        }
+      }
+      body += asBookRow(x, i + 1);
+    });
     if (sorted.length > shown)
       tail = '<button class="as-more" type="button" onclick="asMore()">' + shown + ' / ' + sorted.length + '명 표시 중 · 40명 더 보기</button>';
   }
