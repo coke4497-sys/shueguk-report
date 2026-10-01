@@ -138,6 +138,7 @@ def cmd_data(book, cid, ymd):
     prev_by = {r['code']: r['body'] for r in prev}
     cm = note.get('comments') or {}
     att_map = (cm.get('__태도') or {}) if isinstance(cm.get('__태도'), dict) else {}
+    ih_map = cm.get('__개별과제') if isinstance(cm.get('__개별과제'), dict) else {}
     out, seen = [], set()
     for a in att:
         p = plain(a['student'])
@@ -160,6 +161,8 @@ def cmd_data(book, cid, ymd):
             'code': s['code'] if s else '', 'match': 'ok' if s else ('동명이인' if len(c) > 1 else '명단에 없음'),
             'attend': {'status': a['status'], 'memo': a['memo'], 'makeup_plan': a['makeup_plan']},
             'attitude': att_map.get(p, ''), 'comment': comment, 'comment_auto': auto,
+            # 이 학생만 받은 과제(2026-10-01 '__개별과제') — body.homework = 반 과제 + 이것
+            'homework_extra': [t for t in (x.strip() for x in str(ih_map.get(p) or '').split('\n')) if t],
             'hw': hw, 'prev_body': prev_by.get(s['code']) if s else None,
         })
     print(json.dumps({
