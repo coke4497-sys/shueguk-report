@@ -1403,15 +1403,17 @@ function hwcheckSave(data) {
   var raw = (data.scores && typeof data.scores === 'object') ? data.scores : {};
   // 과제별 검사(2026-09-29)는 항목마다 별 5개 — 화면이 itemMax 를 보낸다(없으면 옛 6개)
   var itemMax = parseInt(data.itemMax, 10); if (!(itemMax >= 1 && itemMax <= HWCHECK_STARS_MAX)) itemMax = HWCHECK_STARS_MAX;
+  // 2026-10-01: 항목마다 만점이 다를 수 있다(학습량 5 · 채점·학습 분석·오답 분석 2) — 화면이 maxes{항목:만점}을 함께 보낸다
+  var maxes = (data.maxes && typeof data.maxes === 'object') ? data.maxes : {}, full = 0;
   Object.keys(raw).forEach(function (k) {
     var name = String(k).trim(); if (!name) return;
+    var mx = parseInt(maxes[k], 10); if (!(mx >= 1 && mx <= HWCHECK_STARS_MAX)) mx = itemMax;
     var s = parseInt(raw[k], 10); if (isNaN(s)) s = 0;
-    s = Math.max(0, Math.min(itemMax, s));
-    scores[name] = s; sum += s; n++;
+    s = Math.max(0, Math.min(mx, s));
+    scores[name] = s; sum += s; full += mx; n++;
   });
   if (!n) return json({ result: 'error', message: '검사 항목 점수가 없습니다.' });
   var missing = (data.missing === true || data.missing === '1');
-  var full = n * itemMax;
   var pct = missing ? 0 : Math.round(sum / full * 100);   // 미제출은 0%
   // 주차는 "'" 접두로 텍스트 저장 — 시트가 날짜 값으로 바꿔 조회가 어긋나는 것 방지
   var row = [new Date(), "'" + week, token, String(data.name || '').trim(), String(data.school || '').trim(),

@@ -37,4 +37,12 @@ ok(r.result === 'error', '없는 수업이면 오류');
 // cls 없이 저장(옛 페이지·폴백) = 반 구분 전 줄 하나
 stub.J(F.hwcheckSave(Object.assign({}, base, { scores: { '숙제 수행': 2 } })));
 ok(stub.SHEETS[T].filter(x => x[1] === '2026-09-23').length === 3 && stub.SHEETS[T].some(x => x[2] === 'tok-a' && x[14] === '' && String(x[1]).includes('09-23')), 'cls 없이 저장하면 반 구분 전 줄');
+// 항목마다 만점이 다름(2026-10-01 — 학습량 5 · 채점 등 2): maxes 를 보내면 그대로 만점 합
+r = stub.J(F.hwcheckSave(Object.assign({}, base, { cls: 'r020', part: '가', clsName: '고1 가', itemMax: 5,
+  scores: { 'A (학습량)': 5, 'A (채점)': 2, 'A (학습 분석)': 2, 'A (오답 분석)': 2 },
+  maxes: { 'A (학습량)': 5, 'A (채점)': 2, 'A (학습 분석)': 2, 'A (오답 분석)': 2 } })));
+ok(r.result === 'success' && r.pct === 100 && stub.SHEETS[T].find(x => x[14] === 'r020')[7] === 11, '항목별 만점 — 5·완벽 셋 = 100%, 만점 합 11');
+r = stub.J(F.hwcheckSave(Object.assign({}, base, { cls: 'r020', part: '가', clsName: '고1 가', itemMax: 5,
+  scores: { 'A (학습량)': 4, 'A (채점)': 9 }, maxes: { 'A (학습량)': 5, 'A (채점)': 2 } })));
+ok(r.pct === 86, '3단계 점수는 2로 자름 — (4+2)/7 = 86%');
 console.log(bad ? `실패 ${bad} / ${n}` : `전부 통과 (${n}건)`); process.exit(bad ? 1 : 0);

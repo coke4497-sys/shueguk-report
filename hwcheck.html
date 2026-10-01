@@ -144,6 +144,7 @@
   .rec .itemrow{margin-top:4px;}
   .rec .stars span{font-size:1.15rem;line-height:1;color:var(--star-empty);}
   .rec .stars span.on{color:var(--star);}
+  .lvtag{font-size:.78rem;border-radius:999px;padding:1px 9px;} .lvtag.l0{background:#F7E2DE;color:#9A5A52;} .lvtag.l1{background:#F9EFD0;color:#7A6230;} .lvtag.l2{background:#EDE4F4;color:#5A4A6A;}
   .rec-line{font-size:.82rem;color:var(--ink);margin:5px 0 0;line-height:1.5;}
   .rec-line b{font-weight:700;color:var(--ink-soft);margin-right:4px;}
   .rec-line.plan b{color:#B4574E;}
@@ -999,15 +1000,17 @@ function recItems(r){
   var keys = Object.keys(r.scores || {});
   return items.filter(function(it){ return keys.indexOf(it) >= 0; }).concat(keys.filter(function(k){ return items.indexOf(k) < 0; }));
 }
-function hwItemMax(name){ return /\((학습량|깊이)\)$/.test(String(name || '')) ? 5 : 6; }   // 과제별 검사(2026-09-29)는 학습량·깊이 별 5개, 옛 항목은 6개
+function hwItemMax(name){ var m = String(name || '').match(/\((학습량|깊이|채점|학습 분석|오답 분석)\)$/); return !m ? 6 : (m[1] === '학습량' || m[1] === '깊이') ? 5 : 2; }   // 과제별 검사: 학습량·옛 깊이 별 5개, 채점·학습 분석·오답 분석 3단계(0~2, 2026-10-01), 옛 항목 6개
+var HW_LV = ['안함', '일부함', '완벽'], HW_DIM_RE = / \((학습량|깊이|채점|학습 분석|오답 분석)\)$/;
 function recHtml(r){
   var pct = Number(r.pct) || 0;
   var pctHtml = r.missing ? '<span class="miss-lb">미제출</span>'
     : (hasAnyScore(r) ? '<b class="' + (pct >= 100 ? 'full' : '') + '">' + pct + '%</b>' + (pct >= 100 ? ' 🏆' : '') : '<span style="font-size:.8rem;">점수 없음</span>');
   var rows = r.missing ? '' : recItems(r).map(function(it){
     var sc = parseInt(r.scores[it], 10) || 0, st = '';
-    if ((r.miss || []).indexOf(String(it).replace(/ \((학습량|깊이)\)$/, '')) >= 0)   // 과제별 미제출(2026-10-01)
+    if ((r.miss || []).indexOf(String(it).replace(HW_DIM_RE, '')) >= 0)   // 과제별 미제출(2026-10-01)
       return '<div class="itemrow"><span class="lb">' + esc(itemLabel(it)) + '</span><span class="miss-lb">미제출</span></div>';
+    if (hwItemMax(it) === 2) return '<div class="itemrow"><span class="lb">' + esc(itemLabel(it)) + '</span><span class="lvtag l' + Math.min(2, sc) + '">' + HW_LV[Math.min(2, sc)] + '</span></div>';   // 3단계(2026-10-01)
     for (var k = 1; k <= hwItemMax(it); k++) st += '<span class="' + (k <= sc ? 'on' : '') + '">★</span>';
     return '<div class="itemrow"><span class="lb">' + esc(itemLabel(it)) + '</span><span class="stars">' + st + '</span></div>';
   }).join('');

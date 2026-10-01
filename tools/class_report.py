@@ -156,6 +156,7 @@ def cmd_data(book, cid, ymd):
         hw = None
         if h:
             hw = {k: h.get(k) for k in ('scores', 'pct', 'missing', 'pub', 'max', 'missing_items')}
+            hw['checks'] = checks_of(h)   # 과제마다 학습량·채점·학습 분석·오답 분석을 읽기 쉬운 말로(2026-10-01)
         out.append({
             'token': a['student'], 'name': p, 'note': note_of(a['student']),
             'code': s['code'] if s else '', 'match': 'ok' if s else ('동명이인' if len(c) > 1 else '명단에 없음'),
@@ -172,6 +173,35 @@ def cmd_data(book, cid, ymd):
         'homework': [t for t in (x.strip() for x in str(note.get('homework') or '').split('\n')) if t],
         'students': out,
     }, ensure_ascii=False, indent=1))
+
+
+DIM_RE = re.compile(r' \((학습량|깊이|채점|학습 분석|오답 분석)\)$')
+LV = ('안함', '일부함', '완벽')
+
+
+def item_max(name):
+    m = DIM_RE.search(str(name))
+    return 6 if not m else (5 if m.group(1) in ('학습량', '깊이') else 2)
+
+
+def checks_of(h):
+    """과제 검사 한 줄 → [{task, missing, 학습량:'4/5', 채점:'완벽', …}] — 3단계 키가 없으면 '미체크'.
+    베낌 의심(class_notes.comments['__베낌'])은 비공개라 여기 넣지 않는다."""
+    sc, mi, out, by = h.get('scores') or {}, h.get('missing_items') or [], [], {}
+    for k, v in sc.items():
+        m = DIM_RE.search(k)
+        t = DIM_RE.sub('', k) if m else k
+        if t not in by:
+            by[t] = {'task': t, 'missing': t in mi or (bool(h.get('missing')) and not mi)}
+            out.append(by[t])
+        mx, v = item_max(k), max(0, min(item_max(k), int(v or 0)))
+        by[t][m.group(1) if m else '점수'] = LV[v] if mx == 2 else '%d/%d' % (v, mx)
+    for c in out:
+        if any(d in c for d in ('채점', '학습 분석', '오답 분석', '학습량')):
+            for d in ('채점', '학습 분석', '오답 분석'):
+                if d not in c and '깊이' not in c:
+                    c[d] = '미체크'
+    return out
 
 
 BODY_KEYS = ('attend', 'attend_note', 'attitude', 'summary', 'units', 'homework', 'hw', 'comment')
@@ -194,6 +224,8 @@ def cmd_publish(path):
             sys.exit('접근코드가 명단에 없어요: %r (%s)' % (code, r.get('name', '')))
         b = r['body']
         body = {k: b[k] for k in BODY_KEYS if k in b}
+        if '베낌' in json.dumps(body, ensure_ascii=False):   # 비공개 표시가 학생 리포트로 새지 않게
+            sys.exit('리포트에 비공개 표시(베낌 의심)가 들어 있어요: %s' % studs[code]['name'])
         for k in ('units', 'homework'):
             if k in body and not isinstance(body[k], list):
                 sys.exit('%s 는 목록이어야 해요: %s' % (k, studs[code]['name']))
