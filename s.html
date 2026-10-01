@@ -678,6 +678,7 @@
     <button class="gv-back" onclick="closeGrades()" id="gvBack"></button>
     <span class="gv-ttl">지필고사 데이터 · 내신 기록</span>
   </div>
+  <div id="examTodo"></div>
   <div class="exam-tabs" id="examTabs" style="display:none;"></div>
   <div id="examList"></div>
   <footer><p>이수경국어 Shueguk · 학생용</p></footer>
@@ -948,6 +949,7 @@ function refreshOnReturn(){
     // 않아 '신청 완료' 표시가 한 박자 늦던 문제 수정 (loadGradeGates와 같은 처리)
     if ($('mockHubView').style.display === 'block') renderMockHub();
     if ($('clinicView').style.display === 'block') renderClinic();
+    if ($('gradeView').style.display === 'block') renderExamTodo();   // 복기를 내고 돌아오면 입력 카드가 사라지게
   }).catch(function(){});
 }
 document.addEventListener('visibilitychange', function(){ if(!document.hidden) refreshOnReturn(); });
@@ -1952,6 +1954,7 @@ function renderHub(){
   });
   // 지필고사 데이터 (잠금)
   var cntTxt = STATE.examCount>0 ? ('내신 기록 '+STATE.examCount+'건') : '내신 기록';
+  if(anTodo>0) cntTxt += ' · 복기 '+anTodo+'건 입력 필요';
   html += '<button class="card lock t-pnk" onclick="openGrades()">' +
             '<span class="icon">'+svg(ICON.chart)+'</span>' +
             '<h3>지필고사 데이터</h3><p class="desc">'+esc(cntTxt)+'</p>' +
@@ -2796,9 +2799,15 @@ function examCardHtml(x){
 
 var GRADE_SEL = 0;   // 선택한 시험 인덱스
 
+function renderExamTodo(){
+  var todo = (STATE.analyses||[]).filter(function(a){ return !a.done; });
+  $('examTodo').innerHTML = todo.map(analysisNoticeHtml).join('');
+}
 function renderGrades(){
   var exams = STATE.exams || [];
   var tabs = $('examTabs'), list = $('examList');
+  // 아직 입력하지 않은 복기 — 알려드립니다와 같은 카드를 지필고사 데이터 맨 위에도 보여 준다(2026-10-01 사용자 요청)
+  renderExamTodo();
   if(exams.length===0){
     tabs.style.display='none';
     list.innerHTML = '<div class="empty-state"><p>아직 제출된 시험 복기가 없습니다.<br>복기 입력을 제출하면 이곳에 기록이 쌓입니다.</p></div>';
