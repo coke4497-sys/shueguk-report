@@ -6741,9 +6741,9 @@ function crEnsureToday(){
 function crHasNote(r){ return !!(String(r.progress || '').trim() || String(r.homework || '').trim() || (r.units && r.units.length)); }
 function crBtnHtml(c){
   var s = crToday.map && crToday.map[book + '|' + c.id];
-  var cls = '', label = '수업 기록', tip = '진도·과제·과제 검사·코멘트를 적고 주간 리포트를 만들어요';
-  if (s && s.st === '공개'){ cls = ' pub'; label = '리포트 공개'; tip = '학생 페이지에 주간 리포트가 공개됐어요'; }
-  else if (s && s.st === '요청'){ cls = ' fin'; label = '기록 완료 ✓'; tip = '수업 기록을 마쳤어요. 클로슈가 주간 리포트를 쓰고 있어요'; }
+  var cls = '', label = '수업 기록', tip = '진도·과제·과제 검사·코멘트를 적고 수업 리포트를 만들어요';
+  if (s && s.st === '공개'){ cls = ' pub'; label = '리포트 공개'; tip = '학생 페이지에 수업 리포트가 공개됐어요'; }
+  else if (s && s.st === '요청'){ cls = ' fin'; label = '기록 완료 ✓'; tip = '수업 기록을 마쳤어요. 클로슈가 수업 리포트를 쓰고 있어요'; }
   else if (s && s.has){ cls = ' done'; label = '기록함'; tip = '수업 기록을 적어 두었어요 — 리포트는 아직'; }
   if (crJustDone === book + '|' + c.id && $('crpanel').hidden) cls += ' popin';
   return '<button class="bbtn crbtn' + cls + '" title="' + tip + '">' + label + '</button>';
@@ -7138,8 +7138,8 @@ function crRender(){
       '<span class="cr-dot" id="cr-dot-' + i + '"></span></div>' + crAttHtml(i, x) + hwPart + '</div>';
   }).join('');
   var st = '';
-  if (n.report_status === '요청') st = '<div class="cr-state">수업 기록을 마쳤습니다. 클로슈가 주간 리포트를 쓰고 있어요' + (n.requested_at ? ' (요청 ' + crHm(n.requested_at) + ')' : '') + '. 보통 몇 분 안에 학생 페이지에 공개돼요.</div>';
-  else if (n.report_status === '공개') st = '<div class="cr-state">주간 리포트에 반영됐어요' + (n.reported_at ? ' (' + crHm(n.reported_at) + ')' : '') + '. 내용을 고친 뒤 [리포트 생성]을 다시 누르면 새로 써요.</div>';
+  if (n.report_status === '요청') st = '<div class="cr-state">수업 기록을 마쳤습니다. 클로슈가 수업 리포트를 쓰고 있어요' + (n.requested_at ? ' (요청 ' + crHm(n.requested_at) + ')' : '') + '. 보통 몇 분 안에 학생 페이지에 공개돼요.</div>';
+  else if (n.report_status === '공개') st = '<div class="cr-state">수업 리포트가 공개됐어요' + (n.reported_at ? ' (' + crHm(n.reported_at) + ')' : '') + '. 내용을 고친 뒤 [리포트 생성]을 다시 누르면 새로 써요.</div>';
   else if (n.report_status === '보류') st = '<div class="cr-state hold">리포트를 만들지 못했어요' + (n.report_note ? ': ' + esc(n.report_note) : '') + '</div>';
   var top = '';
   if (part === '진도' && CR.ns) top = crNsHtml(n);
@@ -7411,16 +7411,16 @@ function crGenerate(){
     var text = '[수업 리포트] ' + CR.bk + ' ' + c.id + ' ' + CR.ymd + ' · ' + c.cls + ' · ' + crPartLabel(CR.part) + ' · ' + c.day + ' ' + c.start + '~' + c.end + ' · ' + c.teacher + 'T' +
                ' · 학생 ' + CR.names.length + '명';
     var guard = setTimeout(function(){ if (CR.busy){ crBusy(false); crMsg('응답이 없어요. 인터넷을 확인하고 다시 눌러 주세요.', true); } }, 25000);
-    post({ action: 'editReqAdd', writer: c.teacher + 'T', screen: CR_SCREEN, text: text }, '주간 리포트를 요청하는 중…', function(res){
+    post({ action: 'editReqAdd', writer: c.teacher + 'T', screen: CR_SCREEN, text: text }, '수업 리포트를 요청하는 중…', function(res){
       clearTimeout(guard);
       crBusy(false);
       if (!res || res.result !== 'success'){
         crMsg('기록은 저장했지만 요청을 보내지 못했어요. [리포트 생성]을 다시 눌러 주세요.', true);
         return;
       }
-      setStatus('수업 기록을 마쳤습니다. 주간 리포트를 요청했어요.', 'ok');
+      setStatus('수업 기록을 마쳤습니다. 수업 리포트를 요청했어요.', 'ok');
       crJustDone = CR.bk + '|' + c.id;
-      crRender(); crMsg('수업 기록을 마쳤습니다. 클로슈가 쓰면 학생 페이지 주간 리포트에 반영돼요.'); render();
+      crRender(); crMsg('수업 기록을 마쳤습니다. 클로슈가 쓰면 학생 페이지 수업 리포트에 올라가요.'); render();
       crBurst($('cr-gen'));
     });
   }).catch(function(e){ crBusy(false); crMsg('저장하지 못했어요. 다시 눌러 주세요. (' + e.message + ')', true); });
@@ -7491,7 +7491,7 @@ function crPvRender(){
     '<button class="x" onclick="crPvClose()">닫기</button></div>' +
     warn.map(function(w){ return '<p class="crpv-warn">' + esc(w) + '</p>'; }).join('') +
     crPvHtml(it) +
-    '<p class="crpv-note">[리포트 생성]을 누르면 이 카드가 학생 페이지 \'수업 리포트\'에 올라갑니다. 주간 리포트 글은 클로슈가 이 내용으로 다듬어 써요. 비공개 메모와 미제출 대책은 학생에게 보이지 않습니다.</p>';
+    '<p class="crpv-note">[리포트 생성]을 누르면 클로슈가 이 내용으로 문장을 다듬어 학생 페이지 \'수업 리포트\'에 올립니다(보통 몇 분). 수업 내용·과제 검사 문장은 다듬어지고 항목은 이 모양 그대로예요. 비공개 메모와 미제출 대책은 학생에게 보이지 않습니다.</p>';
 }
 function crPvOpen(i){
   if (!CR.c || !CR.names || !CR.names.length){ crMsg('미리 볼 학생이 없어요.', true); return; }

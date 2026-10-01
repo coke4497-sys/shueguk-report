@@ -146,7 +146,6 @@
   #reviewView{display:none;}
 
   /* 수업 리포트 (2026-09-28) — 수업마다 한 장, 주차로 묶어 넘긴다 */
-  #crView{display:none;}
   .crp-nav{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 2px 12px;}
   .crp-nb{width:38px;height:38px;border:0;border-radius:12px;background:var(--surface);color:var(--ink-soft);font-size:1.3rem;cursor:pointer;}
   .crp-nb:disabled{opacity:.35;cursor:default;}
@@ -544,17 +543,6 @@
     </footer>
   </main>
 </div>
-
-<!-- 수업 리포트 (2026-09-28) — 선생님 수업 기록 + 출석·숙제 검사를 클로슈가 정리한 보고서 -->
-<div id="crView"><main class="wrap gwrap">
-  <div class="gv-bar">
-    <button class="gv-back" onclick="closeClassReport()" id="crBack"></button>
-    <span class="gv-ttl">슈퍼스타 주간 리포트</span>
-  </div>
-  <div class="crp-nav" id="crNav"></div>
-  <div id="crList"></div>
-  <footer><p>이수경국어 Shueguk · 학생용</p></footer>
-</main></div>
 
 <!-- 수업 리포트(옛 이름 학습 이력, 2026-10-01) — 선생님 수업 기록을 수업마다 쌓아 보여 준다 -->
 <div id="lhView"><main class="wrap gwrap">
@@ -980,10 +968,10 @@ function hide(id){ $(id).style.display='none'; }
 
 var KEY = '';        // 접근코드(토큰) — 없으면 테스트용 id
 var IS_ID = false;
-var STATE = { info:null, authed:false, exams:null, examCount:0, notices:null, homework:null, analyses:null, clinic:null, stars:null, vocaOpen:null, vocaWeek:null, mockGrades:null, mockOpen:null, clinicEligible:null, vocaTaken:null, mockSignups:null, mockFromServer:false, mockGatesFromServer:false, vocaFromServer:false, clinicFromServer:false, hwcheck:null, qq:null, qqLoading:false, qqTeachers:null, review:null, reviewLoading:false, creport:null, creportLoading:false };
+var STATE = { info:null, authed:false, exams:null, examCount:0, notices:null, homework:null, analyses:null, clinic:null, stars:null, vocaOpen:null, vocaWeek:null, mockGrades:null, mockOpen:null, clinicEligible:null, vocaTaken:null, mockSignups:null, mockFromServer:false, mockGatesFromServer:false, vocaFromServer:false, clinicFromServer:false, hwcheck:null, qq:null, qqLoading:false, qqTeachers:null, review:null, reviewLoading:false };
 
 function showError(title, msg){
-  hide('loadBox'); hide('hubView'); $('gradeView').style.display='none'; $('mockHubView').style.display='none'; $('mockView').style.display='none'; $('clinicView').style.display='none'; $('hwcheckView').style.display='none'; $('questionView').style.display='none'; $('reviewView').style.display='none'; $('crView').style.display='none'; $('lhView').style.display='none';
+  hide('loadBox'); hide('hubView'); $('gradeView').style.display='none'; $('mockHubView').style.display='none'; $('mockView').style.display='none'; $('clinicView').style.display='none'; $('hwcheckView').style.display='none'; $('questionView').style.display='none'; $('reviewView').style.display='none'; $('lhView').style.display='none';
   $('errTitle').textContent = title || '불러올 수 없습니다';
   $('errMsg').textContent = msg || '';
   show('errBox');
@@ -1809,17 +1797,6 @@ function renderHub(){
               '<span class="go">'+(rvTodo>0?'보기 ':'열기 ')+svg(ICON.arrow)+'</span></button>';
   }
 
-  // 수업 리포트 (2026-09-28) — 공개된 리포트가 있을 때만 카드. 목록은 처음 한 번 뒤에서 받는다(crpRefresh)
-  if(STATE.creport === null && !STATE.creportLoading) crpRefresh(true);
-  var cr0 = STATE.creport || [];
-  if(cr0.length){
-    var crLast = cr0.reduce(function(a, x){ return (x.week > a.week) ? x : a; }, cr0[0]);
-    html += '<button class="card t-lav" onclick="openClassReport()">' +
-              '<span class="icon">'+svg(ICON.paper)+'</span>' +
-              '<h3>주간 리포트</h3><p class="desc">'+esc('최근 ' + crpWeekLabel(crLast.week) + ' 주')+'</p>' +
-              '<span class="go">열기 '+svg(ICON.arrow)+'</span></button>';
-  }
-
   // 학습 이력 (2026-10-01) — 선생님이 리포트를 만든 수업이 하나라도 있으면 카드. 목록은 처음 한 번 뒤에서 받는다(lhRefresh)
   if(STATE.lhist === undefined && !LH.loading) lhRefresh(true);
   var lh0 = STATE.lhist || [];
@@ -1959,7 +1936,7 @@ function renderHub(){
 
   renderStars();   // 슈퍼스타 별 카드 (백엔드가 stars를 주면 표시)
 
-  hide('loadBox'); hide('errBox'); $('gradeView').style.display='none'; $('noticeView').style.display='none'; $('homeworkView').style.display='none'; $('mockHubView').style.display='none'; $('mockView').style.display='none'; $('clinicView').style.display='none'; $('hwcheckView').style.display='none'; $('questionView').style.display='none'; $('reviewView').style.display='none'; $('crView').style.display='none'; $('lhView').style.display='none'; show('hubView');
+  hide('loadBox'); hide('errBox'); $('gradeView').style.display='none'; $('noticeView').style.display='none'; $('homeworkView').style.display='none'; $('mockHubView').style.display='none'; $('mockView').style.display='none'; $('clinicView').style.display='none'; $('hwcheckView').style.display='none'; $('questionView').style.display='none'; $('reviewView').style.display='none'; $('lhView').style.display='none'; show('hubView');
   noticePopupMaybe();   // 미확인 공지 팝업(허브 화면일 때만, 탭당 한 번)
 }
 
@@ -2029,40 +2006,11 @@ function renderHwcheck(){
 function openHwcheck(){ renderHwcheck(); hide('hubView'); $('hwcheckView').style.display='block'; window.scrollTo(0,0); }
 function closeHwcheck(){ $('hwcheckView').style.display='none'; show('hubView'); window.scrollTo(0,0); }
 
-/* ── 슈퍼스타 주간 리포트 (2026-09-28, 수파베이스 034) ───────────────────────────────
- * 선생님이 수업마다 적은 진도·과제·코멘트와 숙제 검사·출석을 클로슈가 학생마다 주간 리포트 한 장으로 정리한 것.
- * 정규 주간은 가·나 수업, 내신 주간은 진도·확인 수업을 나눠 보여 준다. 학생·학부모가 같은 링크로 본다.
- * 표는 못 읽고 함수 class_report_list 만 부른다(015 규칙). 주차(수요일 시작, 월·화는 다가오는 수요일 주)마다 한 장. */
-var CRP = { weeks: [], idx: 0 };
-function crpRefresh(quiet){
-  STATE.creportLoading = true;
-  return rvRpc('class_report_list').then(function(r){
-    STATE.creportLoading = false;
-    STATE.creport = (r && r.ok) ? (r.items || []) : [];
-    crpGroup();
-    if ($('crView').style.display === 'block') crpRender();
-    else if (quiet && $('hubView').style.display !== 'none' && STATE.creport.length) renderHub();
-  }).catch(function(){ STATE.creportLoading = false; STATE.creport = STATE.creport || []; });
-}
-function crpGroup(){
-  CRP.weeks = (STATE.creport || []).slice().sort(function(a, b){ return a.week < b.week ? 1 : a.week > b.week ? -1 : 0; });
-  if (CRP.idx >= CRP.weeks.length) CRP.idx = 0;
-}
+/* ── 수업 리포트 보조 함수(날짜·수업 구분·출석 칩·과제 검사 상자) ── 옛 주간 리포트(034)에서 쓰던 것을 그대로 쓴다 */
 function crpYmd(s){ var p = String(s || '').split('-'); return new Date(Date.UTC(+p[0], +p[1] - 1, +p[2])); }
 function crpMd(d){ return (d.getUTCMonth() + 1) + '/' + d.getUTCDate(); }
-function crpWeekLabel(w){
-  var wed = crpYmd(w), mon = new Date(wed.getTime() - 2 * 864e5), sun = new Date(wed.getTime() + 4 * 864e5);
-  return crpMd(mon) + ' ~ ' + crpMd(sun);
-}
 function crpDay(ymd){ var d = crpYmd(ymd); return crpMd(d) + ' (' + DOW_KO.charAt(d.getUTCDay()) + ')'; }
 function crpPartName(p){ return p ? (String(p).indexOf('수업') >= 0 ? p : p + ' 수업') : '수업'; }
-function openClassReport(){
-  hide('hubView'); $('crView').style.display = 'block'; window.scrollTo(0, 0);
-  $('crBack').innerHTML = svg(ICON.back) + ' 메뉴';
-  CRP.idx = 0; crpRender(); crpRefresh();
-}
-function closeClassReport(){ $('crView').style.display = 'none'; show('hubView'); renderHub(); window.scrollTo(0, 0); }
-function crpStep(d){ var n = CRP.idx + d; if (n < 0 || n >= CRP.weeks.length) return; CRP.idx = n; crpRender(); window.scrollTo(0, 0); }
 function crpAtChip(at){
   at = String(at || '');
   var c = at === '출석' ? 'ok' : at === '지각' ? 'late' : at === '결석' ? 'abs' : '';
@@ -2084,60 +2032,25 @@ function crpHwHtml(hw, lb){
         '<div class="crp-hwtot"><span>' + esc(lb) + ' 과제 검사</span><b>' + Math.max(0, Math.min(100, +hw.pct || 0)) + '%' + ((+hw.pct || 0) >= 100 ? ' 🏆' : '') + '</b></div>') +
     '</div>' + (hw.text ? '<p>' + esc(hw.text) + '</p>' : '');
 }
-function crpRender(){
-  var box = $('crList');
-  if (STATE.creport === null){ box.innerHTML = '<div class="rv-empty">불러오는 중…</div>'; $('crNav').innerHTML = ''; return; }
-  if (!CRP.weeks.length){ box.innerHTML = '<div class="rv-empty">아직 공개된 주간 리포트가 없어요.</div>'; $('crNav').innerHTML = ''; return; }
-  var wk = CRP.weeks[CRP.idx], b = wk.body || {}, parts = (b.parts || []).slice();
-  parts.sort(function(x, y){ return String(x.ymd || '') < String(y.ymd || '') ? -1 : String(x.ymd || '') > String(y.ymd || '') ? 1 : 0; });
-  $('crNav').innerHTML =
-    '<button class="crp-nb" onclick="crpStep(1)"' + (CRP.idx >= CRP.weeks.length - 1 ? ' disabled' : '') + ' aria-label="지난 주">‹</button>' +
-    '<span class="crp-wk">' + esc(crpWeekLabel(wk.week)) + '<small>' + esc((wk.book || '') ? wk.book + ' 주간' : '') + '</small></span>' +
-    '<button class="crp-nb" onclick="crpStep(-1)"' + (CRP.idx <= 0 ? ' disabled' : '') + ' aria-label="다음 주">›</button>';
-  var info = STATE.info || {};
-  var h = '<article class="crp-sheet">' +
-    '<p class="crp-brand">슈퍼스타 주간 리포트</p>' +
-    '<p class="crp-who">' + esc(info.name || '') + '<small>' + esc(((info.school || '') + ' ' + (info.grade || '')).trim()) + '</small></p>';
-  if (parts.length){
-    h += '<div class="crp-att">' + parts.map(function(pt){
-      return '<div><span class="k">' + esc(crpPartName(pt.part)) + (pt.ymd ? ' · ' + esc(crpDay(pt.ymd)) : '') + (pt.time ? ' ' + esc(String(pt.time).replace(/^\S+\s/, '').replace(/~.*/, '')) : '') + '</span>' +
-             '<span class="v"><span class="c">' + esc(pt.cls || '') + '</span>' + crpAtChip(pt.attend) + '</span></div>';
-    }).join('') + '</div>';
-  }
-  parts.forEach(function(pt){
-    h += '<section class="crp-part"><div class="crp-ph"><h4>' + esc(crpPartName(pt.part)) + '</h4><span>' +
-      esc([pt.ymd ? crpDay(pt.ymd) : '', pt.teacher ? pt.teacher + 'T' : ''].filter(Boolean).join(' · ')) + '</span></div>';
-    if (pt.pending){ h += '<p class="crp-pend">아직 수업 기록 전이에요.</p></section>'; return; }
-    if (pt.attend_note) h += '<p class="crp-an">' + esc(pt.attend_note) + '</p>';
-    var units = (pt.units || []).filter(Boolean);
-    if (units.length) h += '<div class="crp-kv"><span class="k">나간 범위</span><div class="crp-units">' + units.map(function(u){ return '<span>' + esc(u) + '</span>'; }).join('') + '</div></div>';
-    if (pt.summary) h += '<div class="crp-kv"><span class="k">수업 내용</span><p>' + esc(pt.summary) + '</p></div>';
-    var hwk = (pt.homework || []).filter(Boolean);
-    if (hwk.length) h += '<div class="crp-kv"><span class="k">다음 수업까지 과제</span><ul>' + hwk.map(function(x){ return '<li>' + esc(x) + '</li>'; }).join('') + '</ul></div>';
-    if (pt.hw) h += '<div class="crp-kv"><span class="k">' + '과제 검사' + '</span>' + crpHwHtml(pt.hw, '이 수업') + '</div>';
-    h += '</section>';
-  });
-  // 수업별 숙제 검사 이전(035 전)에 쓴 리포트는 주 단위 한 칸(b.hw)
-  if (b.hw) h += '<section class="crp-part"><div class="crp-ph"><h4>과제 검사</h4></div>' + crpHwHtml(b.hw, '이번 주') + '</section>';
-  var cms = (b.comments || []).filter(function(x){ return x && x.text; });
-  if (cms.length) h += '<section class="crp-part"><div class="crp-ph"><h4>선생님 코멘트</h4></div>' + cms.map(function(x){
-    return '<p>' + esc(x.text) + (x.teacher ? ' <small class="crp-by">— ' + esc(x.teacher) + 'T</small>' : '') + '</p>';
-  }).join('') + '</section>';
-  h += '</article>';   // 아래 '담당 선생님의 수업 기록과…' 안내 줄은 2026-09-29 원장님 요청으로 뺐다
-  box.innerHTML = h;
-}
 
-/* ── 학습 이력 (2026-10-01, 수파베이스 039) ───────────────────────────────────────
- * 선생님이 오늘의 시간표 [수업 기록] 창에 적은 진도·과제·과제 검사·수업 태도·코멘트를 수업마다 쌓아 보여 준다.
- * [리포트 생성]을 누른 수업만(사용자 결정). 비공개 메모·미제출 대책·출석 메모는 함수가 내보내지 않는다.
- * 표는 못 읽고 함수 class_history 만 부른다(015 규칙). 60개씩, [지난 수업 더 보기]가 before 로 이어 받는다. */
+/* ── 수업 리포트 (2026-10-01, 수파베이스 040) ───────────────────────────────────────
+ * 주간 리포트와 학습 이력을 하나로 합쳤다(사용자 결정: 글은 클로슈가 다듬어 씀 · 수업마다 카드 한 장 · 기간 제한 없이 누적).
+ * 선생님이 [수업 기록]을 적고 [리포트 생성]을 누르면 클로슈가 학생마다 그 수업 리포트를 써서 공개하고, 여기 날짜순으로 쌓인다.
+ * 표는 못 읽고 함수 class_history 만 부른다(015 규칙). 60개씩, [지난 수업 더 보기]가 before 로 이어 받는다.
+ * 카드 구성은 timetable.html 미리보기(crPvHtml)와 같다 — 고치면 둘 다. */
 var LH = { loading: false, more: false, busy: false };
 var LH_ATT = ['매우 좋음', '좋음', '노력 필요'];
+function lhFlat(it){   // class_history 한 줄 → 카드에 쓰는 평평한 모양(본문은 클로슈가 쓴 body)
+  var b = it.body || {};
+  return { ymd: it.ymd, book: it.book, part: it.part, cls: it.cls, teacher: it.teacher, time: it.time,
+           attend: b.attend || '', attend_note: b.attend_note || '', attitude: b.attitude || '', summary: b.summary || '',
+           units: b.units || [], homework: b.homework || [], hw: b.hw || null, comment: b.comment || '' };
+}
 function lhRefresh(quiet){
   LH.loading = true;
   return rvRpc('class_history').then(function(r){
     LH.loading = false;
-    STATE.lhist = (r && r.ok) ? (r.items || []) : [];
+    STATE.lhist = (r && r.ok) ? (r.items || []).map(lhFlat) : [];
     LH.more = !!(r && r.more);
     if ($('lhView').style.display === 'block') lhRender();
     else if (quiet && $('hubView').style.display !== 'none' && STATE.lhist.length) renderHub();
@@ -2148,7 +2061,7 @@ function lhMore(){
   LH.busy = true; var b = $('lhMoreBtn'); if (b){ b.disabled = true; b.textContent = '불러오는 중…'; }
   rvRpc('class_history', { before: cur[cur.length - 1].ymd }).then(function(r){
     LH.busy = false;
-    if (r && r.ok){ STATE.lhist = cur.concat(r.items || []); LH.more = !!r.more; }
+    if (r && r.ok){ STATE.lhist = cur.concat((r.items || []).map(lhFlat)); LH.more = !!r.more; }
     lhRender();
   }).catch(function(){ LH.busy = false; lhRender(); });
 }
@@ -2158,24 +2071,20 @@ function openLearnHist(){
   lhRender(); lhRefresh();
 }
 function closeLearnHist(){ $('lhView').style.display = 'none'; show('hubView'); renderHub(); window.scrollTo(0, 0); }
-function lhLines(t){ return String(t || '').split('\n').map(function(x){ return x.replace(/^\s*[-·•]\s*/, '').trim(); }).filter(Boolean); }
-function lhHw(hw){   // class_history 의 과제 검사 → 주간 리포트 상자 모양(crpHwHtml)
-  var sc = hw.scores || {};
-  return crpHwHtml({ items: Object.keys(sc).map(function(k){ return { name: k, score: sc[k] }; }), pct: hw.pct, missing: hw.missing, missing_items: hw.missing_items || [], text: hw.text || '' }, '이 수업');
-}
 function lhItemHtml(it){
   var k = LH_ATT.indexOf(it.attitude);
   var h = '<article class="lh-item"><div class="lh-hd"><span class="lh-day">' + esc(crpDay(it.ymd)) + '</span>' +
     (it.part ? '<span class="lh-part">' + esc(crpPartName(it.part)) + '</span>' : '') +
     '<span class="lh-meta">' + esc([it.cls, it.teacher ? it.teacher + 'T' : ''].filter(Boolean).join(' · ')) + '</span>' +
     (it.attend ? crpAtChip(it.attend) : '') + '</div>';
+  if (it.attend_note) h += '<p class="crp-an">' + esc(it.attend_note) + '</p>';
   if (k >= 0) h += '<div class="lh-row">수업 태도 <span class="lh-tag a' + k + '">' + esc(it.attitude) + '</span></div>';
   var units = (it.units || []).filter(Boolean);
   if (units.length) h += '<div class="crp-kv"><span class="k">나간 범위</span><div class="crp-units">' + units.map(function(u){ return '<span>' + esc(u) + '</span>'; }).join('') + '</div></div>';
-  if (String(it.progress || '').trim()) h += '<div class="crp-kv"><span class="k">수업 내용</span><p>' + esc(String(it.progress).trim()) + '</p></div>';
-  var hwk = lhLines(it.homework);
+  if (String(it.summary || '').trim()) h += '<div class="crp-kv"><span class="k">수업 내용</span><p>' + esc(String(it.summary).trim()) + '</p></div>';
+  var hwk = (it.homework || []).filter(Boolean);
   if (hwk.length) h += '<div class="crp-kv"><span class="k">다음 수업까지 과제</span><ul>' + hwk.map(function(x){ return '<li>' + esc(x) + '</li>'; }).join('') + '</ul></div>';
-  if (it.hw) h += '<div class="crp-kv"><span class="k">과제 검사</span>' + lhHw(it.hw) + '</div>';
+  if (it.hw) h += '<div class="crp-kv"><span class="k">과제 검사</span>' + crpHwHtml(it.hw, '이 수업') + '</div>';
   if (String(it.comment || '').trim()) h += '<div class="crp-kv"><span class="k">선생님 코멘트</span><p>' + esc(String(it.comment).trim()) + '</p></div>';
   return h + '</article>';
 }
@@ -2183,13 +2092,13 @@ function lhRender(){
   var box = $('lhList'), items = STATE.lhist;
   if (items === undefined || (items === null && LH.loading)){ $('lhSum').innerHTML = ''; box.innerHTML = '<div class="rv-empty">불러오는 중…</div>'; return; }
   if (items === null){ $('lhSum').innerHTML = ''; box.innerHTML = '<div class="rv-empty">수업 리포트를 불러오지 못했어요. 잠시 뒤 다시 열어 주세요.</div>'; return; }
-  if (!items.length){ $('lhSum').innerHTML = ''; box.innerHTML = '<div class="rv-empty">아직 수업 리포트가 없어요. 선생님이 수업 기록을 마치면 여기에 쌓여요.</div>'; return; }
+  if (!items.length){ $('lhSum').innerHTML = ''; box.innerHTML = '<div class="rv-empty">아직 수업 리포트가 없어요. 선생님이 수업을 기록하면 수업마다 한 장씩 여기에 쌓여요.</div>'; return; }
   var att = items.filter(function(x){ return x.attend === '출석' || x.attend === '지각'; }).length;
-  var hws = items.filter(function(x){ return x.hw; });
+  var hws = items.filter(function(x){ return x.hw && !x.hw.none; });
   var avg = hws.length ? Math.round(hws.reduce(function(a, x){ return a + (x.hw.missing ? 0 : Math.max(0, Math.min(100, +x.hw.pct || 0))); }, 0) / hws.length) : null;
   var good = items.filter(function(x){ return x.attitude === '매우 좋음'; }).length;
   $('lhSum').innerHTML = '<div class="lh-sum">' +
-    '<div><b>' + items.length + '</b><span>수업 기록</span></div>' +
+    '<div><b>' + items.length + '</b><span>수업 리포트</span></div>' +
     '<div><b>' + att + '</b><span>출석·지각</span></div>' +
     '<div><b>' + (avg == null ? '—' : avg + '%') + '</b><span>과제 검사 평균</span></div>' +
     '<div><b>' + good + '</b><span>태도 매우 좋음</span></div></div>';
