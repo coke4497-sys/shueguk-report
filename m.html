@@ -1008,7 +1008,8 @@ function syncPeriodChips(){
 }
 
 /* ===== 학생 배정 위젯 (공지·H WORK와 동일한 StudentPicker) ===== */
-var assignPicker=null, assignSel=null, pickerInited=false, assignTouched=false;   // assignTouched: 사람이 배정 칸을 직접 눌렀는지
+var assignPicker=null, assignSel=null, pickerInited=false, assignTouched=false;   // assignTouched: 사람이 배정 선택을 실제로 바꿨는지
+var pickerGestureAt=0;   // 배정 칸 안을 사람이 마지막으로 누른 시각 — 그 직후의 onChange만 '직접 고름'으로 본다
 function initPicker(){
   if(pickerInited) return; pickerInited=true;
   var el=document.getElementById('assignPicker');
@@ -1017,6 +1018,9 @@ function initPicker(){
     endpoint: ENDPOINT,
     onChange: function(sel){
       assignSel = sel;   // {type,target,count,summary} 또는 null
+      /* 안내문 같은 곳을 누르기만 한 것은 고른 게 아니다(Codex 검토 P1) — 사람의 조작 직후 선택이 바뀐 경우만.
+         위젯이 처음 뜨거나 reset 될 때 부르는 onChange 는 조작이 없어 걸러진다. */
+      if(Date.now()-pickerGestureAt < 1500){ assignTouched = true; if(typeof DR!=='undefined') DR.assignOk = true; }
       // 상태창에 err가 떠 있으면 지워준다
       var s=document.getElementById('status');
       if(sel && s && s.classList.contains('err')){ setStatus(''); }
@@ -1944,9 +1948,9 @@ function drOpenFile(i){
     .catch(function(){ if (w) w.close(); alert('파일을 열지 못했습니다.'); });
 }
 document.addEventListener('keydown', function(e){ if (e.key === 'Escape') drClose(); });
-/* 배정 칸을 직접 누르거나 바꾸면 '확인함'으로 본다 */
+/* 배정 칸 안을 사람이 누른 시각만 적는다 — '직접 고름'은 그 직후 선택이 바뀔 때(onChange) 정한다 */
 ['click', 'change', 'input'].forEach(function(ev){
-  document.addEventListener(ev, function(e){ var ap = document.getElementById('assignPicker'); if (ap && e.isTrusted && ap.contains(e.target)) { DR.assignOk = true; assignTouched = true; } }, true);
+  document.addEventListener(ev, function(e){ var ap = document.getElementById('assignPicker'); if (ap && e.isTrusted && ap.contains(e.target)) pickerGestureAt = Date.now(); }, true);
 });
 
 /* 시작: 빈 상태에서 선생님이 직접 문항을 추가합니다 */

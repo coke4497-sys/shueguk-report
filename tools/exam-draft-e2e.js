@@ -264,6 +264,9 @@ const ROWS0 = [
   ok('⑤ 수정 모드는 목록 조회 안 함', !st.rest.some(x => x.m === 'GET'));
   // 배정 칸을 건드리지 않고 수정 저장하면 배정을 보내지 않는다(위젯 기본값 '전 학년'이 실려 전 학생에게 배정된 사고 — 2026-10-01)
   await page.waitForFunction(() => document.getElementById('f_title').value, null, { timeout: 6000 }).catch(() => {});
+  // 위젯 안 안내 글을 누르기만 한 것은 고른 게 아니다(Codex 검토 P1)
+  await page.waitForSelector('#assignPicker .sp-summary', { timeout: 4000 });
+  await page.click('#assignPicker .sp-summary');
   await page.evaluate(() => saveReport());
   await page.waitForTimeout(500);
   let cr = st.gas.filter(x => x.action === 'createReport').pop();
