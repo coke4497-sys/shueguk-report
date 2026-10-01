@@ -435,8 +435,9 @@ const STUDENTS = [
     return rt.fulfill({ status: 204, body: '' });
   });
   await hp.goto('http://127.0.0.1:' + port + '/s.html?key=abc', { waitUntil: 'domcontentloaded' });
-  await hp.waitForFunction(() => /수업 리포트/.test((document.getElementById('menu') || {}).textContent || ''), null, { timeout: 15000 });
+  await hp.waitForFunction(() => /수업 리포트최근/.test((document.getElementById('menu') || {}).textContent || ''), null, { timeout: 15000 });
   r = await hp.evaluate(() => { const c = [...document.querySelectorAll('#menu .card')].find(x => /수업 리포트/.test(x.textContent)); return c && c.textContent; });
+  ok('수업 리포트 카드는 알려드립니다 바로 다음', await hp.evaluate(() => { const t = [...document.querySelectorAll('#menu .card h3')].map(x => x.textContent); return t.indexOf('수업 리포트') === t.indexOf('알려드립니다') + 1; }));
   ok('허브 카드 — 수업 리포트 · 최근 수업', /최근 9\/30 \(수\) · 가 수업/.test(r), r);
   ok('본인 확인은 접근코드', hcalls.length >= 1 && hcalls[0].key === 'abc' && !hcalls[0].before, JSON.stringify(hcalls));
   await hp.evaluate(() => openLearnHist());
@@ -461,6 +462,29 @@ const STUDENTS = [
   await hp.evaluate(() => closeLearnHist());
   ok('닫으면 허브로', await hp.evaluate(() => document.getElementById('lhView').style.display === 'none' && document.getElementById('hubView').style.display !== 'none'));
   await c3.close();
+
+  // ⑧-2 공개된 리포트가 없으면 같은 자리에 비활성 카드
+  {
+    const c4 = await b.newContext(), ep = await c4.newPage();
+    ep.on('pageerror', e => { perr++; console.log('  ✗ pageerror(s.html 빈 수업 리포트)', e.message); });
+    await ep.route('**/*', rt => {
+      const u = rt.request().url();
+      const j = (o, stt) => rt.fulfill({ status: stt || 200, contentType: 'application/json', body: JSON.stringify(o) });
+      if (u.startsWith('http://127.0.0.1:' + port)) return rt.continue();
+      if (/\/rpc\/class_history/.test(u)) return j({ ok: true, items: [], more: false });
+      if (/\/rpc\//.test(u)) return j({ error: 'nope' }, 500);
+      if (/supabase/.test(u)) return rt.fulfill({ status: 204, body: '' });
+      if (/script\.google/.test(u) && new URL(u).searchParams.get('key')) return j({ result: 'success', info: { name: '박보검', id: '30000001', school: '화정고', grade: '2026 고등 2학년', teacher: '주혜', enrolled: '재원' },
+        authed: false, examCount: 0, notices: [], homework: [], analyses: [], clinic: null, stars: { total: 3 }, mockGates: { grades: [], open: false }, clinicEligible: false, vocaTaken: false, mockSignups: [] });
+      return /script\.google/.test(u) ? j({ result: 'success' }) : rt.fulfill({ status: 204, body: '' });
+    });
+    await ep.goto('http://127.0.0.1:' + port + '/s.html?key=abc', { waitUntil: 'domcontentloaded' });
+    await ep.waitForFunction(() => /아직 없음/.test((document.getElementById('menu') || {}).textContent || ''), null, { timeout: 15000 });
+    r = await ep.evaluate(() => { const cs = [...document.querySelectorAll('#menu .card')], t = cs.map(x => (x.querySelector('h3') || {}).textContent);
+      const c = cs[t.indexOf('수업 리포트')]; return { pos: t.indexOf('수업 리포트') - t.indexOf('알려드립니다'), tag: c.tagName, cls: c.className, txt: c.textContent }; });
+    ok('리포트가 없으면 알려드립니다 다음에 비활성 카드(누를 수 없음)', r.pos === 1 && r.tag === 'DIV' && /pending/.test(r.cls) && /아직 없음/.test(r.txt), JSON.stringify(r));
+    await c4.close();
+  }
 
   ok('페이지 오류 없음', perr === 0);
   console.log((fail ? '실패 ' + fail + ' / ' : '') + '통과 ' + pass + '건');
