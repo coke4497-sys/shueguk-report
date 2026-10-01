@@ -754,7 +754,7 @@ curl -s -X POST "https://api.supabase.com/v1/projects/bangdbhqpphqqdwcledg/datab
 
 ## 수업 리포트 — 옛 주간 형식 막기 (2026-10-01, 042)
 - `migrations/042_class_reports_guard.sql` — class_reports 에 check 제약 `class_reports_session_check`: 반ID 빈 값·ymd 없음·body 에 parts 키가 있는 줄은 저장 거절. 같은 날 다른 세션이 옛 주간 형식으로 10/1 고3파이널A 7장을 써서 학생 화면에 안 나온 일 뒤(새 형식으로 다시 쓰고 옛 줄 7개는 사용자 승인 뒤 삭제 — 지금 표에 어긋난 줄 없음). `tools/class_report.py publish`도 같은 형식을 미리 거절한다.
-- **적용 상태: 아직 적용 전** — 실제 수파베이스 적용에는 원장님의 sbp_ 토큰이 필요하다(저장하지 않음). 적용 전에도 최신 class_report.py 는 옛 형식을 거절한다.
+- **적용 상태: 2026-10-01 실제 수파베이스에 적용 완료**(관리 API — 원장님이 준 sbp_ 토큰, 저장 안 함). 확인: 적용 전 어긋난 줄 0건, 제약 `class_reports_session_check` 생성, 옛 형식 줄 넣기 → check_violation 거절(남은 줄 없음), 공개 키 class_history 로 이채민 10/1 리포트 그대로 조회.
 - 검증: `tools/class-history-sql-test.sh`(042 두 번 적용·세 가지 거절·정상 줄 저장).
 
 ## 수업 리포트 — class_reports 수업별로 (2026-10-01, 040)
