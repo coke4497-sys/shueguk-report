@@ -96,6 +96,11 @@
   .toff-chip{font:inherit;font-size:.76rem;color:#4F5853;background:#E7E9E8;border:0;border-radius:999px;
     padding:4px 10px;cursor:pointer;}
   .toff-chip b{color:#343B37;}
+  .toff-chip.static{cursor:default;}
+  .toff-note{font-size:.7rem;color:var(--ink-soft);}
+  .toff-tab{color:#8A5A3C;font-weight:700;}
+  .toff-ctr{color:#C8463F;font-size:.74rem;font-weight:700;line-height:1.35;margin:1px 2px 7px;}
+  .toff-head{display:block;margin-top:2px;font-size:.66rem;font-weight:700;color:#8A5A3C;}
   .toff-day{display:block;margin-top:3px;font-size:.61rem;font-weight:400;line-height:1.25;
     color:#fff;opacity:.9;white-space:normal;}
   .toff-form{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:12px;}
@@ -777,6 +782,7 @@
     margin-left:4px;vertical-align:1px;flex:none;letter-spacing:0;}
   .wk-mini .jb{width:15px;height:15px;font-size:.6rem;margin-left:3px;}
   .wk-mini b{display:flex;align-items:center;}
+  .wk-mini b .wk-tname{color:var(--accent);}
   .wk-bar.jb-bar{box-shadow:inset 0 0 0 1.5px #C8463F;}
   .nc-kind{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;}
   .nc-kind label{display:inline-flex;align-items:center;gap:6px;font-size:.9rem;padding:6px 12px;border-radius:999px;
@@ -1381,7 +1387,8 @@
         mfrom ? sbGet('/tt_memo?date=gte.' + q(mfrom) + '&date=lte.' + q(mto)) : Promise.resolve([]),
         sbGet('/tt_period?select=week_wednesday,book'),
         (wfrom && wto) ? fetchAttendRange(wfrom, wto, book) : Promise.resolve(null),
-        (wfrom && wto) ? fetchTeacherOffs(wfrom, wto) : Promise.resolve(null)
+        (wfrom && wto) ? fetchTeacherOffs(wfrom, wto) : Promise.resolve(null),
+        dateStr ? fetchTeacherOffs(dateStr, dateStr) : Promise.resolve([])
       ];
       return Promise.all(jobs).then(function(rs){
         var t = tYmd(), span = 8 * 86400000;
@@ -1398,7 +1405,8 @@
           attend: rs[2].map(attTodayShape),
           memos: rs[3].filter(function(m){ return String(m.memo || '').trim(); })
                       .map(function(m){ return { date: m.date, memo: m.memo }; }),
-          periods: rs[4].map(function(x){ return { week: x.week_wednesday, book: x.book }; }) };
+          periods: rs[4].map(function(x){ return { week: x.week_wednesday, book: x.book }; }),
+          todayOffs: (rs[7] || []).map(teacherOffShape) };
         if (rs[5]){
           out.week = { attend: rs[5].map(attWeekShape), teacherOffs: (rs[6] || []).map(teacherOffShape),
             onceMoves: rs[1].filter(function(g){
@@ -2593,6 +2601,7 @@ var periods = {};      // 주별 기간: 주차 수요일(yyyy-MM-dd) -> '정규
 var calMonth = null;   // 캘린더가 보는 달 (그 달 1일 Date)
 var weekOnce = [];     // 주차 1회 이동
 var teacherOffs = [];  // [{date,teacher,reason}] — 수업·출석·회차와 독립된 교사 임시 휴무 표시
+var todayOffs = [];    // 오늘 날짜의 교사 임시 휴무 — 오늘의 시간표 표시용(주차별 teacherOffs와 따로 받는다)
 var attDate = null;    // 출석 모달이 다루는 날짜
 var editMode = null;        // 'move' | 'add' | 'del' — 편집 도구줄에서 선택
 var multiMode = false;      // 오늘 보기 복수 선택 모드
@@ -2827,6 +2836,7 @@ function load(isReload, cb){
       attend = {};
       var ca = cacheGet('att:' + book + ':' + todayStr());
       if (ca) ca.forEach(function(x){ attend[attKey(x.classId, x.student)] = { status: x.status, memo: x.memo }; });
+      todayOffs = cacheGet('toff:' + todayStr()) || [];
       if (mode === 'week'){
         var wf0 = new Date(weekStart); wf0.setDate(wf0.getDate() - 2);
         var cwk = cacheGet('week:' + book + ':' + ymdOf(wf0));
@@ -2884,6 +2894,7 @@ function load(isReload, cb){
       attend[attKey(x.classId, x.student)] = { status: x.status, memo: x.memo };
     });
     cacheSet('att:' + book + ':' + todayStr(), d.attend || []);
+    if (d.todayOffs){ todayOffs = d.todayOffs; cacheSet('toff:' + todayStr(), todayOffs); }
     if (d.memos){
       Object.keys(memos).forEach(function(k){ if (k >= mfrom && k <= mto) delete memos[k]; });
       d.memos.forEach(function(m){ memos[m.date] = m.memo; });
@@ -3121,6 +3132,7 @@ function renderView(){
     sum.className = 'today-sum';
     sum.innerHTML = '출석 <b>' + cnt['출석'] + '</b> · 지각 <b>' + cnt['지각'] + '</b> · 결석 <b>' + cnt['결석'] + '</b>';
     host.appendChild(sum);
+    var tOff = todayOffStrip(); if (tOff) host.appendChild(tOff);
     if (!list.length){
       var em = document.createElement('p');
       em.className = 'empty-day';
@@ -3180,7 +3192,6 @@ function renderView(){
     '<button onclick="moveWeek(1)">다음주</button>'+
     '<button class="toff-open" onclick="openTeacherOff()">교사 휴무 설정</button>';
   host.appendChild(nav);
-  var offStrip = teacherOffStrip(); if (offStrip) host.appendChild(offStrip);
   if (narrowScreen()) host.appendChild(mviewToggleBtn());
   host.appendChild(useListView() ? buildWeekList()
                  : (weekZoomDay ? buildWeekZoom(weekZoomDay) : buildWeekOverview()));
@@ -4054,7 +4065,7 @@ function buildDayGrid(list){
   cols.forEach(function(c){
     var h = document.createElement('div');
     h.className = 'thead';
-    h.innerHTML = '<b>' + esc(c.teacher) + '</b>' + esc(c.loc);
+    h.innerHTML = '<b>' + esc(c.teacher) + '</b>' + esc(c.loc) + todayOffHeadHtml(c.teacher);
     hg.appendChild(h);
   });
 
@@ -4211,7 +4222,8 @@ function buildWeekList(){
   }
   var wrap = document.createElement('div');
   wrap.appendChild(dayTabsEl(weekListDay,
-    function(dy){ return esc(dy) + '<small>' + mdOf(days[dy]) + '</small>'; },
+    function(dy){ return esc(dy) + '<small>' + mdOf(days[dy]) + '</small>' +
+                         (teacherOffsAt(ymdOf(days[dy])).length ? '<small class="toff-tab">휴무</small>' : ''); },
     function(dy){ weekListDay = dy; keepScroll = false; render(); }));
   var dstr = ymdOf(days[weekListDay]);
   var list = classes.filter(function(c){ return c.day === weekListDay && wkVisible(c, dstr); });
@@ -4601,18 +4613,26 @@ function zoomTuneRows(g, nrows){
     applyMultiSel();
   });
 }
-function zoomCenterGrids(big, dname, list, makeBlock, makeBand){
+function zoomCenterGrids(big, dname, list, makeBlock, makeBand, dstr){   // dstr = 주차별 날짜(교사 휴무 머리글 표시용)
   var order = [], byLoc = {};
   list.forEach(function(c){
     if (!byLoc[c.loc]){ byLoc[c.loc] = []; order.push(c.loc); }
     byLoc[c.loc].push(c);
   });
+  var offLoc = dstr ? teacherOffsByLoc(dstr, dname) : {};
+  var offOnly = function(beforeRank){
+    Object.keys(offLoc).filter(function(l){ return !offLoc[l].done && wkLocRank(l) < beforeRank; })
+      .sort(function(a, b){ return wkLocRank(a) - wkLocRank(b); })
+      .forEach(function(l){ offLoc[l].done = true; teacherOffLocBlock(big, l, offLoc[l], 'wk-ch'); });
+  };
   order.forEach(function(loc){
     var cl = byLoc[loc];
+    offOnly(wkLocRank(loc));
     var ch = document.createElement('div');
     ch.className = 'wk-ch';
     ch.textContent = wkLocLabel(loc);
     big.appendChild(ch);
+    if (offLoc[loc] && !offLoc[loc].done){ offLoc[loc].done = true; big.appendChild(teacherOffCtrEl(offLoc[loc])); }
     var cols = [], seen = {};
     cl.forEach(function(c){ if (!seen[c.teacher]){ seen[c.teacher] = true; cols.push(c.teacher); } });
     cols.sort(function(a, b){
@@ -4634,6 +4654,13 @@ function zoomCenterGrids(big, dname, list, makeBlock, makeBand){
       var th = document.createElement('div');
       th.className = 'wk-th';
       th.textContent = t + 'T';
+      var toff = dstr ? teacherOffAt(dstr, t) : null;   // 그 날 임시 휴무면 열 머리글에 표시 (2026-09-30)
+      if (toff){
+        var ts = document.createElement('span');
+        ts.className = 'toff-head';
+        ts.textContent = 'OFF' + (toff.reason ? ' (' + toff.reason + ')' : '');
+        th.appendChild(ts);
+      }
       g.appendChild(th);
     });
     for (var r = 0; r < n; r++){
@@ -4672,6 +4699,7 @@ function zoomCenterGrids(big, dname, list, makeBlock, makeBand){
     big.appendChild(g);
     zoomTuneRows(g, n);
   });
+  offOnly(1e9);
 }
 function buildAllZoom(dname){
   var wrap = document.createElement('div');
@@ -4829,6 +4857,11 @@ function wkAttSummary(cid, dstr){
   return { cnt: cnt, any: any };
 }
 /* 교사 임시 휴무는 수업 변경 기록과 분리한다. 표시만 하며 반·출석·회차를 바꾸지 않는다. */
+/* 주차별 개요 카드의 반이름 앞 담당 선생님 — '슈T 고3파이널A' (2026-09-30 사용자 요청) */
+function wkTeacherTag(c){
+  var t = String(c.teacher || '').trim();
+  return t ? '<span class="wk-tname">' + esc(t) + 'T</span> ' : '';
+}
 function teacherOffAt(dstr, teacher){
   for (var i = 0; i < teacherOffs.length; i++){
     if (teacherOffs[i].date === dstr && teacherOffs[i].teacher === teacher) return teacherOffs[i];
@@ -4839,24 +4872,63 @@ function teacherOffsAt(dstr){
   return teacherOffs.filter(function(o){ return o.date === dstr; })
     .sort(function(a,b){ return wkTeacherRank(a.teacher) - wkTeacherRank(b.teacher) || a.teacher.localeCompare(b.teacher,'ko'); });
 }
-function teacherOffDayHtml(dstr){
-  var rows = teacherOffsAt(dstr);
-  if (!rows.length) return '';
-  return '<span class="toff-day">교사 휴무 · ' + rows.map(function(o){ return esc(o.teacher) + 'T'; }).join(' · ') + '</span>';
+/* 교사 휴무 표기 — '현지T OFF (화 직보)' (2026-09-30 사용자 지정) */
+function teacherOffLabel(o){
+  return o.teacher + 'T OFF' + (o.reason ? ' (' + o.reason + ')' : '');
 }
-function teacherOffStrip(){
-  if (!teacherOffs.length) return null;
-  var dates = weekDates(), dayOf = {};
-  WEEK_VIEW_ORDER.forEach(function(dy){ dayOf[ymdOf(dates[dy])] = dy; });
+/* 휴무 선생님이 평소 수업하는 센터 — 그 요일 반의 센터, 없으면 가장 많이 맡은 센터 (2026-09-30 사용자
+   "오프 당사자의 각 센터 표시 아래에 빨간 글씨로") */
+function teacherHomeLoc(t, dname){
+  var cnt = {}, best = '', bestN = 0;
+  for (var i = 0; i < classes.length; i++){
+    var c = classes[i];
+    if (c.teacher !== t || /^w/.test(c.id || '')) continue;
+    if (c.day === dname) return c.loc || '';
+    cnt[c.loc] = (cnt[c.loc] || 0) + 1;
+    if (cnt[c.loc] > bestN){ bestN = cnt[c.loc]; best = c.loc || ''; }
+  }
+  return best;
+}
+function teacherOffsByLoc(dstr, dname){
+  var m = {};
+  teacherOffsAt(dstr).forEach(function(o){ var l = teacherHomeLoc(o.teacher, dname); (m[l] = m[l] || []).push(o); });
+  return m;
+}
+function teacherOffCtrEl(rows){
+  var d = document.createElement('div');
+  d.className = 'toff-ctr';
+  d.innerHTML = rows.map(function(o){ return '<div>' + esc(teacherOffLabel(o)) + '</div>'; }).join('');
+  return d;
+}
+/* 센터 라벨(cls = 'wk-ctr' 또는 'wk-ch') + 그 센터 휴무 줄 — 휴무 센터에 그 날 수업이 없어도 라벨을 세운다 */
+function teacherOffLocBlock(host, loc, rows, cls){
+  var cl = document.createElement('div');
+  cl.className = cls;
+  cl.textContent = wkLocLabel(loc);
+  host.appendChild(cl);
+  host.appendChild(teacherOffCtrEl(rows));
+}
+/* 오늘의 시간표 — 오늘 휴무인 선생님을 요약 줄과 강사 열 머리글에 표시한다(2026-09-30 사용자 요청).
+   주차별과 마찬가지로 표시만 하고 수업·출석은 바꾸지 않는다. 설정·해제는 주차별 [교사 휴무 설정]에서. */
+function todayOffOf(teacher){
+  for (var i = 0; i < todayOffs.length; i++){
+    if (todayOffs[i].date === todayStr() && todayOffs[i].teacher === teacher) return todayOffs[i];
+  }
+  return null;
+}
+function todayOffHeadHtml(teacher){
+  var o = todayOffOf(teacher);
+  return o ? '<span class="toff-head">OFF' + (o.reason ? ' (' + esc(o.reason) + ')' : '') + '</span>' : '';
+}
+function todayOffStrip(){
+  var rows = todayOffs.filter(function(o){ return o.date === todayStr(); })
+    .sort(function(a,b){ return wkTeacherRank(a.teacher) - wkTeacherRank(b.teacher) || a.teacher.localeCompare(b.teacher,'ko'); });
+  if (!rows.length) return null;
   var box = document.createElement('div');
   box.className = 'toff-strip';
-  box.innerHTML = '<strong>교사 임시 휴무</strong>' + teacherOffs.slice().sort(function(a,b){
-    return a.date.localeCompare(b.date) || wkTeacherRank(a.teacher) - wkTeacherRank(b.teacher);
-  }).map(function(o){
-    var note = o.reason ? ' · ' + esc(o.reason) : '';
-    return '<button class="toff-chip" onclick="openTeacherOff(\'' + esc(o.date) + '\',\'' + esc(o.teacher) + '\')">' +
-           '<b>' + esc(o.teacher) + 'T 휴무</b> · ' + esc(dayOf[o.date] || '') + ' ' + esc(mdOfYmdStr(o.date)) + note + '</button>';
-  }).join('');
+  box.innerHTML = '<strong>오늘 교사 휴무</strong>' + rows.map(function(o){
+    return '<span class="toff-chip static"><b>' + esc(teacherOffLabel(o)) + '</b></span>';
+  }).join('') + '<small class="toff-note">수업은 그대로 두었어요. 바꾸려면 주차별의 [교사 휴무 설정]에서 하세요.</small>';
   return box;
 }
 function teacherOffTeachers(){
@@ -4936,8 +5008,7 @@ function wkDayHeader(dname, dates, cls, onClick){
   var h = document.createElement('button');
   h.type = 'button';
   h.className = 'wk-dayh' + (cls ? ' ' + cls : '') + (dstr === todayStr() ? ' today' : '');
-  h.innerHTML = esc(dname) + '<small>' + mdOf(dates[dname]) + (dstr === todayStr() ? ' · 오늘' : '') + '</small>' +
-                teacherOffDayHtml(dstr);
+  h.innerHTML = esc(dname) + '<small>' + mdOf(dates[dname]) + (dstr === todayStr() ? ' · 오늘' : '') + '</small>';
   h.addEventListener('click', onClick);
   return h;
 }
@@ -4952,6 +5023,13 @@ function buildWeekOverview(){
     col.appendChild(wkDayHeader(dname, dates, '', function(){ weekZoomDay = dname; keepScroll = false; render(); }));
     var list = wkDayClasses(dname, dstr);
     var lastLoc = null;
+    var offLoc = teacherOffsByLoc(dstr, dname);
+    // 그 날 수업이 없는 센터의 휴무는 센터 순서대로 라벨을 세워 끼운다
+    var offOnly = function(beforeRank){
+      Object.keys(offLoc).filter(function(l){ return !offLoc[l].done && wkLocRank(l) < beforeRank; })
+        .sort(function(a, b){ return wkLocRank(a) - wkLocRank(b); })
+        .forEach(function(l){ offLoc[l].done = true; teacherOffLocBlock(col, l, offLoc[l], 'wk-ctr'); });
+    };
     var zoomHere = function(){ weekZoomDay = dname; keepScroll = false; render(); };
     // 같은 센터의 휴강은 모아 뒀다가 구간 끝에 — 2건 이상이면 한 장으로 (2026-09-18 '1안')
     var pendingOff = [];
@@ -4969,7 +5047,7 @@ function buildWeekOverview(){
         var it = pendingOff[0];
         m.className = 'wk-mini offm ' + colorOf(it.c.cls);
         m.setAttribute('data-cid', it.c.id);
-        m.innerHTML = '<b>'+esc(it.c.cls)+jbBadge(it.c)+'</b><small>'+esc(it.c.start)+'~'+esc(it.c.end)+
+        m.innerHTML = '<b><span class="wk-nm">'+wkTeacherTag(it.c)+esc(it.c.cls)+'</span>'+jbBadge(it.c)+'</b><small>'+esc(it.c.start)+'~'+esc(it.c.end)+
                       ' · 이 주 휴강</small><span class="sum"><i class="none">휴강</i></span>';
         m.title = it.c.cls + ' — 이 주 휴강' + (it.off.reason ? ' · ' + it.off.reason : '');
         durHeight(m, it.c, DUR_PX.week);
@@ -4981,11 +5059,13 @@ function buildWeekOverview(){
     list.forEach(function(c){
       if (c.loc !== lastLoc){
         flushOff();
+        offOnly(wkLocRank(c.loc));
         lastLoc = c.loc;
         var cl = document.createElement('div');
         cl.className = 'wk-ctr';
         cl.textContent = wkLocLabel(c.loc);
         col.appendChild(cl);
+        if (offLoc[c.loc] && !offLoc[c.loc].done){ offLoc[c.loc].done = true; col.appendChild(teacherOffCtrEl(offLoc[c.loc])); }
       }
       var off = wkOffAt(c.id, dstr);
       if (off){ pendingOff.push({ c: c, off: off }); return; }
@@ -5001,7 +5081,7 @@ function buildWeekOverview(){
           (s.cnt['지각'] ? '<i class="late">'+s.cnt['지각']+'</i>' : '') +
           (s.cnt['결석'] ? '<i class="abs">'+s.cnt['결석']+'</i>' : '')
         : '<i class="none">—</i>';
-      m.innerHTML = '<b>'+esc(c.cls)+jbBadge(c)+'</b><small>'+
+      m.innerHTML = '<b><span class="wk-nm">'+wkTeacherTag(c)+esc(c.cls)+'</span>'+jbBadge(c)+'</b><small>'+
                     (mvd ? '→ '+esc(wkMovedToLabel(mvd)) : esc(c.start)+'~'+esc(c.end)+' · '+c.students.length+'명')+
                     '</small><span class="sum">'+att+'</span>';
       m.title = mvd ? esc(c.cls) + ' — 이 주는 ' + wkMovedToLabel(mvd) + ' 에서 해요'
@@ -5011,6 +5091,7 @@ function buildWeekOverview(){
       col.appendChild(m);
     });
     flushOff();
+    offOnly(1e9);
     if (!list.length){
       var em = document.createElement('div'); em.className = 'wk-empty'; em.textContent = '수업 없음';
       col.appendChild(em);
@@ -5048,7 +5129,7 @@ function buildWeekZoom(dname){
     hh.type = 'button';
     hh.className = 'wk-dayh bigh' + (dstr === todayStr() ? ' today' : '');
     hh.innerHTML = esc(dy) + ' ' + mdOf(dates[dy]) + (dstr === todayStr() ? ' (오늘)' : '') +
-                   '<small>— 누르면 주간 개요로 돌아가요</small>' + teacherOffDayHtml(dstr);
+                   '<small>— 누르면 주간 개요로 돌아가요</small>';
     hh.addEventListener('click', function(){ weekZoomDay = null; keepScroll = false; render(); });
     big.appendChild(hh);
     var list = wkZoomSorted(dy, dstr);
@@ -5057,7 +5138,7 @@ function buildWeekZoom(dname){
       big.appendChild(em);
     }
     zoomCenterGrids(big, dy, list, function(c){ return weekBlockEl(c, dstr); },
-                    function(c){ var off = wkOffAt(c.id, dstr); return off ? offBandEl(c, off, dstr, true) : null; });
+                    function(c){ var off = wkOffAt(c.id, dstr); return off ? offBandEl(c, off, dstr, true) : null; }, dstr);
     wrap.appendChild(big);
   });
   requestAnimationFrame(function(){ applySearchHits(); });
