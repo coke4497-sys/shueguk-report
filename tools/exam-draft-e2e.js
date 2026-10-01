@@ -49,7 +49,7 @@ const ROWS0 = [
       let body = {}; if (req.method() === 'POST'){ try { body = JSON.parse(req.postData() || '{}'); } catch (e) {} st.gas.push(body); }
       const json = o => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(o) });
       if (/action=roster/.test(u)){ st.gasRoster = (st.gasRoster || 0) + 1; } if (/action=roster/.test(u)) return json({ result: 'success', students: [{ name: '박보검', school: '화정고', grade: '2026 고등 1학년' }, { name: '김하늘', school: '서정고', grade: '2026 고등 2학년' }] });
-      if (/[?&]id=/.test(u) && req.method() === 'GET') return json({ result: 'success', title: '26-2-중간-옛시험', scope: '', review: [], questions: [] });
+      if (/[?&]id=/.test(u) && req.method() === 'GET') return json({ result: 'success', title: '26-2-중간-옛시험', scope: '', review: [], questions: [DRAFT.questions[0]] });
       if (/assignList/.test(u)) return json({ result: 'success', assignments: [] });
       return json({ result: 'success' });
     });
@@ -72,12 +72,19 @@ const ROWS0 = [
         if (id){ const row = st.rows.find(x => x.id === id); return json(200, row ? [Object.assign({ period: '26-2-중간', school: '화정고', grade: '1', subject: '공통국어2', scope: '', draft: (id === 7 || id === 5) ? DRAFT : null }, row)] : []); }
         return json(200, st.rows);
       }
+      if (m === 'GET' && /\/exams\?report_id=eq\./.test(u)) return json(200, [{ report_id: '26-2-중간-옛시험', title: '26-2-중간-옛시험', scope: '', review: '' }]);
+      if (m === 'GET' && /\/exam_questions\?report_id=eq\./.test(u)) return json(200, [{ no: '1', area: '문학', qtype: '객관식', lv: '상', txt: '표현상의 특징과 그 효과', detail: '현대시', grp: '', multi: false }]);
+      if (/\/assignments/.test(u) && m !== 'GET'){ (st.asg = st.asg || []).push({ m, u, body }); }
       if (/\/students\?/.test(u)){ st.stuGets = (st.stuGets || 0) + 1; return json(200, [
         { name: '박보검', school: '화정고', grade: '2026 고등 1학년', enrolled: '재원' },
         { name: '김하늘', school: '서정고', grade: '2026 고등 2학년', enrolled: '재원' },
         { name: '최도래', school: '도래울고', grade: '2026 고등 1학년', enrolled: '재원' },
         { name: '한예고', school: '고양예고', grade: '2026 고등 1학년', enrolled: '재원' },
-        { name: '이퇴원', school: '퇴원고', grade: '2026 고등 1학년', enrolled: '퇴원' }]); }
+        { name: '이퇴원', school: '퇴원고', grade: '2026 고등 1학년', enrolled: '퇴원' },
+        { name: '김둘', school: '화정고', grade: '2026 고등 2학년', enrolled: '재원' },
+        { name: '이동명', school: '화정고', grade: '2026 고등 1학년', enrolled: '재원' },
+        { name: '이동명', school: '서정고', grade: '2026 고등 1학년', enrolled: '재원' },
+        { name: '나퇴원', school: '화정고', grade: '2026 고등 1학년', enrolled: '퇴원' }]); }
       if (/\/naeshin_records\?/.test(u)){
         (st.nsGets = st.nsGets || []).push(u);
         const keys = ((u.match(/class_key=in\.\(([^)]*)\)/) || [])[1] || '').split(',').map(x => x.replace(/"/g, ''));
@@ -212,32 +219,41 @@ const ROWS0 = [
   ok('③ 드롭다운 유형 선택', await page.$eval('#blockList .subq .txt-sel', e => e.value) === '표현상의 특징과 그 효과');
   ok('③ <보기> 내용·복수 선택', c.questions[1].txt === DRAFT.questions[1].txt && c.questions[1].multi === true);
   ok('③ 목록 밖 난이도 → 상, 직접 입력', c.questions[2].lv === '상' && c.questions[2].type === '서술형' && c.questions[2].txt === '말하기 방식의 특징을 서술하기');
-  // 등록 → report_id
+  // 학교·학년 자동 배정(2026-10-01) — 화정고 1학년 재원생만, 동명이인은 토큰, 다른 학년·퇴원생은 빠짐
+  ok('③ 자동 배정 안내', await vis(page, '#autoAssign') && !(await vis(page, '#manualAssign')) && /화정고 1학년 재원생 2명/.test(await page.textContent('#autoAssign')));
   await page.evaluate(() => saveReport());
-  await page.waitForTimeout(300);
-  ok('③ 초안은 배정을 직접 고르기 전엔 등록 막힘', /직접 골라/.test(await page.textContent('#status')));
-  await page.click('#assignPicker .sp-tab >> nth=1');
-  ok('③ 배정 칸을 누르면 확인됨', await page.evaluate(() => DR.assignOk === true));
-  await page.evaluate(() => { assignSel = { type: '학년', target: '고1', count: 1, summary: '고1' }; saveReport(); });
   await page.waitForTimeout(1200);
+  let cr0 = st.gas.filter(x => x.action === 'createReport').pop();
+  ok('③ 자동 배정으로 등록 — 화정고 1학년만', cr0 && cr0.assignType === '일부' && cr0.assignTarget === '박보검, 이동명|화정고|2026고등1학년', cr0 && cr0.assignTarget);
   const rp = st.rest.find(x => x.m === 'PATCH' && /id=eq\.7/.test(x.u) && x.body && x.body.report_id);
   ok('③ 등록하면 report_id 기록', rp && rp.body.report_id === '26-2-중간-화정고1-공통국어2', JSON.stringify(st.rest.filter(x => x.m === 'PATCH').map(x => x.u + ' ' + JSON.stringify(x.body))));
   // 되돌아가기
   await page.click('#mkBackManual');
   ok('③ 방법 다시 고르기', await vis(page, '#chooseView'));
-  // 등록 뒤 다른 초안을 열면 앞의 학생 배정이 남지 않는다(Codex 검토 P1)
+  // 다른 초안 — 명단에 없는 학교·학년이면 자동 배정이 막고, 직접 고르기는 한 번 직접 골라야 등록(Codex 검토 P1)
   st.rows.find(x => x.id === 5).status = '완료';
   await page.evaluate(() => drLoad());
   await page.waitForSelector('.dr-row[data-id="5"] button:has-text("리포트 만들기")');
   await page.click('.dr-row[data-id="5"] button:has-text("리포트 만들기")');
   await page.waitForFunction(() => document.getElementById('manualView').style.display !== 'none', null, { timeout: 4000 }).catch(() => {});
   await page.waitForTimeout(200);
-  ok('③ 다음 초안에서 앞 배정(학년 고1) 비움', await page.evaluate(() => { const s = assignSel || (assignPicker && assignPicker.getSelection()); return !s || s.type !== '학년'; }));
+  await page.evaluate(() => { document.getElementById('f_school').value = '고양예고'; document.getElementById('f_gradeN').value = '2'; composeTitle(); });
   const gasN = st.gas.filter(x => x.action === 'createReport').length;
   await page.evaluate(() => saveReport());
   await page.waitForTimeout(400);
-  ok('③ 다음 초안도 다시 확인 필요', await page.evaluate(() => DR.assignOk === false));
-  ok('③ 배정을 직접 고르기 전엔 등록 막힘', /직접 골라/.test(await page.textContent('#status')) && st.gas.filter(x => x.action === 'createReport').length === gasN);
+  ok('③ 재원생이 없으면 자동 배정 등록 막힘', /고양예고 2학년 재원생이 명단에 없습니다/.test(await page.textContent('#status')) && st.gas.filter(x => x.action === 'createReport').length === gasN);
+  await page.click('#autoAssign .asg-mode');
+  ok('③ 직접 고르기로 바꿈', await vis(page, '#manualAssign') && !(await vis(page, '#autoAssign')));
+  ok('③ 다음 초안에서 앞 배정 비움', await page.evaluate(() => { const s = assignSel || (assignPicker && assignPicker.getSelection()); return !s || s.type !== '학년'; }));
+  await page.evaluate(() => saveReport());
+  await page.waitForTimeout(400);
+  ok('③ 직접 고르기는 확인 전 등록 막힘', /직접 골라/.test(await page.textContent('#status')) && st.gas.filter(x => x.action === 'createReport').length === gasN);
+  await page.click('#assignPicker .sp-tab >> nth=1');
+  ok('③ 배정 칸을 누르면 확인됨', await page.evaluate(() => DR.assignOk === true));
+  await page.evaluate(() => { assignSel = { type: '학년', target: '고1', count: 1, summary: '고1' }; saveReport(); });
+  await page.waitForTimeout(1200);
+  cr0 = st.gas.filter(x => x.action === 'createReport').pop();
+  ok('③ 직접 고른 배정으로 등록', cr0 && cr0.assignType === '학년' && cr0.assignTarget === '고1', cr0 && cr0.assignType);
   await page.click('#mkBackManual');
   await ctx.close();
 
@@ -246,6 +262,26 @@ const ROWS0 = [
   await page.waitForTimeout(500);
   ok('⑤ 수정 모드는 바로 수동 화면', await vis(page, '#manualView') && !(await vis(page, '#chooseView')) && !(await vis(page, '#mkBackManual')));
   ok('⑤ 수정 모드는 목록 조회 안 함', !st.rest.some(x => x.m === 'GET'));
+  // 배정 칸을 건드리지 않고 수정 저장하면 배정을 보내지 않는다(위젯 기본값 '전 학년'이 실려 전 학생에게 배정된 사고 — 2026-10-01)
+  await page.waitForFunction(() => document.getElementById('f_title').value, null, { timeout: 6000 }).catch(() => {});
+  // 위젯 안 안내 글을 누르기만 한 것은 고른 게 아니다(Codex 검토 P1)
+  await page.waitForSelector('#assignPicker .sp-summary', { timeout: 4000 });
+  await page.click('#assignPicker .sp-summary');
+  await page.evaluate(() => saveReport());
+  await page.waitForTimeout(500);
+  let cr = st.gas.filter(x => x.action === 'createReport').pop();
+  ok('⑤ 수정 모드는 직접 고르기 화면 + 다시 배정 버튼', await vis(page, '#manualAssign') && !(await vis(page, '#autoAssign')) && /다시 배정/.test(await page.textContent('#asgBack')));
+  ok('⑤ 배정 그대로 두면 배정 안 보냄(기존 유지)', cr && cr.assignType === '' && cr.assignTarget === '', cr && cr.assignType);
+  await ctx.close();
+  // 배정 칸을 직접 고르면 그 값이 간다
+  ({ page, st, ctx } = await open('?id=' + encodeURIComponent('26-2-중간-옛시험')));
+  await page.waitForTimeout(500);
+  await page.waitForSelector('#assignPicker button, #assignPicker input', { timeout: 4000 });
+  await page.click('#assignPicker button >> nth=0');
+  await page.evaluate(() => saveReport());
+  await page.waitForTimeout(500);
+  cr = st.gas.filter(x => x.action === 'createReport').pop();
+  ok('⑤ 배정 칸을 직접 고르면 배정 보냄', cr && cr.assignType !== '', cr && cr.assignType);
   await ctx.close();
 
   // 휴대폰 폭 — 카드 한 줄씩
