@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
-"""슈퍼스타 주간 리포트 — 클로슈(클로드 세션)가 주간 리포트를 쓸 때 쓰는 도구 (2026-09-28, 수파베이스 034).
+"""수업 리포트 — 클로슈(클로드 세션)가 학생마다 **수업 한 번에 한 장** 리포트를 쓸 때 쓰는 도구
+(2026-09-28 주간 리포트로 시작 → 2026-10-01 수업마다 한 장으로 바꿈, 수파베이스 034·040).
 
 흐름(CLAUDE.md '수업 리포트' 절):
   1) python3 tools/class_report.py pending
        → 리포트 요청(report_status='요청')이 걸린 수업 목록
   2) python3 tools/class_report.py data 내신 n081 2026-09-27 > /tmp/…/data.json
-       → 그 수업의 진도·과제·코멘트 + 학생별 출석·숙제 검사·접근코드를 한 파일로
-  3) 클로슈가 data.json 을 읽고 학생마다 그 주 전체를 담은 body 를 쓴 publish.json 을 만든다
-       {"book","class_id","ymd","reports":[{"code","body":{parts:[{…, hw}],comments:[…]}}]}
-       (숙제 검사는 수업마다 parts[].hw — 2026-09-28, 035. body.hw 는 반 구분 전 주 단위 기록이 있을 때만)
+       → 그 수업의 진도·단원·과제 + 출석 기록이 있는 학생마다 출석·태도·코멘트·과제 검사·접근코드
+  3) 클로슈가 data.json 을 읽고 학생마다 body 를 쓴 publish.json 을 만든다
+       {"book","class_id","ymd","reports":[{"code","body":{attend,attend_note,attitude,summary,units,homework,hw,comment}}],"note"}
   4) python3 tools/class_report.py publish publish.json
-       → class_reports 에 저장(같은 주·학생은 덮어씀) + 요청한 수업의 class_notes 상태 '공개'
+       → class_reports 에 저장(같은 수업·학생은 덮어씀) + 그 수업 class_notes 상태 '공개'
      못 쓰는 경우: python3 tools/class_report.py hold 내신 n081 2026-09-27 "이유"
 
 교사 인증은 페이지들과 같은 공개 조각(teachers@shueguk.internal)을 쓴다 — 학생 페이지에는 넣지 않는 값.
@@ -123,124 +123,64 @@ def roster_has(roster, p):
 
 
 def cmd_data(book, cid, ymd):
-    """그 수업(요청이 온 반·날짜)의 학생마다 **그 주 전체**(월~일, 시간표 규칙)의 수업·출석·기록·숙제 검사를 모은다."""
+    """그 수업 한 번(반·날짜)에 출석 기록이 있는 학생마다 이 수업의 기록을 모은다(040 — 수업마다 리포트 한 장)."""
     d = ymd_of(ymd)
-    wed = week_wed(d)
-    mon, sun = wed - dt.timedelta(days=2), wed + dt.timedelta(days=4)
-    note0 = (rest('GET', '/class_notes?book=eq.%s&class_id=eq.%s&ymd=eq.%s&select=*' % (q(book), q(cid), ymd)) or [None])[0]
-    classes = rest('GET', '/tt_classes?book=eq.%s&select=class_id,day,start_time,end_time,teacher,name,roster' % q(book)) or []
-    cls_by = {c['class_id']: c for c in classes}
-    cls0 = cls_by.get(cid)
-    if not cls0 and not note0:
-        sys.exit('그 수업을 찾지 못했어요: %s %s %s' % (book, cid, ymd))
-    logs = rest('GET', '/tt_log?book=eq.%s&apply_date=gte.%s&apply_date=lte.%s&select=*' % (q(book), mon, sun)) or []
-    # '이 주만' 복사본은 원본 반 명단을 따라간다
-    for l in logs:
-        if l['kind'] in ('주간반이동', '주간반보강') and l['to_class_id'] in cls_by and not str(cls_by[l['to_class_id']].get('roster') or '').strip():
-            src = cls_by.get(l['from_class_id'])
-            if src:
-                cls_by[l['to_class_id']]['roster'] = src.get('roster', '')
-    off = {(l['from_class_id'], str(l['apply_date'])) for l in logs if l['kind'] in ('주간반휴강', '주간반이동')}
-    att = rest('GET', '/attendance?date=gte.%s&date=lte.%s&book=eq.%s&select=date,class_id,student,status,memo,makeup_plan,makeup_done' % (mon, sun, q(book))) or []
-    notes = rest('GET', '/class_notes?book=eq.%s&ymd=gte.%s&ymd=lte.%s&select=*' % (q(book), mon, sun)) or []
-    note_by = {(n['class_id'], str(n['ymd'])): n for n in notes}
-    # 요청 수업의 학생 = 그 날 출석 기록이 있는 학생(출석 미체크는 리포트에서 빠진다 — 선생님 창에서 안내함)
-    toks = []
-    seen = set()
-    for a in att:
-        if a['class_id'] == cid and str(a['date']) == ymd and plain(a['student']) not in seen:
-            seen.add(plain(a['student']))
-            toks.append(a['student'])
+    note = (rest('GET', '/class_notes?book=eq.%s&class_id=eq.%s&ymd=eq.%s&select=*' % (q(book), q(cid), ymd)) or [None])[0]
+    if not note:
+        sys.exit('수업 기록(class_notes)이 없어요: %s %s %s' % (book, cid, ymd))
+    att = rest('GET', '/attendance?date=eq.%s&book=eq.%s&class_id=eq.%s&select=student,status,memo,makeup_plan,makeup_done' % (ymd, q(book), q(cid))) or []
     studs = [s for s in (rest('GET', '/students?select=name,school,grade,code,student_id,enrolled') or [])
              if not LEFT_RE.match(str(s.get('enrolled') or '').strip())]
-    # 숙제 검사는 수업마다 한 줄(035 — class_id). 숙제 검사 주차 = 수업일의 가장 최근 수요일(월·화 수업은 지난주)
-    hws = rest('GET', '/hwcheck_records?week=gte.%s&week=lte.%s&select=*' % (wed - dt.timedelta(days=7), wed)) or []
-    hw_by = {(h['token'], h.get('class_id') or '', str(h['week'])): h for h in hws if h.get('token')}
-    HWK = ('scores', 'pct', 'missing', 'pub', 'max', 'missing_items')   # missing_items = 과제별 미제출(039)
-    prev = rest('GET', '/class_reports?week=eq.%s&select=code,body' % wed) or []
+    hwk = d - dt.timedelta(days=(d.weekday() - 2) % 7)   # 과제 검사 주차 = 가장 최근 수요일(월·화는 지난주)
+    hws = rest('GET', '/hwcheck_records?week=eq.%s&class_id=eq.%s&select=*' % (hwk, q(cid))) or []
+    hw_by = {h['token']: h for h in hws if h.get('token')}
+    prev = rest('GET', '/class_reports?book=eq.%s&class_id=eq.%s&ymd=eq.%s&select=code,body' % (q(book), q(cid), ymd)) or []
     prev_by = {r['code']: r['body'] for r in prev}
-    days = [mon + dt.timedelta(days=i) for i in range(7)]
-    out = []
-    for t in toks:
-        p = plain(t)
-        c = find_student(t, studs)
+    cm = note.get('comments') or {}
+    att_map = (cm.get('__태도') or {}) if isinstance(cm.get('__태도'), dict) else {}
+    out, seen = [], set()
+    for a in att:
+        p = plain(a['student'])
+        if not p or p in seen:
+            continue
+        seen.add(p)
+        c = find_student(a['student'], studs)
         s = c[0] if len(c) == 1 else None
-        sessions = {}
-        # 이 주에 빠진 수업(1회 이동은 원래 반의 그 주 전체, 이 주만 빼기는 그 날짜)
-        gone = set()
-        for l in logs:
-            if plain(l.get('student') or '') != p:
-                continue
-            if l['kind'] == '1회':
-                gone.add((l['from_class_id'], None))
-            elif l['kind'] == '주간빼기':
-                gone.add((l['from_class_id'], str(l['apply_date'])))
-        today = dt.date.today()
-        # 그 주 이 학생의 수업: 명단에 있는 반의 그 요일(지난 날짜는 출석 기록이 있을 때만) + 출석 기록이 있는 반
-        for cl in cls_by.values():
-            cidx = cl['class_id']
-            if cidx.startswith('w'):
-                m = re.match(r'^w(\d{2})(\d{2})(\d{2})', cidx)
-                dates = [dt.date(2000 + int(m.group(1)), int(m.group(2)), int(m.group(3)))] if m else []
-            else:
-                dates = [x for x in days if DOW[x.weekday()] == cl['day']]
-            if not roster_has(cl.get('roster'), p):
-                continue
-            for x in dates:
-                if not (mon <= x <= sun) or (cidx, str(x)) in off or (cidx, None) in gone or (cidx, str(x)) in gone:
-                    continue
-                if x < today:
-                    continue   # 지난 날짜는 아래 출석 기록으로만 잡는다(기록이 없으면 휴강·이동 등이라 칸을 만들지 않음)
-                sessions[(cidx, str(x))] = cl
-        for a in att:
-            if plain(a['student']) == p and a['class_id'] in cls_by:
-                sessions[(a['class_id'], str(a['date']))] = cls_by[a['class_id']]
-        parts = []
-        for (cidx, day), cl in sorted(sessions.items(), key=lambda kv: kv[0][1]):
-            a = next((x for x in att if x['class_id'] == cidx and str(x['date']) == day and plain(x['student']) == p), None)
-            n = note_by.get((cidx, day))
-            dd = ymd_of(day)
-            h = hw_by.get((s['code'], cidx, str(dd - dt.timedelta(days=(dd.weekday() - 2) % 7)))) if s else None
-            parts.append({
-                'class_id': cidx, 'ymd': day, 'part': part_of(cl['name'], book), 'cls': cl['name'], 'teacher': cl['teacher'],
-                'time': '%s %s~%s' % (cl['day'], cl['start_time'], cl['end_time']),
-                'attend': a and {'status': a['status'], 'memo': a['memo'], 'makeup_plan': a['makeup_plan'], 'makeup_done': a['makeup_done']},
-                'note': n and {'progress': n.get('progress', ''), 'units': n.get('units') or [], 'homework': n.get('homework', ''),
-                               'comment': (n.get('comments') or {}).get(p, ''),
-                               'attitude': ((n.get('comments') or {}).get('__태도') or {}).get(p, ''), 'status': n.get('report_status', '')},
-                'pending': not n or not a,
-                'hw': h and {k: h.get(k) for k in HWK},
-            })
-            # 전체 미제출인데 코멘트가 비면 정해 둔 문장(2026-10-01 사용자 지정 — timetable crMissComment·039 와 같은 문장, 리포트 comments 에 그대로)
-            if n and h and h.get('missing') and not str(parts[-1]['note']['comment'] or '').strip():
-                parts[-1]['note']['comment'] = re.sub(r'[A-Z]$', '', p) + ' 친구는 과제 제출을 하지 않았습니다!!!!'
-                parts[-1]['note']['comment_auto'] = True
-        hw = hw_by.get((s['code'], '', str(wed))) if s else None   # 반 구분 전(035 이전) 주 단위 기록
+        h = hw_by.get(s['code']) if s else None
+        comment = str(cm.get(p) or '').strip()
+        auto = False
+        if not comment and h and h.get('missing'):
+            # 전체 미제출인데 코멘트가 비면 정해 둔 문장(원장님 지정 — timetable crMissComment 와 같은 문장, 다듬지 말 것)
+            comment, auto = re.sub(r'[A-Z]$', '', p) + ' 친구는 과제 제출을 하지 않았습니다!!!!', True
+        hw = None
+        if h:
+            hw = {k: h.get(k) for k in ('scores', 'pct', 'missing', 'pub', 'max', 'missing_items')}
         out.append({
-            'token': t, 'name': p, 'note': note_of(t),
-            'code': s['code'] if s else '', 'student_id': s['student_id'] if s else '',
-            'school': s['school'] if s else '', 'grade': s['grade'] if s else '',
-            'match': 'ok' if s else ('동명이인' if len(c) > 1 else '명단에 없음'),
-            'parts': parts,
-            'hw': hw and {k: hw[k] for k in ('scores', 'pct', 'missing', 'pub', 'max')},
-            'prev_body': prev_by.get(s['code']) if s else None,
+            'token': a['student'], 'name': p, 'note': note_of(a['student']),
+            'code': s['code'] if s else '', 'match': 'ok' if s else ('동명이인' if len(c) > 1 else '명단에 없음'),
+            'attend': {'status': a['status'], 'memo': a['memo'], 'makeup_plan': a['makeup_plan']},
+            'attitude': att_map.get(p, ''), 'comment': comment, 'comment_auto': auto,
+            'hw': hw, 'prev_body': prev_by.get(s['code']) if s else None,
         })
     print(json.dumps({
-        'book': book, 'class_id': cid, 'ymd': ymd, 'week': str(wed), 'week_range': '%s ~ %s' % (mon, sun),
-        'request_class': (note0 or {}).get('class_name') or (cls0 or {}).get('name', ''),
+        'book': book, 'class_id': cid, 'ymd': ymd, 'part': note.get('part', ''), 'cls': note.get('class_name', ''),
+        'teacher': note.get('teacher', ''), 'time': note.get('class_time', ''),
+        'progress': note.get('progress', ''), 'units': note.get('units') or [],
+        'homework': [t for t in (x.strip() for x in str(note.get('homework') or '').split('\n')) if t],
         'students': out,
     }, ensure_ascii=False, indent=1))
 
 
-BODY_KEYS = ('parts', 'hw', 'comments')
-PART_KEYS = ('part', 'cls', 'teacher', 'ymd', 'time', 'attend', 'attend_note', 'summary', 'units', 'homework', 'pending', 'hw')
+BODY_KEYS = ('attend', 'attend_note', 'attitude', 'summary', 'units', 'homework', 'hw', 'comment')
+ATTITUDES = ('', '매우 좋음', '좋음', '노력 필요')
 
 
 def cmd_publish(path):
     pub = json.load(open(path, encoding='utf-8'))
     book, cid, ymd = pub['book'], pub['class_id'], pub['ymd']
-    wed = week_wed(ymd_of(ymd))
-    note = (rest('GET', '/class_notes?book=eq.%s&class_id=eq.%s&ymd=eq.%s&select=id' % (q(book), q(cid), ymd)) or [None])[0]
+    d = ymd_of(ymd)
+    wed = d - dt.timedelta(days=d.weekday()) + dt.timedelta(days=2)
+    note = (rest('GET', '/class_notes?book=eq.%s&class_id=eq.%s&ymd=eq.%s&select=*' % (q(book), q(cid), ymd)) or [None])[0]
     if not note:
         sys.exit('수업 기록(class_notes)이 없어요 — 선생님이 저장한 수업만 공개할 수 있어요.')
     studs = {s['code']: s for s in rest('GET', '/students?select=name,code,student_id') if s.get('code')}
@@ -251,21 +191,21 @@ def cmd_publish(path):
             sys.exit('접근코드가 명단에 없어요: %r (%s)' % (code, r.get('name', '')))
         b = r['body']
         body = {k: b[k] for k in BODY_KEYS if k in b}
-        parts = []
-        for pt in body.get('parts') or []:
-            x = {k: pt[k] for k in PART_KEYS if k in pt}
-            for k in ('units', 'homework'):
-                if k in x and not isinstance(x[k], list):
-                    sys.exit('%s 는 목록이어야 해요: %s' % (k, studs[code]['name']))
-            parts.append(x)
-        body['parts'] = parts
-        rows.append({'week': str(wed), 'book': book, 'code': code, 'student_id': studs[code]['student_id'],
-                     'name': studs[code]['name'], 'body': body, 'published': True, 'updated_at': now})
+        for k in ('units', 'homework'):
+            if k in body and not isinstance(body[k], list):
+                sys.exit('%s 는 목록이어야 해요: %s' % (k, studs[code]['name']))
+        if body.get('attitude', '') not in ATTITUDES:
+            sys.exit('수업 태도는 매우 좋음/좋음/노력 필요 중 하나여야 해요: %s' % studs[code]['name'])
+        rows.append({'week': str(wed), 'book': book, 'class_id': cid, 'ymd': ymd, 'code': code,
+                     'student_id': studs[code]['student_id'], 'name': studs[code]['name'],
+                     'part': note.get('part', ''), 'class_name': note.get('class_name', ''),
+                     'teacher': note.get('teacher', ''), 'class_time': note.get('class_time', ''),
+                     'body': body, 'published': True, 'updated_at': now})
     if rows:
-        rest('POST', '/class_reports?on_conflict=week,code', rows, 'resolution=merge-duplicates,return=minimal')
+        rest('POST', '/class_reports?on_conflict=book,class_id,ymd,code', rows, 'resolution=merge-duplicates,return=minimal')
     rest('PATCH', '/class_notes?id=eq.%s' % note['id'],
          {'report_status': '공개', 'report_note': pub.get('note', ''), 'reported_at': now}, 'return=minimal')
-    print('주간 리포트 %d명 공개 — %s 주 (%s %s %s 요청)' % (len(rows), wed, book, cid, ymd))
+    print('수업 리포트 %d명 공개 — %s %s %s' % (len(rows), book, cid, ymd))
 
 
 def cmd_hold(book, cid, ymd, why):
