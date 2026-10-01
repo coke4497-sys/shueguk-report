@@ -6,7 +6,7 @@
 <title>슈국 학생 페이지</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=Gowun+Dodum&family=Sacramento&family=Noto+Sans+KR:wght@400;500;700&family=Noto+Serif+KR:wght@400;500&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=Gowun+Dodum&family=Do+Hyeon&family=Sacramento&family=Noto+Sans+KR:wght@400;500;700&family=Noto+Serif+KR:wght@400;500&display=swap" rel="stylesheet" />
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='48' fill='%23DCE9E4'/%3E%3C/svg%3E" />
 <meta name="theme-color" content="#E4EFEA" />
 <!-- 홈 화면 앱 아이콘(각 학생 링크를 앱처럼 저장) -->
@@ -217,6 +217,60 @@
   .lh-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:.8rem;color:var(--ink-soft);}
   .lh-item p{margin:0;font-size:.9rem;line-height:1.7;white-space:pre-wrap;color:var(--ink);}
   .lh-item ul{margin:0;padding-left:19px;font-size:.9rem;line-height:1.7;}
+  /* 수업 리포트 카드(2026-10-01 디자인 개선 — 원장님 시안 2: 과제 검사 표) — s.html·timetable.html 미리보기 같은 블록(고치면 둘 다) */
+  .rc{background:#fff;border-radius:22px;padding:24px 26px;display:flex;flex-direction:column;gap:18px;margin-bottom:12px;color:#2A332F;}
+  .rc-hd{display:flex;align-items:center;gap:6px 10px;flex-wrap:wrap;}
+  .rc-date{font-family:'Do Hyeon',sans-serif;font-size:2.15rem;line-height:1;}
+  .rc-dow{font-family:'Do Hyeon',sans-serif;font-size:1.2rem;color:#4F5C56;}
+  .rc-meta{font-size:.84rem;color:#6B7670;flex:1 1 auto;min-width:0;}
+  .rc-chips{display:flex;gap:6px;flex-wrap:wrap;}
+  .rc-chip{font-size:.8rem;border-radius:999px;padding:4px 12px;background:#EEF1EF;color:#5C6A64;white-space:nowrap;}
+  .rc-chip.part{background:#EDE4F4;color:#5A4A6A;}
+  .rc-chip.ok{background:#E6EEEA;color:#4C6E66;} .rc-chip.late{background:#F9EFD0;color:#7A6230;} .rc-chip.abs{background:#F7E2DE;color:#9A5A52;}
+  .rc-chip.star{background:#FBEFC6;color:#8A6417;font-weight:700;}
+  .rc-note{margin:0;font-size:.86rem;color:#7A6230;background:#FBF6E6;border-radius:12px;padding:9px 13px;}
+  .rc-tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;}
+  .rc-tile{background:#F4F5F3;border-radius:16px;padding:14px 16px;display:flex;flex-direction:column;gap:7px;min-width:0;}
+  .rc-tile.hw{background:#E9EEEA;}
+  .rc-tile .k{font-size:.74rem;color:#6B7670;}
+  .rc-tile .v{font-family:'Do Hyeon',sans-serif;font-size:1.28rem;line-height:1.25;word-break:keep-all;}
+  .rc-tile .v .u{white-space:nowrap;}
+  .rc-tile .v small{font-family:'Gowun Dodum',sans-serif;font-size:.76rem;color:#6B7670;margin-left:6px;}
+  .rc-sec h5{font-size:.92rem;font-weight:700;margin:0 0 11px;color:#2A332F;}
+  .rc-sec p{margin:0;font-size:.92rem;line-height:1.8;color:#3A443F;white-space:pre-wrap;}
+  .rc-hr{height:1px;background:#ECEFED;border:0;margin:0;}
+  .rc-tbl{background:#F4F5F3;border-radius:16px;padding:8px;display:flex;flex-direction:column;gap:6px;}
+  .rc-tr{display:grid;grid-template-columns:minmax(0,1.7fr) repeat(4,minmax(0,1fr));align-items:center;gap:6px;background:#fff;border-radius:12px;padding:10px 12px;font-size:.88rem;}
+  .rc-tr.th{background:transparent;padding:4px 12px 2px;font-size:.74rem;color:#6B7670;}
+  .rc-tr > span{text-align:center;min-width:0;}
+  .rc-tr > span.n{text-align:left;word-break:keep-all;}
+  .rc-tr .n small{display:block;font-size:.72rem;color:#6B7670;margin-top:2px;}
+  .rc-tr.miss{background:#F6DCD5;}
+  .rc-v{display:inline-block;font-size:.76rem;border-radius:999px;padding:3px 11px;background:#E9EEEA;color:#4C6E66;white-space:nowrap;}
+  .rc-v.vol{font-family:'Do Hyeon',sans-serif;font-size:.92rem;padding:2px 12px;color:#2A332F;}
+  .rc-v.l1{background:#F8E3C8;color:#8A5A2B;} .rc-v.l0{background:#F2E1DE;color:#9A5A52;}
+  .rc-v.none{background:transparent;color:#A3ADA7;padding:3px 0;}
+  .rc-v.miss{background:#fff;color:#9A5A52;}
+  .rc-hwtxt{margin:10px 2px 0;font-size:.86rem;line-height:1.7;color:#4F5C56;}
+  .rc-star1{font-size:.8rem;font-weight:700;border-radius:999px;padding:4px 12px;background:#FBEFC6;color:#8A6417;margin-top:10px;display:inline-block;}
+  .rc-list{list-style:none;padding:0;margin:0;display:flex;flex-wrap:wrap;gap:8px 22px;font-size:.9rem;color:#3A443F;}
+  .rc-list li{display:flex;gap:9px;align-items:baseline;}
+  .rc-list li::before{content:"";flex:none;width:6px;height:6px;border-radius:50%;background:#8DA89F;transform:translateY(-2px);}
+  .rc-cm{background:#F6F2FA;border-radius:16px;padding:14px 16px;}
+  .rc-cm h5{color:#5A4A6A;}
+  .rc-empty{margin:0;font-size:.86rem;color:#6B7670;}
+  @media (max-width:560px){
+    .rc{padding:20px 18px;border-radius:20px;gap:16px;}
+    .rc-date{font-size:1.9rem;}
+    .rc-tiles{grid-template-columns:1fr 1fr;}
+    .rc-tile.hw,.rc-tile.wide{grid-column:1 / -1;}
+    .rc-tr.th{display:none;}
+    .rc-tr{grid-template-columns:repeat(4,minmax(0,1fr));row-gap:8px;}
+    .rc-tr > span.n{grid-column:1 / -1;}
+    .rc-tr > span[data-l]::before{content:attr(data-l);display:block;font-size:.68rem;color:#6B7670;margin-bottom:3px;}
+    .rc-tr.miss > span[data-l]::before{content:none;}
+    .rc-v{padding:3px 7px;font-size:.72rem;} .rc-v.vol{padding:2px 9px;}
+  }
   .lh-more{display:block;width:100%;font:inherit;font-size:.88rem;border:0;border-radius:12px;padding:11px;background:#EDE4F4;color:#5A4A6A;cursor:pointer;margin-top:4px;}
   .lh-more:hover{background:#E3D7EE;}
   @media (max-width:420px){ .lh-sum{grid-template-columns:repeat(2,1fr);} }
@@ -2183,23 +2237,89 @@ function openLearnHist(){
   lhRender(); lhRefresh();
 }
 function closeLearnHist(){ $('lhView').style.display = 'none'; show('hubView'); renderHub(); window.scrollTo(0, 0); }
-function lhItemHtml(it){
-  var k = LH_ATT.indexOf(it.attitude);
-  var h = '<article class="lh-item"><div class="lh-hd"><span class="lh-day">' + esc(crpDay(it.ymd)) + '</span>' +
-    (it.part ? '<span class="lh-part">' + esc(crpPartName(it.part)) + '</span>' : '') +
-    '<span class="lh-meta">' + esc([it.cls, it.teacher ? it.teacher + 'T' : ''].filter(Boolean).join(' · ')) + '</span>' +
-    (it.attend ? crpAtChip(it.attend) : '') +
-    (lhStar(it) ? '<span class="lh-star1" data-star="' + esc(lhStarKey(it)) + '">★ 별 +1</span>' : '') + '</div>';
-  if (it.attend_note) h += '<p class="crp-an">' + esc(it.attend_note) + '</p>';
-  if (k >= 0) h += '<div class="lh-row">수업 태도 <span class="lh-tag a' + k + '">' + esc(it.attitude) + '</span></div>';
-  var units = (it.units || []).filter(Boolean);
-  if (units.length) h += '<div class="crp-kv"><span class="k">나간 범위</span><div class="crp-units">' + units.map(function(u){ return '<span>' + esc(u) + '</span>'; }).join('') + '</div></div>';
-  if (String(it.summary || '').trim()) h += '<div class="crp-kv"><span class="k">수업 내용</span><p>' + esc(String(it.summary).trim()) + '</p></div>';
+/* 수업 리포트 카드 — 2026-10-01 원장님 시안 2(큰 날짜 · 타일 셋 · 수업 내용 · '이번주 과제 검사' 표 · 다음 수업까지 과제 한 줄).
+ * 과제 검사 표 = 과제마다 한 줄, 열 = 학습량(n/5) · 채점 · 학습 분석 · 오답 분석(완벽/일부함/안함, 미체크는 —).
+ * s.html(학생 수업 리포트)·timetable.html(학생별 미리보기)에 같은 함수가 있다 — 고치면 둘 다.
+ * it = {ymd, part, cls, teacher, attend, attend_note, attitude, units[], summary, homework[], hw, comment}, opt = {star: 별 칩 HTML, empty} */
+var RC_DOW = '일월화수목금토', RC_DIMS = ['채점', '학습 분석', '오답 분석'], RC_LV = ['안함', '일부함', '완벽'];
+var RC_DIM_RE = / \((학습량|깊이|채점|학습 분석|오답 분석)\)$/;
+function rcHwTasks(hw){   // 과제마다 {t, dim, vol, depth, lv{채점…}, legacy, miss}
+  var out = [], by = {}, mi = hw.missing_items || [];
+  (hw.items || []).forEach(function(x){
+    if (!x || !x.name) return;
+    var m = String(x.name).match(RC_DIM_RE), t = m ? String(x.name).replace(RC_DIM_RE, '') : String(x.name);
+    if (!by[t]){ by[t] = { t: t, dim: !!m, lv: {}, vol: null, depth: null, legacy: null }; out.push(by[t]); }
+    var mx = +x.max || (!m ? 6 : (m[1] === '학습량' || m[1] === '깊이') ? 5 : 2), sc = Math.max(0, Math.min(mx, +x.score || 0));
+    if (!m) by[t].legacy = { sc: sc, mx: mx };
+    else if (m[1] === '학습량') by[t].vol = { sc: sc, mx: mx };
+    else if (m[1] === '깊이') by[t].depth = { sc: sc, mx: mx };   // 옛 기록(2026-09-29~30)의 깊이 별 5개
+    else by[t].lv[m[1]] = sc;
+  });
+  mi.forEach(function(t){ if (!by[t]){ by[t] = { t: t, dim: true, lv: {}, vol: null, depth: null, legacy: null }; out.push(by[t]); } });
+  out.forEach(function(g){ g.miss = mi.indexOf(g.t) >= 0; });
+  return out;
+}
+function rcLvCell(g, d){
+  if (!g.lv.hasOwnProperty(d)) return '<span data-l="' + d + '"><span class="rc-v none">—</span></span>';
+  var v = g.lv[d];
+  return '<span data-l="' + d + '"><span class="rc-v l' + v + '">' + RC_LV[v] + '</span></span>';
+}
+function rcHwTable(hw, tasks){
+  var head = '<div class="rc-tr th"><span class="n">과제</span><span>학습량</span><span>채점</span><span>학습 분석</span><span>오답 분석</span></div>';
+  var rows = tasks.map(function(g){
+    var nm = '<span class="n">' + esc(itemLabel(g.t)) + (g.depth && !g.miss && !hw.missing ? '<small>깊이 ' + g.depth.sc + '/' + g.depth.mx + '</small>' : '') + '</span>';
+    if (g.miss || hw.missing) return '<div class="rc-tr miss">' + nm + '<span data-l="학습량"><span class="rc-v miss">미제출</span></span><span></span><span></span><span></span></div>';
+    var s = g.vol || g.legacy;
+    return '<div class="rc-tr">' + nm + '<span data-l="학습량">' + (s ? '<span class="rc-v vol">' + s.sc + '/' + s.mx + '</span>' : '<span class="rc-v none">—</span>') + '</span>' +
+      RC_DIMS.map(function(d){ return rcLvCell(g, d); }).join('') + '</div>';
+  });
+  if (!rows.length) rows.push('<div class="rc-tr miss"><span class="n">과제</span><span data-l="학습량"><span class="rc-v miss">미제출</span></span><span></span><span></span><span></span></div>');
+  return '<div class="rc-tbl">' + head + rows.join('') + '</div>';
+}
+function rcCardHtml(it, opt){
+  opt = opt || {};
+  var p = String(it.ymd || '').split('-'), d = new Date(Date.UTC(+p[0], +p[1] - 1, +p[2]));
+  var ac = it.attend === '출석' ? 'ok' : it.attend === '지각' ? 'late' : it.attend === '결석' ? 'abs' : '';
+  var part = it.part ? (String(it.part).indexOf('수업') >= 0 ? it.part : it.part + ' 수업') : '';
+  var h = '<article class="rc"><div class="rc-hd"><span class="rc-date">' + (d.getUTCMonth() + 1) + '/' + d.getUTCDate() + '</span>' +
+    '<span class="rc-dow">' + RC_DOW.charAt(d.getUTCDay()) + '</span>' +
+    '<span class="rc-meta">' + esc([it.cls, it.teacher ? it.teacher + 'T' : ''].filter(Boolean).join(' · ')) + '</span>' +
+    '<span class="rc-chips">' + (opt.star || '') + (part ? '<span class="rc-chip part">' + esc(part) + '</span>' : '') +
+    (it.attend ? '<span class="rc-chip ' + ac + '">' + esc(it.attend) + '</span>' : '') + '</span></div>';
+  if (it.attend_note) h += '<p class="rc-note">' + esc(it.attend_note) + '</p>';
+  var hw = it.hw, tasks = hw && !hw.none ? rcHwTasks(hw) : [], units = (it.units || []).filter(Boolean), tiles = '';
+  if (it.attitude) tiles += '<div class="rc-tile"><span class="k">수업 태도</span><span class="v">' + esc(it.attitude) + '</span></div>';
+  if (units.length) tiles += '<div class="rc-tile' + (units.join(' · ').length > 7 ? ' wide' : '') + '"><span class="k">수업 진도</span><span class="v">' +
+    units.map(function(u){ return '<span class="u">' + esc(u) + '</span>'; }).join(' · ') + '</span></div>';
+  if (hw){
+    var hv;
+    if (hw.none) hv = '확인할 것 없음';
+    else if (hw.missing) hv = '미제출';
+    else {
+      var nm = tasks.filter(function(g){ return g.miss; }).length, pct = Math.max(0, Math.min(100, +hw.pct || 0));
+      hv = pct + '%' + (pct >= 100 ? ' 🏆' : '') + (tasks.length ? '<small>' + (nm ? tasks.length + '건 중 ' + nm + '건 미제출' : tasks.length + '건 모두 제출') + '</small>' : '');
+    }
+    tiles += '<div class="rc-tile hw"><span class="k">과제 검사</span><span class="v">' + hv + '</span></div>';
+  }
+  if (tiles) h += '<div class="rc-tiles">' + tiles + '</div>';
+  var sum = String(it.summary || '').trim(), body = '';
+  if (sum) body += '<div class="rc-sec"><h5>수업 내용</h5><p>' + esc(sum) + '</p></div>';
+  if (hw){
+    body += (body ? '<hr class="rc-hr">' : '') + '<div class="rc-sec"><h5>이번주 과제 검사</h5>' +
+      (hw.none ? '<p class="rc-empty">' + esc(hw.text || '확인할 것이 없습니다.') + '</p>'
+        : rcHwTable(hw, tasks) + (hw.text ? '<p class="rc-hwtxt">' + esc(hw.text) + '</p>' : '') +
+          (!hw.missing && (+hw.pct || 0) >= 100 ? '<span class="rc-star1">★ 슈퍼스타 별 +1 · 모든 과제를 완벽하게 했어요</span>' : '')) + '</div>';
+  }
   var hwk = (it.homework || []).filter(Boolean);
-  if (hwk.length) h += '<div class="crp-kv"><span class="k">다음 수업까지 과제</span><ul>' + hwk.map(function(x){ return '<li>' + esc(x) + '</li>'; }).join('') + '</ul></div>';
-  if (it.hw) h += '<div class="crp-kv"><span class="k">과제 검사</span>' + crpHwHtml(it.hw, '이 수업') + '</div>';
-  if (String(it.comment || '').trim()) h += '<div class="crp-kv"><span class="k">선생님 코멘트</span><p>' + esc(String(it.comment).trim()) + '</p></div>';
+  if (hwk.length) body += (body ? '<hr class="rc-hr">' : '') + '<div class="rc-sec"><h5>다음 수업까지 과제</h5><ul class="rc-list">' + hwk.map(function(x){ return '<li>' + esc(x) + '</li>'; }).join('') + '</ul></div>';
+  h += body;
+  var cm = String(it.comment || '').trim();
+  if (cm) h += '<div class="rc-sec rc-cm"><h5>선생님 코멘트</h5><p>' + esc(cm) + '</p></div>';
+  if (opt.empty && !tiles && !body && !cm) h += '<p class="rc-empty">' + esc(opt.empty) + '</p>';
   return h + '</article>';
+}
+function lhItemHtml(it){   // 카드 모양은 rcCardHtml(timetable 미리보기와 공용 블록)
+  return rcCardHtml(it, { star: lhStar(it) ? '<span class="lh-star1 rc-chip star" data-star="' + esc(lhStarKey(it)) + '">★ 별 +1</span>' : '' });
 }
 function lhRender(){
   Array.prototype.forEach.call($('lhTabs').querySelectorAll('button'), function(b){ b.classList.toggle('on', b.getAttribute('data-t') === (LH.tab || 'rep')); });

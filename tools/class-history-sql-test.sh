@@ -26,7 +26,8 @@ alter table hwcheck_records add column if not exists part text not null default 
 alter table hwcheck_records add column if not exists class_name text not null default '';
 SQL
 for f in supabase/migrations/039_class_history.sql supabase/migrations/040_class_reports_per_session.sql \
-         supabase/migrations/039_class_history.sql supabase/migrations/040_class_reports_per_session.sql; do
+         supabase/migrations/039_class_history.sql supabase/migrations/040_class_reports_per_session.sql \
+         supabase/migrations/042_class_reports_guard.sql supabase/migrations/042_class_reports_guard.sql; do
   psql -v ON_ERROR_STOP=1 -q -d "$DB" -f "$f" >/dev/null || { echo "적용 실패: $f"; exit 1; }
 done
 psql -v ON_ERROR_STOP=1 -q -d "$DB" <<'SQL'
@@ -96,5 +97,15 @@ begin
   begin perform 1 from class_notes limit 1; raise exception 'anon read class_notes'; exception when insufficient_privilege then null; end;
 end $$;
 reset role;
+-- 042: 옛 주간 형식(반ID 빈 값·날짜 없음·body.parts)은 저장 거절
+do $$ begin
+  begin insert into class_reports (week, book, code, body, published) values ('2026-09-30','내신','tok-kim','{"parts":[]}', true);
+        raise exception '반ID 없는 줄이 저장됨'; exception when check_violation then null; end;
+  begin insert into class_reports (week, book, code, class_id, body, published) values ('2026-09-30','내신','tok-kim','n015','{}', true);
+        raise exception '날짜 없는 줄이 저장됨'; exception when check_violation then null; end;
+  begin insert into class_reports (week, book, code, class_id, ymd, body, published) values ('2026-09-30','내신','tok-kim','n015','2026-10-01','{"parts":[],"comments":[]}', true);
+        raise exception 'parts 줄이 저장됨'; exception when check_violation then null; end;
+  insert into class_reports (week, book, code, class_id, ymd, body, published) values ('2026-09-30','내신','tok-kim','n015','2026-10-01','{"attend":"출석"}', true);
+end $$;
 SQL
 echo "class-history-sql-test: 모두 통과"
