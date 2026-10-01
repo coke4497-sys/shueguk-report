@@ -136,12 +136,16 @@ const STUDENTS = [
      hwW.body[0].max === 22 && hwW.body[0].pct === 27, JSON.stringify(hwW && hwW.body));
   ok('시트 사본 hwcheckSave(반ID·수업·항목별 만점 maxes)', st.gas.some(g => g.action === 'hwcheckSave' && g.token === 'k-park' && g.week === PREVWED && g.cls === CID && g.part === '가' &&
      g.maxes && g.maxes['관동별곡 학습지 (학습량)'] === 5 && g.maxes['관동별곡 학습지 (채점)'] === 2), JSON.stringify(st.gas.filter(g => g.action === 'hwcheckSave').pop()));
+  await page.evaluate(() => { const o = window.crBurst; window.crBurst = function(el, opt){ if (opt && opt.plus) window.__sb = { n: opt.n, plus: opt.plus, at: el && el.id }; return o.apply(this, arguments); }; });
   await page.click(`[data-hlv="${iPark}|1|2"]`); await page.click(`[data-hlv="${iPark}|2|2"]`); await page.click(`[data-hlv="${iPark}|3|2"]`);
   await page.click(`[data-star="${iPark}|4|5"]`); await page.click(`[data-hlv="${iPark}|5|2"]`); await page.click(`[data-hlv="${iPark}|6|2"]`); await page.click(`[data-hlv="${iPark}|7|2"]`);
   await page.waitForTimeout(1000);
   hwW = st.writes.filter(w => /hwcheck_records/.test(w.u) && w.body[0].token === 'k-park').pop();
   r = await page.evaluate(i => document.getElementById('cr-pct-' + i).textContent, iPark);
+  const sbBurst = await page.evaluate(() => window.__sb);
   ok('모든 과제 별 5개·완벽 → 100% 🏆(슈퍼스타 별 대상)', hwW && hwW.body[0].pct === 100 && /100%/.test(r) && /🏆/.test(r), JSON.stringify([hwW && hwW.body[0].pct, r]));
+  ok('100%가 되는 순간 — "★ 별 +1" 칩(팡) + 금색 별과 "★ +1"', /★ 별 \+1/.test(r) && await page.evaluate(i => !!document.querySelector('#cr-star1-' + i), iPark) && sbBurst.at === 'cr-star1-' + iPark &&
+     sbBurst && sbBurst.n === 12 && sbBurst.plus === '★ +1', JSON.stringify(sbBurst));
   const iKim = await page.evaluate(() => CR.names.map(x => x.p).indexOf('김하늘'));
   await page.click(`[data-star="${iKim}|4|1"]`);
   await page.waitForTimeout(1000);
@@ -462,7 +466,9 @@ const STUDENTS = [
       summary: '이번 수업에서는 「속미인곡」을 다뤘습니다.', hw: { items: [], pct: 0, missing: true, text: '' }, comment: '박보검 친구는 과제 제출을 하지 않았습니다!!!!' }) },
     { ymd: '2026-08-29', book: '내신', part: '진도', cls: '고2 화정A', teacher: '주혜', time: '토 2:00~4:00', body: B({ attend: '지각', attitude: '노력 필요', units: ['사미인곡'], hw: { none: true, text: '확인할 것이 없습니다.' } }) },
   ];
-  const OLD = [{ ymd: '2026-08-20', book: '정규', part: '가', cls: '고2 가', teacher: '지원', time: '목 5:30~7:00', body: { attend: '출석', summary: '옛 수업' } }];
+  const OLD = [{ ymd: '2026-08-20', book: '정규', part: '가', cls: '고2 가', teacher: '지원', time: '목 5:30~7:00', body: { attend: '출석', summary: '옛 수업',
+    hw: { items: [{ name: '독서 학습지 (학습량)', score: 5, max: 5 }, { name: '독서 학습지 (채점)', score: 2, max: 2 }, { name: '독서 학습지 (학습 분석)', score: 2, max: 2 }, { name: '독서 학습지 (오답 분석)', score: 2, max: 2 }],
+          pct: 100, missing: false, missing_items: [], text: '모든 과제를 완벽하게 했습니다.' } } }];
   const c3 = await b.newContext();
   const hp = await c3.newPage();
   const hcalls = [];
@@ -506,8 +512,19 @@ const STUDENTS = [
      /박보검 친구는 과제 제출을 하지 않았습니다!!!!/.test(r.items[1]), r.items[1]);
   ok('8/29 내신 진도 — 나간 범위 칩·"확인할 것이 없습니다."', /진도 수업/.test(r.items[2]) && /나간 범위사미인곡/.test(r.items[2]) && /확인할 것이 없습니다\./.test(r.items[2]) && !/%/.test(r.items[2]), r.items[2]);
   ok('"숙제"라는 말이 없다', !r.items.some(t => /숙제/.test(t)));
+  ok('100% 아닌 수업에는 별 +1 표시·효과가 없다', await hp.evaluate(() => !document.querySelector('.lh-star1') && !document.querySelector('.crp-star1') && !document.querySelector('.lh-sb')));
   await hp.click('#lhMoreBtn');
   await hp.waitForFunction(() => document.querySelectorAll('.lh-item').length === 4, null, { timeout: 5000 });
+  await hp.waitForTimeout(400);
+  r = await hp.evaluate(() => ({ chip: [...document.querySelectorAll('.lh-star1')].map(x => x.textContent + (x.classList.contains('popin') ? '/pop' : '')),
+    box: (document.querySelector('.crp-star1') || {}).textContent || '', layer: document.querySelectorAll('.lh-sb i').length, plus: (document.querySelector('.lh-sb b') || {}).textContent || '',
+    seen: JSON.parse(localStorage.getItem('lh_star_seen') || '[]') }));
+  ok('과제 검사 100% 수업 — 머리에 "★ 별 +1"(팡) · 과제 검사 상자에 "슈퍼스타 별 +1" · 금색 별 12개와 "★ +1"이 떠오름 · 본 것으로 기억',
+     r.chip.join() === '★ 별 +1/pop' && /슈퍼스타 별 \+1/.test(r.box) && r.layer === 12 && r.plus === '★ +1' && r.seen.length === 1 && /2026-08-20/.test(r.seen[0]), JSON.stringify(r));
+  await hp.waitForTimeout(1900);
+  await hp.evaluate(() => lhRender());
+  await hp.waitForTimeout(400);
+  ok('이미 본 별은 다시 그려도 효과가 다시 나오지 않는다', await hp.evaluate(() => !document.querySelector('.lh-sb') && !document.querySelector('.lh-star1.popin') && !!document.querySelector('.lh-star1')));
   ok('[지난 수업 더 보기] — before=마지막 날짜로 이어 받고 버튼이 사라진다', hcalls.some(p => p.before === '2026-08-29') && !(await hp.$('#lhMoreBtn')), JSON.stringify(hcalls));
   await hp.evaluate(() => closeLearnHist());
   ok('닫으면 허브로', await hp.evaluate(() => document.getElementById('lhView').style.display === 'none' && document.getElementById('hubView').style.display !== 'none'));

@@ -184,6 +184,20 @@
   .crp-lv.l0{background:#F7E2DE;color:#9A5A52;} .crp-lv.l1{background:#F9EFD0;color:#7A6230;} .crp-lv.l2{background:#EDE4F4;color:#5A4A6A;}
   .crp-hwtot{display:flex;justify-content:space-between;font-size:.86rem;}
   .crp-hwtot b{font-variant-numeric:tabular-nums;}
+  /* 과제 검사 100% = 슈퍼스타 별 +1 (2026-10-01 원장님) — 처음 보는 리포트면 금색 별이 한 번 퍼진다 */
+  .crp-star1{align-self:flex-start;font-size:.8rem;font-weight:700;border-radius:999px;padding:3px 11px;background:#FBEFC6;color:#8A6417;}
+  .lh-star1{font-size:.74rem;font-weight:700;border-radius:999px;padding:2px 9px;background:#FBEFC6;color:#8A6417;white-space:nowrap;}
+  .lh-star1.popin{animation:lhpop .7s ease-out 1;}
+  @keyframes lhpop{0%{transform:scale(1)}35%{transform:scale(1.3)}100%{transform:scale(1)}}
+  .lh-sb{position:fixed;left:0;top:0;width:0;height:0;pointer-events:none;z-index:200;}
+  .lh-sb i{position:absolute;left:0;top:0;width:var(--s);height:var(--s);margin:calc(var(--s) / -2) 0 0 calc(var(--s) / -2);color:var(--c);opacity:0;
+    animation:lhstar var(--d) cubic-bezier(.16,.84,.44,1) var(--w) 1 both;}
+  .lh-sb i svg{width:100%;height:100%;display:block;}
+  .lh-sb b{position:absolute;left:0;top:0;white-space:nowrap;font-family:"Do Hyeon",sans-serif;font-weight:400;font-size:1.5rem;color:#C99A2E;
+    text-shadow:0 1px 0 #fff,0 0 8px rgba(255,255,255,.9);animation:lhplus 1.5s ease-out 1 both;}
+  @keyframes lhstar{0%{transform:translate(0,0) scale(.2);opacity:0}20%{transform:translate(calc(var(--x) * .24),calc(var(--y) * .24)) scale(1.15);opacity:1}60%{opacity:1}100%{transform:translate(var(--x),var(--y)) scale(.7) rotate(var(--r));opacity:0}}
+  @keyframes lhplus{0%{transform:translate(-50%,-20%) scale(.4);opacity:0}25%{transform:translate(-50%,-90%) scale(1.15);opacity:1}70%{opacity:1}100%{transform:translate(-50%,-190%);opacity:0}}
+  @media (prefers-reduced-motion: reduce){ .lh-sb{display:none;} .lh-star1.popin{animation:none;} }
   .crp-miss{color:#9A5A52 !important;font-weight:700;}
   .crp-by{color:var(--ink-soft);font-size:.78rem;}
   /* 학습 이력 (2026-10-01, 039) */
@@ -2048,7 +2062,8 @@ function crpHwHtml(hw, lb){
           if (mi.indexOf(g.t) >= 0) return '<div class="crp-hwrow"><span>' + esc(itemLabel(g.t)) + '</span><span class="crp-miss">미제출</span><b></b></div>';
           if (!g.dim) return g.rows.map(function(r){ return row(itemLabel(r.x.name), r.x); }).join('');
           return '<div class="crp-hwtask">' + esc(itemLabel(g.t)) + '</div>' + g.rows.map(function(r){ return row(r.d, r.x); }).join(''); }).join('') +
-        '<div class="crp-hwtot"><span>' + esc(lb) + ' 과제 검사</span><b>' + Math.max(0, Math.min(100, +hw.pct || 0)) + '%' + ((+hw.pct || 0) >= 100 ? ' 🏆' : '') + '</b></div>') +
+        '<div class="crp-hwtot"><span>' + esc(lb) + ' 과제 검사</span><b>' + Math.max(0, Math.min(100, +hw.pct || 0)) + '%' + ((+hw.pct || 0) >= 100 ? ' 🏆' : '') + '</b></div>' +
+        ((+hw.pct || 0) >= 100 ? '<div class="crp-star1">★ 슈퍼스타 별 +1 · 모든 과제를 완벽하게 했어요</div>' : '')) +
     '</div>' + (hw.text ? '<p>' + esc(hw.text) + '</p>' : '');
 }
 
@@ -2095,7 +2110,8 @@ function lhItemHtml(it){
   var h = '<article class="lh-item"><div class="lh-hd"><span class="lh-day">' + esc(crpDay(it.ymd)) + '</span>' +
     (it.part ? '<span class="lh-part">' + esc(crpPartName(it.part)) + '</span>' : '') +
     '<span class="lh-meta">' + esc([it.cls, it.teacher ? it.teacher + 'T' : ''].filter(Boolean).join(' · ')) + '</span>' +
-    (it.attend ? crpAtChip(it.attend) : '') + '</div>';
+    (it.attend ? crpAtChip(it.attend) : '') +
+    (lhStar(it) ? '<span class="lh-star1" data-star="' + esc(lhStarKey(it)) + '">★ 별 +1</span>' : '') + '</div>';
   if (it.attend_note) h += '<p class="crp-an">' + esc(it.attend_note) + '</p>';
   if (k >= 0) h += '<div class="lh-row">수업 태도 <span class="lh-tag a' + k + '">' + esc(it.attitude) + '</span></div>';
   var units = (it.units || []).filter(Boolean);
@@ -2129,6 +2145,36 @@ function lhRender(){
   });
   if (LH.more) h += '<button class="lh-more" id="lhMoreBtn" onclick="lhMore()">지난 수업 더 보기</button>';
   box.innerHTML = h;
+  lhStarCelebrate(box);
+}
+/* 과제 검사 100%인 수업 = 슈퍼스타 별 +1 — 처음 보는 별이면 금색 별이 퍼지고 '★ +1'이 떠오른다(한 기기에서 한 번, localStorage lh_star_seen) */
+function lhStar(it){ return !!(it && it.hw && !it.hw.none && !it.hw.missing && (+it.hw.pct || 0) >= 100); }
+function lhStarKey(it){ return [it.book || '', it.ymd || '', it.cls || '', it.time || ''].join('|'); }
+var LH_STAR_SVG = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.8l2.7 5.6 6.1.8-4.5 4.2 1.1 6.1L12 16.6l-5.4 2.9 1.1-6.1-4.5-4.2 6.1-.8z"/></svg>';
+var LH_STAR_TINTS = ['#E1B64A','#F2CF6B','#D9A23A','#EBC35A','#C99A2E'];
+function lhStarBurst(el){
+  var r = el.getBoundingClientRect(); if (!r.width) return;
+  var layer = document.createElement('div'); layer.className = 'lh-sb'; layer.setAttribute('aria-hidden', 'true');
+  layer.style.left = (r.left + r.width / 2) + 'px'; layer.style.top = (r.top + r.height / 2) + 'px';
+  var h = '';
+  for (var i = 0; i < 12; i++){
+    var a = (i / 12) * Math.PI * 2 + (Math.random() - .5) * .5, d = 70 + Math.random() * 70;
+    h += '<i style="--x:' + (Math.cos(a) * d).toFixed(0) + 'px;--y:' + (Math.sin(a) * d * .7 - 40).toFixed(0) + 'px;--s:' + (14 + Math.random() * 14).toFixed(0) +
+         'px;--r:' + ((Math.random() - .5) * 120).toFixed(0) + 'deg;--w:' + (Math.random() * 200).toFixed(0) + 'ms;--d:' + (1000 + Math.random() * 300).toFixed(0) +
+         'ms;--c:' + LH_STAR_TINTS[i % LH_STAR_TINTS.length] + '">' + LH_STAR_SVG + '</i>';
+  }
+  layer.innerHTML = h + '<b>★ +1</b>'; document.body.appendChild(layer);
+  setTimeout(function(){ if (layer.parentNode) layer.remove(); }, 1800);
+}
+function lhStarCelebrate(box){
+  var seen = [];
+  try { seen = JSON.parse(localStorage.getItem('lh_star_seen') || '[]') || []; } catch (e) {}
+  var fresh = [].slice.call(box.querySelectorAll('.lh-star1[data-star]')).filter(function(el){ return seen.indexOf(el.getAttribute('data-star')) < 0; });
+  if (!fresh.length) return;
+  fresh.forEach(function(el){ seen.push(el.getAttribute('data-star')); el.classList.add('popin'); });
+  try { localStorage.setItem('lh_star_seen', JSON.stringify(seen.slice(-300))); } catch (e) {}
+  var first = fresh[0];   // 별 무더기는 가장 최근 것 하나에서만
+  setTimeout(function(){ if (first.isConnected) lhStarBurst(first); }, 250);
 }
 
 /* ---- 질문하기 — 선생님별 질문 대기열 (2026-09-06) ----
