@@ -750,7 +750,7 @@ curl -s -X POST "https://api.supabase.com/v1/projects/bangdbhqpphqqdwcledg/datab
 
 ## 학습 이력 — 학생 함수 class_history (2026-10-01, 039)
 - `migrations/039_class_history.sql` — 표 변경 없음. 함수 `class_history(p {key|student, before?})`(anon) + 내부 도우미 `ch_plain_`·`ch_who_`. [리포트 생성]을 누른 수업(class_notes.requested_at)만, 학생이 출석했거나 그 수업 과제 검사 기록이 있는 것을 60개씩. priv·plan·출석 메모는 내보내지 않는다. 수업 태도는 class_notes.comments 의 예약 키 '__태도'. 같은 파일이 `hwcheck_records.missing_items`(jsonb, 과제별 미제출 목록) 열도 더한다 — missing 은 모든 과제가 미제출일 때만 참.
-- **적용 상태: 미적용** — SQL Editor에서 039 파일 전체를 실행하면 된다(재실행 안전). 적용 전에는 학생 페이지 [학습 이력] 카드가 안 보인다.
+- **적용 상태: 2026-10-01 실제 수파베이스에 적용 완료**(관리 API — 원장님이 준 sbp_ 토큰, 저장 안 함). 확인: class_history 함수·missing_items 열 생김, 공개 키로 없는 키 → no_student·class_notes 직접 읽기 401·ch_who_ 실행 거절, 실제 재원생 키 → ok(아직 리포트 생성한 수업이 없어 빈 목록), 최근 30일 출석 이름 750개 중 742개가 한 학생으로 이어짐(못 이은 8개는 전부 students 표에 없는 이름 — 미등록·퇴원).
 - 검증: `PGHOST=/home/pgtest PGPORT=5499 PGUSER=postgres bash tools/class-history-sql-test.sh`.
 
 ## 슈퍼스타 주간 리포트 — 수업 기록·주간 보고서 (2026-09-28, 034)
