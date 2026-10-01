@@ -134,31 +134,10 @@ const posts = [];
   ok('최민하는 체크', (await whoBoxes(1)).join() === '학부모1+');
   await page.evaluate(() => closeModal());
 
-  // 6) [알림톡] 창 — 상태·기록·설정 저장
-  await page.evaluate(() => openAlim());
-  await page.waitForFunction(() => document.querySelectorAll('#al-log .al-row').length > 0, null, { timeout: 8000 });
-  const st = await page.textContent('#al-state');
-  ok('설정 상태 배지', st.includes('솔라피 API 키 준비됨') && st.includes('결석 안내 템플릿 준비됨') && st.includes('발신번호 없음'));
-  ok('문구 표시', st.includes('결석 안내'));
-  ok('공지 종류별 상태·문구(2026-09-17)', st.includes('주말 실전 모의고사 신청 안내 템플릿 준비됨') && st.includes('H WORK 안내 템플릿 없음') && st.includes('[이수경국어학원] 주말 실전 모의고사 신청 안내') && st.includes('학생 페이지 열기'));
-  ok('기록 줄', (await page.textContent('#al-log')).includes('박지우'));
-  await page.click('#al-cfg summary');
-  await page.click('#al-disc-btn');
-  await page.waitForFunction(() => (document.getElementById('al-disc') || {}).textContent.includes('pfId 저장'));
-  const disc = await page.textContent('#al-disc');
-  ok('자동 가져오기 결과 표시', disc.includes('KA01PF260912155016737BPjigUV32pr') && disc.includes('이수경국어') && disc.includes('승인 전'));
-  ok('alimDiscover POST', posts.some(p => p.action === 'alimDiscover'));
-  await page.click('#al-cfg details summary');
-  ok('직접 입력 칸도 공지 종류별', (await page.$$eval('#al-tpl-notices input', els => els.map(e => e.getAttribute('data-kind')))).join() === 'notice_mock,notice_hwork');
-  await page.fill('#al-tpl-absent', 'KA01TP_NEW');
-  await page.fill('#al-tpl-notices input[data-kind="notice_hwork"]', 'KA01TP_EXAM');
-  await page.fill('#al-from', '031-111-2222');
-  await page.click('#al-cfg .primary');
-  await page.waitForFunction(() => (document.getElementById('al-cfg-msg') || {}).textContent.includes('저장'));
-  const pc = posts.filter(p => p.action === 'alimConfigSet').pop();
-  ok('설정 저장은 채운 칸만(공지 종류 키 그대로)', pc && pc.tpl && pc.tpl.absent === 'KA01TP_NEW' && pc.tpl.notice_hwork === 'KA01TP_EXAM' && !('notice_mock' in pc.tpl) && pc.from === '031-111-2222' && !('apiKey' in pc) && !('apiSecret' in pc), JSON.stringify(pc));
-  ok('저장 뒤 칸 비움', (await page.inputValue('#al-tpl-absent')) === '' && (await page.inputValue('#al-tpl-notices input[data-kind="notice_hwork"]')) === '');
-  await page.evaluate(() => closeModal());
+  // 6) [알림톡] 버튼 — 설정·기록 창은 슈국 운영 → 알림톡 메뉴로 옮겼다(2026-10-01). 새 탭으로 그 메뉴를 연다.
+  const opened = await page.evaluate(() => { var u = null, o = window.open; window.open = function(x){ u = x; }; openAlim(); window.open = o; return u; });
+  ok('[알림톡] → 허브 알림톡 메뉴 설정 카드', opened === 'https://coke4497-sys.github.io/shueguk-hub/alimtalk.html#settings');
+  ok('옛 설정 창 함수 없음', await page.evaluate(() => typeof alimCfgSave === 'undefined' && typeof alimDiscover === 'undefined'));
 
   // 7) 설정 전이면 창 없음 + 출석 창 안내
   cfg = { result:'success', ready:false, has:{}, smsFallback:false, templates:{ absent:{ label:'결석 안내', text: TPL, ready:false } } };
