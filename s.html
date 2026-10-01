@@ -454,6 +454,15 @@
   .report .wrong-item .wn{font-weight:700; font-size:13.5px; color:var(--accent-dark); margin:0 0 4px;}
   .report .wrong-item .wt{font-family:'Noto Serif KR',serif; font-size:12.5px; color:var(--ink-mid); margin:0 0 9px; line-height:1.5;}
   .report .wrong-item .wr{font-family:'Noto Serif KR',serif; font-size:13.5px; color:var(--ink-deep); line-height:1.7; background:var(--sage-fog); border-radius:8px; padding:11px 13px;}
+  /* 시험 범위·총평 — r.html·t.html과 같은 렌더링(2026-10-01, ## 표시가 보이던 것 고침) */
+  .report .vow-box.sp{white-space:normal;}
+  .report .sp-sec{margin-top:15px;} .report .sp-sec:first-child{margin-top:0;}
+  .report .sp-h{font-weight:700; color:var(--sage-deep); margin-bottom:6px;}
+  .report .sp-li, .report .rv-li{position:relative; padding-left:14px; margin:4px 0;}
+  .report .sp-li::before, .report .rv-li::before{content:''; position:absolute; left:3px; top:.66em; width:4px; height:4px; border-radius:50%; background:var(--sage-mid);}
+  .report .review .rv-li{font-family:'Noto Serif KR',serif; font-size:13.5px; line-height:1.85; color:var(--ink-deep); margin:5px 0;}
+  .report .review .rv-h{font-family:'Noto Serif KR',serif; font-weight:700; color:var(--sage-deep); margin:17px 0 5px;}
+  .report .review .rv-h:first-child{margin-top:0;}
   .report .vow-box, .report .teacher-box{font-family:'Noto Serif KR',serif; font-size:14px; line-height:1.8; color:var(--ink-deep); background:var(--sage-fog); border-radius:10px; padding:16px 18px; white-space:pre-wrap;}
   .report .teacher-box{background:#fff; border:1.5px solid var(--sage-soft); min-height:90px;}
   .report .r-foot{text-align:center; color:var(--ink-soft); font-size:11px; padding-top:24px; letter-spacing:.05em;}
@@ -749,6 +758,7 @@
     <button class="gv-back" onclick="closeGrades()" id="gvBack"></button>
     <span class="gv-ttl">지필고사 데이터 · 내신 기록</span>
   </div>
+  <div id="examTodo"></div>
   <div class="exam-tabs" id="examTabs" style="display:none;"></div>
   <div id="examList"></div>
   <footer><p>이수경국어 Shueguk · 학생용</p></footer>
@@ -1019,6 +1029,17 @@ function refreshOnReturn(){
     // 않아 '신청 완료' 표시가 한 박자 늦던 문제 수정 (loadGradeGates와 같은 처리)
     if ($('mockHubView').style.display === 'block') renderMockHub();
     if ($('clinicView').style.display === 'block') renderClinic();
+    if ($('gradeView').style.display === 'block'){
+      renderExamTodo();   // 복기를 내고 돌아오면 입력 카드가 사라지게
+      // 방금 낸 복기 기록도 보이도록 잠금 안쪽 목록을 다시 받는다(비밀번호 재입력 없이)
+      if (GRADE_PW) api('&pw='+encodeURIComponent(GRADE_PW)).then(function(g){
+        if(!g || g.result!=='success' || !g.authed) return;
+        var before = (STATE.exams||[]).length;
+        STATE.exams = g.exams || [];
+        if (STATE.exams.length !== before) GRADE_SEL = 0;   // 새 기록이 생기면 맨 앞(최신)을 보여 준다
+        if ($('gradeView').style.display === 'block') drawGrades();
+      }).catch(function(){});
+    }
   }).catch(function(){});
 }
 document.addEventListener('visibilitychange', function(){ if(!document.hidden) refreshOnReturn(); });
@@ -2023,6 +2044,7 @@ function renderHub(){
   });
   // 지필고사 데이터 (잠금)
   var cntTxt = STATE.examCount>0 ? ('내신 기록 '+STATE.examCount+'건') : '내신 기록';
+  if(anTodo>0) cntTxt += ' · 복기 '+anTodo+'건 입력 필요';
   html += '<button class="card lock t-pnk" onclick="openGrades()">' +
             '<span class="icon">'+svg(ICON.chart)+'</span>' +
             '<h3>지필고사 데이터</h3><p class="desc">'+esc(cntTxt)+'</p>' +
@@ -2945,6 +2967,53 @@ function wrongItemsHtml(wrongText){
 function cell(k, v){ return '<div class="info-cell"><div class="k">'+esc(k)+'</div><div class="v">'+esc(v)+'</div></div>'; }
 
 /* 강사 페이지 HTML 저장본과 동일한 보고서 디자인으로 한 시험을 렌더 */
+/* 시험 범위·총평 렌더링 — r.html·t.html의 scopeSections/renderScope/reviewHtml과 같은 규칙(세 벌 — 고치면 함께).
+ *  범위: '교과서:'·'교과서 내 범위:'·'교과서 외 범위:'·'추가 자료:' 줄은 소제목, 아래 줄은 도트. 라벨이 없으면 예전처럼 원문.
+ *  총평: 문단 첫 줄 '## ' 또는 '1. 시험 구성' 꼴 한 줄 문단은 소제목, '- '·'· ' 줄은 도트, 그 밖은 예전처럼 한 덩어리. */
+var SCOPE_LABELS = ['교과서 내 범위','교과서 외 범위','추가 자료','교과서'];
+function scopeSections(text){
+  var secs = [], cur = null;
+  String(text == null ? '' : text).split('\n').forEach(function(raw){
+    var line = raw.trim();
+    if (!line) return;
+    var head = '';
+    for (var i = 0; i < SCOPE_LABELS.length; i++){
+      var L = SCOPE_LABELS[i];
+      if (line.indexOf(L + ':') === 0){ head = L; line = line.slice(L.length + 1).trim(); break; }
+    }
+    if (head){ cur = { h: head, items: [] }; secs.push(cur); if (line) cur.items.push(line); }
+    else if (cur){ cur.items.push(line); }
+    else { cur = { h: '', items: [line] }; secs.push(cur); }
+  });
+  return secs;
+}
+function scopeHtml(text){
+  var secs = scopeSections(text);
+  if (!secs.some(function(s){ return !!s.h; })) return '<div class="vow-box">'+esc(text)+'</div>';
+  return '<div class="vow-box sp">' + secs.map(function(s){
+    return '<div class="sp-sec">' + (s.h ? '<div class="sp-h">' + esc(s.h) + '</div>' : '') +
+      s.items.map(function(x){ return '<div class="sp-li">' + esc(x) + '</div>'; }).join('') + '</div>';
+  }).join('') + '</div>';
+}
+function reviewHtml(paras){
+  return (paras || []).map(function(p){
+    var lines = String(p == null ? '' : p).split('\n');
+    var h = '';
+    if (lines.length && /^##\s+/.test(lines[0])) h = lines.shift().replace(/^##\s+/, '').trim();
+    else if (lines.length === 1 && /^\d{1,2}\.\s*\S/.test(lines[0].trim()) && lines[0].trim().length <= 40)
+      h = lines.shift().trim();
+    var out = h ? '<div class="rv-h">' + esc(h) + '</div>' : '', buf = [];
+    function flush(){ if (buf.length){ out += '<p>' + esc(buf.join(' ')) + '</p>'; buf = []; } }
+    lines.forEach(function(raw){
+      var t = raw.trim();
+      if (!t){ flush(); return; }
+      if (/^[-·•]\s+/.test(t)){ flush(); out += '<div class="rv-li">' + esc(t.replace(/^[-·•]\s+/, '')) + '</div>'; }
+      else buf.push(t);
+    });
+    flush();
+    return out;
+  }).join('');
+}
 function examCardHtml(x){
   var name = (STATE.info && STATE.info.name) ? STATE.info.name : '';
   var sch  = ((x.school||'')+' '+(x.grade||'')).trim();
@@ -2964,11 +3033,11 @@ function examCardHtml(x){
     '</div>';
 
   if(x.scope && String(x.scope).trim()){
-    h += '<h2 class="sec-h">시험 범위</h2><div class="vow-box">'+esc(x.scope)+'</div>';
+    h += '<h2 class="sec-h">시험 범위</h2>'+scopeHtml(x.scope);
   }
 
   h += '<h2 class="sec-h">시험 총평</h2><div class="review">'+
-    ((x.review&&x.review.length) ? x.review.map(function(p){return '<p>'+esc(p)+'</p>';}).join('') : '<p class="empty">총평이 없습니다.</p>')+
+    ((x.review&&x.review.length) ? reviewHtml(x.review) : '<p class="empty">총평이 없습니다.</p>')+
     '</div>';
 
   if(x.questions && x.questions.length){
@@ -2996,10 +3065,21 @@ function examCardHtml(x){
 }
 
 var GRADE_SEL = 0;   // 선택한 시험 인덱스
+var GRADE_PW = '';   // 이 화면에서 넣은 8자리(메모리에만 — 저장하지 않음). 복기를 내고 돌아오면 기록을 다시 받는 데 쓴다
 
+function renderExamTodo(){
+  var todo = (STATE.analyses||[]).filter(function(a){ return !a.done; });
+  $('examTodo').innerHTML = todo.map(analysisNoticeHtml).join('');
+}
 function renderGrades(){
+  drawGrades();
+  hide('hubView'); $('gradeView').style.display='block'; window.scrollTo(0,0);
+}
+function drawGrades(){
   var exams = STATE.exams || [];
   var tabs = $('examTabs'), list = $('examList');
+  // 아직 입력하지 않은 복기 — 알려드립니다와 같은 카드를 지필고사 데이터 맨 위에도 보여 준다(2026-10-01 사용자 요청)
+  renderExamTodo();
   if(exams.length===0){
     tabs.style.display='none';
     list.innerHTML = '<div class="empty-state"><p>아직 제출된 시험 복기가 없습니다.<br>복기 입력을 제출하면 이곳에 기록이 쌓입니다.</p></div>';
@@ -3015,7 +3095,6 @@ function renderGrades(){
     }
     list.innerHTML = examCardHtml(exams[GRADE_SEL]);
   }
-  hide('hubView'); $('gradeView').style.display='block'; window.scrollTo(0,0);
 }
 
 function pickExam(i){
@@ -3067,7 +3146,7 @@ function submitPw(){
       btn.disabled=false; btn.textContent='확인';
       if(d.result!=='success'){ $('pwErr').textContent=d.message||'오류가 발생했습니다.'; return; }
       if(!d.authed){ $('pwErr').textContent='비밀번호가 일치하지 않습니다.'; return; }
-      STATE.authed=true; STATE.exams=d.exams||[];
+      STATE.authed=true; STATE.exams=d.exams||[]; GRADE_PW=pw;
       closePw(); renderGrades();
     })
     .catch(function(){ btn.disabled=false; btn.textContent='확인'; $('pwErr').textContent='연결 실패 — 다시 시도해주세요.'; });
