@@ -1773,6 +1773,23 @@ function renderHub(){
             '<h3>알려드립니다</h3><p class="desc">'+esc(nDesc)+'</p>' +
             '<span class="go">'+(nTotal>0?'확인 ':'열기 ')+svg(ICON.arrow)+'</span></button>';
 
+  // 수업 리포트 (2026-10-01) — '알려드립니다' 바로 다음 자리에 늘 둔다(사용자 요청). 공개된 리포트가 없으면 비활성 카드.
+  // 목록은 처음 한 번 뒤에서 받는다(lhRefresh)
+  if(STATE.lhist === undefined && !LH.loading) lhRefresh(true);
+  var lh0 = STATE.lhist || [];
+  if(lh0.length){
+    html += '<button class="card t-mnt" onclick="openLearnHist()">' +
+              '<span class="icon">'+svg(ICON.hist)+'</span>' +
+              '<h3>수업 리포트</h3><p class="desc">'+esc('최근 ' + crpDay(lh0[0].ymd) + ' · ' + crpPartName(lh0[0].part))+'</p>' +
+              '<span class="go">열기 '+svg(ICON.arrow)+'</span></button>';
+  } else {
+    var lhWait = STATE.lhist === undefined && LH.loading;
+    html += '<div class="card pending t-mnt" aria-disabled="true">' +
+              '<span class="icon">'+svg(ICON.hist)+'</span>' +
+              '<h3>수업 리포트</h3><p class="desc">'+(lhWait ? '불러오는 중…' : '수업 리포트가 공개되면 여기서 볼 수 있어요.')+'</p>' +
+              '<span class="tag">'+(lhWait ? '확인 중' : '아직 없음')+'</span></div>';
+  }
+
   // H WORK — 이 학생에게 배정된 과제만 표시. 뱃지는 아직 안 푼 과제만 카운트
   var hs0 = STATE.homework||[];
   var hCnt = hs0.filter(function(h){ return !h.done; }).length;
@@ -1795,16 +1812,6 @@ function renderHub(){
               '<span class="icon">'+svg(ICON.play)+rvDot+'</span>' +
               '<h3>복습 영상</h3><p class="desc">'+esc(rvDesc)+'</p>' +
               '<span class="go">'+(rvTodo>0?'보기 ':'열기 ')+svg(ICON.arrow)+'</span></button>';
-  }
-
-  // 학습 이력 (2026-10-01) — 선생님이 리포트를 만든 수업이 하나라도 있으면 카드. 목록은 처음 한 번 뒤에서 받는다(lhRefresh)
-  if(STATE.lhist === undefined && !LH.loading) lhRefresh(true);
-  var lh0 = STATE.lhist || [];
-  if(lh0.length){
-    html += '<button class="card t-mnt" onclick="openLearnHist()">' +
-              '<span class="icon">'+svg(ICON.hist)+'</span>' +
-              '<h3>수업 리포트</h3><p class="desc">'+esc('최근 ' + crpDay(lh0[0].ymd) + ' · ' + crpPartName(lh0[0].part))+'</p>' +
-              '<span class="go">열기 '+svg(ICON.arrow)+'</span></button>';
   }
 
   // 숙제 검사 — 정규 수업 검사 기록이 있는 학생에게만 카드 표시
@@ -2053,8 +2060,8 @@ function lhRefresh(quiet){
     STATE.lhist = (r && r.ok) ? (r.items || []).map(lhFlat) : [];
     LH.more = !!(r && r.more);
     if ($('lhView').style.display === 'block') lhRender();
-    else if (quiet && $('hubView').style.display !== 'none' && STATE.lhist.length) renderHub();
-  }).catch(function(){ LH.loading = false; if (STATE.lhist === undefined) STATE.lhist = null; if ($('lhView').style.display === 'block') lhRender(); });
+    else if (quiet && $('hubView').style.display !== 'none') renderHub();
+  }).catch(function(){ LH.loading = false; if (STATE.lhist === undefined) STATE.lhist = null; if ($('lhView').style.display === 'block') lhRender(); else if (quiet && $('hubView').style.display !== 'none') renderHub(); });
 }
 function lhMore(){
   var cur = STATE.lhist || []; if (LH.busy || !cur.length) return;
