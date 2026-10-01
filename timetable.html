@@ -481,6 +481,8 @@
   .cr-links{display:flex;gap:14px;}
   .cr-more{align-self:flex-start;font:inherit;font-size:.7rem;border:0;background:none;color:var(--ink-soft);cursor:pointer;padding:0;text-decoration:underline;}
   .cr-note{font-size:.74rem;color:#7A6230;}
+  .cr-autocm{font-size:.74rem;color:#9A5A52;background:#FBEEEB;border-radius:8px;padding:5px 9px;}
+  .cr-autocm[hidden]{display:none;}
   .cr-att{display:flex;align-items:center;gap:5px;flex-wrap:wrap;font-size:.74rem;color:var(--ink-soft);}
   .cr-att span{margin-right:2px;}
   .cr-attp{font:inherit;font-size:.74rem;border:0;border-radius:999px;padding:3px 10px;background:#fff;color:#65726B;cursor:pointer;}
@@ -7014,6 +7016,9 @@ function crXtSet(next, msg){
 /* 수업 태도 3단계(2026-10-01 사용자 결정) — 새 열 없이 comments 의 예약 키 '__태도' = {학생이름: 단계}.
  * 알약을 누르면 0.7초 뒤 수업 기록을 저장한다([저장]과 같은 crUpsert). 같은 알약을 다시 누르면 지운다.
  * 학생 페이지 '학습 이력'(039 class_history)이 [리포트 생성]을 누른 수업부터 보여 준다. */
+/* 전체 미제출인데 코멘트가 비면 기록되는 문장(2026-10-01 사용자 지정 문구 그대로 — "@@ 친구는 과제 제출을 하지 않았습니다!!!!").
+ * 저장값에는 넣지 않고 보여 줄 때 채운다 — 미리보기(crPvItem)·학습 이력(039 class_history)·class_report.py 세 곳이 같은 문장. 이름 끝 동명이인 알파벳은 뗀다. */
+function crMissComment(p){ return String(p || '').replace(/[A-Z]$/, '') + ' 친구는 과제 제출을 하지 않았습니다!!!!'; }
 var CR_ATT_KEY = '__태도', CR_ATT_LEVELS = ['매우 좋음', '좋음', '노력 필요'], crAttTimer = null;
 function crAttOf(p){ var m = ((CR.note || {}).comments || {})[CR_ATT_KEY]; return (m && typeof m === 'object' && m[p]) || ''; }
 function crAttHtml(i, x){
@@ -7119,7 +7124,8 @@ function crRender(){
       : !code ? '<div class="cr-note">명단에서 이 학생을 찾지 못해 과제 검사를 저장할 수 없어요(동명이인·미등록).</div>'
       : crStarsHtml(i, code) +
         '<div class="cr-row2' + (crSrcOf(x) ? '' : ' one') + '">' + (crSrcOf(x) ? '<button type="button" class="cr-mini' + (allMiss ? ' on' : '') + '" data-miss="' + i + '" title="모든 과제를 미제출로">전체 미제출</button>' : '') +
-        '<input id="cr-c-' + i + '" maxlength="200" placeholder="코멘트 (선택) — 학생 페이지에 보여요" value="' + esc(cm[x.p] || '') + '" aria-label="' + esc(x.p) + ' 코멘트"></div>' +
+        '<input id="cr-c-' + i + '" maxlength="200" placeholder="' + esc(allMiss ? '비워 두면 「' + crMissComment(x.p) + '」' : '코멘트 (선택) — 학생 페이지에 보여요') + '" value="' + esc(cm[x.p] || '') + '" aria-label="' + esc(x.p) + ' 코멘트" data-cin="' + i + '"></div>' +
+        (allMiss ? '<div class="cr-autocm" id="cr-auto-' + i + '"' + (String(cm[x.p] || '').trim() ? ' hidden' : '') + '>코멘트를 비워 두면 <b>' + esc(crMissComment(x.p)) + '</b>로 기록됩니다.</div>' : '') +
         '<input class="cr-plan" id="cr-plan-' + i + '" maxlength="120" placeholder="미제출 대책 — 예) 9/30 수 5:30 재검사 약속" value="' + esc(h ? h.plan : '') + '"' + (miss ? '' : ' hidden') + '>' +
         '<span class="cr-links"><button type="button" class="cr-more" data-more="' + i + '">' + (CR.more[i] ? '접기' : '더 보기') + '</button>' +
         '<button type="button" class="cr-more" data-pv="' + i + '">리포트 미리보기</button></span>' +
@@ -7186,6 +7192,11 @@ function crNsHtml(n){
 function mdOfYmdStr(y){ var p = String(y).split('-'); return (+p[1]) + '/' + (+p[2]); }
 function crHm(iso){ var d = new Date(iso); return isNaN(d) ? '' : (d.getMonth() + 1) + '/' + d.getDate() + ' ' + crPad(d.getHours()) + ':' + crPad(d.getMinutes()); }
 
+/* 전체 미제출 안내 줄 — 코멘트를 적기 시작하면 감추고 비우면 다시 보인다 */
+document.addEventListener('input', function(e){
+  var el = e.target; if (!el || !el.hasAttribute || !el.hasAttribute('data-cin')) return;
+  var n = $('cr-auto-' + el.getAttribute('data-cin')); if (n) n.hidden = !!el.value.trim();
+});
 /* ── 창 안의 클릭(위임) ── */
 document.addEventListener('click', function(e){
   var body = $('cr-body');
@@ -7439,7 +7450,7 @@ function crPvItem(i){
   return { nm: x.p, stu: x.stu, part: CR.part, cls: CR.c.cls, teacher: CR.c.teacher, ymd: CR.ymd,
            attend: a ? a.status : '', progress: String(n.progress || '').trim(),
            units: CR.ns ? crNsUnitsOfWeek(CR.ns) : [], homework: crTasksOf(n.homework),
-           comment: String(cm[x.p] || '').trim(), attitude: crAttOf(x.p), hw: hw, src: !!src };
+           comment: String(cm[x.p] || '').trim() || (hw && hw.missing ? crMissComment(x.p) : ''), attitude: crAttOf(x.p), hw: hw, src: !!src };
 }
 function crPvHtml(it){
   var d = new Date(it.ymd + 'T00:00:00'), day = (d.getMonth() + 1) + '/' + d.getDate() + ' (' + '일월화수목금토'.charAt(d.getDay()) + ')';

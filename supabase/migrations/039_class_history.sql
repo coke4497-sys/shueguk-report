@@ -7,6 +7,7 @@
 --   · 과제마다 미제출(2026-10-01 같은 날 사용자 "과제를 부여하면 미제출 기록 기능이 과제마다 있어야 함"):
 --     hwcheck_records.missing_items = 미제출로 표시한 과제 이름 목록. 그 과제의 학습량·깊이는 0점으로 저장되고,
 --     missing(옛 '미제출 = 0%')은 **모든 과제가 미제출**일 때만 참 — 일부만 빠지면 %는 남은 과제 점수로 센다.
+--   · 전체 미제출인데 코멘트가 비면 comment = '<이름> 친구는 과제 제출을 하지 않았습니다!!!!'(사용자 지정 문구, 저장값에는 안 넣음).
 --   · 수업 태도는 새 열 없이 class_notes.comments 의 예약 키 '__태도' = {학생이름(괄호 뗀 것): 단계} 로 둔다
 --     ('__검사과제'와 같은 방식 — 마이그레이션 전에도 선생님 창 저장이 깨지지 않게).
 --   · class_history(p {key|student, before?}) — 공개 키 허용. 그 학생이 들은 수업(출석 기록 또는 그 수업 과제 검사 기록)
@@ -106,8 +107,11 @@ begin
           'ymd', m.ymd, 'book', m.book, 'part', m.part, 'cls', m.class_name, 'teacher', m.teacher, 'time', m.class_time,
           'progress', m.progress, 'units', coalesce(m.units, '[]'::jsonb), 'homework', m.homework,
           'attend', coalesce(m.att_status, ''),
+          -- 전체 미제출(missing 참)인데 코멘트가 비면 정해 둔 문장(2026-10-01 사용자 지정 — timetable crMissComment·class_report.py 와 같은 문장)
           'comment', coalesce(nullif(m.comments->>public.ch_plain_(m.att_name), ''), nullif(m.comments->>me.name, ''),
-                              nullif(m.comments->>(me.name || 'A'), ''), ''),
+                              nullif(m.comments->>(me.name || 'A'), ''),
+                              case when coalesce(m.hw_missing, false)
+                                   then regexp_replace(me.name, '[A-Z]$', '') || ' 친구는 과제 제출을 하지 않았습니다!!!!' end, ''),
           'attitude', coalesce(nullif(m.comments->'__태도'->>public.ch_plain_(m.att_name), ''), nullif(m.comments->'__태도'->>me.name, ''),
                                nullif(m.comments->'__태도'->>(me.name || 'A'), ''), ''),
           'hw', case when m.has_hw then jsonb_build_object('scores', m.scores, 'max', m.hw_max, 'pct', m.hw_pct,

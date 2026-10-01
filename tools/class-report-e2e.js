@@ -161,6 +161,17 @@ const STUDENTS = [
   await page.click(`[data-miss="${iChoi}"]`);
   r = await page.evaluate(i => ({ plan: !document.getElementById('cr-plan-' + i).hidden, pct: document.getElementById('cr-pct-' + i).textContent }), iChoi);
   ok('미제출 → 대책 칸·"미제출" 표시', r.plan && /미제출/.test(r.pct), JSON.stringify(r));
+  r = await page.evaluate(i => ({ note: (document.getElementById('cr-auto-' + i) || {}).textContent || '', hid: (document.getElementById('cr-auto-' + i) || {}).hidden,
+    ph: document.getElementById('cr-c-' + i).placeholder }), iChoi);
+  ok('전체 미제출·코멘트 비면 "최다은 친구는 과제 제출을 하지 않았습니다!!!!"로 기록된다고 표시', /최다은 친구는 과제 제출을 하지 않았습니다!!!!로 기록됩니다/.test(r.note) && !r.hid && /비워 두면/.test(r.ph), JSON.stringify(r));
+  await page.evaluate(i => crPvOpen(i), iChoi);
+  ok('미리보기 코멘트에도 그 문장', /선생님 코멘트최다은 친구는 과제 제출을 하지 않았습니다!!!!/.test(await page.$eval('#crpv-box', e => e.textContent)));
+  await page.evaluate(() => crPvClose());
+  await page.type('#cr-c-' + iChoi, '다음엔 꼭');
+  ok('코멘트를 적으면 안내 줄이 숨는다', await page.evaluate(i => document.getElementById('cr-auto-' + i).hidden, iChoi));
+  await page.fill('#cr-c-' + iChoi, '');
+  await page.type('#cr-c-' + iChoi, 'a'); await page.keyboard.press('Backspace');
+  ok('다시 비우면 안내 줄이 보인다', await page.evaluate(i => !document.getElementById('cr-auto-' + i).hidden, iChoi));
   await page.fill('#cr-plan-' + iChoi, '9/30 재검사');
   await page.click('#cr-save');
   await page.waitForFunction(() => /저장했어요/.test(document.getElementById('cr-msg').textContent), null, { timeout: 8000 });

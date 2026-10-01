@@ -75,6 +75,7 @@ begin
   assert it::text not like '%비공개 메모%' and it::text not like '%__검사과제%' and it::text not like '%priv%', '비공개 값 없음';
   it := r->'items'->1;
   assert it->'hw'->'missing_items' = '[]'::jsonb, '미제출 목록 없으면 빈 배열';
+  assert it->>'comment' = '박보검 친구는 과제 제출을 하지 않았습니다!!!!', '전체 미제출·코멘트 없음 → 정해 둔 문장: ' || it::text;
   assert it->>'attend' = '결석' and it->>'attitude' = '노력 필요' and (it->'hw'->>'missing')::boolean, '9/28 괄호 이름·월요일 주차(9/23) 과제 검사: ' || it::text;
   assert it::text not like '%가족 여행%' and it::text not like '%재검사 약속%', '출석 메모·대책 제외';
   it := r->'items'->2;

@@ -211,6 +211,10 @@ def cmd_data(book, cid, ymd):
                 'pending': not n or not a,
                 'hw': h and {k: h.get(k) for k in HWK},
             })
+            # 전체 미제출인데 코멘트가 비면 정해 둔 문장(2026-10-01 사용자 지정 — timetable crMissComment·039 와 같은 문장, 리포트 comments 에 그대로)
+            if n and h and h.get('missing') and not str(parts[-1]['note']['comment'] or '').strip():
+                parts[-1]['note']['comment'] = re.sub(r'[A-Z]$', '', p) + ' 친구는 과제 제출을 하지 않았습니다!!!!'
+                parts[-1]['note']['comment_auto'] = True
         hw = hw_by.get((s['code'], '', str(wed))) if s else None   # 반 구분 전(035 이전) 주 단위 기록
         out.append({
             'token': t, 'name': p, 'note': note_of(t),
