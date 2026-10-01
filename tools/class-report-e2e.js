@@ -405,7 +405,7 @@ const STUDENTS = [
   r = await page.evaluate(() => ({ open: !document.getElementById('crpv').hidden, t: document.getElementById('crpv-box').textContent,
     z: +getComputedStyle(document.getElementById('crpv')).zIndex }));
   ok('카드의 [리포트 미리보기] → 그 학생 카드(진도·과제·태도·코멘트·과제 검사·과제별 미제출)', r.open && /박보검/.test(r.t) && /사미인곡/.test(r.t) && /비교 학습지 1장/.test(r.t) &&
-     /수업 태도 ?매우 좋음/.test(r.t) && /집중이 좋았어요/.test(r.t) && /관동별곡 학습지학습량5 \/ 5/.test(r.t) && /오답 노트미제출/.test(r.t) && /이 수업 과제 검사23%/.test(r.t) && r.z > 81, r.t);
+     /수업 태도 ?매우 좋음/.test(r.t) && /집중이 좋았어요/.test(r.t) && /관동별곡 학습지5\/5/.test(r.t) && /오답 노트미제출/.test(r.t) && /과제 검사23%2건 중 1건 미제출/.test(r.t) && r.z > 81, r.t);
   await page.waitForTimeout(900);
   ok('미리보기는 리포트를 요청하지 않는다', !st.gas.some(g => g.action === 'editReqAdd') && st.writes.slice(wBefore).every(w => !w.body || !w.body[0] || !w.body[0].report_status));
   await page.keyboard.press('Escape');
@@ -508,27 +508,27 @@ const STUDENTS = [
   ok('허브 카드 — 수업 리포트 · 최근 수업', /최근 9\/30 \(수\) · 가 수업/.test(r), r);
   ok('본인 확인은 접근코드', hcalls.length >= 1 && hcalls[0].key === 'abc' && !hcalls[0].before, JSON.stringify(hcalls));
   await hp.evaluate(() => openLearnHist());
-  await hp.waitForSelector('#lhList .lh-item', { timeout: 8000 });
+  await hp.waitForSelector('#lhList .rc', { timeout: 8000 });
   r = await hp.evaluate(() => ({ sum: [...document.querySelectorAll('.lh-sum > div')].map(x => x.textContent), months: [...document.querySelectorAll('.lh-month')].map(x => x.textContent),
-    items: [...document.querySelectorAll('.lh-item')].map(x => x.textContent), tags: [...document.querySelectorAll('.lh-tag')].map(x => x.className + ':' + x.textContent),
-    li: [...document.querySelectorAll('.lh-item')][0].querySelectorAll('li').length, more: !!document.getElementById('lhMoreBtn') }));
+    items: [...document.querySelectorAll('.rc')].map(x => x.textContent), tags: [...document.querySelectorAll('.lh-tag')].map(x => x.className + ':' + x.textContent),
+    li: [...document.querySelectorAll('.rc')][0].querySelectorAll('li').length, more: !!document.getElementById('lhMoreBtn') }));
   ok('요약 — 수업 3 · 출석·지각 2 · 과제 검사 평균 23% · 매우 좋음 1', r.sum.join('/') === '3수업 리포트/2출석·지각/23%과제 검사 평균/1태도 매우 좋음', JSON.stringify(r.sum));
   ok('주간 리포트 카드·화면은 없다(수업 리포트로 합침)', await hp.evaluate(() => !document.getElementById('crView') && ![...document.querySelectorAll('#menu .card')].some(x => /주간 리포트/.test(x.textContent))));
   ok('달별 묶음 — 9월·8월', r.months.join('|') === '2026년 9월|2026년 8월', JSON.stringify(r.months));
-  ok('9/30 — 날짜·가 수업·반·선생님·출석·태도·클로슈가 쓴 내용·과제 2줄·과제 검사 문장·코멘트', /9\/30 \(수\)/.test(r.items[0]) && /가 수업/.test(r.items[0]) && /고2 가 · 지원T/.test(r.items[0]) && /출석/.test(r.items[0]) &&
-     /수업 태도 ?매우 좋음/.test(r.items[0]) && /표현상 특징을 정리했습니다/.test(r.items[0]) && r.li === 2 && /이 수업 과제 검사45%/.test(r.items[0]) && /관동별곡 학습지학습량5 \/ 5깊이4 \/ 5채점일부함오답 노트미제출/.test(r.items[0]) &&
+  ok('9/30 — 날짜·가 수업·반·선생님·출석·태도·클로슈가 쓴 내용·과제 2줄·과제 검사 문장·코멘트', /9\/30수/.test(r.items[0]) && /가 수업/.test(r.items[0]) && /고2 가 · 지원T/.test(r.items[0]) && /출석/.test(r.items[0]) &&
+     /수업 태도 ?매우 좋음/.test(r.items[0]) && /표현상 특징을 정리했습니다/.test(r.items[0]) && r.li === 2 && /과제 검사45%2건 중 1건 미제출/.test(r.items[0]) && /관동별곡 학습지5\/5깊이 4\/5채점 일부오답 노트미제출/.test(r.items[0]) &&
      /충실히 해 왔고/.test(r.items[0]) && /집중이 좋았습니다/.test(r.items[0]), r.items[0]);
-  ok('태도 색 — 매우 좋음 a0 · 노력 필요 a2', r.tags.includes('lh-tag a0:매우 좋음') && r.tags.includes('lh-tag a2:노력 필요'), JSON.stringify(r.tags));
+  ok('수업 태도 타일 — 매우 좋음 · 노력 필요', /수업 태도매우 좋음/.test(r.items[0]) && r.items.some(t => /수업 태도노력 필요/.test(t)), JSON.stringify(r.items.map(t => t.slice(0, 60))));
   ok('9/28 — 결석·결석 안내·전체 미제출·정해 둔 코멘트, 태도 없으면 줄도 없음', /결석/.test(r.items[1]) && /가족 행사로/.test(r.items[1]) && /미제출/.test(r.items[1]) && !/수업 태도/.test(r.items[1]) &&
      /박보검 친구는 과제 제출을 하지 않았습니다!!!!/.test(r.items[1]), r.items[1]);
   ok('8/29 내신 진도 — 나간 범위 칩·"확인할 것이 없습니다."', /진도 수업/.test(r.items[2]) && /나간 범위사미인곡/.test(r.items[2]) && /확인할 것이 없습니다\./.test(r.items[2]) && !/%/.test(r.items[2]), r.items[2]);
   ok('"숙제"라는 말이 없다', !r.items.some(t => /숙제/.test(t)));
-  ok('100% 아닌 수업에는 별 +1 표시·효과가 없다', await hp.evaluate(() => !document.querySelector('.lh-star1') && !document.querySelector('.crp-star1') && !document.querySelector('.lh-sb')));
+  ok('100% 아닌 수업에는 별 +1 표시·효과가 없다', await hp.evaluate(() => !document.querySelector('.lh-star1') && !document.querySelector('.rc-star1') && !document.querySelector('.lh-sb')));
   await hp.click('#lhMoreBtn');
-  await hp.waitForFunction(() => document.querySelectorAll('.lh-item').length === 4, null, { timeout: 5000 });
+  await hp.waitForFunction(() => document.querySelectorAll('.rc').length === 4, null, { timeout: 5000 });
   await hp.waitForTimeout(400);
   r = await hp.evaluate(() => ({ chip: [...document.querySelectorAll('.lh-star1')].map(x => x.textContent + (x.classList.contains('popin') ? '/pop' : '')),
-    box: (document.querySelector('.crp-star1') || {}).textContent || '', layer: document.querySelectorAll('.lh-sb i').length, plus: (document.querySelector('.lh-sb b') || {}).textContent || '',
+    box: (document.querySelector('.rc-star1') || {}).textContent || '', layer: document.querySelectorAll('.lh-sb i').length, plus: (document.querySelector('.lh-sb b') || {}).textContent || '',
     seen: JSON.parse(localStorage.getItem('lh_star_seen') || '[]') }));
   ok('과제 검사 100% 수업 — 머리에 "★ 별 +1"(팡) · 과제 검사 상자에 "슈퍼스타 별 +1" · 금색 별 12개와 "★ +1"이 떠오름 · 본 것으로 기억',
      r.chip.join() === '★ 별 +1/pop' && /슈퍼스타 별 \+1/.test(r.box) && r.layer === 12 && r.plus === '★ +1' && r.seen.length === 1 && /2026-08-20/.test(r.seen[0]), JSON.stringify(r));
@@ -543,7 +543,7 @@ const STUDENTS = [
   await hp.waitForSelector('.ah-row', { timeout: 5000 });
   r = await hp.evaluate(() => ({ sum: [...document.querySelectorAll('.lh-sum > div')].map(x => x.textContent), rows: [...document.querySelectorAll('.ah-row')].map(x => x.textContent),
     chips: [...document.querySelectorAll('.ah-row .crp-at')].map(x => x.className), months: [...document.querySelectorAll('.lh-month')].map(x => x.textContent),
-    note: (document.querySelector('.ah-note') || {}).textContent || '', items: document.querySelectorAll('.lh-item').length, more: !!document.getElementById('ahMoreBtn') }));
+    note: (document.querySelector('.ah-note') || {}).textContent || '', items: document.querySelectorAll('.rc').length, more: !!document.getElementById('ahMoreBtn') }));
   ok('출석 기록 요약 — 출석 2 · 지각 1 · 결석 2 · 출석률 60%', r.sum.join('/') === '2출석/1지각/2결석/60%출석률', JSON.stringify(r.sum));
   ok('줄마다 날짜·시간·반·상태 칩(내신 표시·지운 반은 "수업")', r.rows.length === 4 && /^9\/30 \(수\)5:30 · 고2 가출석$/.test(r.rows[0]) && /4:00 · 고2 확인 · 내신지각/.test(r.rows[2]) && /^8\/29 \(토\)수업 · 내신/.test(r.rows[3]) &&
      r.chips.join() === 'crp-at ok,crp-at abs,crp-at late,crp-at abs' && r.items === 0, JSON.stringify(r.rows));
@@ -558,7 +558,7 @@ const STUDENTS = [
   ok('[지난 기록 더 보기] — before=마지막 날짜, 버튼 사라짐', acalls.some(p => p.before === '2026-08-29' && p.key === 'abc') && !(await hp.$('#ahMoreBtn')), JSON.stringify(acalls));
   ok('고른 탭을 기억', await hp.evaluate(() => sessionStorage.getItem('lh_tab') === 'att'));
   await hp.click('#lhTabs button[data-t="rep"]');
-  ok('수업 리포트 탭으로 돌아오면 카드가 다시 보인다', await hp.evaluate(() => document.querySelectorAll('.lh-item').length === 4 && !document.querySelector('.ah-row')));
+  ok('수업 리포트 탭으로 돌아오면 카드가 다시 보인다', await hp.evaluate(() => document.querySelectorAll('.rc').length === 4 && !document.querySelector('.ah-row')));
   await hp.evaluate(() => closeLearnHist());
   ok('닫으면 허브로', await hp.evaluate(() => document.getElementById('lhView').style.display === 'none' && document.getElementById('hubView').style.display !== 'none'));
   await c3.close();
