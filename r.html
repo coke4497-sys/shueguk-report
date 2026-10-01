@@ -239,7 +239,15 @@ body.capturing ::placeholder{ color:transparent !important; }
       method: 'POST',
       headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY, 'Content-Type': 'application/json' },
       body: JSON.stringify(args || {})
-    }).then(function(r){ if (!r.ok) throw new Error('sb rpc ' + r.status); return r.json(); });
+    }).then(function(r){
+      if (!r.ok) throw new Error('sb rpc ' + r.status);
+      /* 2026-09-30: 본문이 없는 응답(204)도 성공으로 받는다 — `returns void` 함수
+       * (mirror_submission)는 HTTP 204 + 빈 본문으로 답하는데, r.json()을 그대로 부르면
+       * **저장이 됐는데도** 예외가 나 아래 폴백으로 빠지고 mirror_submission을 두 번 더
+       * 불러 같은 제출이 2~3줄로 들어갔다(9/23~9/29 6명 — 조교 화면에 같은 학생이
+       * 여러 번 보였다). 새 함수를 붙일 때도 void 함수면 본문이 없다는 것을 기억할 것. */
+      return r.text().then(function(t){ return t ? JSON.parse(t) : null; });
+    });
   }
   function pad2(n){ return String(n).padStart(2, '0'); }
   function nowIso(){
