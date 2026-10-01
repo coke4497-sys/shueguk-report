@@ -184,6 +184,26 @@
   .crp-hwtot b{font-variant-numeric:tabular-nums;}
   .crp-miss{color:#9A5A52 !important;font-weight:700;}
   .crp-by{color:var(--ink-soft);font-size:.78rem;}
+  /* 학습 이력 (2026-10-01, 039) */
+  #lhView{display:none;}
+  .lh-sum{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:0 0 14px;}
+  .lh-sum > div{background:var(--surface);border-radius:14px;padding:10px 8px;text-align:center;}
+  .lh-sum b{display:block;font-family:'Do Hyeon',var(--sans);font-size:1.3rem;font-weight:400;color:var(--ink);font-variant-numeric:tabular-nums;}
+  .lh-sum span{font-size:.72rem;color:var(--ink-soft);}
+  .lh-month{font-family:var(--serif);font-weight:700;font-size:.95rem;color:#4C6E66;margin:16px 4px 8px;}
+  .lh-item{background:var(--surface);border-radius:var(--radius);padding:14px 16px;display:flex;flex-direction:column;gap:9px;margin-bottom:10px;}
+  .lh-hd{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+  .lh-day{font-family:'Do Hyeon',var(--sans);font-size:1.12rem;}
+  .lh-part{font-size:.72rem;background:#EDE4F4;color:#5A4A6A;border-radius:7px;padding:1px 8px;}
+  .lh-meta{font-size:.78rem;color:var(--ink-soft);flex:1 1 auto;min-width:0;}
+  .lh-tag{font-size:.74rem;border-radius:999px;padding:2px 10px;background:#EEF1EF;color:#65726B;}
+  .lh-tag.a0{background:#DCE8E5;color:#3F6159;} .lh-tag.a1{background:#EDE4F4;color:#5A4A6A;} .lh-tag.a2{background:#F7E2DE;color:#9A5A52;}
+  .lh-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:.8rem;color:var(--ink-soft);}
+  .lh-item p{margin:0;font-size:.9rem;line-height:1.7;white-space:pre-wrap;color:var(--ink);}
+  .lh-item ul{margin:0;padding-left:19px;font-size:.9rem;line-height:1.7;}
+  .lh-more{display:block;width:100%;font:inherit;font-size:.88rem;border:0;border-radius:12px;padding:11px;background:#EDE4F4;color:#5A4A6A;cursor:pointer;margin-top:4px;}
+  .lh-more:hover{background:#E3D7EE;}
+  @media (max-width:420px){ .lh-sum{grid-template-columns:repeat(2,1fr);} }
   .crp-foot{font-size:.74rem;color:var(--ink-soft);margin:0;border-top:1px solid var(--line-soft);padding-top:10px;}
   .card.t-mnt .icon{background:#E3EDE7;color:#4C6E66;}
   .rv-item{display:flex;align-items:center;gap:13px;width:100%;text-align:left;background:var(--surface);border:1px solid var(--line-soft);
@@ -536,6 +556,17 @@
   <footer><p>이수경국어 Shueguk · 학생용</p></footer>
 </main></div>
 
+<!-- 학습 이력 (2026-10-01) — 선생님 수업 기록을 수업마다 쌓아 보여 준다 -->
+<div id="lhView"><main class="wrap gwrap">
+  <div class="gv-bar">
+    <button class="gv-back" onclick="closeLearnHist()" id="lhBack"></button>
+    <span class="gv-ttl">학습 이력</span>
+  </div>
+  <div id="lhSum"></div>
+  <div id="lhList"></div>
+  <footer><p>이수경국어 Shueguk · 학생용</p></footer>
+</main></div>
+
 <!-- 숙제 검사 -->
 <div id="hwcheckView"><main class="wrap gwrap">
   <div class="gv-bar">
@@ -734,6 +765,7 @@ var ICON = {
   clip:'<path d="M9 3h6a1 1 0 0 1 1 1v1a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M16 5h2a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2"/><path d="M9 14l2 2 4-4"/>',
   check:'<path d="M20 6L9 17l-5-5"/>',
   play:'<rect x="2.5" y="4.5" width="19" height="15" rx="3"/><path d="M10 9.2v5.6l4.8-2.8z"/>',
+  hist:'<path d="M3 12a9 9 0 1 0 2.6-6.4L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l3 2"/>',
   ask:'<path d="M21 11.5a8.4 8.4 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7A8.5 8.5 0 1 1 21 11.5z"/><path d="M9.8 9.3a2.4 2.4 0 0 1 4.7.8c0 1.6-2.4 2.1-2.4 3.4"/><line x1="12.1" y1="16.6" x2="12.1" y2="16.7"/>'
 };
 function svg(inner){ return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">'+inner+'</svg>'; }
@@ -951,7 +983,7 @@ var IS_ID = false;
 var STATE = { info:null, authed:false, exams:null, examCount:0, notices:null, homework:null, analyses:null, clinic:null, stars:null, vocaOpen:null, vocaWeek:null, mockGrades:null, mockOpen:null, clinicEligible:null, vocaTaken:null, mockSignups:null, mockFromServer:false, mockGatesFromServer:false, vocaFromServer:false, clinicFromServer:false, hwcheck:null, qq:null, qqLoading:false, qqTeachers:null, review:null, reviewLoading:false, creport:null, creportLoading:false };
 
 function showError(title, msg){
-  hide('loadBox'); hide('hubView'); $('gradeView').style.display='none'; $('mockHubView').style.display='none'; $('mockView').style.display='none'; $('clinicView').style.display='none'; $('hwcheckView').style.display='none'; $('questionView').style.display='none'; $('reviewView').style.display='none'; $('crView').style.display='none';
+  hide('loadBox'); hide('hubView'); $('gradeView').style.display='none'; $('mockHubView').style.display='none'; $('mockView').style.display='none'; $('clinicView').style.display='none'; $('hwcheckView').style.display='none'; $('questionView').style.display='none'; $('reviewView').style.display='none'; $('crView').style.display='none'; $('lhView').style.display='none';
   $('errTitle').textContent = title || '불러올 수 없습니다';
   $('errMsg').textContent = msg || '';
   show('errBox');
@@ -1788,6 +1820,16 @@ function renderHub(){
               '<span class="go">열기 '+svg(ICON.arrow)+'</span></button>';
   }
 
+  // 학습 이력 (2026-10-01) — 선생님이 리포트를 만든 수업이 하나라도 있으면 카드. 목록은 처음 한 번 뒤에서 받는다(lhRefresh)
+  if(STATE.lhist === undefined && !LH.loading) lhRefresh(true);
+  var lh0 = STATE.lhist || [];
+  if(lh0.length){
+    html += '<button class="card t-mnt" onclick="openLearnHist()">' +
+              '<span class="icon">'+svg(ICON.hist)+'</span>' +
+              '<h3>학습 이력</h3><p class="desc">'+esc('최근 ' + crpDay(lh0[0].ymd) + ' · ' + crpPartName(lh0[0].part))+'</p>' +
+              '<span class="go">열기 '+svg(ICON.arrow)+'</span></button>';
+  }
+
   // 숙제 검사 — 정규 수업 검사 기록이 있는 학생에게만 카드 표시
   var hwc = STATE.hwcheck || [];
   if(hwc.length){
@@ -1917,7 +1959,7 @@ function renderHub(){
 
   renderStars();   // 슈퍼스타 별 카드 (백엔드가 stars를 주면 표시)
 
-  hide('loadBox'); hide('errBox'); $('gradeView').style.display='none'; $('noticeView').style.display='none'; $('homeworkView').style.display='none'; $('mockHubView').style.display='none'; $('mockView').style.display='none'; $('clinicView').style.display='none'; $('hwcheckView').style.display='none'; $('questionView').style.display='none'; $('reviewView').style.display='none'; $('crView').style.display='none'; show('hubView');
+  hide('loadBox'); hide('errBox'); $('gradeView').style.display='none'; $('noticeView').style.display='none'; $('homeworkView').style.display='none'; $('mockHubView').style.display='none'; $('mockView').style.display='none'; $('clinicView').style.display='none'; $('hwcheckView').style.display='none'; $('questionView').style.display='none'; $('reviewView').style.display='none'; $('crView').style.display='none'; $('lhView').style.display='none'; show('hubView');
   noticePopupMaybe();   // 미확인 공지 팝업(허브 화면일 때만, 탭당 한 번)
 }
 
@@ -2032,9 +2074,13 @@ function hwItemMax(name){ return /\((학습량|깊이)\)$/.test(String(name || '
 function crpHwHtml(hw, lb){
   if (hw.none) return '<p>' + esc(hw.text || '확인할 것이 없습니다.') + '</p>';   // 숙제 검사를 비워 둔 수업(2026-09-29 원장님 안내문)
   var items = (hw.items || []).filter(function(x){ return x && x.name; });
+  var mi = hw.missing_items || [];   // 과제별 미제출(2026-10-01) — 그 과제 줄은 막대 대신 '미제출'
+  function taskOf(n){ return String(n).replace(/ \((학습량|깊이)\)$/, ''); }
   return '<div class="crp-hwbox">' +
     (hw.missing ? '<p class="crp-miss">미제출</p>'
-      : items.map(function(x){ var mx = +x.max || hwItemMax(x.name), sc = Math.max(0, Math.min(mx, +x.score || 0)); return '<div class="crp-hwrow"><span>' + esc(itemLabel(x.name)) + '</span><span class="crp-track"><i style="width:' + Math.round(sc / mx * 100) + '%"></i></span><b>' + sc + ' / ' + mx + '</b></div>'; }).join('') +
+      : items.map(function(x){ var mx = +x.max || hwItemMax(x.name), sc = Math.max(0, Math.min(mx, +x.score || 0));
+          if (mi.indexOf(taskOf(x.name)) >= 0) return '<div class="crp-hwrow"><span>' + esc(itemLabel(x.name)) + '</span><span class="crp-miss">미제출</span><b></b></div>';
+          return '<div class="crp-hwrow"><span>' + esc(itemLabel(x.name)) + '</span><span class="crp-track"><i style="width:' + Math.round(sc / mx * 100) + '%"></i></span><b>' + sc + ' / ' + mx + '</b></div>'; }).join('') +
         '<div class="crp-hwtot"><span>' + esc(lb) + ' 과제 검사</span><b>' + Math.max(0, Math.min(100, +hw.pct || 0)) + '%' + ((+hw.pct || 0) >= 100 ? ' 🏆' : '') + '</b></div>') +
     '</div>' + (hw.text ? '<p>' + esc(hw.text) + '</p>' : '');
 }
@@ -2078,6 +2124,82 @@ function crpRender(){
     return '<p>' + esc(x.text) + (x.teacher ? ' <small class="crp-by">— ' + esc(x.teacher) + 'T</small>' : '') + '</p>';
   }).join('') + '</section>';
   h += '</article>';   // 아래 '담당 선생님의 수업 기록과…' 안내 줄은 2026-09-29 원장님 요청으로 뺐다
+  box.innerHTML = h;
+}
+
+/* ── 학습 이력 (2026-10-01, 수파베이스 039) ───────────────────────────────────────
+ * 선생님이 오늘의 시간표 [수업 기록] 창에 적은 진도·과제·과제 검사·수업 태도·코멘트를 수업마다 쌓아 보여 준다.
+ * [리포트 생성]을 누른 수업만(사용자 결정). 비공개 메모·미제출 대책·출석 메모는 함수가 내보내지 않는다.
+ * 표는 못 읽고 함수 class_history 만 부른다(015 규칙). 60개씩, [지난 수업 더 보기]가 before 로 이어 받는다. */
+var LH = { loading: false, more: false, busy: false };
+var LH_ATT = ['매우 좋음', '좋음', '노력 필요'];
+function lhRefresh(quiet){
+  LH.loading = true;
+  return rvRpc('class_history').then(function(r){
+    LH.loading = false;
+    STATE.lhist = (r && r.ok) ? (r.items || []) : [];
+    LH.more = !!(r && r.more);
+    if ($('lhView').style.display === 'block') lhRender();
+    else if (quiet && $('hubView').style.display !== 'none' && STATE.lhist.length) renderHub();
+  }).catch(function(){ LH.loading = false; if (STATE.lhist === undefined) STATE.lhist = null; if ($('lhView').style.display === 'block') lhRender(); });
+}
+function lhMore(){
+  var cur = STATE.lhist || []; if (LH.busy || !cur.length) return;
+  LH.busy = true; var b = $('lhMoreBtn'); if (b){ b.disabled = true; b.textContent = '불러오는 중…'; }
+  rvRpc('class_history', { before: cur[cur.length - 1].ymd }).then(function(r){
+    LH.busy = false;
+    if (r && r.ok){ STATE.lhist = cur.concat(r.items || []); LH.more = !!r.more; }
+    lhRender();
+  }).catch(function(){ LH.busy = false; lhRender(); });
+}
+function openLearnHist(){
+  hide('hubView'); $('lhView').style.display = 'block'; window.scrollTo(0, 0);
+  $('lhBack').innerHTML = svg(ICON.back) + ' 메뉴';
+  lhRender(); lhRefresh();
+}
+function closeLearnHist(){ $('lhView').style.display = 'none'; show('hubView'); renderHub(); window.scrollTo(0, 0); }
+function lhLines(t){ return String(t || '').split('\n').map(function(x){ return x.replace(/^\s*[-·•]\s*/, '').trim(); }).filter(Boolean); }
+function lhHw(hw){   // class_history 의 과제 검사 → 주간 리포트 상자 모양(crpHwHtml)
+  var sc = hw.scores || {};
+  return crpHwHtml({ items: Object.keys(sc).map(function(k){ return { name: k, score: sc[k] }; }), pct: hw.pct, missing: hw.missing, missing_items: hw.missing_items || [], text: hw.text || '' }, '이 수업');
+}
+function lhItemHtml(it){
+  var k = LH_ATT.indexOf(it.attitude);
+  var h = '<article class="lh-item"><div class="lh-hd"><span class="lh-day">' + esc(crpDay(it.ymd)) + '</span>' +
+    (it.part ? '<span class="lh-part">' + esc(crpPartName(it.part)) + '</span>' : '') +
+    '<span class="lh-meta">' + esc([it.cls, it.teacher ? it.teacher + 'T' : ''].filter(Boolean).join(' · ')) + '</span>' +
+    (it.attend ? crpAtChip(it.attend) : '') + '</div>';
+  if (k >= 0) h += '<div class="lh-row">수업 태도 <span class="lh-tag a' + k + '">' + esc(it.attitude) + '</span></div>';
+  var units = (it.units || []).filter(Boolean);
+  if (units.length) h += '<div class="crp-kv"><span class="k">나간 범위</span><div class="crp-units">' + units.map(function(u){ return '<span>' + esc(u) + '</span>'; }).join('') + '</div></div>';
+  if (String(it.progress || '').trim()) h += '<div class="crp-kv"><span class="k">수업 내용</span><p>' + esc(String(it.progress).trim()) + '</p></div>';
+  var hwk = lhLines(it.homework);
+  if (hwk.length) h += '<div class="crp-kv"><span class="k">다음 수업까지 과제</span><ul>' + hwk.map(function(x){ return '<li>' + esc(x) + '</li>'; }).join('') + '</ul></div>';
+  if (it.hw) h += '<div class="crp-kv"><span class="k">과제 검사</span>' + lhHw(it.hw) + '</div>';
+  if (String(it.comment || '').trim()) h += '<div class="crp-kv"><span class="k">선생님 코멘트</span><p>' + esc(String(it.comment).trim()) + '</p></div>';
+  return h + '</article>';
+}
+function lhRender(){
+  var box = $('lhList'), items = STATE.lhist;
+  if (items === undefined || (items === null && LH.loading)){ $('lhSum').innerHTML = ''; box.innerHTML = '<div class="rv-empty">불러오는 중…</div>'; return; }
+  if (items === null){ $('lhSum').innerHTML = ''; box.innerHTML = '<div class="rv-empty">학습 이력을 불러오지 못했어요. 잠시 뒤 다시 열어 주세요.</div>'; return; }
+  if (!items.length){ $('lhSum').innerHTML = ''; box.innerHTML = '<div class="rv-empty">아직 학습 이력이 없어요. 선생님이 수업 기록을 마치면 여기에 쌓여요.</div>'; return; }
+  var att = items.filter(function(x){ return x.attend === '출석' || x.attend === '지각'; }).length;
+  var hws = items.filter(function(x){ return x.hw; });
+  var avg = hws.length ? Math.round(hws.reduce(function(a, x){ return a + (x.hw.missing ? 0 : Math.max(0, Math.min(100, +x.hw.pct || 0))); }, 0) / hws.length) : null;
+  var good = items.filter(function(x){ return x.attitude === '매우 좋음'; }).length;
+  $('lhSum').innerHTML = '<div class="lh-sum">' +
+    '<div><b>' + items.length + '</b><span>수업 기록</span></div>' +
+    '<div><b>' + att + '</b><span>출석·지각</span></div>' +
+    '<div><b>' + (avg == null ? '—' : avg + '%') + '</b><span>과제 검사 평균</span></div>' +
+    '<div><b>' + good + '</b><span>태도 매우 좋음</span></div></div>';
+  var h = '', mon = '';
+  items.forEach(function(it){
+    var m = String(it.ymd || '').slice(0, 7);
+    if (m !== mon){ mon = m; h += '<p class="lh-month">' + esc(+m.slice(0, 4) + '년 ' + (+m.slice(5, 7)) + '월') + '</p>'; }
+    h += lhItemHtml(it);
+  });
+  if (LH.more) h += '<button class="lh-more" id="lhMoreBtn" onclick="lhMore()">지난 수업 더 보기</button>';
   box.innerHTML = h;
 }
 

@@ -154,9 +154,9 @@ def cmd_data(book, cid, ymd):
     studs = [s for s in (rest('GET', '/students?select=name,school,grade,code,student_id,enrolled') or [])
              if not LEFT_RE.match(str(s.get('enrolled') or '').strip())]
     # 숙제 검사는 수업마다 한 줄(035 — class_id). 숙제 검사 주차 = 수업일의 가장 최근 수요일(월·화 수업은 지난주)
-    hws = rest('GET', '/hwcheck_records?week=gte.%s&week=lte.%s&select=week,token,class_id,scores,max,pct,missing,pub' % (wed - dt.timedelta(days=7), wed)) or []
+    hws = rest('GET', '/hwcheck_records?week=gte.%s&week=lte.%s&select=*' % (wed - dt.timedelta(days=7), wed)) or []
     hw_by = {(h['token'], h.get('class_id') or '', str(h['week'])): h for h in hws if h.get('token')}
-    HWK = ('scores', 'pct', 'missing', 'pub', 'max')
+    HWK = ('scores', 'pct', 'missing', 'pub', 'max', 'missing_items')   # missing_items = 과제별 미제출(039)
     prev = rest('GET', '/class_reports?week=eq.%s&select=code,body' % wed) or []
     prev_by = {r['code']: r['body'] for r in prev}
     days = [mon + dt.timedelta(days=i) for i in range(7)]
@@ -206,10 +206,15 @@ def cmd_data(book, cid, ymd):
                 'time': '%s %s~%s' % (cl['day'], cl['start_time'], cl['end_time']),
                 'attend': a and {'status': a['status'], 'memo': a['memo'], 'makeup_plan': a['makeup_plan'], 'makeup_done': a['makeup_done']},
                 'note': n and {'progress': n.get('progress', ''), 'units': n.get('units') or [], 'homework': n.get('homework', ''),
-                               'comment': (n.get('comments') or {}).get(p, ''), 'status': n.get('report_status', '')},
+                               'comment': (n.get('comments') or {}).get(p, ''),
+                               'attitude': ((n.get('comments') or {}).get('__태도') or {}).get(p, ''), 'status': n.get('report_status', '')},
                 'pending': not n or not a,
-                'hw': h and {k: h[k] for k in HWK},
+                'hw': h and {k: h.get(k) for k in HWK},
             })
+            # 전체 미제출인데 코멘트가 비면 정해 둔 문장(2026-10-01 사용자 지정 — timetable crMissComment·039 와 같은 문장, 리포트 comments 에 그대로)
+            if n and h and h.get('missing') and not str(parts[-1]['note']['comment'] or '').strip():
+                parts[-1]['note']['comment'] = re.sub(r'[A-Z]$', '', p) + ' 친구는 과제 제출을 하지 않았습니다!!!!'
+                parts[-1]['note']['comment_auto'] = True
         hw = hw_by.get((s['code'], '', str(wed))) if s else None   # 반 구분 전(035 이전) 주 단위 기록
         out.append({
             'token': t, 'name': p, 'note': note_of(t),

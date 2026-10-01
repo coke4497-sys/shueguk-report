@@ -748,6 +748,11 @@ curl -s -X POST "https://api.supabase.com/v1/projects/bangdbhqpphqqdwcledg/datab
 - `migrations/033_review_done_75.sql` — `review_done_pct()`를 75로(사용자 "75%를 보면 완료, 별 없음 — 결석 보충") + 75% 이상인데 completed_at 이 비어 있던 줄을 채운다. 페이지는 별을 세지 않는다.
 - 적용 상태: **2026-09-27 실제 수파베이스에 적용 완료** — 공개 키로 review_done_pct() = 75 확인(당시 시청 기록 0건이라 채움 대상 없음).
 
+## 학습 이력 — 학생 함수 class_history (2026-10-01, 039)
+- `migrations/039_class_history.sql` — 표 변경 없음. 함수 `class_history(p {key|student, before?})`(anon) + 내부 도우미 `ch_plain_`·`ch_who_`. [리포트 생성]을 누른 수업(class_notes.requested_at)만, 학생이 출석했거나 그 수업 과제 검사 기록이 있는 것을 60개씩. priv·plan·출석 메모는 내보내지 않는다. 수업 태도는 class_notes.comments 의 예약 키 '__태도'. 같은 파일이 `hwcheck_records.missing_items`(jsonb, 과제별 미제출 목록) 열도 더한다 — missing 은 모든 과제가 미제출일 때만 참.
+- **적용 상태: 2026-10-01 실제 수파베이스에 적용 완료**(관리 API — 원장님이 준 sbp_ 토큰, 저장 안 함). 확인: class_history 함수·missing_items 열 생김, 공개 키로 없는 키 → no_student·class_notes 직접 읽기 401·ch_who_ 실행 거절, 실제 재원생 키 → ok(아직 리포트 생성한 수업이 없어 빈 목록), 최근 30일 출석 이름 750개 중 742개가 한 학생으로 이어짐(못 이은 8개는 전부 students 표에 없는 이름 — 미등록·퇴원).
+- 검증: `PGHOST=/home/pgtest PGPORT=5499 PGUSER=postgres bash tools/class-history-sql-test.sh`.
+
 ## 슈퍼스타 주간 리포트 — 수업 기록·주간 보고서 (2026-09-28, 034)
 - `migrations/034_class_reports.sql` — 표 2개(`class_notes` = 수업마다 수업 구분(part)·진도·단원(units)·과제·학생별 코멘트·리포트 상태 / `class_reports` = **학생 × 주차 한 장**(week·code 유일), 클로슈가 쓴 주간 리포트 `body` jsonb) — 교사 authenticated 전용 + 학생 함수 `class_report_list(p {key|student})`(anon, 최근 16주·published만). student_bundle은 건드리지 않았다.
 - 숙제 검사(`hwcheck_records`)·시험범위/단원/주차 메모(`naeshin_records`)는 **기존 표를 그대로** 쓴다 — 수업 기록 창이 숙제 검사 페이지·내신대비 피드백과 같은 행을 읽고 쓴다.
