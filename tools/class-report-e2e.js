@@ -99,28 +99,30 @@ const STUDENTS = [
     rows: [row('r001', '고2 가', '지원', '박보검 김하늘 최다은')],
     att: [{ class_id: 'r001', student: '박보검', status: '출석' }, { class_id: 'r001', student: '김하늘', status: '지각' }],
     prev: [{ class_id: 'r001', ymd: LASTWK, homework: '관동별곡 학습지\n오답 노트' }],
-    hw: [{ token: 'k-kim', scores: { '관동별곡 학습지 (학습량)': 5, '관동별곡 학습지 (깊이)': 5, '오답 노트 (학습량)': 0, '오답 노트 (깊이)': 0 }, pct: 50, pub: '옛 공개 메모', priv: '', missing: false, plan: '' }] });
+    hw: [{ token: 'k-kim', scores: { '관동별곡 학습지 (학습량)': 5, '관동별곡 학습지 (채점)': 2, '관동별곡 학습지 (학습 분석)': 2, '관동별곡 학습지 (오답 분석)': 2, '오답 노트 (학습량)': 0 }, pct: 50, pub: '옛 공개 메모', priv: '', missing: false, plan: '' }] });
   await openCard(page, '고2 가');
   let r = await page.evaluate(() => ({ kind: document.getElementById('cr-kind').textContent, left: document.getElementById('crpanel').getBoundingClientRect().left,
     cards: [...document.querySelectorAll('.cr-card')].map(c => ({ nm: c.querySelector('.cr-top b').textContent, at: c.querySelector('.cr-chip').textContent,
       pct: c.querySelector('.cr-top').textContent, rows: c.querySelectorAll('.cr-item').length, tasks: [...c.querySelectorAll('.cr-tname')].map(x => x.textContent),
-      src: (c.querySelector('.cr-src') || {}).textContent || '', stars: c.querySelectorAll('.cr-stars button').length, on: c.querySelectorAll('.cr-stars .on').length })),
+      src: (c.querySelector('.cr-src') || {}).textContent || '', stars: c.querySelectorAll('.cr-stars button').length, on: c.querySelectorAll('.cr-stars .on').length,
+      lv: c.querySelectorAll('.cr-lvp').length, lvOn: [...c.querySelectorAll('.cr-lvp.on')].map(x => x.textContent), cp: c.querySelectorAll('.cr-cpb').length })),
     hint: (document.querySelector('.cr-hint') || {}).textContent, head: document.querySelector('.cr-sh').textContent }));
   ok('정규 가: 왼쪽 창·"가 수업" 표시', r.kind === '가 수업' && r.left === 0, JSON.stringify(r));
   const card = n => r.cards.find(x => x.nm === n) || {};
   ok('학생 3명·출석 칩', r.cards.length === 3 && card('박보검').at === '출석' && card('김하늘').at === '지각' && card('최다은').at === '미체크', JSON.stringify(r.cards));
-  ok('지난주 같은 반 과제 2개 × 학습량·깊이 = 4줄, 별 5개씩', card('박보검').tasks.join('|') === '관동별곡 학습지|오답 노트' && card('박보검').rows === 4 && card('박보검').stars === 20 &&
+  ok('지난주 같은 반 과제 2개 × 학습량·채점·학습 분석·오답 분석 = 8줄, 학습량 별 5개 + 3단계 알약 3개씩 + 베낌 의심', card('박보검').tasks.join('|') === '관동별곡 학습지|오답 노트' && card('박보검').rows === 8 && card('박보검').stars === 10 &&
+     card('박보검').lv === 18 && card('박보검').cp === 2 && card('박보검').lvOn.length === 0 &&
      /과제/.test(card('박보검').src), JSON.stringify(card('박보검')));
   ok('지난 과제 조회 = 같은 반·지난 3주', (st.srcGets || []).some(u => /class_id=in\.\("r001"\)/.test(u) && /ymd=gte\./.test(u)), JSON.stringify(st.srcGets));
-  ok('기존 기록 50%·별 10개 켜짐 · 없는 학생 미검사', /50%/.test(card('김하늘').pct) && card('김하늘').on === 10 && /미검사/.test(card('박보검').pct), JSON.stringify(r.cards));
+  ok('기존 기록 50%·별 5개·완벽 3개 켜짐(없는 3단계 키는 미체크) · 없는 학생 미검사', /50%/.test(card('김하늘').pct) && card('김하늘').on === 5 && card('김하늘').lvOn.join() === '완벽,완벽,완벽' && /미검사/.test(card('박보검').pct), JSON.stringify(r.cards));
   ok('창에 "숙제"라는 말이 없다', await page.$eval('#crpanel', e => !/숙제/.test(e.textContent)));
-  ok('안내·머리 문구', /이 수업 과제 검사/.test(r.head) && /학습량·깊이 별 5개/.test(r.hint) && /5·5면 슈퍼스타 별/.test(r.hint), r.hint);
+  ok('안내·머리 문구', /이 수업 과제 검사/.test(r.head) && /학습량을 별 5개로/.test(r.hint) && /안함\/일부함\/완벽/.test(r.hint) && /별 5개·완벽이면 슈퍼스타 별/.test(r.hint), r.hint);
   await page.fill('#cr-prog', '문학 — 「사미인곡」');
   await page.fill('#cr-task', '비교 학습지 1장\n오답 노트');
   const iPark = await page.evaluate(() => CR.names.map(x => x.p).indexOf('박보검'));
   await page.fill('#cr-c-' + iPark, '정서 변화를 정확히 짚음');
   await page.click(`[data-star="${iPark}|0|5"]`);
-  await page.click(`[data-star="${iPark}|1|4"]`);
+  await page.click(`[data-hlv="${iPark}|1|1"]`);
   r = await page.evaluate(i => ({ prog: document.getElementById('cr-prog').value, cm: document.getElementById('cr-c-' + i).value }), iPark);
   ok('별을 눌러도 쓰던 진도·코멘트가 남는다', r.prog === '문학 — 「사미인곡」' && r.cm === '정서 변화를 정확히 짚음', JSON.stringify(r));
   await page.waitForFunction(() => /저장됨/.test(document.querySelector('.cr-dot.ok') ? document.querySelector('.cr-dot.ok').textContent : ''), null, { timeout: 5000 });
@@ -128,17 +130,20 @@ const STUDENTS = [
   const CID = await page.evaluate(() => CR.c.id);
   ok('과제 검사는 이 수업 것만 읽는다(class_id)', (st.hwGets || []).some(g => g.includes('class_id=eq.' + CID)), JSON.stringify(st.hwGets));
   ok('수업마다 한 줄 — 반ID·가·반이름, on_conflict=week,token,class_id', hwW && /on_conflict=week,token,class_id/.test(hwW.u) && hwW.body[0].class_id === CID && hwW.body[0].part === '가' && !!hwW.body[0].class_name, JSON.stringify(hwW && hwW.body));
-  ok('별 → 과제별 키·만점 20·45%', hwW && hwW.body[0].week === PREVWED && hwW.body[0].token === 'k-park' &&
-     hwW.body[0].scores['관동별곡 학습지 (학습량)'] === 5 && hwW.body[0].scores['관동별곡 학습지 (깊이)'] === 4 && hwW.body[0].scores['오답 노트 (학습량)'] === 0 &&
-     hwW.body[0].max === 20 && hwW.body[0].pct === 45, JSON.stringify(hwW && hwW.body));
-  ok('시트 사본 hwcheckSave(반ID·수업·별 5개 기준)', st.gas.some(g => g.action === 'hwcheckSave' && g.token === 'k-park' && g.week === PREVWED && g.cls === CID && g.part === '가' && +g.itemMax === 5));
-  await page.click(`[data-star="${iPark}|1|5"]`); await page.click(`[data-star="${iPark}|2|5"]`); await page.click(`[data-star="${iPark}|3|5"]`);
+  ok('별·3단계 → 과제별 키·만점 22·27%(고르지 않은 3단계는 저장 안 함)', hwW && hwW.body[0].week === PREVWED && hwW.body[0].token === 'k-park' &&
+     hwW.body[0].scores['관동별곡 학습지 (학습량)'] === 5 && hwW.body[0].scores['관동별곡 학습지 (채점)'] === 1 && hwW.body[0].scores['오답 노트 (학습량)'] === 0 &&
+     !('관동별곡 학습지 (학습 분석)' in hwW.body[0].scores) && !('오답 노트 (채점)' in hwW.body[0].scores) &&
+     hwW.body[0].max === 22 && hwW.body[0].pct === 27, JSON.stringify(hwW && hwW.body));
+  ok('시트 사본 hwcheckSave(반ID·수업·항목별 만점 maxes)', st.gas.some(g => g.action === 'hwcheckSave' && g.token === 'k-park' && g.week === PREVWED && g.cls === CID && g.part === '가' &&
+     g.maxes && g.maxes['관동별곡 학습지 (학습량)'] === 5 && g.maxes['관동별곡 학습지 (채점)'] === 2), JSON.stringify(st.gas.filter(g => g.action === 'hwcheckSave').pop()));
+  await page.click(`[data-hlv="${iPark}|1|2"]`); await page.click(`[data-hlv="${iPark}|2|2"]`); await page.click(`[data-hlv="${iPark}|3|2"]`);
+  await page.click(`[data-star="${iPark}|4|5"]`); await page.click(`[data-hlv="${iPark}|5|2"]`); await page.click(`[data-hlv="${iPark}|6|2"]`); await page.click(`[data-hlv="${iPark}|7|2"]`);
   await page.waitForTimeout(1000);
   hwW = st.writes.filter(w => /hwcheck_records/.test(w.u) && w.body[0].token === 'k-park').pop();
   r = await page.evaluate(i => document.getElementById('cr-pct-' + i).textContent, iPark);
-  ok('모든 과제 5·5 → 100% 🏆(슈퍼스타 별 대상)', hwW && hwW.body[0].pct === 100 && /100%/.test(r) && /🏆/.test(r), JSON.stringify([hwW && hwW.body[0].pct, r]));
+  ok('모든 과제 별 5개·완벽 → 100% 🏆(슈퍼스타 별 대상)', hwW && hwW.body[0].pct === 100 && /100%/.test(r) && /🏆/.test(r), JSON.stringify([hwW && hwW.body[0].pct, r]));
   const iKim = await page.evaluate(() => CR.names.map(x => x.p).indexOf('김하늘'));
-  await page.click(`[data-star="${iKim}|2|1"]`);
+  await page.click(`[data-star="${iKim}|4|1"]`);
   await page.waitForTimeout(1000);
   hwW = st.writes.filter(w => /hwcheck_records/.test(w.u) && w.body[0].token === 'k-kim').pop();
   ok('기존 공개 메모는 그대로 싣는다', hwW && hwW.body[0].pub === '옛 공개 메모' && hwW.body[0].scores['오답 노트 (학습량)'] === 1, JSON.stringify(hwW && hwW.body));
@@ -151,12 +156,25 @@ const STUDENTS = [
   r = await page.evaluate(i => ({ plan: !document.getElementById('cr-plan-' + i).hidden, pct: document.getElementById('cr-pct-' + i).textContent,
     dim: document.querySelectorAll('.cr-card[data-i="' + i + '"] .cr-task.miss').length }), iKim);
   ok('오답 노트만 미제출 → missing_items·그 과제 0점·나머지로 50%·전체 미제출 아님', hwW && JSON.stringify(hwW.body[0].missing_items) === '["오답 노트"]' &&
-     hwW.body[0].scores['오답 노트 (학습량)'] === 0 && hwW.body[0].scores['관동별곡 학습지 (깊이)'] === 5 && hwW.body[0].pct === 50 && hwW.body[0].missing === false, JSON.stringify(hwW && hwW.body));
+     hwW.body[0].scores['오답 노트 (학습량)'] === 0 && hwW.body[0].scores['오답 노트 (채점)'] === 0 && hwW.body[0].scores['관동별곡 학습지 (채점)'] === 2 && hwW.body[0].pct === 50 && hwW.body[0].missing === false, JSON.stringify(hwW && hwW.body));
   ok('화면 — 대책 칸 열림·"미제출 1"·그 과제 흐림', r.plan && /50%/.test(r.pct) && /미제출 1/.test(r.pct) && r.dim === 1, JSON.stringify(r));
-  await page.click(`[data-star="${iKim}|2|3"]`);
+  await page.click(`[data-hlv="${iKim}|5|0"]`);
   await page.waitForTimeout(1000);
   hwW = st.writes.filter(w => /hwcheck_records/.test(w.u) && w.body[0].token === 'k-kim').pop();
-  ok('그 과제에 별을 매기면 미제출이 풀린다', hwW && hwW.body[0].missing_items.length === 0 && hwW.body[0].scores['오답 노트 (학습량)'] === 3, JSON.stringify(hwW && hwW.body));
+  ok('그 과제에 3단계(안함)를 고르면 미제출이 풀리고 안함=0이 저장된다', hwW && hwW.body[0].missing_items.length === 0 && hwW.body[0].scores['오답 노트 (채점)'] === 0, JSON.stringify(hwW && hwW.body));
+  await page.click(`[data-hlv="${iKim}|5|0"]`);
+  await page.click(`[data-star="${iKim}|4|3"]`);
+  await page.waitForTimeout(1000);
+  hwW = st.writes.filter(w => /hwcheck_records/.test(w.u) && w.body[0].token === 'k-kim').pop();
+  ok('같은 알약을 다시 누르면 미체크(키 없음) · 별 3개', hwW && !('오답 노트 (채점)' in hwW.body[0].scores) && hwW.body[0].scores['오답 노트 (학습량)'] === 3, JSON.stringify(hwW && hwW.body));
+  // 베낌 의심(비공개) — 과제 검사 기록이 아니라 class_notes.comments['__베낌']
+  const nCp = st.writes.filter(w => /class_notes/.test(w.u)).length;
+  await page.click(`[data-cp="${iKim}|0"]`);
+  await page.waitForTimeout(1300);
+  let cpW = st.writes.filter(w => /class_notes/.test(w.u)).slice(nCp).pop();
+  ok('베낌 의심 → class_notes.comments.__베낌 = {김하늘:[관동별곡 학습지]} · 과제 검사 기록에는 없음', cpW && JSON.stringify(cpW.body[0].comments['__베낌']) === '{"김하늘":["관동별곡 학습지"]}' &&
+     !st.writes.filter(w => /hwcheck_records/.test(w.u)).some(w => /베낌/.test(JSON.stringify(w.body))) &&
+     await page.$eval(`[data-cp="${iKim}|0"]`, e => e.classList.contains('on')), JSON.stringify(cpW && cpW.body[0].comments));
   const iChoi = await page.evaluate(() => CR.names.map(x => x.p).indexOf('최다은'));
   await page.click(`[data-miss="${iChoi}"]`);
   r = await page.evaluate(i => ({ plan: !document.getElementById('cr-plan-' + i).hidden, pct: document.getElementById('cr-pct-' + i).textContent }), iChoi);
@@ -179,7 +197,7 @@ const STUDENTS = [
   ok('전체 미제출·대책 저장(0%, 과제 2개 모두 목록에)', hwW && hwW.body[0].missing === true && hwW.body[0].plan === '9/30 재검사' && hwW.body[0].pct === 0 && hwW.body[0].missing_items.length === 2, JSON.stringify(hwW && hwW.body));
   let nw = st.writes.filter(w => /class_notes/.test(w.u)).pop();
   ok('저장 → class_notes(part 가·진도·과제·코멘트 하나)', nw && nw.body[0].part === '가' && /사미인곡/.test(nw.body[0].progress) && nw.body[0].homework.split('\n').length === 2 &&
-     nw.body[0].comments['박보검'] === '정서 변화를 정확히 짚음' && Object.keys(nw.body[0].comments).length === 1 && !('report_status' in nw.body[0]), JSON.stringify(nw && nw.body));
+     nw.body[0].comments['박보검'] === '정서 변화를 정확히 짚음' && Object.keys(nw.body[0].comments).filter(k => k[0] !== '_').length === 1 && !!nw.body[0].comments['__베낌'] && !('report_status' in nw.body[0]), JSON.stringify(nw && nw.body));
   ok('정규는 naeshin 기록을 안 건드림', !st.writes.some(w => /naeshin_records/.test(w.u)));
   await page.click('#cr-gen');
   await page.waitForFunction(() => /마쳤습니다/.test(document.getElementById('cr-msg').textContent), null, { timeout: 8000 });
@@ -256,7 +274,7 @@ const STUDENTS = [
       tasks: [...c.querySelectorAll('.cr-tname')].map(x => x.textContent), rows: c.querySelectorAll('.cr-item').length,
       src: (c.querySelector('.cr-src') || {}).textContent || '', txt: c.textContent })));
     const pk = r.find(x => x.nm === '박보검') || {}, kh = r.find(x => x.nm === '김하늘') || {};
-    ok('내신 확인: 박보검은 진도 수업 과제 2개 × 2줄', pk.tasks.join('|') === '교과서 1~6번|서술형 정리' && pk.rows === 4 && /진도/.test(pk.src), JSON.stringify(pk));
+    ok('내신 확인: 박보검은 진도 수업 과제 2개 × 4줄', pk.tasks.join('|') === '교과서 1~6번|서술형 정리' && pk.rows === 8 && /진도/.test(pk.src), JSON.stringify(pk));
     ok('내신 확인: 진도 반이 없는 김하늘은 검사할 과제 없음 안내', kh.rows === 0 && /지난 수업에 적힌 과제가 없습니다/.test(kh.txt), JSON.stringify(kh));
     ok('내신 과제 조회 = 학생들의 내신 반 전체', (st.srcGets || []).some(u => /"n001"/.test(u) && /"n002"/.test(u)), JSON.stringify(st.srcGets));
     await ctx.close();
@@ -278,7 +296,7 @@ const STUDENTS = [
     let nw2 = st.writes.filter(w => /class_notes/.test(w.u)).pop();
     r = await page.evaluate(() => ({ rows: document.querySelectorAll('.cr-item').length, head: (document.querySelector('.cr-src') || {}).textContent || '',
       chips: [...document.querySelectorAll('.cr-xt .cr-unit')].map(x => x.firstChild.textContent) }));
-    ok('추가 → 학생마다 학습량·깊이 2줄 · 반 전체 추가 과제 표시', r.rows === 4 && /반 전체에 추가한 과제/.test(r.head) && r.chips.join() === '교재 p.12~15', JSON.stringify(r));
+    ok('추가 → 학생마다 과제당 4줄 · 반 전체 추가 과제 표시', r.rows === 8 && /반 전체에 추가한 과제/.test(r.head) && r.chips.join() === '교재 p.12~15', JSON.stringify(r));
     ok('추가한 과제는 class_notes.comments 예약 키에 저장', nw2 && nw2.body[0].comments['__검사과제'] === '교재 p.12~15', JSON.stringify(nw2 && nw2.body));
     await page.click('#cr-xt-last');
     await page.waitForFunction(() => document.querySelectorAll('.cr-xt .cr-unit').length === 3, null, { timeout: 8000 });
@@ -288,7 +306,7 @@ const STUDENTS = [
     await page.click(`[data-star="${iP}|0|5"]`);
     await page.waitForFunction(() => /저장됨/.test(document.querySelector('.cr-dot.ok') ? document.querySelector('.cr-dot.ok').textContent : ''), null, { timeout: 5000 });
     const hw2 = st.writes.filter(w => /hwcheck_records/.test(w.u)).pop();
-    ok('추가 과제 별 저장 — 키·만점 30', hw2 && hw2.body[0].scores['교재 p.12~15 (학습량)'] === 5 && hw2.body[0].max === 30 && hw2.body[0].class_id === 'n001', JSON.stringify(hw2 && hw2.body));
+    ok('추가 과제 별 저장 — 키·만점 33(과제 3개 × 11)', hw2 && hw2.body[0].scores['교재 p.12~15 (학습량)'] === 5 && hw2.body[0].max === 33 && hw2.body[0].class_id === 'n001', JSON.stringify(hw2 && hw2.body));
     await ctx.close();
   }
 
@@ -361,7 +379,7 @@ const STUDENTS = [
   await page.click('[data-tmiss="0|1"]');
   await page.waitForFunction(() => /저장됨/.test((document.getElementById('cr-dot-0') || {}).textContent || ''), null, { timeout: 6000 });
   let hw3 = st.writes.filter(w => /hwcheck_records/.test(w.u));
-  ok('열이 없으면 빼고 다시 저장(점수 0·missing 거짓)·안내', hw3.length === 2 && !('missing_items' in hw3[1].body[0]) && hw3[1].body[0].scores['오답 노트 (깊이)'] === 0 &&
+  ok('열이 없으면 빼고 다시 저장(점수 0·missing 거짓)·안내', hw3.length === 2 && !('missing_items' in hw3[1].body[0]) && hw3[1].body[0].scores['오답 노트 (채점)'] === 0 &&
      /039/.test(await page.$eval('#cr-msg', e => e.textContent)), JSON.stringify(hw3.map(w => w.body[0])));
   await ctx.close();
 
@@ -382,7 +400,7 @@ const STUDENTS = [
   r = await page.evaluate(() => ({ open: !document.getElementById('crpv').hidden, t: document.getElementById('crpv-box').textContent,
     z: +getComputedStyle(document.getElementById('crpv')).zIndex }));
   ok('카드의 [리포트 미리보기] → 그 학생 카드(진도·과제·태도·코멘트·과제 검사·과제별 미제출)', r.open && /박보검/.test(r.t) && /사미인곡/.test(r.t) && /비교 학습지 1장/.test(r.t) &&
-     /수업 태도 ?매우 좋음/.test(r.t) && /집중이 좋았어요/.test(r.t) && /관동별곡 학습지 \(학습량\)5 \/ 5/.test(r.t) && /오답 노트 \(학습량\)미제출/.test(r.t) && /이 수업 과제 검사25%/.test(r.t) && r.z > 81, r.t);
+     /수업 태도 ?매우 좋음/.test(r.t) && /집중이 좋았어요/.test(r.t) && /관동별곡 학습지학습량5 \/ 5/.test(r.t) && /오답 노트미제출/.test(r.t) && /이 수업 과제 검사23%/.test(r.t) && r.z > 81, r.t);
   await page.waitForTimeout(900);
   ok('미리보기는 리포트를 요청하지 않는다', !st.gas.some(g => g.action === 'editReqAdd') && st.writes.slice(wBefore).every(w => !w.body || !w.body[0] || !w.body[0].report_status));
   await page.keyboard.press('Escape');
@@ -437,7 +455,7 @@ const STUDENTS = [
   const HIST = [
     { ymd: '2026-09-30', book: '정규', part: '가', cls: '고2 가', teacher: '지원', time: '수 5:30~7:00', body: B({ attend: '출석', attitude: '매우 좋음',
       summary: '「사미인곡」의 표현상 특징을 정리했습니다.', units: [], homework: ['비교 학습지 1장', '오답 노트'],
-      hw: { items: [{ name: '관동별곡 학습지 (학습량)', score: 5, max: 5 }, { name: '관동별곡 학습지 (깊이)', score: 4, max: 5 }, { name: '오답 노트 (학습량)', score: 0, max: 5 }, { name: '오답 노트 (깊이)', score: 0, max: 5 }],
+      hw: { items: [{ name: '관동별곡 학습지 (학습량)', score: 5, max: 5 }, { name: '관동별곡 학습지 (깊이)', score: 4, max: 5 }, { name: '관동별곡 학습지 (채점)', score: 1, max: 2 }, { name: '오답 노트 (학습량)', score: 0, max: 5 }, { name: '오답 노트 (깊이)', score: 0, max: 5 }],
             pct: 45, missing: false, missing_items: ['오답 노트'], text: '학습지는 충실히 해 왔고 오답 노트는 제출하지 않았습니다.' },
       comment: '집중이 좋았습니다.' }) },
     { ymd: '2026-09-28', book: '정규', part: '나', cls: '고2 나', teacher: '현지', time: '월 5:30~7:00', body: B({ attend: '결석', attend_note: '가족 행사로 결석했습니다.',
@@ -481,7 +499,7 @@ const STUDENTS = [
   ok('주간 리포트 카드·화면은 없다(수업 리포트로 합침)', await hp.evaluate(() => !document.getElementById('crView') && ![...document.querySelectorAll('#menu .card')].some(x => /주간 리포트/.test(x.textContent))));
   ok('달별 묶음 — 9월·8월', r.months.join('|') === '2026년 9월|2026년 8월', JSON.stringify(r.months));
   ok('9/30 — 날짜·가 수업·반·선생님·출석·태도·클로슈가 쓴 내용·과제 2줄·과제 검사 문장·코멘트', /9\/30 \(수\)/.test(r.items[0]) && /가 수업/.test(r.items[0]) && /고2 가 · 지원T/.test(r.items[0]) && /출석/.test(r.items[0]) &&
-     /수업 태도 ?매우 좋음/.test(r.items[0]) && /표현상 특징을 정리했습니다/.test(r.items[0]) && r.li === 2 && /이 수업 과제 검사45%/.test(r.items[0]) && /오답 노트 \(학습량\)미제출/.test(r.items[0]) &&
+     /수업 태도 ?매우 좋음/.test(r.items[0]) && /표현상 특징을 정리했습니다/.test(r.items[0]) && r.li === 2 && /이 수업 과제 검사45%/.test(r.items[0]) && /관동별곡 학습지학습량5 \/ 5깊이4 \/ 5채점일부함오답 노트미제출/.test(r.items[0]) &&
      /충실히 해 왔고/.test(r.items[0]) && /집중이 좋았습니다/.test(r.items[0]), r.items[0]);
   ok('태도 색 — 매우 좋음 a0 · 노력 필요 a2', r.tags.includes('lh-tag a0:매우 좋음') && r.tags.includes('lh-tag a2:노력 필요'), JSON.stringify(r.tags));
   ok('9/28 — 결석·결석 안내·전체 미제출·정해 둔 코멘트, 태도 없으면 줄도 없음', /결석/.test(r.items[1]) && /가족 행사로/.test(r.items[1]) && /미제출/.test(r.items[1]) && !/수업 태도/.test(r.items[1]) &&
