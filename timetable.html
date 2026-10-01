@@ -488,6 +488,9 @@
   .cr-src{font-size:.72rem;color:var(--ink-soft);margin:2px 0 4px;}
   .cr-task{background:#F4F6F5;border-radius:9px;padding:6px 8px;margin-bottom:5px;}
   .cr-tname{font-size:.8rem;font-weight:700;color:var(--ink);margin-bottom:2px;word-break:keep-all;}
+  .cr-thead{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;}
+  .cr-tmiss{flex:none;font-size:.7rem;padding:2px 8px;}
+  .cr-task.miss .cr-item{opacity:.4;}
   .cr-dim{font-size:.76rem;color:var(--ink-soft);}
   .cr-scope{background:#F6F8F7;border-radius:12px;padding:9px 12px;}
   .cr-scope summary{cursor:pointer;font-size:.86rem;font-weight:700;}
@@ -6781,7 +6784,7 @@ function openClassNote(c){
   var mine = CR;
   Promise.all([
     crGet('/class_notes?book=eq.' + encodeURIComponent(book) + '&class_id=eq.' + encodeURIComponent(c.id) + '&ymd=eq.' + ymd + '&select=*'),
-    crGet('/hwcheck_records?week=eq.' + CR.hwWeek + '&class_id=eq.' + encodeURIComponent(c.id) + '&select=token,scores,pct,pub,priv,missing,plan').catch(function(){ return null; }),
+    crGet('/hwcheck_records?week=eq.' + CR.hwWeek + '&class_id=eq.' + encodeURIComponent(c.id) + '&select=*').catch(function(){ return null; }),
     crHwSrcLoad(c, book, ymd).catch(function(e){ console.warn('지난 과제 조회 실패', e); return null; }),
     crStudentsEnsure().catch(function(){ return null; }),
     CR.ns ? crNsLoad(CR.ns, c.id) : Promise.resolve(),
@@ -6791,7 +6794,7 @@ function openClassNote(c){
     CR.note = r[0][0] || null;
     CR.xt = crTasksOf(((CR.note || {}).comments || {})[CR_XT_KEY]);
     CR.xtLast = (r[2] && r[2].xtLast) || [];
-    if (r[1]){ CR.hwOk = !!r[3]; r[1].forEach(function(x){ CR.hw[x.token] = { scores: x.scores || {}, pub: x.pub || '', priv: x.priv || '', missing: !!x.missing, plan: x.plan || '', saved: true }; }); }
+    if (r[1]){ CR.hwOk = !!r[3]; r[1].forEach(function(x){ CR.hw[x.token] = { scores: x.scores || {}, pub: x.pub || '', priv: x.priv || '', missing: !!x.missing, miss: Array.isArray(x.missing_items) ? x.missing_items.slice() : [], plan: x.plan || '', saved: true }; }); }
     CR.src = r[2];
     CR.names.forEach(function(x){ x.stu = crStuOf(x.nm); });
     CR.sib = r[5] || [];
@@ -7018,8 +7021,19 @@ function crItemsOf(x){
   if (src) src.tasks.forEach(function(t){ CR_HW_DIMS.forEach(function(d){ out.push(t + ' (' + d + ')'); }); });
   return out;
 }
-function crHwRec(code){ return CR.hw[code] || (CR.hw[code] = { scores: {}, pub: '', priv: '', missing: false, plan: '', saved: false }); }
-function crHwTouched(h){ return !!h && (h.missing || Object.keys(h.scores).some(function(k){ return +h.scores[k] > 0; }) || !!String(h.plan || '').trim() || !!String(h.priv || '').trim()); }
+function crHwRec(code){ return CR.hw[code] || (CR.hw[code] = { scores: {}, pub: '', priv: '', missing: false, miss: [], plan: '', saved: false }); }
+/* 과제마다 미제출(2026-10-01 사용자 "과제를 부여하면 미제출 기록 기능이 과제마다 있어야 함") — h.miss = 미제출 과제 이름 목록
+ * (hwcheck_records.missing_items, 039). 그 과제의 학습량·깊이는 0점. h.missing(옛 '미제출 = 0%')은 모든 과제가 미제출일 때만 참.
+ * 옛 기록(missing 참·목록 없음)은 모든 과제 미제출로 읽는다. */
+var crMissCol = true;   // 039 적용 전이면 missing_items 열이 없다 — 한 번 실패하면 빼고 저장
+function crTaskMissed(h, t){ return !!h && ((h.miss || []).indexOf(t) >= 0 || (!!h.missing && !(h.miss || []).length)); }
+function crMissedOf(h, tasks){ return (tasks || []).filter(function(t){ return crTaskMissed(h, t); }); }
+function crSetMissed(h, tasks, list){
+  h.miss = tasks.filter(function(t){ return list.indexOf(t) >= 0; });
+  h.miss.forEach(function(t){ CR_HW_DIMS.forEach(function(d){ h.scores[t + ' (' + d + ')'] = 0; }); });
+  h.missing = tasks.length > 0 && h.miss.length === tasks.length;
+}
+function crHwTouched(h){ return !!h && (h.missing || (h.miss || []).length > 0 || Object.keys(h.scores).some(function(k){ return +h.scores[k] > 0; }) || !!String(h.plan || '').trim() || !!String(h.priv || '').trim()); }
 function crHwPct(h, its){
   if (!h || h.missing || !its || !its.length) return 0;
   var sum = 0; its.forEach(function(it){ sum += Math.max(0, Math.min(CR_HW_MAX, parseInt(h.scores[it], 10) || 0)); });
@@ -7030,15 +7044,19 @@ function crHwLabel(code){
   var h = code ? CR.hw[code] : null;
   if (h && h.missing) return '<span class="cr-pct miss">미제출</span>';
   if (!crHwTouched(h)) return '<span class="cr-pct">미검사</span>';
-  var x = crXOfCode(code), p = crHwPct(h, x ? crItemsOf(x) : []);
-  return '<span class="cr-pct' + (p >= 100 ? ' full' : '') + '">' + p + '%' + (p >= 100 ? ' 🏆' : '') + '</span>';
+  var x = crXOfCode(code), src = x ? crSrcOf(x) : null, p = crHwPct(h, x ? crItemsOf(x) : []);
+  var nm = src ? crMissedOf(h, src.tasks).length : 0;
+  return '<span class="cr-pct' + (p >= 100 ? ' full' : '') + '">' + p + '%' + (p >= 100 ? ' 🏆' : '') + '</span>' +
+    (nm ? ' <span class="cr-pct miss">미제출 ' + nm + '</span>' : '');
 }
 function crStarsHtml(i, code){
   var h = code ? CR.hw[code] : null, x = CR.names[i], src = crSrcOf(x);
   if (!src) return '<div class="cr-note">지난 수업에 적힌 과제가 없습니다. 리포트에는 \'확인할 것이 없습니다\'로 들어갑니다.</div>';
   var ii = 0;
-  return '<div class="cr-src">' + esc(src.head) + '</div>' + src.tasks.map(function(t){
-    return '<div class="cr-task"><div class="cr-tname">' + esc(t) + '</div>' + CR_HW_DIMS.map(function(d){
+  return '<div class="cr-src">' + esc(src.head) + '</div>' + src.tasks.map(function(t, ti){
+    var tm = crTaskMissed(h, t);
+    return '<div class="cr-task' + (tm ? ' miss' : '') + '"><div class="cr-thead"><div class="cr-tname">' + esc(t) + '</div>' +
+      '<button type="button" class="cr-mini cr-tmiss' + (tm ? ' on' : '') + '" data-tmiss="' + i + '|' + ti + '" aria-pressed="' + tm + '" aria-label="' + esc(t) + ' 미제출">미제출</button></div>' + CR_HW_DIMS.map(function(d){
       var it = t + ' (' + d + ')', idx = ii++, sc = h ? (parseInt(h.scores[it], 10) || 0) : 0, b = '';
       for (var k = 1; k <= CR_HW_MAX; k++) b += '<button type="button" class="' + (k <= sc ? 'on' : '') + '" data-star="' + i + '|' + idx + '|' + k + '" aria-label="' + esc(t) + ' ' + d + ' ' + k + '점">★</button>';
       return '<div class="cr-item"><span>' + d + '</span><span class="cr-stars">' + b + '</span></div>';
@@ -7055,11 +7073,12 @@ function crRender(){
     var code = x.stu ? x.stu.code : '';
     var h = code ? CR.hw[code] : null;
     if (crHwTouched(h)) hwDone++;
-    var miss = !!(h && h.missing);
+    var miss = !!(h && (h.missing || (h.miss || []).length));   // 과제 하나라도 미제출이면 대책 칸
+    var allMiss = !!(h && h.missing);
     var hwPart = !CR.hwOk ? '<div class="cr-note">과제 검사를 불러오지 못해 이 창에서는 매길 수 없어요.</div>'
       : !code ? '<div class="cr-note">명단에서 이 학생을 찾지 못해 과제 검사를 저장할 수 없어요(동명이인·미등록).</div>'
       : crStarsHtml(i, code) +
-        '<div class="cr-row2' + (crSrcOf(x) ? '' : ' one') + '">' + (crSrcOf(x) ? '<button type="button" class="cr-mini' + (miss ? ' on' : '') + '" data-miss="' + i + '">미제출</button>' : '') +
+        '<div class="cr-row2' + (crSrcOf(x) ? '' : ' one') + '">' + (crSrcOf(x) ? '<button type="button" class="cr-mini' + (allMiss ? ' on' : '') + '" data-miss="' + i + '" title="모든 과제를 미제출로">전체 미제출</button>' : '') +
         '<input id="cr-c-' + i + '" maxlength="200" placeholder="코멘트 (선택) — 학생 페이지에 보여요" value="' + esc(cm[x.p] || '') + '" aria-label="' + esc(x.p) + ' 코멘트"></div>' +
         '<input class="cr-plan" id="cr-plan-' + i + '" maxlength="120" placeholder="미제출 대책 — 예) 9/30 수 5:30 재검사 약속" value="' + esc(h ? h.plan : '') + '"' + (miss ? '' : ' hidden') + '>' +
         '<button type="button" class="cr-more" data-more="' + i + '">' + (CR.more[i] ? '접기' : '더 보기') + '</button>' +
@@ -7133,6 +7152,7 @@ document.addEventListener('click', function(e){
   if (!b) return;
   if (b.hasAttribute('data-star')){ var s = b.getAttribute('data-star').split('|'); crStar(+s[0], +s[1], +s[2]); return; }
   if (b.hasAttribute('data-att')){ crAttSet(+b.getAttribute('data-att'), +b.getAttribute('data-lv')); return; }
+  if (b.hasAttribute('data-tmiss')){ var tp = b.getAttribute('data-tmiss').split('|'); crTaskMiss(+tp[0], +tp[1]); return; }
   if (b.hasAttribute('data-miss')){ crMiss(+b.getAttribute('data-miss')); return; }
   if (b.hasAttribute('data-more')){ var i = +b.getAttribute('data-more'); crKeepInputs(); CR.more[i] = !CR.more[i]; crRender(); return; }
   if (b.hasAttribute('data-per')){ crKeepInputs(); crNsPeriod(b.getAttribute('data-per')); return; }
@@ -7167,15 +7187,26 @@ function crStar(i, ii, k){
   var h = crHwRec(x.stu.code), it = crItemsOf(x)[ii]; if (!it) return;
   var cur = parseInt(h.scores[it], 10) || 0;
   h.scores[it] = (cur === k) ? k - 1 : k;   // 같은 별을 다시 누르면 하나 줄이기(숙제 검사 페이지와 같은 규칙)
-  if (h.scores[it] > 0) h.missing = false;
+  if (h.scores[it] > 0){   // 별을 매기면 그 과제는 제출한 것
+    var src = crSrcOf(x), t = it.replace(/ \((학습량|깊이)\)$/, '');
+    if (src) crSetMissed(h, src.tasks, crMissedOf(h, src.tasks).filter(function(m){ return m !== t; }));
+  }
   crKeepInputs(); crRender(); crHwQueue(i);
 }
-function crMiss(i){
+function crMiss(i){   // 전체 미제출 — 모두 미제출이면 모두 풀고, 아니면 모두 미제출로
   var x = CR.names[i]; if (!x || !x.stu) return;
-  var h = crHwRec(x.stu.code);
-  h.missing = !h.missing;
+  var h = crHwRec(x.stu.code), src = crSrcOf(x); if (!src) return;
+  crSetMissed(h, src.tasks, h.missing ? [] : src.tasks.slice());
   crKeepInputs(); crRender(); crHwQueue(i);
   if (h.missing && $('cr-plan-' + i)) $('cr-plan-' + i).focus();
+}
+function crTaskMiss(i, ti){
+  var x = CR.names[i]; if (!x || !x.stu) return;
+  var h = crHwRec(x.stu.code), src = crSrcOf(x), t = src && src.tasks[ti]; if (!t) return;
+  var cur = crMissedOf(h, src.tasks), on = cur.indexOf(t) < 0;
+  crSetMissed(h, src.tasks, on ? cur.concat([t]) : cur.filter(function(m){ return m !== t; }));
+  crKeepInputs(); crRender(); crHwQueue(i);
+  if (on && $('cr-plan-' + i)) $('cr-plan-' + i).focus();
 }
 function crHwQueue(i){
   var dot = $('cr-dot-' + i); if (dot){ dot.textContent = '저장 중…'; dot.className = 'cr-dot'; }
@@ -7191,12 +7222,23 @@ function crHwSave(i){
   var its = crItemsOf(x);
   if (!its.length) return Promise.resolve();
   its.forEach(function(it){ scores[it] = Math.max(0, Math.min(CR_HW_MAX, parseInt(h.scores[it], 10) || 0)); });
-  var pct = crHwPct(h, its);
+  var src = crSrcOf(x), missed = src ? crMissedOf(h, src.tasks) : [];
+  missed.forEach(function(t){ CR_HW_DIMS.forEach(function(d){ scores[t + ' (' + d + ')'] = 0; }); });
+  var allMiss = !!src && missed.length === src.tasks.length;
+  var pct = allMiss ? 0 : crHwPct({ scores: scores }, its);
   var row = { week: week, token: s.code, name: s.name, school: s.school, grade: s.grade, scores: scores,
               max: its.length * CR_HW_MAX, pct: pct, pub: h.pub || '', priv: h.priv || '',
-              missing: !!h.missing, plan: h.plan || '', at: new Date().toISOString(),
+              missing: allMiss, plan: h.plan || '', at: new Date().toISOString(),
               class_id: CR.c.id, part: CR.part || '', class_name: CR.c.cls || '' };
-  return crSend('POST', '/hwcheck_records?on_conflict=week,token,class_id', [row], 'resolution=merge-duplicates,return=minimal')
+  if (crMissCol) row.missing_items = missed;
+  function post(r){ return crSend('POST', '/hwcheck_records?on_conflict=week,token,class_id', [r], 'resolution=merge-duplicates,return=minimal'); }
+  return post(row).catch(function(e){
+      // 039 적용 전 — missing_items 열이 없으면 빼고 다시(과제별 미제출 표시는 점수 0으로만 남는다)
+      if (!crMissCol || !/missing_items/.test(String(e && e.message))) throw e;
+      crMissCol = false; delete row.missing_items;
+      crMsg('과제별 미제출 표시는 데이터베이스 준비(039) 뒤부터 저장돼요. 점수는 저장했어요.', true);
+      return post(row);
+    })
     .then(function(){
       h.saved = true;
       crLegacy({ action: 'hwcheckSave', week: week, token: s.code, name: s.name, school: s.school, grade: s.grade,

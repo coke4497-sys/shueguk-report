@@ -438,7 +438,7 @@
           (records[r.token] = records[r.token] || []).push({
             cls: r.class_id || '', part: r.part || '', clsName: r.class_name || '',
             scores: r.scores || {}, pct: r.pct || 0, pub: r.pub, priv: r.priv,
-            missing: !!r.missing, plan: r.plan });
+            missing: !!r.missing, miss: Array.isArray(r.missing_items) ? r.missing_items : [], plan: r.plan });
         });
         var raw = (S[5][0] && S[5][0].value) || '';
         var items = raw.split(',').map(function(x){ return x.trim(); }).filter(Boolean);
@@ -1006,6 +1006,8 @@ function recHtml(r){
     : (hasAnyScore(r) ? '<b class="' + (pct >= 100 ? 'full' : '') + '">' + pct + '%</b>' + (pct >= 100 ? ' 🏆' : '') : '<span style="font-size:.8rem;">점수 없음</span>');
   var rows = r.missing ? '' : recItems(r).map(function(it){
     var sc = parseInt(r.scores[it], 10) || 0, st = '';
+    if ((r.miss || []).indexOf(String(it).replace(/ \((학습량|깊이)\)$/, '')) >= 0)   // 과제별 미제출(2026-10-01)
+      return '<div class="itemrow"><span class="lb">' + esc(itemLabel(it)) + '</span><span class="miss-lb">미제출</span></div>';
     for (var k = 1; k <= hwItemMax(it); k++) st += '<span class="' + (k <= sc ? 'on' : '') + '">★</span>';
     return '<div class="itemrow"><span class="lb">' + esc(itemLabel(it)) + '</span><span class="stars">' + st + '</span></div>';
   }).join('');

@@ -4,6 +4,9 @@
 --       받아서 그 누적 기록을 보여주고 싶습니다" → 결정: 태도 = 3단계 알약(매우 좋음/좋음/노력 필요),
 --       공개 시점 = [리포트 생성]을 누른 수업만(requested_at 있음 — 저장만 한 수업은 안 보인다))
 --
+--   · 과제마다 미제출(2026-10-01 같은 날 사용자 "과제를 부여하면 미제출 기록 기능이 과제마다 있어야 함"):
+--     hwcheck_records.missing_items = 미제출로 표시한 과제 이름 목록. 그 과제의 학습량·깊이는 0점으로 저장되고,
+--     missing(옛 '미제출 = 0%')은 **모든 과제가 미제출**일 때만 참 — 일부만 빠지면 %는 남은 과제 점수로 센다.
 --   · 수업 태도는 새 열 없이 class_notes.comments 의 예약 키 '__태도' = {학생이름(괄호 뗀 것): 단계} 로 둔다
 --     ('__검사과제'와 같은 방식 — 마이그레이션 전에도 선생님 창 저장이 깨지지 않게).
 --   · class_history(p {key|student, before?}) — 공개 키 허용. 그 학생이 들은 수업(출석 기록 또는 그 수업 과제 검사 기록)
@@ -11,6 +14,8 @@
 --   · 출석 이름 대조는 class_report.py find_student 와 같은 규칙(앞뒤 괄호 떼고 정확히 → 끝의 A 떼고 → A 붙여서,
 --     동명이인은 앞 괄호 학교로). 한 사람으로 못 가리면 그 출석 기록은 쓰지 않는다.
 -- ============================================================
+
+alter table public.hwcheck_records add column if not exists missing_items jsonb not null default '[]'::jsonb;
 
 create or replace function public.ch_plain_(s text)
 returns text language sql immutable as $$
@@ -76,14 +81,14 @@ begin
      where public.ch_plain_(a.student) = any(v_names) and public.ch_who_(a.student) = me.id
      order by n.id, a.updated_at desc
   ), hw as (      -- 그 수업 과제 검사(주차 = 가장 최근 수요일)
-    select distinct on (n.id) n.id as nid, h.scores, h.max, h.pct, h.missing, h.pub
+    select distinct on (n.id) n.id as nid, h.scores, h.max, h.pct, h.missing, h.pub, h.missing_items
       from notes n
       join public.hwcheck_records h on h.token = me.code and h.class_id = n.class_id
                                    and h.week = n.ymd - ((extract(dow from n.ymd)::int + 4) % 7)
      order by n.id, h.at desc
   ), mine as (
     select n.*, att.status as att_status, att.student as att_name,
-           hw.scores, hw.max as hw_max, hw.pct as hw_pct, hw.missing as hw_missing, hw.pub as hw_pub,
+           hw.scores, hw.max as hw_max, hw.pct as hw_pct, hw.missing as hw_missing, hw.pub as hw_pub, hw.missing_items as hw_miss_items,
            (hw.nid is not null) as has_hw
       from notes n
       left join att on att.nid = n.id
@@ -106,7 +111,8 @@ begin
           'attitude', coalesce(nullif(m.comments->'__태도'->>public.ch_plain_(m.att_name), ''), nullif(m.comments->'__태도'->>me.name, ''),
                                nullif(m.comments->'__태도'->>(me.name || 'A'), ''), ''),
           'hw', case when m.has_hw then jsonb_build_object('scores', m.scores, 'max', m.hw_max, 'pct', m.hw_pct,
-                                                           'missing', m.hw_missing, 'text', m.hw_pub) end
+                                                           'missing', m.hw_missing, 'missing_items', coalesce(m.hw_miss_items, '[]'::jsonb),
+                                                           'text', m.hw_pub) end
         ) as j
       from mine m
     ) x;

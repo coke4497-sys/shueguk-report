@@ -2074,9 +2074,13 @@ function hwItemMax(name){ return /\((학습량|깊이)\)$/.test(String(name || '
 function crpHwHtml(hw, lb){
   if (hw.none) return '<p>' + esc(hw.text || '확인할 것이 없습니다.') + '</p>';   // 숙제 검사를 비워 둔 수업(2026-09-29 원장님 안내문)
   var items = (hw.items || []).filter(function(x){ return x && x.name; });
+  var mi = hw.missing_items || [];   // 과제별 미제출(2026-10-01) — 그 과제 줄은 막대 대신 '미제출'
+  function taskOf(n){ return String(n).replace(/ \((학습량|깊이)\)$/, ''); }
   return '<div class="crp-hwbox">' +
     (hw.missing ? '<p class="crp-miss">미제출</p>'
-      : items.map(function(x){ var mx = +x.max || hwItemMax(x.name), sc = Math.max(0, Math.min(mx, +x.score || 0)); return '<div class="crp-hwrow"><span>' + esc(itemLabel(x.name)) + '</span><span class="crp-track"><i style="width:' + Math.round(sc / mx * 100) + '%"></i></span><b>' + sc + ' / ' + mx + '</b></div>'; }).join('') +
+      : items.map(function(x){ var mx = +x.max || hwItemMax(x.name), sc = Math.max(0, Math.min(mx, +x.score || 0));
+          if (mi.indexOf(taskOf(x.name)) >= 0) return '<div class="crp-hwrow"><span>' + esc(itemLabel(x.name)) + '</span><span class="crp-miss">미제출</span><b></b></div>';
+          return '<div class="crp-hwrow"><span>' + esc(itemLabel(x.name)) + '</span><span class="crp-track"><i style="width:' + Math.round(sc / mx * 100) + '%"></i></span><b>' + sc + ' / ' + mx + '</b></div>'; }).join('') +
         '<div class="crp-hwtot"><span>' + esc(lb) + ' 과제 검사</span><b>' + Math.max(0, Math.min(100, +hw.pct || 0)) + '%' + ((+hw.pct || 0) >= 100 ? ' 🏆' : '') + '</b></div>') +
     '</div>' + (hw.text ? '<p>' + esc(hw.text) + '</p>' : '');
 }
@@ -2157,7 +2161,7 @@ function closeLearnHist(){ $('lhView').style.display = 'none'; show('hubView'); 
 function lhLines(t){ return String(t || '').split('\n').map(function(x){ return x.replace(/^\s*[-·•]\s*/, '').trim(); }).filter(Boolean); }
 function lhHw(hw){   // class_history 의 과제 검사 → 주간 리포트 상자 모양(crpHwHtml)
   var sc = hw.scores || {};
-  return crpHwHtml({ items: Object.keys(sc).map(function(k){ return { name: k, score: sc[k] }; }), pct: hw.pct, missing: hw.missing, text: hw.text || '' }, '이 수업');
+  return crpHwHtml({ items: Object.keys(sc).map(function(k){ return { name: k, score: sc[k] }; }), pct: hw.pct, missing: hw.missing, missing_items: hw.missing_items || [], text: hw.text || '' }, '이 수업');
 }
 function lhItemHtml(it){
   var k = LH_ATT.indexOf(it.attitude);

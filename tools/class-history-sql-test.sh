@@ -59,6 +59,7 @@ insert into hwcheck_records (week, token, name, scores, max, pct, pub, priv, mis
   ('2026-09-30','tok-park','박보검','{"학습지 (학습량)":5,"학습지 (깊이)":4}', 10, 90, '잘 했어요', '비공개 메모', false, '', 'r010','가'),
   ('2026-09-23','tok-park','박보검','{}', 10, 0, '', '', true, '재검사 약속', 'r011','나'),
   ('2026-09-23','tok-park','박보검','{"숙제 수행":6}', 6, 100, '', '', false, '', 'r012','');
+update hwcheck_records set missing_items = '["오답 노트"]' where token = 'tok-park' and class_id = 'r010';
 do $$
 declare r jsonb; it jsonb;
 begin
@@ -69,9 +70,11 @@ begin
   it := r->'items'->0;
   assert it->>'attend' = '출석' and it->>'comment' = '집중이 좋았어요' and it->>'attitude' = '매우 좋음', '9/30 출석·코멘트·태도: ' || it::text;
   assert it->>'homework' like '학습지 1장%' and it->>'progress' = '사미인곡 정리' and it->>'part' = '가' and it->>'teacher' = '은지', '진도·과제';
+  assert it->'hw'->'missing_items'->>0 = '오답 노트', '과제별 미제출 목록: ' || it::text;
   assert (it->'hw'->>'pct')::int = 90 and it->'hw'->>'text' = '잘 했어요' and (it->'hw'->>'max')::int = 10, '과제 검사';
   assert it::text not like '%비공개 메모%' and it::text not like '%__검사과제%' and it::text not like '%priv%', '비공개 값 없음';
   it := r->'items'->1;
+  assert it->'hw'->'missing_items' = '[]'::jsonb, '미제출 목록 없으면 빈 배열';
   assert it->>'attend' = '결석' and it->>'attitude' = '노력 필요' and (it->'hw'->>'missing')::boolean, '9/28 괄호 이름·월요일 주차(9/23) 과제 검사: ' || it::text;
   assert it::text not like '%가족 여행%' and it::text not like '%재검사 약속%', '출석 메모·대책 제외';
   it := r->'items'->2;
