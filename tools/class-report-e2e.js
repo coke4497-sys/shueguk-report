@@ -296,7 +296,7 @@ const STUDENTS = [
     await openCard(page, '고3파이널A');
     r = await page.evaluate(() => ({ kind: document.getElementById('cr-kind').textContent, scope: !!document.getElementById('cr-scope'),
       tasks: [...document.querySelectorAll('.cr-card')][0] ? [...[...document.querySelectorAll('.cr-card')][0].querySelectorAll('.cr-tname')].map(x => x.textContent) : [] }));
-    ok('고3 내신 주: "수업"(진도 아님)·시험범위 칸 없음', r.kind === '수업' && !r.scope, JSON.stringify(r));
+    ok('고3 내신 주: "정규 수업"(진도 아님)·시험범위 칸 없음', r.kind === '정규 수업' && !r.scope, JSON.stringify(r));
     ok('고3 내신 주: 지난주 정규 짝 반(r020) 과제로 검사', r.tasks.join('|') === '2-4회차 모의고사', JSON.stringify(r));
     ok('짝 반 찾기 = 정규 같은 이름 반 · 과제 조회 = 두 시간표·두 반', (st.twinGets || []).some(u => /book=eq\.정규/.test(u) && /name=eq\.고3파이널A/.test(u)) &&
        (st.srcGets || []).some(u => /"n015"/.test(u) && /"r020"/.test(u) && /book=in\./.test(u)), JSON.stringify([st.twinGets, st.srcGets]));

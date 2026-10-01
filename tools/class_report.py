@@ -111,7 +111,9 @@ ALWAYS_REG = re.compile(r'고3|중3|논술')   # 중3·고3은 내신 기간에�
 
 def part_of(name, book):
     n = str(name or '').strip()
-    if book == '내신' and not ALWAYS_REG.search(n):
+    if ALWAYS_REG.search(n):
+        return '정규'   # 중3·고3 반 = '정규 수업' 표시
+    if book == '내신':
         return '확인' if '확인' in n else '진도'
     m = re.search(r'(가|나)$', re.sub(r'\(.*\)\s*$', '', n).strip())
     return m.group(1) if m else ''

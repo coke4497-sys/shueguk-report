@@ -6639,6 +6639,7 @@ var CR_ALWAYS_REG = /고3|중3|논술/;
 function crRuleBook(c, bk){ return bk === '내신' && CR_ALWAYS_REG.test(String((c && c.cls) || '')) ? '정규' : bk; }
 function crPartOf(c, bk){
   var n = String(c.cls || '').trim();
+  if (CR_ALWAYS_REG.test(n)) return '정규';   // 중3·고3 반 = '정규 수업' 표시(같은 날 사용자 "정규 수업 표시를 해주는 것")
   bk = crRuleBook(c, bk);
   if (bk === '내신') return /확인/.test(n) ? '확인' : '진도';
   var m = n.replace(/\(.*\)\s*$/, '').trim().match(/(가|나)$/);
