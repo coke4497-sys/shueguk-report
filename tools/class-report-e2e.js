@@ -516,12 +516,12 @@ const STUDENTS = [
   ok('주간 리포트 카드·화면은 없다(수업 리포트로 합침)', await hp.evaluate(() => !document.getElementById('crView') && ![...document.querySelectorAll('#menu .card')].some(x => /주간 리포트/.test(x.textContent))));
   ok('달별 묶음 — 9월·8월', r.months.join('|') === '2026년 9월|2026년 8월', JSON.stringify(r.months));
   ok('9/30 — 날짜·가 수업·반·선생님·출석·태도·클로슈가 쓴 내용·과제 2줄·과제 검사 문장·코멘트', /9\/30수/.test(r.items[0]) && /가 수업/.test(r.items[0]) && /고2 가 · 지원T/.test(r.items[0]) && /출석/.test(r.items[0]) &&
-     /수업 태도 ?매우 좋음/.test(r.items[0]) && /표현상 특징을 정리했습니다/.test(r.items[0]) && r.li === 2 && /과제 검사45%2건 중 1건 미제출/.test(r.items[0]) && /관동별곡 학습지5\/5깊이 4\/5채점 일부오답 노트미제출/.test(r.items[0]) &&
+     /수업 태도 ?매우 좋음/.test(r.items[0]) && /표현상 특징을 정리했습니다/.test(r.items[0]) && r.li === 2 && /과제 검사45%2건 중 1건 미제출/.test(r.items[0]) && /관동별곡 학습지깊이 4\/55\/5일부함——오답 노트미제출/.test(r.items[0]) && /이번주 과제 검사과제학습량채점학습 분석오답 분석/.test(r.items[0]) &&
      /충실히 해 왔고/.test(r.items[0]) && /집중이 좋았습니다/.test(r.items[0]), r.items[0]);
   ok('수업 태도 타일 — 매우 좋음 · 노력 필요', /수업 태도매우 좋음/.test(r.items[0]) && r.items.some(t => /수업 태도노력 필요/.test(t)), JSON.stringify(r.items.map(t => t.slice(0, 60))));
   ok('9/28 — 결석·결석 안내·전체 미제출·정해 둔 코멘트, 태도 없으면 줄도 없음', /결석/.test(r.items[1]) && /가족 행사로/.test(r.items[1]) && /미제출/.test(r.items[1]) && !/수업 태도/.test(r.items[1]) &&
      /박보검 친구는 과제 제출을 하지 않았습니다!!!!/.test(r.items[1]), r.items[1]);
-  ok('8/29 내신 진도 — 나간 범위 칩·"확인할 것이 없습니다."', /진도 수업/.test(r.items[2]) && /나간 범위사미인곡/.test(r.items[2]) && /확인할 것이 없습니다\./.test(r.items[2]) && !/%/.test(r.items[2]), r.items[2]);
+  ok('8/29 내신 진도 — 수업 진도 타일·"확인할 것이 없습니다."', /진도 수업/.test(r.items[2]) && /수업 진도사미인곡/.test(r.items[2]) && /확인할 것이 없습니다\./.test(r.items[2]) && !/%/.test(r.items[2]), r.items[2]);
   ok('"숙제"라는 말이 없다', !r.items.some(t => /숙제/.test(t)));
   ok('100% 아닌 수업에는 별 +1 표시·효과가 없다', await hp.evaluate(() => !document.querySelector('.lh-star1') && !document.querySelector('.rc-star1') && !document.querySelector('.lh-sb')));
   await hp.click('#lhMoreBtn');
