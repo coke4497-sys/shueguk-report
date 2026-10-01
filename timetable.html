@@ -478,6 +478,7 @@
   .cr-card input,.cr-card textarea,.cr-f input{font:inherit;font-size:.8rem;color:var(--ink);background:#fff;border:1px solid var(--line);
     border-radius:8px;padding:5px 8px;min-width:0;width:100%;}
   .cr-card textarea{min-height:44px;resize:vertical;}
+  .cr-links{display:flex;gap:14px;}
   .cr-more{align-self:flex-start;font:inherit;font-size:.7rem;border:0;background:none;color:var(--ink-soft);cursor:pointer;padding:0;text-decoration:underline;}
   .cr-note{font-size:.74rem;color:#7A6230;}
   .cr-att{display:flex;align-items:center;gap:5px;flex-wrap:wrap;font-size:.74rem;color:var(--ink-soft);}
@@ -510,6 +511,42 @@
   .cr-check b{color:var(--ink);} .cr-check .ok{color:#3F6159;} .cr-check .warn{color:#7A6230;}
   .cr-state{border-radius:10px;padding:9px 12px;font-size:.8rem;background:#EDE4F4;color:#5A4A6A;}
   .cr-state.hold{background:#F7E2DE;color:#9A5A52;}
+  /* 학생별 리포트 미리보기 (2026-10-01) — 학생 페이지 '학습 이력' 카드와 같은 모양 */
+  .crpv-bg{position:fixed;inset:0;z-index:90;background:rgba(42,51,47,.45);display:flex;align-items:center;justify-content:center;padding:16px;}
+  .crpv-bg[hidden]{display:none;}
+  .crpv{background:#C6D5D2;border-radius:18px;width:100%;max-width:440px;max-height:88vh;overflow:auto;padding:14px;display:flex;flex-direction:column;gap:10px;}
+  .crpv-nav{display:flex;align-items:center;gap:8px;}
+  .crpv-nav b{flex:1;text-align:center;font-family:var(--serif);font-size:.98rem;}
+  .crpv-nav b small{display:block;font-family:var(--sans);font-weight:400;font-size:.72rem;color:var(--ink-soft);}
+  .crpv-nav button{font:inherit;border:0;border-radius:10px;background:#fff;color:var(--ink-soft);width:36px;height:36px;cursor:pointer;font-size:1.1rem;}
+  .crpv-nav button:disabled{opacity:.35;cursor:default;}
+  .crpv-nav .x{font-size:.82rem;width:auto;padding:0 12px;}
+  .crpv-note{font-size:.76rem;color:#4F5C56;background:rgba(255,255,255,.55);border-radius:10px;padding:8px 10px;margin:0;}
+  .crpv-warn{font-size:.78rem;color:#7A6230;background:#FBF6E6;border-radius:10px;padding:8px 10px;margin:0;}
+  .crpv-card{background:#fff;border-radius:16px;padding:14px 16px;display:flex;flex-direction:column;gap:9px;}
+  .crpv-hd{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+  .crpv-day{font-family:'Do Hyeon',var(--sans);font-size:1.12rem;}
+  .crpv-part{font-size:.72rem;background:#EDE4F4;color:#5A4A6A;border-radius:7px;padding:1px 8px;}
+  .crpv-meta{font-size:.78rem;color:var(--ink-soft);flex:1 1 auto;min-width:0;}
+  .crpv-at{font-size:.72rem;border-radius:7px;padding:1px 8px;background:#EEF1EF;color:#65726B;}
+  .crpv-at.ok{background:#DCE8E5;color:#3F6159;} .crpv-at.late{background:#F9EFD0;color:#7A6230;} .crpv-at.abs{background:#F7E2DE;color:#9A5A52;}
+  .crpv-row{display:flex;align-items:center;gap:8px;font-size:.8rem;color:var(--ink-soft);}
+  .crpv-tag{font-size:.74rem;border-radius:999px;padding:2px 10px;}
+  .crpv-tag.a0{background:#DCE8E5;color:#3F6159;} .crpv-tag.a1{background:#EDE4F4;color:#5A4A6A;} .crpv-tag.a2{background:#F7E2DE;color:#9A5A52;}
+  .crpv-kv{display:flex;flex-direction:column;gap:3px;}
+  .crpv-kv .k{font-size:.74rem;color:var(--ink-soft);}
+  .crpv-kv p{margin:0;font-size:.9rem;line-height:1.7;white-space:pre-wrap;}
+  .crpv-kv ul{margin:0;padding-left:19px;font-size:.9rem;line-height:1.7;}
+  .crpv-units{display:flex;flex-wrap:wrap;gap:5px;}
+  .crpv-units span{font-size:.8rem;background:#EDE4F4;color:#5A4A6A;border-radius:8px;padding:2px 9px;}
+  .crpv-hw{background:#F2F5F3;border-radius:12px;padding:10px 12px;display:flex;flex-direction:column;gap:6px;}
+  .crpv-hwrow{display:grid;grid-template-columns:minmax(74px,1.6fr) minmax(40px,1fr) auto;gap:8px;align-items:center;font-size:.8rem;color:var(--ink-soft);}
+  .crpv-hwrow b{font-weight:400;color:var(--ink);font-variant-numeric:tabular-nums;}
+  .crpv-track{height:7px;border-radius:7px;background:#fff;overflow:hidden;}
+  .crpv-track i{display:block;height:100%;background:#B9A5CC;border-radius:7px;}
+  .crpv-tot{display:flex;justify-content:space-between;font-size:.86rem;}
+  .crpv-miss{color:#9A5A52;font-weight:700;}
+  .crpv-empty{font-size:.84rem;color:var(--ink-soft);}
   .cr-foot{padding:12px 18px 16px;border-top:1px solid var(--line-soft);display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
   .cr-btn{font:inherit;font-size:.9rem;border:0;border-radius:10px;padding:9px 15px;cursor:pointer;background:#EEF1EF;color:#4F5C56;}
   .cr-btn.lav{background:#EDE4F4;color:#5A4A6A;}
@@ -1142,10 +1179,12 @@
   <div class="cr-body" id="cr-body"></div>
   <div class="cr-foot">
     <button class="cr-btn" id="cr-save" onclick="crSave()">저장</button>
+    <button class="cr-btn" id="cr-pv" onclick="crPvOpen(0)">미리보기</button>
     <button class="cr-btn lav" id="cr-gen" onclick="crGenerate()">리포트 생성</button>
     <span class="cr-msg" id="cr-msg"></span>
   </div>
 </aside>
+<div class="crpv-bg" id="crpv" hidden><div class="crpv" role="dialog" aria-label="학생별 리포트 미리보기" id="crpv-box"></div></div>
 
 <div class="modal-bg" id="modal"><div class="modal" id="modal-box"></div></div>
 
@@ -6870,6 +6909,7 @@ function crNsUnitsOfWeek(ns){
   return crNsItems(ns).filter(function(it){ var c = ns.cleared[it]; return c && c.s <= ns.week && ns.week <= c.d; });
 }
 function crClose(){
+  crPvClose();
   crFlushHw();
   if (crAttTimer){ clearTimeout(crAttTimer); crAttTimer = null; if (CR.c && !CR.busy) crUpsert().then(function(){ render(); }, function(e){ setStatus('수업 태도를 저장하지 못했어요. 창을 다시 열어 눌러 주세요.', 'err'); console.warn(e); }); }
   $('cr-bg').hidden = true; $('crpanel').hidden = true; CR = { c: null };
@@ -7081,8 +7121,10 @@ function crRender(){
         '<div class="cr-row2' + (crSrcOf(x) ? '' : ' one') + '">' + (crSrcOf(x) ? '<button type="button" class="cr-mini' + (allMiss ? ' on' : '') + '" data-miss="' + i + '" title="모든 과제를 미제출로">전체 미제출</button>' : '') +
         '<input id="cr-c-' + i + '" maxlength="200" placeholder="코멘트 (선택) — 학생 페이지에 보여요" value="' + esc(cm[x.p] || '') + '" aria-label="' + esc(x.p) + ' 코멘트"></div>' +
         '<input class="cr-plan" id="cr-plan-' + i + '" maxlength="120" placeholder="미제출 대책 — 예) 9/30 수 5:30 재검사 약속" value="' + esc(h ? h.plan : '') + '"' + (miss ? '' : ' hidden') + '>' +
-        '<button type="button" class="cr-more" data-more="' + i + '">' + (CR.more[i] ? '접기' : '더 보기') + '</button>' +
+        '<span class="cr-links"><button type="button" class="cr-more" data-more="' + i + '">' + (CR.more[i] ? '접기' : '더 보기') + '</button>' +
+        '<button type="button" class="cr-more" data-pv="' + i + '">리포트 미리보기</button></span>' +
         (CR.more[i] ? '<textarea class="cr-priv" id="cr-priv-' + i + '" maxlength="300" placeholder="비공개 메모 — 교사·조교만 봐요">' + esc(h ? h.priv : '') + '</textarea>' : '');
+    if (!CR.hwOk || !code) hwPart += '<button type="button" class="cr-more" data-pv="' + i + '">리포트 미리보기</button>';
     if (!CR.hwOk || !code) hwPart += '<div class="cr-row2 one"><input id="cr-c-' + i + '" maxlength="200" placeholder="코멘트 (선택) — 학생 페이지에 보여요" value="' + esc(cm[x.p] || '') + '"></div>';
     return '<div class="cr-card" data-i="' + i + '"><div class="cr-top"><b title="' + esc(x.nm) + '">' + esc(x.p) + '</b>' +
       '<span class="cr-chip ' + ch + '">' + (a ? esc(a.status) : '미체크') + '</span>' +
@@ -7152,6 +7194,7 @@ document.addEventListener('click', function(e){
   if (!b) return;
   if (b.hasAttribute('data-star')){ var s = b.getAttribute('data-star').split('|'); crStar(+s[0], +s[1], +s[2]); return; }
   if (b.hasAttribute('data-att')){ crAttSet(+b.getAttribute('data-att'), +b.getAttribute('data-lv')); return; }
+  if (b.hasAttribute('data-pv')){ crPvOpen(+b.getAttribute('data-pv')); return; }
   if (b.hasAttribute('data-tmiss')){ var tp = b.getAttribute('data-tmiss').split('|'); crTaskMiss(+tp[0], +tp[1]); return; }
   if (b.hasAttribute('data-miss')){ crMiss(+b.getAttribute('data-miss')); return; }
   if (b.hasAttribute('data-more')){ var i = +b.getAttribute('data-more'); crKeepInputs(); CR.more[i] = !CR.more[i]; crRender(); return; }
@@ -7371,7 +7414,83 @@ function crGenerate(){
     });
   }).catch(function(e){ crBusy(false); crMsg('저장하지 못했어요. 다시 눌러 주세요. (' + e.message + ')', true); });
 }
-document.addEventListener('keydown', function(e){ if (e.key === 'Escape' && CR.c && !$('crpanel').hidden) crClose(); });
+document.addEventListener('keydown', function(e){
+  if (e.key === 'Escape' && !$('crpv').hidden){ crPvClose(); return; }
+  if (e.key === 'Escape' && CR.c && !$('crpanel').hidden) crClose();
+  if (!$('crpv').hidden && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) crPvStep(e.key === 'ArrowLeft' ? -1 : 1);
+});
+/* ── 학생별 리포트 미리보기 (2026-10-01 사용자 "리포트 생성을 하기 전 학생마다 리포트 미리보기") ──
+ * 지금 창에 적힌 값(저장 전 포함)으로, [리포트 생성] 뒤 학생 페이지 '학습 이력'에 보일 이 수업 카드를 그대로 그린다
+ * (s.html lhItemHtml·crpHwHtml 과 같은 구성 — 고치면 둘 다). 비공개 메모·미제출 대책은 학생에게 안 나가므로 넣지 않는다.
+ * 주간 리포트 글은 생성 뒤 클로슈가 이 내용으로 다듬어 쓴다(문장은 미리 볼 수 없다). ‹ › / ←→ 로 다음 학생. */
+var CR_PV = { i: 0 };
+function crPvItem(i){
+  var x = CR.names[i], n = CR.note || {}, cm = n.comments || {};
+  var a = attend[attKey(CR.c.id, x.nm)];
+  var code = x.stu ? x.stu.code : '', h = code ? CR.hw[code] : null, src = crSrcOf(x), hw = null;
+  if (h && src && crHwTouched(h)){
+    var its = crItemsOf(x), missed = crMissedOf(h, src.tasks), sc = {};
+    its.forEach(function(it){ sc[it] = Math.max(0, Math.min(CR_HW_MAX, parseInt(h.scores[it], 10) || 0)); });
+    missed.forEach(function(t){ CR_HW_DIMS.forEach(function(d){ sc[t + ' (' + d + ')'] = 0; }); });
+    var all = missed.length === src.tasks.length;
+    hw = { items: its.map(function(it){ return { name: it, score: sc[it] }; }), missing: all, miss: missed,
+           pct: all ? 0 : crHwPct({ scores: sc }, its), text: h.pub || '' };
+  }
+  return { nm: x.p, stu: x.stu, part: CR.part, cls: CR.c.cls, teacher: CR.c.teacher, ymd: CR.ymd,
+           attend: a ? a.status : '', progress: String(n.progress || '').trim(),
+           units: CR.ns ? crNsUnitsOfWeek(CR.ns) : [], homework: crTasksOf(n.homework),
+           comment: String(cm[x.p] || '').trim(), attitude: crAttOf(x.p), hw: hw, src: !!src };
+}
+function crPvHtml(it){
+  var d = new Date(it.ymd + 'T00:00:00'), day = (d.getMonth() + 1) + '/' + d.getDate() + ' (' + '일월화수목금토'.charAt(d.getDay()) + ')';
+  var ac = it.attend === '출석' ? 'ok' : it.attend === '지각' ? 'late' : it.attend === '결석' ? 'abs' : '';
+  var k = CR_ATT_LEVELS.indexOf(it.attitude);
+  var h = '<article class="crpv-card"><div class="crpv-hd"><span class="crpv-day">' + day + '</span>' +
+    (it.part ? '<span class="crpv-part">' + esc(crPartLabel(it.part)) + '</span>' : '') +
+    '<span class="crpv-meta">' + esc([it.cls, it.teacher ? it.teacher + 'T' : ''].filter(Boolean).join(' · ')) + '</span>' +
+    (it.attend ? '<span class="crpv-at ' + ac + '">' + esc(it.attend) + '</span>' : '') + '</div>';
+  if (k >= 0) h += '<div class="crpv-row">수업 태도 <span class="crpv-tag a' + k + '">' + esc(it.attitude) + '</span></div>';
+  if (it.units.length) h += '<div class="crpv-kv"><span class="k">나간 범위</span><div class="crpv-units">' + it.units.map(function(u){ return '<span>' + esc(u) + '</span>'; }).join('') + '</div></div>';
+  if (it.progress) h += '<div class="crpv-kv"><span class="k">수업 내용</span><p>' + esc(it.progress) + '</p></div>';
+  if (it.homework.length) h += '<div class="crpv-kv"><span class="k">다음 수업까지 과제</span><ul>' + it.homework.map(function(t){ return '<li>' + esc(t) + '</li>'; }).join('') + '</ul></div>';
+  if (it.hw){
+    var b = '';
+    if (it.hw.missing) b = '<p class="crpv-miss" style="margin:0">미제출</p>';
+    else b = it.hw.items.map(function(x){
+        var t = x.name.replace(/ \((학습량|깊이)\)$/, '');
+        if (it.hw.miss.indexOf(t) >= 0) return '<div class="crpv-hwrow"><span>' + esc(itemLabel(x.name)) + '</span><span class="crpv-miss">미제출</span><b></b></div>';
+        return '<div class="crpv-hwrow"><span>' + esc(itemLabel(x.name)) + '</span><span class="crpv-track"><i style="width:' + Math.round(x.score / CR_HW_MAX * 100) + '%"></i></span><b>' + x.score + ' / ' + CR_HW_MAX + '</b></div>';
+      }).join('') + '<div class="crpv-tot"><span>이 수업 과제 검사</span><b>' + it.hw.pct + '%' + (it.hw.pct >= 100 ? ' 🏆' : '') + '</b></div>';
+    h += '<div class="crpv-kv"><span class="k">과제 검사</span><div class="crpv-hw">' + b + '</div>' + (it.hw.text ? '<p>' + esc(it.hw.text) + '</p>' : '') + '</div>';
+  }
+  if (it.comment) h += '<div class="crpv-kv"><span class="k">선생님 코멘트</span><p>' + esc(it.comment) + '</p></div>';
+  if (!it.progress && !it.units.length && !it.homework.length && !it.hw && !it.comment && k < 0) h += '<p class="crpv-empty">아직 적힌 기록이 없어요.</p>';
+  return h + '</article>';
+}
+function crPvRender(){
+  var n = CR.names.length, i = CR_PV.i, it = crPvItem(i), warn = [];
+  if (!it.attend) warn.push('출석을 체크하지 않아 이 학생은 리포트에서 빠져요.');
+  else if (it.attend === '결석') warn.push('결석한 수업이에요. 수업 내용은 그대로 보여요.');
+  if (!it.stu) warn.push('명단에서 이 학생을 찾지 못해 학생 페이지에 올라가지 않아요(동명이인·미등록).');
+  if (CR.hwOk && it.stu && it.src && !it.hw) warn.push('과제 검사를 아직 하지 않았어요.');
+  $('crpv-box').innerHTML =
+    '<div class="crpv-nav"><button onclick="crPvStep(-1)"' + (i <= 0 ? ' disabled' : '') + ' aria-label="앞 학생">‹</button>' +
+    '<b>' + esc(it.nm) + '<small>' + (i + 1) + ' / ' + n + '명 · 학생 페이지 미리보기</small></b>' +
+    '<button onclick="crPvStep(1)"' + (i >= n - 1 ? ' disabled' : '') + ' aria-label="다음 학생">›</button>' +
+    '<button class="x" onclick="crPvClose()">닫기</button></div>' +
+    warn.map(function(w){ return '<p class="crpv-warn">' + esc(w) + '</p>'; }).join('') +
+    crPvHtml(it) +
+    '<p class="crpv-note">[리포트 생성]을 누르면 이 카드가 학생 페이지 \'학습 이력\'에 올라갑니다. 주간 리포트 글은 클로슈가 이 내용으로 다듬어 써요. 비공개 메모와 미제출 대책은 학생에게 보이지 않습니다.</p>';
+}
+function crPvOpen(i){
+  if (!CR.c || !CR.names || !CR.names.length){ crMsg('미리 볼 학생이 없어요.', true); return; }
+  crKeepInputs();
+  CR_PV.i = Math.max(0, Math.min(CR.names.length - 1, i || 0));
+  $('crpv').hidden = false; crPvRender();
+}
+function crPvStep(d){ var n = CR_PV.i + d; if (!CR.names || n < 0 || n >= CR.names.length) return; CR_PV.i = n; crPvRender(); }
+function crPvClose(){ $('crpv').hidden = true; }
+$('crpv').addEventListener('click', function(e){ if (e.target === this) crPvClose(); });
 
 function cancelMove(){
   var wasClass = !!classMoving;

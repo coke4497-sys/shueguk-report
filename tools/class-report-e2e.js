@@ -411,6 +411,42 @@ const STUDENTS = [
      /039/.test(await page.$eval('#cr-msg', e => e.textContent)), JSON.stringify(hw3.map(w => w.body[0])));
   await ctx.close();
 
+  // ⑦-3 학생별 리포트 미리보기 — 저장 전 입력값으로 학습 이력 카드를 그린다
+  ({ ctx, page, st } = await ctxOf({ book: '정규', rows: [row('r001', '고2 가', '지원', '박보검 김하늘 최다은')],
+    att: [{ class_id: 'r001', student: '박보검', status: '출석' }, { class_id: 'r001', student: '김하늘', status: '지각' }],
+    prev: [{ class_id: 'r001', ymd: LASTWK, homework: '관동별곡 학습지\n오답 노트' }] }));
+  await openCard(page, '고2 가');
+  const iP2 = await page.evaluate(() => CR.names.map(x => x.p).indexOf('박보검'));
+  await page.fill('#cr-prog', '「사미인곡」 정리');
+  await page.fill('#cr-task', '비교 학습지 1장');
+  await page.fill('#cr-c-' + iP2, '집중이 좋았어요');
+  await page.click(`[data-att="${iP2}"][data-lv="0"]`);
+  await page.click(`[data-star="${iP2}|0|5"]`);
+  await page.click(`[data-tmiss="${iP2}|1"]`);
+  const wBefore = st.writes.length;
+  await page.click(`[data-pv="${iP2}"]`);
+  r = await page.evaluate(() => ({ open: !document.getElementById('crpv').hidden, t: document.getElementById('crpv-box').textContent,
+    z: +getComputedStyle(document.getElementById('crpv')).zIndex }));
+  ok('카드의 [리포트 미리보기] → 그 학생 카드(진도·과제·태도·코멘트·과제 검사·과제별 미제출)', r.open && /박보검/.test(r.t) && /사미인곡/.test(r.t) && /비교 학습지 1장/.test(r.t) &&
+     /수업 태도 ?매우 좋음/.test(r.t) && /집중이 좋았어요/.test(r.t) && /관동별곡 학습지 \(학습량\)5 \/ 5/.test(r.t) && /오답 노트 \(학습량\)미제출/.test(r.t) && /이 수업 과제 검사25%/.test(r.t) && r.z > 81, r.t);
+  await page.waitForTimeout(900);
+  ok('미리보기는 리포트를 요청하지 않는다', !st.gas.some(g => g.action === 'editReqAdd') && st.writes.slice(wBefore).every(w => !w.body || !w.body[0] || !w.body[0].report_status));
+  await page.keyboard.press('Escape');
+  ok('Esc → 미리보기만 닫힘(창은 그대로)', await page.evaluate(() => document.getElementById('crpv').hidden && !document.getElementById('crpanel').hidden));
+  await page.click('#cr-pv');
+  r = await page.evaluate(() => document.getElementById('crpv-box').textContent);
+  ok('아래 [미리보기] → 첫 학생부터 · 1 / 3명', /1 \/ 3명/.test(r), r);
+  const iC = await page.evaluate(() => CR.names.map(x => x.p).indexOf('최다은'));
+  await page.evaluate(i => crPvOpen(i), iC);
+  r = await page.evaluate(() => document.getElementById('crpv-box').textContent);
+  ok('출석 미체크 학생은 "리포트에서 빠져요" 안내', /출석을 체크하지 않아/.test(r) && /최다은/.test(r), r);
+  await page.click('.crpv-nav button[aria-label="앞 학생"]');
+  r = await page.evaluate(() => document.querySelector('.crpv-nav b').textContent);
+  ok('‹ 로 앞 학생', !/최다은/.test(r), r);
+  await page.evaluate(() => crClose());
+  ok('창을 닫으면 미리보기도 닫힘', await page.evaluate(() => document.getElementById('crpv').hidden));
+  await ctx.close();
+
   // ⑧ 학생 페이지 — 학습 이력(039 class_history)
   const HIST = [
     { ymd: '2026-09-30', book: '정규', part: '가', cls: '고2 가', teacher: '지원', time: '수 5:30~7:00', progress: '「사미인곡」 표현상 특징 정리', units: [], homework: '비교 학습지 1장\n- 오답 노트',
