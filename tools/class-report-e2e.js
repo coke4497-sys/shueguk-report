@@ -488,9 +488,9 @@ const STUDENTS = [
     return rt.fulfill({ status: 204, body: '' });
   });
   await hp.goto('http://127.0.0.1:' + port + '/s.html?key=abc', { waitUntil: 'domcontentloaded' });
-  await hp.waitForFunction(() => /학습 이력/.test((document.getElementById('menu') || {}).textContent || ''), null, { timeout: 15000 });
-  r = await hp.evaluate(() => { const c = [...document.querySelectorAll('#menu .card')].find(x => /학습 이력/.test(x.textContent)); return c && c.textContent; });
-  ok('허브 카드 — 학습 이력 · 최근 수업', /최근 9\/30 \(수\) · 가 수업/.test(r), r);
+  await hp.waitForFunction(() => /수업 리포트/.test((document.getElementById('menu') || {}).textContent || ''), null, { timeout: 15000 });
+  r = await hp.evaluate(() => { const c = [...document.querySelectorAll('#menu .card')].find(x => /수업 리포트/.test(x.textContent)); return c && c.textContent; });
+  ok('허브 카드 — 수업 리포트 · 최근 수업', /최근 9\/30 \(수\) · 가 수업/.test(r), r);
   ok('본인 확인은 접근코드', hcalls.length >= 1 && hcalls[0].key === 'abc' && !hcalls[0].before, JSON.stringify(hcalls));
   await hp.evaluate(() => openLearnHist());
   await hp.waitForSelector('#lhList .lh-item', { timeout: 8000 });
