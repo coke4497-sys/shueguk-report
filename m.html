@@ -1822,7 +1822,7 @@ function drRender(){
                                      '<button class="btn ghost" onclick="drShowText(' + r.id + ')">옮긴 글 보기</button>');
     b.push('<button class="btn ghost" onclick="drShowFiles(' + r.id + ')">원본 보기</button>');
     if (r.status === '요청') b.push('<button class="btn ghost" onclick="drRenotify(' + r.id + ')">다시 알리기</button>');
-    b.push('<button class="btn ghost dr-del" onclick="drDelete(' + r.id + ')">지우기</button>');
+    b.push('<button class="btn ghost dr-del" onclick="drDelete(' + r.id + ')">삭제</button>');
     return '<div class="dr-row" data-id="' + r.id + '"><div class="dr-top"><span class="dr-ttl">' + esc(r.title || '(제목 없음)') + '</span>' + st + '</div>' +
       '<div class="dr-meta">' + drWhen(r.created_at) + ' 요청 · 시험지 ' + nE + '개' + (nK ? ' · 정답지 ' + nK + '개' : '') +
         (r.report_id ? ' · 등록한 리포트: ' + esc(r.report_id) : '') + '</div>' +
