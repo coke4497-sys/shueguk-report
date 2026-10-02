@@ -81,6 +81,9 @@
   .al-kind small{display:block;font-size:12px;margin-top:2px;}
   .al-kind.on{background:#EDE4F4;color:#5A4A6A;}
   .al-tnote{font-size:12px;color:var(--ink-soft);margin-top:6px;}
+  .al-me div{font-size:13px;color:var(--ink);line-height:1.6;}
+  .al-mename{font-weight:700;color:#5A4A6A;}
+  .al-me a{color:#5A4A6A;}
   .al-skip label{margin-right:14px;font-size:13.5px;white-space:nowrap;cursor:pointer;}
   .al-sum{background:#F4F7F5;border-radius:10px;padding:10px 12px;font-size:13.5px;line-height:1.6;}
   .al-warn{color:#9A5A52;font-size:12.5px;margin-top:6px;line-height:1.6;}
@@ -167,6 +170,7 @@
   var T_PW = 'shg_FCePWvnawH44SV8kYB9BHRKi6aag';
   var tok = null, until = 0, pending = null;
   var raw = window.fetch.bind(window);
+  window.__sbRawFetch = raw;   // 허브 로그인 신분으로 따로 묻는 곳(알림톡 보내는 선생님 확인)이 이 조각을 거치지 않게
   var TOK_LS = 'sb_teacher_tok_v1';   // 받아 둔 신분증은 브라우저에 남겨 다음 페이지에서 다시 받지 않는다(1시간짜리)
 
   function cachedTok(){
@@ -757,9 +761,39 @@ function alNsTeacher(stu){
   for (var i = 0; i < keys.length; i++){ var k = keys[i]; if (k && map[k]){ var ts = Object.keys(map[k]); if (ts.length === 1) return alFullTeacher(ts[0]); if (ts.length > 1) return ''; } }
   return '';
 }
+/* 같은 날 원장님 "선생님이 리포트를 작성할 때 본인 이름으로 로그인했어요. 알림톡을 보낼 때 김현지 선생님이 맞으신가요?
+ * 김현지 선생님으로 알림톡에 표시됩니다 라고 알려주는 절차" → 허브에 로그인한 선생님(teacher_accounts.display_name)이 있으면
+ * 그 이름이 모든 학생 제목에 들어가고, [알림톡 보내기]에서 '○○ 선생님이 맞으신가요?'를 먼저 묻는다.
+ * 허브 로그인 정보는 같은 사이트의 localStorage 'shueguk_teacher_session_v2'(hub assets/teacher-auth.js) — 공용 계정 조각을 거치지 않게
+ * window.__sbRawFetch 로 묻는다. 로그인 정보가 없으면 위의 진도 수업 담당T 규칙. */
+var AL_HUB_SESSION = 'shueguk_teacher_session_v2', AL_HUB_LOGIN = 'https://coke4497-sys.github.io/shueguk-hub/login.html';
+function alHubSession(){
+  var raw = window.__sbRawFetch || window.fetch.bind(window), s;
+  try { s = JSON.parse(localStorage.getItem(AL_HUB_SESSION) || 'null'); } catch(e){ s = null; }
+  if (!s || !s.access_token || !s.refresh_token) return Promise.resolve(null);
+  if (Number(s.expires_at || 0) > Date.now() / 1000 + 90) return Promise.resolve(s);
+  return raw(AL_REST.replace('/rest/v1', '') + '/auth/v1/token?grant_type=refresh_token', { method: 'POST',
+      headers: { apikey: 'sb_publishable_dE9d1KIbpgYaQkaS2MSrlg_-7SiRJuT', 'Content-Type': 'application/json' }, body: JSON.stringify({ refresh_token: s.refresh_token }) })
+    .then(function(r){ return r.json(); }).then(function(d){
+      if (!d || !d.access_token) return null;
+      var n = { access_token: d.access_token, refresh_token: d.refresh_token, expires_at: Number(d.expires_at || (Date.now() / 1000 + Number(d.expires_in || 3600))), user: d.user || s.user || null };
+      try { localStorage.setItem(AL_HUB_SESSION, JSON.stringify(n)); } catch(e){}
+      return n;
+    });
+}
+function alLoginTeacher(){
+  var raw = window.__sbRawFetch || window.fetch.bind(window);
+  return alHubSession().then(function(s){
+    var uid = s && s.user && s.user.id; if (!uid) return '';
+    return raw(AL_REST + '/teacher_accounts?select=display_name,login_id&active=is.true&limit=1&user_id=eq.' + encodeURIComponent(uid),
+        { headers: { apikey: 'sb_publishable_dE9d1KIbpgYaQkaS2MSrlg_-7SiRJuT', Authorization: 'Bearer ' + s.access_token }, cache: 'no-store' })
+      .then(function(r){ return r.ok ? r.json() : []; })
+      .then(function(rows){ var t = rows && rows[0]; return t ? alTr(t.display_name || t.login_id).replace(/\s*(선생님|쌤|T)$/, '') : ''; });
+  }).catch(function(){ return ''; });
+}
 function alItemTitle(title, stu){
   if (AL.mode !== 'up') return title;
-  var t = alTeacherName(alNsTeacher(stu) || (stu && stu.r && stu.r.teacher));
+  var t = AL.me ? AL.me + ' 선생님' : alTeacherName(alNsTeacher(stu) || (stu && stu.r && stu.r.teacher));
   return t ? title.replace('담당 선생님', t) : title;
 }
 function alKind(){ return AL_KINDS[AL.mode] || AL_KINDS.make; }
@@ -842,12 +876,14 @@ function alimOpen(id){
         .catch(function(){ return alSbAll('/submissions?select=exam,name,parent_phone,teacher_note' + ex); });
     })(),
     // 내신 진도 수업 담당T(피드백 확인 안내 제목의 선생님 이름) — 못 읽어도 창은 그대로 열린다
-    AL.nsT ? Promise.resolve(null) : alSbAll('/tt_classes?select=class_id,name,teacher,roster&book=eq.' + encodeURIComponent('내신') + '&class_id=not.like.w*').catch(function(){ return []; })
+    AL.nsT ? Promise.resolve(null) : alSbAll('/tt_classes?select=class_id,name,teacher,roster&book=eq.' + encodeURIComponent('내신') + '&class_id=not.like.w*').catch(function(){ return []; }),
+    alLoginTeacher()
   ];
   Promise.all(jobs).then(function(rs){
     if (AL.rep !== rep) return;
     AL.cfg = (rs[0] && rs[0].result === 'success') ? rs[0] : null;
     AL.stus = rs[1];
+    AL.me = rs[4] || '';
     if (rs[3]){
       var nsT = {};
       rs[3].forEach(function(c){
@@ -903,6 +939,9 @@ function alimDraw(done){
     }).join('') + '</div></div>' +
     (ready ? '' : '<div class="al-warn" style="margin-bottom:10px">‘' + esc(K.label) + '’ 알림톡 템플릿이 아직 준비되지 않았습니다(솔라피 승인 전이거나 설정 전). 슈국 운영 → 알림톡 설정에서 확인해 주세요.</div>') +
     '<div class="al-row"><b>알림톡에 들어갈 제목</b><input type="text" id="alTitle" maxlength="80" value="' + esc(keepTitle || title) + '" oninput="alimRefresh()"></div>' +
+    (AL.mode === 'up' ? '<div class="al-row al-me">' + (AL.me
+      ? '<b>보내는 선생님</b><div><span class="al-mename">' + esc(AL.me) + ' 선생님</span> (로그인한 계정). 알림톡 제목에 ' + esc(AL.me) + ' 선생님으로 표시됩니다. 본인이 아니면 <a href="' + AL_HUB_LOGIN + '" target="_blank" rel="noopener">본인 계정으로 다시 로그인</a>해 주세요.</div>'
+      : '<b>보내는 선생님</b><div>허브에 로그인한 선생님을 찾지 못해 학생마다 내신 진도 수업 담당 선생님 이름이 들어갑니다. <a href="' + AL_HUB_LOGIN + '" target="_blank" rel="noopener">허브에 로그인</a>한 뒤 이 창을 다시 열면 본인 이름으로 보낼 수 있어요.</div>') + '</div>' : '') +
     '<div class="al-row al-whos"><b>받는 분</b>' + ['학생', '학부모1', '학부모2'].map(function(w){ return '<label><input type="checkbox" class="alW" value="' + w + '" checked onchange="alimRefresh()"> ' + esc(alWho(w)) + '</label>'; }).join('') + '</div>' +
     (doneN.length ? '<div class="al-row al-skip"><b>이미 제출한 친구가 있어요</b>' +
       '<div class="al-skipq">' + doneN.length + '명이 이미 복기를 제출했어요. 빼고 보낼까요?</div>' +
@@ -947,7 +986,7 @@ function alimRefresh(){
   var tpl = AL.tpl;
   document.getElementById('alPrev').innerHTML = tpl ? esc(String(tpl.text || '').replace(/#\{([^}]+)\}/g, function(_, k){ return k === '학생명' ? (items[0] ? items[0].student : '○○○') : k === '제목' ? ((items[0] && items[0].title) || title || '(제목)') : ''; })) +
     (tpl.buttons || []).map(function(b){ return '<div class="al-pbtn">' + esc(b.name) + '</div>'; }).join('') +
-    (AL.mode === 'up' && /담당 선생님/.test(title) ? '<div class="al-tnote">제목의 ‘담당 선생님’ 자리에는 학생마다 내신 진도 수업을 맡은 선생님 이름이 들어갑니다(찾지 못하면 ‘담당 선생님’ 그대로).</div>' : '') : '<span style="color:#8B928C">템플릿을 불러오지 못했습니다.</span>';
+    (AL.mode === 'up' && /담당 선생님/.test(title) ? '<div class="al-tnote">' + (AL.me ? '제목의 ‘담당 선생님’ 자리에 로그인한 ' + esc(AL.me) + ' 선생님 이름이 들어갑니다.' : '제목의 ‘담당 선생님’ 자리에는 학생마다 내신 진도 수업을 맡은 선생님 이름이 들어갑니다(찾지 못하면 ‘담당 선생님’ 그대로).') + '</div>' : '') : '<span style="color:#8B928C">템플릿을 불러오지 못했습니다.</span>';
   var go = document.getElementById('alGo');
   go.disabled = !AL.ready || !title || !items.length || AL.busy;
   go.textContent = '알림톡 보내기' + (items.length ? ' (' + items.length + '건)' : '');
@@ -956,6 +995,11 @@ function alimRefresh(){
 function alimSend(){
   var p = AL.plan; if (!p || AL.busy) return;
   var K = alKind();
+  if (AL.mode === 'up' && AL.me && (p.items[0] && p.items[0].title || '').indexOf(AL.me + ' 선생님') >= 0 &&
+      !confirm(AL.me + ' 선생님이 맞으신가요?\n' + AL.me + ' 선생님으로 알림톡에 표시됩니다.')){
+    var rr = document.getElementById('alRes'); if (rr){ rr.className = 'al-res err'; rr.textContent = '보내지 않았습니다. 본인 계정으로 로그인한 뒤 다시 보내 주세요.'; }
+    return;
+  }
   if (!confirm('‘' + K.label + '’ 알림톡을 학생 ' + p.people + '명에게 ' + p.items.length + '건 보낼까요?\n\n▶ ' + ((p.items[0] && p.items[0].title) || p.title))) return;
   AL.busy = true;
   var go = document.getElementById('alGo'); go.disabled = true; go.textContent = '보내는 중…';

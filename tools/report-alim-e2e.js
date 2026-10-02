@@ -36,13 +36,15 @@ const STUS = [
   const posts = [], dialogs = [];
   const pg = await (await br.newContext()).newPage();
   pg.on('pageerror', e => { perr++; console.log('  ✗ pageerror', e.message); });
-  pg.on('dialog', d => { dialogs.push(d.message()); d.accept(); });
+  let dismissNext = false, taAuth = '';
+  pg.on('dialog', d => { dialogs.push(d.message()); if (dismissNext){ dismissNext = false; d.dismiss(); } else d.accept(); });
   await pg.route('**/*', rt => {
     const u = rt.request().url(), m = rt.request().method();
     const j = o => rt.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(o) });
     if (u.startsWith('http://127.0.0.1:' + port)) return rt.continue();
     if (/\/auth\/v1\/token/.test(u)) return j({ access_token: 'tok', expires_in: 3600 });
     if (/\/rest\/v1\/students/.test(u)) return j(/offset=0/.test(u) ? STUS : []);
+    if (/\/rest\/v1\/teacher_accounts/.test(u)){ taAuth = rt.request().headers()['authorization'] || ''; return j(/user_id=eq\.u-kim/.test(u) ? [{ display_name: '김현지', login_id: 'hyunji' }] : []); }
     if (/\/rest\/v1\/tt_classes/.test(u)) return j(/offset=0/.test(u) && /book=eq/.test(u) && /not\.like\.w/.test(u) ? [
       { class_id: 'n001', name: '고1 화정A', teacher: '현지', roster: '박보검 이미낸(8/30부터)' },
       { class_id: 'n002', name: '고1 확인', teacher: '지원', roster: '(화정)이미낸 박보검' }] : []);
@@ -129,6 +131,28 @@ const STUS = [
      up.items.every(it => /\|2학기 중간고사 화정고1 공통국어2 리포트에 담당 선생님 피드백이 등록되었습니다$/.test(it.date)), JSON.stringify(up));
   ok('확인 창에도 선생님 이름이 들어간 제목', dialogs.some(d => /이현지 선생님 피드백/.test(d)), JSON.stringify(dialogs));
   await pg.keyboard.press('Escape');
+  // 허브에 로그인한 선생님(김현지)이 보내면 — 제목에 그 이름 + '김현지 선생님이 맞으신가요?' 확인
+  await pg.evaluate(() => localStorage.setItem('shueguk_teacher_session_v2', JSON.stringify({ access_token: 'hubtok', refresh_token: 'rt', expires_at: Math.floor(Date.now() / 1000) + 3600, user: { id: 'u-kim' } })));
+  await pg.click('.a-alim');
+  await pg.waitForSelector('#alSum b', { timeout: 8000 });
+  await pg.click('.al-kind[data-mode="up"]');
+  r = await pg.evaluate(() => ({ me: (document.querySelector('.al-me') || {}).textContent || '', prev: document.getElementById('alPrev').textContent }));
+  ok('로그인한 선생님 확인 — 허브 로그인 신분으로 계정을 묻는다(공용 계정 아님)', taAuth === 'Bearer hubtok', taAuth);
+  ok('창에 "보내는 선생님 김현지 선생님 (로그인한 계정)" + 미리보기 제목에 김현지 선생님', /김현지 선생님 \(로그인한 계정\)/.test(r.me) && /김현지 선생님으로 표시됩니다/.test(r.me) &&
+     /▶ 2학기 중간고사 화정고1 공통국어2 리포트에 김현지 선생님 피드백이 등록되었습니다/.test(r.prev) && /로그인한 김현지 선생님 이름이 들어갑니다/.test(r.prev), JSON.stringify(r));
+  dialogs.length = 0; dismissNext = true;
+  const before = posts.length;
+  await pg.click('#alGo');
+  await pg.waitForFunction(() => /보내지 않았습니다/.test(document.getElementById('alRes').textContent), null, { timeout: 8000 });
+  ok('"김현지 선생님이 맞으신가요? 김현지 선생님으로 알림톡에 표시됩니다." — [취소]면 보내지 않음', dialogs.length === 1 && dialogs[0] === '김현지 선생님이 맞으신가요?\n김현지 선생님으로 알림톡에 표시됩니다.' && posts.length === before, JSON.stringify(dialogs));
+  dialogs.length = 0;
+  await pg.click('#alGo');
+  await pg.waitForFunction(() => /알림톡 \d+건을 보냈습니다/.test(document.getElementById('alRes').textContent), null, { timeout: 8000 });
+  const kim = posts.filter(p => p.action === 'alimSend').pop();
+  ok('[확인]이면 두 번째 확인 창을 거쳐 보냄 — 제목 변수에 김현지 선생님', dialogs.length === 2 && /맞으신가요/.test(dialogs[0]) && /업데이트 안내/.test(dialogs[1]) &&
+     kim.kind === 'notice_reportup' && kim.items.every(it => it.vars['제목'] === '2학기 중간고사 화정고1 공통국어2 리포트에 김현지 선생님 피드백이 등록되었습니다'), JSON.stringify(kim));
+  await pg.keyboard.press('Escape');
+  await pg.evaluate(() => localStorage.removeItem('shueguk_teacher_session_v2'));
   // 템플릿 준비 전 — 보내기 잠금
   ready = false;
   await pg.evaluate(() => { AL.cfg = null; });
