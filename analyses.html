@@ -728,7 +728,8 @@
  * 창 맨 위 '어떤 알림톡을 보낼까요?' 알약 두 개(AL_KINDS):
  *   make = 리포트 제작 안내(notice_report) — 아직 복기를 내지 않은 학생(이미 낸 학생은 '빼고 보낼까요?' 질문)
  *   up   = 피드백 확인 안내(notice_reportup '지필고사 리포트 업데이트 안내') — 복기를 냈고 선생님이 [리포트 보내기]까지 마친(sent_at) 학생만.
- *          복기는 냈지만 아직 보내지 않은 학생은 빼고 이름을 알린다(학생 페이지에 리포트가 아직 안 보이므로). */
+ *          복기는 냈지만 아직 보내지 않은 학생이 있으면 '피드백이 완성되지 않은 친구가 있어요. 빼고 보낼까요?'(이름 목록, 라디오 alWait 기본 = 빼고)를 묻는다
+ *          (학생 페이지에 리포트가 아직 안 보이므로 기본은 빼기). */
 var AL = { cfg: null, stus: null, rep: null, plan: null, busy: false, mode: 'make', done: null };
 var AL_KINDS = {
   make: { kind: 'notice_report',   label: '지필고사 리포트 제작 안내',   pill: '리포트 제작 안내', sub: '복기를 아직 내지 않은 친구에게' },
@@ -867,9 +868,11 @@ function alimDraw(done){
       '<div class="al-skipn">' + doneN.map(function(x){ return esc(x.name); }).join(', ') + '</div>' +
       '<label><input type="radio" name="alSkip" value="1" checked onchange="alimRefresh()"> 네, 빼고 보낼게요</label>' +
       '<label><input type="radio" name="alSkip" value="0" onchange="alimRefresh()"> 아니요, 함께 보낼게요</label></div>' : '') +
-    (waitN.length ? '<div class="al-row al-skip"><b>아직 피드백을 보내지 않은 친구가 있어요</b>' +
-      '<div class="al-skipq">' + waitN.length + '명은 복기를 냈지만 선생님이 아직 [리포트 보내기]를 누르지 않았습니다. 이번에는 빼고 보내요.</div>' +
-      '<div class="al-skipn">' + waitN.map(function(x){ return esc(x.name); }).join(', ') + '</div></div>' : '') +
+    (waitN.length ? '<div class="al-row al-skip al-wait"><b>피드백이 완성되지 않은 친구가 있어요</b>' +
+      '<div class="al-skipq">' + waitN.length + '명은 복기를 냈지만 선생님이 아직 [리포트 보내기]를 누르지 않았습니다. 빼고 보낼까요?</div>' +
+      '<div class="al-skipn">' + waitN.map(function(x){ return esc(x.name); }).join(', ') + '</div>' +
+      '<label><input type="radio" name="alWait" value="1" checked onchange="alimRefresh()"> 네, 빼고 보낼게요</label>' +
+      '<label><input type="radio" name="alWait" value="0" onchange="alimRefresh()"> 아니요, 함께 보낼게요</label></div>' : '') +
     '<div class="al-row"><div class="al-sum" id="alSum"></div></div>' +
     '<div class="al-row"><b>미리보기</b><div class="al-prev" id="alPrev"></div></div>' +
     '<div class="al-btns"><button type="button" onclick="alimClose()">닫기</button><button type="button" class="go" id="alGo" onclick="alimSend()" disabled>알림톡 보내기</button></div>' +
@@ -883,16 +886,18 @@ function alimRefresh(){
   var title = alTr((document.getElementById('alTitle') || {}).value);
   var items = [], nophone = [], nocode = [], people = 0;
   var skipEl = document.querySelector('input[name="alSkip"]:checked'), skip = !skipEl || skipEl.value === '1';   // 이미 제출한 친구 빼기(기본)
-  AL.list.concat(skip ? [] : AL.doneN).forEach(function(stu){
+  var waitEl = document.querySelector('input[name="alWait"]:checked'), skipWait = !waitEl || waitEl.value === '1';   // 피드백 전 친구 빼기(기본)
+  AL.list.concat(skip ? [] : AL.doneN, (AL.mode === 'up' && !skipWait) ? (AL.waitN || []) : []).forEach(function(stu){
     var tos = whos.map(function(w){ return { who: w, to: String(stu.r[AL_PHONE[w]] || '').replace(/\D/g, '') }; }).filter(function(t){ return /^01\d{8,9}$/.test(t.to); });
     if (!tos.length) nophone.push(stu.name);
     else if (!stu.code) nocode.push(stu.name);
     else { people++; tos.forEach(function(t){ items.push({ student: stu.name, to: t.to, who: t.who, code: stu.code }); }); }
   });
-  var h = (AL.mode === 'up' ? '선생님 피드백을 보낸 학생 <b>' : skip ? '배정된 학생 중 아직 복기를 내지 않은 <b>' : '배정된 학생 <b>') + people + '명</b>' + (whos.length ? '의 ' + esc(alWho(whos.join('·'))) + '에게 <b>' + items.length + '건</b> 보냅니다.' : '') +
+  var h = (AL.mode === 'up' ? (skipWait ? '선생님 피드백을 보낸 학생 <b>' : '복기를 낸 학생 <b>') : skip ? '배정된 학생 중 아직 복기를 내지 않은 <b>' : '배정된 학생 <b>') + people + '명</b>' + (whos.length ? '의 ' + esc(alWho(whos.join('·'))) + '에게 <b>' + items.length + '건</b> 보냅니다.' : '') +
     (items.length > AL_BATCH ? ' <span style="color:#8B928C">(' + AL_BATCH + '건씩 나눠 보내요)</span>' : '');
   var w = [];
   if (AL.doneN.length && skip) w.push('이미 제출한 ' + AL.doneN.length + '명은 빼고 보냅니다');
+  if (AL.mode === 'up' && (AL.waitN || []).length && skipWait) w.push('피드백이 완성되지 않은 ' + AL.waitN.length + '명은 빼고 보냅니다');
   if (AL.mode === 'up' && AL.notN) w.push('아직 복기를 내지 않은 ' + AL.notN + '명은 받지 않습니다');
   if (nophone.length) w.push('고른 분의 연락처가 없는 학생 ' + nophone.length + '명: ' + nophone.map(esc).join(', '));
   if (nocode.length) w.push('학생 페이지 링크(접근코드)가 없는 학생 ' + nocode.length + '명: ' + nocode.map(esc).join(', '));
