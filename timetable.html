@@ -4085,6 +4085,17 @@ function attachTimeSync(wrap, g){
   apply();
 }
 
+/* 머리글 그리드 폭을 본체 그리드와 똑같이 맞춘다 (2026-10-02 수정 요청함 박윤서 — 머리글에 긴 내용이
+ * 들어오면(교사 휴무 칩 등) .stickhead의 width:max-content 때문에 머리글 그리드만 넓어져, 열 폭이
+ * 서로 달라지고 카드가 옆 강사 열 머리글 아래로 밀려 보였다. 은지T 수업이 덕기T 수업처럼 보인 원인.
+ * 본체가 더 넓은 경우(모바일 가로 스크롤)도 같은 값으로 맞는다.) */
+function syncHeadWidth(hg, g){
+  requestAnimationFrame(function(){
+    var w = g.getBoundingClientRect().width;
+    if (w) hg.style.width = w + 'px';
+  });
+}
+
 /* 렌더 후 블록이 잘리지 않도록 30분 행 높이를 일괄 상향(균일 간격 유지) */
 function tuneRowHeight(g, headerAuto, nrows){
   requestAnimationFrame(function(){
@@ -4212,7 +4223,7 @@ function buildDayGrid(list){
   cols.forEach(function(cinfo, ci){
     for (var r = 0; r < nrows; r++) addCell(g, ci+2, r, dname, cinfo, lo, 1);
   });
-  var placed = [], bandAt = {};
+  var placed = [], bandAt = {}, bands = [];
   list.forEach(function(c){
     var r0 = Math.floor((mins(c.start)-lo)/30), r1 = Math.ceil((minsEnd(c)-lo)/30);
     if (r1 <= r0) r1 = r0+1;
@@ -4226,6 +4237,7 @@ function buildDayGrid(list){
       band.style.gridRow = String(r0+1);
       if (bi) band.style.marginBottom = (2 + bi*20) + 'px';
       g.appendChild(band);
+      bands.push({ el: band, col: col, rs: lo + r0*30, re: lo + (r0+1)*30 });
       return;
     }
     var b = blockEl(c);
@@ -4235,6 +4247,12 @@ function buildDayGrid(list){
     placed.push({ el: b, col: col, s: mins(c.start), e: minsEnd(c) });
   });
   spreadOverlaps(placed);
+  // 휴강 띠가 같은 열의 대체 수업 카드 위에 겹치면 클릭을 통과시킨다 — 띠 밑 학생 칩이 눌리게
+  // (2026-10-02 수정 요청함 박윤서 "학생 이름이 다른 글자와 겹쳐져서 클릭이 안 되는 상황")
+  bands.forEach(function(bd){
+    var hit = placed.some(function(p){ return p.col === bd.col && p.s < bd.re && p.e > bd.rs; });
+    if (hit) bd.el.style.pointerEvents = 'none';
+  });
 
   tuneRowHeight(g, '', nrows);
   var wrap = document.createElement('div');
@@ -4245,6 +4263,7 @@ function buildDayGrid(list){
   wrap.appendChild(sh2);
   wrap.appendChild(g);
   attachTimeSync(wrap, g);
+  syncHeadWidth(hg, g);
   return wrap;
 }
 
@@ -4621,6 +4640,7 @@ function buildFullGrid(){
   wrap.appendChild(sh2);
   wrap.appendChild(g);
   attachTimeSync(wrap, g);
+  syncHeadWidth(hg, g);
   return wrap;
 }
 
