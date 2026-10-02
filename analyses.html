@@ -37,6 +37,11 @@
 
   .mgr-bar{display:flex;gap:8px;align-items:center;margin-bottom:10px;}
   .mgr-bar .reload{margin-left:auto;}
+  .mgr-bar{flex-wrap:wrap;}
+  .tsel-wrap{display:flex;align-items:center;gap:6px;font-size:13px;color:#4C6E66;font-weight:700;}
+  .tsel-wrap[hidden]{display:none;}
+  .tsel-wrap select{font:inherit;font-size:13px;font-weight:400;color:#2A332F;border:1.5px solid var(--line);border-radius:9px;padding:7px 10px;background:#fff;max-width:200px;}
+  .t-note{font-size:12.5px;color:#5C6A64;margin:0 2px 6px;}
   .refresh{border:1.5px solid var(--line);background:#fff;color:var(--accent);font:inherit;font-size:13px;font-weight:700;padding:8px 14px;border-radius:9px;cursor:pointer;}
   .refresh:hover{border-color:var(--accent);}
 
@@ -141,7 +146,7 @@
   <section class="card">
     <h2><span class="dot"></span>리포트 목록</h2>
     <p class="sub">각 리포트의 현재 배정 상태가 함께 표시됩니다. 수정·배정하려면 <b>리포트 수정</b>을 누르세요.</p>
-    <div class="mgr-bar"><button type="button" class="refresh" id="pastBtn" onclick="togglePast()" hidden></button><button type="button" class="refresh reload" onclick="loadAll()">새로고침</button></div>
+    <div class="mgr-bar"><label class="tsel-wrap" id="tselWrap" hidden><span>담당 선생님</span><select id="tsel" onchange="tselChange()"><option value="">모든 선생님</option></select></label><button type="button" class="refresh" id="pastBtn" onclick="togglePast()" hidden></button><button type="button" class="refresh reload" onclick="loadAll()">새로고침</button></div>
     <div id="list"><div class="mgr-empty">불러오는 중…</div></div>
   </section>
 </main>
@@ -608,13 +613,17 @@
     for(var i=0;i<ORDER.length;i++){ if(ORDER[i]!=='기간 없음'){ cur=ORDER[i]; break; } }
     if(cur===null) cur=ORDER[0];
     var shown = SHOW_PAST ? ORDER : [cur];
-    box.innerHTML = shown.map(function(p){
-      return '<h3 style="font-family:\'Gowun Batang\',serif;font-size:14.5px;color:#4C6E66;margin:16px 2px 8px;padding-bottom:5px;border-bottom:1.5px solid #D7E3DD;">'+esc(p)+' <span style="font-weight:400;color:#8B928C;font-size:12.5px;">'+GROUPS[p].length+'개</span></h3>'+
-             GROUPS[p].map(renderItem).join('');
+    var tf = (typeof tfKeep === 'function') ? tfKeep : function(){ return true; };
+    var note = (typeof tfNote === 'function') ? tfNote() : '';
+    var html = shown.map(function(p){
+      var reps = GROUPS[p].filter(tf); if(!reps.length) return '';
+      return '<h3 style="font-family:\'Gowun Batang\',serif;font-size:14.5px;color:#4C6E66;margin:16px 2px 8px;padding-bottom:5px;border-bottom:1.5px solid #D7E3DD;">'+esc(p)+' <span style="font-weight:400;color:#8B928C;font-size:12.5px;">'+reps.length+'개</span></h3>'+
+             reps.map(renderItem).join('');
     }).join('');
+    box.innerHTML = (note ? '<p class="t-note">'+note+'</p>' : '') + (html || '<div class="mgr-empty">이 선생님이 담당하는 리포트가 이 기간에 없어요.'+(SHOW_PAST?'':'<br>[지난 목록 보기]로 앞 기간도 확인해 보세요.')+'</div>');
     if(btn){
       var hidG=0, hidN=0;
-      ORDER.forEach(function(p){ if(shown.indexOf(p)<0){ hidG++; hidN+=GROUPS[p].length; } });
+      ORDER.forEach(function(p){ if(shown.indexOf(p)<0){ var k=GROUPS[p].filter(tf).length; if(k){ hidG++; hidN+=k; } } });
       if(!SHOW_PAST && !hidG){ btn.hidden=true; }
       else { btn.hidden=false; btn.textContent = SHOW_PAST ? '지난 목록 숨기기' : '지난 목록 보기 ('+hidN+'개)'; }
     }
@@ -650,6 +659,7 @@
         return a<b?1:(a>b?-1:0);
       });
       renderList();
+      if(typeof tfLoad === 'function') tfLoad();
     }).catch(function(){ box.innerHTML='<div class="mgr-empty">불러오지 못했어요. 인터넷을 확인해 주세요.</div>'; });
   }
 
@@ -855,6 +865,79 @@ function alSbAll(path){
   }
   return step(0);
 }
+function alBuildNsT(rows){
+  var nsT = {};
+  (rows || []).forEach(function(c){
+    if (/확인/.test(c.name || '') || !alTr(c.teacher)) return;
+    String(c.roster || '').split(/\s+/).map(alPlainName).filter(Boolean).forEach(function(nm){ (nsT[nm] = nsT[nm] || {})[alTr(c.teacher)] = 1; });
+  });
+  return nsT;
+}
+/* ===== 담당 선생님 거르기 (2026-10-02 원장님 "선생님이 본인이 담당하는 시험지만 드롭다운으로 선택해서 확인") =====
+ * 리포트의 담당 선생님 = 그 리포트 학생들의 내신 진도 수업 담당T(알림톡 제목의 선생님 이름과 같은 규칙 — alBuildNsT·alFullTeacher).
+ * 학생 = 배정된 재원생(alMatches), 배정이 없거나 아무도 안 잡히면 시험 제목·학교·학년의 재원생. 한 학생이라도 그 선생님 진도 반에 있으면 담당.
+ * 기본 선택 = 지난번에 고른 선생님(localStorage an_teacher) → 없으면 허브에 로그인한 선생님(목록에 있을 때) → 모든 선생님. */
+var TF = { ready: false, by: {}, list: [], sel: '', loading: false };
+try { TF.sel = localStorage.getItem('an_teacher') || ''; TF.saved = TF.sel !== ''; } catch(e){}
+function tfStuOf(r){ return { name: alTr(r.name), school: alTr(r.school), grade: alTr(r.grade), sid: alTr(r.student_id).replace(/^'/, ''), code: alTr(r.code), r: r }; }
+function tfSchoolGrade(rep){
+  var school = alTr(rep.school), grade = alTr(rep.grade);
+  var m = String(rep.title || rep.id || '').split('-')[3] || '', mm = m.match(/^(.*?(고|중))([1-3])$/);
+  if (mm){ if (!school) school = mm[1]; if (!grade) grade = mm[2] + mm[3]; }
+  var lv = /중/.test(grade) ? '중' : (/고/.test(grade) ? '고' : (/중$/.test(school) ? '중' : (/고$/.test(school) ? '고' : '')));
+  return { school: school, digit: alGradeDigit(grade), lv: lv };
+}
+function tfTeachersOfStu(name){
+  var map = AL.nsT || {}, out = {};
+  [name, name.replace(/A$/, ''), /[A-Za-z]$/.test(name) ? '' : name + 'A'].forEach(function(k){ if (k && map[k]) Object.keys(map[k]).forEach(function(t){ out[alFullTeacher(t)] = 1; }); });
+  return out;
+}
+function tfCompute(){
+  var stus = (AL.stus || []).filter(function(r){ return alTr(r.name) && !AL_LEFT.test(alTr(r.enrolled)); }).map(tfStuOf);
+  var by = {}, cnt = {};
+  (REPORTS || []).forEach(function(rep){
+    var a = ASSIGN[rep.id] || {}, pick = (a.type || a.target) ? stus.filter(function(st){ return alMatches(a.type, a.target, st); }) : [];
+    if (!pick.length){
+      var sg = tfSchoolGrade(rep);
+      if (sg.school && sg.digit) pick = stus.filter(function(st){
+        if (!alSchool(sg.school, st.school) || alGradeDigit(st.grade) !== sg.digit) return false;
+        var lv = /중/.test(st.grade) ? '중' : (/고/.test(st.grade) ? '고' : '');
+        return !sg.lv || !lv || sg.lv === lv;
+      });
+    }
+    var ts = {};
+    pick.forEach(function(st){ Object.assign(ts, tfTeachersOfStu(st.name)); });
+    by[rep.id] = ts;
+    Object.keys(ts).forEach(function(t){ cnt[t] = (cnt[t] || 0) + 1; });
+  });
+  TF.by = by;
+  TF.list = Object.keys(cnt).sort(function(x, y){ return x.localeCompare(y, 'ko'); }).map(function(t){ return { t: t, n: cnt[t] }; });
+}
+function tfMatchName(a, b){ a = alTr(a); b = alTr(b); if (!a || !b) return false; return a === b || (a.length >= 2 && b.slice(-a.length) === a) || (b.length >= 2 && a.slice(-b.length) === b); }
+function tfKeep(rep){ if (!TF.ready || !TF.sel) return true; var ts = TF.by[rep.id] || {}; return Object.keys(ts).some(function(t){ return t === TF.sel; }); }
+function tfNote(){ if (!TF.ready || !TF.sel) return ''; return '<b>' + esc(TF.sel) + ' 선생님</b>의 내신 진도 수업 학생이 있는 리포트만 보여 드립니다.'; }
+function tfDraw(){
+  var wrap = document.getElementById('tselWrap'), sel = document.getElementById('tsel');
+  if (!wrap || !sel) return;
+  if (TF.sel && !TF.list.some(function(x){ return x.t === TF.sel; })) TF.sel = '';
+  sel.innerHTML = '<option value="">모든 선생님</option>' + TF.list.map(function(x){ return '<option value="' + esc(x.t) + '"' + (x.t === TF.sel ? ' selected' : '') + '>' + esc(x.t) + ' 선생님</option>'; }).join('');
+  wrap.hidden = !TF.list.length;
+}
+function tfChoose(t){ TF.sel = t || ''; try { localStorage.setItem('an_teacher', TF.sel); } catch(e){} tfDraw(); renderList(); }
+function tselChange(){ tfChoose(document.getElementById('tsel').value); TF.saved = true; }
+function tfLoad(){
+  if (TF.loading) return; TF.loading = true;
+  Promise.all([
+    AL.stus ? Promise.resolve(AL.stus) : alSbAll('/students?select=name,school,grade,student_id,code,enrolled,teacher,phone_student,phone_parent1,phone_parent2&order=seq,id'),
+    AL.nsT ? Promise.resolve(null) : alSbAll('/tt_classes?select=class_id,name,teacher,roster&book=eq.' + encodeURIComponent('내신') + '&class_id=not.like.w*'),
+    TF.saved ? Promise.resolve('') : alLoginTeacher()
+  ]).then(function(rs){
+    AL.stus = rs[0]; if (rs[1]) AL.nsT = alBuildNsT(rs[1]);
+    tfCompute(); TF.ready = true;
+    if (!TF.saved && rs[2]){ var hit = TF.list.filter(function(x){ return tfMatchName(rs[2], x.t); })[0]; if (hit) TF.sel = hit.t; }
+    tfDraw(); renderList();
+  }).catch(function(){ /* 못 읽으면 드롭다운 없이 전체 목록 그대로 */ }).then(function(){ TF.loading = false; });
+}
 function alimClose(){ if (AL.busy) return; document.getElementById('alBg').classList.remove('on'); AL.rep = null; AL.plan = null; AL.done = null; }
 function alimMode(m){ if (AL.busy || !AL_KINDS[m] || AL.mode === m) return; AL.mode = m; if (AL.done) alimDraw(AL.done); }
 function alimOpen(id){
@@ -884,14 +967,7 @@ function alimOpen(id){
     AL.cfg = (rs[0] && rs[0].result === 'success') ? rs[0] : null;
     AL.stus = rs[1];
     AL.me = rs[4] || '';
-    if (rs[3]){
-      var nsT = {};
-      rs[3].forEach(function(c){
-        if (/확인/.test(c.name || '') || !alTr(c.teacher)) return;
-        String(c.roster || '').split(/\s+/).map(alPlainName).filter(Boolean).forEach(function(nm){ (nsT[nm] = nsT[nm] || {})[alTr(c.teacher)] = 1; });
-      });
-      AL.nsT = nsT;
-    }
+    if (rs[3]) AL.nsT = alBuildNsT(rs[3]);
     var done = {};   // 키 → { sent: 선생님이 리포트를 보냈는지 }
     rs[2].forEach(function(r){
       var p = alTr(r.parent_phone).replace(/^'/, ''), n = alTr(r.name);

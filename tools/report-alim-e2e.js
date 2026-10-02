@@ -44,7 +44,7 @@ const STUS = [
     if (u.startsWith('http://127.0.0.1:' + port)) return rt.continue();
     if (/\/auth\/v1\/token/.test(u)) return j({ access_token: 'tok', expires_in: 3600 });
     if (/\/rest\/v1\/students/.test(u)) return j(/offset=0/.test(u) ? STUS : []);
-    if (/\/rest\/v1\/teacher_accounts/.test(u)){ taAuth = rt.request().headers()['authorization'] || ''; return j(/user_id=eq\.u-kim/.test(u) ? [{ display_name: '김현지', login_id: 'hyunji' }] : []); }
+    if (/\/rest\/v1\/teacher_accounts/.test(u)){ taAuth = rt.request().headers()['authorization'] || ''; return j(/user_id=eq\.u-kim/.test(u) ? [{ display_name: '김현지', login_id: 'hyunji' }] : /user_id=eq\.u-lee/.test(u) ? [{ display_name: '이현지', login_id: 'lee' }] : []); }
     if (/\/rest\/v1\/tt_classes/.test(u)) return j(/offset=0/.test(u) && /book=eq/.test(u) && /not\.like\.w/.test(u) ? [
       { class_id: 'n001', name: '고1 화정A', teacher: '현지', roster: '박보검 이미낸(8/30부터)' },
       { class_id: 'n002', name: '고1 확인', teacher: '지원', roster: '(화정)이미낸 박보검' }] : []);
@@ -160,6 +160,26 @@ const STUS = [
   await pg.waitForSelector('#alSum b', { timeout: 8000 });
   r = await pg.evaluate(() => ({ dis: document.getElementById('alGo').disabled, txt: document.getElementById('alBox').textContent }));
   ok('템플릿 준비 전이면 잠금과 안내', r.dis && /아직 준비되지 않았습니다/.test(r.txt));
+  // 담당 선생님 드롭다운(2026-10-02) — 리포트 학생들의 내신 진도 수업 담당T로 거른다
+  await pg.keyboard.press('Escape');
+  await pg.evaluate(() => { try { localStorage.removeItem('an_teacher'); } catch(e){} });
+  await pg.reload({ waitUntil: 'domcontentloaded' });
+  await pg.waitForFunction(() => !document.getElementById('tselWrap').hidden, null, { timeout: 8000 });
+  r = await pg.evaluate(() => ({ opts: [...document.querySelectorAll('#tsel option')].map(o => o.value + ':' + o.textContent), n: document.querySelectorAll('.a-item').length, v: document.getElementById('tsel').value }));
+  ok('드롭다운 = 모든 선생님 + 진도 수업 담당(이현지 선생님) · 확인 수업 담당은 빠짐 · 기본 전체', r.opts.join('|') === ':모든 선생님|이현지:이현지 선생님' && r.n === 2 && r.v === '', JSON.stringify(r));
+  await pg.selectOption('#tsel', '이현지');
+  r = await pg.evaluate(() => ({ t: [...document.querySelectorAll('.a-item .a-title')].map(x => x.textContent), note: (document.querySelector('.t-note') || {}).textContent || '', saved: localStorage.getItem('an_teacher') }));
+  ok('이현지 선생님을 고르면 그 선생님 학생이 있는 리포트만 + 안내 줄 + 기억', r.t.join() === '26-2-중간-화정고1-공통국어2' && /이현지 선생님/.test(r.note) && r.saved === '이현지', JSON.stringify(r));
+  await pg.reload({ waitUntil: 'domcontentloaded' });
+  await pg.waitForFunction(() => document.getElementById('tsel').value === '이현지' && document.querySelectorAll('.a-item').length === 1, null, { timeout: 8000 });
+  ok('다시 열어도 고른 선생님 그대로', true);
+  await pg.selectOption('#tsel', '');
+  ok('모든 선생님으로 돌리면 전체', (await pg.$$('.a-item')).length === 2);
+  await pg.evaluate(() => { localStorage.removeItem('an_teacher'); localStorage.setItem('shueguk_teacher_session_v2', JSON.stringify({ access_token: 'hubtok', refresh_token: 'rt', expires_at: Math.floor(Date.now() / 1000) + 3600, user: { id: 'u-lee' } })); });
+  await pg.reload({ waitUntil: 'domcontentloaded' });
+  await pg.waitForFunction(() => document.getElementById('tsel').value === '이현지' && document.querySelectorAll('.a-item').length === 1, null, { timeout: 8000 }).catch(() => {});
+  ok('처음 열 때는 허브에 로그인한 선생님(이현지)으로 자동 선택', (await pg.inputValue('#tsel')) === '이현지');
+  await pg.evaluate(() => { localStorage.removeItem('shueguk_teacher_session_v2'); localStorage.removeItem('an_teacher'); });
   ok('페이지 오류 없음', perr === 0);
   console.log((fail ? '실패 ' + fail + ' / ' : '') + '통과 ' + pass + '건');
   await br.close(); srv.close(); process.exit(fail ? 1 : 0);
