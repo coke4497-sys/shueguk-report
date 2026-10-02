@@ -63,11 +63,13 @@ const ok = (n, c, x) => { if (c) pass++; else { fail++; console.log('  ✗ ' + n
     const W = el => Math.round(el.getBoundingClientRect().width);
     const blks = [...document.querySelectorAll('.grid.fitgrid .blk')];
     const by = t => blks.find(e => e.textContent.indexOf(t) >= 0);
-    const gone = [...document.querySelectorAll('.grid.fitgrid .tlab .gonebtn')];
+    const gone = [...document.querySelectorAll('.grid.fitgrid .gonebtn')]
+      .map(e => ({ el: e, col: e.style.gridColumn, row: e.style.gridRow }));
     const cell = document.querySelector('.grid.fitgrid .cell[style*="grid-column: 4"]');
     return { n: blks.length, txt: blks.map(e => e.textContent.slice(0, 10)),
              live: by('고2 능곡') ? W(by('고2 능곡')) : 0, cell: cell ? W(cell) : 0,
-             gone: gone.map(e => ({ t: e.textContent, title: e.title })),
+             gone: gone.map(x => ({ t: x.el.textContent, title: x.el.title, col: x.col, row: x.row,
+                                   w: Math.round(x.el.getBoundingClientRect().width) })),
              moved: blks.some(e => /오늘 이동/.test(e.textContent)),
              off: blks.some(e => /오늘 휴강/.test(e.textContent)),
              band: document.querySelectorAll('.blk.wkband').length };
@@ -75,26 +77,30 @@ const ok = (n, c, x) => { if (c) pass++; else { fail++; console.log('  ✗ ' + n
   ok('오늘: 흐린 "오늘 이동" 카드 없음', !r.moved, JSON.stringify(r.txt));
   ok('오늘: "오늘 휴강" 카드·띠 없음', !r.off && r.band === 0);
   ok('오늘: 살아남은 수업만 카드 2개', r.n === 2, JSON.stringify(r.txt));
-  ok('오늘: 남은 수업이 열 폭을 그대로 쓴다(쪼개짐 없음)', r.live > r.cell * 0.9, JSON.stringify([r.live, r.cell]));
-  ok('오늘: 버튼 2개(5:30·7:00)', r.gone.length === 2, JSON.stringify(r.gone));
-  const b530 = r.gone.find(x => /^5:30/.test(x.title));
-  ok('오늘: 5:30 줄에 "사라진 3"', !!b530 && b530.t === '사라진 3', JSON.stringify(r.gone));
+  // 버튼 자리(46px)만 비우고 나머지는 그대로 — 셋으로 쪼개지던 예전과 달리 글자가 읽힌다
+  ok('오늘: 남은 수업이 버튼 자리만 빼고 열을 쓴다', r.live > r.cell * 0.6 && r.live >= r.cell - 50, JSON.stringify([r.live, r.cell]));
+  // 2026-10-02 원장님 선택: 시간 축이 아니라 '그 선생님 칸' 안에 버튼
+  ok('오늘: 칸마다 버튼 3개(승연T 5:30 · 지원T 5:30 · 지원T 7:00)', r.gone.length === 3, JSON.stringify(r.gone));
+  const b530 = r.gone.find(x => /고2 확수/.test(x.title));
+  ok('오늘: 승연T 칸 5:30에 "사라진 2"', !!b530 && b530.t === '사라진 2' && /^5:30/.test(b530.title), JSON.stringify(r.gone));
+  ok('오늘: 버튼이 그 수업 열(승연T)에 있다', !!b530 && b530.col === '3', b530 && b530.col);
   ok('오늘: 버튼 설명에 반이름·이동', !!b530 && /고2 확수\(확인\) 이동/.test(b530.title), b530 && b530.title);
+  ok('오늘: 지원T 칸은 따로 "사라진 1" 둘(5:30·7:00)', r.gone.filter(x => x.col === '4' && x.t === '사라진 1').length === 2, JSON.stringify(r.gone.map(x => [x.col, x.t])));
 
   /* ② 버튼 창 */
-  await page.evaluate(() => [...document.querySelectorAll('.tlab .gonebtn')].find(x => /^5:30/.test(x.title)).click());
+  await page.evaluate(() => [...document.querySelectorAll('.gonebtn')].find(x => /고2 확수/.test(x.title)).click());
   r = await page.evaluate(() => ({
     on: document.getElementById('modal').classList.contains('on'),
     txt: document.getElementById('modal').textContent,
     rows: [...document.querySelectorAll('#gone-list button')].map(x => x.textContent),
     kinds: [...document.querySelectorAll('#gone-list em')].map(x => x.textContent),
     acts: [...document.querySelectorAll('#gone-list .gl-act')].map(x => x.textContent) }));
-  ok('창 제목·건수', /사라진 수업/.test(r.txt) && /3개예요/.test(r.txt), r.txt.slice(0, 60));
-  ok('창: 세 줄', r.rows.length === 3, JSON.stringify(r.rows.map(x => x.slice(0, 12))));
-  ok('창: 종류 배지 = 이동', JSON.stringify(r.kinds) === JSON.stringify(['이동', '이동', '이동']), JSON.stringify(r.kinds));
+  ok('창 제목·건수·담당T', /사라진 수업/.test(r.txt) && /2개입니다/.test(r.txt) && /승연T/.test(r.txt), r.txt.slice(0, 60));
+  ok('창: 두 줄(그 칸 것만)', r.rows.length === 2, JSON.stringify(r.rows.map(x => x.slice(0, 12))));
+  ok('창: 종류 배지 = 이동', JSON.stringify(r.kinds) === JSON.stringify(['이동', '이동']), JSON.stringify(r.kinds));
   ok('창: 시간·담당T·위치', /5:30~7:00 · 승연T · 본원/.test(r.rows[0]), r.rows[0]);
   ok('창: 어디로 갔는지 + 사유', /에서 해요/.test(r.rows[0]) && /9\/28 직전대비/.test(r.rows[0]), r.rows[0]);
-  ok('오늘은 되돌리기 없이 [자세히]만', JSON.stringify(r.acts) === JSON.stringify(['자세히', '자세히', '자세히']), JSON.stringify(r.acts));
+  ok('오늘은 되돌리기 없이 [자세히]만', JSON.stringify(r.acts) === JSON.stringify(['자세히', '자세히']), JSON.stringify(r.acts));
   await page.evaluate(() => document.querySelector('#gone-list button').click());
   r = await page.evaluate(() => document.getElementById('modal').textContent);
   ok('창: 줄을 누르면 기존 이동 안내 창', /이 주만 옮긴 수업/.test(r) && /고2 확수/.test(r), r.slice(0, 60));
@@ -113,7 +119,7 @@ const ok = (n, c, x) => { if (c) pass++; else { fail++; console.log('  ✗ ' + n
   await page.waitForSelector('.wk-tgrid', { timeout: 15000 });
   await page.waitForTimeout(300);
   r = await page.evaluate(() => {
-    const gone = [...document.querySelectorAll('.wk-tgrid .wk-tlab .gonebtn')];
+    const gone = [...document.querySelectorAll('.wk-tgrid .gonebtn')];
     const blks = [...document.querySelectorAll('.wk-tgrid .blk')];
     return { gone: gone.map(e => ({ t: e.textContent, title: e.title })),
              mvd: blks.some(e => /이 주 이동/.test(e.textContent)),
@@ -121,12 +127,12 @@ const ok = (n, c, x) => { if (c) pass++; else { fail++; console.log('  ✗ ' + n
              band: document.querySelectorAll('.wk-tgrid .blk.wkband').length };
   });
   ok('주차별 확대: 이동·휴강 카드/띠 없음', !r.mvd && !r.off && r.band === 0, JSON.stringify(r));
-  // 주차별 확대는 센터마다 그리드가 따로라 버튼도 센터별(본원 5:30 / 화정센터 5:30 · 7:00)
-  ok('주차별 확대: 센터별 버튼 3개', r.gone.length === 3, JSON.stringify(r.gone));
-  ok('주차별 확대: 본원 5:30은 2건·화정센터 5:30은 1건',
+  // 센터별 그리드 × 담당T 칸 (본원 승연 5:30 2건 / 화정센터 지원 5:30 1건 · 7:00 1건)
+  ok('주차별 확대: 칸마다 버튼 3개', r.gone.length === 3, JSON.stringify(r.gone));
+  ok('주차별 확대: 5:30은 2건·1건으로 나뉨',
      r.gone.filter(x => /^5:30/.test(x.title)).map(x => x.t).sort().join() === ['사라진 1','사라진 2'].join(),
      JSON.stringify(r.gone.map(x => x.t)));
-  await page.evaluate(() => [...document.querySelectorAll('.wk-tgrid .wk-tlab .gonebtn')].find(x => /휴강/.test(x.title)).click());
+  await page.evaluate(() => [...document.querySelectorAll('.wk-tgrid .gonebtn')].find(x => /휴강/.test(x.title)).click());
   r = await page.evaluate(() => ({ txt: document.getElementById('modal').textContent,
                                    acts: [...document.querySelectorAll('#gone-list .gl-act')].map(x => x.textContent),
                                    kinds: [...document.querySelectorAll('#gone-list em')].map(x => x.textContent) }));

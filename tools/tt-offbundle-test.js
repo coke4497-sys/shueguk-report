@@ -61,7 +61,7 @@ const OFFS = [
     const blks = [...document.querySelectorAll('.grid.fitgrid .blk:not(.wkband)')];
     const by = t => blks.find(e => e.textContent.indexOf(t) >= 0);
     const bands = [...document.querySelectorAll('.grid.fitgrid .blk.wkband')];
-    const gone = [...document.querySelectorAll('.grid.fitgrid .tlab .gonebtn')];
+    const gone = [...document.querySelectorAll('.grid.fitgrid .gonebtn')];
     const a = by('고1 확인'), f2 = by('고1 확인B'), d = by('고1 가');
     a.scrollIntoView({ block: 'center' });   // 클릭 판정은 화면 안에서
     const A = box(a), F = box(f2), D = box(d);
@@ -80,7 +80,7 @@ const OFFS = [
   ok('오늘: 두 수업 다 클릭 도달(회귀)', r.hitA && r.hitF);
   // 버튼을 누르면 그 시간에 사라진 수업 목록 창
   await page.evaluate(() => {
-    const b = [...document.querySelectorAll('.grid.fitgrid .tlab .gonebtn')]
+    const b = [...document.querySelectorAll('.grid.fitgrid .gonebtn')]
       .find(x => /백양C/.test(x.title));
     b.click();
   });
@@ -116,7 +116,7 @@ const OFFS = [
     const blks = [...document.querySelectorAll('.wk-tgrid .blk:not(.wkband)')];
     const by = t => blks.find(e => e.textContent.indexOf(t) >= 0);
     const bands = [...document.querySelectorAll('.wk-tgrid .blk.wkband')];
-    const gone = [...document.querySelectorAll('.wk-tgrid .wk-tlab .gonebtn')];
+    const gone = [...document.querySelectorAll('.wk-tgrid .gonebtn')];
     const a = by('고1 확인'), f2 = by('고1 확인B'), d = by('고1 가');
     return { nBands: bands.length, A: box(a), F: box(f2), D: box(d),
              gone: gone.map(x => ({ txt: x.textContent, title: x.title })) };
@@ -125,7 +125,7 @@ const OFFS = [
   ok('확대: 사라진 수업 버튼 3개', r.gone.length === 3, JSON.stringify(r.gone));
   ok('확대: 살아 있는 두 수업 반씩 분할(회귀)', r.A.w < r.D.w * 0.62 && r.F.w < r.D.w * 0.62, JSON.stringify([r.A.w, r.F.w, r.D.w]));
   await page.evaluate(() => {
-    [...document.querySelectorAll('.wk-tgrid .wk-tlab .gonebtn')].find(x => /백양C/.test(x.title)).click();
+    [...document.querySelectorAll('.wk-tgrid .gonebtn')].find(x => /백양C/.test(x.title)).click();
   });
   r = await page.evaluate(() => ({ on: document.getElementById('modal').classList.contains('on'),
                                    txt: document.getElementById('modal').textContent,

@@ -652,9 +652,9 @@
   .scrollwrap{max-height:calc(100vh - 150px);overflow:auto;}
   /* 시간축 가로 고정 — 스크롤량만큼 transform으로 라벨을 왼쪽에 붙임 (sticky는 브라우저별 편차가 있어 미사용) */
   .tlab.stick{width:46px;box-sizing:border-box;z-index:3;background:var(--surface);will-change:transform;}
-  /* 사라진 수업(휴강·이동) — 시간 축에 작은 버튼 하나로 모은다 (2026-10-02 사용자 요청) */
-  .tlab,.wk-tlab{display:flex;flex-direction:column;align-items:flex-end;gap:2px;}
+  /* 사라진 수업(휴강·이동) — 그 선생님 칸 오른쪽에 작은 버튼 하나 (2026-10-02 사용자 선택) */
   .gonebtn{font:inherit;font-size:.58rem;line-height:1.25;letter-spacing:-.02em;white-space:nowrap;
+    justify-self:end;align-self:start;margin:2px 1px 0 0;z-index:4;height:fit-content;
     background:#F1F3F2;border:1px solid #DCE4DF;border-radius:7px;color:#6A716C;
     padding:1px 4px;cursor:pointer;max-width:100%;}
   .gonebtn:hover{background:var(--icon-bg);border-color:var(--line);color:var(--accent);}
@@ -4229,30 +4229,28 @@ function buildDayGrid(list){
   g.className = 'grid fitgrid';
   g.style.gridTemplateColumns = colDefs;
   g.style.gridTemplateRows = 'repeat(' + nrows + ', 46px)';   // 30분 = 46px 균일 간격
-  var labs = [];
   for (var r = 0; r < nrows; r++){
     var lab = document.createElement('div');
     lab.className = 'tlab stick';
-    lab.innerHTML = '<span class="tnum">' + esc(fmtT(lo + r*30)) + '</span>';
+    lab.textContent = fmtT(lo + r*30);
     lab.style.gridColumn = '1 / -1';
     lab.style.width = '42px';
     lab.style.gridRow = String(r+1);
     g.appendChild(lab);
-    labs.push(lab);
   }
   cols.forEach(function(cinfo, ci){
     for (var r = 0; r < nrows; r++) addCell(g, ci+2, r, dname, cinfo, lo, 1);
   });
-  var placed = [], goneRows = {};
+  var placed = [], goneCells = {};
   list.forEach(function(c){
     var r0 = Math.floor((mins(c.start)-lo)/30), r1 = Math.ceil((minsEnd(c)-lo)/30);
     if (r1 <= r0) r1 = r0+1;
     var col = (colIdx[c.loc+'|'+c.teacher]||0)+2;
-    // 오늘 휴강·오늘 이동해 나간 수업은 카드를 만들지 않고 시간 축 버튼으로 모은다
+    // 오늘 휴강·오늘 이동해 나간 수업은 카드를 만들지 않고 그 선생님 칸의 작은 버튼으로 모은다
     // (2026-10-02 사용자 요청 — 흐린 카드가 실제 수업과 자리를 다퉈 글자가 안 보였다)
     var gone = goneInfo(c, todayStr());
     if (gone){
-      (goneRows[r0] = goneRows[r0] || []).push({ c: c, kind: gone.kind, info: gone.info });
+      goneAdd(goneCells, col, r0, lo, c, gone);
       return;
     }
     var b = blockEl(c);
@@ -4262,10 +4260,7 @@ function buildDayGrid(list){
     placed.push({ el: b, col: col, s: mins(c.start), e: minsEnd(c) });
   });
   spreadOverlaps(placed);
-  Object.keys(goneRows).forEach(function(r){
-    var lab = labs[r];
-    if (lab) lab.appendChild(goneBtnEl(goneRows[r], todayStr(), false, fmtT(lo + (+r)*30)));
-  });
+  placeGoneBtns(g, goneCells, placed, todayStr(), false, 1);
 
   tuneRowHeight(g, '', nrows);
   var wrap = document.createElement('div');
@@ -4426,14 +4421,39 @@ function goneInfo(c, dstr){
   if (off) return { kind: '휴강', info: off };
   return null;
 }
-/* 시간 축(5:30 라인)에 붙는 '사라진 n' 버튼 — 누르면 그 시간에 없어진 수업 목록 */
+/* 사라진 수업을 칸(담당T 열 × 시작 시각)별로 모은다 */
+function goneAdd(cells, col, r0, lo, c, gone){
+  var k = col + '|' + r0;
+  if (!cells[k]) cells[k] = { col: col, r0: r0, t0: lo + r0*30, t1: lo + (r0+1)*30, items: [] };
+  cells[k].items.push({ c: c, kind: gone.kind, info: gone.info });
+}
+/* 그 선생님 칸에 '사라진 n' 버튼을 놓는다 (2026-10-02 사용자 선택 "그 선생님 칸 안에 두기").
+ * 살아 있는 수업 카드와 겹치지 않게, 그 칸을 지나는 카드 중 가장 오른쪽 것만 버튼 폭만큼 좁힌다. */
+var GONE_GUTTER = 46;
+function placeGoneBtns(g, cells, placed, dstr, canManage, rowOffset){
+  Object.keys(cells).forEach(function(k){
+    var cell = cells[k];
+    var b = goneBtnEl(cell.items, dstr, canManage, fmtT(cell.t0));
+    b.style.gridColumn = String(cell.col);
+    b.style.gridRow = String(cell.r0 + rowOffset);
+    g.appendChild(b);
+    var hit = placed.filter(function(p){ return p.col === cell.col && p.s < cell.t1 && p.e > cell.t0; });
+    if (!hit.length){ b.style.justifySelf = 'center'; return; }   // 그 자리에 수업이 없으면 칸 가운데
+
+    var right = hit.reduce(function(a, p){ return (p.lane || 0) >= (a.lane || 0) ? p : a; });
+    var w = right.el.style.width;
+    right.el.style.width = 'calc(' + (w || '100%') + ' - ' + GONE_GUTTER + 'px)';
+  });
+}
+/* 칸에 붙는 '사라진 n' 버튼 — 누르면 그 자리에서 없어진 수업 목록 */
 function goneBtnEl(items, dstr, canManage, timeText){
   var b = document.createElement('button');
   b.type = 'button';
   b.className = 'gonebtn';
   b.textContent = '사라진 ' + items.length;
-  b.title = timeText + ' 사라진 수업 ' + items.length + '개 — ' +
-            items.map(function(it){ return it.c.cls + ' ' + it.kind; }).join(' · ') + ' (누르면 자세히)';
+  var names = items.slice(0, 3).map(function(it){ return it.c.cls + ' ' + it.kind; }).join(' · ');
+  b.title = timeText + ' · 사라진 수업 ' + items.length + '개 — ' + names +
+            (items.length > 3 ? ' 외' : '') + ' (누르면 자세히)';
   b.addEventListener('click', function(e){
     e.stopPropagation();
     openGoneList(items, dstr, canManage, timeText);
@@ -4456,9 +4476,11 @@ function openGoneList(items, dstr, canManage, timeText){
            '<small class="gl-to">' + esc(where) + (it.info.reason ? ' — ' + esc(it.info.reason) : '') + '</small>' +
            (act ? '<span class="gl-act">' + act + '</span>' : '') + '</button>';
   }).join('');
+  var who = items[0] && items[0].c.teacher ? ' · ' + items[0].c.teacher + 'T' : '';
   openModal(
     '<h3>사라진 수업</h3>' +
-    '<p class="mdesc">' + esc(wkDayLabel(dstr)) + ' ' + esc(timeText) + ' — 이 시간에 없어진 수업 ' + items.length + '개예요.</p>' +
+    '<p class="mdesc">' + esc(wkDayLabel(dstr)) + ' ' + esc(timeText) + esc(who) +
+    ' — 이 자리에서 없어진 수업 ' + items.length + '개입니다.</p>' +
     '<div class="gone-list" id="gone-list">' + rows + '</div>' +
     '<div class="mbtns"><button onclick="closeModal()">닫기</button></div>'
   );
@@ -4892,20 +4914,18 @@ function zoomCenterGrids(big, dname, list, makeBlock, goneOf, dstr){   // dstr =
       }
       g.appendChild(th);
     });
-    var zlabs = [];
     for (var r = 0; r < n; r++){
       var lab = document.createElement('div');
       lab.className = 'wk-tlab';
-      lab.innerHTML = '<span class="tnum">' + esc(fmtT(lo + r * 30)) + '</span>';
+      lab.textContent = fmtT(lo + r * 30);
       lab.style.gridColumn = '1';
       lab.style.gridRow = String(r + 2);
       g.appendChild(lab);
-      zlabs.push(lab);
       for (var j = 0; j < cols.length; j++){
         addCell(g, j + 2, r, dname, { key: loc + '|' + cols[j], loc: loc, teacher: cols[j] }, lo, 2);
       }
     }
-    var placedZ = [], goneZ = {};
+    var placedZ = [], goneZ = {};   // 사라진 수업 — 그 선생님 칸 버튼으로
     cl.forEach(function(c){
       var r0 = Math.floor((mins(c.start) - lo) / 30), r1 = Math.ceil((minsEnd(c) - lo) / 30);
       if (r1 <= r0) r1 = r0 + 1;
@@ -4913,7 +4933,7 @@ function zoomCenterGrids(big, dname, list, makeBlock, goneOf, dstr){   // dstr =
       // 사라진 수업(휴강·이동해 나감)은 시간 축 버튼으로 (2026-10-02 사용자 요청)
       var gone = goneOf ? goneOf(c) : null;
       if (gone){
-        (goneZ[r0] = goneZ[r0] || []).push({ c: c, kind: gone.kind, info: gone.info });
+        goneAdd(goneZ, col, r0, lo, c, gone);
         return;
       }
       var b = makeBlock(c);
@@ -4923,10 +4943,7 @@ function zoomCenterGrids(big, dname, list, makeBlock, goneOf, dstr){   // dstr =
       placedZ.push({ el: b, col: col, s: mins(c.start), e: minsEnd(c) });
     });
     spreadOverlaps(placedZ);
-    Object.keys(goneZ).forEach(function(r){
-      var zl = zlabs[r];
-      if (zl) zl.appendChild(goneBtnEl(goneZ[r], dstr, true, fmtT(lo + (+r) * 30)));
-    });
+    placeGoneBtns(g, goneZ, placedZ, dstr, true, 2);
     big.appendChild(g);
     zoomTuneRows(g, n);
   });
