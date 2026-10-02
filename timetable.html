@@ -652,12 +652,15 @@
   .scrollwrap{max-height:calc(100vh - 150px);overflow:auto;}
   /* 시간축 가로 고정 — 스크롤량만큼 transform으로 라벨을 왼쪽에 붙임 (sticky는 브라우저별 편차가 있어 미사용) */
   .tlab.stick{width:46px;box-sizing:border-box;z-index:3;background:var(--surface);will-change:transform;}
-  /* 사라진 수업(휴강·이동) — 그 선생님 칸 오른쪽에 작은 버튼 하나 (2026-10-02 사용자 선택) */
+  /* 사라진 수업(휴강·이동) — 그 선생님 칸에 작은 버튼 하나 (2026-10-02 사용자 선택).
+     그 자리에 수업이 있으면 그 카드 안 맨 위(반 이름 위)에 넣는다 — 카드 폭은 줄이지 않는다. */
   .gonebtn{font:inherit;font-size:.58rem;line-height:1.25;letter-spacing:-.02em;white-space:nowrap;
     justify-self:end;align-self:start;margin:2px 1px 0 0;z-index:4;height:fit-content;
     background:#F1F3F2;border:1px solid #DCE4DF;border-radius:7px;color:#6A716C;
     padding:1px 4px;cursor:pointer;max-width:100%;}
   .gonebtn:hover{background:var(--icon-bg);border-color:var(--line);color:var(--accent);}
+  .blk .gonebtn.inblk{display:inline-block;justify-self:auto;align-self:auto;margin:0 0 3px;
+    background:rgba(255,255,255,.75);}
   .gone-list{display:flex;flex-direction:column;gap:7px;margin:10px 0 2px;max-height:52vh;overflow:auto;}
   .gone-list button{font:inherit;text-align:left;background:#fff;border:1px solid var(--line-soft);
     border-radius:11px;padding:9px 11px;cursor:pointer;color:var(--ink);display:block;width:100%;}
@@ -4428,21 +4431,28 @@ function goneAdd(cells, col, r0, lo, c, gone){
   cells[k].items.push({ c: c, kind: gone.kind, info: gone.info });
 }
 /* 그 선생님 칸에 '사라진 n' 버튼을 놓는다 (2026-10-02 사용자 선택 "그 선생님 칸 안에 두기").
- * 살아 있는 수업 카드와 겹치지 않게, 그 칸을 지나는 카드 중 가장 오른쪽 것만 버튼 폭만큼 좁힌다. */
-var GONE_GUTTER = 46;
+ * 그 자리에 수업이 새로 생겼으면 그 카드 안 맨 위(반 이름 위)에 넣는다 — 카드 폭은 줄이지 않는다
+ * (2026-10-02 사용자 "새로 생긴 반 이름 위로", "시간표 칸이 얇아지지 않게"). */
 function placeGoneBtns(g, cells, placed, dstr, canManage, rowOffset){
   Object.keys(cells).forEach(function(k){
     var cell = cells[k];
     var b = goneBtnEl(cell.items, dstr, canManage, fmtT(cell.t0));
-    b.style.gridColumn = String(cell.col);
-    b.style.gridRow = String(cell.r0 + rowOffset);
-    g.appendChild(b);
     var hit = placed.filter(function(p){ return p.col === cell.col && p.s < cell.t1 && p.e > cell.t0; });
-    if (!hit.length){ b.style.justifySelf = 'center'; return; }   // 그 자리에 수업이 없으면 칸 가운데
-
-    var right = hit.reduce(function(a, p){ return (p.lane || 0) >= (a.lane || 0) ? p : a; });
-    var w = right.el.style.width;
-    right.el.style.width = 'calc(' + (w || '100%') + ' - ' + GONE_GUTTER + 'px)';
+    if (!hit.length){                                   // 그 자리에 수업이 없으면 빈 칸 가운데
+      b.style.gridColumn = String(cell.col);
+      b.style.gridRow = String(cell.r0 + rowOffset);
+      b.style.justifySelf = 'center';
+      g.appendChild(b);
+      return;
+    }
+    // 그 칸에서 가장 먼저 시작하는(같으면 가장 왼쪽) 카드의 맨 위에 넣는다
+    var host = hit.reduce(function(a, p){
+      var da = Math.abs(a.s - cell.t0), dp = Math.abs(p.s - cell.t0);
+      if (dp !== da) return dp < da ? p : a;
+      return (p.lane || 0) < (a.lane || 0) ? p : a;
+    });
+    b.classList.add('inblk');
+    host.el.insertBefore(b, host.el.firstChild);
   });
 }
 /* 칸에 붙는 '사라진 n' 버튼 — 누르면 그 자리에서 없어진 수업 목록 */
