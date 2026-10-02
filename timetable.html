@@ -460,11 +460,22 @@
   /* 같은 이름 반 기록 가져오기 (2026-09-29 원장님 — 안내문 '이름이 같은 반은 공유할 수 있습니다') */
   .cr-sib{display:flex;flex-wrap:wrap;align-items:center;gap:6px;background:#F4EFF8;border-radius:10px;padding:8px 10px;font-size:.8rem;color:#5A4A6A;}
   .cr-sib b{font-weight:700;}
+  .cr-sib .cr-sib-note{flex:1 1 100%;font-size:.76rem;color:#6B5B7B;}
   .cr-sib select{flex:1 1 180px;min-width:0;font:inherit;font-size:.8rem;border:1px solid #D6C9E4;border-radius:8px;padding:4px 6px;background:#fff;color:var(--ink);}
   .cr-sib button{font:inherit;font-size:.8rem;border:0;border-radius:8px;padding:5px 10px;background:#EDE4F4;color:#5A4A6A;cursor:pointer;}
   .cr-sib button:hover{background:#E3D7EE;}
   .cr-hint{font-size:.76rem;color:var(--ink-soft);background:#F2F5F3;border-radius:9px;padding:7px 10px;}
   .cr-card{background:#F6F8F7;border-radius:12px;padding:9px 11px;display:flex;flex-direction:column;gap:5px;}
+  .cr-card.done{background:#EAF2EE;}
+  .cr-stu.only .cr-card.done{display:none;}
+  .cr-done{display:flex;flex-wrap:wrap;align-items:center;gap:4px;font-size:.7rem;}
+  .cr-dtag{padding:1px 8px;border-radius:6px;background:#F7EED9;color:#7A6230;}
+  .cr-dtag.ok{background:#DCE8E5;color:#3F6159;} .cr-dtag.na{background:#EEF1EF;color:#65726B;}
+  .cr-dall{margin-left:auto;padding:1px 9px;border-radius:999px;background:#3F6159;color:#fff;}
+  .cr-prog-bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:.8rem;color:var(--ink-soft);margin:2px 0 6px;}
+  .cr-prog-bar b{color:#3F6159;}
+  .cr-prog-bar button{margin-left:auto;font:inherit;font-size:.76rem;border:0;border-radius:8px;padding:4px 10px;background:#EDE4F4;color:#5A4A6A;cursor:pointer;}
+  .cr-prog-bar button:hover{background:#E3D7EE;}
   .cr-top{display:flex;align-items:center;gap:7px;font-size:.86rem;}
   .cr-top b{font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:9em;}
   .cr-chip{font-size:.7rem;padding:1px 8px;border-radius:6px;text-align:center;background:#EEF1EF;color:#65726B;}
@@ -6821,6 +6832,7 @@ function openClassNote(c){
     CR.src = r[2];
     CR.names.forEach(function(x){ x.stu = crStuOf(x.nm); });
     CR.sib = r[5] || [];
+    crSibAuto();
     crRender();
   }).catch(function(e){
     if (CR !== mine) return;
@@ -6830,8 +6842,14 @@ function openClassNote(c){
 }
 /* 같은 이름 반(같은 시간표·같은 반이름, 다른 시간·다른 선생님)이 이번 주(월~일)에 적은 수업 내용·과제 — [가져오기]로 이 반 칸을 채운다.
  * 반마다 따로 저장된다(가져온 뒤 고쳐도 원래 반은 그대로). 2026-09-29 원장님 "이름이 같은 반은 공유할 수 있습니다" → 가져오기 버튼 방식 선택 */
+/* 같은 수업 = 반이름이 같거나 끝 알파벳만 다른 정규 반(고3파이널A~F — 2026-10-02 원장님 "고3파이널B 진도가 안 채워져 있어요").
+ * 가·나는 알파벳이 아니라 갈리지 않는다(가와 나는 다른 수업). 규칙은 1회 이동 드롭다운의 onceBaseCls 와 같다 */
+function crSameLesson(a, b){ var x = onceBaseCls(a); return !!x && x === onceBaseCls(b); }
 function crSibLoad(c, bk, ymd){
-  var ids = classes.filter(function(x){ return x.id !== c.id && String(x.cls || '').trim() === String(c.cls || '').trim(); }).map(function(x){ return x.id; });
+  // 같은 수업 = 정규 수업 한정(2026-10-02 원장님 "같은 수업은 정규 시간표 한정 — 고3파이널·고2 가·고1 나 등").
+  // 내신 진도·확인 반은 이름이 같아도 학교·교재 진도가 달라 불러오지 않는다. 중3·고3은 내신 시간표에서도 정규 수업이라 포함.
+  if (crRuleBook(c, bk) !== '정규') return Promise.resolve([]);
+  var ids = classes.filter(function(x){ return x.id !== c.id && crSameLesson(x.cls, c.cls); }).map(function(x){ return x.id; });
   if (!ids.length) return Promise.resolve([]);
   var d = new Date(ymd + 'T00:00:00'), mon = new Date(d); mon.setDate(d.getDate() - ((d.getDay() + 6) % 7));
   var sun = new Date(mon); sun.setDate(mon.getDate() + 6);
@@ -6846,10 +6864,23 @@ function crSibLoad(c, bk, ymd){
       });
     });
 }
+/* 이 반에 아직 적은 수업 내용·과제가 없으면 같은 이름 반의 가장 최근 기록을 미리 채워 둔다 — 저장은 하지 않는다
+ * (2026-10-02 원장님 "같은 수업의 진도, 과제는 불러오기 되어있었으면 해요"). 고른 기록은 드롭다운에서 바꿀 수 있다 */
+function crSibAuto(){
+  CR.sibAuto = -1;
+  if (!CR.sib || !CR.sib.length) return;
+  var n = CR.note || {}, wr = (CR.ns && CR.ns.weekRec) || {};
+  if (String(n.progress || '').trim() || String(n.homework || '').trim() || String(wr.prog || '').trim() || String(wr.hw || '').trim()) return;
+  var x = CR.sib[0];
+  n = CR.note || (CR.note = {});
+  n.progress = x.progress; n.homework = x.homework;
+  CR.sibAuto = 0;
+}
 function crSibHtml(){
   if (!CR.sib || !CR.sib.length) return '';
-  return '<div class="cr-sib"><b>같은 이름 반 기록</b>' +
-    '<select id="cr-sib-sel" aria-label="가져올 반">' + CR.sib.map(function(x, i){ return '<option value="' + i + '">' + esc(x.label) + ' — ' + esc(String(x.progress || x.homework).split('\n')[0].slice(0, 24)) + '</option>'; }).join('') + '</select>' +
+  var a = CR.sib[CR.sibAuto];
+  return '<div class="cr-sib">' + (a ? '<b>같은 이름 반 기록을 불러왔습니다</b><span class="cr-sib-note">' + esc(a.label) + ' 반 기록이에요. 이 반에 맞게 고친 뒤 [저장]을 눌러 주세요.</span>' : '<b>같은 이름 반 기록</b>') +
+    '<select id="cr-sib-sel" aria-label="가져올 반">' + CR.sib.map(function(x, i){ return '<option value="' + i + '"' + (i === CR.sibAuto ? ' selected' : '') + '>' + esc(x.label) + ' — ' + esc(String(x.progress || x.homework).split('\n')[0].slice(0, 24)) + '</option>'; }).join('') + '</select>' +
     '<button type="button" id="cr-sib-go">가져오기</button></div>';
 }
 function crSibImport(){
@@ -6858,8 +6889,10 @@ function crSibImport(){
   crKeepInputs();
   var n = CR.note || (CR.note = {});
   var cur = String(n.progress || '').trim() || String(n.homework || '').trim();
-  if (cur && !confirm('지금 적어 둔 수업 내용·과제를 ' + x.label + ' 반 기록으로 바꿀까요?')) return;
+  var a = CR.sib[CR.sibAuto], same = a && String(n.progress || '') === String(a.progress || '') && String(n.homework || '') === String(a.homework || '');
+  if (cur && !same && !confirm('지금 적어 둔 수업 내용·과제를 ' + x.label + ' 반 기록으로 바꿀까요?')) return;
   n.progress = x.progress; n.homework = x.homework;
+  if (CR.sibAuto >= 0) CR.sibAuto = i;
   crRender();
   crMsg('가져왔습니다. 이 반에 맞게 고친 뒤 [저장]을 눌러 주세요.');
 }
@@ -6942,20 +6975,26 @@ function crHwSrcLoad(c, bk, ymd){
   // 중3·고3은 정규 규칙 — 지난주가 다른 기간이었으면 짝 반(정규 r### ↔ 내신 n###)에 적혀 있으므로 짝 반 기록도 같이 본다
   if (CR_ALWAYS_REG.test(String(c.cls || ''))){
     var other = bk === '정규' ? '내신' : '정규';
-    return crGet('/tt_classes?book=eq.' + encodeURIComponent(other) + '&name=eq.' + encodeURIComponent(c.cls) + '&select=class_id,day,start_time,teacher')
+    return crGet('/tt_classes?book=eq.' + encodeURIComponent(other) + '&class_id=not.like.w*&select=class_id,name,day,start_time,teacher')
       .catch(function(){ return []; })
       .then(function(rows){
-        var hits = (rows || []).filter(function(r){ return !/^w/.test(r.class_id) && r.day === c.day && r.start_time === c.start; });
+        rows = (rows || []).filter(function(r){ return !/^w/.test(r.class_id); });
+        var hits = rows.filter(function(r){ return r.name === c.cls && r.day === c.day && r.start_time === c.start; });
         if (hits.length > 1) hits = hits.filter(function(r){ return r.teacher === c.teacher; });
-        return crHwSrcLoad2(c, bk, ymd, hits.length === 1 ? hits[0].class_id : '');
+        var twin = hits.length === 1 ? hits[0].class_id : '';
+        // 지난주가 다른 기간이었으면 같은 수업(고3파이널A~F)의 기록도 그쪽 시간표 반ID에 있다
+        var oth = rows.filter(function(r){ return r.class_id !== twin && crSameLesson(r.name, c.cls); })
+          .map(function(r){ return { id: r.class_id, cls: r.name, teacher: r.teacher, start: r.start_time, day: r.day }; });
+        return crHwSrcLoad2(c, bk, ymd, twin, oth);
       });
   }
-  return crHwSrcLoad2(c, bk, ymd, '');
+  return crHwSrcLoad2(c, bk, ymd, '', []);
 }
-function crHwSrcLoad2(c, bk, ymd, twinId){
+function crHwSrcLoad2(c, bk, ymd, twinId, othSib){
   var d = new Date(ymd + 'T00:00:00'); d.setDate(d.getDate() - 21);
   var from = d.getFullYear() + '-' + crPad(d.getMonth() + 1) + '-' + crPad(d.getDate());
-  var ids = [c.id], mine = {};
+  var ids = [c.id], mine = {}, sibIds = [];
+  var weekWed = crPrevWed(ymd);
   var books = twinId ? 'in.(' + encodeURIComponent('정규') + ',' + encodeURIComponent('내신') + ')' : 'eq.' + encodeURIComponent(bk);
   if (crRuleBook(c, bk) === '내신'){
     // 학생마다 자기 내신 반(진도·확인) — 시간표 명단에서 이름으로 찾는다('이 주만' 반은 뺀다)
@@ -6969,6 +7008,11 @@ function crHwSrcLoad2(c, bk, ymd, twinId){
     var moved = {};
     onceInToday().forEach(function(o){ if (o.kind === '1회' && o.toId === c.id && o.fromId) moved[plainName(o.student)] = o.fromId; });
     CR.names.forEach(function(x){ mine[x.p] = moved[x.p] ? [moved[x.p]] : (twinId ? [c.id, twinId] : [c.id]); });
+    // 같은 수업(정규 시간표의 같은 이름 반 — 병렬 반·다른 시간)도 함께 본다: 이 반이 지난 수업 기록을 안 남겼으면
+    // 같은 이름 반이 지난주에 낸 과제를 이번 주 검사 과제로 잇는다(2026-10-02 원장님 "지난 수업 과제물을 이번주차에 검사할 과제로 연결")
+    sibIds = classes.filter(function(k){ return k.id !== c.id && k.id !== twinId && crSameLesson(k.cls, c.cls); }).map(function(k){ return k.id; });
+    (othSib || []).forEach(function(k){ if (sibIds.indexOf(k.id) < 0) sibIds.push(k.id); });
+    sibIds.forEach(function(id){ if (ids.indexOf(id) < 0) ids.push(id); });
   }
   Object.keys(mine).forEach(function(k){ mine[k].forEach(function(id){ if (ids.indexOf(id) < 0) ids.push(id); }); });
   var inIds = 'in.(' + ids.map(function(x){ return encodeURIComponent('"' + x + '"'); }).join(',') + ')';
@@ -6980,6 +7024,7 @@ function crHwSrcLoad2(c, bk, ymd, twinId){
       (rows || []).some(function(r){ if ((r.class_id !== c.id && r.class_id !== twinId) || r.ymd >= ymd) return false; xtLast = crTasksOf((r.comments || {})[CR_XT_KEY]); return xtLast.length > 0; });
       var byId = {}; classes.forEach(function(k){ byId[k.id] = k; });
       if (twinId) byId[twinId] = c;   // 짝 반 = 같은 수업
+      (othSib || []).forEach(function(k){ if (!byId[k.id]) byId[k.id] = k; });
       var myStart = mins(c.start);
       // 오늘보다 앞선 수업만(같은 날이면 지금 반보다 먼저 시작한 다른 반만), 최근 것부터
       var ord = (rows || []).filter(function(r){
@@ -6996,12 +7041,21 @@ function crHwSrcLoad2(c, bk, ymd, twinId){
         var k = byId[r.class_id] || {};
         var lb = mdOfYmdStr(r.ymd) + ' (' + '일월화수목금토'.charAt(new Date(r.ymd + 'T00:00:00').getDay()) + ')';
         if (crRuleBook(k, bk) === '내신' && k.cls) lb += ' ' + crPartLabel(crPartOf(k, bk));
+        else if (sibIds.indexOf(r.class_id) >= 0) lb += ' ' + (k.cls || '') + (k.teacher ? ' · ' + k.teacher + 'T' : '') + ' 반';   // 같은 이름 반 기록
         else if (r.class_id !== c.id && r.class_id !== twinId && k.cls) lb += ' ' + k.cls;   // 정규 1회 이동 학생 — 원래 반 이름
         return { tasks: crRowTasks(r, nm), ymd: r.ymd, cls: k.cls || '', part: crPartOf(k, bk), label: lb };
       }
       var by = {};
+      // 같은 이름 반은 지난주까지 기록만(이번 주에 다른 반이 낸 과제는 다음 주 검사할 것이라서) · 반 과제만(개별 과제는 그 반 학생 것)
+      var sibRow = ord.filter(function(r){ return sibIds.indexOf(r.class_id) >= 0 && r.ymd < weekWed && crTasksOf(r.homework).length; })[0];
       CR.names.forEach(function(x){
-        by[x.p] = pack(ord.filter(function(r){ return mine[x.p].indexOf(r.class_id) >= 0 && crRowTasks(r, x.p).length; })[0], x.p);
+        var moved = mine[x.p].length === 1 && mine[x.p][0] !== c.id && mine[x.p][0] !== twinId;
+        // 1회 이동해 온 학생: 원래 반의 '이번 주' 수업은 빠진 수업이라 그때 낸 과제는 다음 주 몫이다 — 지난주까지만 본다
+        // (2026-10-02 원장님 "다음 주차 과제가 여기에 들어있어요" — 민서연 목5:30 → 금5:30, 10/1 고3파이널A 과제가 10/2 B 검사 목록에)
+        var own = ord.filter(function(r){ return mine[x.p].indexOf(r.class_id) >= 0 && (!moved || r.ymd < weekWed) && crRowTasks(r, x.p).length; })[0];
+        // 이 반 기록이 없거나 같은 이름 반보다 한 주 이상 오래됐으면 같은 이름 반 과제로
+        if (sibRow && (!moved || crSameLesson((byId[mine[x.p][0]] || {}).cls, c.cls)) && (!own || own.ymd < crPrevWed(sibRow.ymd))) by[x.p] = pack({ class_id: sibRow.class_id, ymd: sibRow.ymd, homework: sibRow.homework, comments: {} }, x.p);
+        else by[x.p] = pack(own, x.p);
       });
       return { by: by, xtLast: xtLast };
     });
@@ -7154,9 +7208,39 @@ function crStarsHtml(i, code){
       return '<div class="cr-cp"><button type="button" class="cr-cpb' + (cp ? ' on' : '') + '" data-cp="' + i + '|' + ti + '" aria-pressed="' + cp + '" aria-label="' + esc(t) + ' 베낌 의심">베낌 의심</button><small>비공개 · 학생·리포트에 안 나가요</small></div>'; })() + '</div>';
   }).join('');
 }
+/* 학생마다 기록이 다 됐는지 — 출석·수업 태도·과제 검사(2026-10-02 원장님 "완료된 친구와 아직 기록이 부족한 친구가 구분되도록").
+ * 결석이면 태도·과제 검사는 해당 없음. 검사할 과제가 없거나(지난 과제 없음·명단에서 못 찾음) 불러오지 못했으면 과제 검사도 해당 없음.
+ * 과제는 미제출로 표시했거나, 학습량 별 + 채점·학습 분석·오답 분석 셋을 다 고르면 끝난 것으로 본다. */
+function crDoneOf(x, a){
+  var r = { att: !!a, abs: !!(a && a.status === '결석'), tone: !!crAttOf(x.p), hwN: 0, hwT: 0, hwNa: true };
+  var code = x.stu ? x.stu.code : '', src = (CR.hwOk && code) ? crSrcOf(x) : null;
+  if (src && src.tasks.length){
+    var h = CR.hw[code] || { scores: {} };
+    r.hwNa = false; r.hwT = src.tasks.length;
+    src.tasks.forEach(function(t){
+      if (crTaskMissed(h, t)){ r.hwN++; return; }
+      var ok = CR_HW_DIMS.every(function(d){ var k = t + ' (' + d + ')';
+        return crIsLv(k) ? Object.prototype.hasOwnProperty.call(h.scores, k) : (parseInt(h.scores[k], 10) || 0) > 0; });
+      if (ok) r.hwN++;
+    });
+  }
+  if (r.abs){ r.tone = true; r.hwNa = true; }
+  r.hwOk = r.hwNa || r.hwN >= r.hwT;
+  r.done = r.att && r.tone && r.hwOk;
+  return r;
+}
+function crDoneHtml(r){
+  function tag(ok, label, na){ return '<span class="cr-dtag' + (na ? ' na' : ok ? ' ok' : '') + '">' + label + '</span>'; }
+  return '<div class="cr-done">' +
+    tag(r.att, r.att ? '출석 ✓' : '출석 미체크') +
+    (r.abs ? tag(true, '결석이라 태도·과제 없음', true)
+      : tag(r.tone, r.tone ? '태도 ✓' : '태도 미입력') +
+        (r.hwNa ? tag(true, '검사할 과제 없음', true) : tag(r.hwOk, r.hwOk ? '과제 검사 ✓' : '과제 검사 ' + r.hwN + '/' + r.hwT))) +
+    (r.done ? '<span class="cr-dall">기록 완료</span>' : '') + '</div>';
+}
 function crRender(){
   var n = CR.note || {}, cm = n.comments || {}, part = CR.part;
-  var unchecked = 0, hwDone = 0;
+  var unchecked = 0, hwDone = 0, allDone = 0;
   var cards = CR.names.map(function(x, i){
     var a = attend[attKey(CR.c.id, x.nm)];
     var ch = a ? (a.status === '출석' ? 'ok' : a.status === '지각' ? 'late' : 'abs') : '';
@@ -7164,6 +7248,7 @@ function crRender(){
     var code = x.stu ? x.stu.code : '';
     var h = code ? CR.hw[code] : null;
     if (crHwTouched(h)) hwDone++;
+    var dn = crDoneOf(x, a); if (dn.done) allDone++;
     var miss = !!(h && (h.missing || (h.miss || []).length));   // 과제 하나라도 미제출이면 대책 칸
     var allMiss = !!(h && h.missing);
     var ihHtml = '<label class="cr-ihl">이 학생만 과제 <small>(선택 · 한 줄에 하나 · 다음 수업에서 이 학생만 검사)</small>' +
@@ -7181,10 +7266,10 @@ function crRender(){
         (CR.more[i] ? '<textarea class="cr-priv" id="cr-priv-' + i + '" maxlength="300" placeholder="비공개 메모 — 교사·조교만 봐요">' + esc(h ? h.priv : '') + '</textarea>' : '');
     if (!CR.hwOk || !code) hwPart += ihHtml + '<button type="button" class="cr-more" data-pv="' + i + '">리포트 미리보기</button>';
     if (!CR.hwOk || !code) hwPart += '<div class="cr-row2 one"><input id="cr-c-' + i + '" maxlength="200" placeholder="코멘트 (선택) — 학생 페이지에 보여요" value="' + esc(cm[x.p] || '') + '"></div>';
-    return '<div class="cr-card" data-i="' + i + '"><div class="cr-top"><b title="' + esc(x.nm) + '">' + esc(x.p) + '</b>' +
+    return '<div class="cr-card ' + (dn.done ? 'done' : 'todo') + '" data-i="' + i + '"><div class="cr-top"><b title="' + esc(x.nm) + '">' + esc(x.p) + '</b>' +
       '<span class="cr-chip ' + ch + '">' + (a ? esc(a.status) : '미체크') + '</span>' +
       '<span id="cr-pct-' + i + '">' + (code && CR.hwOk ? crHwLabel(code) : '') + '</span>' +
-      '<span class="cr-dot" id="cr-dot-' + i + '"></span></div>' + crAttHtml(i, x) + hwPart + '</div>';
+      '<span class="cr-dot" id="cr-dot-' + i + '"></span></div>' + crDoneHtml(dn) + crAttHtml(i, x) + hwPart + '</div>';
   }).join('');
   var st = '';
   if (n.report_status === '요청') st = '<div class="cr-state">수업 기록을 마쳤습니다. 클로슈가 수업 리포트를 쓰고 있어요' + (n.requested_at ? ' (요청 ' + crHm(n.requested_at) + ')' : '') + '. 보통 몇 분 안에 학생 페이지에 공개돼요.</div>';
@@ -7210,7 +7295,9 @@ function crRender(){
     (CR.hwOk ? '<span class="' + (hwDone < CR.names.length && part !== '진도' ? 'warn' : 'ok') + '">' + '과제 검사 ' + hwDone + ' / ' + CR.names.length + '명</span>'
              : '<span class="warn">과제 검사 기록을 불러오지 못했어요</span>') + '</div>';
   $('cr-body').innerHTML = st + top +
-    '<div class="cr-stu"><div class="cr-sh"><b>학생별</b><span>' + hwHead + '</span></div>' + hint +
+    '<div class="cr-stu' + (CR.onlyTodo ? ' only' : '') + '"><div class="cr-sh"><b>학생별</b><span>' + hwHead + '</span></div>' + hint +
+      (CR.names.length ? '<div class="cr-prog-bar" id="cr-donebar"><span><b>기록 완료 ' + allDone + '명</b> · 아직 부족 ' + (CR.names.length - allDone) + '명</span>' +
+        (allDone < CR.names.length || CR.onlyTodo ? '<button type="button" id="cr-only-todo" aria-pressed="' + !!CR.onlyTodo + '">' + (CR.onlyTodo ? '모두 보기' : '부족한 친구만 보기') + '</button>' : '') + '</div>' : '') +
       (CR.hwOk && CR.names.length ? crXtHtml() : '') +
       (cards || '<p class="mdesc">오늘 이 반에 학생이 없어요.</p>') + '</div>' + chk;
 }
@@ -7264,6 +7351,7 @@ document.addEventListener('click', function(e){
   if (b.hasAttribute('data-unrm')){ crNsUnit(b.getAttribute('data-unrm'), false); return; }
   if (b.id === 'cr-ns-save'){ crNsSaveScope(); return; }
   if (b.id === 'cr-sib-go'){ crSibImport(); return; }
+  if (b.id === 'cr-only-todo'){ crKeepInputs(); CR.onlyTodo = !CR.onlyTodo; crRender(); return; }
   if (b.id === 'cr-xt-add'){ crXtAdd(); return; }
   if (b.id === 'cr-xt-last'){ crXtAdd((CR.xtLast || []).slice()); return; }
   if (b.hasAttribute('data-xtrm')){ crXtRemove(b.getAttribute('data-xtrm')); return; }
