@@ -24,7 +24,7 @@ const TPL_UP = { label: '지필고사 리포트 업데이트 안내', ready: tru
 const STUS = [
   { name: '박보검', school: '화정고', grade: '2026 고등 1학년', student_id: '11111111', code: 'c1', enrolled: '재원', phone_student: '01011112222', phone_parent1: '01033334444', phone_parent2: '' },
   { name: '김하늘', school: '화정고', grade: '2026 고등 1학년', student_id: '22222222', code: 'c2', enrolled: '재원', phone_student: '', phone_parent1: '01055556666', phone_parent2: '01077778888' },
-  { name: '이미낸', school: '화정고', grade: '2026 고등 1학년', student_id: '33333333', code: 'c3', enrolled: '재원', phone_student: '01099990000', phone_parent1: '01099991111', phone_parent2: '' },
+  { name: '이미낸', school: '화정고', grade: '2026 고등 1학년', student_id: '33333333', code: 'c3', enrolled: '재원', teacher: '이은지', phone_student: '01099990000', phone_parent1: '01099991111', phone_parent2: '' },
   { name: '피드백전', school: '화정고', grade: '2026 고등 1학년', student_id: '77777777', code: 'c7', enrolled: '재원', phone_student: '01015151515', phone_parent1: '', phone_parent2: '' },
   { name: '코드없음', school: '화정고', grade: '2026 고등 1학년', student_id: '44444444', code: '', enrolled: '재원', phone_student: '01012121212', phone_parent1: '', phone_parent2: '' },
   { name: '다른학교', school: '서정고', grade: '2026 고등 1학년', student_id: '55555555', code: 'c5', enrolled: '재원', phone_student: '01013131313', phone_parent1: '', phone_parent2: '' },
@@ -108,8 +108,8 @@ const STUS = [
   ok('"아니요, 함께 보낼게요" — 피드백 전 친구도 포함(2명 · 3건)', /복기를 낸 학생 2명/.test(q.sum) && /3건/.test(q.sum) && !/완성되지 않은 1명은 빼고/.test(q.sum) && q.go === '알림톡 보내기 (3건)', JSON.stringify(q));
   await pg.check('input[name="alWait"][value="1"]');
   ok('미리보기 = 업데이트 안내 문구', /이미낸 학생에게 지필고사 리포트 업데이트 안내/.test(r.prev) && /새로 올라온 리포트/.test(r.prev), r.prev);
-  ok('피드백 확인 안내 제목 = "… 리포트에 담당 선생님 피드백이 등록되었습니다"', (await pg.inputValue('#alTitle')) === '2학기 중간고사 화정고1 공통국어2 리포트에 담당 선생님 피드백이 등록되었습니다' &&
-     /▶ 2학기 중간고사 화정고1 공통국어2 리포트에 담당 선생님 피드백이 등록되었습니다/.test(r.prev), r.prev);
+  ok('피드백 확인 안내 제목 = "… 담당 선생님 피드백…" · 미리보기는 학생 담당 선생님 이름(이은지 선생님)', (await pg.inputValue('#alTitle')) === '2학기 중간고사 화정고1 공통국어2 리포트에 담당 선생님 피드백이 등록되었습니다' &&
+     /▶ 2학기 중간고사 화정고1 공통국어2 리포트에 이은지 선생님 피드백이 등록되었습니다/.test(r.prev) && /학생마다 담당 선생님 이름이 들어갑니다/.test(r.prev), r.prev);
   await pg.click('.al-kind[data-mode="make"]');
   ok('제작 안내로 돌아가면 기본 제목도 돌아온다', (await pg.inputValue('#alTitle')) === '2학기 중간고사 화정고1 공통국어2');
   await pg.fill('#alTitle', '직접 고친 제목');
@@ -121,7 +121,10 @@ const STUS = [
   await pg.waitForFunction(() => /보냈습니다/.test(document.getElementById('alRes').textContent), null, { timeout: 8000 });
   const up = posts.filter(p => p.action === 'alimSend').pop();
   ok('확인 창·POST — kind notice_reportup · 이미낸 학생·학부모님1', dialogs.some(d => /지필고사 리포트 업데이트 안내.*1명에게 2건/s.test(d)) && up.kind === 'notice_reportup' &&
-     up.items.map(it => it.student + ':' + it.who).join() === '이미낸:학생,이미낸:학부모1', JSON.stringify(up));
+     up.items.map(it => it.student + ':' + it.who).join() === '이미낸:학생,이미낸:학부모1' &&
+     up.items.every(it => it.vars['제목'] === '2학기 중간고사 화정고1 공통국어2 리포트에 이은지 선생님 피드백이 등록되었습니다') &&
+     up.items.every(it => /\|2학기 중간고사 화정고1 공통국어2 리포트에 담당 선생님 피드백이 등록되었습니다$/.test(it.date)), JSON.stringify(up));
+  ok('확인 창에도 선생님 이름이 들어간 제목', dialogs.some(d => /이은지 선생님 피드백/.test(d)), JSON.stringify(dialogs));
   await pg.keyboard.press('Escape');
   // 템플릿 준비 전 — 보내기 잠금
   ready = false;
