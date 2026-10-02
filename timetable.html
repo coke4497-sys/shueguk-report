@@ -6813,6 +6813,9 @@ function openClassNote(c){
 /* 같은 이름 반(같은 시간표·같은 반이름, 다른 시간·다른 선생님)이 이번 주(월~일)에 적은 수업 내용·과제 — [가져오기]로 이 반 칸을 채운다.
  * 반마다 따로 저장된다(가져온 뒤 고쳐도 원래 반은 그대로). 2026-09-29 원장님 "이름이 같은 반은 공유할 수 있습니다" → 가져오기 버튼 방식 선택 */
 function crSibLoad(c, bk, ymd){
+  // 같은 수업 = 정규 수업 한정(2026-10-02 원장님 "같은 수업은 정규 시간표 한정 — 고3파이널·고2 가·고1 나 등").
+  // 내신 진도·확인 반은 이름이 같아도 학교·교재 진도가 달라 불러오지 않는다. 중3·고3은 내신 시간표에서도 정규 수업이라 포함.
+  if (crRuleBook(c, bk) !== '정규') return Promise.resolve([]);
   var ids = classes.filter(function(x){ return x.id !== c.id && String(x.cls || '').trim() === String(c.cls || '').trim(); }).map(function(x){ return x.id; });
   if (!ids.length) return Promise.resolve([]);
   var d = new Date(ymd + 'T00:00:00'), mon = new Date(d); mon.setDate(d.getDate() - ((d.getDay() + 6) % 7));
@@ -6952,7 +6955,8 @@ function crHwSrcLoad(c, bk, ymd){
 function crHwSrcLoad2(c, bk, ymd, twinId){
   var d = new Date(ymd + 'T00:00:00'); d.setDate(d.getDate() - 21);
   var from = d.getFullYear() + '-' + crPad(d.getMonth() + 1) + '-' + crPad(d.getDate());
-  var ids = [c.id], mine = {};
+  var ids = [c.id], mine = {}, sibIds = [];
+  var weekWed = crPrevWed(ymd);
   var books = twinId ? 'in.(' + encodeURIComponent('정규') + ',' + encodeURIComponent('내신') + ')' : 'eq.' + encodeURIComponent(bk);
   if (crRuleBook(c, bk) === '내신'){
     // 학생마다 자기 내신 반(진도·확인) — 시간표 명단에서 이름으로 찾는다('이 주만' 반은 뺀다)
@@ -6966,6 +6970,10 @@ function crHwSrcLoad2(c, bk, ymd, twinId){
     var moved = {};
     onceInToday().forEach(function(o){ if (o.kind === '1회' && o.toId === c.id && o.fromId) moved[plainName(o.student)] = o.fromId; });
     CR.names.forEach(function(x){ mine[x.p] = moved[x.p] ? [moved[x.p]] : (twinId ? [c.id, twinId] : [c.id]); });
+    // 같은 수업(정규 시간표의 같은 이름 반 — 병렬 반·다른 시간)도 함께 본다: 이 반이 지난 수업 기록을 안 남겼으면
+    // 같은 이름 반이 지난주에 낸 과제를 이번 주 검사 과제로 잇는다(2026-10-02 원장님 "지난 수업 과제물을 이번주차에 검사할 과제로 연결")
+    sibIds = classes.filter(function(k){ return k.id !== c.id && k.id !== twinId && String(k.cls || '').trim() === String(c.cls || '').trim(); }).map(function(k){ return k.id; });
+    sibIds.forEach(function(id){ if (ids.indexOf(id) < 0) ids.push(id); });
   }
   Object.keys(mine).forEach(function(k){ mine[k].forEach(function(id){ if (ids.indexOf(id) < 0) ids.push(id); }); });
   var inIds = 'in.(' + ids.map(function(x){ return encodeURIComponent('"' + x + '"'); }).join(',') + ')';
@@ -6993,12 +7001,19 @@ function crHwSrcLoad2(c, bk, ymd, twinId){
         var k = byId[r.class_id] || {};
         var lb = mdOfYmdStr(r.ymd) + ' (' + '일월화수목금토'.charAt(new Date(r.ymd + 'T00:00:00').getDay()) + ')';
         if (crRuleBook(k, bk) === '내신' && k.cls) lb += ' ' + crPartLabel(crPartOf(k, bk));
+        else if (sibIds.indexOf(r.class_id) >= 0) lb += ' ' + (k.cls || '') + (k.teacher ? ' · ' + k.teacher + 'T' : '') + ' 반';   // 같은 이름 반 기록
         else if (r.class_id !== c.id && r.class_id !== twinId && k.cls) lb += ' ' + k.cls;   // 정규 1회 이동 학생 — 원래 반 이름
         return { tasks: crRowTasks(r, nm), ymd: r.ymd, cls: k.cls || '', part: crPartOf(k, bk), label: lb };
       }
       var by = {};
+      // 같은 이름 반은 지난주까지 기록만(이번 주에 다른 반이 낸 과제는 다음 주 검사할 것이라서) · 반 과제만(개별 과제는 그 반 학생 것)
+      var sibRow = ord.filter(function(r){ return sibIds.indexOf(r.class_id) >= 0 && r.ymd < weekWed && crTasksOf(r.homework).length; })[0];
       CR.names.forEach(function(x){
-        by[x.p] = pack(ord.filter(function(r){ return mine[x.p].indexOf(r.class_id) >= 0 && crRowTasks(r, x.p).length; })[0], x.p);
+        var own = ord.filter(function(r){ return mine[x.p].indexOf(r.class_id) >= 0 && crRowTasks(r, x.p).length; })[0];
+        var moved = mine[x.p].length === 1 && mine[x.p][0] !== c.id && mine[x.p][0] !== twinId;
+        // 이 반 기록이 없거나 같은 이름 반보다 한 주 이상 오래됐으면 같은 이름 반 과제로
+        if (sibRow && !moved && (!own || own.ymd < crPrevWed(sibRow.ymd))) by[x.p] = pack({ class_id: sibRow.class_id, ymd: sibRow.ymd, homework: sibRow.homework, comments: {} }, x.p);
+        else by[x.p] = pack(own, x.p);
       });
       return { by: by, xtLast: xtLast };
     });

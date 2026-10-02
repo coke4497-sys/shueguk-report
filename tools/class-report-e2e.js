@@ -370,12 +370,47 @@ const STUDENTS = [
   r = await page.evaluate(() => ({ p: document.getElementById('cr-prog').value, bar: (document.querySelector('.cr-sib') || {}).textContent || '' }));
   ok('이미 적은 반은 미리 채우지 않는다', r.p === '이 반이 적은 진도' && !/불러왔습니다/.test(r.bar) && /같은 이름 반 기록/.test(r.bar), JSON.stringify(r));
   await ctx.close();
+  ({ ctx, page, st } = await ctxOf({ book: '내신',
+    rows: [row('n001', '고2 화수A', '지원', '박보검'), Object.assign(row('n002', '고2 화수A', '은지', '최다은'), { start_time: '7:30', end_time: '9:00' })], att: [] }));
+  st.notes['내신|n002'] = { id: 2, book: '내신', class_id: 'n002', ymd: TODAYSTR, progress: '내신 진도', homework: '내신 과제', report_status: '' };
+  await page.waitForSelector('.blk[data-cid="n001"] .crbtn', { timeout: 15000 });
+  await page.evaluate(() => document.querySelector('.blk[data-cid="n001"] .crbtn').click());
+  await page.waitForSelector('#crpanel:not([hidden]) .cr-card', { timeout: 8000 });
+  r = await page.evaluate(() => ({ p: (document.getElementById('cr-prog') || {}).value || '' }));
+  ok('내신 반은 같은 이름이어도 불러오지 않는다(정규 한정)', !(await page.$('.cr-sib')) && !(st.sibGets || []).length && r.p !== '내신 진도', JSON.stringify(r));
+  await ctx.close();
   ({ ctx, page, st } = await ctxOf({ book: '정규', rows: [row('r001', '고2 가', '지원', '박보검')], att: [] }));
   await page.waitForSelector('.blk[data-cid="r001"] .crbtn', { timeout: 15000 });
   await page.evaluate(() => document.querySelector('.blk[data-cid="r001"] .crbtn').click());
   await page.waitForSelector('#crpanel:not([hidden]) .cr-card', { timeout: 8000 });
   ok('같은 이름 반이 없으면 가져오기 줄도 없다', !(await page.$('.cr-sib')) && !(st.sibGets || []).length);
   await ctx.close();
+
+  // ⑥-2 같은 수업(정규 같은 이름 반)의 지난주 과제를 이번 주 검사 과제로 잇는다(2026-10-02)
+  {
+    const D14 = (() => { const d = new Date(T0); d.setDate(d.getDate() - 14); return ymd(d); })();
+    const sibRows = [row('r001', '고2 가', '지원', '박보검'), Object.assign(row('r002', '고2 가', '은지', '최다은'), { start_time: '7:30', end_time: '9:00' })];
+    const tasksOf = () => page.evaluate(() => ({ t: [...document.querySelectorAll('.cr-card .cr-tname')].map(x => x.textContent), src: (document.querySelector('.cr-card .cr-src') || {}).textContent || '' }));
+    ({ ctx, page, st } = await ctxOf({ book: '정규', rows: sibRows, att: [],
+      prev: [{ class_id: 'r002', ymd: LASTWK, homework: '사미인곡 학습지' }, { class_id: 'r002', ymd: TODAYSTR, homework: '이번 주 다른 반 과제' }] }));
+    await openCard(page, '고2 가');
+    r = await tasksOf();
+    ok('이 반 기록이 없으면 같은 이름 반의 지난주 과제로 검사(이번 주 것은 아님)', r.t.join('|') === '사미인곡 학습지' && /은지T/.test(r.src), JSON.stringify(r));
+    ok('지난 과제 조회에 같은 이름 반 ID 포함', (st.srcGets || []).some(u => /"r001"/.test(u) && /"r002"/.test(u)), JSON.stringify(st.srcGets));
+    await ctx.close();
+    ({ ctx, page, st } = await ctxOf({ book: '정규', rows: sibRows, att: [],
+      prev: [{ class_id: 'r001', ymd: LASTWK, homework: '이 반 과제' }, { class_id: 'r002', ymd: LASTWK, homework: '사미인곡 학습지' }] }));
+    await openCard(page, '고2 가');
+    r = await tasksOf();
+    ok('이 반이 지난주 기록을 남겼으면 이 반 과제 그대로', r.t.join('|') === '이 반 과제', JSON.stringify(r));
+    await ctx.close();
+    ({ ctx, page, st } = await ctxOf({ book: '정규', rows: sibRows, att: [],
+      prev: [{ class_id: 'r001', ymd: D14, homework: '2주 전 과제' }, { class_id: 'r002', ymd: LASTWK, homework: '사미인곡 학습지' }] }));
+    await openCard(page, '고2 가');
+    r = await tasksOf();
+    ok('이 반 기록이 같은 이름 반보다 한 주 이상 오래됐으면 같은 이름 반 과제', r.t.join('|') === '사미인곡 학습지', JSON.stringify(r));
+    await ctx.close();
+  }
 
   // ⑦ 수업 태도 3단계 알약(2026-10-01) — 누르면 comments.__태도 로 저장, 다시 누르면 지움
   ({ ctx, page, st } = await ctxOf({ book: '정규', rows: [row('r001', '고2 가', '지원', '박보검 김하늘')], att: [{ class_id: 'r001', student: '박보검', status: '출석' }] }));
