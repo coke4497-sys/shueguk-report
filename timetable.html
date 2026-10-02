@@ -450,6 +450,7 @@
     border-radius:10px;padding:9px 11px;resize:vertical;min-height:60px;}
   .cr-xt{background:#F7F4FA;border-radius:12px;padding:10px 12px;margin:8px 0;display:flex;flex-direction:column;gap:7px;align-items:stretch;}
   .cr-xt-h{display:flex;flex-direction:column;gap:2px;font-size:.84rem;} .cr-xt-h small{font-size:.74rem;color:var(--ink-soft);}
+  .cr-xt-pend{display:block;margin:6px 0 2px;font-size:.74rem;color:#6B5B7B;}
   .cr-xt #cr-xt-last{align-self:flex-start;text-align:left;}
   .cr-xt-in{display:flex;gap:6px;align-items:flex-end;} .cr-xt-in textarea{flex:1;min-width:0;font:inherit;font-size:.84rem;border:1px solid #DDD6E6;border-radius:9px;padding:7px 9px;background:#fff;resize:vertical;}
   .cr-xt-in .cr-btn{white-space:nowrap;}
@@ -6963,32 +6964,42 @@ function crSibLoad(c, bk, ymd){
   var sun = new Date(mon); sun.setDate(mon.getDate() + 6);
   var f = function(x){ return x.getFullYear() + '-' + crPad(x.getMonth() + 1) + '-' + crPad(x.getDate()); };
   var inIds = 'in.(' + ids.map(function(x){ return encodeURIComponent('"' + x + '"'); }).join(',') + ')';
-  return crGet('/class_notes?book=eq.' + encodeURIComponent(bk) + '&class_id=' + inIds + '&ymd=gte.' + f(mon) + '&ymd=lte.' + f(sun) + '&select=class_id,ymd,progress,homework&order=ymd.desc')
+  return crGet('/class_notes?book=eq.' + encodeURIComponent(bk) + '&class_id=' + inIds + '&ymd=gte.' + f(mon) + '&ymd=lte.' + f(sun) + '&select=class_id,ymd,progress,homework,comments&order=ymd.desc')
     .then(function(rows){
-      return (rows || []).filter(function(r){ return String(r.progress || '').trim() || String(r.homework || '').trim(); }).map(function(r){
+      return (rows || []).map(function(r){ r.xt = crTasksOf((r.comments || {})[CR_XT_KEY]); return r; })
+        .filter(function(r){ return String(r.progress || '').trim() || String(r.homework || '').trim() || r.xt.length; }).map(function(r){
         var x = classes.filter(function(k){ return k.id === r.class_id; })[0] || {};
-        return { cid: r.class_id, ymd: r.ymd, progress: r.progress || '', homework: r.homework || '',
+        return { cid: r.class_id, ymd: r.ymd, progress: r.progress || '', homework: r.homework || '', xt: r.xt,
                  label: mdOfYmdStr(r.ymd) + ' ' + (x.day || '') + ' ' + (x.start || '') + (x.teacher ? ' · ' + x.teacher + 'T' : '') };
       });
     });
 }
 /* 이 반에 아직 적은 수업 내용·과제가 없으면 같은 이름 반의 가장 최근 기록을 미리 채워 둔다 — 저장은 하지 않는다
  * (2026-10-02 원장님 "같은 수업의 진도, 과제는 불러오기 되어있었으면 해요"). 고른 기록은 드롭다운에서 바꿀 수 있다 */
+/* 반 전체 검사 과제(__검사과제)도 같다(2026-10-02 원장님 "반 전체에 과제 추가한 내용도 동일하게 채워줄 수 있어?") — 이 반에 아직 없으면
+ * 같은 이름 반의 가장 최근 목록을 채워 둔다(CR.xtPending). 별·단계를 처음 매기거나 [저장]·태도·과제 추가로 수업 기록이 저장될 때 이 반에도 저장된다. */
 function crSibAuto(){
-  CR.sibAuto = -1;
+  CR.sibAuto = -1; CR.xtAuto = -1;
   if (!CR.sib || !CR.sib.length) return;
+  if (!(CR.xt || []).length){
+    for (var k = 0; k < CR.sib.length; k++){ if ((CR.sib[k].xt || []).length){ CR.xt = CR.sib[k].xt.slice(); CR.xtAuto = k; CR.xtPending = true; break; } }
+  }
   var n = CR.note || {}, wr = (CR.ns && CR.ns.weekRec) || {};
   if (String(n.progress || '').trim() || String(n.homework || '').trim() || String(wr.prog || '').trim() || String(wr.hw || '').trim()) return;
-  var x = CR.sib[0];
+  var i = -1;
+  for (var j = 0; j < CR.sib.length; j++){ if (String(CR.sib[j].progress || '').trim() || String(CR.sib[j].homework || '').trim()){ i = j; break; } }
+  if (i < 0) return;
+  var x = CR.sib[i];
   n = CR.note || (CR.note = {});
   n.progress = x.progress; n.homework = x.homework;
-  CR.sibAuto = 0;
+  CR.sibAuto = i;
 }
 function crSibHtml(){
   if (!CR.sib || !CR.sib.length) return '';
-  var a = CR.sib[CR.sibAuto];
-  return '<div class="cr-sib">' + (a ? '<b>같은 이름 반 기록을 불러왔습니다</b><span class="cr-sib-note">' + esc(a.label) + ' 반 기록이에요. 이 반에 맞게 고친 뒤 [저장]을 눌러 주세요.</span>' : '<b>같은 이름 반 기록</b>') +
-    '<select id="cr-sib-sel" aria-label="가져올 반">' + CR.sib.map(function(x, i){ return '<option value="' + i + '"' + (i === CR.sibAuto ? ' selected' : '') + '>' + esc(x.label) + ' — ' + esc(String(x.progress || x.homework).split('\n')[0].slice(0, 24)) + '</option>'; }).join('') + '</select>' +
+  var a = CR.sib[CR.sibAuto], ax = CR.xtPending ? CR.sib[CR.xtAuto] : null, sel = CR.sibAuto >= 0 ? CR.sibAuto : (ax ? CR.xtAuto : -1);
+  var what = (a ? '수업 내용·과제' : '') + (a && ax ? '와 ' : '') + (ax ? '반 전체 검사 과제' : '');
+  return '<div class="cr-sib">' + ((a || ax) ? '<b>같은 이름 반 기록을 불러왔습니다</b><span class="cr-sib-note">' + esc((a || ax).label) + ' 반의 ' + what + '예요. 이 반에 맞게 고친 뒤 [저장]을 눌러 주세요.</span>' : '<b>같은 이름 반 기록</b>') +
+    '<select id="cr-sib-sel" aria-label="가져올 반">' + CR.sib.map(function(x, i){ return '<option value="' + i + '"' + (i === sel ? ' selected' : '') + '>' + esc(x.label) + ' — ' + esc(String(x.progress || x.homework || ('검사 과제 ' + (x.xt || []).join(', '))).split('\n')[0].slice(0, 24)) + '</option>'; }).join('') + '</select>' +
     '<button type="button" id="cr-sib-go">가져오기</button></div>';
 }
 function crSibImport(){
@@ -7001,6 +7012,11 @@ function crSibImport(){
   if (cur && !same && !confirm('지금 적어 둔 수업 내용·과제를 ' + x.label + ' 반 기록으로 바꿀까요?')) return;
   n.progress = x.progress; n.homework = x.homework;
   if (CR.sibAuto >= 0) CR.sibAuto = i;
+  // 반 전체 검사 과제 — 불러온 채 아직 저장 전이면 바꾸고, 이 반에 저장된 목록이 있으면 빠진 것만 더한다
+  if ((x.xt || []).length){
+    var cur2 = CR.xtPending ? [] : (CR.xt || []).slice(), add = x.xt.filter(function(t){ return cur2.indexOf(t) < 0; });
+    if (CR.xtPending || add.length){ CR.xt = cur2.concat(add); CR.xtPending = true; CR.xtAuto = i; }
+  }
   crRender();
   crMsg('가져왔습니다. 이 반에 맞게 고친 뒤 [저장]을 눌러 주세요.');
 }
@@ -7194,6 +7210,7 @@ function crXtHtml(){
   var xt = CR.xt || [], last = (CR.xtLast || []).filter(function(t){ return xt.indexOf(t) < 0; });
   return '<div class="cr-xt"><div class="cr-xt-h"><b>반 전체 검사 과제 추가</b><small>한 줄에 하나씩 추가하세요.</small></div>' +
     (xt.length ? '<div class="cr-units">' + xt.map(function(t){ return '<span class="cr-unit">' + esc(t) + '<button type="button" data-xtrm="' + esc(t) + '" aria-label="' + esc(t) + ' 빼기">×</button></span>'; }).join('') + '</div>' : '') +
+    (CR.xtPending && xt.length ? '<small class="cr-xt-pend">같은 이름 반에서 불러온 과제예요. 별을 매기거나 [저장]하면 이 반에도 저장됩니다.</small>' : '') +
     (last.length ? '<button type="button" class="cr-mini" id="cr-xt-last">지난번 과제 다시 넣기 · ' + esc(last.join(', ').slice(0, 60)) + '</button>' : '') +
     '<div class="cr-xt-in"><textarea id="cr-xt" rows="2" maxlength="300" placeholder="예) 슈주간지 260930">' + esc(CR.xtDraft || '') + '</textarea>' +
     '<button type="button" class="cr-btn" id="cr-xt-add">반 전체에 추가</button></div></div>';
@@ -7571,6 +7588,8 @@ function crFlushHw(){ Object.keys(crHwTimers).forEach(function(i){ clearTimeout(
 /* 숙제 검사 저장 — hwcheck.html 어댑터 hwcheckSave 와 같은 규칙(점수 0~6, 모든 항목, 미제출이면 0%, plan_done은 보내지 않음) */
 function crHwSave(i){
   var x = CR.names[i]; if (!x || !x.stu) return Promise.resolve();
+  // 같은 이름 반에서 불러온 반 전체 검사 과제는 처음 매길 때 이 반 수업 기록에도 저장한다(다시 열어도 같은 검사 목록이 보이게)
+  if (CR.xtPending && !CR.busy) crUpsert().catch(function(e){ console.warn('검사 과제 저장 실패', e); });
   var s = x.stu, h = crHwRec(s.code), week = CR.hwWeek, scores = {};
   if (!h.saved && !crHwTouched(h)) return Promise.resolve();
   var its = crItemsOf(x);
@@ -7689,11 +7708,12 @@ function crUpsert(extra){
   // 내신 진도 수업은 그 주 메모·과제를 내신대비 피드백 기록에도 남긴다(같은 페이지에서 보이게)
   if (CR.ns) jobs.push(crNsWrite('주차', CR.c.id, CR.ns.week, body.progress, body.homework).then(function(){ CR.ns.weekRec = { prog: body.progress, hw: body.homework }; }));
   var cr = CR, key = CR.bk + '|' + CR.c.id;   // 창을 닫은 뒤 응답이 와도(CR 이 바뀌어도) 그 수업 것으로 처리
+  var pend = cr.xtPending; cr.xtPending = false;
   return Promise.all(jobs).then(function(r){
     cr.note = (r[0] && r[0][0]) || cr.note;
     if (crToday.map) crToday.map[key] = { st: cr.note.report_status || '', has: crHasNote(cr.note) };
     return cr.note;
-  });
+  }, function(e){ if (pend) cr.xtPending = true; throw e; });
 }
 function crSave(){
   if (!CR.c || CR.busy) return;
