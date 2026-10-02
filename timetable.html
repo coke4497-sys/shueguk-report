@@ -4262,6 +4262,13 @@ function locGroupList(list, makeCard, offCtx){
     return (lord(a.loc)-lord(b.loc)) || (mins(a.start)-mins(b.start)) || (ord(a.teacher)-ord(b.teacher));
   });
   var lastLoc = null;
+  // 교사 임시 휴무 — 그 선생님 센터 제목 아래 빨간 줄 (주차별 휴대폰 목록, 2026-10-02 사용자 "모바일에서는 휴무가 안 보여요")
+  var toffs = (offCtx && offCtx.toffs) || {};
+  var toffOnly = function(beforeRank){
+    Object.keys(toffs).filter(function(l){ return !toffs[l].done && lord(l) < beforeRank; })
+      .sort(function(a, b){ return lord(a) - lord(b); })
+      .forEach(function(l){ toffs[l].done = true; teacherOffLocBlock(box, l, toffs[l], 'dl-time'); });
+  };
   // 같은 구역의 휴강은 모아 뒀다가 구간 끝에 — 2건 이상이면 한 장으로 (2026-09-18 '1안')
   var pendingOff = [];
   var flushOff = function(){
@@ -4273,17 +4280,20 @@ function locGroupList(list, makeCard, offCtx){
   sorted.forEach(function(c){
     if (c.loc !== lastLoc){
       flushOff();
+      toffOnly(lord(c.loc));
       lastLoc = c.loc;
       var h = document.createElement('div');
       h.className = 'dl-time';
       h.textContent = c.loc || '기타';
       box.appendChild(h);
+      if (toffs[c.loc] && !toffs[c.loc].done){ toffs[c.loc].done = true; box.appendChild(teacherOffCtrEl(toffs[c.loc])); }
     }
     var off = offCtx ? wkOffAt(c.id, offCtx.dstr) : null;
     if (off){ pendingOff.push({ c: c, off: off }); return; }
     box.appendChild(makeCard(c));
   });
   flushOff();
+  toffOnly(1e9);
   requestAnimationFrame(function(){ applySearchHits(); applyMultiSel(); });
   return box;
 }
@@ -4348,9 +4358,13 @@ function buildWeekList(){
     em.className = 'day-empty';
     em.textContent = weekListDay + '요일에는 등록된 ' + book + ' 수업이 없어요.';
     wrap.appendChild(em);
+    var offLoc0 = teacherOffsByLoc(dstr, weekListDay);
+    Object.keys(offLoc0).sort(function(x, y){ return wkLocRank(x) - wkLocRank(y); })
+      .forEach(function(l){ teacherOffLocBlock(wrap, l, offLoc0[l], 'dl-time'); });
   } else {
     wrap.appendChild(locGroupList(list, function(c){ return weekBlockEl(c, dstr, true); },
-                                  { dstr: dstr, canManage: true, flag: '이 주 휴강' }));
+                                  { dstr: dstr, canManage: true, flag: '이 주 휴강',
+                                    toffs: teacherOffsByLoc(dstr, weekListDay) }));
   }
   return wrap;
 }

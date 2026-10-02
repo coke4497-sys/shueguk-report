@@ -117,6 +117,8 @@ const OFF = [{ date:MON, teacher:'지원', reason:'월 직보' }];
   await page.evaluate(() => { weekListDay = '월'; });
   r = await page.evaluate(() => { var el = buildWeekList(); return [...el.querySelectorAll('.toff-tab')].length; });
   ok('휴대폰 목록: 요일 탭에 휴무 표시', r === 1, String(r));
+  r = await page.evaluate(() => { var el = buildWeekList(); var n = el.querySelector('.dl-time + .toff-ctr'); return n ? n.previousElementSibling.textContent + '|' + n.textContent : ''; });
+  ok('휴대폰 목록: 센터 제목 아래 빨간 휴무 줄', r === '본원|지원T OFF (월 직보)', r);
   await p2.close();
 
   // 어댑터: ttBoot 가 오늘 날짜 휴무를 함께 받아 온다
