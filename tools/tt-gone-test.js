@@ -63,12 +63,16 @@ const ok = (n, c, x) => { if (c) pass++; else { fail++; console.log('  ✗ ' + n
     const W = el => Math.round(el.getBoundingClientRect().width);
     const blks = [...document.querySelectorAll('.grid.fitgrid .blk')];
     const by = t => blks.find(e => e.textContent.indexOf(t) >= 0);
+    const colOf = e => e.style.gridColumn || (e.closest('.blk') ? e.closest('.blk').style.gridColumn : '');
     const gone = [...document.querySelectorAll('.grid.fitgrid .gonebtn')]
-      .map(e => ({ el: e, col: e.style.gridColumn, row: e.style.gridRow }));
+      .map(e => ({ el: e, col: colOf(e), row: e.style.gridRow,
+                   inblk: !!e.closest('.blk'), first: e.parentElement && e.parentElement.firstChild === e,
+                   host: e.closest('.blk') ? e.closest('.blk').textContent.slice(0, 20) : '' }));
     const cell = document.querySelector('.grid.fitgrid .cell[style*="grid-column: 4"]');
     return { n: blks.length, txt: blks.map(e => e.textContent.slice(0, 10)),
              live: by('고2 능곡') ? W(by('고2 능곡')) : 0, cell: cell ? W(cell) : 0,
              gone: gone.map(x => ({ t: x.el.textContent, title: x.el.title, col: x.col, row: x.row,
+                                   inblk: x.inblk, first: x.first, host: x.host,
                                    w: Math.round(x.el.getBoundingClientRect().width) })),
              moved: blks.some(e => /오늘 이동/.test(e.textContent)),
              off: blks.some(e => /오늘 휴강/.test(e.textContent)),
@@ -77,13 +81,16 @@ const ok = (n, c, x) => { if (c) pass++; else { fail++; console.log('  ✗ ' + n
   ok('오늘: 흐린 "오늘 이동" 카드 없음', !r.moved, JSON.stringify(r.txt));
   ok('오늘: "오늘 휴강" 카드·띠 없음', !r.off && r.band === 0);
   ok('오늘: 살아남은 수업만 카드 2개', r.n === 2, JSON.stringify(r.txt));
-  // 버튼 자리(46px)만 비우고 나머지는 그대로 — 셋으로 쪼개지던 예전과 달리 글자가 읽힌다
-  ok('오늘: 남은 수업이 버튼 자리만 빼고 열을 쓴다', r.live > r.cell * 0.6 && r.live >= r.cell - 50, JSON.stringify([r.live, r.cell]));
+  // 2026-10-02 원장님 "시간표 칸이 얇아지지 않게" — 남은 수업은 열 폭을 그대로 쓴다
+  ok('오늘: 남은 수업이 열 폭을 그대로 쓴다', r.live > r.cell * 0.9, JSON.stringify([r.live, r.cell]));
   // 2026-10-02 원장님 선택: 시간 축이 아니라 '그 선생님 칸' 안에 버튼
   ok('오늘: 칸마다 버튼 3개(승연T 5:30 · 지원T 5:30 · 지원T 7:00)', r.gone.length === 3, JSON.stringify(r.gone));
   const b530 = r.gone.find(x => /고2 확수/.test(x.title));
   ok('오늘: 승연T 칸 5:30에 "사라진 2"', !!b530 && b530.t === '사라진 2' && /^5:30/.test(b530.title), JSON.stringify(r.gone));
   ok('오늘: 버튼이 그 수업 열(승연T)에 있다', !!b530 && b530.col === '3', b530 && b530.col);
+  // 2026-10-02 원장님 "새로 생긴 반 이름 위로" — 그 자리 수업 카드 안 맨 위
+  ok('오늘: 버튼이 새 수업 카드 안 맨 위', !!b530 && b530.inblk && b530.first && /고2 능곡/.test(b530.host),
+     b530 && JSON.stringify([b530.inblk, b530.first, b530.host]));
   ok('오늘: 버튼 설명에 반이름·이동', !!b530 && /고2 확수\(확인\) 이동/.test(b530.title), b530 && b530.title);
   ok('오늘: 지원T 칸은 따로 "사라진 1" 둘(5:30·7:00)', r.gone.filter(x => x.col === '4' && x.t === '사라진 1').length === 2, JSON.stringify(r.gone.map(x => [x.col, x.t])));
 
