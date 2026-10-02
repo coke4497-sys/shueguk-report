@@ -652,6 +652,24 @@
   .scrollwrap{max-height:calc(100vh - 150px);overflow:auto;}
   /* 시간축 가로 고정 — 스크롤량만큼 transform으로 라벨을 왼쪽에 붙임 (sticky는 브라우저별 편차가 있어 미사용) */
   .tlab.stick{width:46px;box-sizing:border-box;z-index:3;background:var(--surface);will-change:transform;}
+  /* 사라진 수업(휴강·이동) — 시간 축에 작은 버튼 하나로 모은다 (2026-10-02 사용자 요청) */
+  .tlab,.wk-tlab{display:flex;flex-direction:column;align-items:flex-end;gap:2px;}
+  .gonebtn{font:inherit;font-size:.58rem;line-height:1.25;letter-spacing:-.02em;white-space:nowrap;
+    background:#F1F3F2;border:1px solid #DCE4DF;border-radius:7px;color:#6A716C;
+    padding:1px 4px;cursor:pointer;max-width:100%;}
+  .gonebtn:hover{background:var(--icon-bg);border-color:var(--line);color:var(--accent);}
+  .gone-list{display:flex;flex-direction:column;gap:7px;margin:10px 0 2px;max-height:52vh;overflow:auto;}
+  .gone-list button{font:inherit;text-align:left;background:#fff;border:1px solid var(--line-soft);
+    border-radius:11px;padding:9px 11px;cursor:pointer;color:var(--ink);display:block;width:100%;}
+  .gone-list button:hover{border-color:var(--line);background:#FAFCFB;}
+  .gone-list button.plain{cursor:default;background:#FAFBFA;}
+  .gone-list .gl-top{display:flex;align-items:center;gap:6px;}
+  .gone-list .gl-top b{font-family:"Gowun Batang",serif;}
+  .gone-list em{font-style:normal;font-size:.72rem;font-weight:700;border-radius:6px;padding:1px 7px;}
+  .gone-list em.k-mv{color:#43307A;background:#EDE4F4;}
+  .gone-list em.k-off{color:#6A716C;background:#EFF1EF;}
+  .gone-list small{display:block;font-size:.78rem;color:var(--ink-soft);margin-top:2px;}
+  .gone-list .gl-act{display:inline-block;margin-top:5px;font-size:.78rem;color:var(--accent);font-weight:700;}
   .stickhead{position:sticky;top:0;z-index:10;background:var(--surface);width:max-content;min-width:100%;
     padding-bottom:3px;box-shadow:0 3px 6px -3px rgba(42,51,47,.18);}
   .stickhead .grid{min-width:0;}
@@ -4211,33 +4229,30 @@ function buildDayGrid(list){
   g.className = 'grid fitgrid';
   g.style.gridTemplateColumns = colDefs;
   g.style.gridTemplateRows = 'repeat(' + nrows + ', 46px)';   // 30분 = 46px 균일 간격
+  var labs = [];
   for (var r = 0; r < nrows; r++){
     var lab = document.createElement('div');
     lab.className = 'tlab stick';
-    lab.textContent = fmtT(lo + r*30);
+    lab.innerHTML = '<span class="tnum">' + esc(fmtT(lo + r*30)) + '</span>';
     lab.style.gridColumn = '1 / -1';
     lab.style.width = '42px';
     lab.style.gridRow = String(r+1);
     g.appendChild(lab);
+    labs.push(lab);
   }
   cols.forEach(function(cinfo, ci){
     for (var r = 0; r < nrows; r++) addCell(g, ci+2, r, dname, cinfo, lo, 1);
   });
-  var placed = [], bandAt = {}, bands = [];
+  var placed = [], goneRows = {};
   list.forEach(function(c){
     var r0 = Math.floor((mins(c.start)-lo)/30), r1 = Math.ceil((minsEnd(c)-lo)/30);
     if (r1 <= r0) r1 = r0+1;
     var col = (colIdx[c.loc+'|'+c.teacher]||0)+2;
-    var off = wkOffAt(c.id, todayStr());
-    if (off){
-      // 오늘 휴강은 얇은 띠 — 자리 다툼에 끼지 않아 실제 수업이 원래 폭을 쓴다 (2026-09-18 '1안')
-      var band = offBandEl(c, off, todayStr(), false);
-      var bk = col + '|' + r0, bi = bandAt[bk] || 0; bandAt[bk] = bi + 1;
-      band.style.gridColumn = String(col);
-      band.style.gridRow = String(r0+1);
-      if (bi) band.style.marginBottom = (2 + bi*20) + 'px';
-      g.appendChild(band);
-      bands.push({ el: band, col: col, rs: lo + r0*30, re: lo + (r0+1)*30 });
+    // 오늘 휴강·오늘 이동해 나간 수업은 카드를 만들지 않고 시간 축 버튼으로 모은다
+    // (2026-10-02 사용자 요청 — 흐린 카드가 실제 수업과 자리를 다퉈 글자가 안 보였다)
+    var gone = goneInfo(c, todayStr());
+    if (gone){
+      (goneRows[r0] = goneRows[r0] || []).push({ c: c, kind: gone.kind, info: gone.info });
       return;
     }
     var b = blockEl(c);
@@ -4247,11 +4262,9 @@ function buildDayGrid(list){
     placed.push({ el: b, col: col, s: mins(c.start), e: minsEnd(c) });
   });
   spreadOverlaps(placed);
-  // 휴강 띠가 같은 열의 대체 수업 카드 위에 겹치면 클릭을 통과시킨다 — 띠 밑 학생 칩이 눌리게
-  // (2026-10-02 수정 요청함 박윤서 "학생 이름이 다른 글자와 겹쳐져서 클릭이 안 되는 상황")
-  bands.forEach(function(bd){
-    var hit = placed.some(function(p){ return p.col === bd.col && p.s < bd.re && p.e > bd.rs; });
-    if (hit) bd.el.style.pointerEvents = 'none';
+  Object.keys(goneRows).forEach(function(r){
+    var lab = labs[r];
+    if (lab) lab.appendChild(goneBtnEl(goneRows[r], todayStr(), false, fmtT(lo + (+r)*30)));
   });
 
   tuneRowHeight(g, '', nrows);
@@ -4403,6 +4416,61 @@ function buildWeekList(){
  * 그리드 = 휴강을 얇은 띠(offBandEl)로 시작 칸에 두고 자리 다툼(spreadOverlaps)에서 뺀다.
  * 목록·개요 = 같은 구역에 휴강이 2건 이상이면 한 장(offSummaryCard/개요 wkoffsum)으로 묶는다.
  * 1건은 지금처럼 낱장 흐린 카드 — 조교가 실수로 넣은 휴강은 종전대로 바로 보이고 되돌린다. */
+/* 그 날 그 자리에서 사라진 수업 — 이 주만 휴강 / 다른 시간·날짜로 이동해 나감
+ * (2026-10-02 사용자 요청 "삭제되는 수업이 있을때 겹치지 말고 5:30 라인에 사라진 수업보기 버튼").
+ * 그리드에서는 카드도 띠도 그리지 않고 시간 축의 작은 버튼 하나로 모은다 — 실제 수업이 원래 폭을 쓴다. */
+function goneInfo(c, dstr){
+  var mv = wkMovedAway(c.id, dstr);
+  if (mv) return { kind: '이동', info: mv };
+  var off = wkOffAt(c.id, dstr);
+  if (off) return { kind: '휴강', info: off };
+  return null;
+}
+/* 시간 축(5:30 라인)에 붙는 '사라진 n' 버튼 — 누르면 그 시간에 없어진 수업 목록 */
+function goneBtnEl(items, dstr, canManage, timeText){
+  var b = document.createElement('button');
+  b.type = 'button';
+  b.className = 'gonebtn';
+  b.textContent = '사라진 ' + items.length;
+  b.title = timeText + ' 사라진 수업 ' + items.length + '개 — ' +
+            items.map(function(it){ return it.c.cls + ' ' + it.kind; }).join(' · ') + ' (누르면 자세히)';
+  b.addEventListener('click', function(e){
+    e.stopPropagation();
+    openGoneList(items, dstr, canManage, timeText);
+  });
+  return b;
+}
+/* 사라진 수업 목록 창 — 줄을 누르면 기존 안내·되돌리기 창으로 이어진다 */
+function openGoneList(items, dstr, canManage, timeText){
+  var rows = items.map(function(it, i){
+    var moved = (it.kind === '이동');
+    var to = moved ? wkMovedToLabel(it.info) : '';
+    var where = moved ? ('→ ' + to + (/이동$/.test(to) ? '' : ' 에서 해요'))
+                      : (canManage ? '이 주는 수업이 없어요' : '오늘은 수업이 없어요');
+    var act = moved ? '자세히' : (canManage ? '되돌리기' : '');
+    return '<button type="button" data-i="' + i + '"' + (act ? '' : ' class="plain"') + '>' +
+           '<span class="gl-top"><b>' + esc(it.c.cls) + '</b><em class="k-' + (moved ? 'mv' : 'off') + '">' +
+           esc(it.kind) + '</em></span>' +
+           '<small>' + esc(it.c.start) + '~' + esc(it.c.end) +
+           (it.c.teacher ? ' · ' + esc(it.c.teacher) + 'T' : '') + (it.c.loc ? ' · ' + esc(it.c.loc) : '') + '</small>' +
+           '<small class="gl-to">' + esc(where) + (it.info.reason ? ' — ' + esc(it.info.reason) : '') + '</small>' +
+           (act ? '<span class="gl-act">' + act + '</span>' : '') + '</button>';
+  }).join('');
+  openModal(
+    '<h3>사라진 수업</h3>' +
+    '<p class="mdesc">' + esc(wkDayLabel(dstr)) + ' ' + esc(timeText) + ' — 이 시간에 없어진 수업 ' + items.length + '개예요.</p>' +
+    '<div class="gone-list" id="gone-list">' + rows + '</div>' +
+    '<div class="mbtns"><button onclick="closeModal()">닫기</button></div>'
+  );
+  var box = $('gone-list');
+  if (box) box.addEventListener('click', function(e){
+    var r = e.target.closest('button[data-i]');
+    if (!r || r.classList.contains('plain')) return;
+    var it = items[parseInt(r.getAttribute('data-i'), 10)];
+    if (it.kind === '이동') openWeekMovedInfo(it.c, dstr, it.info);
+    else openWeekClassOffManage(it.c, dstr, it.info);
+  });
+}
 function offBandEl(c, off, dstr, canManage){
   var b = document.createElement('div');
   b.className = 'blk wkband ' + colorOf(c.cls);
@@ -4774,7 +4842,7 @@ function zoomTuneRows(g, nrows){
     applyMultiSel();
   });
 }
-function zoomCenterGrids(big, dname, list, makeBlock, makeBand, dstr){   // dstr = 주차별 날짜(교사 휴무 머리글 표시용)
+function zoomCenterGrids(big, dname, list, makeBlock, goneOf, dstr){   // dstr = 주차별 날짜(교사 휴무 머리글·사라진 수업)
   var order = [], byLoc = {};
   list.forEach(function(c){
     if (!byLoc[c.loc]){ byLoc[c.loc] = []; order.push(c.loc); }
@@ -4824,30 +4892,28 @@ function zoomCenterGrids(big, dname, list, makeBlock, makeBand, dstr){   // dstr
       }
       g.appendChild(th);
     });
+    var zlabs = [];
     for (var r = 0; r < n; r++){
       var lab = document.createElement('div');
       lab.className = 'wk-tlab';
-      lab.textContent = fmtT(lo + r * 30);
+      lab.innerHTML = '<span class="tnum">' + esc(fmtT(lo + r * 30)) + '</span>';
       lab.style.gridColumn = '1';
       lab.style.gridRow = String(r + 2);
       g.appendChild(lab);
+      zlabs.push(lab);
       for (var j = 0; j < cols.length; j++){
         addCell(g, j + 2, r, dname, { key: loc + '|' + cols[j], loc: loc, teacher: cols[j] }, lo, 2);
       }
     }
-    var placedZ = [], bandAt = {};
+    var placedZ = [], goneZ = {};
     cl.forEach(function(c){
       var r0 = Math.floor((mins(c.start) - lo) / 30), r1 = Math.ceil((minsEnd(c) - lo) / 30);
       if (r1 <= r0) r1 = r0 + 1;
       var col = cols.indexOf(c.teacher) + 2;
-      var band = makeBand ? makeBand(c) : null;
-      if (band){
-        // 휴강 띠 — 자리 다툼에 끼지 않는다 (2026-09-18 '1안')
-        var bk = col + '|' + r0, bi = bandAt[bk] || 0; bandAt[bk] = bi + 1;
-        band.style.gridColumn = String(col);
-        band.style.gridRow = String(r0 + 2);
-        if (bi) band.style.marginBottom = (2 + bi*20) + 'px';
-        g.appendChild(band);
+      // 사라진 수업(휴강·이동해 나감)은 시간 축 버튼으로 (2026-10-02 사용자 요청)
+      var gone = goneOf ? goneOf(c) : null;
+      if (gone){
+        (goneZ[r0] = goneZ[r0] || []).push({ c: c, kind: gone.kind, info: gone.info });
         return;
       }
       var b = makeBlock(c);
@@ -4857,6 +4923,10 @@ function zoomCenterGrids(big, dname, list, makeBlock, makeBand, dstr){   // dstr
       placedZ.push({ el: b, col: col, s: mins(c.start), e: minsEnd(c) });
     });
     spreadOverlaps(placedZ);
+    Object.keys(goneZ).forEach(function(r){
+      var zl = zlabs[r];
+      if (zl) zl.appendChild(goneBtnEl(goneZ[r], dstr, true, fmtT(lo + (+r) * 30)));
+    });
     big.appendChild(g);
     zoomTuneRows(g, n);
   });
@@ -5299,7 +5369,7 @@ function buildWeekZoom(dname){
       big.appendChild(em);
     }
     zoomCenterGrids(big, dy, list, function(c){ return weekBlockEl(c, dstr); },
-                    function(c){ var off = wkOffAt(c.id, dstr); return off ? offBandEl(c, off, dstr, true) : null; }, dstr);
+                    function(c){ return goneInfo(c, dstr); }, dstr);
     wrap.appendChild(big);
   });
   requestAnimationFrame(function(){ applySearchHits(); });
@@ -5521,6 +5591,17 @@ function gotoSearchHit(cid, ymd){
     }
   }
   var el = document.querySelector('.blk[data-cid="' + cid + '"]');
+  // 사라진 수업(휴강·이동해 나감)은 그리드에 카드가 없다 — 그 안내 창을 바로 연다 (2026-10-02)
+  if (!el){
+    var gc = classes.find(function(x){ return x.id === cid; });
+    var gd = (mode === 'today') ? todayStr()
+           : (mode === 'week' && !useListView() && weekZoomDay) ? ymdOf(weekDates()[weekZoomDay]) : '';
+    var gi = (gc && gd) ? goneInfo(gc, gd) : null;
+    if (gi){
+      openGoneList([{ c: gc, kind: gi.kind, info: gi.info }], gd, mode === 'week', gc.start);
+      return;
+    }
+  }
   if (!el && mode === 'today'){
     setMode('all');
     requestAnimationFrame(function(){ requestAnimationFrame(function(){ gotoSearchHit(cid); }); });

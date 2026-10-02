@@ -61,20 +61,36 @@ const OFFS = [
     const blks = [...document.querySelectorAll('.grid.fitgrid .blk:not(.wkband)')];
     const by = t => blks.find(e => e.textContent.indexOf(t) >= 0);
     const bands = [...document.querySelectorAll('.grid.fitgrid .blk.wkband')];
+    const gone = [...document.querySelectorAll('.grid.fitgrid .tlab .gonebtn')];
     const a = by('고1 확인'), f2 = by('고1 확인B'), d = by('고1 가');
     a.scrollIntoView({ block: 'center' });   // 클릭 판정은 화면 안에서
     const A = box(a), F = box(f2), D = box(d);
     const hit = (bx, el) => { const e = document.elementFromPoint(bx.l + bx.w / 2, bx.t + 8); return !!(e && el.contains(e)); };
-    return { bands: bands.map(x => ({ txt: x.textContent, h: box(x).h, hasS: !!x.querySelector('s') })),
+    return { bands: bands.length, gone: gone.map(x => ({ txt: x.textContent, title: x.title })),
              A, F, D, hitA: hit(A, a), hitF: hit(F, f2),
              offCard: blks.some(x => /오늘 휴강/.test(x.textContent)) };
   });
-  ok('오늘: 휴강 띠 3개', r.bands.length === 3, JSON.stringify(r.bands));
-  ok('오늘: 띠에 취소선 반이름·휴강 표기', r.bands.every(x => x.hasS && /휴강/.test(x.txt)), JSON.stringify(r.bands));
-  ok('오늘: 띠는 낮게(26px 이하)', r.bands.every(x => x.h <= 26), JSON.stringify(r.bands.map(x => x.h)));
-  ok('오늘: 옛 휴강 카드 없음', !r.offCard);
+  // 2026-10-02 사용자 요청: 그리드에서 사라진 수업(휴강·이동)은 띠·카드 없이 시간 축 버튼 하나로
+  ok('오늘: 휴강 띠 없음(시간 축 버튼으로 대체)', r.bands === 0, String(r.bands));
+  ok('오늘: 사라진 수업 버튼 3개(4:00·5:30·7:00)', r.gone.length === 3, JSON.stringify(r.gone));
+  ok('오늘: 버튼 글자 = 사라진 1', r.gone.every(x => x.txt === '사라진 1'), JSON.stringify(r.gone.map(x => x.txt)));
+  ok('오늘: 버튼 설명에 반이름·휴강', r.gone.every(x => /휴강/.test(x.title)) && r.gone.some(x => /백양C/.test(x.title)), JSON.stringify(r.gone.map(x => x.title)));
+  ok('오늘: 휴강 카드 없음', !r.offCard);
   ok('오늘: 살아 있는 두 수업은 반씩 분할(회귀)', r.A.w < r.D.w * 0.62 && r.F.w < r.D.w * 0.62 && (r.A.r <= r.F.l + 1 || r.F.r <= r.A.l + 1), JSON.stringify([r.A, r.F, r.D]));
   ok('오늘: 두 수업 다 클릭 도달(회귀)', r.hitA && r.hitF);
+  // 버튼을 누르면 그 시간에 사라진 수업 목록 창
+  await page.evaluate(() => {
+    const b = [...document.querySelectorAll('.grid.fitgrid .tlab .gonebtn')]
+      .find(x => /백양C/.test(x.title));
+    b.click();
+  });
+  r = await page.evaluate(() => ({ on: document.getElementById('modal').classList.contains('on'),
+                                   txt: document.getElementById('modal').textContent,
+                                   rows: document.querySelectorAll('#gone-list button').length }));
+  ok('오늘: 버튼 클릭 = 사라진 수업 목록 창', r.on && /사라진 수업/.test(r.txt) && r.rows === 1, (r.txt || '').slice(0, 70));
+  ok('오늘: 목록에 반이름·휴강 사유', /백양C/.test(r.txt) && /중2 정규수업 주간/.test(r.txt), (r.txt || '').slice(0, 120));
+  ok('오늘은 되돌리기 없음(출석 체크 전용 화면)', !/되돌리기/.test(r.txt));
+  await page.evaluate(() => closeModal());
   await page.close();
 
   // ② 주차별 개요 — 묶음(2건)·낱장 흐림(1건)
@@ -100,19 +116,27 @@ const OFFS = [
     const blks = [...document.querySelectorAll('.wk-tgrid .blk:not(.wkband)')];
     const by = t => blks.find(e => e.textContent.indexOf(t) >= 0);
     const bands = [...document.querySelectorAll('.wk-tgrid .blk.wkband')];
+    const gone = [...document.querySelectorAll('.wk-tgrid .wk-tlab .gonebtn')];
     const a = by('고1 확인'), f2 = by('고1 확인B'), d = by('고1 가');
     return { nBands: bands.length, A: box(a), F: box(f2), D: box(d),
-             bandTxt: bands.map(x => x.textContent) };
+             gone: gone.map(x => ({ txt: x.textContent, title: x.title })) };
   });
-  ok('확대: 휴강 띠 3개', r.nBands === 3, JSON.stringify(r.bandTxt));
+  ok('확대: 휴강 띠 없음', r.nBands === 0, String(r.nBands));
+  ok('확대: 사라진 수업 버튼 3개', r.gone.length === 3, JSON.stringify(r.gone));
   ok('확대: 살아 있는 두 수업 반씩 분할(회귀)', r.A.w < r.D.w * 0.62 && r.F.w < r.D.w * 0.62, JSON.stringify([r.A.w, r.F.w, r.D.w]));
   await page.evaluate(() => {
-    const band = [...document.querySelectorAll('.wk-tgrid .blk.wkband')].find(x => x.textContent.indexOf('백양C') >= 0);
-    band.click();
+    [...document.querySelectorAll('.wk-tgrid .wk-tlab .gonebtn')].find(x => /백양C/.test(x.title)).click();
   });
   r = await page.evaluate(() => ({ on: document.getElementById('modal').classList.contains('on'),
+                                   txt: document.getElementById('modal').textContent,
+                                   act: [...document.querySelectorAll('#gone-list .gl-act')].map(x => x.textContent) }));
+  ok('확대: 버튼 클릭 = 사라진 수업 목록 창', r.on && /사라진 수업/.test(r.txt) && /백양C/.test(r.txt), (r.txt || '').slice(0, 70));
+  ok('확대: 주차별은 줄마다 [되돌리기]', JSON.stringify(r.act) === JSON.stringify(['되돌리기']), JSON.stringify(r.act));
+  await page.evaluate(() => { document.querySelector('#gone-list button').click(); });
+  r = await page.evaluate(() => ({ on: document.getElementById('modal').classList.contains('on'),
                                    txt: document.getElementById('modal').textContent }));
-  ok('확대: 띠 클릭 = 휴강 되돌리기 창', r.on && /휴강/.test(r.txt), (r.txt || '').slice(0, 80));
+  ok('확대: 줄 클릭 = 휴강 되돌리기 창', r.on && /휴강/.test(r.txt) && !/사라진 수업 1개예요/.test(r.txt), (r.txt || '').slice(0, 80));
+  await page.evaluate(() => closeModal());
   await page.close();
 
   // ④ 모바일 목록(주차별) — 묶음 카드 + 행 클릭 = 되돌리기 창, 1건은 낱장
