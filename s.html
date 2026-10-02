@@ -1923,16 +1923,7 @@ function renderHub(){
               '<span class="go">'+(rvTodo>0?'보기 ':'열기 ')+svg(ICON.arrow)+'</span></button>';
   }
 
-  // 숙제 검사 — 정규 수업 검사 기록이 있는 학생에게만 카드 표시
-  var hwc = STATE.hwcheck || [];
-  if(hwc.length){
-    var latest = hwc[0];
-    var hwcDesc = hwcWeekLabel(latest.week) + (latest.part ? ' ' + latest.part + ' 수업' : '') + ' · ' + (latest.missing ? '미제출' : latest.pct + '%');
-    html += '<button class="card t-sky" onclick="openHwcheck()">' +
-              '<span class="icon">'+svg(ICON.check)+'</span>' +
-              '<h3>과제 검사</h3><p class="desc">'+esc(hwcDesc)+'</p>' +
-              '<span class="go">열기 '+svg(ICON.arrow)+'</span></button>';
-  }
+  // 과제 검사 카드는 2026-10-02 원장님 "학생 개별 페이지의 과제 검사 메뉴 불필요"로 뺐다 — 과제 검사 결과는 수업 리포트 카드 안에서 본다
 
   // 질문 대기열 상태 (2026-09-06) — 클리닉 카드 안에 '질문하기'가 들어 있어 카드 설명에 상태를 붙인다
   if(STATE.qq === null && !STATE.qqLoading) qqRefresh(true);   // 처음 한 번 뒤에서 받아 카드 설명 갱신
