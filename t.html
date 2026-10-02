@@ -62,6 +62,11 @@ body{font-family:'Noto Sans KR',sans-serif; background:var(--sage-fog); color:va
 .btn:disabled{opacity:.4;}
 /* 선생님 한 마디 저장 버튼: 채도 약 5%p 낮춘 차분한 톤 */
 #saveNoteBtn{background:#737E79;}
+#sendBtn{background:#EDE4F4; color:#5A4A6A;}
+.send-state{margin-top:9px; font-size:13px; color:var(--ink-mid); display:flex; align-items:center; gap:10px; flex-wrap:wrap;}
+.send-state .st{padding:3px 11px; border-radius:999px; background:#F2F5F3; color:#65726B;}
+.send-state .st.on{background:#DCE8E5; color:#3F6159; font-weight:700;}
+.send-state button{font:inherit; font-size:12px; border:none; background:none; color:#9A5A52; text-decoration:underline; cursor:pointer; padding:0;}
 .note-edit{margin-top:14px;}
 .note-edit label{display:block; font-size:13px; color:var(--ink-mid); margin-bottom:6px; font-weight:500;}
 .note-edit textarea{width:100%; border:1.5px solid var(--line); border-radius:10px; padding:12px; font-size:15px; font-family:'Noto Serif KR',serif; line-height:1.7; resize:vertical; min-height:90px; background:#FBFCFB;}
@@ -209,8 +214,10 @@ body{font-family:'Noto Sans KR',sans-serif; background:var(--sage-fog); color:va
       <textarea id="teacherNote" placeholder="학생을 선택한 뒤, 학부모님께 전할 코멘트를 적어주세요.&#10;위 4가지 흐름으로 적으면 좋습니다. ‘양식 넣기’를 누르면 뼈대가 채워집니다." oninput="syncNote()"></textarea>
       <div class="ctl-row" style="margin-top:10px;">
         <button class="btn" id="saveNoteBtn" onclick="saveTeacherNoteToSheet()" disabled>선생님의 한 마디 저장</button>
+        <button class="btn" id="sendBtn" onclick="sendReport(true)" disabled>리포트 보내기</button>
       </div>
-      <p class="hint">여기 적은 내용은 아래 보고서에 실시간 반영됩니다. <b>‘선생님의 한 마디 저장’</b>을 누르면 ‘제출결과’ 탭에 기록되어 <b>학생 개별 페이지에도 바로 나타납니다.</b></p>
+      <div class="send-state" id="sendState"></div>
+      <p class="hint">여기 적은 내용은 아래 보고서에 실시간 반영됩니다. 학생 개별 페이지에는 <b>한 마디를 적고 ‘리포트 보내기’를 누른 뒤에</b> 리포트가 나타납니다. 보내기 전에는 학생에게 ‘선생님이 리포트를 준비하고 있습니다’로 보여요.</p>
     </div>
     <div class="status" id="status"></div>
     <div class="ctl-row" style="margin-top:6px;">
@@ -495,6 +502,7 @@ body{font-family:'Noto Sans KR',sans-serif; background:var(--sage-fog); color:va
           title: row.exam, school: row.school, grade: row.grade, name: nm,
           wrongCount: Number(row.wrong_count) || 0,
           wrongText: row.wrong_text, vow: row.vow, teacherNote: row.teacher_note,
+          sentAt: row.sent_at || '', sentKnown: ('sent_at' in row),
           score: row.score, parentPhone: phone,
           studentId: roster ? roster.id : phone,
           accessCode: roster ? roster.code : ''
@@ -615,6 +623,23 @@ body{font-family:'Noto Sans KR',sans-serif; background:var(--sage-fog); color:va
           if (!rows || !rows.length) return { result:'error', message:'기록을 찾을 수 없어요. 새로고침 후 다시 시도해 주세요.' };
           mirrorNoteToSheet(url, b, rows[0]);
           return ok({});
+        });
+    },
+    // 리포트 보내기 / 보내기 취소(043) — 한 마디와 sent_at 을 함께 쓴다. 시트 사본엔 한 마디만(보냄 여부는 수파베이스에만)
+    sendReport: function(b, url){
+      var id = parseInt(b.rowIndex, 10) || 0;
+      var body = { sent_at: b.send ? nowIso() : null };
+      if (b.send) body.teacher_note = String(b.note || '');
+      return sbWrite('PATCH', '/submissions?id=eq.' + id + '&name=eq.' + q(String(b.name || '').trim()),
+                     body, { 'Prefer': 'return=representation' })
+        .then(function(rows){
+          if (!rows || !rows.length) return { result:'error', message:'기록을 찾을 수 없어요. 새로고침 후 다시 시도해 주세요.' };
+          if (b.send) mirrorNoteToSheet(url, b, rows[0]);
+          return ok({ sentAt: rows[0].sent_at || '' });
+        }, function(e){
+          // 옛 백엔드에는 보내기 기능이 없으므로 넘기지 않고 알린다
+          console.warn('리포트 보내기 실패', e);
+          return { result:'error', message:'리포트를 보내지 못했어요. 잠시 뒤 다시 시도해 주세요.' };
         });
     },
     __submit: function(b, url){
@@ -892,7 +917,7 @@ function loadStudents(rid){
       return;
     }
     sel.innerHTML = '<option value="">— 학생을 선택하세요 —</option>' +
-      STUDENTS.map(function(s,i){ return '<option value="'+i+'">'+esc(s.name)+' ('+esc(s.school)+' '+esc(s.grade)+')</option>'; }).join('');
+      STUDENTS.map(function(s,i){ return '<option value="'+i+'">'+studentOptLabel(s)+'</option>'; }).join('');
     setStatus(STUDENTS.length + '명을 불러왔어요. 학생을 선택하세요.');
   }).catch(function(){ setStatus('불러오기에 실패했어요. 인터넷을 확인해주세요.'); });
 }
@@ -970,7 +995,7 @@ function fillNoteTemplate(){
 function renderReport(){
   var idx = document.getElementById('studentSel').value;
   var pdfBtn = document.getElementById('pdfBtn');
-  if(idx===''){ document.getElementById('report').classList.remove('show'); pdfBtn.disabled=true; document.getElementById('saveNoteBtn').disabled=true; document.getElementById('sPageLinkBox').style.display='none'; return; }
+  if(idx===''){ document.getElementById('report').classList.remove('show'); pdfBtn.disabled=true; document.getElementById('saveNoteBtn').disabled=true; document.getElementById('sendBtn').disabled=true; document.getElementById('sendState').innerHTML=''; document.getElementById('sPageLinkBox').style.display='none'; return; }
   var s = STUDENTS[parseInt(idx,10)];
 
   var fx=document.getElementById('fnameEx'); if(fx) fx.textContent=reportFileName();
@@ -1048,6 +1073,7 @@ function renderReport(){
   pdfBtn.disabled = false;
   document.getElementById('htmlBtn').disabled = false;
   document.getElementById('saveNoteBtn').disabled = false;
+  renderSendState(s);
 
   updateStudentPageLink(s);
 }
@@ -1092,7 +1118,54 @@ function copyStudentPageLink(){
   }
 }
 
-// '선생님의 한 마디'를 '제출결과' 시트에 저장 → 학생 개별 페이지에도 반영
+function studentOptLabel(s){ return esc(s.name)+' ('+esc(s.school)+' '+esc(s.grade)+')'+(s.sentAt ? ' · 보냄' : ''); }
+function sentLabel(iso){
+  var d = new Date(iso); if(isNaN(d)) return '';
+  return (d.getMonth()+1)+'/'+d.getDate()+' '+('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2);
+}
+// 리포트 보내기 상태 줄 (2026-10-02, 043)
+function renderSendState(s){
+  var box = document.getElementById('sendState'), btn = document.getElementById('sendBtn');
+  if(!s){ box.innerHTML=''; btn.disabled = true; return; }
+  btn.disabled = !s.sentKnown;
+  btn.textContent = s.sentAt ? '다시 보내기' : '리포트 보내기';
+  if(!s.sentKnown){ box.innerHTML = '<span class="st">리포트 보내기를 쓰려면 데이터베이스 준비(043)가 필요해요</span>'; return; }
+  box.innerHTML = s.sentAt
+    ? '<span class="st on">학생 페이지에 보냄 · '+esc(sentLabel(s.sentAt))+'</span><button type="button" onclick="sendReport(false)">보내기 취소</button>'
+    : '<span class="st">아직 학생에게 보내지 않았어요</span>';
+}
+// 리포트 보내기(send=true) / 보내기 취소(false) — 한 마디도 함께 저장한다
+function sendReport(send){
+  var idx = document.getElementById('studentSel').value;
+  if(idx===''){ setStatus('먼저 학생을 선택해주세요.'); return; }
+  var s = STUDENTS[parseInt(idx,10)];
+  if(!s || !s.rowIndex){ setStatus('이 학생의 행 정보를 찾을 수 없어요. 목록을 새로고침해주세요.'); return; }
+  var note = document.getElementById('teacherNote').value;
+  if(send && !note.trim()){ setStatus('선생님의 한 마디를 먼저 적어 주세요. 한 마디가 있어야 리포트를 보낼 수 있습니다.'); document.getElementById('teacherNote').focus(); return; }
+  if(!send && !confirm(s.name+' 학생의 리포트 보내기를 취소할까요?\n학생 페이지에서 리포트가 다시 숨겨집니다.')) return;
+  var btn = document.getElementById('sendBtn'), label = btn.textContent;
+  btn.disabled = true; if(send) btn.textContent = '보내는 중...';
+  setStatus(send ? '리포트를 보내는 중...' : '보내기를 취소하는 중...');
+  fetch(ENDPOINT, {
+    method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
+    body: JSON.stringify({ action:'sendReport', rowIndex: s.rowIndex, name: s.name, note: note, send: !!send })
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(res){
+    btn.textContent = label;
+    if(res.result==='success'){
+      s.sentAt = res.sentAt || ''; if(send) s.teacherNote = note;
+      var opt = document.querySelector('#studentSel option[value="'+idx+'"]'); if(opt) opt.innerHTML = studentOptLabel(s);
+      setStatus(send ? '✓ 리포트를 보냈어요. 이제 학생 개별 페이지에서 볼 수 있습니다.' : '✓ 보내기를 취소했어요. 학생 페이지에서 리포트가 숨겨집니다.');
+    } else {
+      setStatus('실패: ' + (res.message || '알 수 없는 오류'));
+    }
+    renderSendState(s);
+  })
+  .catch(function(){ btn.textContent = label; renderSendState(s); setStatus('실패 — 인터넷을 확인해주세요.'); });
+}
+
+// '선생님의 한 마디'를 '제출결과' 시트에 저장 (학생 페이지에는 '리포트 보내기' 뒤에 보인다)
 function saveTeacherNoteToSheet(){
   var idx = document.getElementById('studentSel').value;
   if(idx===''){ setStatus('먼저 학생을 선택해주세요.'); return; }
@@ -1116,7 +1189,8 @@ function saveTeacherNoteToSheet(){
     btn.disabled = false; btn.textContent = label;
     if(res.result==='success'){
       s.teacherNote = note;   // 로컬 목록도 동기화
-      setStatus('✓ 저장됐어요. 학생 개별 페이지에도 반영됩니다.');
+      setStatus(s.sentAt ? '✓ 저장됐어요. 이미 보낸 리포트라 학생 개별 페이지에도 바로 반영됩니다.'
+                         : '✓ 저장됐어요. ‘리포트 보내기’를 눌러야 학생 개별 페이지에 나타납니다.');
     } else {
       setStatus('저장 실패: ' + (res.message || '알 수 없는 오류'));
     }

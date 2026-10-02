@@ -202,6 +202,9 @@
   .crp-by{color:var(--ink-soft);font-size:.78rem;}
   /* 학습 이력 (2026-10-01, 039) */
   #lhView{display:none;}
+  .exam-wait{background:#F4F1E6;border-radius:14px;padding:16px 18px;margin-top:6px;color:#5F4E14;}
+  .exam-wait b{display:block;font-size:.95rem;margin-bottom:6px;}
+  .exam-wait p{margin:0;font-size:.86rem;line-height:1.7;color:#6B5A2A;}
   .lh-sum{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:0 0 14px;}
   .lh-sum > div{background:var(--surface);border-radius:14px;padding:10px 8px;text-align:center;}
   .lh-sum b{display:block;font-family:'Do Hyeon',var(--sans);font-size:1.3rem;font-weight:400;color:var(--ink);font-variant-numeric:tabular-nums;}
@@ -1642,6 +1645,7 @@ function api(extra){
                          school: String(r.school || ''), grade: String(r.grade || ''),
                          wrongCount: Number(r.wrong_count) || 0, wrongText: String(r.wrong_text || ''),
                          vow: String(r.vow || ''), teacherNote: String(r.teacher_note || ''),
+                         sent: ('sent_at' in r) ? !!r.sent_at : undefined,   // 043 — 선생님이 [리포트 보내기]를 눌렀는지
                          score: String(r.score || '') });
           });
           exams.sort(function(a, b){ return a.submittedAt < b.submittedAt ? 1 : (a.submittedAt > b.submittedAt ? -1 : 0); });
@@ -3006,7 +3010,18 @@ function reviewHtml(paras){
     return out;
   }).join('');
 }
+/* 리포트는 선생님이 한 마디를 적고 [리포트 보내기]를 눌러야 보인다(2026-10-02 원장님, 043 sent_at).
+ * sent 를 모르면(043 적용 전·옛 백엔드 폴백) 한 마디가 있을 때만 보낸 것으로 본다. */
+function examSent(x){ return x.sent === undefined ? !!String(x.teacherNote || '').trim() : !!x.sent; }
+function examWaitHtml(x){
+  return '<div class="report show"><div class="r-pad">' +
+    '<div class="r-title-box"><p class="sup">SHUEGUK REPORT · 개인별 분석</p><p class="main">'+esc(x.title||'시험')+'</p></div>' +
+    '<div class="exam-wait"><b>선생님이 리포트를 준비하고 있습니다.</b>' +
+    '<p>복기 입력은 '+esc(x.submittedAt||'')+'에 잘 받았어요. 선생님이 피드백을 적어 리포트를 보내면 이곳에서 볼 수 있어요.</p></div>' +
+    '</div></div>';
+}
 function examCardHtml(x){
+  if(!examSent(x)) return examWaitHtml(x);
   var name = (STATE.info && STATE.info.name) ? STATE.info.name : '';
   var sch  = ((x.school||'')+' '+(x.grade||'')).trim();
   var score = (x.score && String(x.score).trim()!=='') ? (x.score+'점') : '—';
@@ -3080,7 +3095,7 @@ function drawGrades(){
     if(exams.length > 1){
       tabs.style.display='flex';
       tabs.innerHTML = exams.map(function(x,i){
-        return '<button class="exam-tab'+(i===GRADE_SEL?' active':'')+'" onclick="pickExam('+i+')">'+esc(x.title||('시험 '+(i+1)))+'</button>';
+        return '<button class="exam-tab'+(i===GRADE_SEL?' active':'')+'" onclick="pickExam('+i+')">'+esc(x.title||('시험 '+(i+1)))+(examSent(x)?'':' · 준비 중')+'</button>';
       }).join('');
     } else {
       tabs.style.display='none';
