@@ -22,7 +22,7 @@ const TPL_UP = { label: '지필고사 리포트 업데이트 안내', ready: tru
   text: '[이수경국어학원] 지필고사 리포트 업데이트 안내\n#{학생명} 학생에게 지필고사 리포트 업데이트 안내가 도착했어요.\n\n▶ #{제목}\n\n학생 페이지의 지필고사 데이터 메뉴에서 새로 올라온 리포트를 확인해 주세요.',
   buttons: [{ name: '학생 페이지 링크' }] };
 const STUS = [
-  { name: '박보검', school: '화정고', grade: '2026 고등 1학년', student_id: '11111111', code: 'c1', enrolled: '재원', phone_student: '01011112222', phone_parent1: '01033334444', phone_parent2: '' },
+  { name: '박보검', school: '화정고', grade: '2026 고등 1학년', student_id: '11111111', code: 'c1', enrolled: '재원', teacher: '이현지', phone_student: '01011112222', phone_parent1: '01033334444', phone_parent2: '' },
   { name: '김하늘', school: '화정고', grade: '2026 고등 1학년', student_id: '22222222', code: 'c2', enrolled: '재원', phone_student: '', phone_parent1: '01055556666', phone_parent2: '01077778888' },
   { name: '이미낸', school: '화정고', grade: '2026 고등 1학년', student_id: '33333333', code: 'c3', enrolled: '재원', teacher: '이은지', phone_student: '01099990000', phone_parent1: '01099991111', phone_parent2: '' },
   { name: '피드백전', school: '화정고', grade: '2026 고등 1학년', student_id: '77777777', code: 'c7', enrolled: '재원', phone_student: '01015151515', phone_parent1: '', phone_parent2: '' },
@@ -43,6 +43,9 @@ const STUS = [
     if (u.startsWith('http://127.0.0.1:' + port)) return rt.continue();
     if (/\/auth\/v1\/token/.test(u)) return j({ access_token: 'tok', expires_in: 3600 });
     if (/\/rest\/v1\/students/.test(u)) return j(/offset=0/.test(u) ? STUS : []);
+    if (/\/rest\/v1\/tt_classes/.test(u)) return j(/offset=0/.test(u) && /book=eq/.test(u) && /not\.like\.w/.test(u) ? [
+      { class_id: 'n001', name: '고1 화정A', teacher: '현지', roster: '박보검 이미낸(8/30부터)' },
+      { class_id: 'n002', name: '고1 확인', teacher: '지원', roster: '(화정)이미낸 박보검' }] : []);
     if (/\/rest\/v1\/submissions/.test(u)) return j(/offset=0/.test(u) ? [{ exam: '26-2-중간-화정고1-공통국어2', name: '이미낸', parent_phone: '33333333', sent_at: '2026-10-02T05:00:00Z', teacher_note: '잘했어요' },
       { exam: '26-2-중간-화정고1-공통국어2', name: '피드백전', parent_phone: '77777777', sent_at: null, teacher_note: '' }] : []);
     if (/\/rest\/v1\//.test(u)) return rt.fulfill({ status: 204, body: '' });
@@ -108,8 +111,8 @@ const STUS = [
   ok('"아니요, 함께 보낼게요" — 피드백 전 친구도 포함(2명 · 3건)', /복기를 낸 학생 2명/.test(q.sum) && /3건/.test(q.sum) && !/완성되지 않은 1명은 빼고/.test(q.sum) && q.go === '알림톡 보내기 (3건)', JSON.stringify(q));
   await pg.check('input[name="alWait"][value="1"]');
   ok('미리보기 = 업데이트 안내 문구', /이미낸 학생에게 지필고사 리포트 업데이트 안내/.test(r.prev) && /새로 올라온 리포트/.test(r.prev), r.prev);
-  ok('피드백 확인 안내 제목 = "… 담당 선생님 피드백…" · 미리보기는 학생 담당 선생님 이름(이은지 선생님)', (await pg.inputValue('#alTitle')) === '2학기 중간고사 화정고1 공통국어2 리포트에 담당 선생님 피드백이 등록되었습니다' &&
-     /▶ 2학기 중간고사 화정고1 공통국어2 리포트에 이은지 선생님 피드백이 등록되었습니다/.test(r.prev) && /학생마다 담당 선생님 이름이 들어갑니다/.test(r.prev), r.prev);
+  ok('피드백 확인 안내 제목 = "… 담당 선생님 피드백…" · 내신 진도 수업 담당T(현지 → 이현지 선생님, 확인반 지원T·슈스 링크 담당 이은지는 아님)', (await pg.inputValue('#alTitle')) === '2학기 중간고사 화정고1 공통국어2 리포트에 담당 선생님 피드백이 등록되었습니다' &&
+     /▶ 2학기 중간고사 화정고1 공통국어2 리포트에 이현지 선생님 피드백이 등록되었습니다/.test(r.prev) && /내신 진도 수업을 맡은 선생님 이름이 들어갑니다/.test(r.prev), r.prev);
   await pg.click('.al-kind[data-mode="make"]');
   ok('제작 안내로 돌아가면 기본 제목도 돌아온다', (await pg.inputValue('#alTitle')) === '2학기 중간고사 화정고1 공통국어2');
   await pg.fill('#alTitle', '직접 고친 제목');
@@ -122,9 +125,9 @@ const STUS = [
   const up = posts.filter(p => p.action === 'alimSend').pop();
   ok('확인 창·POST — kind notice_reportup · 이미낸 학생·학부모님1', dialogs.some(d => /지필고사 리포트 업데이트 안내.*1명에게 2건/s.test(d)) && up.kind === 'notice_reportup' &&
      up.items.map(it => it.student + ':' + it.who).join() === '이미낸:학생,이미낸:학부모1' &&
-     up.items.every(it => it.vars['제목'] === '2학기 중간고사 화정고1 공통국어2 리포트에 이은지 선생님 피드백이 등록되었습니다') &&
+     up.items.every(it => it.vars['제목'] === '2학기 중간고사 화정고1 공통국어2 리포트에 이현지 선생님 피드백이 등록되었습니다') &&
      up.items.every(it => /\|2학기 중간고사 화정고1 공통국어2 리포트에 담당 선생님 피드백이 등록되었습니다$/.test(it.date)), JSON.stringify(up));
-  ok('확인 창에도 선생님 이름이 들어간 제목', dialogs.some(d => /이은지 선생님 피드백/.test(d)), JSON.stringify(dialogs));
+  ok('확인 창에도 선생님 이름이 들어간 제목', dialogs.some(d => /이현지 선생님 피드백/.test(d)), JSON.stringify(dialogs));
   await pg.keyboard.press('Escape');
   // 템플릿 준비 전 — 보내기 잠금
   ready = false;

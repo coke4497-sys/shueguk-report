@@ -739,10 +739,27 @@ var AL_KINDS = {
 var AL_BATCH = 50;
 /* 피드백 확인 안내 — 제목의 '담당 선생님'을 학생마다 그 학생 담당 선생님 이름으로 바꾼다(2026-10-02 원장님 "선생님 이름도 넣어주세요").
  * students.teacher('이은지') → '이은지 선생님', 비어 있으면 '담당 선생님' 그대로. */
+/* 같은 날 원장님 "내신대비 진도수업을 담당한 선생님, 리포트를 작성한 선생님 이름이 들어가야" → 이름은 그 학생이 들어 있는
+ * 내신 시간표 진도 수업(반이름에 '확인' 없음, '이 주만' w* 제외)의 담당T. 시간표 담당T는 '은지'·'슈'처럼 짧아서
+ * students.teacher 의 전체 이름('이은지')과 끝 글자로 잇고('슈' = 이수경), 진도 반이 없거나 담당T가 둘 이상으로 갈리면
+ * 슈스 링크의 담당 선생님(students.teacher)으로, 그것도 없으면 '담당 선생님' 그대로. */
 function alTeacherName(t){ t = alTr(t).replace(/\s*(선생님|쌤|T)$/, ''); return t ? t + ' 선생님' : ''; }
+function alPlainName(t){ return alTr(t).replace(/^\([^)]*\)/, '').replace(/\([^)]*\)$/, '').trim(); }
+function alFullTeacher(short){
+  short = alTr(short).replace(/T$/, ''); if (!short) return '';
+  if (short === '슈') return '이수경';
+  var full = {}; (AL.stus || []).forEach(function(r){ var t = alTr(r.teacher).replace(/\s*(선생님|쌤|T)$/, ''); if (t) full[t] = 1; });
+  var hit = Object.keys(full).filter(function(f){ return f === short || (f.length > short.length && f.slice(-short.length) === short); });
+  return hit.length === 1 ? hit[0] : short;
+}
+function alNsTeacher(stu){
+  var map = AL.nsT || {}, n = stu.name, keys = [n, n.replace(/A$/, ''), /[A-Za-z]$/.test(n) ? '' : n + 'A'];
+  for (var i = 0; i < keys.length; i++){ var k = keys[i]; if (k && map[k]){ var ts = Object.keys(map[k]); if (ts.length === 1) return alFullTeacher(ts[0]); if (ts.length > 1) return ''; } }
+  return '';
+}
 function alItemTitle(title, stu){
   if (AL.mode !== 'up') return title;
-  var t = alTeacherName(stu && stu.r && stu.r.teacher);
+  var t = alTeacherName(alNsTeacher(stu) || (stu && stu.r && stu.r.teacher));
   return t ? title.replace('담당 선생님', t) : title;
 }
 function alKind(){ return AL_KINDS[AL.mode] || AL_KINDS.make; }
@@ -823,12 +840,22 @@ function alimOpen(id){
       // sent_at(043)이 없는 DB면 옛 열만 다시 읽는다 — 그때는 선생님 한 마디가 있으면 보낸 것으로 본다(s.html examSent 와 같은 규칙)
       return alSbAll('/submissions?select=exam,name,parent_phone,sent_at,teacher_note' + ex)
         .catch(function(){ return alSbAll('/submissions?select=exam,name,parent_phone,teacher_note' + ex); });
-    })()
+    })(),
+    // 내신 진도 수업 담당T(피드백 확인 안내 제목의 선생님 이름) — 못 읽어도 창은 그대로 열린다
+    AL.nsT ? Promise.resolve(null) : alSbAll('/tt_classes?select=class_id,name,teacher,roster&book=eq.' + encodeURIComponent('내신') + '&class_id=not.like.w*').catch(function(){ return []; })
   ];
   Promise.all(jobs).then(function(rs){
     if (AL.rep !== rep) return;
     AL.cfg = (rs[0] && rs[0].result === 'success') ? rs[0] : null;
     AL.stus = rs[1];
+    if (rs[3]){
+      var nsT = {};
+      rs[3].forEach(function(c){
+        if (/확인/.test(c.name || '') || !alTr(c.teacher)) return;
+        String(c.roster || '').split(/\s+/).map(alPlainName).filter(Boolean).forEach(function(nm){ (nsT[nm] = nsT[nm] || {})[alTr(c.teacher)] = 1; });
+      });
+      AL.nsT = nsT;
+    }
     var done = {};   // 키 → { sent: 선생님이 리포트를 보냈는지 }
     rs[2].forEach(function(r){
       var p = alTr(r.parent_phone).replace(/^'/, ''), n = alTr(r.name);
@@ -920,7 +947,7 @@ function alimRefresh(){
   var tpl = AL.tpl;
   document.getElementById('alPrev').innerHTML = tpl ? esc(String(tpl.text || '').replace(/#\{([^}]+)\}/g, function(_, k){ return k === '학생명' ? (items[0] ? items[0].student : '○○○') : k === '제목' ? ((items[0] && items[0].title) || title || '(제목)') : ''; })) +
     (tpl.buttons || []).map(function(b){ return '<div class="al-pbtn">' + esc(b.name) + '</div>'; }).join('') +
-    (AL.mode === 'up' && /담당 선생님/.test(title) ? '<div class="al-tnote">제목의 ‘담당 선생님’ 자리에는 학생마다 담당 선생님 이름이 들어갑니다(담당이 비어 있으면 ‘담당 선생님’ 그대로).</div>' : '') : '<span style="color:#8B928C">템플릿을 불러오지 못했습니다.</span>';
+    (AL.mode === 'up' && /담당 선생님/.test(title) ? '<div class="al-tnote">제목의 ‘담당 선생님’ 자리에는 학생마다 내신 진도 수업을 맡은 선생님 이름이 들어갑니다(찾지 못하면 ‘담당 선생님’ 그대로).</div>' : '') : '<span style="color:#8B928C">템플릿을 불러오지 못했습니다.</span>';
   var go = document.getElementById('alGo');
   go.disabled = !AL.ready || !title || !items.length || AL.busy;
   go.textContent = '알림톡 보내기' + (items.length ? ' (' + items.length + '건)' : '');
