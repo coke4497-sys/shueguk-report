@@ -460,6 +460,7 @@
   /* 같은 이름 반 기록 가져오기 (2026-09-29 원장님 — 안내문 '이름이 같은 반은 공유할 수 있습니다') */
   .cr-sib{display:flex;flex-wrap:wrap;align-items:center;gap:6px;background:#F4EFF8;border-radius:10px;padding:8px 10px;font-size:.8rem;color:#5A4A6A;}
   .cr-sib b{font-weight:700;}
+  .cr-sib .cr-sib-note{flex:1 1 100%;font-size:.76rem;color:#6B5B7B;}
   .cr-sib select{flex:1 1 180px;min-width:0;font:inherit;font-size:.8rem;border:1px solid #D6C9E4;border-radius:8px;padding:4px 6px;background:#fff;color:var(--ink);}
   .cr-sib button{font:inherit;font-size:.8rem;border:0;border-radius:8px;padding:5px 10px;background:#EDE4F4;color:#5A4A6A;cursor:pointer;}
   .cr-sib button:hover{background:#E3D7EE;}
@@ -6801,6 +6802,7 @@ function openClassNote(c){
     CR.src = r[2];
     CR.names.forEach(function(x){ x.stu = crStuOf(x.nm); });
     CR.sib = r[5] || [];
+    crSibAuto();
     crRender();
   }).catch(function(e){
     if (CR !== mine) return;
@@ -6826,10 +6828,23 @@ function crSibLoad(c, bk, ymd){
       });
     });
 }
+/* 이 반에 아직 적은 수업 내용·과제가 없으면 같은 이름 반의 가장 최근 기록을 미리 채워 둔다 — 저장은 하지 않는다
+ * (2026-10-02 원장님 "같은 수업의 진도, 과제는 불러오기 되어있었으면 해요"). 고른 기록은 드롭다운에서 바꿀 수 있다 */
+function crSibAuto(){
+  CR.sibAuto = -1;
+  if (!CR.sib || !CR.sib.length) return;
+  var n = CR.note || {}, wr = (CR.ns && CR.ns.weekRec) || {};
+  if (String(n.progress || '').trim() || String(n.homework || '').trim() || String(wr.prog || '').trim() || String(wr.hw || '').trim()) return;
+  var x = CR.sib[0];
+  n = CR.note || (CR.note = {});
+  n.progress = x.progress; n.homework = x.homework;
+  CR.sibAuto = 0;
+}
 function crSibHtml(){
   if (!CR.sib || !CR.sib.length) return '';
-  return '<div class="cr-sib"><b>같은 이름 반 기록</b>' +
-    '<select id="cr-sib-sel" aria-label="가져올 반">' + CR.sib.map(function(x, i){ return '<option value="' + i + '">' + esc(x.label) + ' — ' + esc(String(x.progress || x.homework).split('\n')[0].slice(0, 24)) + '</option>'; }).join('') + '</select>' +
+  var a = CR.sib[CR.sibAuto];
+  return '<div class="cr-sib">' + (a ? '<b>같은 이름 반 기록을 불러왔습니다</b><span class="cr-sib-note">' + esc(a.label) + ' 반 기록이에요. 이 반에 맞게 고친 뒤 [저장]을 눌러 주세요.</span>' : '<b>같은 이름 반 기록</b>') +
+    '<select id="cr-sib-sel" aria-label="가져올 반">' + CR.sib.map(function(x, i){ return '<option value="' + i + '"' + (i === CR.sibAuto ? ' selected' : '') + '>' + esc(x.label) + ' — ' + esc(String(x.progress || x.homework).split('\n')[0].slice(0, 24)) + '</option>'; }).join('') + '</select>' +
     '<button type="button" id="cr-sib-go">가져오기</button></div>';
 }
 function crSibImport(){
@@ -6838,8 +6853,10 @@ function crSibImport(){
   crKeepInputs();
   var n = CR.note || (CR.note = {});
   var cur = String(n.progress || '').trim() || String(n.homework || '').trim();
-  if (cur && !confirm('지금 적어 둔 수업 내용·과제를 ' + x.label + ' 반 기록으로 바꿀까요?')) return;
+  var a = CR.sib[CR.sibAuto], same = a && String(n.progress || '') === String(a.progress || '') && String(n.homework || '') === String(a.homework || '');
+  if (cur && !same && !confirm('지금 적어 둔 수업 내용·과제를 ' + x.label + ' 반 기록으로 바꿀까요?')) return;
   n.progress = x.progress; n.homework = x.homework;
+  if (CR.sibAuto >= 0) CR.sibAuto = i;
   crRender();
   crMsg('가져왔습니다. 이 반에 맞게 고친 뒤 [저장]을 눌러 주세요.');
 }
