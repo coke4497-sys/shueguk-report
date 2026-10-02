@@ -160,26 +160,32 @@ const STUS = [
   await pg.waitForSelector('#alSum b', { timeout: 8000 });
   r = await pg.evaluate(() => ({ dis: document.getElementById('alGo').disabled, txt: document.getElementById('alBox').textContent }));
   ok('템플릿 준비 전이면 잠금과 안내', r.dis && /아직 준비되지 않았습니다/.test(r.txt));
-  // 담당 선생님 드롭다운(2026-10-02) — 리포트 학생들의 내신 진도 수업 담당T로 거른다
+  // 시험 기간 → [전체 보기] / [선생님별 보기](2026-10-02)
   await pg.keyboard.press('Escape');
-  await pg.evaluate(() => { try { localStorage.removeItem('an_teacher'); } catch(e){} });
+  await pg.evaluate(() => { localStorage.removeItem('an_teacher'); localStorage.removeItem('an_view'); sessionStorage.removeItem('an_period'); });
   await pg.reload({ waitUntil: 'domcontentloaded' });
+  await pg.waitForSelector('.a-item', { timeout: 8000 });
+  r = await pg.evaluate(() => ({ p: [...document.querySelectorAll('#psel option')].map(o => o.textContent), pv: document.getElementById('psel').value,
+    all: document.getElementById('vAll').classList.contains('on'), t: [...document.querySelectorAll('.a-item .a-title')].map(x => x.textContent), past: !!document.getElementById('pastBtn'), tw: document.getElementById('tselWrap').hidden }));
+  ok('시험 기간 드롭다운(26-2-중간 2개) + 기본 [전체 보기] — 그 기간 리포트 모두, 옛 [지난 목록 보기] 없음', r.p.join() === '26-2-중간 (2개)' && r.pv === '26-2-중간' && r.all && r.t.length === 2 && !r.past && r.tw, JSON.stringify(r));
+  await pg.click('#vT');
   await pg.waitForFunction(() => !document.getElementById('tselWrap').hidden, null, { timeout: 8000 });
-  r = await pg.evaluate(() => ({ opts: [...document.querySelectorAll('#tsel option')].map(o => o.value + ':' + o.textContent), n: document.querySelectorAll('.a-item').length, v: document.getElementById('tsel').value }));
-  ok('드롭다운 = 모든 선생님 + 진도 수업 담당(이현지 선생님) · 확인 수업 담당은 빠짐 · 기본 전체', r.opts.join('|') === ':모든 선생님|이현지:이현지 선생님' && r.n === 2 && r.v === '', JSON.stringify(r));
+  r = await pg.evaluate(() => ({ opts: [...document.querySelectorAll('#tsel option')].map(o => o.value + ':' + o.textContent), secs: [...document.querySelectorAll('.t-sec')].map(x => x.textContent), n: document.querySelectorAll('.a-item').length }));
+  ok('[선생님별 보기] = 선생님마다 묶음 + 담당 정보 없는 리포트는 맨 아래 · 확인 수업 담당은 빠짐', r.opts.join('|') === ':모든 선생님|이현지:이현지 선생님' &&
+     r.secs.join('|') === '이현지 선생님 1개|담당 선생님 정보 없음 1개' && r.n === 2, JSON.stringify(r));
   await pg.selectOption('#tsel', '이현지');
-  r = await pg.evaluate(() => ({ t: [...document.querySelectorAll('.a-item .a-title')].map(x => x.textContent), note: (document.querySelector('.t-note') || {}).textContent || '', saved: localStorage.getItem('an_teacher') }));
-  ok('이현지 선생님을 고르면 그 선생님 학생이 있는 리포트만 + 안내 줄 + 기억', r.t.join() === '26-2-중간-화정고1-공통국어2' && /이현지 선생님/.test(r.note) && r.saved === '이현지', JSON.stringify(r));
-  await pg.reload({ waitUntil: 'domcontentloaded' });
-  await pg.waitForFunction(() => document.getElementById('tsel').value === '이현지' && document.querySelectorAll('.a-item').length === 1, null, { timeout: 8000 });
-  ok('다시 열어도 고른 선생님 그대로', true);
-  await pg.selectOption('#tsel', '');
-  ok('모든 선생님으로 돌리면 전체', (await pg.$$('.a-item')).length === 2);
-  await pg.evaluate(() => { localStorage.removeItem('an_teacher'); localStorage.setItem('shueguk_teacher_session_v2', JSON.stringify({ access_token: 'hubtok', refresh_token: 'rt', expires_at: Math.floor(Date.now() / 1000) + 3600, user: { id: 'u-lee' } })); });
+  r = await pg.evaluate(() => ({ t: [...document.querySelectorAll('.a-item .a-title')].map(x => x.textContent), saved: localStorage.getItem('an_teacher'), view: localStorage.getItem('an_view') }));
+  ok('선생님을 고르면 그 선생님 리포트만 + 선택·보기 방식 기억', r.t.join() === '26-2-중간-화정고1-공통국어2' && r.saved === '이현지' && r.view === 't', JSON.stringify(r));
   await pg.reload({ waitUntil: 'domcontentloaded' });
   await pg.waitForFunction(() => document.getElementById('tsel').value === '이현지' && document.querySelectorAll('.a-item').length === 1, null, { timeout: 8000 }).catch(() => {});
-  ok('처음 열 때는 허브에 로그인한 선생님(이현지)으로 자동 선택', (await pg.inputValue('#tsel')) === '이현지');
-  await pg.evaluate(() => { localStorage.removeItem('shueguk_teacher_session_v2'); localStorage.removeItem('an_teacher'); });
+  ok('다시 열어도 선생님별 보기 · 고른 선생님 그대로', (await pg.inputValue('#tsel')) === '이현지' && (await pg.$$('.a-item')).length === 1);
+  await pg.click('#vAll');
+  ok('[전체 보기]로 돌리면 전체', (await pg.$$('.a-item')).length === 2 && await pg.evaluate(() => document.getElementById('tselWrap').hidden));
+  await pg.evaluate(() => { localStorage.removeItem('an_teacher'); localStorage.removeItem('an_view'); localStorage.setItem('shueguk_teacher_session_v2', JSON.stringify({ access_token: 'hubtok', refresh_token: 'rt', expires_at: Math.floor(Date.now() / 1000) + 3600, user: { id: 'u-lee' } })); });
+  await pg.reload({ waitUntil: 'domcontentloaded' });
+  await pg.waitForFunction(() => document.getElementById('tsel').value === '이현지' && document.querySelectorAll('.a-item').length === 1, null, { timeout: 8000 }).catch(() => {});
+  ok('처음 열 때 허브에 로그인한 선생님이면 선생님별 보기 · 그 선생님 자동 선택', (await pg.inputValue('#tsel')) === '이현지' && await pg.evaluate(() => document.getElementById('vT').classList.contains('on')));
+  await pg.evaluate(() => { localStorage.removeItem('shueguk_teacher_session_v2'); localStorage.removeItem('an_teacher'); localStorage.removeItem('an_view'); });
   ok('페이지 오류 없음', perr === 0);
   console.log((fail ? '실패 ' + fail + ' / ' : '') + '통과 ' + pass + '건');
   await br.close(); srv.close(); process.exit(fail ? 1 : 0);
