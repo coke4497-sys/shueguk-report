@@ -18,10 +18,14 @@ function serve(){
 const TPL = { label: '지필고사 리포트 제작 안내', ready: true, notice: true, vars: ['학생명', '제목', '접근코드'],
   text: '[이수경국어학원] 지필고사 리포트 제작 안내\n#{학생명} 학생에게 지필고사 리포트 제작 안내가 도착했어요.\n\n▶ #{제목}\n\n학생 페이지의 지필고사 데이터 메뉴에서 시험 복기를 입력해 주세요.',
   buttons: [{ name: '학생 페이지 링크' }] };
+const TPL_UP = { label: '지필고사 리포트 업데이트 안내', ready: true, notice: true, vars: ['학생명', '제목', '접근코드'],
+  text: '[이수경국어학원] 지필고사 리포트 업데이트 안내\n#{학생명} 학생에게 지필고사 리포트 업데이트 안내가 도착했어요.\n\n▶ #{제목}\n\n학생 페이지의 지필고사 데이터 메뉴에서 새로 올라온 리포트를 확인해 주세요.',
+  buttons: [{ name: '학생 페이지 링크' }] };
 const STUS = [
   { name: '박보검', school: '화정고', grade: '2026 고등 1학년', student_id: '11111111', code: 'c1', enrolled: '재원', phone_student: '01011112222', phone_parent1: '01033334444', phone_parent2: '' },
   { name: '김하늘', school: '화정고', grade: '2026 고등 1학년', student_id: '22222222', code: 'c2', enrolled: '재원', phone_student: '', phone_parent1: '01055556666', phone_parent2: '01077778888' },
   { name: '이미낸', school: '화정고', grade: '2026 고등 1학년', student_id: '33333333', code: 'c3', enrolled: '재원', phone_student: '01099990000', phone_parent1: '01099991111', phone_parent2: '' },
+  { name: '피드백전', school: '화정고', grade: '2026 고등 1학년', student_id: '77777777', code: 'c7', enrolled: '재원', phone_student: '01015151515', phone_parent1: '', phone_parent2: '' },
   { name: '코드없음', school: '화정고', grade: '2026 고등 1학년', student_id: '44444444', code: '', enrolled: '재원', phone_student: '01012121212', phone_parent1: '', phone_parent2: '' },
   { name: '다른학교', school: '서정고', grade: '2026 고등 1학년', student_id: '55555555', code: 'c5', enrolled: '재원', phone_student: '01013131313', phone_parent1: '', phone_parent2: '' },
   { name: '퇴원생', school: '화정고', grade: '2026 고등 1학년', student_id: '66666666', code: 'c6', enrolled: '퇴원', phone_student: '01014141414', phone_parent1: '', phone_parent2: '' }];
@@ -39,7 +43,8 @@ const STUS = [
     if (u.startsWith('http://127.0.0.1:' + port)) return rt.continue();
     if (/\/auth\/v1\/token/.test(u)) return j({ access_token: 'tok', expires_in: 3600 });
     if (/\/rest\/v1\/students/.test(u)) return j(/offset=0/.test(u) ? STUS : []);
-    if (/\/rest\/v1\/submissions/.test(u)) return j(/offset=0/.test(u) ? [{ exam: '26-2-중간-화정고1-공통국어2', name: '이미낸', parent_phone: '33333333' }] : []);
+    if (/\/rest\/v1\/submissions/.test(u)) return j(/offset=0/.test(u) ? [{ exam: '26-2-중간-화정고1-공통국어2', name: '이미낸', parent_phone: '33333333', sent_at: '2026-10-02T05:00:00Z', teacher_note: '잘했어요' },
+      { exam: '26-2-중간-화정고1-공통국어2', name: '피드백전', parent_phone: '77777777', sent_at: null, teacher_note: '' }] : []);
     if (/\/rest\/v1\//.test(u)) return rt.fulfill({ status: 204, body: '' });
     if (/script\.google/.test(u)){
       if (m === 'POST'){ const b = JSON.parse(rt.request().postData()); posts.push(b);
@@ -47,8 +52,8 @@ const STUS = [
         return j({ result: 'success' }); }
       const q = new URL(u).searchParams;
       if (q.get('list')) return j({ result: 'success', reports: [{ id: '26-2-중간-화정고1-공통국어2', title: '26-2-중간-화정고1-공통국어2' }, { id: 'r-none', title: '26-2-중간-능곡고2-문학' }] });
-      if (q.get('action') === 'assignList') return j({ result: 'success', assignments: [{ item: '26-2-중간-화정고1-공통국어2', type: '일부', target: '박보검|화정고|2026고등1학년, 김하늘, 이미낸, 코드없음, 퇴원생' }] });
-      if (q.get('action') === 'alimConfig') return j({ result: 'success', ready: true, templates: { notice_report: Object.assign({}, TPL, { ready }) } });
+      if (q.get('action') === 'assignList') return j({ result: 'success', assignments: [{ item: '26-2-중간-화정고1-공통국어2', type: '일부', target: '박보검|화정고|2026고등1학년, 김하늘, 이미낸, 피드백전, 코드없음, 퇴원생' }] });
+      if (q.get('action') === 'alimConfig') return j({ result: 'success', ready: true, templates: { notice_report: Object.assign({}, TPL, { ready }), notice_reportup: Object.assign({}, TPL_UP, { ready }) } });
       return j({ result: 'success' });
     }
     return rt.fulfill({ status: 204, body: '' });
@@ -63,12 +68,12 @@ const STUS = [
     prev: document.getElementById('alPrev').textContent, go: document.getElementById('alGo').textContent, dis: document.getElementById('alGo').disabled }));
   ok('제목은 학생이 읽기 쉽게 — "2학기 중간고사 화정고1 공통국어2"', r.title === '2학기 중간고사 화정고1 공통국어2', r.title);
   ok('대상 = 배정된 재원생 중 복기 안 낸 학생(박보검·김하늘) — 2명, 연락처 있는 분마다 4건', /2명/.test(r.sum) && /4건/.test(r.sum) && r.go === '알림톡 보내기 (4건)' && !r.dis, r.sum);
-  ok('복기 낸 학생은 빼고, 접근코드 없는 학생은 안내', /이미 제출한 1명은 빼고 보냅니다/.test(r.sum) && /접근코드\)가 없는 학생 1명: 코드없음/.test(r.sum) && !/퇴원생|다른학교/.test(r.sum), r.sum);
+  ok('복기 낸 학생은 빼고, 접근코드 없는 학생은 안내', /이미 제출한 2명은 빼고 보냅니다/.test(r.sum) && /접근코드\)가 없는 학생 1명: 코드없음/.test(r.sum) && !/퇴원생|다른학교/.test(r.sum), r.sum);
   let q = await pg.evaluate(() => ({ t: (document.querySelector('.al-skip') || {}).textContent || '', on: (document.querySelector('input[name="alSkip"]:checked') || {}).value }));
-  ok('"이미 제출한 친구가 있어요 · 1명이 이미 복기를 제출했어요. 빼고 보낼까요?" + 이름 + 기본 = 빼고', /이미 제출한 친구가 있어요/.test(q.t) && /1명이 이미 복기를 제출했어요\. 빼고 보낼까요\?/.test(q.t) && /이미낸/.test(q.t) && q.on === '1', JSON.stringify(q));
+  ok('"이미 제출한 친구가 있어요 · 1명이 이미 복기를 제출했어요. 빼고 보낼까요?" + 이름 + 기본 = 빼고', /이미 제출한 친구가 있어요/.test(q.t) && /2명이 이미 복기를 제출했어요\. 빼고 보낼까요\?/.test(q.t) && /이미낸/.test(q.t) && /피드백전/.test(q.t) && q.on === '1', JSON.stringify(q));
   await pg.check('input[name="alSkip"][value="0"]');
   q = await pg.evaluate(() => ({ sum: document.getElementById('alSum').textContent, go: document.getElementById('alGo').textContent }));
-  ok('"아니요, 함께 보낼게요" — 제출한 친구도 포함(3명 · 6건)', /배정된 학생 3명/.test(q.sum) && /6건/.test(q.sum) && !/빼고 보냅니다/.test(q.sum) && q.go === '알림톡 보내기 (6건)', JSON.stringify(q));
+  ok('"아니요, 함께 보낼게요" — 제출한 친구도 포함(4명 · 7건)', /배정된 학생 4명/.test(q.sum) && /7건/.test(q.sum) && !/빼고 보냅니다/.test(q.sum) && q.go === '알림톡 보내기 (7건)', JSON.stringify(q));
   await pg.check('input[name="alSkip"][value="1"]');
   ok('미리보기 — 템플릿 문구에 학생명·제목·버튼', /박보검 학생에게 지필고사 리포트 제작 안내/.test(r.prev) && /▶ 2학기 중간고사 화정고1 공통국어2/.test(r.prev) && /학생 페이지 링크/.test(r.prev), r.prev);
   await pg.uncheck('.alW[value="학생"]');
@@ -87,6 +92,24 @@ const STUS = [
   ok('결과 — 보낸 건수·이미 받은 건 건너뜀 안내', /알림톡 3건을 보냈습니다/.test(r.res) && /이미 받은 1건은 건너뛰었어요/.test(r.res) && r.go === '보냈습니다', JSON.stringify(r));
   await pg.keyboard.press('Escape');
   ok('Esc로 닫힘', await pg.evaluate(() => !document.getElementById('alBg').classList.contains('on')));
+  // 피드백 확인 안내 — 선생님이 리포트를 보낸 학생만
+  await pg.click('.a-alim');
+  await pg.waitForSelector('#alSum b', { timeout: 8000 });
+  r = await pg.evaluate(() => [...document.querySelectorAll('.al-kind')].map(b => b.textContent + (b.classList.contains('on') ? '*' : '')));
+  ok('알림톡 종류 알약 두 개 — 기본 = 리포트 제작 안내', r.length === 2 && /리포트 제작 안내/.test(r[0]) && /\*$/.test(r[0]) && /피드백 확인 안내/.test(r[1]), JSON.stringify(r));
+  await pg.click('.al-kind[data-mode="up"]');
+  r = await pg.evaluate(() => ({ sum: document.getElementById('alSum').textContent, box: document.getElementById('alBox').textContent, prev: document.getElementById('alPrev').textContent,
+    go: document.getElementById('alGo').textContent, on: (document.querySelector('.al-kind.on') || {}).dataset.mode }));
+  ok('피드백 확인 안내 = 리포트를 보낸 학생(이미낸)만 — 1명 · 2건', r.on === 'up' && /선생님 피드백을 보낸 학생 1명/.test(r.sum) && /2건/.test(r.sum) && r.go === '알림톡 보내기 (2건)', JSON.stringify(r));
+  ok('아직 보내지 않은 친구(피드백전)는 빼고 이름 안내, 복기 안 낸 친구 수 안내', /아직 피드백을 보내지 않은 친구가 있어요/.test(r.box) && /피드백전/.test(r.box) && /아직 복기를 내지 않은 3명은 받지 않습니다/.test(r.sum) && !/빼고 보낼까요/.test(r.box), r.sum);
+  ok('미리보기 = 업데이트 안내 문구', /이미낸 학생에게 지필고사 리포트 업데이트 안내/.test(r.prev) && /새로 올라온 리포트/.test(r.prev), r.prev);
+  dialogs.length = 0;
+  await pg.click('#alGo');
+  await pg.waitForFunction(() => /보냈습니다/.test(document.getElementById('alRes').textContent), null, { timeout: 8000 });
+  const up = posts.filter(p => p.action === 'alimSend').pop();
+  ok('확인 창·POST — kind notice_reportup · 이미낸 학생·학부모님1', dialogs.some(d => /지필고사 리포트 업데이트 안내.*1명에게 2건/s.test(d)) && up.kind === 'notice_reportup' &&
+     up.items.map(it => it.student + ':' + it.who).join() === '이미낸:학생,이미낸:학부모1', JSON.stringify(up));
+  await pg.keyboard.press('Escape');
   // 템플릿 준비 전 — 보내기 잠금
   ready = false;
   await pg.evaluate(() => { AL.cfg = null; });
