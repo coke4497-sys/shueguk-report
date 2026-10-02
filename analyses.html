@@ -61,6 +61,7 @@
   /* 복기 안내 알림톡 (2026-10-02) — 연보라 */
   .a-alim{border:none;background:#EDE4F4;color:#5A4A6A;font:inherit;font-size:13px;font-weight:700;padding:9px 14px;border-radius:9px;cursor:pointer;}
   .a-alim:hover{background:#E3D7EE;}
+  .a-alim{margin-left:auto;} .a-alim + .a-del{margin-left:0;}   /* 원장님이 표시한 자리 — [리포트 삭제] 바로 왼쪽 */
   .al-bg{position:fixed;inset:0;background:rgba(40,50,45,.35);z-index:90;display:none;align-items:flex-start;justify-content:center;padding:28px 14px;overflow:auto;}
   .al-bg.on{display:flex;}
   .al-box{background:#fff;border-radius:16px;max-width:520px;width:100%;padding:20px 20px 18px;}
@@ -668,8 +669,8 @@
       '</div>' +
       '<div class="a-actions">' +
         '<a class="a-edit" href="m.html?id='+encodeURIComponent(rep.id)+'">'+editIcon+' 리포트 수정 · 학생 배정</a>' +
-        (hasAssign ? '<button type="button" class="a-alim" onclick="alimOpen(\''+esc(rep.id).replace(/'/g,"\\'")+'\')">복기 안내 알림톡</button>' : '') +
         (hasAssign ? '<button type="button" class="a-clear" onclick="clearAssign(\''+esc(rep.id).replace(/'/g,"\\'")+'\',this)">배정 해제</button>' : '') +
+        (hasAssign ? '<button type="button" class="a-alim" onclick="alimOpen(\''+esc(rep.id).replace(/'/g,"\\'")+'\')">알림톡 보내기</button>' : '') +
         '<button type="button" class="a-del" onclick="deleteReport(\''+esc(rep.id).replace(/'/g,"\\'")+'\',this)">리포트 삭제</button>' +
       '</div>' +
     '</div>';
