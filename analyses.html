@@ -71,6 +71,11 @@
   .al-row > b{display:block;font-size:12.5px;color:var(--ink-soft);margin-bottom:5px;}
   .al-row input[type=text]{width:100%;box-sizing:border-box;padding:10px 11px;border:1.5px solid var(--line);border-radius:9px;font:inherit;font-size:14px;}
   .al-whos label{margin-right:12px;white-space:nowrap;}
+  .al-skip{background:#FBF6E6;border-radius:10px;padding:10px 12px;}
+  .al-skip > b{color:#7A6230 !important;font-size:13px !important;}
+  .al-skipq{font-size:13.5px;color:var(--ink);margin-bottom:4px;}
+  .al-skipn{font-size:12.5px;color:var(--ink-soft);margin-bottom:6px;line-height:1.6;}
+  .al-skip label{margin-right:14px;font-size:13.5px;white-space:nowrap;cursor:pointer;}
   .al-sum{background:#F4F7F5;border-radius:10px;padding:10px 12px;font-size:13.5px;line-height:1.6;}
   .al-warn{color:#9A5A52;font-size:12.5px;margin-top:6px;line-height:1.6;}
   .al-prev{white-space:pre-wrap;background:#FBFAF6;border-radius:10px;padding:12px;font-size:13px;line-height:1.65;}
@@ -709,7 +714,8 @@
 <div class="al-bg" id="alBg" onclick="if(event.target===this) alimClose()"><div class="al-box" id="alBox"></div></div>
 <script>
 /* ===== 복기 안내 알림톡 (2026-10-02 원장님 "지필고사 리포트가 완성된 후, 완성된 학년의 학교 학생들에게 이를 작성하도록 안내하는 알림톡을 여기서") =====
- * 리포트마다 [복기 안내 알림톡] — 그 리포트에 배정된 학생(학교·학년 자동 배정 또는 직접 고른 학생) 중 아직 복기를 내지 않은 학생에게
+ * 리포트마다 [알림톡 보내기] — 그 리포트에 배정된 학생(학교·학년 자동 배정 또는 직접 고른 학생)에게. 이미 복기를 낸 친구가 있으면 창이
+ * '이미 제출한 친구가 있어요. 빼고 보낼까요?'를 묻고(기본 = 빼고), 고른 대로
  * '지필고사 리포트 제작 안내'(notice_report) 알림톡을 보낸다. 받는 분 = 학생·학부모님1·학부모님2(기본 모두, 다른 알림톡 화면과 같음).
  * 대상 판정은 s.html noticeMatches 와 같은 규칙(notice.html 에도 같은 복사본 — 고치면 셋 다), 복기 낸 학생 판정은 s.html submittedSet 과 같은 규칙.
  * 발송은 백엔드 alimSend(50건씩), 중복 키는 공지 화면과 같은 'N:날짜|제목' — 같은 날 같은 제목은 두 번 가지 않는다. 확인 창을 거쳐야 보낸다. */
@@ -809,7 +815,7 @@ function alimDraw(done){
     var stu = { name: alTr(r.name), school: alTr(r.school), grade: alTr(r.grade), sid: alTr(r.student_id).replace(/^'/, ''), code: alTr(r.code), r: r };
     if (!alMatches(a.type, a.target, stu)) return;
     var base = stu.name.replace(/[A-Za-z]$/, '');
-    if ((stu.sid && done['p:' + stu.sid]) || done['n:' + stu.name] || done['n:' + base]) { doneN.push(stu.name); return; }
+    if ((stu.sid && done['p:' + stu.sid]) || done['n:' + stu.name] || done['n:' + base]) { doneN.push(stu); return; }
     list.push(stu);
   });
   AL.list = list; AL.doneN = doneN;
@@ -818,6 +824,11 @@ function alimDraw(done){
     (ready ? '' : '<div class="al-warn" style="margin-bottom:10px">‘지필고사 리포트 제작 안내’ 알림톡 템플릿이 아직 준비되지 않았습니다(솔라피 승인 전이거나 설정 전). 슈국 운영 → 알림톡 설정에서 확인해 주세요.</div>') +
     '<div class="al-row"><b>알림톡에 들어갈 제목</b><input type="text" id="alTitle" maxlength="60" value="' + esc(title) + '" oninput="alimRefresh()"></div>' +
     '<div class="al-row al-whos"><b>받는 분</b>' + ['학생', '학부모1', '학부모2'].map(function(w){ return '<label><input type="checkbox" class="alW" value="' + w + '" checked onchange="alimRefresh()"> ' + esc(alWho(w)) + '</label>'; }).join('') + '</div>' +
+    (doneN.length ? '<div class="al-row al-skip"><b>이미 제출한 친구가 있어요</b>' +
+      '<div class="al-skipq">' + doneN.length + '명이 이미 복기를 제출했어요. 빼고 보낼까요?</div>' +
+      '<div class="al-skipn">' + doneN.map(function(x){ return esc(x.name); }).join(', ') + '</div>' +
+      '<label><input type="radio" name="alSkip" value="1" checked onchange="alimRefresh()"> 네, 빼고 보낼게요</label>' +
+      '<label><input type="radio" name="alSkip" value="0" onchange="alimRefresh()"> 아니요, 함께 보낼게요</label></div>' : '') +
     '<div class="al-row"><div class="al-sum" id="alSum"></div></div>' +
     '<div class="al-row"><b>미리보기</b><div class="al-prev" id="alPrev"></div></div>' +
     '<div class="al-btns"><button type="button" onclick="alimClose()">닫기</button><button type="button" class="go" id="alGo" onclick="alimSend()" disabled>알림톡 보내기</button></div>' +
@@ -830,16 +841,17 @@ function alimRefresh(){
   var whos = Array.prototype.slice.call(document.querySelectorAll('.alW:checked')).map(function(x){ return x.value; });
   var title = alTr((document.getElementById('alTitle') || {}).value);
   var items = [], nophone = [], nocode = [], people = 0;
-  AL.list.forEach(function(stu){
+  var skipEl = document.querySelector('input[name="alSkip"]:checked'), skip = !skipEl || skipEl.value === '1';   // 이미 제출한 친구 빼기(기본)
+  AL.list.concat(skip ? [] : AL.doneN).forEach(function(stu){
     var tos = whos.map(function(w){ return { who: w, to: String(stu.r[AL_PHONE[w]] || '').replace(/\D/g, '') }; }).filter(function(t){ return /^01\d{8,9}$/.test(t.to); });
     if (!tos.length) nophone.push(stu.name);
     else if (!stu.code) nocode.push(stu.name);
     else { people++; tos.forEach(function(t){ items.push({ student: stu.name, to: t.to, who: t.who, code: stu.code }); }); }
   });
-  var h = '배정된 학생 중 아직 복기를 내지 않은 <b>' + people + '명</b>' + (whos.length ? '의 ' + esc(alWho(whos.join('·'))) + '에게 <b>' + items.length + '건</b> 보냅니다.' : '') +
+  var h = (skip ? '배정된 학생 중 아직 복기를 내지 않은 <b>' : '배정된 학생 <b>') + people + '명</b>' + (whos.length ? '의 ' + esc(alWho(whos.join('·'))) + '에게 <b>' + items.length + '건</b> 보냅니다.' : '') +
     (items.length > AL_BATCH ? ' <span style="color:#8B928C">(' + AL_BATCH + '건씩 나눠 보내요)</span>' : '');
   var w = [];
-  if (AL.doneN.length) w.push('이미 복기를 낸 ' + AL.doneN.length + '명은 빼요');
+  if (AL.doneN.length && skip) w.push('이미 제출한 ' + AL.doneN.length + '명은 빼고 보냅니다');
   if (nophone.length) w.push('고른 분의 연락처가 없는 학생 ' + nophone.length + '명: ' + nophone.map(esc).join(', '));
   if (nocode.length) w.push('학생 페이지 링크(접근코드)가 없는 학생 ' + nocode.length + '명: ' + nocode.map(esc).join(', '));
   if (w.length) h += '<div class="al-warn">' + w.join('<br>') + '</div>';
