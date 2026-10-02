@@ -250,6 +250,9 @@
 - **클로슈 도구**(`tools/class_report.py`): data/publish가 수업 한 번 단위(위 처리 절차).
 - 검증: `tools/class-history-sql-test.sh`(039·040 — 공개만·내 것만·순서·before·60개+more·유일 조건·class_report_list 삭제·권한) + `tools/class-report-e2e.js` 95건(⑦-4 학생마다 과제·1회 이동 원래 반, ⑧ 새 모양·주간 카드 없음·⑧-2 비활성 카드).
 
+### 학생 화면 '← 내 페이지로' 링크 — me-back.js (2026-10-02)
+원장님 "지필고사 리포트에서 메인 페이지로 돌아가는 기능이 없었어요 — 다른 페이지도 확인" → 학생 페이지에서 여는 다른 페이지 6곳에 돌아가는 링크가 없었다(r.html·허브 omr.html·주말 signup.html·클리닉 index.html·어휘 test.html·H WORK hwork.html. 문법은 원래 '내 페이지로'가 있음). 공용 `me-back.js`(리포트 저장소): s.html이 `data-mode="remember"`로 자기 주소를 session/localStorage `shueguk_me`에 적고(모든 학생 화면이 coke4497-sys.github.io 한 출처라 공유된다), 다른 페이지는 `</body>` 앞 `<script src="https://coke4497-sys.github.io/shueguk-report/me-back.js">`가 body 맨 위에 링크를 넣는다(넘어온 주소가 s.html이면 그것이 먼저). 학생 페이지를 거치지 않았거나 `?preview=1`이면 넣지 않는다. **학생이 여는 새 페이지를 만들면 같은 한 줄을 넣을 것.**
+
 ### 학생 페이지 [과제 검사] 카드 삭제 (2026-10-02)
 원장님 "학생 개별 페이지의 과제 검사 메뉴 불필요" → s.html 허브의 [과제 검사] 카드(`openHwcheck`)를 뺐다. 과제 검사 결과는 [수업 리포트] 카드 안 과제 검사 상자로 본다. `#hwcheckView`·`renderHwcheck`와 `STATE.hwcheck`(별 집계용)는 그대로 남겨 두었다 — 카드만 없어서 화면으로 들어갈 길이 없다. 되살리지 말 것.
 
