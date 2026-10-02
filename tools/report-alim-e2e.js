@@ -101,7 +101,12 @@ const STUS = [
   r = await pg.evaluate(() => ({ sum: document.getElementById('alSum').textContent, box: document.getElementById('alBox').textContent, prev: document.getElementById('alPrev').textContent,
     go: document.getElementById('alGo').textContent, on: (document.querySelector('.al-kind.on') || {}).dataset.mode }));
   ok('피드백 확인 안내 = 리포트를 보낸 학생(이미낸)만 — 1명 · 2건', r.on === 'up' && /선생님 피드백을 보낸 학생 1명/.test(r.sum) && /2건/.test(r.sum) && r.go === '알림톡 보내기 (2건)', JSON.stringify(r));
-  ok('아직 보내지 않은 친구(피드백전)는 빼고 이름 안내, 복기 안 낸 친구 수 안내', /아직 피드백을 보내지 않은 친구가 있어요/.test(r.box) && /피드백전/.test(r.box) && /아직 복기를 내지 않은 3명은 받지 않습니다/.test(r.sum) && !/빼고 보낼까요/.test(r.box), r.sum);
+  ok('"피드백이 완성되지 않은 친구가 있어요 · 빼고 보낼까요?" + 이름(피드백전) + 기본 = 빼고, 복기 안 낸 친구 수 안내', /피드백이 완성되지 않은 친구가 있어요/.test(r.box) && /1명은 복기를 냈지만.*빼고 보낼까요\?/.test(r.box) && /피드백전/.test(r.box) &&
+     (await pg.evaluate(() => (document.querySelector('input[name="alWait"]:checked') || {}).value)) === '1' && /피드백이 완성되지 않은 1명은 빼고 보냅니다/.test(r.sum) && /아직 복기를 내지 않은 3명은 받지 않습니다/.test(r.sum), r.sum);
+  await pg.check('input[name="alWait"][value="0"]');
+  q = await pg.evaluate(() => ({ sum: document.getElementById('alSum').textContent, go: document.getElementById('alGo').textContent }));
+  ok('"아니요, 함께 보낼게요" — 피드백 전 친구도 포함(2명 · 3건)', /복기를 낸 학생 2명/.test(q.sum) && /3건/.test(q.sum) && !/완성되지 않은 1명은 빼고/.test(q.sum) && q.go === '알림톡 보내기 (3건)', JSON.stringify(q));
+  await pg.check('input[name="alWait"][value="1"]');
   ok('미리보기 = 업데이트 안내 문구', /이미낸 학생에게 지필고사 리포트 업데이트 안내/.test(r.prev) && /새로 올라온 리포트/.test(r.prev), r.prev);
   dialogs.length = 0;
   await pg.click('#alGo');
