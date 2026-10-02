@@ -58,6 +58,28 @@
   .a-clear:hover{color:var(--bad);}
   .a-del{border:none;background:none;font:inherit;font-size:12.5px;font-weight:700;color:var(--bad);cursor:pointer;padding:8px 6px;text-decoration:underline;margin-left:auto;}
   .a-del:hover{opacity:.8;}
+  /* 복기 안내 알림톡 (2026-10-02) — 연보라 */
+  .a-alim{border:none;background:#EDE4F4;color:#5A4A6A;font:inherit;font-size:13px;font-weight:700;padding:9px 14px;border-radius:9px;cursor:pointer;}
+  .a-alim:hover{background:#E3D7EE;}
+  .al-bg{position:fixed;inset:0;background:rgba(40,50,45,.35);z-index:90;display:none;align-items:flex-start;justify-content:center;padding:28px 14px;overflow:auto;}
+  .al-bg.on{display:flex;}
+  .al-box{background:#fff;border-radius:16px;max-width:520px;width:100%;padding:20px 20px 18px;}
+  .al-box h3{font-family:"Gowun Batang",serif;font-size:17px;margin:0 0 4px;color:var(--ink);}
+  .al-box .al-sub{font-size:12.5px;color:var(--ink-soft);margin:0 0 14px;}
+  .al-row{margin:0 0 12px;font-size:13.5px;}
+  .al-row > b{display:block;font-size:12.5px;color:var(--ink-soft);margin-bottom:5px;}
+  .al-row input[type=text]{width:100%;box-sizing:border-box;padding:10px 11px;border:1.5px solid var(--line);border-radius:9px;font:inherit;font-size:14px;}
+  .al-whos label{margin-right:12px;white-space:nowrap;}
+  .al-sum{background:#F4F7F5;border-radius:10px;padding:10px 12px;font-size:13.5px;line-height:1.6;}
+  .al-warn{color:#9A5A52;font-size:12.5px;margin-top:6px;line-height:1.6;}
+  .al-prev{white-space:pre-wrap;background:#FBFAF6;border-radius:10px;padding:12px;font-size:13px;line-height:1.65;}
+  .al-prev .al-pbtn{margin-top:8px;text-align:center;background:#F2F5F3;border-radius:8px;padding:7px;font-size:12.5px;color:#4F5C56;}
+  .al-btns{display:flex;gap:8px;justify-content:flex-end;margin-top:14px;}
+  .al-btns button{font:inherit;font-size:14px;font-weight:700;border:none;border-radius:10px;padding:10px 16px;cursor:pointer;background:#F2F5F3;color:#4F5C56;}
+  .al-btns .go{background:#EDE4F4;color:#5A4A6A;}
+  .al-btns button:disabled{opacity:.45;cursor:default;}
+  .al-res{margin-top:10px;font-size:13px;}
+  .al-res.ok{color:#3F6159;} .al-res.err{color:#9A5A52;}
   .mgr-empty{text-align:center;color:#9aa6a0;font-size:13.5px;padding:24px;}
 
   /* 잠금 */
@@ -646,6 +668,7 @@
       '</div>' +
       '<div class="a-actions">' +
         '<a class="a-edit" href="m.html?id='+encodeURIComponent(rep.id)+'">'+editIcon+' 리포트 수정 · 학생 배정</a>' +
+        (hasAssign ? '<button type="button" class="a-alim" onclick="alimOpen(\''+esc(rep.id).replace(/'/g,"\\'")+'\')">복기 안내 알림톡</button>' : '') +
         (hasAssign ? '<button type="button" class="a-clear" onclick="clearAssign(\''+esc(rep.id).replace(/'/g,"\\'")+'\',this)">배정 해제</button>' : '') +
         '<button type="button" class="a-del" onclick="deleteReport(\''+esc(rep.id).replace(/'/g,"\\'")+'\',this)">리포트 삭제</button>' +
       '</div>' +
@@ -679,6 +702,188 @@
     .then(function(res){ if(res.result==='success'){ loadAll(); } else { btn.disabled=false; btn.textContent='리포트 삭제'; alert('삭제 실패: '+(res.message==='unauthorized'?'권한이 없습니다.':(res.message||'오류'))); } })
     .catch(function(){ btn.disabled=false; btn.textContent='리포트 삭제'; alert('삭제 실패 — 인터넷을 확인해 주세요.'); });
   }
+</script>
+
+<!-- 복기 안내 알림톡 창 (2026-10-02) -->
+<div class="al-bg" id="alBg" onclick="if(event.target===this) alimClose()"><div class="al-box" id="alBox"></div></div>
+<script>
+/* ===== 복기 안내 알림톡 (2026-10-02 원장님 "지필고사 리포트가 완성된 후, 완성된 학년의 학교 학생들에게 이를 작성하도록 안내하는 알림톡을 여기서") =====
+ * 리포트마다 [복기 안내 알림톡] — 그 리포트에 배정된 학생(학교·학년 자동 배정 또는 직접 고른 학생) 중 아직 복기를 내지 않은 학생에게
+ * '지필고사 리포트 제작 안내'(notice_report) 알림톡을 보낸다. 받는 분 = 학생·학부모님1·학부모님2(기본 모두, 다른 알림톡 화면과 같음).
+ * 대상 판정은 s.html noticeMatches 와 같은 규칙(notice.html 에도 같은 복사본 — 고치면 셋 다), 복기 낸 학생 판정은 s.html submittedSet 과 같은 규칙.
+ * 발송은 백엔드 alimSend(50건씩), 중복 키는 공지 화면과 같은 'N:날짜|제목' — 같은 날 같은 제목은 두 번 가지 않는다. 확인 창을 거쳐야 보낸다. */
+var AL = { cfg: null, stus: null, rep: null, plan: null, busy: false };
+var AL_KIND = 'notice_report', AL_BATCH = 50;
+var AL_PHONE = { '학생': 'phone_student', '학부모1': 'phone_parent1', '학부모2': 'phone_parent2' };
+var AL_LEFT = /^(퇴원|n|no|off|x|중단|비재원)$/i;
+var AL_REST = 'https://bangdbhqpphqqdwcledg.supabase.co/rest/v1';
+function alWho(w){ return String(w || '').replace(/학부모(?!님)/g, '학부모님'); }
+function alTr(v){ return String(v == null ? '' : v).trim(); }
+function alYmd(){ var d = new Date(Date.now() + 9 * 3600e3); return d.getUTCFullYear() + '-' + ('0' + (d.getUTCMonth() + 1)).slice(-2) + '-' + ('0' + d.getUTCDate()).slice(-2); }
+/* 학생에게 보일 제목 — '26-2-중간-화정고1-공통국어2' → '2학기 중간고사 화정고1 공통국어2' (창에서 고칠 수 있다) */
+function alNiceTitle(t){
+  var m = String(t || '').match(/^\d{2}-([12])-(중간|기말)-(.+)$/);
+  return m ? m[1] + '학기 ' + m[2] + '고사 ' + m[3].replace(/-/g, ' ') : String(t || '');
+}
+/* s.html noticeMatches 와 같은 규칙 */
+function alGradeDigit(s){ s = String(s || '').replace(/\s+/g, ''); var m = s.match(/([1-3])학년/) || s.match(/고([1-3])/); if (m) return m[1]; var a = s.match(/[1-3]/g); return a ? a[a.length - 1] : ''; }
+function alNormGrade(s){ s = alTr(s); if (!s) return ''; var lv = /고/.test(s) ? '고' : (/중/.test(s) ? '중' : (/초/.test(s) ? '초' : '')); if (!lv) return ''; var m = s.match(/([1-6])\s*학년/) || s.match(/(?:고|중|초)\s*([1-6])/); return m ? lv + m[1] : ''; }
+function alSchool(a, b){
+  a = String(a || '').replace(/\s+/g, ''); b = String(b || '').replace(/\s+/g, '');
+  if (!a || !b) return false; if (a === b) return true;
+  var na = a.replace(/(등학교|고등학교|중학교|학교|고|중)$/, ''), nb = b.replace(/(등학교|고등학교|중학교|학교|고|중)$/, '');
+  if (na && nb && na === nb) return true;
+  return a.indexOf(b) >= 0 || b.indexOf(a) >= 0;
+}
+function alMatches(type, target, stu){
+  type = alTr(type); target = alTr(target);
+  if (type.indexOf('전체') >= 0) return true;
+  if (type === '' && target === '') return false;   // 배정 없음 = 아무에게도 안 보냄(학생 페이지와 달리 안전 쪽)
+  var tokens = target.split(/[,\n;\/·\s]+/).map(alTr).filter(Boolean);
+  if (!tokens.length) return false;
+  if (type.indexOf('학년') >= 0){
+    var g = stu.grade.replace(/\s+/g, ''), sg = (stu.school + stu.grade).replace(/\s+/g, '');
+    var gd = alGradeDigit(stu.grade), ng = alNormGrade(stu.grade), lvS = /중/.test(g) ? '중' : (/고/.test(g) ? '고' : '');
+    return target.split(/[,\n;\/·]+/).map(alTr).filter(Boolean).some(function(t){
+      var tt = t.replace(/\s+/g, ''); if (!tt) return false;
+      var td = alGradeDigit(tt); if (td && gd && td !== gd) return false;
+      var lvT = /중/.test(tt) ? '중' : (/고/.test(tt) ? '고' : ''); if (lvT && lvS && lvT !== lvS) return false;
+      if (ng && alNormGrade(tt) === ng) return true;
+      return tt === g || sg.indexOf(tt) >= 0 || g.indexOf(tt) >= 0;
+    });
+  }
+  return tokens.some(function(t){
+    if (t.indexOf('|') >= 0){
+      var p = t.split('|'), tn = alTr(p[0]), ts = alTr(p[1]), tg = alTr(p[2]);
+      if (!tn || tn !== stu.name) return false;
+      if (ts && stu.school && !alSchool(ts, stu.school)) return false;
+      if (tg && stu.grade && tg.replace(/\s+/g, '') !== stu.grade.replace(/\s+/g, '')) return false;
+      return true;
+    }
+    return t === stu.name || t === stu.sid || t === stu.code;
+  });
+}
+function alSbAll(path){
+  var out = [], LIM = 1000;
+  function step(off){
+    return fetch(AL_REST + path + '&limit=' + LIM + '&offset=' + off, { headers: { apikey: 'sb_publishable_dE9d1KIbpgYaQkaS2MSrlg_-7SiRJuT' }, cache: 'no-store' })
+      .then(function(r){ if (!r.ok) throw new Error('조회 ' + r.status); return r.json(); })
+      .then(function(rows){ out = out.concat(rows); return rows.length < LIM ? out : step(off + LIM); });
+  }
+  return step(0);
+}
+function alimClose(){ if (AL.busy) return; document.getElementById('alBg').classList.remove('on'); AL.rep = null; AL.plan = null; }
+function alimOpen(id){
+  var rep = (REPORTS || []).filter(function(r){ return String(r.id) === String(id); })[0];
+  if (!rep) return;
+  AL.rep = rep; AL.plan = null;
+  document.getElementById('alBg').classList.add('on');
+  var box = document.getElementById('alBox');
+  box.innerHTML = '<h3>복기 안내 알림톡</h3><p class="al-sub">' + esc(rep.title || rep.id) + '</p><div class="al-sum">대상 학생과 연락처를 확인하는 중…</div>';
+  var title = String(rep.title || rep.id || '');
+  var jobs = [
+    AL.cfg ? Promise.resolve(AL.cfg) : fetch(ENDPOINT + '?action=alimConfig&pw=' + encodeURIComponent(SERVER_PW) + '&t=' + Date.now()).then(function(r){ return r.json(); }),
+    AL.stus ? Promise.resolve(AL.stus) : alSbAll('/students?select=name,school,grade,student_id,code,enrolled,phone_student,phone_parent1,phone_parent2&order=seq,id'),
+    alSbAll('/submissions?select=exam,name,parent_phone&exam=in.(' + [title, String(rep.id)].map(function(x){ return '"' + x.replace(/"/g, '') + '"'; }).join(',') + ')')
+  ];
+  Promise.all(jobs).then(function(rs){
+    if (AL.rep !== rep) return;
+    AL.cfg = (rs[0] && rs[0].result === 'success') ? rs[0] : null;
+    AL.stus = rs[1];
+    var done = {};
+    rs[2].forEach(function(r){ var p = alTr(r.parent_phone).replace(/^'/, ''), n = alTr(r.name); if (p) done['p:' + p] = 1; if (n){ done['n:' + n] = 1; done['n:' + n.replace(/[A-Za-z]$/, '')] = 1; } });
+    alimDraw(done);
+  }).catch(function(e){
+    if (AL.rep !== rep) return;
+    box.innerHTML = '<h3>복기 안내 알림톡</h3><p class="al-sub">' + esc(title) + '</p><div class="al-warn">대상 학생을 불러오지 못했습니다 — ' + esc(e.message) + '</div><div class="al-btns"><button type="button" onclick="alimClose()">닫기</button></div>';
+  });
+}
+function alimDraw(done){
+  var rep = AL.rep, a = ASSIGN[rep.id] || {}, tpl = AL.cfg && AL.cfg.templates ? AL.cfg.templates[AL_KIND] : null;
+  var box = document.getElementById('alBox');
+  var title = alNiceTitle(rep.title || rep.id);
+  var list = [], doneN = [];
+  (AL.stus || []).forEach(function(r){
+    if (!alTr(r.name) || AL_LEFT.test(alTr(r.enrolled))) return;
+    var stu = { name: alTr(r.name), school: alTr(r.school), grade: alTr(r.grade), sid: alTr(r.student_id).replace(/^'/, ''), code: alTr(r.code), r: r };
+    if (!alMatches(a.type, a.target, stu)) return;
+    var base = stu.name.replace(/[A-Za-z]$/, '');
+    if ((stu.sid && done['p:' + stu.sid]) || done['n:' + stu.name] || done['n:' + base]) { doneN.push(stu.name); return; }
+    list.push(stu);
+  });
+  AL.list = list; AL.doneN = doneN;
+  var ready = !!(tpl && tpl.ready && AL.cfg && AL.cfg.ready);
+  box.innerHTML = '<h3>복기 안내 알림톡</h3><p class="al-sub">' + esc(rep.title || rep.id) + ' · 배정: ' + esc(assignSummary(a).tag) + '</p>' +
+    (ready ? '' : '<div class="al-warn" style="margin-bottom:10px">‘지필고사 리포트 제작 안내’ 알림톡 템플릿이 아직 준비되지 않았습니다(솔라피 승인 전이거나 설정 전). 슈국 운영 → 알림톡 설정에서 확인해 주세요.</div>') +
+    '<div class="al-row"><b>알림톡에 들어갈 제목</b><input type="text" id="alTitle" maxlength="60" value="' + esc(title) + '" oninput="alimRefresh()"></div>' +
+    '<div class="al-row al-whos"><b>받는 분</b>' + ['학생', '학부모1', '학부모2'].map(function(w){ return '<label><input type="checkbox" class="alW" value="' + w + '" checked onchange="alimRefresh()"> ' + esc(alWho(w)) + '</label>'; }).join('') + '</div>' +
+    '<div class="al-row"><div class="al-sum" id="alSum"></div></div>' +
+    '<div class="al-row"><b>미리보기</b><div class="al-prev" id="alPrev"></div></div>' +
+    '<div class="al-btns"><button type="button" onclick="alimClose()">닫기</button><button type="button" class="go" id="alGo" onclick="alimSend()" disabled>알림톡 보내기</button></div>' +
+    '<div class="al-res" id="alRes"></div>';
+  AL.ready = ready; AL.tpl = tpl;
+  alimRefresh();
+}
+function alimRefresh(){
+  if (!AL.rep || !AL.list) return;
+  var whos = Array.prototype.slice.call(document.querySelectorAll('.alW:checked')).map(function(x){ return x.value; });
+  var title = alTr((document.getElementById('alTitle') || {}).value);
+  var items = [], nophone = [], nocode = [], people = 0;
+  AL.list.forEach(function(stu){
+    var tos = whos.map(function(w){ return { who: w, to: String(stu.r[AL_PHONE[w]] || '').replace(/\D/g, '') }; }).filter(function(t){ return /^01\d{8,9}$/.test(t.to); });
+    if (!tos.length) nophone.push(stu.name);
+    else if (!stu.code) nocode.push(stu.name);
+    else { people++; tos.forEach(function(t){ items.push({ student: stu.name, to: t.to, who: t.who, code: stu.code }); }); }
+  });
+  var h = '배정된 학생 중 아직 복기를 내지 않은 <b>' + people + '명</b>' + (whos.length ? '의 ' + esc(alWho(whos.join('·'))) + '에게 <b>' + items.length + '건</b> 보냅니다.' : '') +
+    (items.length > AL_BATCH ? ' <span style="color:#8B928C">(' + AL_BATCH + '건씩 나눠 보내요)</span>' : '');
+  var w = [];
+  if (AL.doneN.length) w.push('이미 복기를 낸 ' + AL.doneN.length + '명은 빼요');
+  if (nophone.length) w.push('고른 분의 연락처가 없는 학생 ' + nophone.length + '명: ' + nophone.map(esc).join(', '));
+  if (nocode.length) w.push('학생 페이지 링크(접근코드)가 없는 학생 ' + nocode.length + '명: ' + nocode.map(esc).join(', '));
+  if (w.length) h += '<div class="al-warn">' + w.join('<br>') + '</div>';
+  document.getElementById('alSum').innerHTML = h;
+  var tpl = AL.tpl;
+  document.getElementById('alPrev').innerHTML = tpl ? esc(String(tpl.text || '').replace(/#\{([^}]+)\}/g, function(_, k){ return k === '학생명' ? (items[0] ? items[0].student : '○○○') : k === '제목' ? (title || '(제목)') : ''; })) +
+    (tpl.buttons || []).map(function(b){ return '<div class="al-pbtn">' + esc(b.name) + '</div>'; }).join('') : '<span style="color:#8B928C">템플릿을 불러오지 못했습니다.</span>';
+  var go = document.getElementById('alGo');
+  go.disabled = !AL.ready || !title || !items.length || AL.busy;
+  go.textContent = '알림톡 보내기' + (items.length ? ' (' + items.length + '건)' : '');
+  AL.plan = (AL.ready && title && items.length) ? { title: title, items: items, people: people } : null;
+}
+function alimSend(){
+  var p = AL.plan; if (!p || AL.busy) return;
+  if (!confirm('‘지필고사 리포트 제작 안내’ 알림톡을 학생 ' + p.people + '명에게 ' + p.items.length + '건 보낼까요?\n\n▶ ' + p.title)) return;
+  AL.busy = true;
+  var go = document.getElementById('alGo'); go.disabled = true; go.textContent = '보내는 중…';
+  var ref = 'N:' + alYmd() + '|' + p.title;
+  var chunks = []; for (var i = 0; i < p.items.length; i += AL_BATCH) chunks.push(p.items.slice(i, i + AL_BATCH));
+  var okN = 0, dup = [], bad = [], err = '';
+  chunks.reduce(function(prev, ch){
+    return prev.then(function(){
+      if (err) return;
+      return fetch(ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ action: 'alimSend', pw: SERVER_PW, kind: AL_KIND,
+          items: ch.map(function(it){ return { student: it.student, to: it.to, who: it.who, cls: '공지', date: ref, vars: { '학생명': it.student, '제목': p.title, '접근코드': it.code } }; }) }) })
+        .then(function(r){ return r.json(); })
+        .then(function(res){
+          if (!res || res.result !== 'success'){ err = (res && res.message) || '오류'; return; }
+          okN += res.okCount || 0;
+          (res.sent || []).forEach(function(x){ var n = x.student + (x.who ? ' ' + alWho(x.who) : ''); if (x.dup) dup.push(n); else if (!x.ok) bad.push(n + ' (' + x.message + ')'); });
+        }).catch(function(){ err = '인터넷 연결을 확인해 주세요.'; });
+    });
+  }, Promise.resolve()).then(function(){
+    AL.busy = false;
+    var r = document.getElementById('alRes'); if (!r) return;
+    if (err){ r.className = 'al-res err'; r.textContent = '알림톡을 보내지 못했습니다: ' + err + (okN ? ' (그전 ' + okN + '건은 보냈어요)' : ''); }
+    else {
+      r.className = 'al-res ' + (bad.length ? 'err' : 'ok');
+      r.textContent = '알림톡 ' + okN + '건을 보냈습니다.' + (dup.length ? ' 오늘 같은 제목으로 이미 받은 ' + dup.length + '건은 건너뛰었어요.' : '') + (bad.length ? ' 실패: ' + bad.join(', ') : '');
+    }
+    go.textContent = '보냈습니다'; go.disabled = true;
+  });
+}
+document.addEventListener('keydown', function(e){ if (e.key === 'Escape' && document.getElementById('alBg').classList.contains('on')) alimClose(); });
 </script>
 
 <p class="tip">화면이 예전 그대로거나 방금 바꾼 내용이 안 보이면 <b>Ctrl+Shift+R</b> 로 새로고침해 주세요.</p>
