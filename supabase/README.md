@@ -750,11 +750,11 @@ curl -s -X POST "https://api.supabase.com/v1/projects/bangdbhqpphqqdwcledg/datab
 
 ## 지필 리포트 보내기 — submissions.sent_at (2026-10-02, 043)
 - `migrations/043_report_send.sql` — `submissions.sent_at`(선생님이 [리포트 보내기]를 누른 시각) + 열을 처음 만들 때 한 마디가 있던 제출만 보낸 것으로 채움 + `student_bundle` 다시 정의(제출마다 sent_at, teacher_note는 보낸 뒤에만).
-- **적용 상태: 아직 적용 전** — 원장님의 sbp_ 토큰이 필요하다(저장하지 않음). 적용 전에는 학생 페이지가 한 마디 있는 리포트만 보여 주고, 선생님 화면의 [리포트 보내기]는 잠겨 있다.
+- **적용 상태: 2026-10-02 실제 수파베이스에 적용 완료**(관리 API — 원장님이 준 sbp_ 토큰, 저장 안 함). 적용 전 실제 student_bundle 이 035 본문과 같은지(class_name·review_done 포함) 먼저 확인했다. 채우기 결과: 제출 297건 중 한 마디 있던 255건 = 보냄, 42건 = 숨김. 공개 키 확인: 안 보낸 제출은 sent_at null·teacher_note 빈 값, 보낸 제출은 한 마디가 온다.
 
 ## 출석 기록 — 학생 함수 attendance_history (2026-10-01, 041)
 - `migrations/041_attendance_history.sql` — 표 변경 없음. 함수 `attendance_history(p {key|student, before?})`(anon): 그 학생의 attendance 를 날짜 내림차순 120개씩 + 상태별 건수. 이름 대조는 039 의 ch_plain_/ch_who_. 출석 메모·보충 계획·보충 메모는 내보내지 않는다(결석은 보충 완료 여부만).
-- **적용 상태: 아직 적용 전** — 실제 수파베이스 적용에는 원장님의 sbp_ 토큰이 필요하다(저장하지 않음). 적용 전에는 학생 페이지 '출석 기록' 탭만 '불러오지 못했어요'로 보인다.
+- **적용 상태: 2026-10-02 실제 수파베이스에 적용 완료**(043과 같은 토큰). 공개 키 확인: 실제 재원생 키 → ok·건수(출석 6·지각 1·결석 1)·반이름/요일/시간, 없는 키 → no_student, attendance 표 직접 읽기는 거절(42501).
 
 ## 수업 리포트 — 옛 주간 형식 막기 (2026-10-01, 042)
 - `migrations/042_class_reports_guard.sql` — class_reports 에 check 제약 `class_reports_session_check`: 반ID 빈 값·ymd 없음·body 에 parts 키가 있는 줄은 저장 거절. 같은 날 다른 세션이 옛 주간 형식으로 10/1 고3파이널A 7장을 써서 학생 화면에 안 나온 일 뒤(새 형식으로 다시 쓰고 옛 줄 7개는 사용자 승인 뒤 삭제 — 지금 표에 어긋난 줄 없음). `tools/class_report.py publish`도 같은 형식을 미리 거절한다.
