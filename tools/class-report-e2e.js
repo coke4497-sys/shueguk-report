@@ -508,6 +508,27 @@ const STUDENTS = [
   ok('창을 닫으면 미리보기도 닫힘', await page.evaluate(() => document.getElementById('crpv').hidden));
   await ctx.close();
 
+  // ⑦-5 1회 이동해 온 학생 — 원래 반이 이번 주에 낸 과제(다음 주 몫)는 검사하지 않는다(2026-10-02 민서연 고3파이널A → B)
+  {
+    const thisWk = PREVWED < TODAYSTR ? PREVWED : TODAYSTR;
+    const B = row('n029', '고3파이널B', '슈', '박보검');
+    const A = Object.assign(row('n015', '고3파이널A', '슈', '최다은'), { start_time: '2:00', end_time: '3:30' });
+    const mv = [{ id: 9, kind: '1회', at: new Date().toISOString(), apply_date: TODAYSTR, student: '최다은', from_class_id: 'n015', to_class_id: 'n029', reason: '개인 사정', book: '내신' }];
+    const names = () => page.evaluate(() => { const o = {}; CR.names.forEach((x, i) => { o[x.p] = [...document.querySelectorAll('.cr-card[data-i="' + i + '"] .cr-tname')].map(e => e.textContent); }); return o; });
+    ({ ctx, page, st } = await ctxOf({ book: '내신', rows: [B, A], att: [], log: mv,
+      prev: [{ class_id: 'n015', ymd: LASTWK, homework: 'A 지난주 과제' }, { class_id: 'n015', ymd: thisWk, homework: 'A 다음 주 과제' }] }));
+    await openCard(page, '고3파이널B');
+    r = await names();
+    ok('1회 이동 학생: 원래 반의 이번 주 과제는 빼고 지난주 과제로', JSON.stringify(r['최다은']) === '["A 지난주 과제"]', JSON.stringify(r));
+    await ctx.close();
+    ({ ctx, page, st } = await ctxOf({ book: '내신', rows: [B, A], att: [], log: mv,
+      prev: [{ class_id: 'n015', ymd: thisWk, homework: 'A 다음 주 과제' }] }));
+    await openCard(page, '고3파이널B');
+    r = await names();
+    ok('1회 이동 학생: 원래 반 지난주 기록이 없으면 다음 주 과제를 가져오지 않는다', JSON.stringify(r['최다은']) === '[]', JSON.stringify(r));
+    await ctx.close();
+  }
+
   // ⑦-4 학생마다 과제 + 정규 1회 이동 학생은 원래 반 과제(2026-10-01 원장님)
   ({ ctx, page, st } = await ctxOf({ book: '정규',
     rows: [row('r001', '고2 가', '지원', '박보검 김하늘'), Object.assign(row('r002', '고2 가', '은지', '최다은'), { start_time: '7:30', end_time: '9:00' })],

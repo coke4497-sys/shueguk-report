@@ -7019,10 +7019,12 @@ function crHwSrcLoad2(c, bk, ymd, twinId, othSib){
       // 같은 이름 반은 지난주까지 기록만(이번 주에 다른 반이 낸 과제는 다음 주 검사할 것이라서) · 반 과제만(개별 과제는 그 반 학생 것)
       var sibRow = ord.filter(function(r){ return sibIds.indexOf(r.class_id) >= 0 && r.ymd < weekWed && crTasksOf(r.homework).length; })[0];
       CR.names.forEach(function(x){
-        var own = ord.filter(function(r){ return mine[x.p].indexOf(r.class_id) >= 0 && crRowTasks(r, x.p).length; })[0];
         var moved = mine[x.p].length === 1 && mine[x.p][0] !== c.id && mine[x.p][0] !== twinId;
+        // 1회 이동해 온 학생: 원래 반의 '이번 주' 수업은 빠진 수업이라 그때 낸 과제는 다음 주 몫이다 — 지난주까지만 본다
+        // (2026-10-02 원장님 "다음 주차 과제가 여기에 들어있어요" — 민서연 목5:30 → 금5:30, 10/1 고3파이널A 과제가 10/2 B 검사 목록에)
+        var own = ord.filter(function(r){ return mine[x.p].indexOf(r.class_id) >= 0 && (!moved || r.ymd < weekWed) && crRowTasks(r, x.p).length; })[0];
         // 이 반 기록이 없거나 같은 이름 반보다 한 주 이상 오래됐으면 같은 이름 반 과제로
-        if (sibRow && !moved && (!own || own.ymd < crPrevWed(sibRow.ymd))) by[x.p] = pack({ class_id: sibRow.class_id, ymd: sibRow.ymd, homework: sibRow.homework, comments: {} }, x.p);
+        if (sibRow && (!moved || crSameLesson((byId[mine[x.p][0]] || {}).cls, c.cls)) && (!own || own.ymd < crPrevWed(sibRow.ymd))) by[x.p] = pack({ class_id: sibRow.class_id, ymd: sibRow.ymd, homework: sibRow.homework, comments: {} }, x.p);
         else by[x.p] = pack(own, x.p);
       });
       return { by: by, xtLast: xtLast };
