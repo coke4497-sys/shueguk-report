@@ -75,6 +75,11 @@
   .al-skip > b{color:#7A6230 !important;font-size:13px !important;}
   .al-skipq{font-size:13.5px;color:var(--ink);margin-bottom:4px;}
   .al-skipn{font-size:12.5px;color:var(--ink-soft);margin-bottom:6px;line-height:1.6;}
+  .al-kinds{display:flex;gap:8px;flex-wrap:wrap;}
+  .al-kind{flex:1 1 160px;border:none;background:#F2F5F3;color:var(--ink-soft);border-radius:10px;padding:9px 12px;font:inherit;text-align:left;cursor:pointer;}
+  .al-kind span{display:block;font-size:13.5px;font-weight:700;}
+  .al-kind small{display:block;font-size:12px;margin-top:2px;}
+  .al-kind.on{background:#EDE4F4;color:#5A4A6A;}
   .al-skip label{margin-right:14px;font-size:13.5px;white-space:nowrap;cursor:pointer;}
   .al-sum{background:#F4F7F5;border-radius:10px;padding:10px 12px;font-size:13.5px;line-height:1.6;}
   .al-warn{color:#9A5A52;font-size:12.5px;margin-top:6px;line-height:1.6;}
@@ -719,8 +724,18 @@
  * '지필고사 리포트 제작 안내'(notice_report) 알림톡을 보낸다. 받는 분 = 학생·학부모님1·학부모님2(기본 모두, 다른 알림톡 화면과 같음).
  * 대상 판정은 s.html noticeMatches 와 같은 규칙(notice.html 에도 같은 복사본 — 고치면 셋 다), 복기 낸 학생 판정은 s.html submittedSet 과 같은 규칙.
  * 발송은 백엔드 alimSend(50건씩), 중복 키는 공지 화면과 같은 'N:날짜|제목' — 같은 날 같은 제목은 두 번 가지 않는다. 확인 창을 거쳐야 보낸다. */
-var AL = { cfg: null, stus: null, rep: null, plan: null, busy: false };
-var AL_KIND = 'notice_report', AL_BATCH = 50;
+/* 2026-10-02 원장님 "리포트 제작 안내 알림톡과 선생님의 피드백이 완성된 뒤 확인하도록 안내하는 알림톡을 선택해 보낼 수 있도록" →
+ * 창 맨 위 '어떤 알림톡을 보낼까요?' 알약 두 개(AL_KINDS):
+ *   make = 리포트 제작 안내(notice_report) — 아직 복기를 내지 않은 학생(이미 낸 학생은 '빼고 보낼까요?' 질문)
+ *   up   = 피드백 확인 안내(notice_reportup '지필고사 리포트 업데이트 안내') — 복기를 냈고 선생님이 [리포트 보내기]까지 마친(sent_at) 학생만.
+ *          복기는 냈지만 아직 보내지 않은 학생은 빼고 이름을 알린다(학생 페이지에 리포트가 아직 안 보이므로). */
+var AL = { cfg: null, stus: null, rep: null, plan: null, busy: false, mode: 'make', done: null };
+var AL_KINDS = {
+  make: { kind: 'notice_report',   label: '지필고사 리포트 제작 안내',   pill: '리포트 제작 안내', sub: '복기를 아직 내지 않은 친구에게' },
+  up:   { kind: 'notice_reportup', label: '지필고사 리포트 업데이트 안내', pill: '피드백 확인 안내', sub: '선생님 피드백을 보낸 친구에게' }
+};
+var AL_BATCH = 50;
+function alKind(){ return AL_KINDS[AL.mode] || AL_KINDS.make; }
 var AL_PHONE = { '학생': 'phone_student', '학부모1': 'phone_parent1', '학부모2': 'phone_parent2' };
 var AL_LEFT = /^(퇴원|n|no|off|x|중단|비재원)$/i;
 var AL_REST = 'https://bangdbhqpphqqdwcledg.supabase.co/rest/v1';
@@ -779,56 +794,82 @@ function alSbAll(path){
   }
   return step(0);
 }
-function alimClose(){ if (AL.busy) return; document.getElementById('alBg').classList.remove('on'); AL.rep = null; AL.plan = null; }
+function alimClose(){ if (AL.busy) return; document.getElementById('alBg').classList.remove('on'); AL.rep = null; AL.plan = null; AL.done = null; }
+function alimMode(m){ if (AL.busy || !AL_KINDS[m] || AL.mode === m) return; AL.mode = m; if (AL.done) alimDraw(AL.done); }
 function alimOpen(id){
   var rep = (REPORTS || []).filter(function(r){ return String(r.id) === String(id); })[0];
   if (!rep) return;
-  AL.rep = rep; AL.plan = null;
+  AL.rep = rep; AL.plan = null; AL.done = null; AL.mode = 'make';
   document.getElementById('alBg').classList.add('on');
   var box = document.getElementById('alBox');
-  box.innerHTML = '<h3>복기 안내 알림톡</h3><p class="al-sub">' + esc(rep.title || rep.id) + '</p><div class="al-sum">대상 학생과 연락처를 확인하는 중…</div>';
+  box.innerHTML = '<h3>알림톡 보내기</h3><p class="al-sub">' + esc(rep.title || rep.id) + '</p><div class="al-sum">대상 학생과 연락처를 확인하는 중…</div>';
   var title = String(rep.title || rep.id || '');
   var jobs = [
     AL.cfg ? Promise.resolve(AL.cfg) : fetch(ENDPOINT + '?action=alimConfig&pw=' + encodeURIComponent(SERVER_PW) + '&t=' + Date.now()).then(function(r){ return r.json(); }),
     AL.stus ? Promise.resolve(AL.stus) : alSbAll('/students?select=name,school,grade,student_id,code,enrolled,phone_student,phone_parent1,phone_parent2&order=seq,id'),
-    alSbAll('/submissions?select=exam,name,parent_phone&exam=in.(' + [title, String(rep.id)].map(function(x){ return '"' + x.replace(/"/g, '') + '"'; }).join(',') + ')')
+    (function(){
+      var ex = '&exam=in.(' + [title, String(rep.id)].map(function(x){ return '"' + x.replace(/"/g, '') + '"'; }).join(',') + ')';
+      // sent_at(043)이 없는 DB면 옛 열만 다시 읽는다 — 그때는 선생님 한 마디가 있으면 보낸 것으로 본다(s.html examSent 와 같은 규칙)
+      return alSbAll('/submissions?select=exam,name,parent_phone,sent_at,teacher_note' + ex)
+        .catch(function(){ return alSbAll('/submissions?select=exam,name,parent_phone,teacher_note' + ex); });
+    })()
   ];
   Promise.all(jobs).then(function(rs){
     if (AL.rep !== rep) return;
     AL.cfg = (rs[0] && rs[0].result === 'success') ? rs[0] : null;
     AL.stus = rs[1];
-    var done = {};
-    rs[2].forEach(function(r){ var p = alTr(r.parent_phone).replace(/^'/, ''), n = alTr(r.name); if (p) done['p:' + p] = 1; if (n){ done['n:' + n] = 1; done['n:' + n.replace(/[A-Za-z]$/, '')] = 1; } });
+    var done = {};   // 키 → { sent: 선생님이 리포트를 보냈는지 }
+    rs[2].forEach(function(r){
+      var p = alTr(r.parent_phone).replace(/^'/, ''), n = alTr(r.name);
+      var sent = ('sent_at' in r) ? !!r.sent_at : !!alTr(r.teacher_note);
+      [p ? 'p:' + p : '', n ? 'n:' + n : '', n ? 'n:' + n.replace(/[A-Za-z]$/, '') : ''].forEach(function(k){
+        if (!k) return; var o = done[k] || (done[k] = { sent: false }); if (sent) o.sent = true;
+      });
+    });
+    AL.done = done;
     alimDraw(done);
   }).catch(function(e){
     if (AL.rep !== rep) return;
-    box.innerHTML = '<h3>복기 안내 알림톡</h3><p class="al-sub">' + esc(title) + '</p><div class="al-warn">대상 학생을 불러오지 못했습니다 — ' + esc(e.message) + '</div><div class="al-btns"><button type="button" onclick="alimClose()">닫기</button></div>';
+    box.innerHTML = '<h3>알림톡 보내기</h3><p class="al-sub">' + esc(title) + '</p><div class="al-warn">대상 학생을 불러오지 못했습니다 — ' + esc(e.message) + '</div><div class="al-btns"><button type="button" onclick="alimClose()">닫기</button></div>';
   });
 }
 function alimDraw(done){
-  var rep = AL.rep, a = ASSIGN[rep.id] || {}, tpl = AL.cfg && AL.cfg.templates ? AL.cfg.templates[AL_KIND] : null;
+  var rep = AL.rep, a = ASSIGN[rep.id] || {}, K = alKind(), tpl = AL.cfg && AL.cfg.templates ? AL.cfg.templates[K.kind] : null;
   var box = document.getElementById('alBox');
   var title = alNiceTitle(rep.title || rep.id);
-  var list = [], doneN = [];
+  var list = [], doneN = [], waitN = [], notN = 0;
   (AL.stus || []).forEach(function(r){
     if (!alTr(r.name) || AL_LEFT.test(alTr(r.enrolled))) return;
     var stu = { name: alTr(r.name), school: alTr(r.school), grade: alTr(r.grade), sid: alTr(r.student_id).replace(/^'/, ''), code: alTr(r.code), r: r };
     if (!alMatches(a.type, a.target, stu)) return;
     var base = stu.name.replace(/[A-Za-z]$/, '');
-    if ((stu.sid && done['p:' + stu.sid]) || done['n:' + stu.name] || done['n:' + base]) { doneN.push(stu); return; }
+    var sub = (stu.sid && done['p:' + stu.sid]) || done['n:' + stu.name] || done['n:' + base];
+    if (AL.mode === 'up'){
+      if (!sub) { notN++; return; }
+      if (!sub.sent) { waitN.push(stu); return; }
+      list.push(stu); return;
+    }
+    if (sub) { doneN.push(stu); return; }
     list.push(stu);
   });
-  AL.list = list; AL.doneN = doneN;
+  AL.list = list; AL.doneN = doneN; AL.waitN = waitN; AL.notN = notN;
   var ready = !!(tpl && tpl.ready && AL.cfg && AL.cfg.ready);
-  box.innerHTML = '<h3>복기 안내 알림톡</h3><p class="al-sub">' + esc(rep.title || rep.id) + ' · 배정: ' + esc(assignSummary(a).tag) + '</p>' +
-    (ready ? '' : '<div class="al-warn" style="margin-bottom:10px">‘지필고사 리포트 제작 안내’ 알림톡 템플릿이 아직 준비되지 않았습니다(솔라피 승인 전이거나 설정 전). 슈국 운영 → 알림톡 설정에서 확인해 주세요.</div>') +
-    '<div class="al-row"><b>알림톡에 들어갈 제목</b><input type="text" id="alTitle" maxlength="60" value="' + esc(title) + '" oninput="alimRefresh()"></div>' +
+  var keepTitle = (document.getElementById('alTitle') || {}).value;
+  box.innerHTML = '<h3>알림톡 보내기</h3><p class="al-sub">' + esc(rep.title || rep.id) + ' · 배정: ' + esc(assignSummary(a).tag) + '</p>' +
+    '<div class="al-row"><b>어떤 알림톡을 보낼까요?</b><div class="al-kinds">' + Object.keys(AL_KINDS).map(function(m){
+      var k = AL_KINDS[m]; return '<button type="button" class="al-kind' + (AL.mode === m ? ' on' : '') + '" data-mode="' + m + '" onclick="alimMode(\'' + m + '\')"><span>' + esc(k.pill) + '</span><small>' + esc(k.sub) + '</small></button>';
+    }).join('') + '</div></div>' +
+    (ready ? '' : '<div class="al-warn" style="margin-bottom:10px">‘' + esc(K.label) + '’ 알림톡 템플릿이 아직 준비되지 않았습니다(솔라피 승인 전이거나 설정 전). 슈국 운영 → 알림톡 설정에서 확인해 주세요.</div>') +
+    '<div class="al-row"><b>알림톡에 들어갈 제목</b><input type="text" id="alTitle" maxlength="60" value="' + esc(keepTitle || title) + '" oninput="alimRefresh()"></div>' +
     '<div class="al-row al-whos"><b>받는 분</b>' + ['학생', '학부모1', '학부모2'].map(function(w){ return '<label><input type="checkbox" class="alW" value="' + w + '" checked onchange="alimRefresh()"> ' + esc(alWho(w)) + '</label>'; }).join('') + '</div>' +
     (doneN.length ? '<div class="al-row al-skip"><b>이미 제출한 친구가 있어요</b>' +
       '<div class="al-skipq">' + doneN.length + '명이 이미 복기를 제출했어요. 빼고 보낼까요?</div>' +
       '<div class="al-skipn">' + doneN.map(function(x){ return esc(x.name); }).join(', ') + '</div>' +
       '<label><input type="radio" name="alSkip" value="1" checked onchange="alimRefresh()"> 네, 빼고 보낼게요</label>' +
       '<label><input type="radio" name="alSkip" value="0" onchange="alimRefresh()"> 아니요, 함께 보낼게요</label></div>' : '') +
+    (waitN.length ? '<div class="al-row al-skip"><b>아직 피드백을 보내지 않은 친구가 있어요</b>' +
+      '<div class="al-skipq">' + waitN.length + '명은 복기를 냈지만 선생님이 아직 [리포트 보내기]를 누르지 않았습니다. 이번에는 빼고 보내요.</div>' +
+      '<div class="al-skipn">' + waitN.map(function(x){ return esc(x.name); }).join(', ') + '</div></div>' : '') +
     '<div class="al-row"><div class="al-sum" id="alSum"></div></div>' +
     '<div class="al-row"><b>미리보기</b><div class="al-prev" id="alPrev"></div></div>' +
     '<div class="al-btns"><button type="button" onclick="alimClose()">닫기</button><button type="button" class="go" id="alGo" onclick="alimSend()" disabled>알림톡 보내기</button></div>' +
@@ -848,10 +889,11 @@ function alimRefresh(){
     else if (!stu.code) nocode.push(stu.name);
     else { people++; tos.forEach(function(t){ items.push({ student: stu.name, to: t.to, who: t.who, code: stu.code }); }); }
   });
-  var h = (skip ? '배정된 학생 중 아직 복기를 내지 않은 <b>' : '배정된 학생 <b>') + people + '명</b>' + (whos.length ? '의 ' + esc(alWho(whos.join('·'))) + '에게 <b>' + items.length + '건</b> 보냅니다.' : '') +
+  var h = (AL.mode === 'up' ? '선생님 피드백을 보낸 학생 <b>' : skip ? '배정된 학생 중 아직 복기를 내지 않은 <b>' : '배정된 학생 <b>') + people + '명</b>' + (whos.length ? '의 ' + esc(alWho(whos.join('·'))) + '에게 <b>' + items.length + '건</b> 보냅니다.' : '') +
     (items.length > AL_BATCH ? ' <span style="color:#8B928C">(' + AL_BATCH + '건씩 나눠 보내요)</span>' : '');
   var w = [];
   if (AL.doneN.length && skip) w.push('이미 제출한 ' + AL.doneN.length + '명은 빼고 보냅니다');
+  if (AL.mode === 'up' && AL.notN) w.push('아직 복기를 내지 않은 ' + AL.notN + '명은 받지 않습니다');
   if (nophone.length) w.push('고른 분의 연락처가 없는 학생 ' + nophone.length + '명: ' + nophone.map(esc).join(', '));
   if (nocode.length) w.push('학생 페이지 링크(접근코드)가 없는 학생 ' + nocode.length + '명: ' + nocode.map(esc).join(', '));
   if (w.length) h += '<div class="al-warn">' + w.join('<br>') + '</div>';
@@ -866,7 +908,8 @@ function alimRefresh(){
 }
 function alimSend(){
   var p = AL.plan; if (!p || AL.busy) return;
-  if (!confirm('‘지필고사 리포트 제작 안내’ 알림톡을 학생 ' + p.people + '명에게 ' + p.items.length + '건 보낼까요?\n\n▶ ' + p.title)) return;
+  var K = alKind();
+  if (!confirm('‘' + K.label + '’ 알림톡을 학생 ' + p.people + '명에게 ' + p.items.length + '건 보낼까요?\n\n▶ ' + p.title)) return;
   AL.busy = true;
   var go = document.getElementById('alGo'); go.disabled = true; go.textContent = '보내는 중…';
   var ref = 'N:' + alYmd() + '|' + p.title;
@@ -876,7 +919,7 @@ function alimSend(){
     return prev.then(function(){
       if (err) return;
       return fetch(ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({ action: 'alimSend', pw: SERVER_PW, kind: AL_KIND,
+        body: JSON.stringify({ action: 'alimSend', pw: SERVER_PW, kind: K.kind,
           items: ch.map(function(it){ return { student: it.student, to: it.to, who: it.who, cls: '공지', date: ref, vars: { '학생명': it.student, '제목': p.title, '접근코드': it.code } }; }) }) })
         .then(function(r){ return r.json(); })
         .then(function(res){
