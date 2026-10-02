@@ -3000,7 +3000,7 @@ function reviewHtml(paras){
     var lines = String(p == null ? '' : p).split('\n');
     var h = '';
     if (lines.length && /^##\s+/.test(lines[0])) h = lines.shift().replace(/^##\s+/, '').trim();
-    else if (lines.length === 1 && /^\d{1,2}\.\s*\S/.test(lines[0].trim()) && lines[0].trim().length <= 40)
+    else if (lines.length === 1 && /^\d{1,2}\.\s*\S/.test(lines[0].trim()) && lines[0].trim().length <= 60)
       h = lines.shift().trim();
     var out = h ? '<div class="rv-h">' + esc(h) + '</div>' : '', buf = [];
     function flush(){ if (buf.length){ out += '<p>' + esc(buf.join(' ')) + '</p>'; buf = []; } }
