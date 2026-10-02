@@ -58,7 +58,7 @@ const ROWS0 = [
       const json = (s, o) => r.fulfill({ status: s, contentType: 'application/json', body: JSON.stringify(o) });
       if (/\/auth\/v1\//.test(u)) return json(200, { access_token: 't', expires_in: 3600 });
       if (/\/storage\/v1\//.test(u)){
-        st.store.push({ m, u, auth: req.headers()['authorization'] || '', type: req.headers()['content-type'] || '' });
+        st.store.push({ m, u, auth: req.headers()['authorization'] || '', type: req.headers()['content-type'] || '', body: req.postData() || '' });
         if (m === 'GET') return r.fulfill({ status: 200, contentType: 'application/pdf', body: '%PDF-1.4 fake' });
         return json(200, { Key: 'x' });
       }
@@ -68,7 +68,7 @@ const ROWS0 = [
         if (m === 'POST'){ const row = Object.assign({ id: 12, files: [], note: '', report_id: '', created_at: new Date().toISOString() }, body); st.rows.unshift(row); return json(201, [row]); }
         const id = +((u.match(/id=eq\.(\d+)/) || [])[1] || 0);
         if (m === 'PATCH'){ const row = st.rows.find(x => x.id === id); if (row) Object.assign(row, body); return r.fulfill({ status: 204, body: '' }); }
-        if (m === 'DELETE') return r.fulfill({ status: 204, body: '' });
+        if (m === 'DELETE'){ const i = st.rows.findIndex(x => x.id === id); if (i >= 0) st.rows.splice(i, 1); return r.fulfill({ status: 204, body: '' }); }
         if (id){ const row = st.rows.find(x => x.id === id); return json(200, row ? [Object.assign({ period: '26-2-중간', school: '화정고', grade: '1', subject: '공통국어2', scope: '', draft: (id === 7 || id === 5) ? DRAFT : null }, row)] : []); }
         return json(200, st.rows);
       }
@@ -101,7 +101,7 @@ const ROWS0 = [
     });
     const page = await ctx.newPage();
     page.on('pageerror', e => { perr++; console.log('  ✗ pageerror', e.message); });
-    page.on('dialog', d => d.accept());
+    page.on('dialog', d => { (st.dlg = st.dlg || []).push(d.message()); d.accept(); });
     await page.goto('http://localhost:' + port + '/m.html' + (q || ''));
     await page.waitForTimeout(700);
     return { page, st, ctx };
@@ -202,6 +202,23 @@ const ROWS0 = [
   ok('④ 원본 내려받기(교사 신분)', st.store.some(x => x.m === 'GET' && /exam-drafts\/d7\/aa\.pdf/.test(x.u) && x.auth === 'Bearer t'));
   if (pop) await pop.close();
   await page.click('.dr-x');
+
+  // ⑥ 초안 지우기 — 파일 있는 줄은 저장소 파일부터, 파일 없는 줄은 바로 줄만
+  ok('⑥ 모든 줄에 지우기 버튼', (await page.$$('#drList .dr-del')).length === (await page.$$('#drList .dr-row')).length);
+  st.store.length = 0; st.rest.length = 0; st.dlg = [];
+  await page.click('.dr-row[data-id="6"] button:has-text("지우기")');
+  await page.waitForTimeout(400);
+  ok('⑥ 확인 창(파일 함께 삭제 안내)', st.dlg.length === 1 && /파일도 함께/.test(st.dlg[0]) && /만드는 중/.test(st.dlg[0]), JSON.stringify(st.dlg));
+  const sdel = st.store.find(x => x.m === 'DELETE' && /object\/exam-drafts$/.test(x.u.replace(/\?.*$/, '')));
+  ok('⑥ 저장소 파일 삭제(prefixes)', !!sdel && /"prefixes"/.test(sdel.body) && /d6\/x\.jpg/.test(sdel.body), JSON.stringify(st.store));
+  ok('⑥ exam_drafts 줄 삭제', st.rest.some(x => x.m === 'DELETE' && /id=eq\.6/.test(x.u)));
+  ok('⑥ 목록에서 사라짐 + 안내', !(await page.$('.dr-row[data-id="6"]')) && /지웠습니다/.test(await page.textContent('#drListNote')));
+  st.store.length = 0; st.rest.length = 0; st.dlg = [];
+  await page.click('.dr-row[data-id="4"] button:has-text("지우기")');
+  await page.waitForTimeout(400);
+  ok('⑥ 등록된 리포트는 남는다 안내', st.dlg.length === 1 && /리포트는 그대로/.test(st.dlg[0]), JSON.stringify(st.dlg));
+  ok('⑥ 파일 없는 줄은 저장소 호출 없음', !st.store.some(x => x.m === 'DELETE') && st.rest.some(x => x.m === 'DELETE' && /id=eq\.4/.test(x.u)));
+  ok('⑥ 지운 뒤 목록 3건', (await page.$$('#drList .dr-row')).length === 3);
 
   // ③ 리포트 만들기
   await page.click('.dr-row[data-id="7"] button:has-text("리포트 만들기")');

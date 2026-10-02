@@ -1822,6 +1822,7 @@ function drRender(){
                                      '<button class="btn ghost" onclick="drShowText(' + r.id + ')">옮긴 글 보기</button>');
     b.push('<button class="btn ghost" onclick="drShowFiles(' + r.id + ')">원본 보기</button>');
     if (r.status === '요청') b.push('<button class="btn ghost" onclick="drRenotify(' + r.id + ')">다시 알리기</button>');
+    b.push('<button class="btn ghost dr-del" onclick="drDelete(' + r.id + ')">지우기</button>');
     return '<div class="dr-row" data-id="' + r.id + '"><div class="dr-top"><span class="dr-ttl">' + esc(r.title || '(제목 없음)') + '</span>' + st + '</div>' +
       '<div class="dr-meta">' + drWhen(r.created_at) + ' 요청 · 시험지 ' + nE + '개' + (nK ? ' · 정답지 ' + nK + '개' : '') +
         (r.report_id ? ' · 등록한 리포트: ' + esc(r.report_id) : '') + '</div>' +
@@ -1830,6 +1831,25 @@ function drRender(){
   }).join('');
 }
 function drRow(id){ for (var i = 0; i < DR.rows.length; i++) if (DR.rows[i].id === id) return DR.rows[i]; return null; }
+/* 초안 지우기 — 줄과 올린 파일을 함께 지운다 (2026-10-02 원장님 "삭제 기능이 필요해요").
+ * 이미 등록한 리포트(exams)는 건드리지 않는다. 저장소 삭제가 실패해도 줄은 지운다(파일은 비공개 버킷이라 무해). */
+function drDelete(id){
+  var r = drRow(id); if (!r) return;
+  var msg = '이 초안 요청을 지울까요?\n올린 시험지·정답지 파일도 함께 지워져요.';
+  if (r.report_id) msg += '\n(이미 등록한 리포트는 그대로 남습니다.)';
+  else if (r.status === '요청') msg += '\n(클로슈가 만드는 중이던 초안은 오지 않게 돼요.)';
+  if (!confirm(msg)) return;
+  drListNote('지우는 중…');
+  var paths = (r.files || []).map(function(f){ return f && f.path; }).filter(Boolean);
+  var wipe = paths.length
+    ? fetch(DR_STORE + '/object/exam-drafts', { method: 'DELETE',
+        headers: { 'apikey': DR_KEY, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prefixes: paths }) }).catch(function(){ return null; })
+    : Promise.resolve();
+  wipe.then(function(){ return drSb('DELETE', '/exam_drafts?id=eq.' + id, null, 'return=minimal'); })
+    .then(function(){ drListNote('지웠습니다.', 'ok'); drLoad(); },
+          function(e){ console.error(e); drListNote('지우지 못했습니다. 잠시 뒤 다시 눌러 주세요.', 'err'); });
+}
 function drRenotify(id){
   var r = drRow(id); if (!r) return;
   drListNote('클로슈에게 다시 알리는 중…');
