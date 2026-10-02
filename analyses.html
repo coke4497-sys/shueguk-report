@@ -41,6 +41,11 @@
   .tsel-wrap{display:flex;align-items:center;gap:6px;font-size:13px;color:#4C6E66;font-weight:700;}
   .tsel-wrap[hidden]{display:none;}
   .tsel-wrap select{font:inherit;font-size:13px;font-weight:400;color:#2A332F;border:1.5px solid var(--line);border-radius:9px;padding:7px 10px;background:#fff;max-width:200px;}
+  .vbar{gap:6px;}
+  .vpill{border:none;background:#F2F5F3;color:#4F5C56;font:inherit;font-size:13px;padding:8px 14px;border-radius:999px;cursor:pointer;}
+  .vpill.on{background:#EDE4F4;color:#5A4A6A;font-weight:700;}
+  .t-sec{font-family:'Gowun Batang',serif;font-size:14.5px;color:#5A4A6A;margin:18px 2px 8px;padding-bottom:5px;border-bottom:1.5px solid #E6DDF0;}
+  .t-sec span{font-weight:400;color:#8B928C;font-size:12.5px;}
   .t-note{font-size:12.5px;color:#5C6A64;margin:0 2px 6px;}
   .refresh{border:1.5px solid var(--line);background:#fff;color:var(--accent);font:inherit;font-size:13px;font-weight:700;padding:8px 14px;border-radius:9px;cursor:pointer;}
   .refresh:hover{border-color:var(--accent);}
@@ -146,7 +151,8 @@
   <section class="card">
     <h2><span class="dot"></span>리포트 목록</h2>
     <p class="sub">각 리포트의 현재 배정 상태가 함께 표시됩니다. 수정·배정하려면 <b>리포트 수정</b>을 누르세요.</p>
-    <div class="mgr-bar"><label class="tsel-wrap" id="tselWrap" hidden><span>담당 선생님</span><select id="tsel" onchange="tselChange()"><option value="">모든 선생님</option></select></label><button type="button" class="refresh" id="pastBtn" onclick="togglePast()" hidden></button><button type="button" class="refresh reload" onclick="loadAll()">새로고침</button></div>
+    <div class="mgr-bar"><label class="tsel-wrap" id="pselWrap"><span>시험 기간</span><select id="psel" onchange="pselChange()"><option value="">불러오는 중…</option></select></label><button type="button" class="refresh reload" onclick="loadAll()">새로고침</button></div>
+    <div class="mgr-bar vbar"><button type="button" class="vpill" id="vAll" onclick="setView('all')">전체 보기</button><button type="button" class="vpill" id="vT" onclick="setView('t')">선생님별 보기</button><label class="tsel-wrap" id="tselWrap" hidden><select id="tsel" onchange="tselChange()" aria-label="담당 선생님"><option value="">모든 선생님</option></select></label></div>
     <div id="list"><div class="mgr-empty">불러오는 중…</div></div>
   </section>
 </main>
@@ -596,37 +602,54 @@
   /* 기본은 가장 최근 시험 기간 하나만 보여 준다(2026-09-23 원장님 요청 "26-2-중간 리스트만").
    * [지난 목록 보기]로 그 앞 기간과 '기간 없음'(접두어 없는 옛 시험)을 펼친다.
    * 기간이 하나뿐이면 버튼을 감춘다. 펼침 상태는 그 탭에서만 기억(sessionStorage). */
-  var GROUPS={}, ORDER=[], SHOW_PAST=false;
-  try { SHOW_PAST = sessionStorage.getItem('an_past')==='1'; } catch(e){}
-  function togglePast(){
-    SHOW_PAST=!SHOW_PAST;
-    try { sessionStorage.setItem('an_past', SHOW_PAST?'1':'0'); } catch(e){}
-    renderList();
+  /* 2026-10-02 원장님 "우선 26-2-중간을 선택하면 그 페이지가 열리고 전체 보기, 선생님 별 보기":
+   * ① 시험 기간 드롭다운(#psel, 기본 = 가장 최근 기간, sessionStorage an_period) — 옛 [지난 목록 보기]를 대신한다.
+   * ② [전체 보기] / [선생님별 보기](VIEW, localStorage an_view). 선생님별 보기는 담당 선생님 드롭다운(#tsel)이 열리고,
+   *    '모든 선생님'이면 선생님마다 묶어서(한 리포트가 여러 선생님 아래 나올 수 있음 + 맨 아래 '담당 선생님 정보 없음'),
+   *    선생님을 고르면 그 선생님 리포트만. 담당 선생님 판정은 아래 TF(tfCompute). */
+  var GROUPS={}, ORDER=[], PERIOD='', VIEW='';
+  try { PERIOD = sessionStorage.getItem('an_period') || ''; VIEW = localStorage.getItem('an_view') || ''; } catch(e){}
+  function pselChange(){ PERIOD=document.getElementById('psel').value; try { sessionStorage.setItem('an_period', PERIOD); } catch(e){} renderList(); }
+  function setView(v){ VIEW=v; try { localStorage.setItem('an_view', v); } catch(e){} renderList(); }
+  function curPeriod(){
+    if(PERIOD && GROUPS[PERIOD]) return PERIOD;
+    for(var i=0;i<ORDER.length;i++){ if(ORDER[i]!=='기간 없음') return ORDER[i]; }
+    return ORDER[0]||'';
   }
   function renderList(){
-    var box=document.getElementById('list'), btn=document.getElementById('pastBtn');
+    var box=document.getElementById('list'), ps=document.getElementById('psel');
     if(!ORDER.length){
-      box.innerHTML='<div class="mgr-empty">등록된 리포트가 없어요.<br>먼저 \u2018지필고사 리포트 제작\u2019에서 만들어 주세요.</div>';
-      if(btn) btn.hidden=true; return;
+      box.innerHTML='<div class="mgr-empty">등록된 리포트가 없어요.<br>먼저 ‘지필고사 리포트 제작’에서 만들어 주세요.</div>';
+      if(ps) ps.innerHTML='<option value="">리포트 없음</option>'; return;
     }
-    var cur=null;
-    for(var i=0;i<ORDER.length;i++){ if(ORDER[i]!=='기간 없음'){ cur=ORDER[i]; break; } }
-    if(cur===null) cur=ORDER[0];
-    var shown = SHOW_PAST ? ORDER : [cur];
-    var tf = (typeof tfKeep === 'function') ? tfKeep : function(){ return true; };
-    var note = (typeof tfNote === 'function') ? tfNote() : '';
-    var html = shown.map(function(p){
-      var reps = GROUPS[p].filter(tf); if(!reps.length) return '';
-      return '<h3 style="font-family:\'Gowun Batang\',serif;font-size:14.5px;color:#4C6E66;margin:16px 2px 8px;padding-bottom:5px;border-bottom:1.5px solid #D7E3DD;">'+esc(p)+' <span style="font-weight:400;color:#8B928C;font-size:12.5px;">'+reps.length+'개</span></h3>'+
-             reps.map(renderItem).join('');
+    var cur=curPeriod();
+    if(ps) ps.innerHTML=ORDER.map(function(p){ return '<option value="'+esc(p)+'"'+(p===cur?' selected':'')+'>'+esc(p)+' ('+GROUPS[p].length+'개)</option>'; }).join('');
+    var v = VIEW==='t' ? 't' : 'all';
+    document.getElementById('vAll').classList.toggle('on', v==='all');
+    document.getElementById('vT').classList.toggle('on', v==='t');
+    var tw=document.getElementById('tselWrap'); if(tw) tw.hidden = !(v==='t' && typeof TF!=='undefined' && TF.ready && TF.list.length);
+    var reps=GROUPS[cur]||[];
+    if(v==='all'){
+      box.innerHTML='<h3 class="t-sec">'+esc(cur)+' <span>전체 '+reps.length+'개</span></h3>'+reps.map(renderItem).join('');
+      return;
+    }
+    if(typeof TF==='undefined' || !TF.ready){ box.innerHTML='<div class="mgr-empty">담당 선생님 정보를 불러오는 중…</div>'; return; }
+    if(TF.failed){ box.innerHTML='<div class="mgr-empty">담당 선생님 정보를 불러오지 못했어요. [전체 보기]로 확인해 주세요.</div>'; return; }
+    var tsOf=function(rep){ return Object.keys(TF.by[rep.id]||{}); };
+    if(TF.sel){
+      var mine=reps.filter(function(rep){ return tsOf(rep).indexOf(TF.sel)>=0; });
+      box.innerHTML='<p class="t-note"><b>'+esc(TF.sel)+' 선생님</b>의 내신 진도 수업 학생이 있는 리포트입니다.</p>'+
+        (mine.length ? '<h3 class="t-sec">'+esc(TF.sel)+' 선생님 <span>'+mine.length+'개</span></h3>'+mine.map(renderItem).join('')
+                     : '<div class="mgr-empty">'+esc(cur)+'에 '+esc(TF.sel)+' 선생님이 담당하는 리포트가 없어요.</div>');
+      return;
+    }
+    var html=TF.list.map(function(x){
+      var mine=reps.filter(function(rep){ return tsOf(rep).indexOf(x.t)>=0; });
+      return mine.length ? '<h3 class="t-sec">'+esc(x.t)+' 선생님 <span>'+mine.length+'개</span></h3>'+mine.map(renderItem).join('') : '';
     }).join('');
-    box.innerHTML = (note ? '<p class="t-note">'+note+'</p>' : '') + (html || '<div class="mgr-empty">이 선생님이 담당하는 리포트가 이 기간에 없어요.'+(SHOW_PAST?'':'<br>[지난 목록 보기]로 앞 기간도 확인해 보세요.')+'</div>');
-    if(btn){
-      var hidG=0, hidN=0;
-      ORDER.forEach(function(p){ if(shown.indexOf(p)<0){ var k=GROUPS[p].filter(tf).length; if(k){ hidG++; hidN+=k; } } });
-      if(!SHOW_PAST && !hidG){ btn.hidden=true; }
-      else { btn.hidden=false; btn.textContent = SHOW_PAST ? '지난 목록 숨기기' : '지난 목록 보기 ('+hidN+'개)'; }
-    }
+    var none=reps.filter(function(rep){ return !tsOf(rep).length; });
+    if(none.length) html+='<h3 class="t-sec">담당 선생님 정보 없음 <span>'+none.length+'개</span></h3>'+none.map(renderItem).join('');
+    box.innerHTML='<p class="t-note">리포트 학생들의 내신 진도 수업 담당 선생님별로 묶었습니다. 학생이 여러 선생님 반에 있으면 그 선생님들 아래에 모두 보여요.</p>'+(html||'<div class="mgr-empty">리포트가 없어요.</div>');
   }
 
   /* ===== 목록 로드: 리포트 목록 + 현재 배정 ===== */
@@ -914,14 +937,11 @@ function tfCompute(){
   TF.list = Object.keys(cnt).sort(function(x, y){ return x.localeCompare(y, 'ko'); }).map(function(t){ return { t: t, n: cnt[t] }; });
 }
 function tfMatchName(a, b){ a = alTr(a); b = alTr(b); if (!a || !b) return false; return a === b || (a.length >= 2 && b.slice(-a.length) === a) || (b.length >= 2 && a.slice(-b.length) === b); }
-function tfKeep(rep){ if (!TF.ready || !TF.sel) return true; var ts = TF.by[rep.id] || {}; return Object.keys(ts).some(function(t){ return t === TF.sel; }); }
-function tfNote(){ if (!TF.ready || !TF.sel) return ''; return '<b>' + esc(TF.sel) + ' 선생님</b>의 내신 진도 수업 학생이 있는 리포트만 보여 드립니다.'; }
 function tfDraw(){
   var wrap = document.getElementById('tselWrap'), sel = document.getElementById('tsel');
   if (!wrap || !sel) return;
   if (TF.sel && !TF.list.some(function(x){ return x.t === TF.sel; })) TF.sel = '';
   sel.innerHTML = '<option value="">모든 선생님</option>' + TF.list.map(function(x){ return '<option value="' + esc(x.t) + '"' + (x.t === TF.sel ? ' selected' : '') + '>' + esc(x.t) + ' 선생님</option>'; }).join('');
-  wrap.hidden = !TF.list.length;
 }
 function tfChoose(t){ TF.sel = t || ''; try { localStorage.setItem('an_teacher', TF.sel); } catch(e){} tfDraw(); renderList(); }
 function tselChange(){ tfChoose(document.getElementById('tsel').value); TF.saved = true; }
@@ -933,10 +953,10 @@ function tfLoad(){
     TF.saved ? Promise.resolve('') : alLoginTeacher()
   ]).then(function(rs){
     AL.stus = rs[0]; if (rs[1]) AL.nsT = alBuildNsT(rs[1]);
-    tfCompute(); TF.ready = true;
-    if (!TF.saved && rs[2]){ var hit = TF.list.filter(function(x){ return tfMatchName(rs[2], x.t); })[0]; if (hit) TF.sel = hit.t; }
+    tfCompute(); TF.ready = true; TF.failed = false;
+    if (!TF.saved && rs[2]){ var hit = TF.list.filter(function(x){ return tfMatchName(rs[2], x.t); })[0]; if (hit){ TF.sel = hit.t; if (!VIEW) VIEW = 't'; } }
     tfDraw(); renderList();
-  }).catch(function(){ /* 못 읽으면 드롭다운 없이 전체 목록 그대로 */ }).then(function(){ TF.loading = false; });
+  }).catch(function(){ TF.ready = true; TF.failed = true; renderList(); }).then(function(){ TF.loading = false; });
 }
 function alimClose(){ if (AL.busy) return; document.getElementById('alBg').classList.remove('on'); AL.rep = null; AL.plan = null; AL.done = null; }
 function alimMode(m){ if (AL.busy || !AL_KINDS[m] || AL.mode === m) return; AL.mode = m; if (AL.done) alimDraw(AL.done); }
