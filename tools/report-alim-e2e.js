@@ -108,6 +108,14 @@ const STUS = [
   ok('"아니요, 함께 보낼게요" — 피드백 전 친구도 포함(2명 · 3건)', /복기를 낸 학생 2명/.test(q.sum) && /3건/.test(q.sum) && !/완성되지 않은 1명은 빼고/.test(q.sum) && q.go === '알림톡 보내기 (3건)', JSON.stringify(q));
   await pg.check('input[name="alWait"][value="1"]');
   ok('미리보기 = 업데이트 안내 문구', /이미낸 학생에게 지필고사 리포트 업데이트 안내/.test(r.prev) && /새로 올라온 리포트/.test(r.prev), r.prev);
+  ok('피드백 확인 안내 제목 = "… 리포트에 담당 선생님 피드백이 등록되었습니다"', (await pg.inputValue('#alTitle')) === '2학기 중간고사 화정고1 공통국어2 리포트에 담당 선생님 피드백이 등록되었습니다' &&
+     /▶ 2학기 중간고사 화정고1 공통국어2 리포트에 담당 선생님 피드백이 등록되었습니다/.test(r.prev), r.prev);
+  await pg.click('.al-kind[data-mode="make"]');
+  ok('제작 안내로 돌아가면 기본 제목도 돌아온다', (await pg.inputValue('#alTitle')) === '2학기 중간고사 화정고1 공통국어2');
+  await pg.fill('#alTitle', '직접 고친 제목');
+  await pg.click('.al-kind[data-mode="up"]');
+  ok('직접 고친 제목은 종류를 바꿔도 그대로', (await pg.inputValue('#alTitle')) === '직접 고친 제목');
+  await pg.fill('#alTitle', '2학기 중간고사 화정고1 공통국어2 리포트에 담당 선생님 피드백이 등록되었습니다');
   dialogs.length = 0;
   await pg.click('#alGo');
   await pg.waitForFunction(() => /보냈습니다/.test(document.getElementById('alRes').textContent), null, { timeout: 8000 });

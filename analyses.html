@@ -798,6 +798,7 @@ function alSbAll(path){
 function alimClose(){ if (AL.busy) return; document.getElementById('alBg').classList.remove('on'); AL.rep = null; AL.plan = null; AL.done = null; }
 function alimMode(m){ if (AL.busy || !AL_KINDS[m] || AL.mode === m) return; AL.mode = m; if (AL.done) alimDraw(AL.done); }
 function alimOpen(id){
+  AL.autoTitle = null;
   var rep = (REPORTS || []).filter(function(r){ return String(r.id) === String(id); })[0];
   if (!rep) return;
   AL.rep = rep; AL.plan = null; AL.done = null; AL.mode = 'make';
@@ -838,6 +839,8 @@ function alimDraw(done){
   var rep = AL.rep, a = ASSIGN[rep.id] || {}, K = alKind(), tpl = AL.cfg && AL.cfg.templates ? AL.cfg.templates[K.kind] : null;
   var box = document.getElementById('alBox');
   var title = alNiceTitle(rep.title || rep.id);
+  // 피드백 확인 안내는 제목에 '담당 선생님 피드백'을 알린다(2026-10-02 원장님 — 템플릿 문구는 심사본이라 #{제목} 변수로)
+  if (AL.mode === 'up') title += ' 리포트에 담당 선생님 피드백이 등록되었습니다';
   var list = [], doneN = [], waitN = [], notN = 0;
   (AL.stus || []).forEach(function(r){
     if (!alTr(r.name) || AL_LEFT.test(alTr(r.enrolled))) return;
@@ -856,12 +859,14 @@ function alimDraw(done){
   AL.list = list; AL.doneN = doneN; AL.waitN = waitN; AL.notN = notN;
   var ready = !!(tpl && tpl.ready && AL.cfg && AL.cfg.ready);
   var keepTitle = (document.getElementById('alTitle') || {}).value;
+  if (keepTitle === AL.autoTitle) keepTitle = '';   // 고치지 않은 기본 제목이면 종류에 맞는 기본 제목으로 바꾼다
+  AL.autoTitle = title;
   box.innerHTML = '<h3>알림톡 보내기</h3><p class="al-sub">' + esc(rep.title || rep.id) + ' · 배정: ' + esc(assignSummary(a).tag) + '</p>' +
     '<div class="al-row"><b>어떤 알림톡을 보낼까요?</b><div class="al-kinds">' + Object.keys(AL_KINDS).map(function(m){
       var k = AL_KINDS[m]; return '<button type="button" class="al-kind' + (AL.mode === m ? ' on' : '') + '" data-mode="' + m + '" onclick="alimMode(\'' + m + '\')"><span>' + esc(k.pill) + '</span><small>' + esc(k.sub) + '</small></button>';
     }).join('') + '</div></div>' +
     (ready ? '' : '<div class="al-warn" style="margin-bottom:10px">‘' + esc(K.label) + '’ 알림톡 템플릿이 아직 준비되지 않았습니다(솔라피 승인 전이거나 설정 전). 슈국 운영 → 알림톡 설정에서 확인해 주세요.</div>') +
-    '<div class="al-row"><b>알림톡에 들어갈 제목</b><input type="text" id="alTitle" maxlength="60" value="' + esc(keepTitle || title) + '" oninput="alimRefresh()"></div>' +
+    '<div class="al-row"><b>알림톡에 들어갈 제목</b><input type="text" id="alTitle" maxlength="80" value="' + esc(keepTitle || title) + '" oninput="alimRefresh()"></div>' +
     '<div class="al-row al-whos"><b>받는 분</b>' + ['학생', '학부모1', '학부모2'].map(function(w){ return '<label><input type="checkbox" class="alW" value="' + w + '" checked onchange="alimRefresh()"> ' + esc(alWho(w)) + '</label>'; }).join('') + '</div>' +
     (doneN.length ? '<div class="al-row al-skip"><b>이미 제출한 친구가 있어요</b>' +
       '<div class="al-skipq">' + doneN.length + '명이 이미 복기를 제출했어요. 빼고 보낼까요?</div>' +
