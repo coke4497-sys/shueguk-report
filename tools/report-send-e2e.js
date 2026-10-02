@@ -84,19 +84,29 @@ function serve(){
     STATE.info = { name: '박보검' };
     const base = { title: '26-2-중간-화정고2-문학', school: '화정고', grade: '2학년', submittedAt: '2026-09-23 10:00', wrongCount: 1, wrongText: '', vow: '다짐', review: ['총평'], questions: [] };
     const card = x => { const d = document.createElement('div'); d.innerHTML = examCardHtml(Object.assign({}, base, x)); return d.textContent; };
-    STATE.exams = [Object.assign({}, base, { sent: false, teacherNote: '' }), Object.assign({}, base, { title: '독서', sent: true, teacherNote: '잘했어요' })];
-    drawGrades();
+    STATE.exams = [Object.assign({}, base, { title: '25-1-기말-화정고1-국어', submittedAt: '2026-07-01 13:24', sent: true, teacherNote: '잘했어요', score: '96' }),
+                   Object.assign({}, base, { title: '26-2-중간-화정고2-문학', submittedAt: '2026-10-03 00:37', sent: false, teacherNote: '' })];
+    document.getElementById('hubView').style.display = 'block';
+    renderGrades();
     return {
       unsent: card({ sent: false, teacherNote: '' }),
       sent: card({ sent: true, teacherNote: '잘했어요' }),
       legacyNo: card({ teacherNote: '' }), legacyYes: card({ teacherNote: '좋아요' }),
-      tabs: [...document.querySelectorAll('.exam-tab')].map(b => b.textContent)
+      items: [...document.querySelectorAll('.exam-item')].map(b => b.textContent),
+      listShown: document.getElementById('examTabs').style.display, detail: document.getElementById('examList').textContent
     };
   });
   ok('보내기 전 — "선생님이 리포트를 준비하고 있습니다" 카드만, 총평·다짐 없음', /선생님이 리포트를 준비하고 있습니다/.test(r.unsent) && /2026-09-23 10:00/.test(r.unsent) && !/총평/.test(r.unsent) && !/다짐/.test(r.unsent), r.unsent);
   ok('보낸 뒤 — 리포트 전체 + 선생님의 한 마디', /시험 총평/.test(r.sent) && /선생님의 한 마디잘했어요/.test(r.sent), r.sent.slice(0, 200));
   ok('보냄 여부를 모르면(043 전·옛 경로) 한 마디가 있을 때만 리포트', /준비하고 있습니다/.test(r.legacyNo) && /시험 총평/.test(r.legacyYes));
-  ok('시험 탭 — 준비 중 표시', r.tabs.length === 2 && /· 준비 중$/.test(r.tabs[0]) && !/준비 중/.test(r.tabs[1]), JSON.stringify(r.tabs));
+  ok('시험 목록 — 세로 목록, 최근 제출이 맨 위', r.listShown === 'flex' && r.items.length === 2 && /26-2-중간/.test(r.items[0]) && /25-1-기말/.test(r.items[1]) && r.detail === '', JSON.stringify(r.items));
+  ok('목록 줄 — 준비 중 / 리포트 도착 · 예상 점수', /준비 중/.test(r.items[0]) && /리포트 도착/.test(r.items[1]) && /예상 96점/.test(r.items[1]) && /2026-10-03 00:37/.test(r.items[0]), JSON.stringify(r.items));
+  await sp.click('.exam-item >> nth=1');
+  r = await sp.evaluate(() => ({ list: document.getElementById('examTabs').style.display, txt: document.getElementById('examList').textContent, back: !!document.querySelector('.exam-back') }));
+  ok('누르면 그 리포트를 연다(목록은 숨김 · [시험 목록] 버튼)', r.list === 'none' && r.back && /25-1-기말-화정고1-국어/.test(r.txt) && /시험 총평/.test(r.txt), r.txt.slice(0, 120));
+  await sp.click('.exam-back');
+  r = await sp.evaluate(() => ({ list: document.getElementById('examTabs').style.display, n: document.querySelectorAll('.exam-item').length, txt: document.getElementById('examList').textContent }));
+  ok('[시험 목록] — 다시 목록으로', r.list === 'flex' && r.n === 2 && r.txt === '', JSON.stringify(r));
 
   ok('페이지 오류 없음', perr === 0);
   console.log((fail ? '실패 ' + fail + ' / ' : '') + '통과 ' + pass + '건');

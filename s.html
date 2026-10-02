@@ -386,10 +386,17 @@
   .gv-back{border:1px solid var(--line);background:var(--surface);color:var(--ink-soft);border-radius:11px;padding:9px 14px;font-size:.85rem;font-family:var(--sans);cursor:pointer;display:inline-flex;align-items:center;gap:5px;}
   .gv-back svg{width:15px;height:15px;}
   .gv-ttl{font-family:var(--serif);font-weight:700;font-size:1rem;color:var(--ink);}
-  .exam-tabs{display:flex;gap:8px;overflow-x:auto;padding:2px 0 14px;-webkit-overflow-scrolling:touch;}
-  .exam-tab{flex:0 0 auto;border:1px solid var(--line);background:var(--surface);color:var(--ink-soft);border-radius:11px;padding:9px 15px;font-size:.84rem;font-family:var(--sans);cursor:pointer;white-space:nowrap;}
-  .exam-tab.active{background:#CFE0D8;color:var(--accent);border-color:#9DBDB0;font-weight:700;}
-  .exam-tab:active{opacity:.85;}
+  /* 지필고사 기록 목록 — 최근 것부터 세로로 쌓고, 누르면 그 리포트를 연다(2026-10-03 원장님) */
+  .exam-list{display:flex;flex-direction:column;gap:10px;margin:2px 0 14px;}
+  .exam-item{display:flex;align-items:center;gap:12px;width:100%;text-align:left;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:15px 16px;font-family:var(--sans);color:var(--ink);cursor:pointer;}
+  .exam-item:active{opacity:.85;}
+  .exam-item .ei-main{flex:1;min-width:0;}
+  .exam-item .ei-title{font-weight:700;font-size:.98rem;word-break:keep-all;overflow-wrap:anywhere;}
+  .exam-item .ei-sub{margin-top:5px;font-size:.8rem;color:var(--ink-soft);}
+  .exam-item .ei-tag{flex:0 0 auto;font-size:.74rem;padding:4px 10px;border-radius:999px;background:#CFE0D8;color:var(--accent);font-weight:700;}
+  .exam-item .ei-tag.wait{background:#F3EFE3;color:#7A6A3A;}
+  .exam-item .ei-arrow{flex:0 0 auto;color:var(--ink-soft);}
+  .exam-back{display:inline-flex;align-items:center;gap:6px;margin:2px 0 12px;background:var(--surface);border:1px solid var(--line);border-radius:11px;padding:8px 14px;font-size:.84rem;font-family:var(--sans);color:var(--ink-soft);cursor:pointer;}
   .empty-state{background:var(--surface);border:1px dashed var(--line);border-radius:var(--radius);padding:38px 24px;text-align:center;}
   .empty-state p{font-family:var(--serif);font-size:.92rem;color:var(--ink-soft);margin:0;line-height:1.8;}
   /* 질문하기 (2026-09-06) — 선생님별 질문 대기열 */
@@ -763,7 +770,7 @@
     <span class="gv-ttl">지필고사 데이터 · 내신 기록</span>
   </div>
   <div id="examTodo"></div>
-  <div class="exam-tabs" id="examTabs" style="display:none;"></div>
+  <div class="exam-list" id="examTabs" style="display:none;"></div>
   <div id="examList"></div>
   <footer><p>이수경국어 Shueguk · 학생용</p></footer>
 </main></div>
@@ -1040,7 +1047,7 @@ function refreshOnReturn(){
         if(!g || g.result!=='success' || !g.authed) return;
         var before = (STATE.exams||[]).length;
         STATE.exams = g.exams || [];
-        if (STATE.exams.length !== before) GRADE_SEL = 0;   // 새 기록이 생기면 맨 앞(최신)을 보여 준다
+        if (STATE.exams.length !== before) GRADE_SEL = -1;   // 새 기록이 생기면 목록으로(맨 위가 최신)
         if ($('gradeView').style.display === 'block') drawGrades();
       }).catch(function(){});
     }
@@ -3071,7 +3078,7 @@ function examCardHtml(x){
   return h;
 }
 
-var GRADE_SEL = 0;   // 선택한 시험 인덱스
+var GRADE_SEL = -1;  // 연 리포트 인덱스(examsSorted 기준) — -1이면 목록
 var GRADE_PW = '';   // 이 화면에서 넣은 8자리(메모리에만 — 저장하지 않음). 복기를 내고 돌아오면 기록을 다시 받는 데 쓴다
 
 function renderExamTodo(){
@@ -3079,39 +3086,52 @@ function renderExamTodo(){
   $('examTodo').innerHTML = todo.map(analysisNoticeHtml).join('');
 }
 function renderGrades(){
+  GRADE_SEL = -1;
   drawGrades();
   hide('hubView'); $('gradeView').style.display='block'; window.scrollTo(0,0);
 }
+/* 최근 제출이 맨 위(제출일 'yyyy-MM-dd HH:mm' 문자열 내림차순, 같으면 받은 순서) */
+function examsSorted(){
+  return (STATE.exams || []).map(function(x,i){ return {x:x,i:i}; }).sort(function(a,b){
+    var da=String(a.x.submittedAt||''), db=String(b.x.submittedAt||'');
+    return da<db ? 1 : da>db ? -1 : a.i-b.i;
+  }).map(function(o){ return o.x; });
+}
+function examItemHtml(x, i){
+  var sent = examSent(x);
+  var sub = '복기 제출 '+esc(x.submittedAt||'');
+  if (sent && x.score && String(x.score).trim()!=='') sub += ' · 예상 '+esc(x.score)+'점';
+  return '<button class="exam-item" onclick="pickExam('+i+')">'+
+    '<span class="ei-main"><span class="ei-title">'+esc(x.title||('시험 '+(i+1)))+'</span>'+
+    '<span class="ei-sub" style="display:block">'+sub+'</span></span>'+
+    '<span class="ei-tag'+(sent?'':' wait')+'">'+(sent?'리포트 도착':'준비 중')+'</span>'+
+    '<span class="ei-arrow" aria-hidden="true">&rsaquo;</span></button>';
+}
 function drawGrades(){
-  var exams = STATE.exams || [];
+  var exams = examsSorted();
   var tabs = $('examTabs'), list = $('examList');
   // 아직 입력하지 않은 복기 — 알려드립니다와 같은 카드를 지필고사 데이터 맨 위에도 보여 준다(2026-10-01 사용자 요청)
   renderExamTodo();
   if(exams.length===0){
     tabs.style.display='none';
     list.innerHTML = '<div class="empty-state"><p>아직 제출된 시험 복기가 없습니다.<br>복기 입력을 제출하면 이곳에 기록이 쌓입니다.</p></div>';
+    return;
+  }
+  if(GRADE_SEL >= exams.length) GRADE_SEL = -1;
+  if(GRADE_SEL < 0){
+    $('examTodo').style.display='';
+    tabs.style.display='flex';
+    tabs.innerHTML = exams.map(examItemHtml).join('');
+    list.innerHTML = '';
   } else {
-    if(GRADE_SEL >= exams.length) GRADE_SEL = 0;
-    if(exams.length > 1){
-      tabs.style.display='flex';
-      tabs.innerHTML = exams.map(function(x,i){
-        return '<button class="exam-tab'+(i===GRADE_SEL?' active':'')+'" onclick="pickExam('+i+')">'+esc(x.title||('시험 '+(i+1)))+(examSent(x)?'':' · 준비 중')+'</button>';
-      }).join('');
-    } else {
-      tabs.style.display='none';
-    }
-    list.innerHTML = examCardHtml(exams[GRADE_SEL]);
+    $('examTodo').style.display='none';
+    tabs.style.display='none';
+    list.innerHTML = '<button class="exam-back" onclick="examBack()">&larr; 시험 목록</button>' + examCardHtml(exams[GRADE_SEL]);
   }
 }
 
-function pickExam(i){
-  var exams = STATE.exams || [];
-  GRADE_SEL = i;
-  var tabs = $('examTabs').children;
-  for(var k=0;k<tabs.length;k++){ tabs[k].className = 'exam-tab' + (k===i?' active':''); }
-  $('examList').innerHTML = examCardHtml(exams[i]);
-  window.scrollTo(0,0);
-}
+function pickExam(i){ GRADE_SEL = i; drawGrades(); window.scrollTo(0,0); }
+function examBack(){ GRADE_SEL = -1; drawGrades(); window.scrollTo(0,0); }
 
 /* ---- 비밀번호 모달 ---- */
 function openPw(){
