@@ -206,7 +206,7 @@ const ROWS0 = [
   // ⑥ 초안 지우기 — 파일 있는 줄은 저장소 파일부터, 파일 없는 줄은 바로 줄만
   ok('⑥ 모든 줄에 지우기 버튼', (await page.$$('#drList .dr-del')).length === (await page.$$('#drList .dr-row')).length);
   st.store.length = 0; st.rest.length = 0; st.dlg = [];
-  await page.click('.dr-row[data-id="6"] button:has-text("지우기")');
+  await page.click('.dr-row[data-id="6"] button:has-text("삭제")');
   await page.waitForTimeout(400);
   ok('⑥ 확인 창(파일 함께 삭제 안내)', st.dlg.length === 1 && /파일도 함께/.test(st.dlg[0]) && /만드는 중/.test(st.dlg[0]), JSON.stringify(st.dlg));
   const sdel = st.store.find(x => x.m === 'DELETE' && /object\/exam-drafts$/.test(x.u.replace(/\?.*$/, '')));
@@ -214,7 +214,7 @@ const ROWS0 = [
   ok('⑥ exam_drafts 줄 삭제', st.rest.some(x => x.m === 'DELETE' && /id=eq\.6/.test(x.u)));
   ok('⑥ 목록에서 사라짐 + 안내', !(await page.$('.dr-row[data-id="6"]')) && /지웠습니다/.test(await page.textContent('#drListNote')));
   st.store.length = 0; st.rest.length = 0; st.dlg = [];
-  await page.click('.dr-row[data-id="4"] button:has-text("지우기")');
+  await page.click('.dr-row[data-id="4"] button:has-text("삭제")');
   await page.waitForTimeout(400);
   ok('⑥ 등록된 리포트는 남는다 안내', st.dlg.length === 1 && /리포트는 그대로/.test(st.dlg[0]), JSON.stringify(st.dlg));
   ok('⑥ 파일 없는 줄은 저장소 호출 없음', !st.store.some(x => x.m === 'DELETE') && st.rest.some(x => x.m === 'DELETE' && /id=eq\.4/.test(x.u)));
