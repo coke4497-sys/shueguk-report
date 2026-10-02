@@ -63,7 +63,13 @@ const STUS = [
     prev: document.getElementById('alPrev').textContent, go: document.getElementById('alGo').textContent, dis: document.getElementById('alGo').disabled }));
   ok('제목은 학생이 읽기 쉽게 — "2학기 중간고사 화정고1 공통국어2"', r.title === '2학기 중간고사 화정고1 공통국어2', r.title);
   ok('대상 = 배정된 재원생 중 복기 안 낸 학생(박보검·김하늘) — 2명, 연락처 있는 분마다 4건', /2명/.test(r.sum) && /4건/.test(r.sum) && r.go === '알림톡 보내기 (4건)' && !r.dis, r.sum);
-  ok('복기 낸 학생은 빼고, 접근코드 없는 학생은 안내', /이미 복기를 낸 1명은 빼요/.test(r.sum) && /접근코드\)가 없는 학생 1명: 코드없음/.test(r.sum) && !/퇴원생|다른학교/.test(r.sum), r.sum);
+  ok('복기 낸 학생은 빼고, 접근코드 없는 학생은 안내', /이미 제출한 1명은 빼고 보냅니다/.test(r.sum) && /접근코드\)가 없는 학생 1명: 코드없음/.test(r.sum) && !/퇴원생|다른학교/.test(r.sum), r.sum);
+  let q = await pg.evaluate(() => ({ t: (document.querySelector('.al-skip') || {}).textContent || '', on: (document.querySelector('input[name="alSkip"]:checked') || {}).value }));
+  ok('"이미 제출한 친구가 있어요 · 1명이 이미 복기를 제출했어요. 빼고 보낼까요?" + 이름 + 기본 = 빼고', /이미 제출한 친구가 있어요/.test(q.t) && /1명이 이미 복기를 제출했어요\. 빼고 보낼까요\?/.test(q.t) && /이미낸/.test(q.t) && q.on === '1', JSON.stringify(q));
+  await pg.check('input[name="alSkip"][value="0"]');
+  q = await pg.evaluate(() => ({ sum: document.getElementById('alSum').textContent, go: document.getElementById('alGo').textContent }));
+  ok('"아니요, 함께 보낼게요" — 제출한 친구도 포함(3명 · 6건)', /배정된 학생 3명/.test(q.sum) && /6건/.test(q.sum) && !/빼고 보냅니다/.test(q.sum) && q.go === '알림톡 보내기 (6건)', JSON.stringify(q));
+  await pg.check('input[name="alSkip"][value="1"]');
   ok('미리보기 — 템플릿 문구에 학생명·제목·버튼', /박보검 학생에게 지필고사 리포트 제작 안내/.test(r.prev) && /▶ 2학기 중간고사 화정고1 공통국어2/.test(r.prev) && /학생 페이지 링크/.test(r.prev), r.prev);
   await pg.uncheck('.alW[value="학생"]');
   r = await pg.evaluate(() => document.getElementById('alSum').textContent);
