@@ -76,7 +76,7 @@ const STUDENTS = [
       if (/\/attendance\?/.test(u)) return json(200, opt.att.map(a => Object.assign({ date: TODAYSTR, book: opt.book, memo: '' }, a)));
       if (m !== 'GET') return json(201, []);
       if (/\/tt_classes\?/.test(u)){
-        if (/name=eq\./.test(u)) { (st.twinGets = st.twinGets || []).push(decodeURIComponent(u)); return json(200, opt.twin || []); }
+        if (u.indexOf('book=eq.' + opt.book) < 0 && /class_id=not\.like/.test(u)) { (st.twinGets = st.twinGets || []).push(decodeURIComponent(u)); return json(200, opt.twin || []); }
         if (/class_id=like\./.test(u)) return json(200, []);
         return json(200, u.indexOf('book=eq.' + opt.book) >= 0 ? opt.rows : []);
       }
@@ -291,14 +291,14 @@ const STUDENTS = [
     const D7 = (() => { const d = new Date(T0); d.setDate(d.getDate() - 7); return ymd(d); })();
     const base = row('n015', '고3파이널A', '슈', '박보검 김하늘');
     ({ ctx, page, st } = await ctxOf({ book: '내신', rows: [base],
-      twin: [{ class_id: 'r020', day: base.day, start_time: base.start_time, teacher: '슈' }],
+      twin: [{ class_id: 'r020', name: '고3파이널A', day: base.day, start_time: base.start_time, teacher: '슈' }],
       att: [], hw: [], prev: [{ class_id: 'r020', ymd: D7, homework: '2-4회차 모의고사' }] }));
     await openCard(page, '고3파이널A');
     r = await page.evaluate(() => ({ kind: document.getElementById('cr-kind').textContent, scope: !!document.getElementById('cr-scope'),
       tasks: [...document.querySelectorAll('.cr-card')][0] ? [...[...document.querySelectorAll('.cr-card')][0].querySelectorAll('.cr-tname')].map(x => x.textContent) : [] }));
     ok('고3 내신 주: "정규 수업"(진도 아님)·시험범위 칸 없음', r.kind === '정규 수업' && !r.scope, JSON.stringify(r));
     ok('고3 내신 주: 지난주 정규 짝 반(r020) 과제로 검사', r.tasks.join('|') === '2-4회차 모의고사', JSON.stringify(r));
-    ok('짝 반 찾기 = 정규 같은 이름 반 · 과제 조회 = 두 시간표·두 반', (st.twinGets || []).some(u => /book=eq\.정규/.test(u) && /name=eq\.고3파이널A/.test(u)) &&
+    ok('짝 반 찾기 = 정규 같은 이름 반 · 과제 조회 = 두 시간표·두 반', (st.twinGets || []).some(u => /book=eq\.정규/.test(u)) &&
        (st.srcGets || []).some(u => /"n015"/.test(u) && /"r020"/.test(u) && /book=in\./.test(u)), JSON.stringify([st.twinGets, st.srcGets]));
     await ctx.close();
   }
@@ -409,6 +409,24 @@ const STUDENTS = [
     await openCard(page, '고2 가');
     r = await tasksOf();
     ok('이 반 기록이 같은 이름 반보다 한 주 이상 오래됐으면 같은 이름 반 과제', r.t.join('|') === '사미인곡 학습지', JSON.stringify(r));
+    await ctx.close();
+  }
+
+  // ⑥-3 고3파이널A~F = 같은 수업(끝 알파벳만 다름, 2026-10-02) — B 창에서 A 기록을 미리 채우고, 지난 과제도 다른 시간표의 같은 수업에서 잇는다
+  {
+    const D7 = (() => { const d = new Date(T0); d.setDate(d.getDate() - 7); return ymd(d); })();
+    const B = row('n029', '고3파이널B', '슈', '박보검');
+    const A = Object.assign(row('n015', '고3파이널A', '슈', '최다은'), { start_time: '2:00', end_time: '3:30' });
+    ({ ctx, page, st } = await ctxOf({ book: '내신', rows: [B, A, row('n050', '고2 가', '지원', '김하늘')],
+      twin: [{ class_id: 'r015', name: '고3파이널B', day: B.day, start_time: B.start_time, teacher: '슈' },
+             { class_id: 'r009', name: '고3파이널A', day: B.day, start_time: '2:00', teacher: '슈' }],
+      att: [], hw: [], prev: [{ class_id: 'r009', ymd: D7, homework: '2-5회차 모의고사' }] }));
+    st.notes['내신|n015'] = { id: 5, book: '내신', class_id: 'n015', ymd: TODAYSTR, progress: '상상 모의고사 복기', homework: '이매진 1주차', report_status: '' };
+    await openCard(page, '고3파이널B');
+    r = await page.evaluate(() => ({ p: document.getElementById('cr-prog').value, t: document.getElementById('cr-task').value, bar: (document.querySelector('.cr-sib') || {}).textContent || '',
+      tasks: [...document.querySelectorAll('.cr-card .cr-tname')].map(x => x.textContent) }));
+    ok('고3파이널B: 고3파이널A 기록을 미리 채운다', r.p === '상상 모의고사 복기' && r.t === '이매진 1주차' && /불러왔습니다/.test(r.bar), JSON.stringify(r));
+    ok('고3파이널B: 지난주 정규 고3파이널A 과제로 검사', r.tasks.join('|') === '2-5회차 모의고사', JSON.stringify(r));
     await ctx.close();
   }
 
