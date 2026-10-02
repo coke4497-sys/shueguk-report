@@ -66,6 +66,8 @@ body{font-family:'Noto Sans KR',sans-serif; background:var(--sage-fog); color:va
 .send-state{margin-top:9px; font-size:13px; color:var(--ink-mid); display:flex; align-items:center; gap:10px; flex-wrap:wrap;}
 .send-state .st{padding:3px 11px; border-radius:999px; background:#F2F5F3; color:#65726B;}
 .send-state .st.on{background:#DCE8E5; color:#3F6159; font-weight:700;}
+.alim-guide{margin-top:10px; padding:10px 12px; border-radius:10px; background:#F6F2FA; color:#4F4560; font-size:13px; line-height:1.6;}
+.alim-guide a{color:#5A4A6A; font-weight:700;}
 .send-state button{font:inherit; font-size:12px; border:none; background:none; color:#9A5A52; text-decoration:underline; cursor:pointer; padding:0;}
 .note-edit{margin-top:14px;}
 .note-edit label{display:block; font-size:13px; color:var(--ink-mid); margin-bottom:6px; font-weight:500;}
@@ -217,6 +219,7 @@ body{font-family:'Noto Sans KR',sans-serif; background:var(--sage-fog); color:va
         <button class="btn" id="sendBtn" onclick="sendReport(true)" disabled>리포트 보내기</button>
       </div>
       <div class="send-state" id="sendState"></div>
+      <div class="alim-guide">리포트를 보낸 뒤에는 <a href="analyses.html" target="_blank" rel="noopener">리포트 수정 및 학생 배정</a> 메뉴의 [알림톡 보내기]에서 <b>‘피드백 확인 안내’</b>를 골라 학생·학부모님께 리포트를 열람하도록 알림톡을 보낼 수 있습니다. 보낼 때 로그인한 선생님 이름이 알림톡에 함께 표시돼요.</div>
       <p class="hint">여기 적은 내용은 아래 보고서에 실시간 반영됩니다. 학생 개별 페이지에는 <b>한 마디를 적고 ‘리포트 보내기’를 누른 뒤에</b> 리포트가 나타납니다. 보내기 전에는 학생에게 ‘선생님이 리포트를 준비하고 있습니다’로 보여요.</p>
     </div>
     <div class="status" id="status"></div>
