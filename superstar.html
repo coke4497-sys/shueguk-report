@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
 <title>슈퍼스타 관리 · 슈국 티쳐스</title>
 <meta name="description" content="신입 슈스 등록과 아웃 슈스 정리를 한 곳에서 (교사용)" />
-<link href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=Gowun+Dodum&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=Gowun+Dodum&family=Do+Hyeon&display=swap" rel="stylesheet" />
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='48' fill='%23DCE9E4'/%3E%3C/svg%3E" />
 <style>
   :root{
@@ -70,6 +70,58 @@
     .tabs{flex-wrap:wrap;}
     .tabs button{flex:1 1 calc(50% - 4px);font-size:14px;gap:5px;padding:12px 0;}
     .tabs button svg{width:15px;height:15px;}
+  }
+
+  /* 첫 화면 메뉴 4개 — 슈스 현황 아래, 허브 카드 모양 (2026-10-03 원장님) */
+  .menu-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:0 0 18px;}
+  .mcard{display:flex;align-items:center;gap:13px;text-align:left;padding:18px 16px;border-radius:16px;border:1px solid var(--line-soft);
+    background:var(--surface);cursor:pointer;font-family:inherit;color:var(--ink);}
+  .mcard:active{opacity:.85;}
+  .mcard .mi{flex:none;width:44px;height:44px;border-radius:13px;background:#F7E2DE;color:#A2685C;display:inline-flex;align-items:center;justify-content:center;}
+  .mcard .mi svg{width:21px;height:21px;}
+  .mcard .mt{display:block;font-family:"Gowun Batang",serif;font-weight:700;font-size:1.02rem;line-height:1.3;}
+  .mcard .md{display:block;font-size:.78rem;color:var(--ink-soft);margin-top:3px;line-height:1.5;word-break:keep-all;}
+  @media (max-width:420px){ .menu-grid{grid-template-columns:1fr;} }
+  .fn-top{display:flex;align-items:center;gap:10px;margin:0 0 12px;}
+  .fn-back{display:inline-flex;align-items:center;gap:6px;border:none;background:#EEF2EF;color:var(--ink-soft);border-radius:999px;
+    padding:8px 14px;font:inherit;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;}
+  .fn-back svg{width:14px;height:14px;}
+  #fn .tabs{margin:0 0 18px;}
+
+  /* 별 더하기 — 슈퍼스타 TOP 30 시상대 (학생 페이지 s.html .t30-* 와 같은 모양, 2026-10-03) */
+  .t30-pod{display:grid;grid-template-columns:1fr 1.15fr 1fr;gap:10px;align-items:end;margin:8px 0 18px;}
+  .t30-pod .pc{text-align:center;cursor:pointer;}
+  .t30-pod .rk{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:50%;
+    font-family:"Do Hyeon",var(--sans);font-size:1.05rem;color:#5A6560;background:#EEF2EF;padding:0;border-bottom:none;cursor:default;gap:0;}
+  .t30-pod .p1 .rk{width:44px;height:44px;font-size:1.25rem;background:#F3E3A6;color:#8A6D2F;}
+  .t30-pod .p3 .rk{background:#F0D9CF;color:#9A6450;}
+  .t30-pod .nm{display:block;font-family:"Do Hyeon",var(--sans);font-size:1.15rem;color:var(--ink);margin-top:8px;line-height:1.3;word-break:keep-all;}
+  .t30-pod .p1 .nm{font-size:1.5rem;}
+  .t30-pod .sc{display:block;font-size:.72rem;color:var(--ink-soft);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .t30-pod .bx{margin-top:10px;border-radius:12px;padding:16px 6px 12px;background:#EEF2EF;}
+  .t30-pod .p1 .bx{background:#F8EFC9;padding:20px 6px 14px;}
+  .t30-pod .p3 .bx{background:#F6E6DD;}
+  .t30-pod .num{display:block;font-family:"Do Hyeon",var(--sans);font-size:1.8rem;color:var(--ink);line-height:1.1;}
+  .t30-pod .p1 .num{font-size:2.3rem;}
+  .t30-pod .lb{display:block;font-size:.68rem;color:#B08A3E;margin-top:4px;}
+  .t30-pod .pc.open .bx{outline:2px solid #C9B6DB;}
+  .rk-detail .rk-lv{margin:0 0 6px;font-size:12.5px;color:var(--accent);font-weight:700;}
+  .t30-list{border-top:1px solid var(--line-soft);padding-top:14px;}
+  .t30-row{display:flex;align-items:center;gap:10px;margin:0 0 7px;cursor:pointer;}
+  .t30-row .bar{flex:1;display:flex;align-items:center;gap:8px;min-width:0;padding:7px 10px;border-radius:10px;
+    background:linear-gradient(90deg,#EEF2EF var(--w),transparent var(--w));}
+  .t30-row .r{width:1.6em;text-align:center;font-weight:700;font-size:.82rem;color:var(--ink-soft);flex:none;}
+  .t30-row .n{font-family:"Do Hyeon",var(--sans);font-size:1.02rem;color:var(--ink);white-space:nowrap;}
+  .t30-row .s{font-size:.72rem;color:var(--ink-soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;}
+  .t30-row .st{flex:none;font-weight:700;font-size:.92rem;color:var(--ink);white-space:nowrap;}
+  .t30-row .st b{color:#C9A33F;font-weight:400;font-size:.8rem;margin-right:2px;}
+  .t30-more{display:block;margin:12px auto 0;border:none;border-radius:999px;background:#EEF2EF;color:var(--ink-soft);
+    font-family:inherit;font-size:.8rem;padding:7px 15px;cursor:pointer;}
+  .t30-rest[hidden]{display:none;}
+  .rk-item.open .t30-row .bar{background:linear-gradient(90deg,#DCE6E0 var(--w),transparent var(--w));}
+  @media (max-width:420px){
+    .t30-pod{gap:6px;} .t30-pod .nm{font-size:1rem;} .t30-pod .p1 .nm{font-size:1.25rem;}
+    .t30-pod .num{font-size:1.5rem;} .t30-pod .p1 .num{font-size:1.9rem;} .t30-row .n{font-size:.95rem;}
   }
 
   .card{background:var(--surface);border:1px solid var(--line-soft);border-radius:var(--radius);padding:22px 20px;margin-bottom:16px;}
@@ -201,7 +253,6 @@
   .log-item .del{border:none;background:none;color:var(--ink-soft);font-size:12px;cursor:pointer;text-decoration:underline;padding:2px 4px;}
   .log-item .del:hover{color:var(--bad);}
   .mgr-empty{text-align:center;color:#9aa6a0;font-size:13.5px;padding:20px;}
-  #rankList{max-height:560px;overflow-y:auto;padding-right:4px;}   /* 10위 높이까지 보이고 이후는 스크롤 */
   .rk{display:flex;align-items:center;gap:11px;padding:10px 12px;border-bottom:1px solid var(--line-soft);font-size:14.5px;cursor:pointer;}
   .rk-item:last-child .rk{border-bottom:none;}
   .rk-detail{display:none;background:#F4F8F5;border-radius:11px;margin:2px 6px 9px;padding:10px 14px;}
@@ -260,15 +311,30 @@
     <p class="intro">신입 슈스 등록과 아웃 슈스 정리를 한 곳에서 해요.</p>
   </header>
 
-  <!-- 재원 현황: 학년별 인원 막대 + 학교별 인원(많은 순) -->
-  <section class="card stat-card" id="statCard" style="display:none;">
-    <div class="stat-head"><span class="t">슈퍼스타 현황</span><span class="n">재원 <b id="statTotal">0</b>명</span></div>
-    <div class="vchart" id="gradeBars"></div>
-    <div class="sch-list"><p class="sl-t" id="slTitle"></p><div id="schList"></div></div>
-  </section>
+  <!-- ════════ 첫 화면: 슈스 현황 + 메뉴 4개 (2026-10-03 원장님 "첫화면은 슈스 현황 그 아래에 네개의 메뉴만") ════════ -->
+  <div id="home">
+    <!-- 재원 현황: 학년별 인원 막대 + 학교별 인원(많은 순) -->
+    <section class="card stat-card" id="statCard" style="display:none;">
+      <div class="stat-head"><span class="t">슈퍼스타 현황</span><span class="n">재원 <b id="statTotal">0</b>명</span></div>
+      <div class="vchart" id="gradeBars"></div>
+      <div class="sch-list"><p class="sl-t" id="slTitle"></p><div id="schList"></div></div>
+    </section>
 
+    <div class="menu-grid" id="menuGrid">
+      <button type="button" class="mcard" data-tab="new" onclick="showTab('new')"><span class="mi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="16" y1="11" x2="22" y2="11"/></svg></span><span><span class="mt">신입 슈스</span><span class="md">새 학생 등록 · 개인 페이지 링크 발급</span></span></button>
+      <button type="button" class="mcard" data-tab="out" onclick="showTab('out')"><span class="mi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="17" y1="8" x2="22" y2="13"/><line x1="22" y1="8" x2="17" y2="13"/></svg></span><span><span class="mt">아웃 슈스</span><span class="md">퇴원 학생 기록 정리</span></span></button>
+      <button type="button" class="mcard" data-tab="link" onclick="showTab('link')"><span class="mi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></span><span><span class="mt">슈스 링크</span><span class="md">개인 페이지 링크 · 학생 정보 수정</span></span></button>
+      <button type="button" class="mcard" data-tab="star" onclick="showTab('star')"><span class="mi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l2.9 6.2 6.8.8-5 4.7 1.3 6.7L12 17.1 6 20.4l1.3-6.7-5-4.7 6.8-.8z"/></svg></span><span><span class="mt">별 더하기</span><span class="md">깜짝 보너스 별 · 슈퍼스타 TOP 30</span></span></button>
+    </div>
+  </div>
+
+  <!-- ════════ 기능 화면: [← 슈퍼스타 관리] + 탭 + 내용 ════════ -->
+  <div id="fn" style="display:none;">
+  <div class="fn-top">
+    <button type="button" class="fn-back" onclick="showHome()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M11 18l-6-6 6-6"/></svg>슈퍼스타 관리</button>
+  </div>
   <div class="tabs">
-    <button type="button" id="tabNewBtn" class="on" onclick="showTab('new')">
+    <button type="button" id="tabNewBtn" onclick="showTab('new')">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="16" y1="11" x2="22" y2="11"/></svg>
       신입 슈스</button>
     <button type="button" id="tabOutBtn" onclick="showTab('out')">
@@ -283,7 +349,7 @@
   </div>
 
   <!-- ════════ 신입 슈스 ════════ -->
-  <div id="tab-new">
+  <div id="tab-new" style="display:none;">
     <section class="card" id="formCard">
       <h2><span class="dot"></span>학생 정보</h2>
       <p class="sub">등록하면 개인 페이지 링크가 바로 발급돼요. 이름·학교·학년·부모님 8자리는 필수(8자리는 성적 확인 비밀번호).</p>
@@ -434,7 +500,7 @@
 
     <section class="card">
       <h2><span class="dot"></span>슈퍼스타 TOP 30</h2>
-      <p class="sub">지금까지 모은 별 기준 상위 30명이에요. 이름을 누르면 획득 내역이 펼쳐집니다.</p>
+      <p class="sub">학생 페이지와 같은 순위입니다. 이름을 누르면 획득 내역이 펼쳐져요.</p>
       <div class="mgr-bar"><button type="button" class="refresh" onclick="loadRank()">새로고침</button></div>
       <div id="rankList"><div class="mgr-empty">불러오는 중…</div></div>
     </section>
@@ -446,6 +512,7 @@
       <div id="logList"><div class="mgr-empty">불러오는 중…</div></div>
     </section>
   </div>
+  </div><!-- /#fn -->
 </main>
 
 <script>
@@ -1069,7 +1136,11 @@
   function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
   function $(id){ return document.getElementById(id); }
 
-  function unlock(){ document.body.classList.remove('locked'); loadRoster(); loadNewList(); ttPickerFill(); }
+  function unlock(){
+    document.body.classList.remove('locked'); loadRoster(); loadNewList(); ttPickerFill();
+    var h=(location.hash||'').replace('#','');   // superstar.html#star 처럼 열면 그 기능으로 바로
+    if(['new','out','link','star'].indexOf(h)>=0) showTab(h);
+  }
   function checkLock(){
     var v=$('lockInput').value, ok=false;
     try{ ok=(btoa(v)===PASS_ENC); }catch(e){ ok=false; }
@@ -1078,8 +1149,15 @@
   }
   $('lockInput').addEventListener('keydown', function(e){ if(e.key==='Enter') checkLock(); });
 
-  /* ── 하위 메뉴 탭 ── */
+  /* ── 첫 화면(현황 + 메뉴) ↔ 기능 화면(탭) ── */
+  function showHome(){
+    $('home').style.display='block'; $('fn').style.display='none';
+    try{ history.replaceState(null,'',location.pathname); }catch(e){}
+    window.scrollTo(0,0);
+  }
   function showTab(which){
+    $('home').style.display='none'; $('fn').style.display='block';
+    try{ history.replaceState(null,'',location.pathname+'#'+which); }catch(e){}
     $('tab-new').style.display  = which==='new'  ? 'block' : 'none';
     $('tab-out').style.display  = which==='out'  ? 'block' : 'none';
     $('tab-link').style.display = which==='link' ? 'block' : 'none';
@@ -1952,30 +2030,71 @@
       .then(renderRank)
       .catch(function(){ box.innerHTML='<div class="mgr-empty">순위를 불러오지 못했어요. 인터넷을 확인해 주세요.</div>'; });
   }
+  function rankGradeShort(g){
+    var m = String(g||'').match(/(고등|중등)\s*(\d)/);
+    return m ? ((m[1]==='고등'?'고':'중') + m[2]) : String(g||'').trim();
+  }
+  function rankSub(s){
+    var gs = rankGradeShort(s.grade);
+    return esc([gs, String(s.school||'').trim()].filter(Boolean).join(' · '));
+  }
+  // 학생 페이지 s.html top30ListHtml 과 같은 모양(시상대 2·1·3 + 4~14위 막대 + 15위부터 더 보기) —
+  // 선생님 화면만 등급 알약과 누르면 펼쳐지는 획득 내역(rk-detail)이 더 있다. 고치면 둘 다.
   function renderRank(d){
     var box=$('rankList');
-    {
-      {
-        if(!d || d.result!=='success' || !d.top){ box.innerHTML='<div class="mgr-empty">순위를 불러오지 못했어요.</div>'; return; }
-        if(!d.top.length){ box.innerHTML='<div class="mgr-empty">아직 별을 모은 학생이 없어요.</div>'; return; }
-        var medals=['🥇','🥈','🥉'];
-        box.innerHTML = d.top.map(function(s,i){
-          return '<div class="rk-item">'+
-            '<div class="rk'+(i<3?' top3':'')+'">'+
-            '<span class="no">'+(i<3?medals[i]:(i+1))+'</span>'+
-            '<span class="who">'+esc(s.name)+'</span>'+
-            '<span class="meta">'+metaHtml(s)+'</span>'+
-            '<span class="lvl">'+esc(levelName(s.total))+'</span>'+
-            '<span class="st2">⭐ '+s.total+'</span>'+
-            '</div>'+
-            '<div class="rk-detail">'+srcRows(s.breakdown)+'</div>'+
-            '</div>';
-        }).join('');
-      }
+    if(!d || d.result!=='success' || !d.top){ box.innerHTML='<div class="mgr-empty">순위를 불러오지 못했어요.</div>'; return; }
+    var top=d.top;
+    if(!top.length){ box.innerHTML='<div class="mgr-empty">아직 별을 모은 학생이 없어요.</div>'; return; }
+    var max = Math.max(1, Number(top[0].total)||0);
+    var pod = function(s, i){
+      if(!s) return '<div class="pc p'+(i+1)+'"></div>';
+      return '<div class="pc p'+(i+1)+'" data-pod="'+i+'">' +
+        '<span class="rk">'+(i+1)+'</span>' +
+        '<span class="nm">'+esc(s.name)+'</span>' +
+        '<span class="sc">'+rankSub(s)+'</span>' +
+        '<div class="bx"><span class="num">'+esc(s.total)+'</span><span class="lb">★ 별</span></div>' +
+        '</div>';
+    };
+    var row = function(s, i){
+      var w = Math.max(8, Math.round((Number(s.total)||0) / max * 100));
+      return '<div class="rk-item"><div class="t30-row">' +
+        '<div class="bar" style="--w:'+w+'%"><span class="r">'+(i+1)+'</span>' +
+          '<span class="n">'+esc(s.name)+'</span><span class="s">'+rankSub(s)+'</span></div>' +
+        '<span class="st"><b>★</b>'+esc(s.total)+'</span>' +
+        '</div><div class="rk-detail"><p class="rk-lv">'+esc(levelName(s.total))+'</p>'+srcRows(s.breakdown)+'</div></div>';
+    };
+    var html = '<div class="t30-pod">'+pod(top[1],1)+pod(top[0],0)+pod(top[2],2)+'</div>' +
+      '<div id="podDetail"></div>';
+    var first = top.slice(3, 14), rest = top.slice(14);
+    html += '<div class="t30-list">' + first.map(function(s,i){ return row(s, i+3); }).join('');
+    if(rest.length){
+      html += '<div class="t30-rest" id="rankRest" hidden>' + rest.map(function(s,i){ return row(s, i+14); }).join('') + '</div>' +
+        '<button type="button" class="t30-more" id="rankMore">15~'+top.length+'위 더 보기 ⌄</button>';
     }
+    html += '</div>';
+    box.innerHTML = html;
+    box.__top = top;
   }
   $('rankList').addEventListener('click', function(e){
-    var row = e.target.closest('.rk'); if(!row) return;
+    var box=$('rankList');
+    var more = e.target.closest('#rankMore');
+    if(more){
+      var rest=$('rankRest'); rest.hidden=!rest.hidden;
+      var n=(box.__top||[]).length;
+      more.textContent = rest.hidden ? '15~'+n+'위 더 보기 ⌄' : '15~'+n+'위 접기 ⌃';
+      return;
+    }
+    var pc = e.target.closest('.t30-pod .pc[data-pod]');
+    if(pc){   // 시상대 칸 — 아래 한 줄에 그 학생의 획득 내역
+      var i=+pc.getAttribute('data-pod'), s=(box.__top||[])[i], det=$('podDetail');
+      var was=pc.classList.contains('open');
+      box.querySelectorAll('.t30-pod .pc.open').forEach(function(el){ el.classList.remove('open'); });
+      if(was || !s){ det.innerHTML=''; return; }
+      pc.classList.add('open');
+      det.innerHTML='<div class="rk-detail" style="display:block;margin:0 0 14px;"><p class="rk-lv"><b>'+esc(s.name)+'</b> · '+rankSub(s)+' · '+esc(levelName(s.total))+'</p>'+srcRows(s.breakdown)+'</div>';
+      return;
+    }
+    var row = e.target.closest('.t30-row'); if(!row) return;
     row.parentNode.classList.toggle('open');
   });
 
