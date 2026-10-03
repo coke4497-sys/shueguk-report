@@ -56,6 +56,7 @@ async function route(page){
     if (u.startsWith(SB + '/auth/')) return j({ access_token: 'T', expires_in: 3600 });
     if (u.startsWith(SB + '/rest/v1/rpc/notice_read_submit')) { reads.push(JSON.parse(r.request().postData()).p); return j({ result: 'success', already: false }); }
     if (u.startsWith(SB + '/rest/v1/rpc/')) return j({ error: 'nope' }, 500);   // 학생 페이지 → 옛 백엔드 폴백
+    if (u.startsWith(SB + '/rest/v1/teacher_accounts')) return j([{ display_name: '김현지 선생님', login_id: 'hj' }]);
     if (u.startsWith(SB + '/rest/v1/students') && m === 'GET') return j(STUDENTS);
     if (u.startsWith(SB + '/rest/v1/')) return r.fulfill({ status: 204, body: '' });
     if (/script\.google/.test(u)) {
@@ -84,6 +85,9 @@ const alimSends = () => posts.filter(b => b.action === 'alimSend');
   await new Promise(r => srv.listen(PORT, r));
   const browser = await chromium.launch();
   const ctx = await browser.newContext();
+  // 허브 개인 로그인 — 알림톡 기록의 '보낸 사람'(2026-10-03)
+  await ctx.addInitScript(() => localStorage.setItem('shueguk_teacher_session_v2', JSON.stringify({
+    access_token: 'me-tok', refresh_token: 'me-ref', expires_at: Math.floor(Date.now() / 1000) + 3600, user: { id: 'u-1' } })));
   const page = await ctx.newPage();
   page.on('pageerror', e => { bad++; console.error('  ✗ pageerror', e.message); });
   await route(page);
@@ -128,6 +132,8 @@ const alimSends = () => posts.filter(b => b.action === 'alimSend');
   await page.waitForFunction(() => /공지 알림톡/.test(document.getElementById('status').textContent), { timeout: 8000 });
   const sends = alimSends();
   ok(sends.length === 3 && sends.map(b => b.items.length).join(',') === '50,50,20', 'alimSend 3번(50·50·20명)');
+  ok(sends.every(b => b.pw === 'sh'), '백엔드 교사용 값 동봉 — 없으면 unauthorized 로 거절된다');
+  ok(sends.every(b => b.by === '김현지'), '보낸 사람(허브에 로그인한 선생님) 동봉 — ' + sends[0].by);
   const it0 = sends[0].items[0];
   ok(sends.every(b => b.kind === 'notice_mock') && it0.who === '학생' && it0.to === '01011000000' && it0.cls === '공지', 'kind = 고른 종류(notice_mock) · 학생 번호 · 반 “공지”');
   ok(/^N:\d{4}-\d{2}-\d{2}\|추석 휴강 안내$/.test(it0.date) && it0.vars['제목'] === '추석 휴강 안내' && it0.vars['학생명'] === '고일001' && it0.vars['접근코드'] === 'c10' && it0.vars['신청일'] === '3/14(토), 3/15(일)' && it0.vars['장소'] === '대감빌딩 5층 이수경 국어 본원' && it0.vars['정원'] === '35' && /각 요일 35명 선착순/.test(PREV_TXT), '중복 키 N:날짜|제목 + 변수(학생명·제목·신청일·접근코드=학생 페이지 키)');

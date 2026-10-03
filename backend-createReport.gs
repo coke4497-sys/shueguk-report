@@ -4111,8 +4111,11 @@ function alimSheet_(ss) {
   var sh = ss.getSheetByName(TAB_ALIM);
   if (!sh) {
     sh = ss.insertSheet(TAB_ALIM);
-    sh.appendRow(['기록일시', '종류', '학생', '받는분', '번호', '반', '수업일', '결과', '메시지', '그룹ID']);
-    sh.getRange(1, 1, 1, 10).setFontWeight('bold').setBackground('#DDE5E1');
+    sh.appendRow(['기록일시', '종류', '학생', '받는분', '번호', '반', '수업일', '결과', '메시지', '그룹ID', '보낸사람']);
+    sh.getRange(1, 1, 1, 11).setFontWeight('bold').setBackground('#DDE5E1');
+  } else if (String(sh.getRange(1, 11).getValue() || '').trim() !== '보낸사람') {
+    // 옛 시트(A~J)에 K열 머리글 보충 — 2026-10-03 '누가 보냈는지'를 남기기 시작
+    sh.getRange(1, 11).setValue('보낸사람').setFontWeight('bold').setBackground('#DDE5E1');
   }
   return sh;
 }
@@ -4173,6 +4176,7 @@ function alimSend(data) {
   var kind = String(data.kind || '').trim(), tpl = ALIM_TPL_[kind];
   if (!tpl) return json({ result:'error', message:'모르는 알림 종류예요: ' + kind });
   var items = (data.items || []).filter(function(it) { return it && it.student && it.to; });
+  var by = String(data.by || '').trim().slice(0, 40);   // 보낸 사람(허브에 로그인한 선생님) — 없으면 빈 값
   if (!items.length) return json({ result:'error', message:'보낼 학생·번호가 없어요.' });
   if (items.length > 50) return json({ result:'error', message:'한 번에 50명까지만 보낼 수 있어요.' });
   var props = alimProps_();
@@ -4240,11 +4244,11 @@ function alimSend(data) {
     // 기록 — 학생마다 한 줄
     var rows = pending.map(function(p) {
       var err = errAll || failedByTo[p.to] || '';
-      return [new Date(), kind, p.student, p.who, p.to, p.cls, p.date, err ? '실패' : '성공', err, groupId];
+      return [new Date(), kind, p.student, p.who, p.to, p.cls, p.date, err ? '실패' : '성공', err, groupId, by];
     });
     var r0 = sh.getLastRow() + 1;
-    var rg = sh.getRange(r0, 1, rows.length, 10);
-    rg.setNumberFormats(rows.map(function() { return ['yyyy-mm-dd hh:mm', '@', '@', '@', '@', '@', '@', '@', '@', '@']; }));
+    var rg = sh.getRange(r0, 1, rows.length, 11);
+    rg.setNumberFormats(rows.map(function() { return ['yyyy-mm-dd hh:mm', '@', '@', '@', '@', '@', '@', '@', '@', '@', '@']; }));
     rg.setValues(rows);
   }
   var okCount = sent.filter(function(x) { return x.ok && !x.dup; }).length;
@@ -4360,7 +4364,7 @@ function alimLogGet(from, to, limit) {
       if (to && ymd && ymd > to) return;
       out.push({ ts: (r[0] && r[0].getTime) ? alimFmtTs_(r[0]) : String(r[0] || ''), kind: String(r[1] || ''),
                  student: String(r[2] || '').trim(), who: String(r[3] || ''), to: String(r[4] || ''),
-                 cls: String(r[5] || ''), date: ymd, ok: String(r[7] || '') === '성공', message: String(r[8] || '') });
+                 cls: String(r[5] || ''), date: ymd, ok: String(r[7] || '') === '성공', message: String(r[8] || ''), by: String(r[10] || '').trim() });
     });
   }
   out.reverse();

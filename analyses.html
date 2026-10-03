@@ -1106,7 +1106,7 @@ function alimSend(){
     return prev.then(function(){
       if (err) return;
       return fetch(ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({ action: 'alimSend', pw: SERVER_PW, kind: K.kind,
+        body: JSON.stringify({ action: 'alimSend', pw: SERVER_PW, kind: K.kind, by: AL.me || '',
           items: ch.map(function(it){ return { student: it.student, to: it.to, who: it.who, cls: '공지', date: ref, vars: { '학생명': it.student, '제목': it.title || p.title, '접근코드': it.code } }; }) }) })
         .then(function(r){ return r.json(); })
         .then(function(res){
