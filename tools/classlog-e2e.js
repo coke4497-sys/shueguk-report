@@ -135,8 +135,14 @@ const LOGS = [];
   await p.check('#showNone');
 
   // ⑥ 칭찬 · 요주의
-  await p.click('[data-tab="pc"]');
+  r = await p.evaluate(() => [document.getElementById('tnPraise').textContent, document.getElementById('tnWarn').textContent]);
+  ok('칭찬 슈스·요주의 슈스 버튼이 따로, 옆에 학생 수', JSON.stringify(r) === '["1","1"]', JSON.stringify(r));
+  await p.click('[data-tab="praise"]');
   r = await p.textContent('#pcView');
+  ok('[칭찬 슈스] = 칭찬 목록만 (김하늘 2회 모두 출석·평균 100%)', /칭찬해 주세요/.test(r) && /김하늘/.test(r) && !/관리가 필요해요/.test(r));
+  await p.click('[data-tab="warn"]');
+  r = await p.textContent('#pcView');
+  ok('[요주의 슈스] = 요주의 목록만', /관리가 필요해요/.test(r) && !/칭찬해 주세요/.test(r));
   ok('관리가 필요해요 — 박보검 태도·지각·미제출 각각 연속 2회 (날짜·반)', /박보검서정고 고2태도 노력 필요 연속 2회 \(9\/30 고2 가 · 10\/3 고2 나\)지각 연속 2회.*과제 미제출 연속 2회/.test(r), r.slice(0, 500));
   ok('결석 1회만인 학생은 요주의 아님(연속 2회 기준)', !/최민준/.test(r));
   ok('연속이 아닌 기준(베낌·평균)은 요주의에 안 들어감', !/베낌 의심|평균 0%/.test(r));
@@ -149,7 +155,7 @@ const LOGS = [];
       streak([E('출석', '', 1, 1, 'a'), E('출석', '', 0, 0, 'b'), E('출석', '', 1, 1, 'c')], RUNS[3].on, RUNS[3].skip).join()];
   });
   ok('연속 판정 — 결석·미체크·검사 안 한 수업은 건너뛰고, 다른 값이 끼면 끊긴다', r[0] === 'a,c' && r[1] === 'a' && r[2] === 'a,c' && r[3] === 'a,c', JSON.stringify(r));
-  ok('요주의 줄 왼쪽에 가장 긴 연속 횟수 배지', /^2회 연속박보검/.test(await p.textContent('#pcView .pc-sec:nth-child(2) .pc')));
+  ok('요주의 줄 왼쪽에 가장 긴 연속 횟수 배지', /^2회 연속박보검/.test(await p.textContent('#pcView .pc-sec .pc')));
   // 횟수 순서 — 가짜 수업 세 번으로 지각 3연속(가)·결석 2연속(나)·지각 2+미제출 2(다)
   r = await p.evaluate(() => {
     const row = (name, st, extra) => Object.assign({ key: name, name, school: '화정고', grade: '고2', att: st ? { status: st } : null, attitude: '', hw: null, missAll: false, missItems: [], copy: [] }, extra || {});
@@ -159,8 +165,8 @@ const LOGS = [];
       S('2026-10-01', [row('가', '지각'), row('나', '결석'), row('다', '지각', { hw: { pct: 0 }, missAll: true })]),
       S('2026-10-02', [row('가', '지각'), row('나', '출석'), row('다', '출석')])
     ];
-    const box = document.createElement('div'); box.innerHTML = pcHtml(vis);
-    return [...box.querySelectorAll('.pc-sec:nth-child(2) .pc')].map(x => x.querySelector('.pcn').textContent + x.querySelector('.pn').firstChild.textContent + (x.querySelector('.pcn.hi') ? '!' : ''));
+    const box = document.createElement('div'); box.innerHTML = pcHtml(pcCollect(vis), 'warn');
+    return [...box.querySelectorAll('.pc-sec .pc')].map(x => x.querySelector('.pcn').textContent + x.querySelector('.pn').firstChild.textContent + (x.querySelector('.pcn.hi') ? '!' : ''));
   });
   ok('횟수가 큰 학생부터 — 3회(진한 빨강) → 2회(합이 큰 쪽 먼저) → 2회', JSON.stringify(r) === JSON.stringify(['3회 연속가!', '2회 연속다', '2회 연속나']), JSON.stringify(r));
   await p.click('.pc[data-person="박보검"]');
