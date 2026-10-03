@@ -61,7 +61,8 @@ const LOGS = [];
   const ctx = await br.newContext({ viewport: { width: 900, height: 1600 } });
   const p = await ctx.newPage();
   await p.clock.setFixedTime(new Date('2026-10-03T16:00:00'));
-  let perr = 0; const urls = [];
+  let perr = 0; const urls = [], patches = [], legacy = []; let patchFail = false;
+  p.on('dialog', d => d.accept());
   p.on('pageerror', e => { perr++; console.log('  ✗ pageerror', e.message); });
   await p.route('**/*', rt => {
     const u = rt.request().url();
@@ -73,7 +74,11 @@ const LOGS = [];
     if (/\/rest\/v1\/tt_period/.test(u)) return j([{ week_wednesday: '2026-09-30', book: '정규' }]);
     if (/\/rest\/v1\/students/.test(u)) return j(STUDENTS);
     if (/\/rest\/v1\/class_notes/.test(u)) return j(NOTES);
-    if (/\/rest\/v1\/hwcheck_records/.test(u)) return j(HW);
+    if (/\/rest\/v1\/hwcheck_records/.test(u)){
+      if (rt.request().method() === 'PATCH'){ patches.push({ u: decodeURIComponent(u), b: JSON.parse(rt.request().postData()) }); return patchFail ? rt.fulfill({ status: 500, body: 'x' }) : j([{ id: 1 }]); }
+      return j(HW);
+    }
+    if (/script\.google/.test(u)){ legacy.push(JSON.parse(rt.request().postData() || '{}')); return j({ result: 'success' }); }
     if (/\/rest\/v1\/attendance/.test(u)) return j(ATT);
     if (/\/rest\/v1\/tt_log/.test(u)) return j(LOGS);
     if (/\/rest\/v1\/teacher_accounts/.test(u)) return j([]);
@@ -109,6 +114,27 @@ const LOGS = [];
   ok('명단에만 있고 기록 없는 학생 = 출석 미체크 (앞 괄호 학교 뗀 이름)', /이서연화정고 고2출석 미체크/.test(r));
   r = await p.textContent('.card[data-key="정규|r001|2026-09-30"] .prog');
   ok('기록 현황 — 출석 2/3 · 태도 2/3 · 과제 검사 2/3', /출석 2\/3 · 태도 2\/3 · 과제 검사 2\/3/.test(r), r);
+
+  r = await p.$eval('.card[data-key="정규|r001|2026-09-30"] .crgo', a => ({ href: a.getAttribute('href'), t: a.target, txt: a.textContent }));
+  ok('[이 수업 기록하기] = 슈국 스케쥴 그 날짜 창 링크(새 탭)', r.href === 'timetable.html?cr=' + encodeURIComponent('정규|r001|2026-09-30') && r.t === '_blank' && r.txt === '이 수업 기록하기', JSON.stringify(r));
+  r = await p.$$eval('.card.none .crgo', a => a.length);
+  ok('기록 없는 수업 카드에도 [이 수업 기록하기]', r >= 1, String(r));
+
+  // ③-2 미제출 대책 [확인]
+  r = await p.$$eval('.card[data-key="정규|r001|2026-09-30"] .pdb', a => a.map(x => x.textContent));
+  ok('미제출 대책 줄에 [확인] 버튼(박보검만)', JSON.stringify(r) === '["확인"]', JSON.stringify(r));
+  await p.click('.card[data-key="정규|r001|2026-09-30"] .pdb');
+  await p.waitForTimeout(300);
+  ok('[확인] → 그 수업 줄만 PATCH plan_done=true', patches.length === 1 && /week=eq\.2026-09-30&token=eq\.c2&class_id=eq\.r001/.test(patches[0].u) && patches[0].b.plan_done === true, JSON.stringify(patches));
+  ok('시트 사본도 hwcheckPlanDone 으로', legacy.some(x => x.action === 'hwcheckPlanDone' && x.token === 'c2' && x.cls === 'r001' && x.done === '1'), JSON.stringify(legacy));
+  r = await p.textContent('.card[data-key="정규|r001|2026-09-30"] .pdb');
+  ok('누른 뒤 "확인함 ✓"', r === '확인함 ✓', r);
+  patchFail = true;
+  await p.click('.card[data-key="정규|r001|2026-09-30"] .pdb');
+  await p.waitForTimeout(300);
+  r = await p.textContent('.card[data-key="정규|r001|2026-09-30"] .pdb');
+  ok('저장 실패면 되돌린다', r === '확인함 ✓', r);
+  patchFail = false;
 
   // ④ 다섯 가지 보기
   await p.click('[data-view="teacher"]'); await p.selectOption('#subSel', '현지');
