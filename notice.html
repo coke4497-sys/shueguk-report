@@ -251,6 +251,7 @@
 })();
 </script>
 <script src="student-picker.js"></script>
+<script src="teacher-name.js"></script>   <!-- 알림톡 기록의 보낸 사람 -->
 <script>
 /* ══ 수파베이스 미러 연결부 (2026-08-22 DB 이전 4단계a — 공지·별·학생정보) ═══
  * 이 페이지의 화면·저장은 전부 기존 백엔드 그대로다(시트가 원본).
@@ -417,6 +418,8 @@
    * 골라(학생 페이지 s.html의 noticeMatches와 같은 규칙) 학생 또는 학부모1 번호로 백엔드 alimSend(kind = 고른 공지 종류 notice_*)를
    * 부른다. 발송·기록·중복 방지는 백엔드가 한다(한 번에 50명 — 여기서 나눠 보낸다). */
   var alimCfg = null, ALIM_BATCH = 50;
+  var ALIM_BY = '';   // 보낸 사람(허브에 로그인한 선생님) — 알림톡 기록에 남긴다
+  if (window.shuegukTeacherName) shuegukTeacherName().then(function(n){ ALIM_BY = n || ''; });
   /* 공지 종류(2026-09-17): 카카오가 '새 공지' 하나짜리 템플릿을 "제목이 포괄적"이라 반려해, 수업 일정·시험·과제·학원 운영
    * 네 종류로 나눴다. 종류 목록·문구는 백엔드 alimConfig의 templates(notice 표시)에서 온다 — 여기서는 고르기만. */
   function alimNoticeKinds(){
@@ -575,7 +578,7 @@
       return prev.then(function(){
         if (err) return;
         return fetch(ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-          body: JSON.stringify({ action: 'alimSend', kind: p.kind,
+          body: JSON.stringify({ action: 'alimSend', pw: SERVER_PW, kind: p.kind, by: ALIM_BY,
             items: chunk.map(function(it){ return { student: it.student, to: it.to, who: it.who, cls: '공지', date: p.ref, vars: Object.assign({}, xv, { '학생명': it.student, '제목': p.title, '접근코드': it.code }) }; }) }) })
           .then(function(r){ return r.json(); })
           .then(function(res){

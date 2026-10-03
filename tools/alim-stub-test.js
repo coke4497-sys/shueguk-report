@@ -73,7 +73,8 @@ eq('kakaoOptions', [body.messages[0].kakaoOptions.pfId, body.messages[0].kakaoOp
 eq('변수 #{} 형식·순서', body.messages[0].kakaoOptions.variables, { '#{학생명}': '김하나', '#{수업일}': '9/11(금) 5:30', '#{반이름}': '고1 가' });
 const rows = SHEETS['알림톡기록'];
 eq('기록 1줄', rows.length, 2);
-eq('기록 내용', rows[1].slice(1), ['absent', '김하나', '학부모1', '01012345678', '고1 가', '2026-09-11', '성공', '', 'G1']);
+eq('기록 내용', rows[1].slice(1), ['absent', '김하나', '학부모1', '01012345678', '고1 가', '2026-09-11', '성공', '', 'G1', '']);
+eq('머리글에 보낸사람 열', rows[0][10], '보낸사람');
 
 console.log('4) 발신번호 있으면 문자 대체');
 fns.alimConfigSet({ pw: 'sh', from: '01099998888' });
@@ -258,6 +259,18 @@ nb = JSON.parse(CALLS[CALLS.length - 1].opt.payload);
 eq('다른 종류는 그 종류 템플릿 ID로 따로 감', [r.okCount, nb.messages[0].kakaoOptions.templateId], [1, 'KA01TPE']);
 r = J(fns.alimSend({ pw: 'sh', kind: 'absent', items: [item('김하나', '01012345678', '2026-09-15')] }));
 eq('결석 중복 판정은 종류가 달라 영향 없음', r.okCount, 1);
+
+console.log('10) 보낸 사람 (2026-10-03)');
+reset();
+fns.alimConfigSet({ pw: 'sh', apiKey: 'KEY1', apiSecret: 'SEC1', pfId: 'PF1', tpl: { absent: 'KA01TP1' } });
+fns.alimSend({ pw: 'sh', kind: 'absent', items: [item('김보낸', '01000000009', '2026-09-11')], by: '김현지' });
+eq('K열에 보낸 사람', SHEETS['알림톡기록'][1][10], '김현지');
+eq('조회에 보낸 사람', J(fns.alimLogGet('2026-09-11', '2026-09-11')).rows[0].by, '김현지');
+fns.alimSend({ pw: 'sh', kind: 'absent', items: [item('김없음', '01000000008', '2026-09-11')] });
+eq('안 보내면 빈 값', [SHEETS['알림톡기록'][2][10], J(fns.alimLogGet('2026-09-11', '2026-09-11')).rows[0].by], ['', '']);
+{ const sh = SHEETS['알림톡기록']; sh[0] = sh[0].slice(0, 10);   // 옛 시트(A~J)
+  fns.alimSend({ pw: 'sh', kind: 'absent', items: [item('김옛', '01000000007', '2026-09-11')], by: '이은지' });
+  eq('옛 시트에 머리글 보충', [sh[0][10], sh[3][10]], ['보낸사람', '이은지']); }
 
 console.log(fail ? ('\n' + fail + '건 실패') : '\n전부 통과');
 process.exit(fail ? 1 : 0);

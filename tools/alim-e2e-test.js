@@ -37,8 +37,12 @@ const posts = [];
   const b = await chromium.launch();
   const ctx = await b.newContext({ viewport: { width: 1300, height: 900 } });
   await ctx.route(/fonts\.g/, r => r.abort());
+  // 허브 개인 로그인 — 알림톡 기록의 '보낸 사람'(2026-10-03)
+  await ctx.addInitScript(() => localStorage.setItem('shueguk_teacher_session_v2', JSON.stringify({
+    access_token: 'me-tok', refresh_token: 'me-ref', expires_at: Math.floor(Date.now() / 1000) + 3600, user: { id: 'u-1' } })));
   await ctx.route(/supabase\.co/, r => {
     const u = r.request().url();
+    if (u.includes('/teacher_accounts')) return r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([{ display_name: '김현지 선생님', login_id: 'hj' }]) });
     if (u.includes('/students?select=name,phone_')) return phonesFail ? r.fulfill({ status: 500, contentType: 'application/json', body: '{}' }) : r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(PHONES) });
     if (u.includes('/attendance') && r.request().method() === 'POST') return r.fulfill({ status: 201, contentType: 'application/json', body: '[]' });
     if (u.includes('/attendance') && r.request().method() === 'GET') return r.fulfill({ status: 200, contentType: 'application/json', body: '[]' });
@@ -90,6 +94,7 @@ const posts = [];
   await page.waitForFunction(() => document.getElementById('status').textContent.includes('보냈어요'));
   const p1 = posts.filter(p => p.action === 'alimSend').pop();
   ok('POST alimSend 2건(받는 분마다 한 건)', p1 && p1.kind === 'absent' && p1.items.length === 2 && !p1.force, JSON.stringify(p1));
+  ok('보낸 사람(허브에 로그인한 선생님) 동봉', p1 && p1.by === '김현지', p1 && p1.by);
   ok('보낸 항목 내용', p1 && p1.items.map(x => x.who + ':' + x.to).join() === '학부모1:01033334444,학부모2:01055556666' && p1.items.every(x => x.student === '박지우' && x.date === ymd && x.cls === '고1 가' && x.vars['학생명'] === '박지우'), JSON.stringify(p1 && p1.items));
   ok('상태 문구 2건', (await page.textContent('#status')).includes('2건 보냈어요'));
 

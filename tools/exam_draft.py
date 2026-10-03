@@ -70,6 +70,7 @@ def rest(method, path, body=None, prefer=None):
     h = {'apikey': KEY, 'Authorization': 'Bearer ' + token(), 'Content-Type': 'application/json'}
     if prefer:
         h['Prefer'] = prefer
+    path = urllib.parse.quote(path, safe='/?=&.,*()')  # 한글 값(status=eq.요청 등)을 그대로 넣으면 urllib 가 ascii 오류를 낸다
     req = urllib.request.Request(SB + '/rest/v1' + path, method=method, headers=h,
                                  data=None if body is None else json.dumps(body).encode())
     raw = urllib.request.urlopen(req, timeout=60).read().decode()

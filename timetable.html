@@ -1128,6 +1128,8 @@
     .as-cn{min-width:94px;}
   }
 </style>
+<!-- 알림톡 기록의 보낸 사람 — 아래 교사 인증 조각이 fetch 를 바꾸기 전에 실행돼야 한다 -->
+<script src="teacher-name.js"></script>
 </head>
 <body>
 <main class="wrap">
@@ -1332,6 +1334,7 @@
   var T_PW = 'shg_FCePWvnawH44SV8kYB9BHRKi6aag';
   var tok = null, until = 0, pending = null;
   var raw = window.fetch.bind(window);
+  window.__sbRawFetch = raw;   // 개인 로그인으로 물어야 하는 조회(teacher-name.js)용
   var TOK_LS = 'sb_teacher_tok_v1';   // 받아 둔 신분증은 브라우저에 남겨 다음 페이지에서 다시 받지 않는다(1시간짜리)
 
   function cachedTok(){
@@ -6679,7 +6682,7 @@ function alimPostItems(items, ymd, force, done){
   var run = function(k){
     if (k >= chunks.length || out.err){ done(out); return; }
     setStatus('알림톡 보내는 중…' + (chunks.length > 1 ? ' (' + (k + 1) + '/' + chunks.length + ')' : ''));
-    var body = { action:'alimSend', kind:'absent', items: chunks[k], pw: pw };
+    var body = { action:'alimSend', kind:'absent', items: chunks[k], pw: pw, by: alimBy };   // by = 보낸 사람(허브 로그인 선생님, #493)
     if (force) body.force = '1';
     fetch(ENDPOINT, { method:'POST', headers:{ 'Content-Type':'text/plain;charset=utf-8' }, body: JSON.stringify(body) })
       .then(function(r){ return r.json(); })
@@ -6762,6 +6765,8 @@ function alimResend(cid, nm, ymd){
     });
   });
 }
+var alimBy = '';   // 보낸 사람(허브에 로그인한 선생님) — 알림톡 기록에 남긴다(2026-10-03 원장님 요청)
+if (window.shuegukTeacherName) shuegukTeacherName().then(function(n){ alimBy = n || ''; });
 /* 상단 [알림톡] — 준비 상태·템플릿 문구·보낸 기록·솔라피 설정은 슈국 운영 → 알림톡 메뉴로 옮겼다
  * (2026-10-01 사용자 "이 메뉴가 알림톡으로 와야합니다" — hub alimtalk.html '알림톡 설정' 카드). 결석 확인 창은 여기 그대로. */
 var ALIM_MENU_URL = 'https://coke4497-sys.github.io/shueguk-hub/alimtalk.html#settings';
