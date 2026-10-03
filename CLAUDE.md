@@ -343,6 +343,15 @@
   (`alimOfferAbsent` → `alimOpenConfirm`)이 뜨고 [알림톡 보내기]를 눌러야 간다. 잘못 찍은 결석이 학부모에게
   바로 가면 곤란해서(사용자 합의). 받는 분은 **학부모1 기본**, 학부모2·학생으로 바꿀 수 있다(번호는 출석 창
   연락처와 같은 `stuPhones` — 수파베이스 students의 phone_*). 연락처 없는 학생은 체크가 잠긴다.
+- **결석 알림톡 발송 과정 점검·개선**(2026-10-03 원장님 "결석 알림톡을 발송하는 프로세스를 점검하고 개선"): 화면(`timetable.html` alim 블록)·백엔드(`alimSend`) 일곱 가지를 고쳤다.
+  - **50건씩 나눠 보낸다**(`ALIM_BATCH`·`alimPostItems`): 복수 선택 결석은 받는 분이 셋씩이라 17명만 넘어도 백엔드 50건 상한에 걸려 **통째로 실패**했다(공지 화면은 처음부터 나눠 보냈는데 결석 창은 한 번에 보냈다). 보내는 동안 창을 열어 두고 버튼을 잠근다(두 번 눌림 방지), 상태 줄에 '(1/2)'.
+  - **force는 그 창에만**(`alimConfirm.force`): 옛 전역 `alimForce`는 [다시 보내기] 창을 '보내지 않기'로 닫으면 켜진 채 남아 **다음 결석 알림이 중복 방지를 건너뛰고 나갔다**. 다시 보내기도 발송 기록 캐시(`alimLogByDate`)를 지우지 않는다(지우면 취소 뒤 출석 창에 '아직 안 보냄'이 잘못 남았다) — 대신 `opt.all`로 모두 체크해 연다.
+  - **같은 번호는 한 건**(`alimTargets`의 `also`): 학생 번호 = 학부모 번호인 학생에게 같은 알림이 두 번 갔다. who는 앞의 것('학부모1')으로 보내고 창에는 '학부모님1·학생'으로 보인다(`alimWhoLabel`) — 저장 키·출석 창 판정도 그 who 하나라 어긋나지 않는다.
+  - **연락처 조회 실패 ≠ 연락처 없음**(`stuPhonesFailed`, `stuPhonesEnsure(cb, force)`): 실패하면 빈 표가 영영 캐시돼 모든 학생이 '등록된 연락처가 없어요'로 보였고 다시 받을 길이 없었다. 이제 창 위 노란 안내 + [다시 불러오기](`alimRetryPhones`). 보낸 기록 조회 실패(`alimLogFailed`)도 안내한다(서버 dup 방지는 그대로라 보내도 된다).
+  - **실패가 있으면 결과 창**(`alimReport` — 실패한 분·번호·이유 목록 + [실패한 n건 다시 보내기] `alimRetryFailed`): 전에는 아래 상태 줄 한 줄에만 잠깐 보였다. 전송 결과를 못 받으면(인터넷·서버 오류) '출석 창에서 보냈는지 확인'을 안내한다. 모두 성공이면 종전처럼 상태 줄만.
+  - **결석 사유를 창에 표시**(`alimMemoOf` — 오늘은 attend, 지난 날짜는 weekAttend) — 조교가 보내기 전 한 번 더 확인하게. 반 정보를 못 찾으면 '반 정보 없음'.
+  - **백엔드 `alimSend`는 중복 확인→발송→기록을 `LockService` 잠금 안에서**(`alimSendLocked_`): 조교 둘이 같은 결석을 거의 동시에 보내면 둘 다 중복 확인을 통과해 두 번 갔다(CLAUDE.md의 "겹쳐 눌러도 두 번 안 감"이 실제로는 보장되지 않았다). 20초 안에 잠금을 못 잡으면 '다른 알림톡 발송이 진행 중' 거절(화면은 결과 창으로 안내). **재배포해야 반영된다 — 2026-10-03 기준 미배포**(화면 쪽 여섯 가지는 머지·배포 즉시 적용).
+  - 검증: `node tools/alim-stub-test.js`(6b 잠금 4건 추가) + `NODE_PATH=$(npm root -g) node tools/alim-e2e-test.js`(34건 — 50건 나누기·취소한 force 안 샘·캐시 유지·같은 번호 합치기·사유 표시·실패 결과 창과 다시 보내기·연락처 조회 실패와 다시 불러오기).
 - **발송·기록·설정은 전부 백엔드**(`backend-createReport.gs` 'ALIM' 블록) — 화면은 창만.
   POST `alimSend{kind:'absent', items:[{student,to,who,cls,date,vars}], force?}` / GET `alimLog&from&to&limit` /
   GET `alimConfig`(값 없이 준비 여부만 + 템플릿 문구) / POST `alimConfigSet{apiKey?,apiSecret?,from?,pfId?,tpl:{absent?}}`(쓰기 전용).
