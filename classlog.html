@@ -36,7 +36,12 @@
   select,input[type=text],input[type=date]{font:inherit;font-size:14px;padding:7px 10px;border:1.5px solid var(--line);border-radius:10px;background:#fafbfa;color:var(--ink);}
   input[type=text]{min-width:160px;}
   .tabs{display:flex;gap:8px;margin:0 0 14px;}
+  .tabs{flex-wrap:wrap;}
   .tabs .pill{padding:9px 18px;font-size:15px;}
+  .tabs .tn{margin-left:6px;font-family:"Do Hyeon",sans-serif;font-size:16px;}
+  .tabs .tab-praise.on{background:var(--sage);color:var(--sage-ink);}
+  .tabs .tab-warn.on{background:var(--pnk);color:var(--pnk-ink);}
+  @media (max-width:480px){ .tabs{gap:6px;} .tabs .pill{padding:8px 12px;font-size:14px;} .tabs .tn{margin-left:4px;font-size:15px;} }
   .tiles{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin:0 0 14px;}
   .tile{background:var(--surface);border-radius:14px;padding:10px 12px;}
   .tile b{display:block;font-family:"Do Hyeon",sans-serif;font-weight:400;font-size:24px;line-height:1.2;color:var(--ink);}
@@ -185,7 +190,8 @@
 
   <div class="tabs" id="tabs">
     <button type="button" class="pill on" data-tab="rec">수업 기록</button>
-    <button type="button" class="pill" data-tab="pc">칭찬 · 요주의 슈퍼스타</button>
+    <button type="button" class="pill tab-praise" data-tab="praise">칭찬 슈스<span class="tn" id="tnPraise"></span></button>
+    <button type="button" class="pill tab-warn" data-tab="warn">요주의 슈스<span class="tn" id="tnWarn"></span></button>
   </div>
 
   <div class="box">
@@ -641,12 +647,14 @@ function render(){
   $('openAll').textContent = ST.openAll ? '모두 접기' : '모두 펼치기';
   if (!BASE) return;
   subControl();
-  if (!D){ $('recView').innerHTML = ''; $('pcView').innerHTML = ''; $('tiles').innerHTML = ''; return; }
+  if (!D){ $('recView').innerHTML = ''; $('pcView').innerHTML = ''; $('tiles').innerHTML = ''; $('tnPraise').textContent = ''; $('tnWarn').textContent = ''; return; }
   var vis = visibleSessions();
   tiles(vis);
   $('recView').style.display = ST.tab === 'rec' ? '' : 'none';
-  $('pcView').style.display = ST.tab === 'pc' ? '' : 'none';
-  if (ST.tab === 'pc'){ $('pcView').innerHTML = pcHtml(vis); return; }
+  $('pcView').style.display = ST.tab !== 'rec' ? '' : 'none';
+  var PC = pcCount(vis);
+  $('tnPraise').textContent = PC ? PC.praise.length : ''; $('tnWarn').textContent = PC ? PC.warn.length : '';
+  if (ST.tab !== 'rec'){ $('pcView').innerHTML = pcHtml(PC, ST.tab); return; }
   if ((ST.view === 'school' || ST.view === 'person') && !tr(ST.sub)){
     $('recView').innerHTML = '<div class="empty">' + (ST.view === 'school' ? '학교를 고르세요.' : '학생 이름을 넣어 주세요.') + '</div>'; return;
   }
@@ -728,9 +736,13 @@ function pcCollect(vis){
   praise.sort(by); warn.sort(by);
   return { praise: praise, warn: warn };
 }
-function pcHtml(vis){
-  if ((ST.view === 'school' || ST.view === 'person') && !tr(ST.sub)) return '<div class="empty">' + (ST.view === 'school' ? '학교를 고르세요.' : '학생 이름을 넣어 주세요.') + '</div>';
-  var R = pcCollect(vis);
+/* 칭찬 슈스·요주의 슈스는 버튼을 나눴다(2026-10-03 원장님 "칭찬 슈스, 요주의 슈스 버튼 구분") — 버튼 옆 숫자 = 해당 학생 수 */
+function pcCount(vis){
+  if ((ST.view === 'school' || ST.view === 'person') && !tr(ST.sub)) return null;
+  return pcCollect(vis);
+}
+function pcHtml(R, which){
+  if (!R) return '<div class="empty">' + (ST.view === 'school' ? '학교를 고르세요.' : '학생 이름을 넣어 주세요.') + '</div>';
   var item = function(x){ return '<div class="pc" data-person="' + esc(x.p.name) + '"><div class="pcn' + (x.unit === '연속' ? ' w' : '') + (x.top >= 3 ? ' hi' : '') + '"><b>' + x.top + '</b><span>' + (x.unit === '연속' ? '회 연속' : '회') + '</span></div><div class="pn">' + esc(x.p.name) + '<small>' + esc([x.p.school, x.p.grade].filter(Boolean).join(' ')) + '</small></div><ul>' +
     x.items.map(function(i){ return '<li>' + i + '</li>'; }).join('') + '</ul></div>'; };
   var sec = function(title, n, hint, list, emptyMsg){
@@ -738,8 +750,8 @@ function pcHtml(vis){
       (list.length ? list.map(item).join('') : '<p class="hint">' + emptyMsg + '</p>') + '</section>';
   };
   var R1 = CL_RULES;
-  return sec('칭찬해 주세요', R.praise.length, '과제 검사 100%가 ' + R1.praiseStar + '회 이상 · 태도 매우 좋음 ' + R1.praiseGood + '회 이상 · 지각·결석 없이 모든 수업 출석하고 과제 검사 평균 ' + R1.praiseAvg + '% 이상. 왼쪽 숫자가 큰 학생부터 보여 드립니다. 이름을 누르면 그 학생의 수업 기록으로 갑니다.', R.praise, '이 기간에 해당하는 학생이 없습니다.') +
-    sec('관리가 필요해요', R.warn.length, '태도 노력 필요 · 결석 · 지각 · 과제 미제출 중 하나가 ' + R1.warnRun + '회 연속인 학생. 왼쪽 숫자는 가장 긴 연속 횟수이고, 큰 학생부터 보여 드립니다(3회 이상은 진한 빨강). 고른 기간 안의 수업만 이어 봐요. 이번 주만 보면 그 주 수업 두 번이 이어져야 잡히고, 최근 4주로 넓히면 주를 넘는 연속도 잡힙니다.', R.warn, '이 기간에 해당하는 학생이 없습니다.');
+  if (which === 'praise') return sec('칭찬해 주세요', R.praise.length, '과제 검사 100%가 ' + R1.praiseStar + '회 이상 · 태도 매우 좋음 ' + R1.praiseGood + '회 이상 · 지각·결석 없이 모든 수업 출석하고 과제 검사 평균 ' + R1.praiseAvg + '% 이상. 왼쪽 숫자가 큰 학생부터 보여 드립니다. 이름을 누르면 그 학생의 수업 기록으로 갑니다.', R.praise, '이 기간에 해당하는 학생이 없습니다.');
+  return sec('관리가 필요해요', R.warn.length, '태도 노력 필요 · 결석 · 지각 · 과제 미제출 중 하나가 ' + R1.warnRun + '회 연속인 학생. 왼쪽 숫자는 가장 긴 연속 횟수이고, 큰 학생부터 보여 드립니다(3회 이상은 진한 빨강). 고른 기간 안의 수업만 이어 봐요. 이번 주만 보면 그 주 수업 두 번이 이어져야 잡히고, 최근 4주로 넓히면 주를 넘는 연속도 잡힙니다.', R.warn, '이 기간에 해당하는 학생이 없습니다.');
 }
 
 /* ── 허브 로그인 선생님(처음 열 때 그 선생님 수업부터) ─────────── */
