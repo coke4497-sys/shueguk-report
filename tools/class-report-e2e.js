@@ -40,6 +40,7 @@ const STUDENTS = [
   const ok = (n, c, x) => { if (c) pass++; else { fail++; console.log('  ✗ ' + n + (x ? ' — ' + x : '')); } };
   async function ctxOf(opt){
     const st = { writes: [], gas: [], notes: {}, ns: [] };
+    Object.assign(st.notes, opt.notes || {});
     const ctx = await b.newContext({ viewport: { width: 1300, height: 900 }, timezoneId: 'Asia/Seoul' });
     await ctx.route(/fonts\.g/, r => r.abort());
     await ctx.route(/script\.google\.com|googleusercontent/, r => {
@@ -65,6 +66,7 @@ const STUDENTS = [
         }
         return json(200, Object.values(st.notes).filter(n => !cid || n.class_id === cid));
       }
+      if (/\/class_reports\?/.test(u) && m === 'GET') return json(200, opt.reports || []);
       if (/\/naeshin_records/.test(u)){ if (m === 'GET') return json(200, st.ns); return r.fulfill({ status: 201, body: '' }); }
       if (/\/hwcheck_records/.test(u) && m === 'POST' && opt.noMissCol && body && body[0] && 'missing_items' in body[0])
         return json(400, { code: 'PGRST204', message: "Could not find the 'missing_items' column of 'hwcheck_records' in the schema cache" });
@@ -774,6 +776,43 @@ const STUDENTS = [
     await c9.page.evaluate(() => crClose());
     ok('⑨ 창을 닫으면 지난 날짜 상태도 풀린다', await c9.page.evaluate(() => CRX === null));
     await c9.ctx.close();
+  }
+
+  // ⑩ 이미 생성·공개한 수업 — 공개 완료 띠·[리포트 다시 생성]·확인 창·자동 갱신(2026-10-03 원장님)
+  {
+    const AT = new Date(T0.getTime() - 3600e3).toISOString();
+    const c10 = await ctxOf({ book: '정규', rows: [row('r001', '고2 가', '지원', '박보검 김하늘')],
+      att: [{ class_id: 'r001', student: '박보검', status: '출석' }, { class_id: 'r001', student: '김하늘', status: '출석' }],
+      notes: { '정규|r001': { id: 1, book: '정규', class_id: 'r001', ymd: TODAYSTR, part: '가', progress: '사미인곡', homework: '', comments: {}, report_status: '공개', reported_at: AT } },
+      reports: [{ code: 'k-park' }, { code: 'k-kim' }] });
+    const p10 = c10.page;
+    await p10.waitForFunction(() => { const b = document.querySelector('.blk .crbtn'); return b && /리포트 공개/.test(b.textContent); }, null, { timeout: 15000 });
+    ok('⑩ 카드 버튼 [리포트 공개 ✓]', await p10.$eval('.blk .crbtn', e => e.textContent) === '리포트 공개 ✓');
+    await openCard(p10, '고2 가');
+    await p10.waitForFunction(() => /학생 2명/.test((document.getElementById('cr-st') || {}).textContent || ''), null, { timeout: 8000 });
+    r = await p10.evaluate(() => ({ st: document.getElementById('cr-st').textContent, pub: document.getElementById('cr-st').classList.contains('pub'), gen: document.getElementById('cr-gen').textContent }));
+    ok('⑩ 창 맨 위 "리포트 공개 완료" 띠·시각·학생 수', r.pub && /리포트 공개 완료/.test(r.st) && /학생 2명/.test(r.st), JSON.stringify(r));
+    ok('⑩ 버튼 이름 [리포트 다시 생성]', r.gen === '리포트 다시 생성', r.gen);
+    p10.removeAllListeners('dialog');
+    let msg = '';
+    p10.once('dialog', d => { msg = d.message(); d.dismiss(); });
+    await p10.click('#cr-gen');
+    await p10.waitForTimeout(400);
+    ok('⑩ 다시 생성 전 확인 창(이미 생성해 공개) — 취소하면 요청 안 감', /이미 리포트를 생성해 공개/.test(msg) && /학생 2명/.test(msg) && !c10.st.gas.some(g => g.action === 'editReqAdd'), msg);
+    p10.on('dialog', d => d.accept());
+    // 작성 중 → 공개로 바뀌면 띠·버튼이 저절로 바뀐다
+    await p10.evaluate(() => { CR.note.report_status = '요청'; document.getElementById('cr-st').outerHTML = crStateHtml(CR.note); crGenLabel(); });
+    ok('⑩ 작성 중 띠·버튼', await p10.evaluate(() => /리포트 작성 중/.test(document.getElementById('cr-st').textContent) && document.getElementById('cr-gen').textContent === '리포트 작성 중'));
+    await p10.evaluate(() => crWatchState());
+    await p10.waitForFunction(() => document.getElementById('cr-st').classList.contains('pub'), null, { timeout: 8000 });
+    ok('⑩ 공개되면 창 띠·버튼이 바뀐다(창은 다시 안 그림)', await p10.evaluate(() => document.getElementById('cr-gen').textContent === '리포트 다시 생성' && /공개됐습니다/.test(document.getElementById('cr-msg').textContent)));
+    await p10.evaluate(() => crClose());
+    await p10.evaluate(() => { crToday.map['정규|r001'].st = '요청'; render(); });
+    ok('⑩ (가정) 카드가 작성 중', await p10.$eval('.blk .crbtn', e => e.textContent) === '기록 완료 ✓');
+    await p10.evaluate(() => crTodayPoll());
+    await p10.waitForFunction(() => document.querySelector('.blk .crbtn').textContent === '리포트 공개 ✓', null, { timeout: 8000 });
+    ok('⑩ 카드도 새로고침 없이 [리포트 공개 ✓]로', true);
+    await c10.ctx.close();
   }
 
   ok('페이지 오류 없음', perr === 0);
