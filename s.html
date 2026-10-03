@@ -138,7 +138,13 @@
   .t30-tog{border:none;border-radius:999px;background:#EEF2EF;color:var(--ink-soft);font-family:var(--sans);
     font-size:.78rem;padding:6px 13px;cursor:pointer;white-space:nowrap;}
   .t30-tog:active{opacity:.8;}
-  .t30-sub{font-family:var(--serif);font-size:.86rem;color:var(--accent);margin:0 0 6px;}
+  .t30-top{display:flex;align-items:center;justify-content:space-between;gap:10px;}
+  #top30Card .t30-top .ntag{margin-bottom:0;}
+  .t30-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:10px;}
+  .t30-head .nh{margin-bottom:4px;}
+  .t30-sub{font-family:var(--serif);font-size:.86rem;color:var(--accent);margin:0;line-height:1.6;}
+  .t30-sk{flex:none;width:96px;height:auto;margin:-6px -4px -4px 0;pointer-events:none;}   /* 응원하는 슈콩 */
+  @media (max-width:420px){ .t30-sk{width:78px;} }
   .t30-pod{display:grid;grid-template-columns:1fr 1.15fr 1fr;gap:10px;align-items:end;margin:22px 0 18px;}
   .t30-pod .pc{text-align:center;}
   .t30-pod .rk{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:50%;
@@ -2756,10 +2762,12 @@ function checkNoticeBtn(btn){
  * 2026-10-03 원장님 시안: 1~3위 시상대 + 4~14위 순위 막대(1위 별 수 기준 폭) + [15~30위 더 보기]. */
 function starTop30Html(){
   return '<div class="notice-item" id="top30Card">' +
-    '<span class="ntag" style="background:#F3E9CF;color:#8A6D2F;">슈퍼스타</span>' +
-    '<div class="nh"><span class="ntitle">슈퍼스타 TOP 30</span>' +
+    '<div class="t30-top"><span class="ntag" style="background:#F3E9CF;color:#8A6D2F;">슈퍼스타</span>' +
       '<button type="button" class="t30-tog" id="top30Tog" onclick="toggleTop30(this)">순위 보기 ⌄</button></div>' +
-    '<p class="t30-sub">지금까지 별을 가장 많이 모은 슈퍼스타 30명을 볼 수 있어요.</p>' +
+    '<div class="t30-head"><div>' +
+      '<div class="nh"><span class="ntitle">슈퍼스타 TOP 30</span></div>' +
+      '<p class="t30-sub">지금까지 별을 가장 많이 모은 슈퍼스타 30명을 볼 수 있어요.</p></div>' +
+      '<img class="t30-sk" src="assets/sk-cheer-hearts.png" alt="응원하는 슈콩" width="96" height="87"></div>' +
     '<div id="top30List" style="display:none;margin-top:4px;"></div>' +
     '</div>';
 }
