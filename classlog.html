@@ -87,6 +87,10 @@
   .note{font-size:13px;margin:4px 0 0;white-space:pre-wrap;word-break:keep-all;}
   .note .k{font-size:11.5px;font-weight:700;color:var(--ink-soft);margin-right:6px;}
   .note.priv .k{color:#8E5147;}
+  .note.pdl{display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+  .note.pdl .none{color:#9aa6a0;}
+  .pdb{margin-left:auto;border:0;border-radius:999px;padding:3px 12px;font:inherit;font-size:12.5px;cursor:pointer;background:var(--gray);color:var(--ink-soft);}
+  .pdb.on{background:var(--sage);color:var(--sage-ink);font-weight:700;}
   .empty{background:rgba(255,255,255,.6);border-radius:var(--radius);padding:22px;text-align:center;color:var(--ink-soft);font-size:14px;}
   .more{display:block;margin:6px auto 0;border:0;background:var(--surface);color:var(--ink-soft);border-radius:999px;padding:9px 20px;font:inherit;font-size:14px;cursor:pointer;}
   .linkbtn{border:0;background:none;color:var(--accent);font:inherit;font-size:13px;cursor:pointer;padding:0;text-decoration:underline;}
@@ -185,7 +189,7 @@
   </a>
   <header>
     <p class="brand">수업 기록 보기</p>
-    <p class="sub">오늘의 시간표 [수업 기록] 창에 적은 내용을 반별로 모아 봅니다. 보기 전용이에요. 고치는 것은 [수업 기록] 창에서 합니다.</p>
+    <p class="sub">오늘의 시간표 [수업 기록] 창에 적은 내용을 반별로 모아 봅니다. 보기 전용이에요. 미제출 대책 [확인] 표시만 여기서 할 수 있습니다. 나머지를 고치는 것은 [수업 기록] 창에서 합니다.</p>
   </header>
 
   <div class="tabs" id="tabs">
@@ -226,7 +230,7 @@
 /* 수업 기록 보기 (2026-10-03 원장님 "각 반별로 수업 기록한 내용과 숙제 검사 내용을 선생님이 볼 수 있는 기능" →
  * 학습 관리 메뉴, 보기 = 전체·담당 선생님별·학년·학교·개인(모두 수업 카드), 기간 기본 = 이번 주(수요일 시작),
  * 기록 없는 수업 표시, 베낌 의심·비공개 메모도 표시(비공개 표시), 칭찬·요주의 슈퍼스타 리포트).
- * 보기 전용 — 쓰기는 하지 않는다. 판정 기준은 CL_RULES 한 곳. */
+ * 보기 전용 — 쓰기는 미제출 대책 [확인](planDone) 하나뿐. 판정 기준은 CL_RULES 한 곳. */
 var SBR = 'https://bangdbhqpphqqdwcledg.supabase.co/rest/v1';
 var SBK = 'sb_publishable_dE9d1KIbpgYaQkaS2MSrlg_-7SiRJuT';
 var LEFT_RE = /^(퇴원|n|no|off|x|중단|비재원)$/i;
@@ -302,6 +306,8 @@ function sbAll(path, from, acc){
 /* ── 상태 ─────────────────────────────────────────────── */
 var ST = { tab: 'rec', view: 'all', sub: '', per: 'this', from: '', to: '', showNone: true, open: {}, openAll: false, limit: 60 };
 var D = null;          // 받아 둔 데이터
+var PD = [];           // 화면에 그린 미제출 대책 줄의 과제 검사 기록([확인] 버튼 번호 → 기록)
+var ENDPOINT = 'https://script.google.com/macros/s/AKfycbzhCncBwn-JlqXARC3wfrWUCuNHzlNK2df0bdhx-w78Xr8mzYUcIYZOJdRi9N4bHtsb/exec';
 var BASE = null;       // 고정 데이터(시간표·기간·학생) — 기간을 바꿔도 다시 받지 않는다
 function lsGet(k){ try { return localStorage.getItem(k); } catch(e){ return null; } }
 function lsSet(k, v){ try { localStorage.setItem(k, v); } catch(e){} }
@@ -570,7 +576,11 @@ function stuHtml(s, r){
   if (r.extra.length) out += '<div class="note"><span class="k">이 학생만 과제</span>' + esc(r.extra.join(' · ')) + '</div>';
   if (r.comment) out += '<div class="note"><span class="k">코멘트</span>' + esc(r.comment) + '</div>';
   else if (r.missAll) out += '<div class="note"><span class="k">코멘트</span><span style="color:var(--ink-soft)">(비워 둠. 리포트에는 \'' + esc(r.name.replace(/[A-Z]$/, '')) + ' 친구는 과제 제출을 하지 않았습니다!!!!\'로 기록)</span></div>';
-  if (h && tr(h.plan)) out += '<div class="note"><span class="k">미제출 대책</span>' + esc(h.plan) + (h.plan_done ? ' (확인함)' : '') + '</div>';
+  if (h && (tr(h.plan) || h.missing || (Array.isArray(h.missing_items) && h.missing_items.length))){
+    var pi = PD.push(h) - 1;
+    out += '<div class="note pdl"><span class="k">미제출 대책</span><span class="' + (tr(h.plan) ? '' : 'none') + '">' + (tr(h.plan) ? esc(h.plan) : '대책 미기록') + '</span>' +
+      '<button type="button" class="pdb' + (h.plan_done ? ' on' : '') + '" data-pd="' + pi + '">' + (h.plan_done ? '확인함 ✓' : '확인') + '</button></div>';
+  }
   if (r.copy.length) out += '<div class="note priv"><span class="k">베낌 의심 · 비공개</span>' + esc(r.copy.map(itemLabel).join(' · ')) + '</div>';
   if (h && tr(h.priv)) out += '<div class="note priv"><span class="k">비공개 메모</span>' + esc(h.priv) + '</div>';
   return out + '</div>';
@@ -659,6 +669,7 @@ function render(){
     $('recView').innerHTML = '<div class="empty">' + (ST.view === 'school' ? '학교를 고르세요.' : '학생 이름을 넣어 주세요.') + '</div>'; return;
   }
   if (!vis.length){ $('recView').innerHTML = '<div class="empty">이 기간에 보여 드릴 수업이 없습니다.</div>'; return; }
+  PD = [];
   var html = '', day = '', shown = vis.slice(0, ST.limit);
   shown.forEach(function(s){
     if (s.ymd !== day){ day = s.ymd; html += '<div class="day">' + mdw(day) + (day === todayYmd() ? ' · 오늘' : '') + '</div>'; }
@@ -666,6 +677,25 @@ function render(){
   });
   if (vis.length > shown.length) html += '<button type="button" class="more" id="moreBtn">수업 ' + (vis.length - shown.length) + '개 더 보기</button>';
   $('recView').innerHTML = html;
+}
+
+/* ── 미제출 대책 [확인] (2026-10-03 원장님 — 과제 검사 메뉴를 빼면서 이 화면으로 옮김) ──
+ * hwcheck.html hwcheckPlanDone 과 같은 규칙: 원본 hwcheck_records 의 그 수업 줄(week·token·class_id)만 plan_done 을 바꾸고,
+ * 시트 사본은 옛 백엔드 hwcheckPlanDone 으로 뒤에서. 화면 먼저 바꾸고 실패하면 되돌린다. 이 화면의 유일한 쓰기다. */
+function planDone(h){
+  if (!h) return;
+  var next = !h.plan_done; h.plan_done = next; render();
+  var q = function(v){ return encodeURIComponent(String(v == null ? '' : v)); };
+  fetch(SBR + '/hwcheck_records?week=eq.' + q(String(h.week).slice(0, 10)) + '&token=eq.' + q(h.token) + '&class_id=eq.' + q(h.class_id || ''), {
+    method: 'PATCH', headers: { apikey: SBK, 'Content-Type': 'application/json', Prefer: 'return=representation' },
+    body: JSON.stringify({ plan_done: next })
+  }).then(function(r){ if (!r.ok) throw new Error('sb ' + r.status); return r.json(); })
+    .then(function(rows){
+      if (!rows || !rows.length) throw new Error('기록을 찾지 못했어요');
+      var body = JSON.stringify({ action: 'hwcheckPlanDone', pw: 'sh', week: String(h.week).slice(0, 10), token: h.token, cls: h.class_id || '', done: next ? '1' : '0' });
+      fetch(ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: body }).catch(function(e){ console.warn('시트 사본 실패', e); });
+    })
+    .catch(function(e){ h.plan_done = !next; render(); alert('확인 표시를 저장하지 못했어요. 잠시 뒤 다시 눌러 주세요. (' + (e && e.message || e) + ')'); });
 }
 
 /* ── 칭찬 · 요주의 ───────────────────────────────────── */
@@ -807,6 +837,7 @@ document.addEventListener('click', function(e){
   if (e.target.id === 'openAll'){ ST.openAll = !ST.openAll; ST.open = {}; render(); return; }
   if (e.target.id === 'moreBtn'){ ST.limit += 60; render(); return; }
   if (e.target.id === 'retryBtn'){ reload(); return; }
+  if ((b = e.target.closest('[data-pd]'))){ planDone(PD[+b.getAttribute('data-pd')]); return; }
 });
 document.addEventListener('change', function(e){
   if (e.target.id === 'subSel'){ ST.sub = e.target.value; ST.limit = 60; saveView(); render(); return; }
