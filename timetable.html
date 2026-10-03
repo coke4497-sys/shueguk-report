@@ -548,6 +548,10 @@
   .cr-check b{color:var(--ink);} .cr-check .ok{color:#3F6159;} .cr-check .warn{color:#7A6230;}
   .cr-state{border-radius:10px;padding:9px 12px;font-size:.8rem;background:#EDE4F4;color:#5A4A6A;}
   .cr-state.hold{background:#F7E2DE;color:#9A5A52;}
+  .cr-state b{font-weight:700;margin-right:8px;}
+  .cr-state small{display:block;margin-top:3px;font-size:.74rem;opacity:.85;}
+  .cr-state.pub{background:#DCE8E3;color:#2F5A4E;}
+  .cr-btn.lav.again{background:#F2F5F3;color:#4F5C56;}
   /* 학생별 리포트 미리보기 (2026-10-01) — 학생 페이지 '학습 이력' 카드와 같은 모양 */
   .crpv-bg{position:fixed;inset:0;z-index:90;background:rgba(42,51,47,.45);display:flex;align-items:center;justify-content:center;padding:16px;}
   .crpv-bg[hidden]{display:none;}
@@ -7031,20 +7035,36 @@ function crEnsureToday(){
   var t = todayStr();
   if (crToday.ymd === t && (crToday.map || crToday.busy)) return;
   crToday.ymd = t; crToday.busy = true;
-  crGet('/class_notes?ymd=eq.' + t + '&select=book,class_id,report_status,progress,units,homework')
-    .then(function(rows){
-      var m = {};
-      rows.forEach(function(r){ m[r.book + '|' + r.class_id] = { st: r.report_status || '', has: crHasNote(r) }; });
-      crToday.map = m;
-    })
+  crGet('/class_notes?ymd=eq.' + t + '&select=book,class_id,report_status,reported_at,progress,units,homework')
+    .then(function(rows){ crToday.map = crTodayMap(rows); })
     .catch(function(e){ console.warn('수업 기록 상태 조회 실패', e); crToday.map = {}; })
     .then(function(){ crToday.busy = false; if (mode === 'today') render(); });
 }
+function crTodayMap(rows){
+  var m = {};
+  rows.forEach(function(r){ m[r.book + '|' + r.class_id] = { st: r.report_status || '', has: crHasNote(r), at: r.reported_at || '' }; });
+  return m;
+}
+/* 오늘 카드에 '작성 중'이 있으면 45초마다 다시 읽어 공개되면 버튼을 바꾼다 — 새로고침하지 않아도 보이게 */
+function crTodayPoll(){
+  crWatchState();
+  if (document.hidden || mode !== 'today' || !crToday.map || crToday.busy || crToday.ymd !== todayStr()) return;
+  var m0 = crToday.map, waiting = Object.keys(m0).some(function(k){ return m0[k].st === '요청'; });
+  if (!waiting) return;
+  crGet('/class_notes?ymd=eq.' + crToday.ymd + '&select=book,class_id,report_status,reported_at,progress,units,homework')
+    .then(function(rows){
+      var m = crTodayMap(rows), changed = Object.keys(m).some(function(k){ return !m0[k] || m0[k].st !== m[k].st; });
+      if (crToday.map !== m0) return;
+      crToday.map = m;
+      if (changed && mode === 'today' && $('crpanel').hidden) render();
+    }).catch(function(){});
+}
+setInterval(crTodayPoll, 45000);
 function crHasNote(r){ return !!(String(r.progress || '').trim() || String(r.homework || '').trim() || (r.units && r.units.length)); }
 function crBtnHtml(c){
   var s = crToday.map && crToday.map[book + '|' + c.id];
   var cls = '', label = '수업 기록', tip = '진도·과제·과제 검사·코멘트를 적고 수업 리포트를 만들어요';
-  if (s && s.st === '공개'){ cls = ' pub'; label = '리포트 공개'; tip = '학생 페이지에 수업 리포트가 공개됐어요'; }
+  if (s && s.st === '공개'){ cls = ' pub'; label = '리포트 공개 ✓'; tip = '리포트를 생성해 학생 페이지에 공개했어요' + (s.at ? ' (' + crHm(s.at) + ')' : ''); }
   else if (s && s.st === '요청'){ cls = ' fin'; label = '기록 완료 ✓'; tip = '수업 기록을 마쳤어요. 클로슈가 수업 리포트를 쓰고 있어요'; }
   else if (s && s.has){ cls = ' done'; label = '기록함'; tip = '수업 기록을 적어 두었어요 — 리포트는 아직'; }
   if (crJustDone === book + '|' + c.id && $('crpanel').hidden) cls += ' popin';
@@ -7131,6 +7151,7 @@ function openClassNote(c, ctx){
   $('cr-meta').textContent = c.teacher + 'T' + (c.loc ? ' · ' + c.loc : '') + ' · ' + mdOfYmdStr(ymd) + ' (' + ['일','월','화','수','목','금','토'][new Date(ymd + 'T00:00:00').getDay()] + ')' + (CRX ? ' 지난 수업' : '') + ' · ' + CR.names.length + '명 · ' + bk + ' 주간';
   $('cr-body').innerHTML = '<p class="mdesc">불러오는 중…</p>';
   crMsg('');
+  crGenLabel();
   $('cr-bg').hidden = false; $('crpanel').hidden = false;
   var mine = CR;
   Promise.all([
@@ -7151,6 +7172,7 @@ function openClassNote(c, ctx){
     CR.sib = r[5] || [];
     crSibAuto();
     crRender();
+    crPubCount();
   }).catch(function(e){
     if (CR !== mine) return;
     $('cr-body').innerHTML = '<p class="mdesc">기록을 불러오지 못했어요. 인터넷을 확인하고 다시 열어 주세요.</p>';
@@ -7642,10 +7664,7 @@ function crRender(){
       '<span id="cr-pct-' + i + '">' + (code && CR.hwOk ? crHwLabel(code) : '') + '</span>' +
       '<span class="cr-dot" id="cr-dot-' + i + '"></span></div>' + crDoneHtml(dn) + crAttHtml(i, x) + hwPart + '</div>';
   }).join('');
-  var st = '';
-  if (n.report_status === '요청') st = '<div class="cr-state">수업 기록을 마쳤습니다. 클로슈가 수업 리포트를 쓰고 있어요' + (n.requested_at ? ' (요청 ' + crHm(n.requested_at) + ')' : '') + '. 보통 몇 분 안에 학생 페이지에 공개돼요.</div>';
-  else if (n.report_status === '공개') st = '<div class="cr-state">수업 리포트가 공개됐어요' + (n.reported_at ? ' (' + crHm(n.reported_at) + ')' : '') + '. 내용을 고친 뒤 [리포트 생성]을 다시 누르면 새로 써요.</div>';
-  else if (n.report_status === '보류') st = '<div class="cr-state hold">리포트를 만들지 못했어요' + (n.report_note ? ': ' + esc(n.report_note) : '') + '</div>';
+  var st = crStateHtml(n);
   var top = '';
   if (part === '진도' && CR.ns) top = crNsHtml(n);
   else if (part === '확인')
@@ -7671,6 +7690,49 @@ function crRender(){
         (allDone < CR.names.length || CR.onlyTodo ? '<button type="button" id="cr-only-todo" aria-pressed="' + !!CR.onlyTodo + '">' + (CR.onlyTodo ? '모두 보기' : '부족한 친구만 보기') + '</button>' : '') + '</div>' : '') +
       (CR.hwOk && CR.names.length ? crXtHtml() : '') +
       (cards || '<p class="mdesc">오늘 이 반에 학생이 없어요.</p>') + '</div>' + chk;
+  crGenLabel();
+}
+/* 리포트 상태 띠 — 이미 생성·공개된 수업인지 창 맨 위에서 바로 보이게(2026-10-03 원장님 "이미 생성했고 공개했다는 것을 알 수 있으면") */
+function crStateHtml(n){
+  n = n || {};
+  if (n.report_status === '공개')
+    return '<div class="cr-state pub" id="cr-st"><b>리포트 공개 완료</b><span>' + (n.reported_at ? crHm(n.reported_at) : '') +
+      (CR.pubN ? ' · 학생 ' + CR.pubN + '명' : '') + '</span><small>학생 페이지 [수업 리포트]에 올라가 있습니다. 기록을 고쳤을 때만 [리포트 다시 생성]을 눌러 주세요.</small></div>';
+  if (n.report_status === '요청')
+    return '<div class="cr-state" id="cr-st"><b>리포트 작성 중</b><span>' + (n.requested_at ? '요청 ' + crHm(n.requested_at) : '') +
+      '</span><small>수업 기록을 마쳤습니다. 클로슈가 리포트를 쓰면 이 칸이 \'리포트 공개 완료\'로 바뀌어요.</small></div>';
+  if (n.report_status === '보류')
+    return '<div class="cr-state hold" id="cr-st">리포트를 만들지 못했어요' + (n.report_note ? ': ' + esc(n.report_note) : '') + '</div>';
+  return '';
+}
+/* 아래 [리포트 생성] 버튼 이름 — 상태에 따라 '리포트 다시 생성'·'리포트 작성 중' */
+function crGenLabel(){
+  var b = $('cr-gen'); if (!b) return;
+  var st = (CR.note || {}).report_status;
+  b.textContent = st === '공개' ? '리포트 다시 생성' : st === '요청' ? '리포트 작성 중' : '리포트 생성';
+  b.classList.toggle('again', st === '공개' || st === '요청');
+}
+/* 공개된 리포트 수(학생 명수) — 띠에 함께 적는다 */
+function crPubCount(){
+  var mine = CR, n = CR.note;
+  if (!n || n.report_status !== '공개') return Promise.resolve();
+  return crGet('/class_reports?book=eq.' + encodeURIComponent(CR.bk) + '&class_id=eq.' + encodeURIComponent(CR.c.id) + '&ymd=eq.' + CR.ymd + '&published=is.true&select=code')
+    .then(function(rows){ if (CR !== mine) return; CR.pubN = rows.length; var el = $('cr-st'); if (el) el.outerHTML = crStateHtml(CR.note); })
+    .catch(function(){});
+}
+/* 창이 '작성 중'이면 45초마다 상태를 다시 읽어 공개되면 띠·버튼을 바꾼다(창 내용은 다시 그리지 않음) */
+function crWatchState(){
+  if (!CR.c || !CR.note || CR.note.report_status !== '요청' || CR.busy) return;
+  var mine = CR;
+  crGet('/class_notes?book=eq.' + encodeURIComponent(CR.bk) + '&class_id=eq.' + encodeURIComponent(CR.c.id) + '&ymd=eq.' + CR.ymd + '&select=report_status,report_note,requested_at,reported_at')
+    .then(function(rows){
+      var r = rows[0]; if (CR !== mine || !r || r.report_status === CR.note.report_status) return;
+      ['report_status','report_note','requested_at','reported_at'].forEach(function(k){ CR.note[k] = r[k]; });
+      var el = $('cr-st'), html = crStateHtml(CR.note);
+      if (el) el.outerHTML = html || '<div id="cr-st" hidden></div>';
+      crGenLabel(); crPubCount();
+      if (r.report_status === '공개') crMsg('수업 리포트가 공개됐습니다.');
+    }).catch(function(){});
 }
 /* 내신 진도 수업 — 시험범위(담당 교사 입력, 같은 학교·학년 반과 공유) + 단원 진도 + 메모·과제 */
 function crNsHtml(n){
@@ -7957,7 +8019,7 @@ function crUpsert(extra){
   var pend = cr.xtPending; cr.xtPending = false;
   return Promise.all(jobs).then(function(r){
     cr.note = (r[0] && r[0][0]) || cr.note;
-    if (crToday.map && cr.ymd === crToday.ymd) crToday.map[key] = { st: cr.note.report_status || '', has: crHasNote(cr.note) };
+    if (crToday.map && cr.ymd === crToday.ymd) crToday.map[key] = { st: cr.note.report_status || '', has: crHasNote(cr.note), at: cr.note.reported_at || '' };
     return cr.note;
   }, function(e){ if (pend) cr.xtPending = true; throw e; });
 }
@@ -7978,6 +8040,7 @@ function crGenerate(){
   if (unchecked && !confirm('출석을 체크하지 않은 학생이 ' + unchecked + '명 있어요.\n그 학생은 리포트에서 빠져요. 그래도 만들까요?')) return;
   var c = CR.c, st = n.report_status;
   if (st === '요청' && !confirm('이미 리포트를 쓰고 있어요. 한 번 더 요청할까요?')) return;
+  if (st === '공개' && !confirm('이미 리포트를 생성해 공개했습니다' + (n.reported_at ? ' (' + crHm(n.reported_at) + (CR.pubN ? ' · 학생 ' + CR.pubN + '명' : '') + ')' : '') + '.\n기록을 고친 경우에만 다시 만들면 됩니다. 다시 생성할까요?')) return;
   crFlushHw();
   crBusy(true); crMsg('저장하고 리포트를 요청하는 중…');
   crUpsert({ report_status: '요청', report_note: '', requested_at: new Date().toISOString() }).then(function(){
