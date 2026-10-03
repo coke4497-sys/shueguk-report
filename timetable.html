@@ -83,6 +83,12 @@
     background-repeat:no-repeat;background-position:right 10px center;}
   .tsel.on{background-color:var(--icon-bg);color:var(--accent);font-weight:700;}
   .tsel-note{font-size:.82rem;color:var(--ink-soft);}
+  /* 센터별·강사별 거르기 줄 — 오늘의 시간표·주차별 (2026-10-03 사용자 요청) */
+  .vfil{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:8px 4px 10px;}
+  .vfil .tsel{font-size:.84rem;padding:5px 28px 5px 11px;}
+  .vfil-clear{font:inherit;font-size:.82rem;background:#fff;color:var(--ink-soft);
+    border:1px solid var(--line-soft);border-radius:10px;padding:5px 11px;cursor:pointer;}
+  .vfil-clear:hover{color:var(--accent);border-color:var(--line);}
   .today-head{font-family:"Gowun Batang",serif;font-weight:700;font-size:1.1rem;color:var(--accent);margin:14px 4px 2px;}
   .weeknav-tt{display:flex;align-items:center;gap:10px;margin:14px 4px 8px;}
   .weeknav-tt button{font:inherit;font-size:.88rem;background:var(--icon-bg);color:var(--ink);
@@ -3271,14 +3277,21 @@ function renderView(){
   if (mode === 'today'){
     crEnsureToday();   // 수업 기록 상태(기록됨·공개됨)를 한 번 받아 카드 버튼에 표시
     var td = todayDay();
-    var list = classes.filter(function(c){ return c.day===td && wkVisible(c, todayStr()); });
+    var list = classes.filter(function(c){ return c.day===td && wkVisible(c, todayStr()) && viewOn(c); });
     var head = document.createElement('p');
     head.className = 'today-head';
     var dt = new Date();
     head.textContent = '오늘의 시간표 — ' + (dt.getMonth()+1) + '/' + dt.getDate() + ' (' + td + ') · ' + book;
     host.appendChild(head);
+    host.appendChild(viewFilterBar());   // 센터별·강사별 보기 (2026-10-03 사용자 요청)
+    // 거르는 중이면 출석 요약도 지금 보이는 수업만 센다
+    var onlyIds = null;
+    if (viewFilterOn()){ onlyIds = {}; list.forEach(function(c){ onlyIds[c.id] = 1; }); }
     var cnt = { '출석':0, '지각':0, '결석':0 };
-    Object.keys(attend).forEach(function(k){ if (cnt[attend[k].status] != null) cnt[attend[k].status]++; });
+    Object.keys(attend).forEach(function(k){
+      if (onlyIds && !onlyIds[k.slice(0, k.indexOf('|'))]) return;
+      if (cnt[attend[k].status] != null) cnt[attend[k].status]++;
+    });
     var sum = document.createElement('p');
     sum.className = 'today-sum';
     sum.innerHTML = '출석 <b>' + cnt['출석'] + '</b> · 지각 <b>' + cnt['지각'] + '</b> · 결석 <b>' + cnt['결석'] + '</b>';
@@ -3287,7 +3300,8 @@ function renderView(){
     if (!list.length){
       var em = document.createElement('p');
       em.className = 'empty-day';
-      em.textContent = '오늘(' + td + ')은 등록된 ' + book + ' 수업이 없어요.';
+      em.textContent = viewFilterOn() ? ('오늘(' + td + ')은 ' + viewFilterLabel() + ' 수업이 없어요.')
+                                      : ('오늘(' + td + ')은 등록된 ' + book + ' 수업이 없어요.');
       host.appendChild(em);
       host.appendChild(memoCard(todayStr()));
       return;
@@ -3343,6 +3357,7 @@ function renderView(){
     '<button onclick="moveWeek(1)">다음주</button>'+
     '<button class="toff-open" onclick="openTeacherOff()">교사 휴무 설정</button>';
   host.appendChild(nav);
+  host.appendChild(viewFilterBar());   // 센터별·강사별 보기 (2026-10-03 사용자 요청)
   if (narrowScreen()) host.appendChild(mviewToggleBtn());
   host.appendChild(useListView() ? buildWeekList()
                  : (weekZoomDay ? buildWeekZoom(weekZoomDay) : buildWeekOverview()));
@@ -4186,6 +4201,7 @@ function buildDayGrid(list){
   var dname = list.length ? list[0].day : todayDay();
   var cols = [], seen = {};
   classes.forEach(function(c){
+    if (!viewOn(c)) return;                      // 센터별·강사별 보기 — 열도 함께 줄인다
     var key = c.loc + '|' + c.teacher;
     if (!seen[key]){ seen[key] = true; cols.push({ key:key, loc:c.loc, teacher:c.teacher }); }
   });
@@ -4394,11 +4410,12 @@ function buildWeekList(){
                          (teacherOffsAt(ymdOf(days[dy])).length ? '<small class="toff-tab">휴무</small>' : ''); },
     function(dy){ weekListDay = dy; keepScroll = false; render(); }));
   var dstr = ymdOf(days[weekListDay]);
-  var list = classes.filter(function(c){ return c.day === weekListDay && wkVisible(c, dstr); });
+  var list = classes.filter(function(c){ return c.day === weekListDay && wkVisible(c, dstr) && viewOn(c); });
   if (!list.length){
     var em = document.createElement('p');
     em.className = 'day-empty';
-    em.textContent = weekListDay + '요일에는 등록된 ' + book + ' 수업이 없어요.';
+    em.textContent = viewFilterOn() ? (weekListDay + '요일에는 ' + viewFilterLabel() + ' 수업이 없어요.')
+                                    : (weekListDay + '요일에는 등록된 ' + book + ' 수업이 없어요.');
     wrap.appendChild(em);
     var offLoc0 = teacherOffsByLoc(dstr, weekListDay);
     Object.keys(offLoc0).sort(function(x, y){ return wkLocRank(x) - wkLocRank(y); })
@@ -4797,6 +4814,66 @@ function allTeacherNote(){
   sp.textContent = '이 시간표에는 ' + allTeacher + 'T 반이 없어요';
   return sp;
 }
+/* ── 오늘·주차별 거르기 — 센터별·담당 선생님별 보기 (2026-10-03 사용자 요청) ──
+ * 오늘의 시간표·주차별 시간표 위의 드롭다운 두 개. 센터(viewLoc)는 이 두 화면 전용이고,
+ * 담당 선생님은 전체 시간표의 강사별 보기와 같은 값(allTeacher)이라 화면을 옮겨도 이어진다.
+ * 거르면 수업 카드뿐 아니라 강사 열·센터 묶음·교사 휴무 줄·오늘 출석 요약도 그 범위만 본다. */
+var viewLoc = sessionStorage.getItem('tt_vloc') || '';   // '' = 모든 센터
+function viewLocOn(c){ return !viewLoc || String(c.loc || '') === viewLoc; }
+function viewOn(c){ return viewLocOn(c) && allTeacherOn(c); }
+function viewFilterOn(){ return !!(viewLoc || allTeacher); }
+function viewFilterLabel(){
+  return [viewLoc ? wkLocLabel(viewLoc) : '', allTeacher ? allTeacher + 'T' : ''].filter(Boolean).join(' · ');
+}
+function viewLocList(){
+  var seen = {}, out = [];
+  classes.forEach(function(c){
+    var l = String(c.loc || '').trim();
+    if (l && !seen[l]){ seen[l] = true; out.push(l); }
+  });
+  if (viewLoc && !seen[viewLoc]) out.push(viewLoc);   // 이 시간표에 없어도 고른 값은 보이게
+  out.sort(function(a, b){ return (wkLocRank(a) - wkLocRank(b)) || a.localeCompare(b, 'ko'); });
+  return out;
+}
+function setViewLoc(l){
+  viewLoc = String(l || '');
+  try { if (viewLoc) sessionStorage.setItem('tt_vloc', viewLoc); else sessionStorage.removeItem('tt_vloc'); } catch(e){}
+  keepScroll = false;
+  render();
+}
+/* 교사 휴무 줄도 지금 보기 범위 안에서만 (센터는 teacherOffsByLoc에서 가른다) */
+function viewOffOn(o){ return !allTeacher || String(o.teacher || '').trim() === allTeacher; }
+function viewFilterBar(){
+  var row = document.createElement('div');
+  row.className = 'vfil';
+  var ls = document.createElement('select');
+  ls.className = 'tsel' + (viewLoc ? ' on' : '');
+  ls.id = 'vf-loc';
+  ls.title = '센터별로 보기';
+  var o0 = document.createElement('option'); o0.value = ''; o0.textContent = '모든 센터'; ls.appendChild(o0);
+  viewLocList().forEach(function(l){
+    var o = document.createElement('option'); o.value = l; o.textContent = wkLocLabel(l); ls.appendChild(o);
+  });
+  ls.value = viewLoc;
+  ls.addEventListener('change', function(){ setViewLoc(ls.value); });
+  row.appendChild(ls);
+  var ts = allTeacherSel();        // 전체 시간표와 같은 값·같은 목록
+  ts.id = 'vf-teacher';
+  row.appendChild(ts);
+  if (viewFilterOn()){
+    var clr = document.createElement('button');
+    clr.type = 'button';
+    clr.className = 'vfil-clear';
+    clr.textContent = '모두 보기';
+    clr.addEventListener('click', function(){
+      viewLoc = '';
+      try { sessionStorage.removeItem('tt_vloc'); } catch(e){}
+      setAllTeacher('');           // render()까지 함께
+    });
+    row.appendChild(clr);
+  }
+  return row;
+}
 var allAutoGrid = false;    // 반 이동 때문에 자동으로 그리드로 전환했는지
 function allView(){ return sessionStorage.getItem('tt_allview') || 'ov'; }
 function allViewToggleBtn(){
@@ -5150,7 +5227,11 @@ function teacherHomeLoc(t, dname){
 }
 function teacherOffsByLoc(dstr, dname){
   var m = {};
-  teacherOffsAt(dstr).forEach(function(o){ var l = teacherHomeLoc(o.teacher, dname); (m[l] = m[l] || []).push(o); });
+  teacherOffsAt(dstr).filter(viewOffOn).forEach(function(o){
+    var l = teacherHomeLoc(o.teacher, dname);
+    if (viewLoc && l !== viewLoc) return;        // 센터별 보기 중에는 그 센터 휴무만
+    (m[l] = m[l] || []).push(o);
+  });
   return m;
 }
 function teacherOffCtrEl(rows){
@@ -5180,7 +5261,10 @@ function todayOffHeadHtml(teacher){
   return o ? '<span class="toff-head">OFF' + (o.reason ? ' (' + esc(o.reason) + ')' : '') + '</span>' : '';
 }
 function todayOffStrip(){
-  var rows = todayOffs.filter(function(o){ return o.date === todayStr(); })
+  var rows = todayOffs.filter(function(o){
+      return o.date === todayStr() && viewOffOn(o) &&
+             (!viewLoc || teacherHomeLoc(o.teacher, todayDay()) === viewLoc);
+    })
     .sort(function(a,b){ return wkTeacherRank(a.teacher) - wkTeacherRank(b.teacher) || a.teacher.localeCompare(b.teacher,'ko'); });
   if (!rows.length) return null;
   var box = document.createElement('div');
@@ -5280,7 +5364,7 @@ function buildWeekOverview(){
     col.className = 'wk-ov-col';
     var dstr = ymdOf(dates[dname]);
     col.appendChild(wkDayHeader(dname, dates, '', function(){ weekZoomDay = dname; keepScroll = false; render(); }));
-    var list = wkDayClasses(dname, dstr);
+    var list = wkDayClasses(dname, dstr).filter(viewOn);   // 센터별·강사별 보기
     var lastLoc = null;
     var offLoc = teacherOffsByLoc(dstr, dname);
     // 그 날 수업이 없는 센터의 휴무는 센터 순서대로 라벨을 세워 끼운다
@@ -5368,7 +5452,7 @@ function buildWeekZoom(dname){
       var slim = document.createElement('div');
       slim.className = 'wk-slim';
       slim.appendChild(wkDayHeader(dy, dates, 'slim', function(){ weekZoomDay = dy; keepScroll = false; render(); }));
-      wkDayClasses(dy, ymdOf(dates[dy])).forEach(function(c){
+      wkDayClasses(dy, ymdOf(dates[dy])).filter(viewOn).forEach(function(c){
         var b = document.createElement('div');
         var mvB = wkMovedAway(c.id, ymdOf(dates[dy]));
         var offB = wkOffAt(c.id, ymdOf(dates[dy]));
@@ -5391,9 +5475,11 @@ function buildWeekZoom(dname){
                    '<small>— 누르면 주간 개요로 돌아가요</small>';
     hh.addEventListener('click', function(){ weekZoomDay = null; keepScroll = false; render(); });
     big.appendChild(hh);
-    var list = wkZoomSorted(dy, dstr);
+    var list = wkZoomSorted(dy, dstr).filter(viewOn);   // 센터별·강사별 보기
     if (!list.length){
-      var em = document.createElement('div'); em.className = 'wk-empty'; em.textContent = '이 요일에는 수업이 없어요.';
+      var em = document.createElement('div'); em.className = 'wk-empty';
+      em.textContent = viewFilterOn() ? ('이 요일에는 ' + viewFilterLabel() + ' 수업이 없어요.')
+                                      : '이 요일에는 수업이 없어요.';
       big.appendChild(em);
     }
     zoomCenterGrids(big, dy, list, function(c){ return weekBlockEl(c, dstr); },
@@ -5627,6 +5713,20 @@ function gotoSearchHit(cid, ymd){
     var gi = (gc && gd) ? goneInfo(gc, gd) : null;
     if (gi){
       openGoneList([{ c: gc, kind: gi.kind, info: gi.info }], gd, mode === 'week', gc.start);
+      return;
+    }
+  }
+  // 센터별·강사별 보기에 가려진 수업이면 거르기를 풀고 찾아간다 (2026-10-03)
+  if (!el && (mode === 'today' || mode === 'week') && viewFilterOn()){
+    var cv = classes.find(function(x){ return x.id === cid; });
+    if (cv && !viewOn(cv)){
+      viewLoc = '';
+      try { sessionStorage.removeItem('tt_vloc'); } catch(e){}
+      allTeacher = '';
+      try { sessionStorage.removeItem('tt_allteacher'); } catch(e){}
+      keepScroll = false;
+      render();
+      requestAnimationFrame(function(){ requestAnimationFrame(function(){ gotoSearchHit(cid, ymd); }); });
       return;
     }
   }
