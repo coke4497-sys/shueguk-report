@@ -86,7 +86,7 @@ const STUDENTS = [
     page.on('pageerror', e => { perr++; console.log('  ✗ pageerror', e.message); });
     page.on('dialog', d => d.accept());
     await page.addInitScript(bk => { sessionStorage.setItem('tt_mode', 'today'); sessionStorage.setItem('tt_book', bk); localStorage.clear(); }, opt.book);
-    await page.goto('http://127.0.0.1:' + port + '/timetable.html');
+    await page.goto('http://127.0.0.1:' + port + '/timetable.html' + (opt.qs || ''));
     return { ctx, page, st };
   }
   const openCard = async (page, name) => {
@@ -747,6 +747,33 @@ const STUDENTS = [
     await ap.waitForSelector('.ah-row', { timeout: 5000 });
     ok('열면 출석 기록 탭부터', await ap.evaluate(() => document.querySelector('#lhTabs button.on').getAttribute('data-t') === 'att' && document.querySelectorAll('.ah-row').length === 2));
     await c5.close();
+  }
+
+  // ⑨ 지난 날짜 수업 — 수업 기록 보기의 [이 수업 기록하기](timetable.html?cr=시간표|반ID|날짜, 2026-10-03)
+  {
+    const PAST = (() => { const d = new Date(T0); d.setDate(d.getDate() - 9); return ymd(d); })();
+    const PASTWED = (() => { const d = new Date(T0); d.setDate(d.getDate() - 9); d.setDate(d.getDate() - ((d.getDay() + 4) % 7)); return ymd(d); })();
+    const pm = PAST.split('-'), PASTMD = (+pm[1]) + '/' + (+pm[2]);
+    const c9 = await ctxOf({ book: '정규', qs: '?cr=' + encodeURIComponent('정규|r001|' + PAST),
+      rows: [row('r001', '고2 가', '지원', '박보검 김하늘 최다은')],
+      att: [{ class_id: 'r001', student: '박보검', status: '출석' },                                   // 오늘 기록 — 지난 창에는 안 쓰인다
+            { date: PAST, class_id: 'r001', student: '박보검', status: '결석', memo: '병결' },
+            { date: PAST, class_id: 'r001', student: '김하늘', status: '출석' }] });
+    await c9.page.waitForSelector('#crpanel:not([hidden]) .cr-card', { timeout: 15000 });
+    r = await c9.page.evaluate(() => ({ meta: document.getElementById('cr-meta').textContent, url: location.search,
+      cards: [...document.querySelectorAll('.cr-card')].map(c => c.querySelector('.cr-top b').textContent + ':' + c.querySelector('.cr-chip').textContent),
+      ymd: CR.ymd, wk: CR.hwWeek }));
+    ok('⑨ ?cr= 로 그 날짜 창이 바로 열림 — 머리에 날짜·"지난 수업", 주소의 cr 은 지움', r.meta.indexOf(PASTMD) >= 0 && /지난 수업/.test(r.meta) && !/cr=/.test(r.url) && r.ymd === PAST, JSON.stringify(r));
+    ok('⑨ 출석은 그 날 기록(오늘 기록 아님)', r.cards.includes('박보검:결석') && r.cards.includes('김하늘:출석') && r.cards.includes('최다은:미체크'), JSON.stringify(r.cards));
+    ok('⑨ 과제 검사 주차 = 그 날의 수요일', r.wk === PASTWED, r.wk + ' / ' + PASTWED);
+    const iKim = await c9.page.evaluate(() => CR.names.map(x => x.p).indexOf('김하늘'));
+    await c9.page.click(`.cr-attp[data-att="${iKim}"][data-lv="0"]`);
+    await c9.page.waitForTimeout(1200);
+    const nw = c9.st.writes.filter(w => /class_notes/.test(w.u) && w.m === 'POST').pop();
+    ok('⑨ 수업 태도 → 그 날짜 class_notes 에 저장', nw && nw.body[0].ymd === PAST && nw.body[0].class_id === 'r001' && nw.body[0].comments && nw.body[0].comments.__태도 && nw.body[0].comments.__태도['김하늘'], JSON.stringify(nw && nw.body));
+    await c9.page.evaluate(() => crClose());
+    ok('⑨ 창을 닫으면 지난 날짜 상태도 풀린다', await c9.page.evaluate(() => CRX === null));
+    await c9.ctx.close();
   }
 
   ok('페이지 오류 없음', perr === 0);

@@ -115,6 +115,11 @@ const LOGS = [];
   r = await p.textContent('.card[data-key="정규|r001|2026-09-30"] .prog');
   ok('기록 현황 — 출석 2/3 · 태도 2/3 · 과제 검사 2/3', /출석 2\/3 · 태도 2\/3 · 과제 검사 2\/3/.test(r), r);
 
+  r = await p.$eval('.card[data-key="정규|r001|2026-09-30"] .crgo', a => ({ href: a.getAttribute('href'), t: a.target, txt: a.textContent }));
+  ok('[이 수업 기록하기] = 슈국 스케쥴 그 날짜 창 링크(새 탭)', r.href === 'timetable.html?cr=' + encodeURIComponent('정규|r001|2026-09-30') && r.t === '_blank' && r.txt === '이 수업 기록하기', JSON.stringify(r));
+  r = await p.$$eval('.card.none .crgo', a => a.length);
+  ok('기록 없는 수업 카드에도 [이 수업 기록하기]', r >= 1, String(r));
+
   // ③-2 미제출 대책 [확인]
   r = await p.$$eval('.card[data-key="정규|r001|2026-09-30"] .pdb', a => a.map(x => x.textContent));
   ok('미제출 대책 줄에 [확인] 버튼(박보검만)', JSON.stringify(r) === '["확인"]', JSON.stringify(r));
