@@ -90,6 +90,7 @@ const STUS = [
   await pg.waitForFunction(() => /보냈습니다/.test(document.getElementById('alRes').textContent), null, { timeout: 8000 });
   const sp = posts.filter(p => p.action === 'alimSend');
   ok('확인 창을 거쳐 보낸다', dialogs.some(d => /지필고사 리포트 제작 안내.*2명에게 4건/s.test(d)), JSON.stringify(dialogs));
+  ok('허브에 로그인하지 않았으면 보낸 사람은 빈 값', sp[0].by === '', JSON.stringify(sp[0].by));
   ok('POST — kind notice_report · pw · 중복 키 N:날짜|제목 · 변수(학생명·제목·접근코드)', sp.length === 1 && sp[0].kind === 'notice_report' && sp[0].pw === 'sh' && sp[0].items.length === 4 &&
      sp[0].items.every(it => /^N:\d{4}-\d{2}-\d{2}\|2학기 중간 공통국어2 리포트$/.test(it.date) && it.vars['제목'] === '2학기 중간 공통국어2 리포트' && it.vars['접근코드'] && it.vars['학생명'] === it.student) &&
      sp[0].items.filter(it => it.student === '박보검').map(it => it.who).join() === '학생,학부모1' && sp[0].items.filter(it => it.student === '김하늘').map(it => it.who).join() === '학부모1,학부모2', JSON.stringify(sp[0]));
@@ -151,6 +152,7 @@ const STUS = [
   const kim = posts.filter(p => p.action === 'alimSend').pop();
   ok('[확인]이면 두 번째 확인 창을 거쳐 보냄 — 제목 변수에 김현지 선생님', dialogs.length === 2 && /맞으신가요/.test(dialogs[0]) && /업데이트 안내/.test(dialogs[1]) &&
      kim.kind === 'notice_reportup' && kim.items.every(it => it.vars['제목'] === '2학기 중간고사 화정고1 공통국어2 리포트에 김현지 선생님 피드백이 등록되었습니다'), JSON.stringify(kim));
+  ok('보낸 사람(허브에 로그인한 선생님)을 기록에 남기도록 동봉', kim.by === '김현지', JSON.stringify(kim.by));
   await pg.keyboard.press('Escape');
   await pg.evaluate(() => localStorage.removeItem('shueguk_teacher_session_v2'));
   // 템플릿 준비 전 — 보내기 잠금
