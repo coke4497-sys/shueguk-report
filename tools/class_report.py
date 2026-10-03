@@ -12,6 +12,8 @@
   4) python3 tools/class_report.py publish publish.json
        → class_reports 에 저장(같은 수업·학생은 덮어씀) + 그 수업 class_notes 상태 '공개'
      못 쓰는 경우: python3 tools/class_report.py hold 내신 n081 2026-09-27 "이유"
+     다시 요청됐는데 바뀐 게 없는 경우: python3 tools/class_report.py same 내신 n081 2026-09-27 ["메모"]
+       → 이미 공개된 리포트는 그대로 두고 상태만 '공개'로 되돌린다(이걸 안 하면 버튼이 '기록 완료'에 머문다)
 
 교사 인증은 페이지들과 같은 공개 조각(teachers@shueguk.internal)을 쓴다 — 학생 페이지에는 넣지 않는 값.
 """
@@ -252,6 +254,18 @@ def cmd_publish(path):
     print('수업 리포트 %d명 공개 — %s %s %s' % (len(rows), book, cid, ymd))
 
 
+def cmd_same(book, cid, ymd, why=''):
+    # 다시 요청됐지만 기록이 바뀌지 않아 새로 쓸 것이 없을 때 — 공개된 리포트가 있어야만 상태를 '공개'로 되돌린다
+    flt = 'book=eq.%s&class_id=eq.%s&ymd=eq.%s' % (q(book), q(cid), ymd)
+    pub = rest('GET', '/class_reports?select=code&published=is.true&' + flt)
+    if not pub:
+        sys.exit('공개된 리포트가 없습니다 — data → publish 로 새로 쓰세요')
+    now = dt.datetime.now(dt.timezone.utc).isoformat()
+    rest('PATCH', '/class_notes?' + flt,
+         {'report_status': '공개', 'report_note': why, 'reported_at': now}, 'return=minimal')
+    print('기록이 그대로라 공개 상태로 되돌림(리포트 %d명 유지) — %s %s %s' % (len(pub), book, cid, ymd))
+
+
 def cmd_hold(book, cid, ymd, why):
     rest('PATCH', '/class_notes?book=eq.%s&class_id=eq.%s&ymd=eq.%s' % (q(book), q(cid), ymd),
          {'report_status': '보류', 'report_note': why}, 'return=minimal')
@@ -266,6 +280,8 @@ if __name__ == '__main__':
         cmd_data(a[1], a[2], a[3])
     elif a[:1] == ['publish'] and len(a) == 2:
         cmd_publish(a[1])
+    elif a[:1] == ['same'] and len(a) in (4, 5):
+        cmd_same(a[1], a[2], a[3], a[4] if len(a) == 5 else '')
     elif a[:1] == ['hold'] and len(a) == 5:
         cmd_hold(a[1], a[2], a[3], a[4])
     else:
