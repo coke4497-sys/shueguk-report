@@ -125,7 +125,8 @@ const posts = [];
   await page.waitForFunction(() => (document.getElementById('att-alim') || {}).textContent.includes('보냄'), null, { timeout: 8000 });
   await page.click('#att-alim button');
   await page.waitForSelector('#al-rows');
-  await page.click('.mbtns button');   // 보내지 않기
+  ok('모두 받은 뒤 한 번 더 보내는 창에만 [닫기]', (await page.$$eval('#modal-box .mbtns button', els => els.map(e => e.textContent.trim()))).join() === '닫기,알림톡 보내기');
+  await page.click('.mbtns button');   // 닫기
   await page.evaluate(() => openAttend(classes[0], '박지우'));
   await page.waitForFunction(() => (document.getElementById('att-alim') || {}).textContent.includes('보냄'), null, { timeout: 8000 });
   ok('취소 뒤 출석 창 보냄 표시 유지(캐시 안 지움)', (await page.textContent('#att-alim')).includes('알림톡 보냄'));
@@ -159,17 +160,24 @@ const posts = [];
   await page.click('.att-btns .pick-abs');
   await page.waitForSelector('#al-rows');
   ok('괄호 뗀 이름·학부모1만', (await page.textContent('.al-row b')) === '최민하' && (await whoBoxes(0)).join() === '학부모1+');
-  await page.click('.mbtns button');   // 보내지 않기
-  ok('보내지 않기 → POST 없음', posts.filter(p => p.action === 'alimSend').length === n3);
+  // 3b) [보내지 않기]가 없다 — 보내기만 할 수 있고 바깥을 눌러도 안 닫힌다(2026-10-03 원장님 "보내지 않기는 없애주세요")
+  const btnTexts = await page.$$eval('#modal-box .mbtns button', els => els.map(e => e.textContent.trim()));
+  ok('확인 창 버튼은 [알림톡 보내기] 하나', btnTexts.join() === '알림톡 보내기', btnTexts.join());
+  ok('창 머리글에 반드시 보낸다는 안내', (await modalText()).includes('결석 알림톡은 반드시 보냅니다'));
+  await page.mouse.click(5, 5);   // 바깥(배경) 누르기
+  await page.waitForTimeout(150);
+  ok('바깥을 눌러도 창이 안 닫힘', await page.evaluate(() => document.getElementById('modal').classList.contains('on')));
+  await page.evaluate(() => closeModal());   // 검사 진행용
+  ok('안 보내고 닫으면 POST 없음', posts.filter(p => p.action === 'alimSend').length === n3);
 
   // 4) 연락처 없는 학생
   await page.evaluate(() => openAttend(classes[0], '정서현'));
   await page.click('.att-btns .pick-abs');
   await page.waitForSelector('#al-rows');
   ok('연락처 없음 → 체크 없음·안내', (await whoBoxes(0)).length === 0 && (await modalText()).includes('등록된 연락처가 없습니다'));
-  await page.click('#al-go');
-  ok('보낼 학생 없으면 오류 문구', (await page.textContent('#al-err')).includes('체크'));
-  await page.evaluate(() => closeModal());
+  ok('보낼 곳이 없으면 보내기 버튼 대신 안내 + [닫기]', !(await page.$('#al-go')) && (await modalText()).includes('보낼 연락처가 없어') && (await page.$$eval('#modal-box .mbtns button', els => els.map(e => e.textContent.trim()))).join() === '닫기');
+  await page.click('#modal-box .mbtns button');
+  ok('[닫기]로 닫힘', !(await page.evaluate(() => document.getElementById('modal').classList.contains('on'))));
 
   // 5) 복수 선택 일괄 결석 → 여러 명 창
   await page.evaluate(() => { attend = {}; multiMode = true; multiSel = { a: { cid:'r010', nm:'박지우' }, b: { cid:'r010', nm:'최민하(9/20부터)' } }; multiApply('결석'); });

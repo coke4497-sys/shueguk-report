@@ -6634,21 +6634,26 @@ function alimOpenConfirm(items, ymd, log, cfg, opt){
   }).join('');
   var first = items[0], c0 = classes.find(function(x){ return x.id === first.cid; });
   var preview = alimFill(tpl.text, alimVarsOf(c0, first.nm, ymd));
+  var anyTg = items.some(function(it){ return alimTargets(it.nm).length > 0; });
   var warn = '';
   if (stuPhonesFailed) warn += '<p class="al-warn">연락처를 불러오지 못했습니다. <button type="button" onclick="alimRetryPhones()">다시 불러오기</button></p>';
   if (alimLogFailed[ymd]) warn += '<p class="al-warn">보낸 기록을 불러오지 못해 \'보냄\' 표시가 없을 수 있습니다. 이미 받은 분은 서버가 걸러 주니 그대로 보내도 돼요.</p>';
   openModal(
     '<h3>결석 알림톡</h3>'+
-    '<p class="mdesc">학생과 학부모님께 결석 알림톡을 보낼까요? 받지 않을 분은 체크를 풀어 주세요.'+(items.length > 1 ? ' (' + items.length + '명)' : '')+'</p>'+
+    '<p class="mdesc"><b>결석 알림톡은 반드시 보냅니다.</b> 받는 분을 확인하고 [알림톡 보내기]를 눌러 주세요.'+(items.length > 1 ? ' (' + items.length + '명)' : '')+'</p>'+
     warn+
     '<div id="al-rows">'+rows+'</div>'+
     '<p class="mk-sec">보낼 내용'+(items.length > 1 ? ' (첫 학생 기준 — 학생마다 이름·반·시간이 바뀌어요)' : '')+'</p>'+
     '<div class="al-prev">'+esc(preview)+'</div>'+
     (cfg.smsFallback ? '' : '<p class="subnote">카카오톡을 받을 수 없는 번호는 문자로 대체되지 않아요 (발신번호 미설정).</p>')+
+    (anyTg ? '' : '<p class="al-warn">보낼 연락처가 없어 알림톡을 보낼 수 없습니다. 슈스 링크에서 번호를 넣은 뒤 출석 창의 [알림톡 보내기]로 보내 주세요.</p>')+
     '<p class="merr" id="al-err"></p>'+
-    '<div class="mbtns"><button onclick="closeModal()">보내지 않기</button>'+
-    '<button class="primary" id="al-go" onclick="alimSendConfirm()">알림톡 보내기</button></div>'
+    // [보내지 않기]는 없다(2026-10-03 원장님 "보내지 않기는 없애주세요" — 결석 알림톡은 반드시 보낸다). 닫는 길은
+    // 보낼 곳이 아예 없을 때와, 모두 받은 뒤 한 번 더 보내려고 연 창(opt.all)에만 둔다.
+    '<div class="mbtns">'+((!anyTg || opt.all) ? '<button onclick="closeModal()">닫기</button>' : '')+
+    (anyTg ? '<button class="primary" id="al-go" onclick="alimSendConfirm()">알림톡 보내기</button>' : '')+'</div>'
   );
+  modalLock = anyTg && !opt.all;   // 바깥을 눌러도 안 닫힘 — 보내기만
   alimConfirm = { items: items, ymd: ymd, force: !!opt.force };
 }
 /* 연락처 조회가 실패했을 때 — 다시 받아서 같은 창을 다시 연다 */
@@ -6672,7 +6677,7 @@ function alimSendConfirm(){
   });
   if (!items.length){ $('al-err').textContent = '받을 분을 한 명 이상 체크해 주세요.'; return; }
   var btn = $('al-go'); if (btn){ btn.disabled = true; btn.textContent = '보내는 중…'; }
-  var cancel = document.querySelector('#modal-box .mbtns button'); if (cancel) cancel.disabled = true;
+  document.querySelectorAll('#modal-box .mbtns button').forEach(function(b){ b.disabled = true; });
   alimPostItems(items, cf.ymd, cf.force, function(out){ closeModal(); alimReport(out, cf.ymd); });
 }
 /* 백엔드 alimSend를 ALIM_BATCH씩 차례로 부른다. 결과 { okCount, dup:[], bad:[{item,message}], err:'', sentN } — err는 응답을 못 받은 경우(전송·서버 오류) */
@@ -6743,7 +6748,7 @@ function alimAttLine(cid, nm, ymd){
       if (s && s.ok) el2.innerHTML = '<span class="al-sent">'+esc(whoLbl(s.who))+'께 알림톡 보냄 '+esc(s.ts.slice(5))+'</span>'+
         (missW.length ? '<span class="al-sent no">'+esc(missW.join('·'))+' 아직 안 보냄</span>' : '')+
         '<button onclick="alimResend(\''+cidE+'\',\''+nmE+'\',\''+ymdE+'\')">다시 보내기</button>';
-      else el2.innerHTML = (s ? '<span class="al-sent bad">알림톡 실패 · '+esc(s.message || '')+'</span>' : '<span class="al-sent no">결석 알림톡 아직 안 보냄'+(alimLogFailed[ymd] ? ' (기록 조회 실패)' : '')+'</span>')+
+      else el2.innerHTML = (s ? '<span class="al-sent bad">알림톡 실패 · '+esc(s.message || '')+'</span>' : '<span class="al-sent no">결석 알림톡 아직 안 보냄 · 꼭 보내 주세요'+(alimLogFailed[ymd] ? ' (기록 조회 실패)' : '')+'</span>')+
         '<button onclick="alimResend(\''+cidE+'\',\''+nmE+'\',\''+ymdE+'\')">알림톡 보내기</button>';
     });
   });
@@ -6879,8 +6884,9 @@ function openModal(html, wide){
   $('modal-box').classList.toggle('wide', !!wide);
   $('modal').classList.add('on');
 }
-function closeModal(){ $('modal').classList.remove('on'); }
-$('modal').addEventListener('click', function(e){ if (e.target === this) closeModal(); });
+var modalLock = false;   // 참이면 바깥을 눌러도 창이 안 닫힌다 — 결석 알림톡 확인 창(보내기만 할 수 있게, 2026-10-03 원장님)
+function closeModal(){ modalLock = false; $('modal').classList.remove('on'); }
+$('modal').addEventListener('click', function(e){ if (e.target === this && !modalLock) closeModal(); });
 $('stu-q').addEventListener('input', searchStudent);
 
 /* ── 이동 ── */
