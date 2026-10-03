@@ -4176,7 +4176,6 @@ function alimSend(data) {
   var kind = String(data.kind || '').trim(), tpl = ALIM_TPL_[kind];
   if (!tpl) return json({ result:'error', message:'모르는 알림 종류예요: ' + kind });
   var items = (data.items || []).filter(function(it) { return it && it.student && it.to; });
-  var by = String(data.by || '').trim().slice(0, 40);   // 보낸 사람(허브에 로그인한 선생님) — 없으면 빈 값
   if (!items.length) return json({ result:'error', message:'보낼 학생·번호가 없어요.' });
   if (items.length > 50) return json({ result:'error', message:'한 번에 50명까지만 보낼 수 있어요.' });
   var props = alimProps_();
@@ -4187,7 +4186,15 @@ function alimSend(data) {
   var tplId = String(props.getProperty(tpl.prop) || '').trim();
   if (!key || !secret || !pfId) return json({ result:'error', message:'알림톡 설정(API 키·채널)이 아직 없어요. [알림톡] 설정에서 넣어 주세요.' });
   if (!tplId) return json({ result:'error', message:"'" + tpl.label + "' 템플릿 ID가 아직 없어요. 솔라피 심사가 끝나면 [알림톡] 설정에 넣어 주세요." });
-
+  // 중복 확인 → 발송 → 기록을 한 잠금 안에서 — 조교 둘이 같은 결석을 거의 동시에 보내면 둘 다 중복 확인을 통과해 두 번 갔다(2026-10-03)
+  var lock = LockService.getScriptLock();
+  try { lock.waitLock(20000); }
+  catch (e) { return json({ result:'error', message:'다른 알림톡 발송이 진행 중이에요. 잠시 뒤 다시 눌러 주세요.' }); }
+  try { return alimSendLocked_(data, kind, tpl, items, key, secret, pfId, from, tplId); }
+  finally { lock.releaseLock(); }
+}
+function alimSendLocked_(data, kind, tpl, items, key, secret, pfId, from, tplId) {
+  var by = String(data.by || '').trim().slice(0, 40);   // 보낸 사람(허브에 로그인한 선생님) — 없으면 빈 값
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sh = alimSheet_(ss);
   // 중복 확인 — 최근 7일 꼬리만 읽는다

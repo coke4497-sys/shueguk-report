@@ -128,6 +128,26 @@ eq('범위 밖은 없음', J(fns.alimLogGet('2026-09-12', '2026-09-12')).rows.le
 eq('limit', J(fns.alimLogGet('2026-09-11', '2026-09-11', '2')).rows.length, 2);
 eq('시트 없으면 빈 목록', (() => { delete SHEETS['알림톡기록']; return J(fns.alimLogGet()).rows; })(), []);
 
+console.log('6b) 잠금 — 중복 확인→발송→기록을 한 잠금 안에서(2026-10-03)');
+reset();
+fns.alimConfigSet({ pw: 'sh', apiKey: 'K', apiSecret: 'S', pfId: 'P', tpl: { absent: 'T' } });
+const LOCK = { wait: 0, release: 0, fail: false };
+const prevLock = global.LockService;
+global.LockService = { getScriptLock: () => ({ waitLock(){ LOCK.wait++; if (LOCK.fail) throw new Error('busy'); }, releaseLock(){ LOCK.release++; } }) };
+r = J(fns.alimSend({ pw: 'sh', kind: 'absent', items: [item('김잠금', '01000000011', '2026-09-11')] }));
+eq('발송 때 잠금을 잡고 푼다', [r.okCount, LOCK.wait, LOCK.release], [1, 1, 1]);
+NEXT = { throw: 'DNS' };
+r = J(fns.alimSend({ pw: 'sh', kind: 'absent', items: [item('김잠금', '01000000012', '2026-09-12')] }));
+eq('연결 예외여도 잠금을 푼다', [r.failCount, LOCK.release], [1, 2]);
+NEXT = { code: 200, body: { groupInfo: { _id: 'G1' }, failedMessageList: [] } };
+LOCK.fail = true;
+r = J(fns.alimSend({ pw: 'sh', kind: 'absent', items: [item('김잠금', '01000000013', '2026-09-13')] }));
+eq('잠금을 못 잡으면 보내지 않고 안내', [r.result, /진행 중/.test(r.message), CALLS.length], ['error', true, 2]);
+LOCK.fail = false;
+r = J(fns.alimSend({ pw: 'sh', kind: 'absent', items: [] }));
+eq('검증 거절(빈 목록)은 잠금 전에 돌아간다', [r.result, LOCK.wait], ['error', 3]);
+global.LockService = prevLock;
+
 console.log('8) 솔라피에서 채널·템플릿 가져오기(alimDiscover)');
 reset();
 const TXT = fns.ALIM_TPL_.absent.text;

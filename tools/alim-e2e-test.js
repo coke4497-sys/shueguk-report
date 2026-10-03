@@ -3,7 +3,8 @@
  *   NODE_PATH=$(npm root -g) node tools/alim-e2e-test.js
  * 가짜 응답으로 실제 페이지를 띄워: 결석 저장 → 확인 창(받는 분 기본 학부모1·미리보기) → [알림톡 보내기]의
  * POST 내용 / 연락처 없는 학생 / 설정 전이면 창 없음 / 출석 창의 '보냄' 표시와 다시 보내기(force) /
- * 복수 선택 일괄 결석 → 여러 명 창 / [알림톡] 설정 저장은 채운 칸만. 네트워크는 전부 가짜. */
+ * 복수 선택 일괄 결석 → 여러 명 창 / 50건씩 나눠 보내기 / 취소한 force가 새지 않음 / 같은 번호 합치기 / 실패 결과 창과 다시 보내기 /
+ * 연락처 조회 실패 안내와 다시 불러오기. 네트워크는 전부 가짜. */
 const { chromium } = require('playwright');
 const http = require('http'), fs = require('fs'), path = require('path');
 const ROOT = path.join(__dirname, '..');
@@ -16,11 +17,15 @@ const port = srv.address().port;
 const today = new Date(), DN = ['일','월','화','수','목','금','토'][today.getDay()];
 const ymd = today.getFullYear() + '-' + String(today.getMonth()+1).padStart(2,'0') + '-' + String(today.getDate()).padStart(2,'0');
 const mk = (id, day, st, en, loc, t, cls, stu) => ({ id, day, start: st, end: en, loc, teacher: t, cls, students: stu });
-const CLASSES = [ mk('r010', DN, '5:30', '7:00', '화정센터', '지원', '고1 가', ['박지우','최민하(9/20부터)','정서현']) ];
+const BIG = Array.from({ length: 18 }, (_, i) => '학생' + String(i + 1).padStart(2, '0'));   // 18명 × 받는 분 3 = 54건 → 50건씩 두 번
+const CLASSES = [ mk('r010', DN, '5:30', '7:00', '화정센터', '지원', '고1 가', ['박지우','최민하(9/20부터)','정서현','이같은']),
+                  mk('r011', DN, '7:30', '9:00', '화정센터', '지원', '고2 가', BIG) ];
 const PHONES = [
   { name: '박지우', phone_student: '01011112222', phone_parent1: '01033334444', phone_parent2: '01055556666' },
   { name: '최민하', phone_student: '', phone_parent1: '01077778888', phone_parent2: '' },
-];
+  { name: '이같은', phone_student: '01012341234', phone_parent1: '01012341234', phone_parent2: '01099990000' },   // 학생 번호 = 학부모1 번호
+].concat(BIG.map((n, i) => ({ name: n, phone_student: '0102000' + String(i).padStart(4, '0'), phone_parent1: '0103000' + String(i).padStart(4, '0'), phone_parent2: '0104000' + String(i).padStart(4, '0') })));
+let phonesFail = false;
 const TPL = '[이수경국어학원] 결석 안내\n#{학생명} 학생이 #{수업일} #{반이름} 수업에 결석했습니다.';
 let cfg = { result:'success', ready:true, has:{ key:true, secret:true, from:false, pfId:true }, smsFallback:false,
             templates:{ absent:{ label:'결석 안내', text: TPL, vars:['학생명','수업일','반이름'], ready:true },
@@ -38,7 +43,7 @@ const posts = [];
   await ctx.route(/supabase\.co/, r => {
     const u = r.request().url();
     if (u.includes('/teacher_accounts')) return r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([{ display_name: '김현지 선생님', login_id: 'hj' }]) });
-    if (u.includes('/students?select=name,phone_')) return r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(PHONES) });
+    if (u.includes('/students?select=name,phone_')) return phonesFail ? r.fulfill({ status: 500, contentType: 'application/json', body: '{}' }) : r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(PHONES) });
     if (u.includes('/attendance') && r.request().method() === 'POST') return r.fulfill({ status: 201, contentType: 'application/json', body: '[]' });
     if (u.includes('/attendance') && r.request().method() === 'GET') return r.fulfill({ status: 200, contentType: 'application/json', body: '[]' });
     return r.fulfill({ status: 401, contentType: 'application/json', body: '{"message":"no"}' });
@@ -48,9 +53,10 @@ const posts = [];
     if (req.method() === 'POST'){
       const body = JSON.parse(req.postData() || '{}'); posts.push(body);
       if (body.action === 'alimSend'){
-        const sent = body.items.map(it => ({ student: it.student, ok: it.to !== '01099990000', message: it.to === '01099990000' ? '수신 불가' : '보냈어요' }));
+        // 실제 백엔드처럼 결과에 who를 담고, 순서는 요청과 다르게(뒤집어서) 돌려준다 — 화면이 자리가 아니라 키로 짝짓는지 검사(Codex P1)
+        const sent = body.items.map(it => ({ student: it.student, who: it.who, ok: it.to !== '01099990000', message: it.to === '01099990000' ? '수신 불가' : '보냈어요' }));
         sent.forEach((x, i) => { if (x.ok) logRows.unshift({ ts: ymd + ' 18:3' + i, kind:'absent', student:x.student, who: body.items[i].who, to: body.items[i].to, cls: body.items[i].cls, date: ymd, ok:true, message:'' }); });
-        return r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ result:'success', sent, okCount: sent.filter(x=>x.ok).length, failCount: sent.filter(x=>!x.ok).length }) });
+        return r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ result:'success', sent: sent.slice().reverse(), okCount: sent.filter(x=>x.ok).length, failCount: sent.filter(x=>!x.ok).length }) });
       }
       if (body.action === 'alimDiscover') return r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ result:'success', savedPfId:'KA01PF260912155016737BPjigUV32pr', channels:[{ pfId:'KA01PF260912155016737BPjigUV32pr', name:'이수경국어', searchId:'@이수경국어' }], templates:{ absent:{ label:'결석 안내', saved:'', pending:true, found:1 } }, notes:["'결석 안내' 템플릿이 아직 승인 전이에요 (PENDING) — 승인되면 다시 눌러 주세요."] }) });
       if (body.action === 'alimConfigSet') return r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ result:'success', saved: Object.keys(body).filter(k => !['action','pw'].includes(k)) }) });
@@ -61,6 +67,7 @@ const posts = [];
     return r.fulfill({ status: 200, contentType: 'application/json', body: '{"result":"error"}' });
   });
   const page = await ctx.newPage();
+  await page.exposeFunction('posts_len', () => posts.filter(p => p.action === 'alimSend').length);
   page.on('pageerror', e => console.log('PAGE ERROR', e.message));
   page.on('dialog', d => d.accept());
   await page.addInitScript(({ cls }) => {
@@ -68,7 +75,7 @@ const posts = [];
     localStorage.setItem('ttc:list:정규', JSON.stringify({ t: Date.now(), d: { classes: cls, onceMoves: [] } }));
   }, { cls: CLASSES });
   await page.goto('http://127.0.0.1:' + port + '/timetable.html');
-  await page.waitForFunction(() => typeof classes !== 'undefined' && classes.length === 1, null, { timeout: 15000 });
+  await page.waitForFunction(() => typeof classes !== 'undefined' && classes.length === 2, null, { timeout: 15000 });
   let pass = 0, fail = 0;
   const ok = (n, c, x) => { if (c) pass++; else { fail++; console.log('  ✗ ' + n + (x ? ' — ' + x : '')); } };
   const modalText = () => page.textContent('#modal-box');
@@ -113,23 +120,64 @@ const posts = [];
   await page.waitForFunction(() => document.getElementById('status').textContent.includes('3건 보냈어요'));
   const p2b = posts.filter(p => p.action === 'alimSend').pop();
   ok('모두 받은 뒤 다시 보내기는 force=1', p2b && p2b.force === '1');
+  // 2b) 다시 보내기 창을 '보내지 않기'로 닫아도 — force가 다음 발송에 남지 않고, 출석 창 '보냄' 표시도 그대로
+  await page.evaluate(() => openAttend(classes[0], '박지우'));
+  await page.waitForFunction(() => (document.getElementById('att-alim') || {}).textContent.includes('보냄'), null, { timeout: 8000 });
+  await page.click('#att-alim button');
+  await page.waitForSelector('#al-rows');
+  ok('모두 받은 뒤 한 번 더 보내는 창에만 [닫기]', (await page.$$eval('#modal-box .mbtns button', els => els.map(e => e.textContent.trim()))).join() === '닫기,알림톡 보내기');
+  await page.click('.mbtns button');   // 닫기
+  await page.evaluate(() => openAttend(classes[0], '박지우'));
+  await page.waitForFunction(() => (document.getElementById('att-alim') || {}).textContent.includes('보냄'), null, { timeout: 8000 });
+  ok('취소 뒤 출석 창 보냄 표시 유지(캐시 안 지움)', (await page.textContent('#att-alim')).includes('알림톡 보냄'));
+  await page.evaluate(() => closeModal());
+  const nSendBefore = posts.filter(p => p.action === 'alimSend').length;
+  await page.evaluate(() => openAttend(classes[0], '이같은'));
+  await page.fill('#att-memo', '몸살');
+  await page.click('.att-btns .pick-abs');
+  await page.waitForSelector('#al-rows');
+  ok('같은 번호(학생=학부모1)는 한 건으로 합쳐 표시', (await whoBoxes(0)).join() === '학부모1+,학부모2+' && (await page.textContent('#al-rows')).includes('학부모님1·학생'), (await whoBoxes(0)).join());
+  ok('같은 번호 학생의 결석 사유 표시', (await page.textContent('#al-rows')).includes('사유 · 몸살'));
+  await page.click('#al-go');
+  await page.waitForFunction(() => document.getElementById('status').textContent.includes('보냈어요'));
+  const p2c = posts.filter(p => p.action === 'alimSend').pop();
+  ok('취소한 force가 다음 발송에 새지 않음', posts.filter(p => p.action === 'alimSend').length === nSendBefore + 1 && !p2c.force && p2c.items.length === 2, JSON.stringify(p2c));
+  // 2c) 실패 건이 있으면 결과 창 + [다시 보내기]
+  await page.waitForSelector('#al-retry', { timeout: 5000 });
+  const resTxt = await modalText();
+  ok('실패 결과 창(실패 1건·수신 불가)', resTxt.includes('알림톡 결과') && resTxt.includes('실패 1건') && resTxt.includes('수신 불가') && resTxt.includes('이같은 학부모님2'), resTxt);
+  await page.click('#al-retry');
+  await page.waitForFunction(() => !document.getElementById('al-retry') || document.getElementById('al-retry').disabled);
+  await page.waitForFunction(n => posts_len() > n, nSendBefore + 1).catch(() => {});
+  const p2d = posts.filter(p => p.action === 'alimSend').pop();
+  ok('실패한 분께만 다시 보내기', p2d && p2d.items.length === 1 && p2d.items[0].who === '학부모2' && p2d.items[0].to === '01099990000', JSON.stringify(p2d && p2d.items));
+  await page.waitForSelector('#al-retry', { timeout: 5000 });   // 또 실패 → 결과 창 다시
+  await page.evaluate(() => closeModal());
 
   // 3) 특이사항 괄호 이름 → 괄호 뗀 이름으로, 연락처 매칭
+  const n3 = posts.filter(p => p.action === 'alimSend').length;
   await page.evaluate(() => openAttend(classes[0], '최민하(9/20부터)'));
   await page.click('.att-btns .pick-abs');
   await page.waitForSelector('#al-rows');
   ok('괄호 뗀 이름·학부모1만', (await page.textContent('.al-row b')) === '최민하' && (await whoBoxes(0)).join() === '학부모1+');
-  await page.click('.mbtns button');   // 보내지 않기
-  ok('보내지 않기 → POST 없음', posts.filter(p => p.action === 'alimSend').length === 3);
+  // 3b) [보내지 않기]가 없다 — 보내기만 할 수 있고 바깥을 눌러도 안 닫힌다(2026-10-03 원장님 "보내지 않기는 없애주세요")
+  const btnTexts = await page.$$eval('#modal-box .mbtns button', els => els.map(e => e.textContent.trim()));
+  ok('확인 창 버튼은 [알림톡 보내기] 하나', btnTexts.join() === '알림톡 보내기', btnTexts.join());
+  ok('창 머리글에 반드시 보낸다는 안내', (await modalText()).includes('결석 알림톡은 반드시 보냅니다'));
+  await page.mouse.click(5, 5);   // 바깥(배경) 누르기
+  await page.waitForTimeout(150);
+  ok('바깥을 눌러도 창이 안 닫힘', await page.evaluate(() => document.getElementById('modal').classList.contains('on')));
+  await page.evaluate(() => closeModal());   // 검사 진행용
+  ok('안 보내고 닫으면 POST 없음', posts.filter(p => p.action === 'alimSend').length === n3);
 
   // 4) 연락처 없는 학생
   await page.evaluate(() => openAttend(classes[0], '정서현'));
   await page.click('.att-btns .pick-abs');
   await page.waitForSelector('#al-rows');
-  ok('연락처 없음 → 체크 없음·안내', (await whoBoxes(0)).length === 0 && (await modalText()).includes('등록된 연락처가 없어요'));
-  await page.click('#al-go');
-  ok('보낼 학생 없으면 오류 문구', (await page.textContent('#al-err')).includes('체크'));
-  await page.evaluate(() => closeModal());
+  ok('연락처 없음 → 체크 없음·안내', (await whoBoxes(0)).length === 0 && (await modalText()).includes('등록된 연락처가 없습니다'));
+  ok('보낼 곳이 없으면 보내기 버튼 대신 안내 + [닫기]', !(await page.$('#al-go')) && (await modalText()).includes('보낼 연락처가 없어') && (await page.$$eval('#modal-box .mbtns button', els => els.map(e => e.textContent.trim()))).join() === '닫기');
+  await page.click('#modal-box .mbtns button');
+  ok('[닫기]로 닫힘', !(await page.evaluate(() => document.getElementById('modal').classList.contains('on'))));
 
   // 5) 복수 선택 일괄 결석 → 여러 명 창
   await page.evaluate(() => { attend = {}; multiMode = true; multiSel = { a: { cid:'r010', nm:'박지우' }, b: { cid:'r010', nm:'최민하(9/20부터)' } }; multiApply('결석'); });
@@ -137,6 +185,29 @@ const posts = [];
   ok('여러 명 창 2줄', (await page.$$('#al-rows .al-row')).length === 2 && (await modalText()).includes('(2명)'));
   ok('이미 보낸 박지우는 체크 꺼짐·보냄 표시', (await whoBoxes(0)).every(x => x.endsWith('-')) && (await page.textContent('#al-rows .al-row')).includes('보냄'));
   ok('최민하는 체크', (await whoBoxes(1)).join() === '학부모1+');
+  await page.evaluate(() => closeModal());
+
+  // 5b) 복수 선택 18명 × 3 = 54건 → 50건씩 두 번 나눠 보냄(백엔드 50건 상한)
+  await page.evaluate(() => { attend = {}; multiMode = true; multiSel = {}; classes[1].students.forEach(function(nm){ multiSel[nm] = { cid:'r011', nm: nm }; }); multiApply('결석'); });
+  await page.waitForSelector('#al-rows');
+  ok('18명 창', (await page.$$('#al-rows .al-row')).length === 18);
+  const nBefore = posts.filter(p => p.action === 'alimSend').length;
+  await page.click('#al-go');
+  await page.waitForFunction(() => document.getElementById('status').textContent.includes('54건 보냈어요'), null, { timeout: 10000 });
+  const chunks = posts.filter(p => p.action === 'alimSend').slice(nBefore);
+  ok('50건 + 4건 두 번으로 나눠 보냄', chunks.length === 2 && chunks[0].items.length === 50 && chunks[1].items.length === 4, chunks.map(c => c.items.length).join());
+  ok('모두 성공이면 결과 창 없음', !(await page.$('#al-retry')) && !(await page.evaluate(() => document.getElementById('modal').classList.contains('on'))));
+
+  // 5c) 연락처 조회 실패 → '불러오지 못했습니다' + [다시 불러오기]로 복구
+  phonesFail = true;
+  await page.evaluate(() => { stuPhones = null; attend = {}; openAttend(classes[0], '박지우'); });
+  await page.click('.att-btns .pick-abs');
+  await page.waitForSelector('#al-rows');
+  ok('조회 실패 안내 + 다시 불러오기 버튼', (await modalText()).includes('연락처를 불러오지 못했습니다') && !!(await page.$('.al-warn button')) && (await whoBoxes(0)).length === 0);
+  phonesFail = false;
+  await page.click('.al-warn button');
+  await page.waitForFunction(() => document.querySelectorAll('#al-rows input[data-who]').length === 3, null, { timeout: 8000 });
+  ok('다시 불러오면 받는 분 셋', (await whoBoxes(0)).length === 3 && !(await page.$('.al-warn button')));
   await page.evaluate(() => closeModal());
 
   // 6) [알림톡] 버튼 — 설정·기록 창은 슈국 운영 → 알림톡 메뉴로 옮겼다(2026-10-01). 새 탭으로 그 메뉴를 연다.
