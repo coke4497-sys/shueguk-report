@@ -149,6 +149,20 @@ const LOGS = [];
       streak([E('출석', '', 1, 1, 'a'), E('출석', '', 0, 0, 'b'), E('출석', '', 1, 1, 'c')], RUNS[3].on, RUNS[3].skip).join()];
   });
   ok('연속 판정 — 결석·미체크·검사 안 한 수업은 건너뛰고, 다른 값이 끼면 끊긴다', r[0] === 'a,c' && r[1] === 'a' && r[2] === 'a,c' && r[3] === 'a,c', JSON.stringify(r));
+  ok('요주의 줄 왼쪽에 가장 긴 연속 횟수 배지', /^2회 연속박보검/.test(await p.textContent('#pcView .pc-sec:nth-child(2) .pc')));
+  // 횟수 순서 — 가짜 수업 세 번으로 지각 3연속(가)·결석 2연속(나)·지각 2+미제출 2(다)
+  r = await p.evaluate(() => {
+    const row = (name, st, extra) => Object.assign({ key: name, name, school: '화정고', grade: '고2', att: st ? { status: st } : null, attitude: '', hw: null, missAll: false, missItems: [], copy: [] }, extra || {});
+    const S = (ymd, rows) => ({ ymd, cls: '고2 가', start: '5:30', none: false, rows });
+    const vis = [
+      S('2026-09-30', [row('가', '지각'), row('나', '결석'), row('다', '지각', { hw: { pct: 0 }, missAll: true })]),
+      S('2026-10-01', [row('가', '지각'), row('나', '결석'), row('다', '지각', { hw: { pct: 0 }, missAll: true })]),
+      S('2026-10-02', [row('가', '지각'), row('나', '출석'), row('다', '출석')])
+    ];
+    const box = document.createElement('div'); box.innerHTML = pcHtml(vis);
+    return [...box.querySelectorAll('.pc-sec:nth-child(2) .pc')].map(x => x.querySelector('.pcn').textContent + x.querySelector('.pn').firstChild.textContent + (x.querySelector('.pcn.hi') ? '!' : ''));
+  });
+  ok('횟수가 큰 학생부터 — 3회(진한 빨강) → 2회(합이 큰 쪽 먼저) → 2회', JSON.stringify(r) === JSON.stringify(['3회 연속가!', '2회 연속다', '2회 연속나']), JSON.stringify(r));
   await p.click('.pc[data-person="박보검"]');
   r = await p.evaluate(() => ({ v: document.querySelector('#subIn') && document.querySelector('#subIn').value, n: document.querySelectorAll('.card').length, tab: !!document.querySelector('[data-tab="rec"].on') }));
   ok('이름을 누르면 수업 기록 탭 · 개인 보기로 이동', r.v === '박보검' && r.n === 2 && r.tab, JSON.stringify(r));

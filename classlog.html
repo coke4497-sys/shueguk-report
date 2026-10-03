@@ -92,6 +92,11 @@
   .pc-sec .hint{font-size:12.5px;color:var(--ink-soft);margin:0 0 6px;}
   .pc{display:flex;gap:10px;align-items:flex-start;padding:9px 0;border-top:1px solid var(--line-soft);cursor:pointer;}
   .pc .pn{font-weight:700;min-width:84px;}
+  .pcn{flex:0 0 48px;text-align:center;background:var(--sage);color:var(--sage-ink);border-radius:10px;padding:3px 0 2px;line-height:1.1;}
+  .pcn b{display:block;font-family:"Do Hyeon",sans-serif;font-weight:400;font-size:22px;}
+  .pcn span{font-size:10.5px;}
+  .pcn.w{background:var(--pnk);color:var(--pnk-ink);}
+  .pcn.w.hi{background:#C8463F;color:#fff;}
   .pc .pn small{display:block;font-weight:400;font-size:11.5px;color:var(--ink-soft);}
   .pc ul{margin:0;padding:0;list-style:none;flex:1;font-size:13px;}
   .pc li{margin:1px 0;}
@@ -702,35 +707,39 @@ function pcCollect(vis){
   var praise = [], warn = [];
   order.forEach(function(k){
     var p = P[k], avg = p.pcts.length ? Math.round(p.pcts.reduce(function(a, b){ return a + b; }, 0) / p.pcts.length) : null, why = [], bad = [];
-    if (p.star.length >= CL_RULES.praiseStar) why.push('<b>과제 검사 100% ' + p.star.length + '회</b> (' + p.star.join(' · ') + ')');
-    if (p.good.length >= CL_RULES.praiseGood) why.push('<b>태도 매우 좋음 ' + p.good.length + '회</b> (' + p.good.join(' · ') + ')');
-    if (p.n >= 2 && p.present === p.n && avg != null && avg >= CL_RULES.praiseAvg) why.push('<b>' + p.n + '회 모두 제시간 출석 · 과제 검사 평균 ' + avg + '%</b>');
+    var pTop = 0, pSum = 0, wTop = 0, wSum = 0;   // 가장 큰 횟수(배지·정렬)와 합(같으면 다음 정렬)
+    var pAdd = function(n){ pTop = Math.max(pTop, n); pSum += n; };
+    if (p.star.length >= CL_RULES.praiseStar){ pAdd(p.star.length); why.push('<b>과제 검사 100% ' + p.star.length + '회</b> (' + p.star.join(' · ') + ')'); }
+    if (p.good.length >= CL_RULES.praiseGood){ pAdd(p.good.length); why.push('<b>태도 매우 좋음 ' + p.good.length + '회</b> (' + p.good.join(' · ') + ')'); }
+    if (p.n >= 2 && p.present === p.n && avg != null && avg >= CL_RULES.praiseAvg){ pAdd(p.n); why.push('<b>' + p.n + '회 모두 제시간 출석 · 과제 검사 평균 ' + avg + '%</b>'); }
     p.ev.sort(function(a, b){ return a.o < b.o ? -1 : a.o > b.o ? 1 : 0; });
     // 같은 날 같은 이름 반이 두 번(원본과 옮긴 반 등) 잡히면 한 번으로 — 같은 수업을 두 번 세지 않게
     var seenEv = {}; p.ev = p.ev.filter(function(e){ var k = e.lbl; if (seenEv[k]) return false; seenEv[k] = 1; return true; });
     RUNS.forEach(function(R2){
       var run = streak(p.ev, R2.on, R2.skip);
-      if (run.length >= CL_RULES.warnRun) bad.push('<b>' + R2.name + ' 연속 ' + run.length + '회</b> (' + run.join(' · ') + ')');
+      if (run.length >= CL_RULES.warnRun){ wTop = Math.max(wTop, run.length); wSum += run.length; bad.push({ n: run.length, h: '<b>' + R2.name + ' 연속 ' + run.length + '회</b> (' + run.join(' · ') + ')' }); }
     });
-    if (why.length) praise.push({ p: p, items: why });
-    if (bad.length) warn.push({ p: p, items: bad });
+    bad.sort(function(a, b){ return b.n - a.n; });
+    if (why.length) praise.push({ p: p, items: why, top: pTop, sum: pSum, unit: '회' });
+    if (bad.length) warn.push({ p: p, items: bad.map(function(x){ return x.h; }), top: wTop, sum: wSum, unit: '연속' });
   });
-  var by = function(a, b){ return b.items.length - a.items.length || String(a.p.name).localeCompare(String(b.p.name), 'ko'); };
+  /* 횟수가 큰 학생부터 — 가장 큰 횟수 → 횟수 합 → 이름 (2026-10-03 원장님 "누적 횟수가 높아지면 그 숫자를 표시해서 높은 친구부터") */
+  var by = function(a, b){ return b.top - a.top || b.sum - a.sum || String(a.p.name).localeCompare(String(b.p.name), 'ko'); };
   praise.sort(by); warn.sort(by);
   return { praise: praise, warn: warn };
 }
 function pcHtml(vis){
   if ((ST.view === 'school' || ST.view === 'person') && !tr(ST.sub)) return '<div class="empty">' + (ST.view === 'school' ? '학교를 고르세요.' : '학생 이름을 넣어 주세요.') + '</div>';
   var R = pcCollect(vis);
-  var item = function(x){ return '<div class="pc" data-person="' + esc(x.p.name) + '"><div class="pn">' + esc(x.p.name) + '<small>' + esc([x.p.school, x.p.grade].filter(Boolean).join(' ')) + '</small></div><ul>' +
+  var item = function(x){ return '<div class="pc" data-person="' + esc(x.p.name) + '"><div class="pcn' + (x.unit === '연속' ? ' w' : '') + (x.top >= 3 ? ' hi' : '') + '"><b>' + x.top + '</b><span>' + (x.unit === '연속' ? '회 연속' : '회') + '</span></div><div class="pn">' + esc(x.p.name) + '<small>' + esc([x.p.school, x.p.grade].filter(Boolean).join(' ')) + '</small></div><ul>' +
     x.items.map(function(i){ return '<li>' + i + '</li>'; }).join('') + '</ul></div>'; };
   var sec = function(title, n, hint, list, emptyMsg){
     return '<section class="pc-sec"><h2>' + title + ' <span class="n">' + n + '명</span></h2><p class="hint">' + hint + '</p>' +
       (list.length ? list.map(item).join('') : '<p class="hint">' + emptyMsg + '</p>') + '</section>';
   };
   var R1 = CL_RULES;
-  return sec('칭찬해 주세요', R.praise.length, '과제 검사 100%가 ' + R1.praiseStar + '회 이상 · 태도 매우 좋음 ' + R1.praiseGood + '회 이상 · 지각·결석 없이 모든 수업 출석하고 과제 검사 평균 ' + R1.praiseAvg + '% 이상. 이름을 누르면 그 학생의 수업 기록으로 갑니다.', R.praise, '이 기간에 해당하는 학생이 없습니다.') +
-    sec('관리가 필요해요', R.warn.length, '태도 노력 필요 · 결석 · 지각 · 과제 미제출 중 하나가 ' + R1.warnRun + '회 연속인 학생. 고른 기간 안의 수업만 이어 봐요. 이번 주만 보면 그 주 수업 두 번이 이어져야 잡히고, 최근 4주로 넓히면 주를 넘는 연속도 잡힙니다.', R.warn, '이 기간에 해당하는 학생이 없습니다.');
+  return sec('칭찬해 주세요', R.praise.length, '과제 검사 100%가 ' + R1.praiseStar + '회 이상 · 태도 매우 좋음 ' + R1.praiseGood + '회 이상 · 지각·결석 없이 모든 수업 출석하고 과제 검사 평균 ' + R1.praiseAvg + '% 이상. 왼쪽 숫자가 큰 학생부터 보여 드립니다. 이름을 누르면 그 학생의 수업 기록으로 갑니다.', R.praise, '이 기간에 해당하는 학생이 없습니다.') +
+    sec('관리가 필요해요', R.warn.length, '태도 노력 필요 · 결석 · 지각 · 과제 미제출 중 하나가 ' + R1.warnRun + '회 연속인 학생. 왼쪽 숫자는 가장 긴 연속 횟수이고, 큰 학생부터 보여 드립니다(3회 이상은 진한 빨강). 고른 기간 안의 수업만 이어 봐요. 이번 주만 보면 그 주 수업 두 번이 이어져야 잡히고, 최근 4주로 넓히면 주를 넘는 연속도 잡힙니다.', R.warn, '이 기간에 해당하는 학생이 없습니다.');
 }
 
 /* ── 허브 로그인 선생님(처음 열 때 그 선생님 수업부터) ─────────── */
