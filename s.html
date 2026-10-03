@@ -132,6 +132,51 @@
     background:var(--accent);color:#fff;font-family:var(--sans);font-size:.86rem;font-weight:700;
     padding:10px 16px;cursor:pointer;}
   .nchk-btn:active{opacity:.85;} .nchk-btn:disabled{background:#9fb3aa;cursor:default;}
+  /* 슈퍼스타 TOP 30 — 시상대 + 순위 막대 (2026-10-03 원장님 시안) */
+  #top30Card .nh{align-items:center;}
+  #top30Card .ntitle{font-size:1.3rem;}
+  .t30-tog{border:none;border-radius:999px;background:#EEF2EF;color:var(--ink-soft);font-family:var(--sans);
+    font-size:.78rem;padding:6px 13px;cursor:pointer;white-space:nowrap;}
+  .t30-tog:active{opacity:.8;}
+  .t30-sub{font-family:var(--serif);font-size:.86rem;color:var(--accent);margin:0 0 6px;}
+  .t30-pod{display:grid;grid-template-columns:1fr 1.15fr 1fr;gap:10px;align-items:end;margin:22px 0 18px;}
+  .t30-pod .pc{text-align:center;}
+  .t30-pod .rk{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:50%;
+    font-family:"Do Hyeon",var(--sans);font-size:1.05rem;color:#5A6560;background:#EEF2EF;}
+  .t30-pod .p1 .rk{width:44px;height:44px;font-size:1.25rem;background:#F3E3A6;color:#8A6D2F;}
+  .t30-pod .p3 .rk{background:#F0D9CF;color:#9A6450;}
+  .t30-pod .nm{display:block;font-family:"Do Hyeon",var(--sans);font-size:1.15rem;color:var(--ink);margin-top:8px;line-height:1.3;
+    word-break:keep-all;}
+  .t30-pod .p1 .nm{font-size:1.5rem;}
+  .t30-pod .sc{display:block;font-size:.72rem;color:var(--ink-soft);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .t30-pod .bx{margin-top:10px;border-radius:12px;padding:16px 6px 12px;background:#EEF2EF;}
+  .t30-pod .p1 .bx{background:#F8EFC9;padding:20px 6px 14px;}
+  .t30-pod .p3 .bx{background:#F6E6DD;}
+  .t30-pod .num{display:block;font-family:"Do Hyeon",var(--sans);font-size:1.8rem;color:var(--ink);line-height:1.1;}
+  .t30-pod .p1 .num{font-size:2.3rem;}
+  .t30-pod .lb{display:block;font-size:.68rem;color:#B08A3E;margin-top:4px;}
+  .t30-pod .mine .nm::after{content:" 나";font-size:.7rem;color:var(--accent);vertical-align:middle;}
+  .t30-list{border-top:1px solid var(--line-soft);padding-top:14px;}
+  .t30-row{display:flex;align-items:center;gap:10px;margin:0 0 7px;}
+  .t30-row .bar{flex:1;display:flex;align-items:center;gap:8px;min-width:0;padding:7px 10px;border-radius:10px;
+    background:linear-gradient(90deg,#EEF2EF var(--w),transparent var(--w));}
+  .t30-row .r{width:1.6em;text-align:center;font-family:var(--sans);font-weight:700;font-size:.82rem;color:var(--ink-soft);flex:none;}
+  .t30-row .n{font-family:"Do Hyeon",var(--sans);font-size:1.02rem;color:var(--ink);white-space:nowrap;}
+  .t30-row .s{font-size:.72rem;color:var(--ink-soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;}
+  .t30-row .st{flex:none;font-family:var(--sans);font-weight:700;font-size:.92rem;color:var(--ink);white-space:nowrap;}
+  .t30-row .st b{color:#C9A33F;font-weight:400;font-size:.8rem;margin-right:2px;}
+  .t30-row.mine .bar{background:linear-gradient(90deg,#DCE6E0 var(--w),transparent var(--w));}
+  .t30-row.mine .n::after{content:" 나";font-size:.68rem;color:var(--accent);}
+  .t30-more{display:block;margin:12px auto 0;border:none;border-radius:999px;background:#EEF2EF;color:var(--ink-soft);
+    font-family:var(--sans);font-size:.8rem;padding:7px 15px;cursor:pointer;}
+  .t30-rest[hidden]{display:none;}
+  .t30-note{color:var(--ink-soft);font-size:.88rem;margin:10px 0 0;}
+  @media (max-width:420px){
+    .t30-pod{gap:6px;}
+    .t30-pod .nm{font-size:1rem;} .t30-pod .p1 .nm{font-size:1.25rem;}
+    .t30-pod .num{font-size:1.5rem;} .t30-pod .p1 .num{font-size:1.9rem;}
+    .t30-row .n{font-size:.95rem;}
+  }
   .nchk-done{display:inline-block;margin-top:12px;font-size:.84rem;font-weight:700;color:var(--accent);
     background:#DCE6E0;border-radius:20px;padding:5px 13px;}
 
@@ -2707,49 +2752,81 @@ function checkNoticeBtn(btn){
   })
   .catch(function(e){ console.warn('수파베이스 공지 확인 실패 — 기존 백엔드로 폴백', e); legacyFlow(); });
 }
-/* 슈퍼스타 TOP 30 — 공지사항 안의 공개 순위 메뉴. 확인해도 별이 쌓이지 않는 열람 전용. */
+/* 슈퍼스타 TOP 30 — 공지사항 안의 공개 순위 메뉴. 확인해도 별이 쌓이지 않는 열람 전용.
+ * 2026-10-03 원장님 시안: 1~3위 시상대 + 4~14위 순위 막대(1위 별 수 기준 폭) + [15~30위 더 보기]. */
 function starTop30Html(){
   return '<div class="notice-item" id="top30Card">' +
     '<span class="ntag" style="background:#F3E9CF;color:#8A6D2F;">슈퍼스타</span>' +
-    '<div class="nh"><span class="ntitle">슈퍼스타 TOP 30</span></div>' +
-    '<div class="nbody">지금까지 별을 가장 많이 모은 슈퍼스타 30명을 볼 수 있어요.</div>' +
-    '<button type="button" class="nchk-btn" onclick="toggleTop30(this)">순위 보기</button>' +
-    '<div id="top30List" style="display:none;margin-top:10px;"></div>' +
+    '<div class="nh"><span class="ntitle">슈퍼스타 TOP 30</span>' +
+      '<button type="button" class="t30-tog" id="top30Tog" onclick="toggleTop30(this)">순위 보기 ⌄</button></div>' +
+    '<p class="t30-sub">지금까지 별을 가장 많이 모은 슈퍼스타 30명을 볼 수 있어요.</p>' +
+    '<div id="top30List" style="display:none;margin-top:4px;"></div>' +
     '</div>';
+}
+function top30GradeShort(g){
+  var m = String(g||'').match(/(고등|중등)\s*(\d)/);
+  return m ? ((m[1]==='고등'?'고':'중') + m[2]) : '';
+}
+function top30ListHtml(top){
+  var myName = (STATE.info && STATE.info.name) || '';
+  var max = Math.max(1, Number(top[0] && top[0].total) || 0);
+  var sub = function(s){
+    var gs = top30GradeShort(s.grade);
+    return esc([gs, s.school||''].filter(Boolean).join(' · '));
+  };
+  var pod = function(s, i){
+    if(!s) return '<div class="pc p'+(i+1)+'"></div>';
+    var me = myName && s.name === myName;
+    return '<div class="pc p'+(i+1)+(me?' mine':'')+'">' +
+      '<span class="rk">'+(i+1)+'</span>' +
+      '<span class="nm">'+esc(s.name)+'</span>' +
+      '<span class="sc">'+sub(s)+'</span>' +
+      '<div class="bx"><span class="num">'+esc(s.total)+'</span><span class="lb">★ 별</span></div>' +
+      '</div>';
+  };
+  var row = function(s, i){
+    var me = myName && s.name === myName;
+    var w = Math.max(8, Math.round((Number(s.total)||0) / max * 100));
+    return '<div class="t30-row'+(me?' mine':'')+'">' +
+      '<div class="bar" style="--w:'+w+'%"><span class="r">'+(i+1)+'</span>' +
+        '<span class="n">'+esc(s.name)+'</span><span class="s">'+sub(s)+'</span></div>' +
+      '<span class="st"><b>★</b>'+esc(s.total)+'</span>' +
+      '</div>';
+  };
+  // 시상대는 2위 · 1위 · 3위 순서로 놓는다(가운데가 1위)
+  var html = '<div class="t30-pod">'+pod(top[1],1)+pod(top[0],0)+pod(top[2],2)+'</div>';
+  var first = top.slice(3, 14), rest = top.slice(14);
+  html += '<div class="t30-list">' + first.map(function(s,i){ return row(s, i+3); }).join('');
+  if(rest.length){
+    html += '<div class="t30-rest" id="top30Rest" hidden>' + rest.map(function(s,i){ return row(s, i+14); }).join('') + '</div>' +
+      '<button type="button" class="t30-more" id="top30More" onclick="toggleTop30Rest(this)">15~'+top.length+'위 더 보기 ⌄</button>';
+  }
+  html += '</div>';
+  return html;
+}
+function toggleTop30Rest(btn){
+  var rest = document.getElementById('top30Rest');
+  if(!rest) return;
+  var open = rest.hidden;
+  rest.hidden = !open;
+  var n = rest.querySelectorAll('.t30-row').length;
+  btn.textContent = open ? '15~'+(14+n)+'위 접기 ⌃' : '15~'+(14+n)+'위 더 보기 ⌄';
 }
 function toggleTop30(btn){
   var box = document.getElementById('top30List');
-  if(box.style.display !== 'none'){ box.style.display='none'; btn.textContent='순위 보기'; return; }
-  box.style.display='block'; btn.textContent='접기';
+  if(box.style.display !== 'none'){ box.style.display='none'; btn.textContent='순위 보기 ⌄'; return; }
+  box.style.display='block'; btn.textContent='접기 ⌃';
   if(box.getAttribute('data-loaded')) return;
-  box.innerHTML = '<p style="color:#65726B;font-size:.88rem;">순위를 불러오는 중…</p>';
+  box.innerHTML = '<p class="t30-note">순위를 불러오는 중…</p>';
   sbTop30()
     .then(function(d){
       if(!d || d.result!=='success' || !d.top || !d.top.length){
-        box.innerHTML = '<p style="color:#65726B;font-size:.88rem;">아직 순위가 없어요.</p>'; return;
+        box.innerHTML = '<p class="t30-note">아직 순위가 없어요.</p>'; return;
       }
       box.setAttribute('data-loaded','1');
-      var myName = (STATE.info && STATE.info.name) || '';
-      var medals = ['🥇','🥈','🥉'];
-      var gradeShort = function(g){
-        var m = String(g||'').match(/(고등|중등)\s*(\d)/);
-        return m ? ((m[1]==='고등'?'고':'중') + m[2]) : '';
-      };
-      box.innerHTML = d.top.map(function(s, i){
-        var me = myName && s.name === myName;
-        var gs = gradeShort(s.grade);
-        return '<div style="display:flex;align-items:center;gap:8px;padding:'+(i<3?'8px':'5px')+' 8px;border-radius:8px;'+
-               'font-size:'+(i<3?'1rem':'.9rem')+';'+
-               (i<3 ? 'background:#FBF5E3;' : '')+(me ? 'background:#EBF0ED;font-weight:700;' : '')+'">'+
-          '<span style="width:2.2em;text-align:center;'+(i<3?'font-size:1.15rem;':'color:#65726B;font-weight:700;')+'">'+
-            (i<3 ? medals[i] : (i+1))+'</span>'+
-          '<span style="flex:1;word-break:keep-all;">'+esc(s.name)+
-            ' <small style="color:#65726B;">'+(gs ? esc(gs)+' · ' : '')+esc(s.school||'')+'</small>'+(me?' · 나':'')+'</span>'+
-          '<span style="color:#B08A3E;font-weight:700;white-space:nowrap;">⭐ '+s.total+'</span>'+
-          '</div>';
-      }).join('');
+      box.innerHTML = top30ListHtml(d.top);
     })
-    .catch(function(){ box.innerHTML = '<p style="color:#65726B;font-size:.88rem;">순위를 불러오지 못했어요. 잠시 후 다시 열어주세요.</p>'; });
+    .catch(function(){ box.innerHTML = '<p class="t30-note">순위를 불러오지 못했어요. 잠시 후 다시 열어주세요.</p>'; });
 }
 function renderNotices(){
   var ns = STATE.notices || [];
