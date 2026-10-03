@@ -67,6 +67,8 @@
   .prog b{color:var(--ink);font-weight:700;}
   .prog .no{color:#B4574E;}
   .card.none{background:rgba(255,255,255,.55);}
+  .crgo{display:inline-block;margin-top:2px;background:var(--lav);color:var(--lav-ink);border-radius:999px;padding:3px 12px;font-size:12.5px;font-weight:700;text-decoration:none;white-space:nowrap;}
+  .crgo:hover{background:#E3D7EE;}
   .card.none .nm{color:var(--ink-soft);}
   .cb{padding:0 14px 12px;border-top:1px solid var(--line-soft);}
   .f{margin:10px 0 0;font-size:14px;}
@@ -189,7 +191,7 @@
   </a>
   <header>
     <p class="brand">수업 기록 보기</p>
-    <p class="sub">오늘의 시간표 [수업 기록] 창에 적은 내용을 반별로 모아 봅니다. 보기 전용이에요. 미제출 대책 [확인] 표시만 여기서 할 수 있습니다. 나머지를 고치는 것은 [수업 기록] 창에서 합니다.</p>
+    <p class="sub">오늘의 시간표 [수업 기록] 창에 적은 내용을 반별로 모아 봅니다. 보기 전용이에요. 기록을 고치거나 지난 수업의 과제 검사·수업 태도를 적으려면 카드의 [이 수업 기록하기]를 누르세요. 미제출 대책 [확인]은 여기서 바로 할 수 있습니다.</p>
   </header>
 
   <div class="tabs" id="tabs">
@@ -585,6 +587,8 @@ function stuHtml(s, r){
   if (h && tr(h.priv)) out += '<div class="note priv"><span class="k">비공개 메모</span>' + esc(h.priv) + '</div>';
   return out + '</div>';
 }
+/* [이 수업 기록하기] — 슈국 스케쥴이 그 날짜의 [수업 기록] 창을 바로 연다(2026-10-03 원장님 "지난 날짜의 수업에도 과제 검사·수업 태도를", A안) */
+function crLink(s){ return 'timetable.html?cr=' + encodeURIComponent(s.book + '|' + s.id + '|' + s.ymd); }
 function cardHtml(s){
   var rows = visRows(s), all = rowsOf(s), stt = sessStats(s, all);
   var time = s.start || '', teacher = tName(s.teacher), sub = [mdw(s.ymd), s.book === '내신' ? '내신' : '정규', partLabel(s.part), teacher].filter(Boolean).join(' · ');
@@ -595,7 +599,8 @@ function cardHtml(s){
   var html = '<div class="card' + (s.none ? ' none' : '') + '" data-key="' + esc(s.key) + '">' +
     '<div class="ch" data-tog="' + esc(s.key) + '"><div class="tm">' + esc(time) + '</div><div class="mid"><div class="nm">' + esc(s.cls) + '</div><div class="meta">' + esc(sub) +
     ((ST.view === 'school' || ST.view === 'person') && !s.none ? ' · 이 중 ' + rows.length + '명' : '') + '</div></div>' +
-    '<div class="right">' + stTag(s) + (stt.lacking ? '<span class="tag pnk">기록 부족</span>' : '') + prog + '</div></div>';
+    '<div class="right">' + stTag(s) + (stt.lacking ? '<span class="tag pnk">기록 부족</span>' : '') + prog +
+    '<a class="crgo" target="_blank" rel="noopener" href="' + crLink(s) + '">이 수업 기록하기</a></div></div>';
   if (open){
     var n = s.note || {}, cm = n.comments || {};
     html += '<div class="cb">';
@@ -830,6 +835,7 @@ document.addEventListener('click', function(e){
     render(); return;
   }
   if ((b = e.target.closest('[data-per]'))){ setPeriod(b.getAttribute('data-per')); ST.limit = 60; render(); reload(); return; }
+  if (e.target.closest('.crgo')) return;   // 새 탭으로 여는 링크 — 카드 펼침과 겹치지 않게
   if ((b = e.target.closest('[data-tog]'))){ var k = b.getAttribute('data-tog'); ST.open[k] = !ST.open[k]; render(); return; }
   if ((b = e.target.closest('[data-person]'))){
     ST.tab = 'rec'; ST.view = 'person'; ST.sub = b.getAttribute('data-person'); $('viewSub').innerHTML = ''; render(); window.scrollTo(0, 0); return;
