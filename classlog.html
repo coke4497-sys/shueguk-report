@@ -229,11 +229,7 @@ var CL_RULES = {
   praiseStar: 2,      // 과제 검사 100% 수업이 이만큼 이상
   praiseGood: 2,      // 태도 '매우 좋음'이 이만큼 이상
   praiseAvg: 90,      // 지각·결석 없이 모든 수업 출석 + 과제 검사 평균이 이 % 이상
-  warnMiss: 2,        // 미제출(전체 또는 일부)이 이만큼 이상
-  warnEffort: 1,      // 태도 '노력 필요'가 이만큼 이상
-  warnAbsent: 2,      // 결석+지각이 이만큼 이상
-  warnCopy: 1,        // 베낌 의심이 이만큼 이상
-  warnAvg: 50         // 과제 검사 평균이 이 % 미만
+  warnRun: 2          // 요주의 = 태도 불량(노력 필요)·결석·지각·과제 미제출 중 하나가 연속 이만큼(2026-10-03 원장님 "연속 2회 누적")
 };
 
 function $(id){ return document.getElementById(id); }
@@ -397,7 +393,10 @@ function buildSessions(R){
     }
     s.hw.push(h);
   });
-  list.forEach(function(s){ s.part = partOf(s.cls, s.book); s.grade = gradeOfName(s.cls); s.none = false; });
+  list.forEach(function(s){
+    if (!s.cls) s.cls = /^w/.test(s.id) ? '이 주만 수업' : s.id;   // 지워진 '이 주만' 반 등 — 시간표에서 이름을 못 찾을 때
+    s.part = partOf(s.cls, s.book); s.grade = gradeOfName(s.cls); s.none = false;
+  });
   // 기록 없는 수업 — 시간표에는 있는데 수업 기록·출석·과제 검사가 하나도 없는 수업(오늘 수업은 끝난 뒤부터)
   var off = {};
   R.logs.forEach(function(l){ off[l.from_class_id + '|' + String(l.apply_date).slice(0, 10)] = l.kind; });
@@ -657,15 +656,33 @@ function render(){
 }
 
 /* ── 칭찬 · 요주의 ───────────────────────────────────── */
+/* 연속 — 그 학생의 수업을 날짜순으로 보며 가장 긴 연속 구간. skip 인 수업(해당 없음)은 세지도 끊지도 않는다. */
+function streak(ev, on, skip){
+  var best = [], cur = [];
+  ev.forEach(function(e){
+    if (skip(e)) return;
+    if (on(e)){ cur.push(e.lbl); if (cur.length > best.length) best = cur.slice(); }
+    else cur = [];
+  });
+  return best;
+}
+var RUNS = [
+  { name: '태도 노력 필요', on: function(e){ return e.att === '노력 필요'; }, skip: function(e){ return e.st === '결석' || !e.att; } },
+  { name: '결석', on: function(e){ return e.st === '결석'; }, skip: function(e){ return !e.st; } },
+  { name: '지각', on: function(e){ return e.st === '지각'; }, skip: function(e){ return !e.st; } },
+  { name: '과제 미제출', on: function(e){ return e.miss; }, skip: function(e){ return e.st === '결석' || !e.hw; } }
+];
 function pcCollect(vis){
   var P = {}, order = [];
   vis.forEach(function(s){
     if (s.none) return;
     visRows(s).forEach(function(r){
       var k = r.key + '|' + schoolBase(r.school);
-      if (!P[k]){ P[k] = { name: r.name, school: r.school, grade: r.grade, n: 0, absent: [], late: [], star: [], good: [], effort: [], miss: [], copy: [], pcts: [], present: 0 }; order.push(k); }
+      if (!P[k]){ P[k] = { name: r.name, school: r.school, grade: r.grade, n: 0, absent: [], late: [], star: [], good: [], effort: [], miss: [], copy: [], pcts: [], present: 0, ev: [] }; order.push(k); }
       var p = P[k], lbl = md(s.ymd) + ' ' + s.cls;
       p.n++;
+      p.ev.push({ o: s.ymd + ' ' + ('000' + mins(s.start)).slice(-4), lbl: lbl, st: r.att ? r.att.status : '',
+                  att: r.attitude, hw: !!r.hw, miss: !!(r.hw && (r.missAll || r.missItems.length)) });
       if (r.att){
         if (r.att.status === '결석') p.absent.push(lbl);
         else if (r.att.status === '지각') p.late.push(lbl);
@@ -688,11 +705,13 @@ function pcCollect(vis){
     if (p.star.length >= CL_RULES.praiseStar) why.push('<b>과제 검사 100% ' + p.star.length + '회</b> (' + p.star.join(' · ') + ')');
     if (p.good.length >= CL_RULES.praiseGood) why.push('<b>태도 매우 좋음 ' + p.good.length + '회</b> (' + p.good.join(' · ') + ')');
     if (p.n >= 2 && p.present === p.n && avg != null && avg >= CL_RULES.praiseAvg) why.push('<b>' + p.n + '회 모두 제시간 출석 · 과제 검사 평균 ' + avg + '%</b>');
-    if (p.miss.length >= CL_RULES.warnMiss) bad.push('<b>미제출 ' + p.miss.length + '건</b> (' + p.miss.join(' · ') + ')');
-    if (p.effort.length >= CL_RULES.warnEffort) bad.push('<b>태도 노력 필요 ' + p.effort.length + '회</b> (' + p.effort.join(' · ') + ')');
-    if (p.absent.length + p.late.length >= CL_RULES.warnAbsent) bad.push('<b>결석 ' + p.absent.length + ' · 지각 ' + p.late.length + '</b> (' + p.absent.concat(p.late).join(' · ') + ')');
-    if (p.copy.length >= CL_RULES.warnCopy) bad.push('<b>베낌 의심 ' + p.copy.length + '건 · 비공개</b> (' + p.copy.join(' · ') + ')');
-    if (avg != null && avg < CL_RULES.warnAvg) bad.push('<b>과제 검사 평균 ' + avg + '%</b> (' + p.pcts.length + '회)');
+    p.ev.sort(function(a, b){ return a.o < b.o ? -1 : a.o > b.o ? 1 : 0; });
+    // 같은 날 같은 이름 반이 두 번(원본과 옮긴 반 등) 잡히면 한 번으로 — 같은 수업을 두 번 세지 않게
+    var seenEv = {}; p.ev = p.ev.filter(function(e){ var k = e.lbl; if (seenEv[k]) return false; seenEv[k] = 1; return true; });
+    RUNS.forEach(function(R2){
+      var run = streak(p.ev, R2.on, R2.skip);
+      if (run.length >= CL_RULES.warnRun) bad.push('<b>' + R2.name + ' 연속 ' + run.length + '회</b> (' + run.join(' · ') + ')');
+    });
     if (why.length) praise.push({ p: p, items: why });
     if (bad.length) warn.push({ p: p, items: bad });
   });
@@ -711,7 +730,7 @@ function pcHtml(vis){
   };
   var R1 = CL_RULES;
   return sec('칭찬해 주세요', R.praise.length, '과제 검사 100%가 ' + R1.praiseStar + '회 이상 · 태도 매우 좋음 ' + R1.praiseGood + '회 이상 · 지각·결석 없이 모든 수업 출석하고 과제 검사 평균 ' + R1.praiseAvg + '% 이상. 이름을 누르면 그 학생의 수업 기록으로 갑니다.', R.praise, '이 기간에 해당하는 학생이 없습니다.') +
-    sec('관리가 필요해요', R.warn.length, '미제출 ' + R1.warnMiss + '건 이상 · 태도 노력 필요 ' + R1.warnEffort + '회 이상 · 결석+지각 ' + R1.warnAbsent + '회 이상 · 베낌 의심 ' + R1.warnCopy + '건 이상 · 과제 검사 평균 ' + R1.warnAvg + '% 미만.', R.warn, '이 기간에 해당하는 학생이 없습니다.');
+    sec('관리가 필요해요', R.warn.length, '태도 노력 필요 · 결석 · 지각 · 과제 미제출 중 하나가 ' + R1.warnRun + '회 연속인 학생. 고른 기간 안의 수업만 이어 봐요. 이번 주만 보면 그 주 수업 두 번이 이어져야 잡히고, 최근 4주로 넓히면 주를 넘는 연속도 잡힙니다.', R.warn, '이 기간에 해당하는 학생이 없습니다.');
 }
 
 /* ── 허브 로그인 선생님(처음 열 때 그 선생님 수업부터) ─────────── */

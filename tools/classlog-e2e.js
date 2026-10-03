@@ -22,6 +22,7 @@ const CLASSES = [
   { book: '정규', class_id: 'r003', name: '정리정독 중3', day: '금', start_time: '4:30', end_time: '6:00', teacher: '승연', location: '본원', roster: '한지우' },
   { book: '정규', class_id: 'r004', name: '고2 나', day: '토', start_time: '오전10:00', end_time: '오전11:30', teacher: '현지', location: '본원', roster: '김하늘' },
   { book: '정규', class_id: 'r005', name: '고1 가', day: '토', start_time: '8:00', end_time: '9:30', teacher: '은지', location: '본원', roster: '최민준' },
+  { book: '정규', class_id: 'r006', name: '고1 확인', day: '금', start_time: '4:30', end_time: '6:00', teacher: '은지', location: '본원', roster: '정다은' },
   { book: '내신', class_id: 'n001', name: '고2 화정A(천재 문학)', day: '수', start_time: '5:30', end_time: '7:00', teacher: '현지', location: '본원', roster: '김하늘' }
 ];
 const STUDENTS = [
@@ -36,18 +37,22 @@ const NOTES = [
   { book: '정규', class_id: 'r001', ymd: '2026-09-30', part: '가', progress: '관동별곡 2강', units: [], homework: '관동별곡 학습지\n문장의 짜임 10문제',
     comments: { '김하늘': '발표를 잘했어요.', '__태도': { '김하늘': '매우 좋음', '박보검': '노력 필요' }, '__베낌': { '박보검': ['서정갈래 데일리'] }, '__검사과제': '서정갈래 데일리' },
     report_status: '공개' },
+  { book: '정규', class_id: 'r004', ymd: '2026-10-03', part: '나', progress: '문학 개념', units: [], homework: '', comments: { '__태도': { '박보검': '노력 필요', '김하늘': '좋음' } }, report_status: '' },
   { book: '정규', class_id: 'r003', ymd: '2026-10-02', part: '정규', progress: '문장의 짜임', units: [], homework: '', comments: { '__태도': { '한지우': '매우 좋음' } }, report_status: '요청' }
 ];
 const HW = [
   { week: '2026-09-30', token: 'c1', class_id: 'r001', name: '김하늘', school: '화정고', grade: '고2', scores: { '서정갈래 데일리 (학습량)': 5, '서정갈래 데일리 (채점)': 2, '서정갈래 데일리 (학습 분석)': 2, '서정갈래 데일리 (오답 분석)': 2 }, pct: 100, missing: false, missing_items: [], plan: '', priv: '집중력이 좋아짐' },
   { week: '2026-09-30', token: 'c2', class_id: 'r001', name: '박보검', school: '서정고', grade: '고2', scores: {}, pct: 0, missing: true, missing_items: ['서정갈래 데일리'], plan: '다음 수업 재검사', priv: '' },
+  { week: '2026-09-30', token: 'c2', class_id: 'r004', name: '박보검', school: '서정고', grade: '고2', scores: {}, pct: 0, missing: true, missing_items: ['문학 개념'], plan: '', priv: '' },
   { week: '2026-09-30', token: 'c6', class_id: 'r003', name: '한지우', school: '서정중', grade: '중3', scores: { '문장 (학습량)': 5, '문장 (채점)': 2, '문장 (학습 분석)': 2, '문장 (오답 분석)': 2 }, pct: 100, missing: false, missing_items: [], plan: '', priv: '' }
 ];
 const ATT = [
   { date: '2026-09-30', book: '정규', class_id: 'r001', student: '김하늘', status: '출석', memo: '' },
   { date: '2026-09-30', book: '정규', class_id: 'r001', student: '박보검', status: '지각', memo: '10분' },
   { date: '2026-10-02', book: '정규', class_id: 'r003', student: '한지우', status: '출석', memo: '' },
-  { date: '2026-10-01', book: '정규', class_id: 'r002', student: '최민준', status: '결석', memo: '병결' }
+  { date: '2026-10-01', book: '정규', class_id: 'r002', student: '최민준', status: '결석', memo: '병결' },
+  { date: '2026-10-03', book: '정규', class_id: 'r004', student: '김하늘', status: '출석', memo: '' },
+  { date: '2026-10-03', book: '정규', class_id: 'r004', student: '박보검', status: '지각', memo: '5분' }
 ];
 const LOGS = [];
 (async () => {
@@ -87,11 +92,11 @@ const LOGS = [];
   r = await p.$$eval('.card', cs => cs.map(c => c.querySelector('.nm').textContent + '|' + c.querySelector('.right').textContent));
   ok('기록한 수업 카드 + 리포트 공개 표시', r.some(t => /^고2 가\|리포트 공개/.test(t)), JSON.stringify(r));
   ok('출석만 있는 수업 = "수업 기록 없음 · 출석만"', r.some(t => /^고1 나\|수업 기록 없음 · 출석만/.test(t)));
-  ok('시간표에만 있는 지난 수업 = "기록 없음" (토 오전 고2 나)', r.some(t => /^고2 나\|기록 없음/.test(t)));
+  ok('시간표에만 있는 지난 수업 = "기록 없음" (금 고1 확인)', r.some(t => /^고1 확인\|기록 없음/.test(t)));
   ok('아직 끝나지 않은 오늘 수업(토 8:00)은 기록 없음으로 안 잡힘', !r.some(t => /^고1 가\|/.test(t)));
   ok('그 주 기간이 정규면 내신 반은 기록 없음으로 안 잡힘', !r.some(t => /화정A/.test(t)));
   r = await p.textContent('#tiles');
-  ok('요약 타일 — 기록한 수업 2 · 리포트 공개 1 · 기록 없는 수업 2', /2기록한 수업1리포트 공개2기록 없는 수업/.test(r), r);
+  ok('요약 타일 — 기록한 수업 3 · 리포트 공개 1 · 기록 없는 수업 2', /3기록한 수업1리포트 공개2기록 없는 수업/.test(r), r);
 
   // ③ 펼치기 — 진도·과제·학생 줄
   await p.click('.card[data-key="정규|r001|2026-09-30"] .ch');
@@ -114,9 +119,9 @@ const LOGS = [];
   ok('학년 — 중3 수업만', r.length === 1 && r[0] === '정리정독 중3', JSON.stringify(r));
   await p.click('[data-view="school"]'); await p.selectOption('#subSel', '서정고');
   r = await p.$$eval('.card', cs => cs.map(c => c.querySelector('.nm').textContent + '|' + c.querySelector('.meta').textContent));
-  ok('학교 — 서정고 학생이 있는 수업만 · "이 중 1명"', r.length === 1 && /고2 가\|.*이 중 1명/.test(r[0]), JSON.stringify(r));
-  if (!(await p.$('.card .cb'))) await p.click('.card .ch');   // ③에서 펼친 카드라 이미 열려 있다
-  r = await p.$$eval('.card .stu .sn', a => a.map(x => x.textContent));
+  ok('학교 — 서정고 학생이 있는 수업만 · "이 중 1명"', r.length === 2 && r.every(t => /이 중 1명/.test(t)) && !r.some(t => /중3/.test(t)), JSON.stringify(r));
+  if (!(await p.$('.card[data-key="정규|r001|2026-09-30"] .cb'))) await p.click('.card[data-key="정규|r001|2026-09-30"] .ch');   // ③에서 펼친 카드라 이미 열려 있다
+  r = await p.$$eval('.card[data-key="정규|r001|2026-09-30"] .stu .sn', a => a.map(x => x.textContent));
   ok('학교 보기 — 펼치면 그 학교 학생 줄만', r.length === 1 && r[0] === '박보검', JSON.stringify(r));
   await p.click('[data-view="person"]'); await p.fill('#subIn', '한지우');
   r = await p.$$eval('.card .stu .sn', a => a.map(x => x.textContent));
@@ -126,17 +131,27 @@ const LOGS = [];
   // ⑤ 기록 없는 수업 숨기기
   await p.uncheck('#showNone');
   r = await p.$$eval('.card .nm', a => a.map(x => x.textContent));
-  ok('"기록 없는 수업도 보기"를 끄면 수업 기록 있는 카드만', r.length === 2, JSON.stringify(r));
+  ok('"기록 없는 수업도 보기"를 끄면 수업 기록 있는 카드만', r.length === 3, JSON.stringify(r));
   await p.check('#showNone');
 
   // ⑥ 칭찬 · 요주의
   await p.click('[data-tab="pc"]');
   r = await p.textContent('#pcView');
-  ok('관리가 필요해요 — 박보검 태도 노력 필요·베낌 의심·평균 0%', /박보검서정고 고2.*태도 노력 필요 1회.*베낌 의심 1건 · 비공개.*과제 검사 평균 0%/.test(r), r.slice(0, 400));
-  ok('결석 1회만인 학생은 요주의 아님(결석+지각 2회 기준)', !/최민준/.test(r));
+  ok('관리가 필요해요 — 박보검 태도·지각·미제출 각각 연속 2회 (날짜·반)', /박보검서정고 고2태도 노력 필요 연속 2회 \(9\/30 고2 가 · 10\/3 고2 나\)지각 연속 2회.*과제 미제출 연속 2회/.test(r), r.slice(0, 500));
+  ok('결석 1회만인 학생은 요주의 아님(연속 2회 기준)', !/최민준/.test(r));
+  ok('연속이 아닌 기준(베낌·평균)은 요주의에 안 들어감', !/베낌 의심|평균 0%/.test(r));
+  r = await p.evaluate(() => {
+    const E = (st, att, hw, miss, l) => ({ st, att, hw, miss, lbl: l });
+    return [
+      streak([E('출석', '노력 필요', 0, 0, 'a'), E('결석', '', 0, 0, 'b'), E('출석', '노력 필요', 0, 0, 'c')], RUNS[0].on, RUNS[0].skip).join(),
+      streak([E('출석', '노력 필요', 0, 0, 'a'), E('출석', '좋음', 0, 0, 'b'), E('출석', '노력 필요', 0, 0, 'c')], RUNS[0].on, RUNS[0].skip).join(),
+      streak([E('결석', '', 0, 0, 'a'), E('', '', 0, 0, 'b'), E('결석', '', 0, 0, 'c')], RUNS[1].on, RUNS[1].skip).join(),
+      streak([E('출석', '', 1, 1, 'a'), E('출석', '', 0, 0, 'b'), E('출석', '', 1, 1, 'c')], RUNS[3].on, RUNS[3].skip).join()];
+  });
+  ok('연속 판정 — 결석·미체크·검사 안 한 수업은 건너뛰고, 다른 값이 끼면 끊긴다', r[0] === 'a,c' && r[1] === 'a' && r[2] === 'a,c' && r[3] === 'a,c', JSON.stringify(r));
   await p.click('.pc[data-person="박보검"]');
   r = await p.evaluate(() => ({ v: document.querySelector('#subIn') && document.querySelector('#subIn').value, n: document.querySelectorAll('.card').length, tab: !!document.querySelector('[data-tab="rec"].on') }));
-  ok('이름을 누르면 수업 기록 탭 · 개인 보기로 이동', r.v === '박보검' && r.n === 1 && r.tab, JSON.stringify(r));
+  ok('이름을 누르면 수업 기록 탭 · 개인 보기로 이동', r.v === '박보검' && r.n === 2 && r.tab, JSON.stringify(r));
 
   // ⑦ 기간 바꾸기 → 다시 조회
   urls.length = 0;
