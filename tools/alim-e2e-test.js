@@ -53,9 +53,10 @@ const posts = [];
     if (req.method() === 'POST'){
       const body = JSON.parse(req.postData() || '{}'); posts.push(body);
       if (body.action === 'alimSend'){
-        const sent = body.items.map(it => ({ student: it.student, ok: it.to !== '01099990000', message: it.to === '01099990000' ? '수신 불가' : '보냈어요' }));
+        // 실제 백엔드처럼 결과에 who를 담고, 순서는 요청과 다르게(뒤집어서) 돌려준다 — 화면이 자리가 아니라 키로 짝짓는지 검사(Codex P1)
+        const sent = body.items.map(it => ({ student: it.student, who: it.who, ok: it.to !== '01099990000', message: it.to === '01099990000' ? '수신 불가' : '보냈어요' }));
         sent.forEach((x, i) => { if (x.ok) logRows.unshift({ ts: ymd + ' 18:3' + i, kind:'absent', student:x.student, who: body.items[i].who, to: body.items[i].to, cls: body.items[i].cls, date: ymd, ok:true, message:'' }); });
-        return r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ result:'success', sent, okCount: sent.filter(x=>x.ok).length, failCount: sent.filter(x=>!x.ok).length }) });
+        return r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ result:'success', sent: sent.slice().reverse(), okCount: sent.filter(x=>x.ok).length, failCount: sent.filter(x=>!x.ok).length }) });
       }
       if (body.action === 'alimDiscover') return r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ result:'success', savedPfId:'KA01PF260912155016737BPjigUV32pr', channels:[{ pfId:'KA01PF260912155016737BPjigUV32pr', name:'이수경국어', searchId:'@이수경국어' }], templates:{ absent:{ label:'결석 안내', saved:'', pending:true, found:1 } }, notes:["'결석 안내' 템플릿이 아직 승인 전이에요 (PENDING) — 승인되면 다시 눌러 주세요."] }) });
       if (body.action === 'alimConfigSet') return r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ result:'success', saved: Object.keys(body).filter(k => !['action','pw'].includes(k)) }) });

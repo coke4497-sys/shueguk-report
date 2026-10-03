@@ -6689,8 +6689,11 @@ function alimPostItems(items, ymd, force, done){
       .then(function(res){
         if (!res || res.result !== 'success'){ out.err = (res && res.message) || '서버 오류'; return; }
         out.okCount += res.okCount || 0; out.sentN += chunks[k].length;
-        (res.sent || []).forEach(function(x, j){
-          var it = chunks[k][j] || { student: x.student, who: x.who };
+        // 결과는 요청 순서와 다를 수 있다(백엔드가 중복·번호 오류 건을 먼저 넣고 실제 발송 결과를 뒤에 붙인다) —
+        // 자리(j)가 아니라 학생+받는 분 키로 요청 항목을 찾는다(Codex 검토 P1, 2026-10-03)
+        var byKey = {}; chunks[k].forEach(function(it){ byKey[it.student + '|' + it.who] = it; });
+        (res.sent || []).forEach(function(x){
+          var it = byKey[String(x.student || '').trim() + '|' + String(x.who || '').trim()] || { student: x.student, who: x.who };
           if (x.dup) out.dup.push(it); else if (!x.ok) out.bad.push({ item: it, message: x.message || '실패' });
         });
       })
