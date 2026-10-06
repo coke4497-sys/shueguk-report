@@ -273,6 +273,34 @@
   .rk.top3 .lvl{color:var(--gold);background:#F3E3B3;}
   .rk .st2{font-weight:700;color:var(--gold);white-space:nowrap;}
 
+  /* 시험 별 한꺼번에 주기 (2026-10-06) */
+  .ex-rules{display:flex;flex-wrap:wrap;gap:6px 8px;margin-top:8px;}
+  .ex-rules span{font-size:12.5px;color:var(--ink-soft);background:#F4F8F5;border-radius:20px;padding:4px 10px;white-space:nowrap;}
+  .ex-rules b{color:var(--gold);}
+  .ex-sel{display:flex;gap:10px;flex-wrap:wrap;}
+  .ex-sel>div{flex:1;min-width:150px;}
+  .ex-sel select{width:100%;padding:11px 10px;border:1.5px solid var(--line);border-radius:10px;font:inherit;font-size:14px;background:#fafbfa;color:var(--ink);}
+  .ex-list{margin-top:12px;border:1.5px solid var(--line);border-radius:11px;background:#fff;max-height:520px;overflow-y:auto;}
+  .ex-row{display:flex;align-items:center;gap:10px;padding:9px 12px;border-bottom:1px solid var(--line-soft);flex-wrap:wrap;}
+  .ex-row:last-child{border-bottom:none;}
+  .ex-row.has{background:#FDF8F7;}
+  .ex-row .nm{font-weight:700;font-size:14.5px;min-width:64px;word-break:keep-all;}
+  .ex-row .meta{font-size:11.5px;color:var(--ink-soft);word-break:keep-all;}
+  .ex-row .pills{display:flex;flex-wrap:wrap;gap:5px;margin-left:auto;}
+  .ex-pill{border:1.5px solid var(--line);background:#fff;color:var(--ink-soft);font:inherit;font-size:12.5px;font-weight:700;padding:5px 10px;border-radius:20px;cursor:pointer;white-space:nowrap;}
+  .ex-pill.on{background:#F7E2DE;border-color:#E9C4BB;color:#A2685C;}
+  .ex-pill.given{background:#EEF1EF;border-color:#EEF1EF;color:#8B978F;cursor:default;}
+  .ex-pill.gap{margin-left:6px;}
+  .ex-row .sum{font-size:12.5px;font-weight:700;color:var(--gold);min-width:30px;text-align:right;}
+  .ex-foot{display:flex;align-items:center;gap:12px;margin-top:14px;flex-wrap:wrap;}
+  .ex-foot .sumline{flex:1;min-width:160px;font-size:13.5px;color:var(--ink-soft);}
+  .ex-foot .sumline b{color:var(--gold);}
+  .ex-foot .submit{width:auto;margin-top:0;padding:12px 22px;}
+  .ex-foot .submit:disabled{opacity:.45;cursor:default;}
+  .ex-note{font-size:12.5px;color:#9aa6a0;margin-top:8px;line-height:1.55;}
+  .ex-note.warn{color:#8E5147;background:#FBF0EE;border-radius:9px;padding:7px 11px;}
+  @media (max-width:560px){ .ex-row .pills{margin-left:0;width:100%;} }
+
   /* 잠금 */
   .lock{position:fixed;inset:0;background:var(--bg);z-index:100;display:flex;align-items:center;justify-content:center;padding:24px;}
   .lock-card{background:#fff;border:1px solid var(--line-soft);border-radius:18px;padding:34px 28px;text-align:center;max-width:330px;width:100%;}
@@ -498,6 +526,28 @@
       <div class="status" id="giftStatus"></div>
     </section>
 
+    <section class="card" id="exCard">
+      <h2><span class="dot"></span>시험 별 한꺼번에 주기</h2>
+      <p class="sub">시험이 끝나면 학교·학년을 고르고, 학생마다 등급과 상을 누른 뒤 한 번에 주십시오. 같은 시험에 같은 별은 두 번 가지 않아요.</p>
+      <div class="ex-rules" id="exRules"></div>
+
+      <label>어느 시험인가요?</label>
+      <div class="amt-row" id="exPeriod"></div>
+
+      <div class="ex-sel">
+        <div><label>학교</label><select id="exSchool"><option value="">학교를 고르세요</option></select></div>
+        <div><label>학년</label><select id="exGrade"><option value="">모든 학년</option></select></div>
+      </div>
+      <div class="ex-note" id="exNote"></div>
+      <div class="ex-list" id="exList"><div class="stu-empty">시험과 학교를 고르면 학생이 여기에 나옵니다.</div></div>
+
+      <div class="ex-foot">
+        <span class="sumline" id="exSum"></span>
+        <button type="button" class="submit" id="exGive" onclick="exGive()" disabled>별 한꺼번에 주기</button>
+      </div>
+      <div class="status" id="exStatus"></div>
+    </section>
+
     <section class="card">
       <h2><span class="dot"></span>슈퍼스타 TOP 30</h2>
       <p class="sub">학생 페이지와 같은 순위입니다. 이름을 누르면 획득 내역이 펼쳐져요.</p>
@@ -684,7 +734,8 @@
         sb('DELETE', '/students?name=eq.' + q(String(it.name).trim())).catch(warn('퇴원 정리'));
       });
     },
-    addStarBonus: function(b){
+    addStarBonus: function(b, res){
+      if (res && res.dup) return;   // 백엔드가 같은 사유의 기록을 찾아 쓰지 않은 건 — 미러도 넣지 않는다(시험 별 한꺼번에 주기)
       sb('POST', '/star_bonus', {
         at: nowIso(), student_id: String(b.id || ''), name: String(b.name || '').trim(),
         school: String(b.school || ''), stars: parseInt(b.stars, 10) || 0,
@@ -1967,6 +2018,7 @@
   function starInit(){
     if(STAR_INITED) return; STAR_INITED=true;
     loadPickList();   // 부팅 명단 재사용 — 보통 조회 없음
+    exInit();         // 시험 별 한꺼번에 주기 — 학교 목록은 명단이 오면 exFillSchools 가 다시 채운다
     $('rankList').innerHTML='<div class="mgr-empty">불러오는 중…</div>';
     $('logList').innerHTML='<div class="mgr-empty">불러오는 중…</div>';
     fetch(ENDPOINT+'?action=starBoot&pw='+encodeURIComponent(SERVER_PW)+'&t='+Date.now())
@@ -2098,6 +2150,182 @@
     row.parentNode.classList.toggle('open');
   });
 
+  /* ══ 시험 별 한꺼번에 주기 (2026-10-06 원장님 요청 — 시험이 끝나면 등급·상에 따라 별을 한 번에) ══
+   * 저장은 '깜짝 보너스'(addStarBonus → 시트 + star_bonus 미러)를 학생·상마다 한 건씩 그대로 쓴다.
+   * 그래서 별 집계(STAR_RULES 세 벌)·학생 화면은 손대지 않는다 — 학생 페이지에는
+   * '수경쌤 깜짝 보너스 · 26년 2학기 중간고사 1등급'으로 보인다.
+   * 중복 방지: 같은 시험의 star_bonus 기록(reason이 그 시험 이름으로 시작)을 먼저 읽어
+   * 이미 준 상은 알약을 잠근다(학생 이름+학교+사유). 별 개수는 EXAM_AWARDS 한 곳. */
+  var EXAM_PERIODS = ['26-2-중간','26-2-기말'];   // m.html periodOptions와 같게 — 27년 시험은 연말에 원장님 지시로 추가
+  var EXAM_AWARDS = [
+    { key:'lv1', grp:'lv', label:'1등급', mid:'성취도 A', stars:2 },
+    { key:'lv2', grp:'lv', label:'2등급', mid:'성취도 B', stars:1 },
+    { key:'top', label:'전교권 슈퍼스타',   hint:'백점 또는 전교 1등상', stars:3 },
+    { key:'uni', label:'전우주권 슈퍼스타', stars:5 },
+    { key:'eff', label:'내일의 슈퍼스타',   hint:'노력상', stars:1 }
+  ];
+  var EX = { inited:false, period:'', school:'', grade:'', picks:{}, given:{}, givenFail:false, busy:false };
+  function periodNice(p){ var m=/^(\d{2})-(\d)-(중간|기말)$/.exec(String(p||'')); return m ? m[1]+'년 '+m[2]+'학기 '+m[3]+'고사' : String(p||''); }
+  function isMidGrade(g){ return /중/.test(String(g||'')); }
+  function exAwardLabel(a, g){ return (isMidGrade(g) && a.mid) ? a.mid : a.label; }
+  function exReason(period, a, g){ return periodNice(period)+' '+exAwardLabel(a, g); }
+  // 이름 표준화 — 앞뒤 괄호를 떼고 동명이인 표기의 끝 A만 뗀다('김현우'→'김현우A'로 바꿔도 지난 기록과 같은 키.
+  // 백엔드 starKey_ 와 같은 규칙 — 고치면 둘 다). B·C는 다른 사람이라 떼지 않는다.
+  function exNorm(n){ var t=String(n==null?'':n).replace(/^\s*\([^)]*\)\s*/,'').replace(/\([^)]*\)\s*$/,'').trim(); return (t.length>1 && /A$/.test(t)) ? t.slice(0,-1) : t; }
+  function exKey(s){ return exNorm(s.name)+'|'+String(s.school||'').trim(); }
+  function exAward(key){ for(var i=0;i<EXAM_AWARDS.length;i++) if(EXAM_AWARDS[i].key===key) return EXAM_AWARDS[i]; return null; }
+
+  function exInit(){
+    if(EX.inited) return; EX.inited=true;
+    $('exRules').innerHTML = EXAM_AWARDS.map(function(a){
+      return '<span>'+esc(a.label)+(a.mid?'('+esc(a.mid)+')':'')+(a.hint?' · '+esc(a.hint):'')+' <b>⭐ '+a.stars+'</b></span>';
+    }).join('');
+    $('exPeriod').innerHTML = EXAM_PERIODS.map(function(p){ return '<button type="button" data-p="'+esc(p)+'">'+esc(p)+'</button>'; }).join('');
+    $('exPeriod').addEventListener('click', function(e){
+      var b=e.target.closest('button[data-p]'); if(!b || EX.busy) return;   // 저장 중에는 시험을 못 바꾼다(진행 중인 건이 옛 시험 사유로 들어가는 혼선 방지)
+      exSetPeriod(b.getAttribute('data-p'));
+    });
+    $('exSchool').addEventListener('change', function(){ if(EX.busy){ this.value=EX.school; return; } EX.school=this.value; EX.picks={}; exFillGrades(); exRender(); });
+    $('exGrade').addEventListener('change', function(){ if(EX.busy){ this.value=EX.grade; return; } EX.grade=this.value; EX.picks={}; exRender(); });
+    $('exList').addEventListener('click', function(e){
+      var b=e.target.closest('button.ex-pill'); if(!b || b.classList.contains('given') || EX.busy) return;
+      var k=b.getAttribute('data-k'), aw=b.getAttribute('data-a'), a=exAward(aw); if(!a) return;
+      var p=EX.picks[k]||(EX.picks[k]={});
+      if(p[aw]) delete p[aw];
+      else { if(a.grp) EXAM_AWARDS.forEach(function(x){ if(x.grp===a.grp) delete p[x.key]; }); p[aw]=true; }
+      if(!Object.keys(p).length) delete EX.picks[k];
+      exRender();
+    });
+    exFillSchools(); exRender();
+  }
+  function exStudents(){ return (ST_PICK&&ST_PICK.length?ST_PICK:(ROSTER_CACHE||[])); }
+  function exFillSchools(){
+    var sc={}; exStudents().forEach(function(s){ if(s.school) sc[String(s.school).trim()]=1; });
+    var sel=$('exSchool'), cur=sel.value;
+    sel.innerHTML='<option value="">학교를 고르세요</option>'+Object.keys(sc).sort().map(function(x){ return '<option value="'+esc(x)+'">'+esc(x)+'</option>'; }).join('');
+    sel.value=cur; EX.school=sel.value; exFillGrades();
+  }
+  function exFillGrades(){
+    var gr={}; exStudents().forEach(function(s){ if(s.grade && (!EX.school || String(s.school||'').trim()===EX.school)) gr[String(s.grade).trim()]=1; });
+    var sel=$('exGrade'), cur=sel.value;
+    sel.innerHTML='<option value="">모든 학년</option>'+Object.keys(gr).sort().map(function(x){ return '<option value="'+esc(x)+'">'+esc(x)+'</option>'; }).join('');
+    sel.value=gr[cur]?cur:''; EX.grade=sel.value;
+  }
+  function exSetPeriod(p){
+    EX.period=p; EX.picks={}; EX.given={}; EX.givenFail=false;
+    document.querySelectorAll('#exPeriod button').forEach(function(x){ x.classList.toggle('on', x.getAttribute('data-p')===p); });
+    exRender();
+    exLoadGiven(p);
+  }
+  // 이 시험으로 이미 준 별 — star_bonus 의 reason 이 시험 이름으로 시작하는 기록
+  function exLoadGiven(p){
+    var nice=periodNice(p);
+    $('exNote').className='ex-note'; $('exNote').textContent='이미 준 별이 있는지 확인하는 중…';
+    sbx('GET','/star_bonus?select=name,school,reason&reason=like.'+encodeURIComponent(nice+'*'))
+      .then(function(rows){
+        if(EX.period!==p) return;
+        EX.given={}; (rows||[]).forEach(function(r){ EX.given[exNorm(r.name)+'|'+String(r.school||'').trim()+'|'+String(r.reason||'').trim()]=true; });
+        EX.givenFail=false; $('exNote').textContent=''; exRender();
+      })
+      .catch(function(){
+        if(EX.period!==p) return;
+        EX.givenFail=true; $('exNote').className='ex-note warn';
+        $('exNote').textContent='이미 준 별을 확인하지 못했습니다. 지금 주면 같은 별이 두 번 갈 수 있으니 아래 "최근 선물한 별"을 먼저 봐 주세요.';
+        exRender();
+      });
+  }
+  function exRows(){
+    if(!EX.school) return [];
+    return exStudents().filter(function(s){
+      return String(s.school||'').trim()===EX.school && (!EX.grade || String(s.grade||'').trim()===EX.grade);
+    }).sort(function(a,b){ return String(a.grade||'').localeCompare(String(b.grade||'')) || String(a.name||'').localeCompare(String(b.name||'')); });
+  }
+  function exPlan(period){   // 보낼 목록 — 고른 것 중 아직 안 준 것만
+    period = period || EX.period;
+    var items=[], rows=exRows();
+    rows.forEach(function(s){
+      var k=exKey(s), p=EX.picks[k]; if(!p) return;
+      EXAM_AWARDS.forEach(function(a){
+        if(!p[a.key]) return;
+        var reason=exReason(period, a, s.grade);
+        if(EX.given[k+'|'+reason]) return;
+        items.push({ name:String(s.name||'').trim(), school:String(s.school||'').trim(), grade:String(s.grade||''), stars:a.stars, reason:reason, award:a.key, k:k });
+      });
+    });
+    return items;
+  }
+  function exRender(){
+    var box=$('exList'), rows=exRows();
+    if(!EX.period){ box.innerHTML='<div class="stu-empty">먼저 어느 시험인지 골라 주세요.</div>'; }
+    else if(!EX.school){ box.innerHTML='<div class="stu-empty">학교를 고르면 학생이 여기에 나옵니다.</div>'; }
+    else if(!rows.length){ box.innerHTML='<div class="stu-empty">이 학교·학년에 재원생이 없어요.</div>'; }
+    else {
+      box.innerHTML = rows.map(function(s){
+        var k=exKey(s), p=EX.picks[k]||{}, sum=0;
+        var pills = EXAM_AWARDS.map(function(a, i){
+          var reason=exReason(EX.period, a, s.grade), done=!!EX.given[k+'|'+reason], on=!!p[a.key];
+          if(on && !done) sum+=a.stars;
+          var cls='ex-pill'+(done?' given':(on?' on':''))+(i===2?' gap':'');   // 'done'은 이 페이지에서 신입 등록 완료 카드가 display:none 으로 쓰는 이름이라 피한다
+          return '<button type="button" class="'+cls+'" data-k="'+esc(k)+'" data-a="'+a.key+'"'+(done?' title="이미 줬어요" disabled':'')+'>'+
+                 (done?'✓ ':'')+esc(exAwardLabel(a, s.grade))+'</button>';
+        }).join('');
+        return '<div class="ex-row'+(sum?' has':'')+'" data-k="'+esc(k)+'"><span class="nm">'+esc(s.name)+'</span><span class="meta">'+metaHtml(s)+'</span>'+
+               '<span class="pills">'+pills+'</span><span class="sum">'+(sum?'⭐ '+sum:'')+'</span></div>';
+      }).join('');
+    }
+    var plan=exPlan(), who={}, stars=0;
+    plan.forEach(function(it){ who[it.k]=1; stars+=it.stars; });
+    var n=Object.keys(who).length;
+    $('exSum').innerHTML = n ? '학생 <b>'+n+'명</b> · 별 <b>'+stars+'개</b>' : '학생마다 등급이나 상을 눌러 주세요.';
+    $('exGive').disabled = !n || EX.busy;
+  }
+  function exGive(){
+    if(EX.busy) return;
+    var period=EX.period;   // 시작 시점의 시험으로 끝까지(저장 중 바꾸지도 못하게 잠근다)
+    var plan=exPlan(period); if(!plan.length) return;
+    var byAward={}; plan.forEach(function(it){ var a=exAward(it.award); var lb=a.label; byAward[lb]=(byAward[lb]||0)+1; });
+    var who={}, stars=0; plan.forEach(function(it){ who[it.k]=1; stars+=it.stars; });
+    var lines=Object.keys(byAward).map(function(lb){ return lb+' '+byAward[lb]+'명'; }).join(' · ');
+    var msg=periodNice(period)+' — 학생 '+Object.keys(who).length+'명에게 별 '+stars+'개를 줍니다.\n'+lines+(EX.givenFail?'\n\n※ 이미 준 별을 확인하지 못했습니다. 같은 별이 두 번 갈 수 있어요.':'')+'\n\n진행할까요?';
+    if(!confirm(msg)) return;
+    EX.busy=true; var btn=$('exGive'); btn.disabled=true; var label=btn.textContent;
+    document.querySelectorAll('#exPeriod button').forEach(function(x){ x.disabled=true; });
+    $('exSchool').disabled=true; $('exGrade').disabled=true;
+    var st=$('exStatus'); st.className='status'; st.textContent='별을 주는 중… (0/'+plan.length+')';
+    var done=0, fails=[], dups=0;
+    // dedupe:'1' — 백엔드가 같은 학생·같은 사유를 잠금 안에서 확인해 두 번 쓰지 않는다(두 조교가 동시에 눌러도).
+    // 옛 배포본은 이 값을 모르고 그냥 쓴다(그때는 화면의 잠금만 중복을 막는다).
+    function one(it){
+      return fetch(ENDPOINT, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
+        body: JSON.stringify({ action:'addStarBonus', pw:SERVER_PW, name:it.name, school:it.school, grade:it.grade, stars:it.stars, reason:it.reason, dedupe:'1' }) })
+      .then(function(r){ return r.json(); })
+      .then(function(res){
+        if(res && res.result==='success'){ EX.given[it.k+'|'+it.reason]=true; if(res.dup) dups++; }
+        else fails.push(it);
+      })
+      .catch(function(){ fails.push(it); })
+      .then(function(){ done++; st.textContent='별을 주는 중… ('+done+'/'+plan.length+')'; });
+    }
+    var i=0, PAR=3;   // 3건씩 나란히 — 앱스스크립트 한 건이 1~2초라 한 줄로 보내면 수십 명일 때 오래 걸린다
+    function next(){
+      if(i>=plan.length) return Promise.resolve();
+      var chunk=plan.slice(i, i+PAR); i+=PAR;
+      return Promise.all(chunk.map(one)).then(next);
+    }
+    next().then(function(){
+      EX.busy=false; btn.textContent=label;
+      document.querySelectorAll('#exPeriod button').forEach(function(x){ x.disabled=false; });
+      $('exSchool').disabled=false; $('exGrade').disabled=false;
+      // 성공한 학생의 선택은 지운다(이미 준 것으로 잠김) — 실패한 것만 남겨 다시 누를 수 있게
+      var keep={}; fails.forEach(function(it){ (keep[it.k]=keep[it.k]||{})[it.award]=true; });
+      EX.picks=keep;
+      exRender();
+      if(fails.length){ st.className='status err'; st.textContent='별 '+(plan.length-fails.length)+'건을 주었고 '+fails.length+'건은 실패했어요. 남은 선택은 그대로 두었으니 다시 [별 한꺼번에 주기]를 눌러 주세요.'; }
+      else { st.className='status ok'; st.textContent='✓ '+periodNice(period)+' 별 '+(stars-plan.filter(function(it){ return false; }).length)+'개를 학생 '+Object.keys(who).length+'명에게 주었습니다. 학생 페이지에 바로 보여요.'+(dups?' (이미 받은 '+dups+'건은 두 번 주지 않았어요.)':''); }
+      loadLog(); loadRank();
+    });
+  }
+
   function loadPickList(){
     if (ROSTER_CACHE && ROSTER_CACHE.length){ ST_PICK = ROSTER_CACHE; renderPick(''); return; }   // 부팅 명단 재사용
     fetch(ENDPOINT+'?action=roster&t='+Date.now())
@@ -2106,6 +2334,7 @@
         if(!d || d.result!=='success'){ $('stuList').innerHTML='<div class="stu-empty">명단을 불러오지 못했어요.</div>'; return; }
         ST_PICK = d.students||[];
         renderPick('');
+        if(EX.inited) exFillSchools();
       })
       .catch(function(){ $('stuList').innerHTML='<div class="stu-empty">명단을 불러오지 못했어요. 인터넷을 확인해 주세요.</div>'; });
   }

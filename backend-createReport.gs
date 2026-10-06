@@ -2161,11 +2161,35 @@ function addStarBonus(data) {
   var stars = parseInt(data.stars, 10);
   var name = String(data.name || '').trim();
   if (!name || !stars || stars < 1 || stars > 50) return json({ result: 'error', message: '학생과 별 개수(1~50)를 확인해주세요.' });
+  var school = String(data.school || '').trim(), reason = String(data.reason || '').trim();
+  var row = [new Date(), String(data.id || '').trim() ? "'" + String(data.id).trim() : '', name, school, stars, reason, String(data.grade || '').trim()];
+  // dedupe:'1' — 같은 학생(이름·학교)·같은 사유가 이미 있으면 다시 쓰지 않는다(시험 별 한꺼번에 주기, 2026-10-06).
+  // 중복 확인과 추가를 잠금 안에서 함께 해 두 조교가 동시에 눌러도 한 번만 들어간다. 시트는 캐시가 아니라 바로 읽는다(60초 캐시는 방금 쓴 줄을 모른다).
+  if (String(data.dedupe || '') === '1' && reason) {
+    return withLock_(function () {
+      var ss = SpreadsheetApp.getActiveSpreadsheet();
+      var sh = ensureStarsSheet_(ss);
+      var v = sh.getDataRange().getValues();
+      var key = starKey_(name) + '|' + school + '|' + reason;
+      for (var i = 1; i < v.length; i++) {
+        if (starKey_(v[i][2]) + '|' + String(v[i][3] || '').trim() + '|' + String(v[i][5] || '').trim() === key)
+          return json({ result: 'success', dup: true });
+      }
+      sh.appendRow(row);
+      dropTab_(TAB_STARS);
+      return json({ result: 'success' });
+    }, 20000);
+  }
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sh = ensureStarsSheet_(ss);
-  sh.appendRow([new Date(), String(data.id || '').trim() ? "'" + String(data.id).trim() : '', name, String(data.school || '').trim(), stars, String(data.reason || '').trim(), String(data.grade || '').trim()]);
+  sh.appendRow(row);
   dropTab_(TAB_STARS);
   return json({ result: 'success' });
+}
+/** 별 중복 대조용 이름 — 앞뒤 괄호를 떼고 동명이인 표기의 끝 A만 뗀다(superstar.html exNorm 과 같은 규칙 — 고치면 둘 다). */
+function starKey_(n) {
+  var t = String(n == null ? '' : n).replace(/^\s*\([^)]*\)\s*/, '').replace(/\([^)]*\)\s*$/, '').trim();
+  return (t.length > 1 && /A$/.test(t)) ? t.slice(0, -1) : t;
 }
 
 /** 보너스 로그(관리용, 최근이 위로). pw 필요. */

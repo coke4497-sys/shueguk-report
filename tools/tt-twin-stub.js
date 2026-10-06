@@ -49,4 +49,5 @@ function J(r){ return JSON.parse(r.__t !== undefined ? r.__t : r); }
 module.exports={ SHEETS, mkSheet, J, get fns(){ return { timetableMove, timetableAdd, timetableRemove, timetableRenameStudent, timetableMoveClass, TEACHER_PW,
     alimSend, alimConfigGet, alimConfigSet, alimLogGet, alimDiscover, ALIM_TPL_,
     editReqAdd, grammaReport, getEditReqList, editReqSet,
-    hwcheckSave, hwcheckData_, collectHwchecks_, countHwcheckPerfect_, getHwcheckPlans, hwcheckPlanDone, TAB_HWCHECK }; } };
+    hwcheckSave, hwcheckData_, collectHwchecks_, countHwcheckPerfect_, getHwcheckPlans, hwcheckPlanDone, TAB_HWCHECK,
+    addStarBonus, starKey_, TAB_STARS }; } };
