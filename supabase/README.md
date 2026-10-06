@@ -808,5 +808,5 @@ default privileges 까지 되돌렸다. `tools/check_lock.py` 통과(표 15/15 �
 ## 044 — 학생 출석 기록 '보충 완료' 판정 (2026-10-06)
 - 041 `attendance_history`가 `makeup_done = '완료'`만 완료로 봤는데 결석자 관리는 '1'로 저장한다(결석 151건 중 완료 124건 전부 '1'). 044가 같은 함수를 다시 만들어 `'1','완료','TRUE','true','Y','y'`를 완료로 판정한다. 그 밖은 041 그대로.
 - 검증: `PGHOST=/home/pgtest PGPORT=5499 PGUSER=postgres bash tools/attendance-history-sql-test.sh`(픽스처를 실제 표기 '1'로 바꿈, 041→044 두 번 얹어 재실행 안전 확인).
-- **적용 상태: 아직 실제 수파베이스에 적용 전** — 원장님이 sbp_ 토큰을 주면 관리 API로 `migrations/044_attendance_history_makeup.sql`을 실행하고, 공개 키로 박소율(고1) 조회에서 9/5·9/13 결석이 `makeup:true`로 오는지 확인할 것.
+- **적용 상태: 2026-10-06 실제 수파베이스에 적용 완료**(관리 API — 원장님이 준 sbp_ 토큰, 저장 안 함). 확인: 함수 본문에 새 판정이 들어갔고, 공개 키로 박소율(고1) 조회 → 결석 3건(9/5 둘·9/13) 모두 `makeup:true`(보충 완료).
 
