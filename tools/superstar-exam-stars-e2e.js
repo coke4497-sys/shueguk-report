@@ -25,8 +25,11 @@ function serve(){
     { name: '김하늘', school: '화정고', grade: '2026 고등 1학년', teacher: '이수경' },
     { name: '이서준', school: '화정고', grade: '2026 고등 2학년', teacher: '김현지' },
     { name: '최유리', school: '서정중', grade: '2026 중등 2학년', teacher: '이은지' },
-    { name: '정민수', school: '능곡고', grade: '2026 고등 3학년', teacher: '이수경' }];
-  let GIVEN = [{ name: '김하늘', school: '화정고', reason: '26년 2학기 중간고사 1등급' }];   // 이미 준 별
+    { name: '정민수', school: '능곡고', grade: '2026 고등 3학년', teacher: '이수경' },
+    { name: '이도윤A', school: '능곡고', grade: '2026 고등 3학년', teacher: '이수경' }];   // 동명이인 표기 — 지난 기록은 '이도윤'으로 남아 있다
+  let GIVEN = [{ name: '김하늘', school: '화정고', reason: '26년 2학기 중간고사 1등급' },   // 이미 준 별
+               { name: '이도윤', school: '능곡고', reason: '26년 2학기 중간고사 2등급' }];   // 표기를 'A'로 바꾸기 전 기록
+  let dupNext = 0;   // 백엔드가 '이미 있음'(dup:true)으로 답할 건수
   const posts = [], mirrors = []; let failNext = 0, confirms = [];
   const pg = await (await br.newContext()).newPage();
   let perr = 0; pg.on('pageerror', e => { perr++; console.log('  ✗ pageerror', e.message); });
@@ -49,6 +52,7 @@ function serve(){
         if (b.action === 'addStarBonus'){
           posts.push(b);
           if (failNext > 0){ failNext--; return j({ result: 'error', message: '시트 오류' }); }
+          if (dupNext > 0){ dupNext--; return j({ result: 'success', dup: true }); }
           return j({ result: 'success' });
         }
         return j({ result: 'success' });
@@ -115,7 +119,7 @@ function serve(){
   const want = [['박보검', '26년 2학기 중간고사 1등급', 2], ['박보검', '26년 2학기 중간고사 전교권 슈퍼스타', 3], ['김하늘', '26년 2학기 중간고사 전우주권 슈퍼스타', 5]];
   const got = posts.map(b => [b.name, b.reason, b.stars]).sort().join(';');
   ok('addStarBonus 3건 — 이름·사유·별 수', got === want.sort().join(';'), got);
-  ok('본문에 학교·학년·비밀번호', posts.every(b => b.action === 'addStarBonus' && b.pw && b.school === '화정고' && /고등 1학년/.test(b.grade)), JSON.stringify(posts[0]));
+  ok('본문에 학교·학년·비밀번호·dedupe', posts.every(b => b.action === 'addStarBonus' && b.pw && b.school === '화정고' && /고등 1학년/.test(b.grade) && b.dedupe === '1'), JSON.stringify(posts[0]));
   await pg.waitForFunction(() => true); await new Promise(r => setTimeout(r, 300));
   ok('수파베이스 star_bonus 미러 3건(사유 같음)', mirrors.length === 3 && mirrors.every(m => /26년 2학기 중간고사/.test(m.reason) && m.stars > 0), JSON.stringify(mirrors.map(m => m.reason)));
   r = await pg.evaluate((P) => ({ st: document.getElementById('exStatus').textContent, done: [...document.querySelectorAll(P + ' .ex-pill.given')].map(b => b.getAttribute('data-a')), on: document.querySelectorAll('#exList .ex-pill.on').length, dis: document.getElementById('exGive').disabled }), P);
@@ -146,6 +150,37 @@ function serve(){
   await pg.selectOption('#exSchool', '화정고');
   r = await pg.evaluate(() => ({ done: document.querySelectorAll('#exList .ex-pill.given').length, on: document.querySelectorAll('#exList .ex-pill.on').length }));
   ok('기말로 바꾸면 중간고사 잠금이 풀리고 선택 없음', r.done === 0 && r.on === 0, JSON.stringify(r));
+
+  // ⑨ 이름 표기가 바뀌어도 지난 기록과 같은 사람 — '이도윤A'(명단) ↔ '이도윤'(기록)
+  await pg.click('#exPeriod button[data-p="26-2-중간"]');
+  await pg.waitForFunction(() => document.getElementById('exNote').textContent === '', null, { timeout: 5000 });
+  await pg.selectOption('#exSchool', '능곡고');
+  r = await pg.evaluate(() => [...document.querySelectorAll('#exList .ex-row[data-k="이도윤|능곡고"] .ex-pill')].map(b => b.textContent + (b.classList.contains('given') ? '(done)' : '')));
+  ok('끝 A 를 뗀 키 — 옛 이름으로 남은 2등급이 ✓ 잠김', r.length === 5 && r[1] === '✓ 2등급(done)' && !/done/.test(r[0]), r.join(','));
+
+  // ⑩ 저장 중에는 시험·학교·학년을 못 바꾸고, 백엔드 dup 응답은 '이미 받은 n건'으로
+  posts.length = 0; confirms = []; dupNext = 1; mirrors.length = 0;
+  let slow; await pg.route(/script\.google.*/, async rt => {   // 저장을 느리게 해 그 사이 시험 버튼을 눌러 본다
+    if (rt.request().method() === 'POST' && /addStarBonus/.test(rt.request().postData() || '')){ await new Promise(r => { slow = r; setTimeout(r, 600); }); }
+    const b = rt.request().method() === 'POST' ? JSON.parse(rt.request().postData()) : null;
+    if (b && b.action === 'addStarBonus'){ posts.push(b); if (dupNext > 0){ dupNext--; return rt.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ result: 'success', dup: true }) }); } return rt.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ result: 'success' }) }); }
+    return rt.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ result: 'success', top: [], log: [], students: [], list: [] }) });
+  });
+  await pg.click('#exList .ex-row[data-k="이도윤|능곡고"] .ex-pill[data-a="lv1"]');
+  await pg.click('#exList .ex-row[data-k="정민수|능곡고"] .ex-pill[data-a="eff"]');
+  await pg.click('#exGive');
+  await pg.waitForFunction(() => /주는 중/.test(document.getElementById('exStatus').textContent), null, { timeout: 3000 });
+  r = await pg.evaluate(() => ({ per: [...document.querySelectorAll('#exPeriod button')].every(b => b.disabled), sch: document.getElementById('exSchool').disabled, gr: document.getElementById('exGrade').disabled }));
+  ok('저장 중 — 시험 알약·학교·학년 잠김', r.per && r.sch && r.gr, JSON.stringify(r));
+  await pg.evaluate(() => { const b = document.querySelector('#exPeriod button[data-p="26-2-기말"]'); b.disabled = false; b.click(); });   // 잠금을 풀고 눌러도 핸들러가 막는다
+  r = await pg.evaluate(() => EX.period);
+  ok('저장 중 시험 버튼을 눌러도 바뀌지 않음', r === '26-2-중간', r);
+  await pg.waitForFunction(() => /✓/.test(document.getElementById('exStatus').textContent), null, { timeout: 8000 });
+  r = await pg.evaluate(() => ({ st: document.getElementById('exStatus').textContent, per: [...document.querySelectorAll('#exPeriod button')].some(b => b.disabled), sch: document.getElementById('exSchool').disabled, given: document.querySelectorAll('#exList .ex-pill.given').length }));
+  ok('끝나면 잠금 해제 · 사유는 시작 시점 시험 · dup 1건 안내', !r.per && !r.sch && /26년 2학기 중간고사 별 3개/.test(r.st) && /이미 받은 1건/.test(r.st) && posts.every(b => /중간고사/.test(b.reason)) && r.given === 3, JSON.stringify(r) + ' ' + JSON.stringify(posts.map(b => b.reason)));
+  await new Promise(r => setTimeout(r, 300));
+  ok('dup 응답 건은 수파베이스 미러에 넣지 않음(2건 중 1건만)', mirrors.length === 1, String(mirrors.length));
+  await pg.unroute(/script\.google.*/);
 
   // ⑧ 이미 준 별 조회 실패 → 경고 + 확인 창에도 경고
   await pg.route(/\/rest\/v1\/star_bonus/, rt => rt.request().method() === 'GET' ? rt.fulfill({ status: 500, body: 'x' }) : rt.fulfill({ status: 201, body: '' }));

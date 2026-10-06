@@ -734,7 +734,8 @@
         sb('DELETE', '/students?name=eq.' + q(String(it.name).trim())).catch(warn('퇴원 정리'));
       });
     },
-    addStarBonus: function(b){
+    addStarBonus: function(b, res){
+      if (res && res.dup) return;   // 백엔드가 같은 사유의 기록을 찾아 쓰지 않은 건 — 미러도 넣지 않는다(시험 별 한꺼번에 주기)
       sb('POST', '/star_bonus', {
         at: nowIso(), student_id: String(b.id || ''), name: String(b.name || '').trim(),
         school: String(b.school || ''), stars: parseInt(b.stars, 10) || 0,
@@ -2168,7 +2169,10 @@
   function isMidGrade(g){ return /중/.test(String(g||'')); }
   function exAwardLabel(a, g){ return (isMidGrade(g) && a.mid) ? a.mid : a.label; }
   function exReason(period, a, g){ return periodNice(period)+' '+exAwardLabel(a, g); }
-  function exKey(s){ return String(s.name||'').trim()+'|'+String(s.school||'').trim(); }
+  // 이름 표준화 — 앞뒤 괄호를 떼고 동명이인 표기의 끝 A만 뗀다('김현우'→'김현우A'로 바꿔도 지난 기록과 같은 키.
+  // 백엔드 starKey_ 와 같은 규칙 — 고치면 둘 다). B·C는 다른 사람이라 떼지 않는다.
+  function exNorm(n){ var t=String(n==null?'':n).replace(/^\s*\([^)]*\)\s*/,'').replace(/\([^)]*\)\s*$/,'').trim(); return (t.length>1 && /A$/.test(t)) ? t.slice(0,-1) : t; }
+  function exKey(s){ return exNorm(s.name)+'|'+String(s.school||'').trim(); }
   function exAward(key){ for(var i=0;i<EXAM_AWARDS.length;i++) if(EXAM_AWARDS[i].key===key) return EXAM_AWARDS[i]; return null; }
 
   function exInit(){
@@ -2178,11 +2182,11 @@
     }).join('');
     $('exPeriod').innerHTML = EXAM_PERIODS.map(function(p){ return '<button type="button" data-p="'+esc(p)+'">'+esc(p)+'</button>'; }).join('');
     $('exPeriod').addEventListener('click', function(e){
-      var b=e.target.closest('button[data-p]'); if(!b) return;
+      var b=e.target.closest('button[data-p]'); if(!b || EX.busy) return;   // 저장 중에는 시험을 못 바꾼다(진행 중인 건이 옛 시험 사유로 들어가는 혼선 방지)
       exSetPeriod(b.getAttribute('data-p'));
     });
-    $('exSchool').addEventListener('change', function(){ EX.school=this.value; EX.picks={}; exFillGrades(); exRender(); });
-    $('exGrade').addEventListener('change', function(){ EX.grade=this.value; EX.picks={}; exRender(); });
+    $('exSchool').addEventListener('change', function(){ if(EX.busy){ this.value=EX.school; return; } EX.school=this.value; EX.picks={}; exFillGrades(); exRender(); });
+    $('exGrade').addEventListener('change', function(){ if(EX.busy){ this.value=EX.grade; return; } EX.grade=this.value; EX.picks={}; exRender(); });
     $('exList').addEventListener('click', function(e){
       var b=e.target.closest('button.ex-pill'); if(!b || b.classList.contains('given') || EX.busy) return;
       var k=b.getAttribute('data-k'), aw=b.getAttribute('data-a'), a=exAward(aw); if(!a) return;
@@ -2220,7 +2224,7 @@
     sbx('GET','/star_bonus?select=name,school,reason&reason=like.'+encodeURIComponent(nice+'*'))
       .then(function(rows){
         if(EX.period!==p) return;
-        EX.given={}; (rows||[]).forEach(function(r){ EX.given[String(r.name||'').trim()+'|'+String(r.school||'').trim()+'|'+String(r.reason||'').trim()]=true; });
+        EX.given={}; (rows||[]).forEach(function(r){ EX.given[exNorm(r.name)+'|'+String(r.school||'').trim()+'|'+String(r.reason||'').trim()]=true; });
         EX.givenFail=false; $('exNote').textContent=''; exRender();
       })
       .catch(function(){
@@ -2236,13 +2240,14 @@
       return String(s.school||'').trim()===EX.school && (!EX.grade || String(s.grade||'').trim()===EX.grade);
     }).sort(function(a,b){ return String(a.grade||'').localeCompare(String(b.grade||'')) || String(a.name||'').localeCompare(String(b.name||'')); });
   }
-  function exPlan(){   // 보낼 목록 — 고른 것 중 아직 안 준 것만
+  function exPlan(period){   // 보낼 목록 — 고른 것 중 아직 안 준 것만
+    period = period || EX.period;
     var items=[], rows=exRows();
     rows.forEach(function(s){
       var k=exKey(s), p=EX.picks[k]; if(!p) return;
       EXAM_AWARDS.forEach(function(a){
         if(!p[a.key]) return;
-        var reason=exReason(EX.period, a, s.grade);
+        var reason=exReason(period, a, s.grade);
         if(EX.given[k+'|'+reason]) return;
         items.push({ name:String(s.name||'').trim(), school:String(s.school||'').trim(), grade:String(s.grade||''), stars:a.stars, reason:reason, award:a.key, k:k });
       });
@@ -2276,21 +2281,26 @@
   }
   function exGive(){
     if(EX.busy) return;
-    var plan=exPlan(); if(!plan.length) return;
+    var period=EX.period;   // 시작 시점의 시험으로 끝까지(저장 중 바꾸지도 못하게 잠근다)
+    var plan=exPlan(period); if(!plan.length) return;
     var byAward={}; plan.forEach(function(it){ var a=exAward(it.award); var lb=a.label; byAward[lb]=(byAward[lb]||0)+1; });
     var who={}, stars=0; plan.forEach(function(it){ who[it.k]=1; stars+=it.stars; });
     var lines=Object.keys(byAward).map(function(lb){ return lb+' '+byAward[lb]+'명'; }).join(' · ');
-    var msg=periodNice(EX.period)+' — 학생 '+Object.keys(who).length+'명에게 별 '+stars+'개를 줍니다.\n'+lines+(EX.givenFail?'\n\n※ 이미 준 별을 확인하지 못했습니다. 같은 별이 두 번 갈 수 있어요.':'')+'\n\n진행할까요?';
+    var msg=periodNice(period)+' — 학생 '+Object.keys(who).length+'명에게 별 '+stars+'개를 줍니다.\n'+lines+(EX.givenFail?'\n\n※ 이미 준 별을 확인하지 못했습니다. 같은 별이 두 번 갈 수 있어요.':'')+'\n\n진행할까요?';
     if(!confirm(msg)) return;
     EX.busy=true; var btn=$('exGive'); btn.disabled=true; var label=btn.textContent;
+    document.querySelectorAll('#exPeriod button').forEach(function(x){ x.disabled=true; });
+    $('exSchool').disabled=true; $('exGrade').disabled=true;
     var st=$('exStatus'); st.className='status'; st.textContent='별을 주는 중… (0/'+plan.length+')';
-    var done=0, fails=[];
+    var done=0, fails=[], dups=0;
+    // dedupe:'1' — 백엔드가 같은 학생·같은 사유를 잠금 안에서 확인해 두 번 쓰지 않는다(두 조교가 동시에 눌러도).
+    // 옛 배포본은 이 값을 모르고 그냥 쓴다(그때는 화면의 잠금만 중복을 막는다).
     function one(it){
       return fetch(ENDPOINT, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
-        body: JSON.stringify({ action:'addStarBonus', pw:SERVER_PW, name:it.name, school:it.school, grade:it.grade, stars:it.stars, reason:it.reason }) })
+        body: JSON.stringify({ action:'addStarBonus', pw:SERVER_PW, name:it.name, school:it.school, grade:it.grade, stars:it.stars, reason:it.reason, dedupe:'1' }) })
       .then(function(r){ return r.json(); })
       .then(function(res){
-        if(res && res.result==='success'){ EX.given[it.k+'|'+it.reason]=true; }
+        if(res && res.result==='success'){ EX.given[it.k+'|'+it.reason]=true; if(res.dup) dups++; }
         else fails.push(it);
       })
       .catch(function(){ fails.push(it); })
@@ -2304,12 +2314,14 @@
     }
     next().then(function(){
       EX.busy=false; btn.textContent=label;
+      document.querySelectorAll('#exPeriod button').forEach(function(x){ x.disabled=false; });
+      $('exSchool').disabled=false; $('exGrade').disabled=false;
       // 성공한 학생의 선택은 지운다(이미 준 것으로 잠김) — 실패한 것만 남겨 다시 누를 수 있게
       var keep={}; fails.forEach(function(it){ (keep[it.k]=keep[it.k]||{})[it.award]=true; });
       EX.picks=keep;
       exRender();
       if(fails.length){ st.className='status err'; st.textContent='별 '+(plan.length-fails.length)+'건을 주었고 '+fails.length+'건은 실패했어요. 남은 선택은 그대로 두었으니 다시 [별 한꺼번에 주기]를 눌러 주세요.'; }
-      else { st.className='status ok'; st.textContent='✓ '+periodNice(EX.period)+' 별 '+stars+'개를 학생 '+Object.keys(who).length+'명에게 주었습니다. 학생 페이지에 바로 보여요.'; }
+      else { st.className='status ok'; st.textContent='✓ '+periodNice(period)+' 별 '+(stars-plan.filter(function(it){ return false; }).length)+'개를 학생 '+Object.keys(who).length+'명에게 주었습니다. 학생 페이지에 바로 보여요.'+(dups?' (이미 받은 '+dups+'건은 두 번 주지 않았어요.)':''); }
       loadLog(); loadRank();
     });
   }
