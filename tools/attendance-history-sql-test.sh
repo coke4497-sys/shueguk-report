@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # 출석·지각 내역(041) 검증 — 로컬 PostgreSQL.
-# 001·002·003 뒤 039(ch_who_)·041을 두 번씩 얹어(재실행 안전) attendance_history 가 내 출석만 · 괄호/A/동명이인 규칙 ·
+# 001·002·003 뒤 039(ch_who_)·041·044를 두 번씩 얹어(재실행 안전) attendance_history 가 내 출석만 · 괄호/A/동명이인 규칙 ·
 # 날짜 내림차순 · before · 120개+more · 상태별 건수 · 메모 미포함 · 권한(공개 키는 함수만)을 지키는지 assert 로 확인한다.
 # 사용:  PGHOST=/home/pgtest PGPORT=5499 PGUSER=postgres bash tools/attendance-history-sql-test.sh   (원격에는 절대 돌리지 말 것)
 set -euo pipefail
@@ -22,8 +22,8 @@ done
 psql -v ON_ERROR_STOP=1 -q -d "$DB" <<'SQL'
 alter table hwcheck_records add column if not exists class_id text not null default '';
 SQL
-for f in supabase/migrations/039_class_history.sql supabase/migrations/041_attendance_history.sql \
-         supabase/migrations/041_attendance_history.sql; do
+for f in supabase/migrations/039_class_history.sql supabase/migrations/041_attendance_history.sql supabase/migrations/044_attendance_history_makeup.sql \
+         supabase/migrations/044_attendance_history_makeup.sql; do
   psql -v ON_ERROR_STOP=1 -q -d "$DB" -f "$f" >/dev/null || { echo "적용 실패: $f"; exit 1; }
 done
 psql -v ON_ERROR_STOP=1 -q -d "$DB" <<'SQL'
@@ -40,7 +40,7 @@ insert into tt_classes (book, class_id, day, start_time, end_time, teacher, name
 insert into attendance (date, book, class_id, student, status, memo, makeup_plan, makeup_done) values
   ('2026-09-30','정규','r010','박보검','출석','',''   ,''),
   ('2026-09-26','정규','r011','박보검(8/23부터)','지각','늦잠, 15분 늦음','',''),
-  ('2026-09-26','내신','n050','박보검A','결석','가족 여행','영상보충: 9/30','완료'),
+  ('2026-09-26','내신','n050','박보검A','결석','가족 여행','영상보충: 9/30','1'),
   ('2026-09-19','정규','r011','박보검','결석','감기','',''),
   ('2026-09-12','정규','w260912a','박보검','출석','',''   ,''),
   ('2026-09-30','정규','r010','김하늘','지각','',''   ,''),
