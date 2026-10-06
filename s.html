@@ -2277,12 +2277,15 @@ function ahRender(){
   var h = '<div class="ah-chips">' + [['', '전체'], ['지각', '지각만'], ['결석', '결석만']].map(function(x){
       return '<button class="' + (f === x[0] ? 'on' : '') + '" onclick="ahFilter(\'' + x[0] + '\')">' + x[1] + '</button>'; }).join('') + '</div>';
   var rows = items.filter(function(x){ return !f || x.status === f; }), mon = '', open = false;
+  /* 중3·고3은 정규·내신 시간표가 같은 짝 반이라(내신 기간엔 출석이 내신 쪽 반ID에 찍힌다) '내신' 표기를 붙이지 않는다
+   * (2026-10-06 원장님 "고3과 중3은 정규 시간표인데 내신이라고 뜹니다"). 출석 현황의 '중3·고3은 진도 라인만' 규칙과 같은 판단. */
+  var twinGrade = /^(중3|고3)$/.test(levelGrade(STATE.info && STATE.info.grade));
   if (!rows.length) h += '<div class="rv-empty">' + (f === '지각' ? '지각한 수업이 없어요.' : '결석한 수업이 없어요.') + '</div>';
   rows.forEach(function(x){
     var m = String(x.ymd || '').slice(0, 7);
     if (m !== mon){ if (open) h += '</div>'; mon = m; open = true; h += '<p class="lh-month">' + esc(+m.slice(0, 4) + '년 ' + (+m.slice(5, 7)) + '월') + '</p><div class="ah-list">'; }
     h += '<div class="ah-row"><span class="d">' + esc(crpDay(x.ymd)) + '</span>' +
-         '<span class="c">' + esc([x.time, x.cls || '수업', x.book === '내신' ? '내신' : ''].filter(Boolean).join(' · ')) + '</span>' +
+         '<span class="c">' + esc([x.time, x.cls || '수업', (x.book === '내신' && !twinGrade) ? '내신' : ''].filter(Boolean).join(' · ')) + '</span>' +
          (x.status === '결석' ? '<span class="mk' + (x.makeup ? '' : ' no') + '">' + (x.makeup ? '보충 완료' : '보충 전') + '</span>' : '') +
          crpAtChip(x.status) + '</div>';
   });

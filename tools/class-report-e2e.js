@@ -751,6 +751,33 @@ const STUDENTS = [
     await c5.close();
   }
 
+  // ⑧-4 중3·고3은 정규·내신 짝 반이라 출석 기록에 '내신' 표기를 붙이지 않는다(2026-10-06)
+  {
+    const c6 = await b.newContext(), gp = await c6.newPage();
+    gp.on('pageerror', e => { perr++; console.log('  ✗ pageerror(s.html 고3 출석 기록)', e.message); });
+    const G3 = [{ ymd: '2026-10-04', book: '내신', class_id: 'n015', cls: '고3파이널E', day: '일', time: '11:00', status: '출석', makeup: null },
+                { ymd: '2026-08-23', book: '정규', class_id: 'r081', cls: '고3파이널E', day: '일', time: '11:00', status: '출석', makeup: null }];
+    await gp.route('**/*', rt => {
+      const u = rt.request().url();
+      const j = (o, stt) => rt.fulfill({ status: stt || 200, contentType: 'application/json', body: JSON.stringify(o) });
+      if (u.startsWith('http://127.0.0.1:' + port)) return rt.continue();
+      if (/\/rpc\/class_history/.test(u)) return j({ ok: true, items: [], more: false });
+      if (/\/rpc\/attendance_history/.test(u)) return j({ ok: true, items: G3, more: false, counts: { 출석: 2, 지각: 0, 결석: 0 } });
+      if (/\/rpc\//.test(u)) return j({ error: 'nope' }, 500);
+      if (/supabase/.test(u)) return rt.fulfill({ status: 204, body: '' });
+      if (/script\.google/.test(u) && new URL(u).searchParams.get('key')) return j({ result: 'success', info: { name: '박보검', id: '30000001', school: '화정고', grade: '2026 고등 3학년', teacher: '주혜', enrolled: '재원' },
+        authed: false, examCount: 0, notices: [], homework: [], analyses: [], clinic: null, stars: { total: 3 }, mockGates: { grades: [], open: false }, clinicEligible: false, vocaTaken: false, mockSignups: [] });
+      return /script\.google/.test(u) ? j({ result: 'success' }) : rt.fulfill({ status: 204, body: '' });
+    });
+    await gp.goto('http://127.0.0.1:' + port + '/s.html?key=abc', { waitUntil: 'domcontentloaded' });
+    await gp.waitForFunction(() => /출석 기록 2회/.test((document.getElementById('menu') || {}).textContent || ''), null, { timeout: 15000 });
+    await gp.evaluate(() => openLearnHist());
+    await gp.waitForSelector('.ah-row', { timeout: 5000 });
+    r = await gp.evaluate(() => [...document.querySelectorAll('.ah-row .c')].map(x => x.textContent));
+    ok('고3 — 내신 기간 기록도 "11:00 · 고3파이널E"로만(내신 표기 없음)', r.length === 2 && r.every(t => t === '11:00 · 고3파이널E'), JSON.stringify(r));
+    await c6.close();
+  }
+
   // ⑨ 지난 날짜 수업 — 수업 기록 보기의 [이 수업 기록하기](timetable.html?cr=시간표|반ID|날짜, 2026-10-03)
   {
     const PAST = (() => { const d = new Date(T0); d.setDate(d.getDate() - 9); return ymd(d); })();
