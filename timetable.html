@@ -682,6 +682,7 @@
   .gone-list em{font-style:normal;font-size:.72rem;font-weight:700;border-radius:6px;padding:1px 7px;}
   .gone-list em.k-mv{color:#43307A;background:#EDE4F4;}
   .gone-list em.k-off{color:#6A716C;background:#EFF1EF;}
+  .gone-list em.k-empty{color:#7E2B3D;background:#F7E2DE;}
   .gone-list small{display:block;font-size:.78rem;color:var(--ink-soft);margin-top:2px;}
   .gone-list .gl-act{display:inline-block;margin-top:5px;font-size:.78rem;color:var(--accent);font-weight:700;}
   .stickhead{position:sticky;top:0;z-index:10;background:var(--surface);width:max-content;min-width:100%;
@@ -4033,17 +4034,8 @@ function blockEl(c, forList){
   // 오늘 보기는 '오늘 적용되는' 이동만 반영 (미래 예약 이동은 그 날짜에 나타남).
   // 전체 시간표는 주차와 무관한 '기본값'이므로 1회 이동을 표시하지 않음 — 1회 이동은 오늘/주차별에서만.
   if (mode === 'today'){
-    onceOutThisWeek().forEach(function(o){
-      if (o.fromId !== c.id) return;
-      // 주간빼기는 그 날짜에만 — 1회 이동처럼 주 전체로 넓히지 않는다
-      if (o.kind === '주간빼기' && o.ymd && o.ymd !== todayStr()) return;
-      var t = classes.find(function(x){ return x.id===o.toId; });
-      var md = o.ymd ? o.ymd.slice(5).replace(/^0/, '').replace('-0', '/').replace('-', '/') : '';
-      awayOf[o.student.replace(/\(.*\)$/,'')] = { row: o.row, kind: o.kind || '1회', reason: o.reason,
-        label: (o.kind === '주간빼기') ? '이 주만 빠짐' : ((t ? labelOf(t) : '') + (md ? ' · ' + md + ' 보충' : '')) };
-    });
-    onceInToday().forEach(function(o){ if (o.toId === c.id) temps.push(o); });
-    temps = dedupTemps(c, temps, awayOf);
+    var st = awayStateOf(c, todayStr());   // emptyAt(전원 빠짐 판정)과 같은 규칙
+    awayOf = st.awayOf; temps = st.temps;
   }
   // 오늘 이후에 적용될 1회 이동 예약 — 마우스를 올리면 안내가 보이도록 (표시 자체는 적용일에)
   var planOf = {};
@@ -4219,6 +4211,9 @@ function buildDayGrid(list){
   var cols = [], seen = {};
   classes.forEach(function(c){
     if (!viewOn(c)) return;                      // 센터별·강사별 보기 — 열도 함께 줄인다
+    // 다른 날짜의 '이 주만' 반(직보 복사본 등)은 열을 만들지 않는다 — 9/29 직보로 만든
+    // '본원·은지' 반이 10/8 화면에 '은지 본원' 열을 세웠다 (2026-10-08 원장님 "은지쌤은 본원에서 수업하지 않아요")
+    if (c.wk && !wkVisible(c, todayStr())) return;
     var key = c.loc + '|' + c.teacher;
     if (!seen[key]){ seen[key] = true; cols.push({ key:key, loc:c.loc, teacher:c.teacher }); }
   });
@@ -4457,7 +4452,55 @@ function goneInfo(c, dstr){
   if (mv) return { kind: '이동', info: mv };
   var off = wkOffAt(c.id, dstr);
   if (off) return { kind: '휴강', info: off };
+  var em = emptyAt(c, dstr);
+  if (em) return { kind: '전원 빠짐', info: em };
   return null;
+}
+/* 명단 전원이 '이 주 빠짐'·'1회 이동'으로 빠지고 들어온 학생도 없는 수업 — 학생이 한 명도 없으니
+ * 없어진 수업과 같다. 카드로 두면 같은 칸의 실제 수업과 폭을 나눠 가져 글자를 못 읽는다
+ * (2026-10-08 원장님 "없어진 수업은 칸을 나눠서 처리하지 않기로 했어요" — 10/8 주혜T 5:30 고2 확인
+ * 7명 전원 빠짐 카드가 4:00~7:00 화정A 수업과 반씩 나뉘었다). 그리드에서만 — 명단 자체가 빈 반은 해당 없음.
+ * 돌려주는 값: { away:[{student, kind, reason, row, label}], n } */
+function emptyAt(c, dstr){
+  if (!dstr || !c.students || !c.students.length) return null;
+  var st = awayStateOf(c, dstr);
+  if (st.temps.length) return null;
+  var away = [];
+  for (var i = 0; i < c.students.length; i++){
+    var p = plainName(c.students[i]);
+    if (!Object.prototype.hasOwnProperty.call(st.awayOf, p)) return null;
+    var a = st.awayOf[p];
+    away.push({ student: c.students[i], kind: a.kind, reason: a.reason || '', row: a.row, label: a.label || '' });
+  }
+  if (keptAttendNames(c, c.students, st.temps, dstr).length) return null;   // 빠지기 전 찍힌 출석이 있으면 카드 유지
+  return { away: away, n: away.length };
+}
+/* 그 날짜에 이 반에서 빠진 학생(awayOf)과 이 반으로 온 학생(temps) — blockEl(오늘)·weekBlockEl(주차별)·
+ * emptyAt이 같은 규칙을 쓴다. 오늘은 onceOutThisWeek/onceInToday(주간빼기는 오늘 것만), 주차별은 weekOnce. */
+function awayStateOf(c, dstr){
+  var awayOf = {}, temps = [];
+  if (mode === 'today'){
+    onceOutThisWeek().forEach(function(o){
+      if (o.fromId !== c.id) return;
+      // 주간빼기는 그 날짜에만 — 1회 이동처럼 주 전체로 넓히지 않는다
+      if (o.kind === '주간빼기' && o.ymd && o.ymd !== todayStr()) return;
+      var t = classes.find(function(x){ return x.id===o.toId; });
+      var md = o.ymd ? o.ymd.slice(5).replace(/^0/, '').replace('-0', '/').replace('-', '/') : '';
+      awayOf[o.student.replace(/\(.*\)$/,'')] = { row: o.row, kind: o.kind || '1회', reason: o.reason,
+        label: (o.kind === '주간빼기') ? '이 주만 빠짐' : ((t ? labelOf(t) : '') + (md ? ' · ' + md + ' 보충' : '')) };
+    });
+    onceInToday().forEach(function(o){ if (o.toId === c.id) temps.push(o); });
+  } else {
+    weekOnce.forEach(function(o){
+      if (!isStudentLog(o)) return;   // 반 단위 기록(주간반이동·보강)은 학생 칩이 아니다
+      if (o.fromId === c.id){
+        var t = classes.find(function(x){ return x.id===o.toId; });
+        awayOf[o.student.replace(/\(.*\)$/,'')] = { label: t ? labelOf(t) : '', row: o.row, kind: o.kind || '1회', reason: o.reason };
+      }
+      if (o.toId === c.id) temps.push(o);
+    });
+  }
+  return { awayOf: awayOf, temps: dedupTemps(c, temps, awayOf) };
 }
 /* 사라진 수업을 칸(담당T 열 × 시작 시각)별로 모은다 */
 function goneAdd(cells, col, r0, lo, c, gone){
@@ -4508,17 +4551,18 @@ function goneBtnEl(items, dstr, canManage, timeText){
 /* 사라진 수업 목록 창 — 줄을 누르면 기존 안내·되돌리기 창으로 이어진다 */
 function openGoneList(items, dstr, canManage, timeText){
   var rows = items.map(function(it, i){
-    var moved = (it.kind === '이동');
+    var moved = (it.kind === '이동'), empty = (it.kind === '전원 빠짐');
     var to = moved ? wkMovedToLabel(it.info) : '';
     var where = moved ? ('→ ' + to + (/이동$/.test(to) ? '' : ' 에서 해요'))
+              : empty ? ('학생 ' + it.info.n + '명이 모두 빠졌어요 — ' + emptyReasonText(it.info))
                       : (canManage ? '이 주는 수업이 없어요' : '오늘은 수업이 없어요');
-    var act = moved ? '자세히' : (canManage ? '되돌리기' : '');
+    var act = (moved || empty) ? '자세히' : (canManage ? '되돌리기' : '');
     return '<button type="button" data-i="' + i + '"' + (act ? '' : ' class="plain"') + '>' +
-           '<span class="gl-top"><b>' + esc(it.c.cls) + '</b><em class="k-' + (moved ? 'mv' : 'off') + '">' +
+           '<span class="gl-top"><b>' + esc(it.c.cls) + '</b><em class="k-' + (moved ? 'mv' : empty ? 'empty' : 'off') + '">' +
            esc(it.kind) + '</em></span>' +
            '<small>' + esc(it.c.start) + '~' + esc(it.c.end) +
            (it.c.teacher ? ' · ' + esc(it.c.teacher) + 'T' : '') + (it.c.loc ? ' · ' + esc(it.c.loc) : '') + '</small>' +
-           '<small class="gl-to">' + esc(where) + (it.info.reason ? ' — ' + esc(it.info.reason) : '') + '</small>' +
+           '<small class="gl-to">' + esc(where) + (!empty && it.info.reason ? ' — ' + esc(it.info.reason) : '') + '</small>' +
            (act ? '<span class="gl-act">' + act + '</span>' : '') + '</button>';
   }).join('');
   var who = items[0] && items[0].c.teacher ? ' · ' + items[0].c.teacher + 'T' : '';
@@ -4535,7 +4579,46 @@ function openGoneList(items, dstr, canManage, timeText){
     if (!r || r.classList.contains('plain')) return;
     var it = items[parseInt(r.getAttribute('data-i'), 10)];
     if (it.kind === '이동') openWeekMovedInfo(it.c, dstr, it.info);
+    else if (it.kind === '전원 빠짐') openGoneEmpty(it.c, dstr, it.info, canManage);
     else openWeekClassOffManage(it.c, dstr, it.info);
+  });
+}
+/* 전원 빠짐 사유 요약 — 같은 사유면 하나로, 다르면 '사유 n가지' */
+function emptyReasonText(info){
+  var seen = {}, rs = [];
+  info.away.forEach(function(a){
+    var k = (a.kind === '주간빼기' ? '이 주만 빠짐' : '1회 이동') + (a.reason ? ' (' + a.reason + ')' : '');
+    if (!seen[k]){ seen[k] = 1; rs.push(k); }
+  });
+  return rs.length === 1 ? rs[0] : (rs[0] + ' 외 ' + (rs.length - 1) + '가지');
+}
+/* 전원 빠짐 수업의 학생 목록 창 — 누가 왜 빠졌는지, 주차별에서는 줄을 눌러 되돌린다 */
+function openGoneEmpty(c, dstr, info, canManage){
+  var rows = sortNames(info.away.map(function(a){ return a.student; })).map(function(nm){
+    var a = info.away.find(function(x){ return x.student === nm; });
+    var wk = (a.kind === '주간빼기');
+    return '<button type="button" data-row="' + esc(String(a.row)) + '" data-nm="' + esc(nm) + '"' +
+           (canManage ? '' : ' class="plain"') + '>' +
+           '<span class="gl-top"><b>' + esc(plainName(nm)) + '</b><em class="k-' + (wk ? 'empty' : 'mv') + '">' +
+           (wk ? '이 주 빠짐' : '1회 이동') + '</em></span>' +
+           '<small class="gl-to">' + (wk ? '' : esc(a.label ? '→ ' + a.label : '')) +
+           (a.reason ? (wk ? '' : ' — ') + esc(a.reason) : '') + '</small>' +
+           (canManage ? '<span class="gl-act">되돌리기</span>' : '') + '</button>';
+  }).join('');
+  openModal(
+    '<h3>' + esc(c.cls) + ' — 학생이 모두 빠졌어요</h3>' +
+    '<p class="mdesc">' + esc(wkDayLabel(dstr)) + ' ' + esc(c.start) + '~' + esc(c.end) +
+    (c.teacher ? ' · ' + esc(c.teacher) + 'T' : '') + (c.loc ? ' · ' + esc(c.loc) : '') +
+    ' — 이 날은 올 학생이 없어 시간표에서 카드를 그리지 않았습니다.' +
+    (canManage ? ' 되돌리려면 학생 줄을 누르세요.' : ' 되돌리기는 주차별 시간표에서 할 수 있어요.') + '</p>' +
+    '<div class="gone-list" id="gone-empty">' + rows + '</div>' +
+    '<div class="mbtns"><button onclick="closeModal()">닫기</button></div>'
+  );
+  var box = $('gone-empty');
+  if (box && canManage) box.addEventListener('click', function(e){
+    var r = e.target.closest('button[data-row]');
+    if (!r) return;
+    openOnceManage(c, r.getAttribute('data-nm'), parseInt(r.getAttribute('data-row'), 10), 'out', dstr);
   });
 }
 function offBandEl(c, off, dstr, canManage){
@@ -4598,16 +4681,8 @@ function weekBlockEl(c, dstr, forList){
     b.addEventListener('click', function(){ openWeekClassOffManage(c, dstr, off); });
     return b;
   }
-  var awayOf = {}, temps = [];
-  weekOnce.forEach(function(o){
-    if (!isStudentLog(o)) return;   // 반 단위 기록(주간반이동·보강)은 학생 칩이 아니다
-    if (o.fromId === c.id){
-      var t = classes.find(function(x){ return x.id===o.toId; });
-      awayOf[o.student.replace(/\(.*\)$/,'')] = { label: t ? labelOf(t) : '', row: o.row, kind: o.kind || '1회', reason: o.reason };
-    }
-    if (o.toId === c.id) temps.push(o);
-  });
-  temps = dedupTemps(c, temps, awayOf);
+  var st = awayStateOf(c, dstr);   // emptyAt(전원 빠짐 판정)과 같은 규칙
+  var awayOf = st.awayOf, temps = st.temps;
   var chips = sortNames(c.students).map(function(nm){
     var plain = nm.replace(/\(.*\)$/,'');
     var note = nameNote(nm);
