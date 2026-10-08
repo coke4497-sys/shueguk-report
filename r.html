@@ -70,6 +70,10 @@ body{font-family:'Noto Sans KR',sans-serif; background:var(--sage-fog); color:va
 .q-txt{font-family:'Noto Serif KR',serif; font-size:13.5px; color:var(--ink-deep); line-height:1.55;}
 .q-tag.sub{background:var(--line-soft);}
 .q-tag.multi{background:#E7DCF2; color:#6b4fa0; font-weight:700;}
+.q-tag.pts{background:var(--sage-fog); color:var(--sage-deep); font-weight:700;}
+.score-box{display:flex; align-items:baseline; flex-wrap:wrap; gap:6px 12px; padding:12px 14px; border:1.5px solid var(--line); border-radius:10px; background:#FBFCFB;}
+.score-box b{font-size:24px; color:var(--sage-deep); font-weight:700;}
+.score-box .sn{font-size:12.5px; color:#8A9994;}
 .q-group-label{font-size:12.5px; font-weight:700; color:var(--sage-deep); margin:16px 4px 2px; display:flex; align-items:center; gap:5px;}
 .q.in-group{margin-left:10px;}
 #scopeBox.sp-plain{white-space:pre-wrap;}
@@ -163,7 +167,8 @@ body.capturing ::placeholder{ color:transparent !important; }
     </div>
     <div class="fld"><label>이름</label><input type="text" id="f_name" placeholder="이름을 입력해주세요"></div>
     <div class="fld"><label>부모님 연락처 <span style="font-weight:400; color:#8A9994; font-size:13px;">(학원 안내 문자를 받으시는 번호 · 010 제외 뒤 8자리)</span></label><input type="tel" id="f_parent" placeholder="예) 12345678" inputmode="numeric" maxlength="8" autocomplete="off"></div>
-    <div class="fld"><label>예상 점수 <span style="font-weight:400; color:#8A9994; font-size:13px;">(채점 전이면 예상되는 점수를 적어주세요)</span></label><input type="number" id="f_score" placeholder="예) 85 또는 91.7" inputmode="decimal" min="0" max="100" step="any"></div>
+    <div class="fld"><label>점수 <span style="font-weight:400; color:#8A9994; font-size:13px;">(아래에서 틀린 문항을 표시하면 자동으로 계산돼요)</span></label>
+      <div class="score-box"><b id="scoreView">100점</b><span class="sn" id="scoreNote">아직 표시한 틀린 문항이 없습니다.</span></div></div>
   </div>
 
   <div class="sec" id="scopeSec" style="display:none;">
@@ -197,7 +202,7 @@ body.capturing ::placeholder{ color:transparent !important; }
     <div class="r-row"><span class="k">학교 · 학년</span><span class="v" id="r_sch"></span></div>
     <div class="r-row"><span class="k">이름</span><span class="v" id="r_name"></span></div>
     <div class="r-row"><span class="k">부모님 연락처</span><span class="v" id="r_parent"></span></div>
-    <div class="r-row"><span class="k">예상 점수</span><span class="v" id="r_score"></span></div>
+    <div class="r-row"><span class="k">점수</span><span class="v" id="r_score"></span></div>
     <div class="r-row"><span class="k">틀린 문항</span><span class="v" id="r_wc"></span></div>
   </div>
   <div id="r_wrongList"></div>
@@ -278,7 +283,7 @@ body.capturing ::placeholder{ color:transparent !important; }
         review: String(e.review || '').split(/\n\s*\n/).map(function(s){ return s.trim(); }).filter(Boolean),
         questions: (e.questions || []).map(function(x){
           return { no: x.no, area: x.area, type: x.qtype, lv: x.lv, txt: x.txt,
-                   detail: x.detail, group: x.grp, multi: !!x.multi };
+                   detail: x.detail, group: x.grp, multi: !!x.multi, pts: x.pts };
         }) });
     });
   }
@@ -420,7 +425,7 @@ function renderReport(){
       '<div class="q-head">'+
         '<div class="q-no">'+esc(q.no)+'</div>'+
         '<div class="q-body">'+
-          '<div class="q-meta"><span class="q-tag">'+esc(q.area)+'</span>'+(q.detail?'<span class="q-tag sub">'+esc(q.detail)+'</span>':'')+(q.type?'<span class="q-tag">'+esc(q.type)+'</span>':'')+(q.multi?'<span class="q-tag multi">복수 선택</span>':'')+'<span class="q-badge b-'+lv+'">'+esc(lv)+'</span></div>'+
+          '<div class="q-meta"><span class="q-tag">'+esc(q.area)+'</span>'+(q.detail?'<span class="q-tag sub">'+esc(q.detail)+'</span>':'')+(q.type?'<span class="q-tag">'+esc(q.type)+'</span>':'')+(q.multi?'<span class="q-tag multi">복수 선택</span>':'')+'<span class="q-tag pts">'+ptsLabel(q)+'</span><span class="q-badge b-'+lv+'">'+esc(lv)+'</span></div>'+
           '<div class="q-txt">'+esc(q.txt)+'</div>'+
         '</div>'+
         '<div class="q-mark">'+CHK+'</div>'+
@@ -439,8 +444,33 @@ function renderReport(){
     ta.onclick=function(e){ e.stopPropagation(); };
     ql.appendChild(d);
   });
+  updateCount();
 }
-function updateCount(){ document.getElementById('wcount').textContent=Object.keys(wrong).length; }
+function updateCount(){
+  document.getElementById('wcount').textContent=Object.keys(wrong).length;
+  var sc=calcScore();
+  document.getElementById('scoreView').textContent=sc.score+'점';
+  var n=Object.keys(wrong).length;
+  document.getElementById('scoreNote').textContent = n ? ('틀린 문항 '+n+'개 · 배점 '+sc.lost+'점을 뺐어요'+(sc.even?' (문항당 '+sc.each+'점)':'')) : (sc.even ? '배점이 등록되지 않은 시험이라 문항당 '+sc.each+'점으로 계산해요.' : '아직 표시한 틀린 문항이 없습니다.');
+}
+/* ── 점수 자동 계산 (046, 2026-10-08 원장님 "틀린 문항을 체크하면 점수가 자동으로 기록되도록") ──
+ * 100점에서 틀린 문항의 배점(q.pts — 시험 등록 화면에서 입력)을 뺀다. 배점이 하나도 없는 시험(옛 등록)은
+ * 문항당 100÷문항 수(even). 소수 둘째 자리에서 반올림해 첫째 자리까지. */
+function ptsNum(v){ var n=parseFloat(String(v==null?'':v).replace(/[^\d.]/g,'')); return (isNaN(n)||n<0)?0:n; }
+function ptsMode(){
+  var qs=(REPORT&&REPORT.questions)||[], n=qs.length;
+  var has=qs.some(function(q){ return ptsNum(q.pts)>0; });
+  return { even: !has, each: n ? Math.round(1000/n)/10 : 0, n: n };
+}
+function ptsOf(q){ var m=ptsMode(); return m.even ? (m.n?100/m.n:0) : ptsNum(q.pts); }
+function ptsLabel(q){ var m=ptsMode(); return (m.even ? m.each : ptsNum(q.pts))+'점'; }
+function calcScore(){
+  var m=ptsMode(), qmap={}; ((REPORT&&REPORT.questions)||[]).forEach(function(q){ qmap[q.no]=q; });
+  var lost=0; Object.keys(wrong).forEach(function(no){ var q=qmap[no]; if(q) lost+=ptsOf(q); });
+  lost=Math.round(lost*10)/10;
+  var score=Math.max(0, Math.round((100-lost)*10)/10);
+  return { score: score, lost: lost, even: m.even, each: m.each };
+}
 function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
 /* 시험 범위·총평 표시 (r.html·t.html 두 벌 — 고치면 둘 다 고칠 것)
@@ -507,8 +537,7 @@ function showResult(){
   document.getElementById('r_name').textContent=name||'미입력';
   var parent=document.getElementById('f_parent').value.replace(/\D/g,'');
   document.getElementById('r_parent').textContent = parent ? ('010-'+parent.slice(0,4)+'-'+parent.slice(4,8)) : '미입력';
-  var scoreVal=document.getElementById('f_score').value.trim();
-  document.getElementById('r_score').textContent = scoreVal!=='' ? (scoreVal+'점') : '미입력';
+  document.getElementById('r_score').textContent = calcScore().score+'점';
   var keys=Object.keys(wrong);
   document.getElementById('r_wc').textContent=keys.length+'개';
 
@@ -613,7 +642,7 @@ function buildPayload(){
     grade: document.getElementById('f_grade').value.trim(),
     name: document.getElementById('f_name').value.trim(),
     parentPhone: document.getElementById('f_parent').value.replace(/\D/g,''),
-    score: document.getElementById('f_score').value.trim(),
+    score: String(calcScore().score),
     wrongCount: keys.length,
     wrongText: lines.join('\n\n'),
     vow: document.getElementById('f_vow').value.trim()

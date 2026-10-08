@@ -53,7 +53,6 @@ const EXAM = { found: true, title: '26-2-중간-테스트고1-공통국어2', sc
   await pg.fill('#f_name', '테스트학생');
   await pg.fill('#f_school', '테스트고');
   await pg.fill('#f_parent', '12345678');
-  await pg.fill('#f_score', '88');
   await pg.click('#f_vow');
   await pg.fill('#f_vow', '다음엔 더 꼼꼼히');
   await pg.click('text=입력 완료 · 확인하기');
@@ -86,7 +85,6 @@ const EXAM = { found: true, title: '26-2-중간-테스트고1-공통국어2', sc
   await p2.fill('#f_name', '테스트학생2');
   await p2.fill('#f_school', '테스트고');
   await p2.fill('#f_parent', '87654321');
-  await p2.fill('#f_score', '70');
   await p2.click('text=입력 완료 · 확인하기');
   await p2.click('#submitBtn');
   await p2.waitForFunction(() => document.getElementById('submitBtn').textContent === '제출됨', { timeout: 8000 });

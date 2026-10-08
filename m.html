@@ -98,7 +98,13 @@ body{font-family:'Noto Sans KR',sans-serif; background:var(--sage-fog); color:va
 .solo-grid, .group-fields, .subq-grid{display:grid; gap:9px; margin-bottom:10px;}
 .solo-grid{grid-template-columns:repeat(2,1fr);}
 .group-fields{grid-template-columns:repeat(2,1fr); padding:11px; background:var(--sage-fog); border-radius:10px;}
-.subq-grid{grid-template-columns:74px 1fr 1fr; margin-bottom:8px;}
+.subq-grid{grid-template-columns:74px 1fr 1fr 84px; margin-bottom:8px;}
+.cell.pts-cell input{text-align:right;}
+.pts-bar{display:flex; flex-wrap:wrap; align-items:center; gap:8px 12px; margin:10px 0 2px; font-size:13px; color:var(--ink-mid);}
+.pts-bar b{color:var(--sage-deep);}
+.pts-bar .warn{color:#B5544E; font-weight:700;}
+.pts-bar .ok{color:var(--sage-deep); font-weight:700;}
+@media (max-width:560px){ .subq-grid{grid-template-columns:64px 1fr 1fr; } .subq-grid .pts-cell{grid-column:1 / -1;} }
 .cell label{display:block; font-size:11.5px; color:var(--ink-soft); margin-bottom:4px;}
 .cell select, .cell input{width:100%; padding:9px 10px; font-size:14px; border:1.5px solid var(--line); border-radius:9px; background:#fff; font-family:'Noto Sans KR'; color:var(--ink-deep); -webkit-appearance:none; appearance:none;}
 .cell select:focus, .cell input:focus{outline:none; border-color:var(--sage-deep);}
@@ -345,10 +351,13 @@ body{font-family:'Noto Sans KR',sans-serif; background:var(--sage-fog); color:va
     <p class="hint" style="margin:0 0 12px; font-size:12px; color:var(--ink-soft);">시험지 순서대로 추가하세요. 지문에 여러 문항이 딸리면 <b>＋ 지문 묶음</b>, 혼자면 <b>＋ 단독 문항</b>. 아래 버튼을 누르면 새 문항이 <b>버튼 위로</b> 쌓입니다.</p>
     <div class="block-list" id="blockList"></div>
     <p class="q-count">전체 <b id="qCount">0</b>문항</p>
+    <div class="pts-bar" id="ptsBar"><span>배점</span><span id="ptsSumMsg"></span><span style="color:var(--ink-soft); font-size:12px;">· 복기 화면은 100점에서 틀린 문항 배점을 빼 점수를 자동 계산합니다.</span></div>
     <!-- 문항 추가 버튼 (시험 총평 바로 위) -->
     <div class="add-row" style="margin-top:12px;">
       <button class="btn ghost sm" onclick="addSolo(true)">＋ 단독 문항</button>
       <button class="btn ghost sm" onclick="addPassage(true)">＋ 지문 묶음</button>
+      <button class="btn ghost sm" onclick="ptsEven()" title="100점을 문항 수로 나눠 배점을 채웁니다">배점 균등 배분</button>
+      <button class="btn ghost sm" onclick="ptsClear()">배점 비우기</button>
     </div>
     <div class="gen-row" style="margin-top:8px;">
       <div class="fld num-fld"><label>단독 문항 여러 개</label><input type="number" id="genCount" min="1" max="100" placeholder="예) 10"></div>
@@ -560,10 +569,11 @@ body{font-family:'Noto Sans KR',sans-serif; background:var(--sage-fog); color:va
         review: String(e.review || '').split(/\n\s*\n/).map(function(s){ return s.trim(); }).filter(Boolean),
         questions: rs[1].map(function(x){
           return { no: x.no, area: x.area, type: x.qtype, lv: x.lv, txt: x.txt,
-                   detail: x.detail, group: x.grp, multi: !!x.multi };
+                   detail: x.detail, group: x.grp, multi: !!x.multi, pts: ptsNum(x.pts) };
         }) });
     });
   }
+  function ptsNum(v){ var n = parseFloat(String(v == null ? '' : v).replace(/[^\d.]/g, '')); return (isNaN(n) || n < 0) ? 0 : n; }
   function baseName(s){ return String(s == null ? '' : s).trim().replace(/[A-Za-z]$/, ''); }
   function basePick(cands, phone){
     if (!cands || !cands.length) return null;
@@ -684,9 +694,14 @@ body{font-family:'Noto Sans KR',sans-serif; background:var(--sage-fog); color:va
           return { report_id: id, seq: i + 1, no: String(x.no || ''), area: String(x.area || ''),
                    qtype: String(x.type || ''), lv: String(x.lv || ''), txt: String(x.txt || ''),
                    detail: String(x.detail || ''), grp: String(x.group || ''),
-                   multi: (x.multi === true || x.multi === 'Y' || x.multi === 1) };
+                   multi: (x.multi === true || x.multi === 'Y' || x.multi === 1), pts: ptsNum(x.pts) };
         });
-        return qs.length ? sbWrite('POST', '/exam_questions', qs) : null;
+        return qs.length ? sbWrite('POST', '/exam_questions', qs).catch(function(e){
+          /* 046 적용 전(pts 열 없음)이면 배점 없이 저장 — 복기 화면은 문항당 균등 배점으로 센다 */
+          if (!/pts/.test(String(e && e.message || e))) throw e;
+          console.warn('exam_questions.pts 열이 없어 배점 없이 저장(마이그레이션 046)');
+          return sbWrite('POST', '/exam_questions', qs.map(function(x){ var y = {}; for (var k in x){ if (k !== 'pts') y[k] = x[k]; } return y; }));
+        }) : null;
       });
   }
   function mirrorNoteToSheet(url, b, row){
@@ -1154,6 +1169,41 @@ function setQTxt(scope, txt){
 function multiRowHtml(){
   return '<label class="multi-row"><input type="checkbox" class="multi-in"> 복수 선택 유형 <span class="mh">(ㄱ·ㄴ·ㄷ 중 고르기)</span></label>';
 }
+/* ── 배점 (046, 2026-10-08 원장님 "틀린 문항을 체크하면 점수가 자동으로 기록되도록") ──
+ * 복기 화면(r.html)은 100점에서 틀린 문항의 배점을 빼 점수를 만든다. 배점을 하나도 적지 않으면 문항당 100÷문항 수.
+ * 적으려면 전부 적고 합이 100점이어야 등록된다(validateForm) — 일부만 적으면 안 적은 문항이 0점으로 계산되기 때문. */
+function ptsCellHtml(){
+  return '<div class="cell pts-cell"><label>배점</label><input class="pts-in" type="number" inputmode="decimal" min="0" step="any" placeholder="점" oninput="ptsSync()"></div>';
+}
+function ptsNum(v){ var n=parseFloat(String(v==null?'':v).replace(/[^\d.]/g,'')); return (isNaN(n)||n<0)?0:n; }
+function ptsInputs(){ return Array.prototype.slice.call(document.querySelectorAll('#blockList .pts-in')); }
+function ptsSum(){ var t=0; ptsInputs().forEach(function(i){ t+=ptsNum(i.value); }); return Math.round(t*100)/100; }
+/* 배점 합계 줄 — 문항 목록 아래(#ptsBar). 비면 '균등', 100이면 ok, 아니면 경고 */
+function ptsSync(){
+  var bar=document.getElementById('ptsBar'); if(!bar) return;
+  var ins=ptsInputs(), n=ins.length, filled=ins.filter(function(i){ return i.value.trim()!==''; }).length, sum=ptsSum();
+  var msg;
+  if(!n) msg='';
+  else if(filled===0) msg='배점을 적지 않으면 문항당 <b>'+(Math.round(10000/n)/100)+'점</b>(100÷'+n+')으로 계산해요.';
+  else if(filled<n) msg='<span class="warn">배점을 '+(n-filled)+'문항 더 적어 주세요</span> (합계 '+sum+'점)';
+  else if(Math.abs(sum-100)>0.009) msg='<span class="warn">배점 합계 '+sum+'점</span> — 100점이 되게 맞춰 주세요.';
+  else msg='<span class="ok">배점 합계 100점</span>';
+  document.getElementById('ptsSumMsg').innerHTML=msg;
+}
+/* [균등 배분] — 100점을 문항 수로 나눠 채운다(소수 둘째 자리, 마지막 문항이 끝수를 받는다) */
+function ptsEven(){
+  var ins=ptsInputs(), n=ins.length; if(!n) return;
+  var any=ins.some(function(i){ return i.value.trim()!==''; });
+  if(any && !confirm('적어 둔 배점을 지우고 모두 같은 점수로 채울까요?')) return;
+  var each=Math.floor(10000/n)/100, acc=0;
+  ins.forEach(function(i, k){ var v=(k===n-1)?Math.round((100-acc)*100)/100:each; i.value=v; acc=Math.round((acc+v)*100)/100; });
+  ptsSync();
+}
+function ptsClear(){
+  var ins=ptsInputs(); if(!ins.length) return;
+  if(!confirm('배점을 모두 지울까요? 지우면 복기 점수는 문항당 균등 배점으로 계산돼요.')) return;
+  ins.forEach(function(i){ i.value=''; }); ptsSync();
+}
 
 /* ----- 단독 문항 ----- */
 function addSolo(scroll){
@@ -1167,6 +1217,7 @@ function addSolo(scroll){
       areaCellHtml()+
       '<div class="cell"><label>형식</label><select class="type-in">'+opts(FORM_OPTS,'객관식')+'</select></div>'+
       '<div class="cell"><label>난이도</label><select class="lv-in">'+opts(LV_OPTS,'상')+'</select></div>'+
+      ptsCellHtml()+
     '</div>'+
     multiRowHtml()+
     txtCellHtml();
@@ -1208,6 +1259,7 @@ function addSubQuestion(btn){
       '<div class="cell"><label>번호</label><input class="no-in" type="text" value="'+no+'" placeholder="번호"></div>'+
       '<div class="cell"><label>형식</label><select class="type-in">'+opts(FORM_OPTS,'객관식')+'</select></div>'+
       '<div class="cell"><label>난이도</label><select class="lv-in">'+opts(LV_OPTS,'상')+'</select></div>'+
+      ptsCellHtml()+
     '</div>'+
     multiRowHtml()+
     txtCellHtml()+
@@ -1228,6 +1280,7 @@ function onAreaChange(sel){
 }
 function renumberAll(){
   document.getElementById('qCount').textContent=document.querySelectorAll('#blockList .no-in').length;
+  if(typeof ptsSync==='function') ptsSync();
   document.querySelectorAll('#blockList .block.passage').forEach(function(b){
     var c=b.querySelectorAll('.subq').length;
     b.querySelector('.b-label').innerHTML=BOOK_ICON+'지문 묶음'+(c?' ('+c+'문항)':'');
@@ -1263,7 +1316,8 @@ function collect(){
         var lv=sq.querySelector('.lv-in').value.trim();
         var txt=qTxt(sq);
         var mq=sq.querySelector('.multi-in'); var multi=!!(mq&&mq.checked);
-        if(no||txt){ questions.push({no:no, group:gname, area:garea, detail:gdetail, type:type, lv:lv, txt:txt, multi:multi}); }
+        var pq=sq.querySelector('.pts-in'); var pts=pq?ptsNum(pq.value):0;
+        if(no||txt){ questions.push({no:no, group:gname, area:garea, detail:gdetail, type:type, lv:lv, txt:txt, multi:multi, pts:pts}); }
       });
     } else {
       var no=block.querySelector('.no-in').value.trim();
@@ -1273,7 +1327,8 @@ function collect(){
       var lv=block.querySelector('.lv-in').value.trim();
       var txt=qTxt(block);
       var mq=block.querySelector('.multi-in'); var multi=!!(mq&&mq.checked);
-      if(no||txt||area){ questions.push({no:no, group:'', area:area, detail:detail, type:type, lv:lv, txt:txt, multi:multi}); }
+      var pq=block.querySelector('.pts-in'); var pts=pq?ptsNum(pq.value):0;
+      if(no||txt||area){ questions.push({no:no, group:'', area:area, detail:detail, type:type, lv:lv, txt:txt, multi:multi, pts:pts}); }
     }
   });
   return {id:id, title:title, scope:scope, review:review, questions:questions};
@@ -1332,6 +1387,14 @@ function validateForm(data){
       if(!area2) return '단독 문항(‘'+(no2||'')+'번’)의 영역을 선택해주세요.';
     }
   }
+  /* 배점(046): 비워 두면 균등 — 적으면 전부 적고 합이 100점 */
+  var ptsIns=ptsInputs().filter(function(i){ return i.closest('.block, .subq') && (i.closest('.subq')||i.closest('.block')).querySelector('.no-in').value.trim(); });
+  var ptsFilled=ptsIns.filter(function(i){ return i.value.trim()!==''; }).length;
+  if(ptsFilled>0){
+    if(ptsFilled<ptsIns.length){ var miss=ptsIns.filter(function(i){ return i.value.trim()===''; })[0]; if(miss) miss.focus(); return '배점을 모든 문항에 적어 주세요. (비워 둔 문항이 '+(ptsIns.length-ptsFilled)+'개 — 전부 비우면 균등 배점으로 계산돼요)'; }
+    var tot=0; ptsIns.forEach(function(i){ tot+=ptsNum(i.value); }); tot=Math.round(tot*100)/100;
+    if(Math.abs(tot-100)>0.009) return '배점 합계가 '+tot+'점이에요. 100점이 되게 맞춰 주세요.';
+  }
   return '';
 }
 
@@ -1352,6 +1415,7 @@ function togglePreview(){
     if(q.detail){ tags+='<span class="pv-tag sub">'+esc(q.detail)+'</span>'; }
     if(q.type){ tags+='<span class="pv-tag">'+esc(q.type)+'</span>'; }
     if(q.multi){ tags+='<span class="pv-tag multi">복수 선택</span>'; }
+    if(ptsNum(q.pts)>0){ tags+='<span class="pv-tag">'+ptsNum(q.pts)+'점</span>'; }
     html+='<div class="pv-q'+(q.group?' in-group':'')+'"><div class="m">'+tags+
           '<span class="pv-badge b-'+lv+'">'+esc(lv)+'</span></div>'+
           '<div class="t"><span class="qno">'+esc(q.no)+'번</span>'+esc(q.txt)+'</div></div>';
@@ -1550,6 +1614,7 @@ function fillSolo_(block, q){
   block.querySelector('.lv-in').value=q.lv||'상';
   setQTxt(block, q.txt||'');
   var mi=block.querySelector('.multi-in'); if(mi) mi.checked=!!q.multi;
+  var pi=block.querySelector('.pts-in'); if(pi) pi.value=ptsNum(q.pts)>0?ptsNum(q.pts):'';
 }
 function buildPassageFromData(groupName, subs){
   var blk=addPassage();   // 기본 1문항 포함해 생성
@@ -1567,7 +1632,9 @@ function buildPassageFromData(groupName, subs){
     sq.querySelector('.lv-in').value=q.lv||'상';
     setQTxt(sq, q.txt||'');
     var mi=sq.querySelector('.multi-in'); if(mi) mi.checked=!!q.multi;
+    var pi=sq.querySelector('.pts-in'); if(pi) pi.value=ptsNum(q.pts)>0?ptsNum(q.pts):'';
   });
+  ptsSync();
 }
 
 /* ===== 자동 생성 — 시험지·정답지 → 클로슈 초안 (036, 2026-09-29 원장님) =====
@@ -1865,7 +1932,7 @@ function drCleanQ(q){
   return { no: String(q.no == null ? '' : q.no), group: String(q.group || ''), area: area,
            detail: (SUBTYPES[area] || []).indexOf(q.detail) >= 0 ? q.detail : '',
            type: FORM_OPTS.indexOf(q.type) >= 0 ? q.type : '객관식', lv: DR_LV.indexOf(q.lv) >= 0 ? q.lv : '상',
-           txt: String(q.txt || ''), multi: !!q.multi };
+           txt: String(q.txt || ''), multi: !!q.multi, pts: ptsNum(q.pts) };
 }
 function drHasInput(){
   if (document.getElementById('f_scope').value.trim() || document.getElementById('f_review').value.trim()) return true;

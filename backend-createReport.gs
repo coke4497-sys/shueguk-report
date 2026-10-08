@@ -660,7 +660,8 @@ function getReport(id) {
           txt:    String(iv[j][5]||''),          // F: 내용
           detail: String(iv[j][6]||''),          // G: 세부유형(하위)
           group:  String(iv[j][7]||''),          // H: 지문그룹
-          multi:  isMulti_(iv[j][8])             // I: 복수선택 유형
+          multi:  isMulti_(iv[j][8]),            // I: 복수선택 유형
+          pts:    ptsNum_(iv[j][9])              // J: 배점 (046 — 복기 점수 자동 계산, 0 = 미지정)
         });
       }
     }
@@ -899,7 +900,8 @@ function getReportsIndex_(ss) {
         txt:  String(iv[j][5]||''),
         detail: String(iv[j][6]||''),
         group:  String(iv[j][7]||''),
-        multi:  isMulti_(iv[j][8])
+        multi:  isMulti_(iv[j][8]),
+        pts:    ptsNum_(iv[j][9])
       });
     }
   }
@@ -4931,10 +4933,11 @@ function createReport(data) {
 
     // 문항 탭 (없으면 생성)
     var itemSh = ss.getSheetByName(TAB_ITEMS);
-    if (!itemSh) { itemSh = ss.insertSheet(TAB_ITEMS); itemSh.appendRow(['보고서ID','번호','영역','형식','난도','내용','세부유형','지문그룹','복수선택']); }
+    if (!itemSh) { itemSh = ss.insertSheet(TAB_ITEMS); itemSh.appendRow(['보고서ID','번호','영역','형식','난도','내용','세부유형','지문그룹','복수선택','배점']); }
     ensureHeader_(itemSh, 7, '세부유형');     // G열 머리글 보장
     ensureHeader_(itemSh, 8, '지문그룹');     // H열 머리글 보장
     ensureHeader_(itemSh, 9, '복수선택');     // I열 머리글 보장(복수 선택 유형 Y/빈칸)
+    ensureHeader_(itemSh, 10, '배점');        // J열 머리글 보장(배점 — 복기 점수 자동 계산, 046)
 
     // 같은 ID 덮어쓰기 (기존 행 제거)
     deleteRowsById_(listSh, 1, id);
@@ -4945,17 +4948,19 @@ function createReport(data) {
     var scope  = String(data.scope || '');
     listSh.appendRow([id, String(data.title || ''), review, scope, String(data.school || ''), String(data.grade || '')]);
 
-    // 문항: 한 번에 기록  (A~H = 보고서ID·번호·영역·형식·난도·내용·세부유형·지문그룹)
+    // 문항: 한 번에 기록  (A~J = 보고서ID·번호·영역·형식·난도·내용·세부유형·지문그룹·복수선택·배점)
     var qs = data.questions || [];
     if (qs.length) {
       var rows = qs.map(function(q){
+        var pts = ptsNum_(q.pts);
         return [
           id, String(q.no||''), String(q.area||''), String(q.type||''),
           String(q.lv||''), String(q.txt||''), String(q.detail||''), String(q.group||''),
-          (q.multi === true || q.multi === 'Y' || q.multi === 1) ? 'Y' : ''
+          (q.multi === true || q.multi === 'Y' || q.multi === 1) ? 'Y' : '',
+          pts > 0 ? pts : ''
         ];
       });
-      itemSh.getRange(itemSh.getLastRow()+1, 1, rows.length, 9).setValues(rows);
+      itemSh.getRange(itemSh.getLastRow()+1, 1, rows.length, 10).setValues(rows);
     }
 
     // 학생 배정: '배정' 탭에 이 분석지(도구=지필고사 분석지, 항목=시험ID)의 대상 저장.
@@ -5077,6 +5082,12 @@ function getTxtPatterns() {
 }
 
 /** 복수 선택 유형 여부 판정 (Y/1/복수/○ 등은 true). */
+/** 배점 칸 → 숫자 (046). 빈 값·글자·음수는 0(미지정). '2.5'·2.5 모두 받는다. */
+function ptsNum_(v) {
+  var n = parseFloat(String(v == null ? '' : v).replace(/[^\d.]/g, ''));
+  return (isNaN(n) || n < 0) ? 0 : n;
+}
+
 function isMulti_(v) {
   return /^(y|yes|true|1|복수|○|o)/i.test(String(v == null ? '' : v).trim());
 }
