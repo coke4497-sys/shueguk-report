@@ -3005,7 +3005,7 @@ function openMock(){ PW_MODE='mock'; if(STATE.mock){ renderMock(); return; } ope
 function closeGrades(){ $('gradeView').style.display='none'; show('hubView'); window.scrollTo(0,0); }
 
 /* 그래프 집계 (강사 페이지와 동일 기준) */
-var AREA_ORDER=['문학','독서','화법','작문','문법'];
+var AREA_ORDER=['문학','독서','화법','작문','문법','어휘'];
 var LV_ORDER=['중','중상','상','최상'];
 var LV_COLOR={'중':'var(--line-soft)','중상':'var(--sage-mist)','상':'var(--sage-soft)','최상':'var(--accent-dark)'};
 function countBy(arr,key,order){

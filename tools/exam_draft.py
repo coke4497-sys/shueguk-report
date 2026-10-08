@@ -29,13 +29,14 @@ KEY = 'sb_publishable_dE9d1KIbpgYaQkaS2MSrlg_-7SiRJuT'
 T_ID, T_PW = 'teachers@shueguk.internal', 'shg_FCePWvnawH44SV8kYB9BHRKi6aag'
 BUCKET = 'exam-drafts'
 
-AREAS = ['문학', '독서', '화법', '작문', '문법']
+AREAS = ['문학', '독서', '화법', '작문', '문법', '어휘']
 SUBTYPES = {
     '문학': ['현대시', '현대소설', '고전시가', '고전소설', '수필', '극', '갈래복합'],
     '독서': ['인문', '사회', '예술', '과학기술'],
     '화법': [],
     '작문': [],
     '문법': ['음운', '형태소', '단어', '문장', '문법요소', '국어사', '한글 맞춤법'],
+    '어휘': [],
 }
 FORMS = ['객관식', '서술형']
 LEVELS = ['중', '중상', '상', '최상']
