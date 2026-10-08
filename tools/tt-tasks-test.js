@@ -21,7 +21,7 @@ const shift = (ymd, n) => { const p = ymd.split('-').map(Number); const d = new 
 const YDAY = shift(TS, -1), TMRW = shift(TS, 1);
 const CLASSES = [
   { id:'r01', day:TODAY, start:'5:30', end:'8:30', loc:'본원', teacher:'슈', cls:'고3파이널A', students:['민서연','이채민','허민'], wk:'' },
-  { id:'r02', day:TODAY, start:'5:30', end:'7:00', loc:'화정센터', teacher:'지원', cls:'고1 확인', students:['박세연'], wk:'' },
+  { id:'r02', day:TODAY, start:'5:30', end:'7:00', loc:'화정센터', teacher:'지원', cls:'고1 확인', students:['박세연','(화정)심지후'], wk:'' },
 ];
 let pass = 0, fail = 0;
 const ok = (n, c, x) => { if (c) pass++; else { fail++; console.log('  ✗ ' + n + (x ? ' — ' + x : '')); } };
@@ -36,13 +36,13 @@ function makeStore(){
   ];
   const writes = [];
   return {
-    rows, writes,
+    rows, writes, raceOnce: false,
     list(){ return rows.filter(r => (r.status === '대기' && r.ymd <= TS) || (r.status === '완료' && r.done_ymd === TS)); },
     handle(req){
       const url = req.url(), m = req.method();
       if (m === 'GET'){
         if (/ymd\.gte\./.test(url)) return JSON.stringify(rows);
-        if (/id=eq\.(\d+)/.test(url)) return JSON.stringify(rows.filter(r => r.id === +RegExp.$1));
+        if (/id=eq\.(\d+)/.test(url)){ const rr = rows.filter(r => r.id === +RegExp.$1); const out = JSON.stringify(rr); if (this.raceOnce && rr[0]){ Object.assign(rr[0], { status:'완료', done_by:'김상우', done_at:TS+'T15:00:30+09:00', done_ymd:TS }); this.raceOnce = false; } return out; }
         return JSON.stringify(this.list());
       }
       const body = req.postData() ? JSON.parse(req.postData()) : null;
@@ -50,7 +50,7 @@ function makeStore(){
       if (m === 'POST'){ const r = Object.assign({ id: ++seq, status:'대기', done_by:'', done_at:null, done_ymd:null, history:[], created_at: TS+'T15:00:00+09:00', updated_at: TS+'T15:00:00+09:00' }, body[0]); rows.push(r); return JSON.stringify([r]); }
       const id = +(/id=eq\.(\d+)/.exec(url) || [])[1];
       const r = rows.find(x => x.id === id);
-      if (m === 'PATCH'){ if (!r || (/status=eq\./.test(url) && r.status !== '대기')) return '[]'; Object.assign(r, body); r.updated_at = TS+'T15:01:00+09:00'; return JSON.stringify([r]); }
+      if (m === 'PATCH'){ if (!r || (/status=eq\./.test(url) && r.status !== '대기') || (/ymd=eq\.([\d-]+)/.test(url) && r.ymd !== RegExp.$1)) return '[]'; Object.assign(r, body); r.updated_at = TS+'T15:01:00+09:00'; return JSON.stringify([r]); }
       if (m === 'DELETE'){ const i = rows.indexOf(r); if (i >= 0) rows.splice(i, 1); return ''; }
       return '{}';
     }
@@ -154,6 +154,7 @@ function makeStore(){
   await page.click('#tk-list .tk-item[data-id="1"] button[data-act="fail-save"]');
   await page.waitForFunction(() => !document.querySelector('#tk-list .tk-item[data-id="1"]'), null, { timeout: 8000 });
   w = store.writes[store.writes.length - 1];
+  ok('④ PATCH 조건: 대기 상태 + 읽은 날짜 그대로일 때만(동시 처리 방지)', /id=eq\.1&status=eq\./.test(w.url) && new RegExp('ymd=eq\\.' + YDAY).test(w.url), w.url);
   ok('④ PATCH: 내일 날짜 + 이력(이유·누가·어디로)', w.method === 'PATCH' && w.body.ymd === TMRW && w.body.history.length === 2 && w.body.history[1].reason === '학생이 오늘 안 와서' && w.body.history[1].by === '박언호' && w.body.history[1].to === TMRW && w.body.history[1].ymd === YDAY && w.body.loc === '본원', JSON.stringify(w.body));
   r = await page.evaluate(() => ({ badge: document.getElementById('tk-cnt').textContent, status: document.getElementById('status').textContent }));
   ok('④ 오늘 목록에서 빠지고 안내', r.badge === '2' && /넘겼어요/.test(r.status), JSON.stringify(r));
@@ -171,7 +172,8 @@ function makeStore(){
   /* ⑥ 센터 필터 */
   ({ page, ctx, store } = await open({ vloc: '화정센터' }));
   r = await page.evaluate(() => ({ items: [...document.querySelectorAll('#tk-list .tk-item')].map(e => e.querySelector('.tk-loc').textContent), badge: document.getElementById('tk-cnt').textContent, pill: document.querySelector('#tk-pills button.on').textContent, note: document.querySelector('#tk-list .mdesc') ? document.querySelector('#tk-list .mdesc').textContent : '' }));
-  ok('⑥ 화정센터로 거르면 화정·전체 요청만, 배지는 전체 수, 알약은 그 센터', r.items.join() === '전체' && r.badge === '2' && r.pill === '화정센터' && /화정센터과 전체 요청만/.test(r.note), JSON.stringify(r));
+  ok('⑥ 화정센터로 거르면 화정·전체 요청만, 배지는 전체 수', r.items.join() === '전체' && r.badge === '2' && /화정센터과 전체 요청만/.test(r.note), JSON.stringify(r));
+  ok('⑥ 작성 센터 알약은 보기 거르기를 따라가지 않음(기억한 값 없으면 본원 — Codex P2)', r.pill === '본원', r.pill);
   await ctx.close();
 
   /* ⑦ 이름 없으면 한 번 묻기 */
@@ -215,6 +217,38 @@ function makeStore(){
   r = await page.evaluate(() => ({ title: document.querySelector('.tk-week .memotitle').textContent, rows: document.querySelectorAll('.tk-week .tk-wd').length, lines: [...document.querySelectorAll('.tk-week .tk-ln')].map(e => e.textContent), after: document.querySelector('.tk-week').previousElementSibling.className }));
   ok('⑩ 주간 메모 아래 "이 주" 상자, 날짜 7줄', /할 일 · 전달 사항 — 이 주/.test(r.title) && r.rows === 7 && r.after === 'memobox', JSON.stringify([r.title, r.rows, r.after]));
   ok('⑩ 대기·완료·못 함 이력이 날짜 줄에', r.lines.some(l => /허민 병결.*대기/.test(l)) && r.lines.some(l => /출석 체크는.*완료 · 박언호 14:02/.test(l)) && r.lines.some(l => /보충 일정 확인.*김상우 못 함 →/.test(l)), JSON.stringify(r.lines));
+  await ctx.close();
+
+  /* ⑪ Codex 검토 반영(2026-10-08): 앞 괄호 이름 · 동시 처리 · 보기 거르기와 저장 위치 */
+  ({ page, ctx, store } = await open());
+  await page.fill('#tk-in', '심지후 교재 전달 부탁드립니다');
+  await page.press('#tk-in', 'Enter');
+  await page.waitForFunction(() => document.querySelectorAll('#tk-list .tk-item').length === 4, null, { timeout: 8000 });
+  w = store.writes[store.writes.length - 1];
+  r = await page.evaluate(() => { const c = [...document.querySelectorAll('.blk .stus button')].find(e => /심지후/.test(e.textContent)); return { has: !!c, task: !!(c && c.classList.contains('task')), title: c ? c.title : '' }; });
+  ok('⑪ "(화정)심지후" 명단 학생도 앞 괄호 뗀 이름으로 저장 + 칩에 붉은 점', w.body[0].student === '심지후' && r.has && r.task && /할 일: 심지후 교재 전달/.test(r.title), JSON.stringify([w.body[0].student, r]));
+  // 읽은 직후 다른 조교가 [완료]를 누른 상황 — 못 함 PATCH가 완료된 줄을 덮어쓰지 않는다
+  store.raceOnce = true;
+  await page.click('#tk-list .tk-item[data-id="1"] button[data-act="fail"]');
+  await page.fill('#tk-list .tk-item[data-id="1"] .tk-reason textarea', '시간이 없어서');
+  const nw = store.writes.length;
+  await page.click('#tk-list .tk-item[data-id="1"] button[data-act="fail-save"]');
+  await page.waitForFunction(() => /먼저 처리/.test(document.getElementById('status').textContent), null, { timeout: 8000 });
+  r = store.rows.find(x => x.id === 1);
+  ok('⑪ 동시 처리: PATCH는 보냈지만 조건에 걸려 아무 줄도 안 바뀌고 안내', store.writes.length === nw + 1 && r.status === '완료' && r.ymd === YDAY && r.history.length === 1, JSON.stringify([store.writes.length - nw, r.status, r.ymd, r.history.length]));
+  await page.waitForFunction(() => document.querySelector('#tk-list .tk-item[data-id="1"].done'), null, { timeout: 8000 });
+  ok('⑪ 목록을 다시 불러와 완료 줄로 보임', true);
+  await ctx.close();
+  // 기억한 작성 센터가 본원인 조교가 화정센터 보기로 거르고 남겨도 본원으로 저장된다
+  ({ page, ctx, store } = await open({ vloc: '화정센터' }));
+  await page.evaluate(() => localStorage.setItem('tt_task_loc', '본원'));
+  await page.reload(); await page.waitForSelector('#tk-pills', { timeout: 15000 }); await page.waitForTimeout(400);
+  await page.fill('#tk-in', '프린터 토너 교체');
+  await page.press('#tk-in', 'Enter');
+  await page.waitForFunction(s => s.writes.length >= 1, null, { timeout: 8000 }).catch(() => {});
+  await page.waitForTimeout(600);
+  w = store.writes[store.writes.length - 1];
+  ok('⑪ 화정센터 보기 중에도 기억한 본원으로 저장(보기는 저장 위치를 바꾸지 않음)', w && w.method === 'POST' && w.body[0].loc === '본원', JSON.stringify(w && w.body));
   await ctx.close();
 
   await b.close(); srv.close();

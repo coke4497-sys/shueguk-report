@@ -2443,8 +2443,13 @@
                     reason: reason.slice(0, 300), to: to, at: nowIso() });
         var patch = { ymd: to, history: hist };
         if (loc) patch.loc = loc;
-        return sbWrite('PATCH', '/tt_tasks?id=eq.' + id, patch, { 'Prefer': 'return=representation' })
-          .then(function(rs){ return ok({ task: taskShape(rs[0]) }); });
+        // 읽은 뒤 다른 조교가 [완료]나 [못 했어요]를 눌렀으면(상태·날짜가 바뀜) 덮어쓰지 않는다 — Codex 검토 P1(2026-10-08)
+        var cond = '&status=eq.%EB%8C%80%EA%B8%B0&ymd=eq.' + q(String(r.ymd || '').slice(0, 10));
+        return sbWrite('PATCH', '/tt_tasks?id=eq.' + id + cond, patch, { 'Prefer': 'return=representation' })
+          .then(function(rs){
+            if (!rs || !rs.length) return { result:'error', message:'다른 조교가 먼저 처리한 요청이에요. 목록을 다시 불러옵니다.' };
+            return ok({ task: taskShape(rs[0]) });
+          });
       });
     },
     ttTaskDelete: function(b){
@@ -4223,7 +4228,7 @@ function blockEl(c, forList){
         ? ('이 주만 빠짐' + (awayOf[plain].reason ? ' — ' + awayOf[plain].reason : ''))
         : ('이 주 1회 이동: ' + awayOf[plain].label));
       if (planOf[plain]) tp.push(planOf[plain]);
-      var tk = tkByName[plain];   // 이 학생에게 걸린 할 일(2026-10-08) — 붉은 점 + 설명
+      var tk = tkByName[plainName(nm)];   // 이 학생에게 걸린 할 일(2026-10-08) — 붉은 점 + 설명. 앞 괄호(학교 구분)도 뗀 이름으로 저장돼 있다
       if (tk) tp.push('할 일: ' + tk.text + (tk.author ? ' (' + tk.author + ')' : ''));
       return '<button data-att-cid="'+esc(c.id)+'" data-nm="'+esc(nm)+'" class="'+cls2+(away?' away':'')+(planOf[plain]?' plan-once':'')+(tk?' task':'')+'"'+
              (away ? ' data-away-row="'+awayOf[plain].row+'"' : '')+
@@ -10265,7 +10270,7 @@ function tkRender(){
          done.map(function(t){ return tkItemHtml(t, true); }).join('');
   box.innerHTML = h;
   if (comp && !tkMissing){
-    var cur = viewLoc || localStorage.getItem('tt_task_loc') || '본원';
+    var cur = localStorage.getItem('tt_task_loc') || '본원';   // 보기 거르기(viewLoc)는 저장 위치에 끼우지 않는다 — Codex 검토 P2(2026-10-08)
     if (TK_LOCS.indexOf(cur) < 0) cur = '본원';
     comp.innerHTML = '<div class="tk-pills" id="tk-pills">' + TK_LOCS.map(function(l){
         return '<button type="button" data-loc="' + esc(l) + '"' + (l === cur ? ' class="on"' : '') + '>' + esc(tkLocLabel(l)) + '</button>';
