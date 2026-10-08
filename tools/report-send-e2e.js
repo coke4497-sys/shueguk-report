@@ -100,7 +100,7 @@ function serve(){
   ok('보낸 뒤 — 리포트 전체 + 선생님의 한 마디', /시험 총평/.test(r.sent) && /선생님의 한 마디잘했어요/.test(r.sent), r.sent.slice(0, 200));
   ok('보냄 여부를 모르면(043 전·옛 경로) 한 마디가 있을 때만 리포트', /준비하고 있습니다/.test(r.legacyNo) && /시험 총평/.test(r.legacyYes));
   ok('시험 목록 — 세로 목록, 최근 제출이 맨 위', r.listShown === 'flex' && r.items.length === 2 && /26-2-중간/.test(r.items[0]) && /25-1-기말/.test(r.items[1]) && r.detail === '', JSON.stringify(r.items));
-  ok('목록 줄 — 준비 중 / 리포트 도착 · 예상 점수', /준비 중/.test(r.items[0]) && /리포트 도착/.test(r.items[1]) && /예상 96점/.test(r.items[1]) && /2026-10-03 00:37/.test(r.items[0]), JSON.stringify(r.items));
+  ok('목록 줄 — 준비 중 / 리포트 도착 · 점수', /준비 중/.test(r.items[0]) && /리포트 도착/.test(r.items[1]) && / · 96점/.test(r.items[1]) && /2026-10-03 00:37/.test(r.items[0]), JSON.stringify(r.items));
   await sp.click('.exam-item >> nth=1');
   r = await sp.evaluate(() => ({ list: document.getElementById('examTabs').style.display, txt: document.getElementById('examList').textContent, back: !!document.querySelector('.exam-back') }));
   ok('누르면 그 리포트를 연다(목록은 숨김 · [시험 목록] 버튼)', r.list === 'none' && r.back && /25-1-기말-화정고1-국어/.test(r.txt) && /시험 총평/.test(r.txt), r.txt.slice(0, 120));

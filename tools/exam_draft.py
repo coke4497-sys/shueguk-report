@@ -7,7 +7,7 @@
   2) python3 tools/exam_draft.py get 12 <스크래치>/d12
        → 올린 파일(시험지·정답지, 사진·PDF)을 내려받고 meta.json(제목·범위·메모·파일 순서)을 쓴다
   3) 클로슈가 파일을 읽고 draft.json 을 쓴다
-       {"text","answers":[{"no","ans"}],"scope","review":[문단],"questions":[{no,group,area,detail,type,lv,txt,multi}],"notes":[…]}
+       {"text","answers":[{"no","ans"}],"scope","review":[문단],"questions":[{no,group,area,detail,type,lv,txt,multi,pts?}],"notes":[…]}
   4) python3 tools/exam_draft.py put 12 draft.json      → 형식 검사 뒤 저장, status '완료'
      python3 tools/exam_draft.py check draft.json       → 저장하지 않고 형식 검사만
      못 만들면: python3 tools/exam_draft.py hold 12 "이유"
@@ -104,7 +104,7 @@ def validate(d):
     if not isinstance(qs, list) or not qs:
         return errs + ['questions 가 비어 있습니다']
     pats = set(txt_patterns())
-    seen, groups, last = set(), {}, None
+    seen, groups, last, pts_sum = set(), {}, None, 0
     for i, q in enumerate(qs):
         at = '%s번' % q.get('no', '?(%d)' % (i + 1))
         no = str(q.get('no', '')).strip()
@@ -124,6 +124,13 @@ def validate(d):
             errs.append('%s 형식 %r' % (at, q.get('type')))
         if q.get('lv') not in LEVELS:
             errs.append('%s 난이도 %r 은 %s 중 하나여야 합니다' % (at, q.get('lv'), '·'.join(LEVELS)))
+        pts = q.get('pts', 0)
+        if pts is None:
+            pts = 0
+        if isinstance(pts, bool) or not isinstance(pts, (int, float)) or pts < 0:
+            errs.append('%s 배점 %r 은 0 이상의 숫자여야 합니다(시험지에 없으면 생략)' % (at, pts))
+        else:
+            pts_sum = pts_sum + pts
         txt = str(q.get('txt', '')).strip()
         parts = re.split(r'\n?\s*[<〈]\s*보기\s*[>〉]\s*:\s*', txt, maxsplit=1)
         base = parts[0].strip()
@@ -141,6 +148,11 @@ def validate(d):
                 errs.append('지문 묶음 %r 안에서 영역·세부유형이 다릅니다(%s) — 화면은 첫 문항 것만 읽으니 묶음을 나눌 것' % (g, at))
             groups.setdefault(g, (area, det))
         last = g
+    # 배점(046): 시험지에 배점이 있으면 전 문항에 적고 합이 100점이어야 한다. 하나도 없으면 복기 화면이 균등 배점으로 센다.
+    if pts_sum and abs(pts_sum - 100) > 0.009:
+        errs.append('배점 합계가 %s점입니다 — 100점이 되게 맞추거나(시험지 배점 그대로), 배점을 모르면 전부 생략할 것' % pts_sum)
+    if pts_sum and any(not (q.get('pts') or 0) for q in qs if isinstance(q, dict)):
+        errs.append('배점이 빠진 문항이 있습니다 — 적으려면 모든 문항에 적을 것')
     return errs
 
 

@@ -3129,7 +3129,7 @@ function examCardHtml(x){
   h += '<h2 class="sec-h">학생 정보</h2><div class="info-grid">'+
     cell('이름', name)+
     cell('학교·학년', sch)+
-    cell('예상 점수', score)+
+    cell('점수', score)+
     cell('틀린 문항', (x.wrongCount||0)+'개')+
     cell('제출일', x.submittedAt||'')+
     '</div>';
@@ -3188,7 +3188,7 @@ function examsSorted(){
 function examItemHtml(x, i){
   var sent = examSent(x);
   var sub = '복기 제출 '+esc(x.submittedAt||'');
-  if (sent && x.score && String(x.score).trim()!=='') sub += ' · 예상 '+esc(x.score)+'점';
+  if (sent && x.score && String(x.score).trim()!=='') sub += ' · '+esc(x.score)+'점';
   return '<button class="exam-item" onclick="pickExam('+i+')">'+
     '<span class="ei-main"><span class="ei-title">'+esc(x.title||('시험 '+(i+1)))+'</span>'+
     '<span class="ei-sub" style="display:block">'+sub+'</span></span>'+
