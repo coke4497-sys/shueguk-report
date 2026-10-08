@@ -9660,6 +9660,15 @@ function openOnceManage(c, nm, row, dir, dateStr){
   var to = classes.find(function(x){ return x.id===o.toId; });
   var cur = attendAt(attDate, c.id, nm);
   var isToday = (mode === 'today');
+  // 이동이 적용되는 날이 보고 있는 날짜와 다르면(결석 뒤 다른 날 보충으로 잡은 1회 이동 등) 그 날짜를 적어 준다
+  var otherDay = !!(dir === 'out' && o.ymd && o.ymd !== attDate);
+  var mdOf = function(y){ return y.slice(5).replace(/^0/, '').replace('-0', '/').replace('-', '/') + '(' + mkDayOf(y) + ')'; };
+  // 이 반에 그 날 출석 기록이 있으면(예: 결석을 찍은 뒤 결석자 관리에서 다른 날 보충 1회 이동) 기록과 결석 알림톡 줄을 함께 보여 준다
+  // — 그전엔 보충 1회 이동이 잡힌 학생은 칩이 이 창으로만 열려 결석 알림톡을 보낼 길이 없었다(2026-10-08 수정 요청함 최예나).
+  var recSec = (dir === 'out' && cur)
+    ? '<p class="mdesc">이 반 '+esc(mdOf(attDate))+' 출석 기록 — <b>'+esc(cur.status)+'</b>'+(cur.memo ? ' · '+esc(cur.memo) : '')+'</p>'+
+      (cur.status === '결석' ? '<div class="al-line" id="att-alim"></div>' : '')
+    : '';
   // 이동해 온 학생의 출석은 오늘·주차별 모두에서 — 주차별은 지난 날짜 수정용 (2026-08-23)
   var attSec = (dir === 'in')
     ? '<div class="att-btns">'+
@@ -9674,9 +9683,12 @@ function openOnceManage(c, nm, row, dir, dateStr){
     '<h3>'+(dir === 'in' ? '출석 체크 — 1회 이동 학생' : '1회 이동 학생')+'</h3>'+
     '<p class="mdesc"><b>'+esc(plainName(nm))+'</b> ('+esc(o.date)+')<br>'+
     esc(from ? labelOf(from) : '') + ' → ' + esc(to ? labelOf(to) : '') +
-    (dir==='out' ? '<br>이 날은 이동한 반에서 수업해요. 출석 체크도 그 반에서 해주세요.' : '')+'</p>'+
+    (dir==='out' ? (otherDay
+        ? '<br>'+esc(mdOf(o.ymd))+'에 이동한 반에서 수업해요. 그 날 출석 체크는 그 반에서 해주세요.'
+        : '<br>이 날은 이동한 반에서 수업해요. 출석 체크도 그 반에서 해주세요.') : '')+'</p>'+
     attTelHtml()+
     (o.reason ? '<p class="mdesc" style="background:var(--icon-bg);border-radius:9px;padding:8px 10px;">이동 사유 — '+esc(o.reason)+'</p>' : '')+
+    recSec +
     attSec +
     (isToday
       ? '<p class="mdesc hint-x">사유를 고치거나 이동을 취소하려면 <b>주차별 시간표</b>에서 해주세요.</p>'
@@ -9690,6 +9702,7 @@ function openOnceManage(c, nm, row, dir, dateStr){
     '<button onclick="closeModal()">닫기</button></div>'
   );
   attTelFill(nm);
+  if (dir === 'out' && cur && cur.status === '결석') alimAttLine(c.id, nm, attDate);
 }
 /* 그 주만 추가·빼기 기록 관리 — 출석 체크(추가된 학생)와 되돌리기 */
 function openWeekManage(c, nm, o, dir){

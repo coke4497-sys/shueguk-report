@@ -226,6 +226,28 @@ const posts = [];
   await page.waitForFunction(() => (document.getElementById('att-alim') || {}).textContent.includes('설정 전'), null, { timeout: 5000 });
   ok('출석 창 설정 전 안내', true);
 
+  // 12) 결석을 찍은 뒤 다른 날 보충으로 1회 이동이 잡힌 학생 — 칩이 '1회↗'로 바뀌어 1회 이동 창으로 열리는데,
+  //     그 창에도 그 날 출석 기록과 결석 알림톡 줄이 있어야 한다(2026-10-08 수정 요청함 최예나 "출석 창에 뜨지 않아요").
+  cfg = { result:'success', ready:true, has:{ key:true, secret:true, from:false, pfId:true }, smsFallback:false, templates:{ absent:{ label:'결석 안내', text: TPL, vars:['학생명','수업일','반이름'], ready:true } } };
+  const wkTo = await page.evaluate(() => { closeModal(); multiMode = false; multiSel = {}; moving = null; alimCfg = null;
+    attend = {}; attend[attKey('r010', '정서현')] = { status: '결석', memo: '병결' };
+    var to = thisWeekRange().to;
+    onceMoves.push({ row: 9001, kind: '1회', student: '정서현', fromId: 'r010', toId: 'r011', ymd: to, date: todayStr(), reason: '결석 보충' });
+    render(); return to; });
+  const awayChip = await page.$('.stus button[data-nm="정서현"][data-away-row]');
+  ok('보충 1회 이동이 잡힌 학생 칩은 1회↗(away)', !!awayChip);
+  await awayChip.click();
+  await page.waitForFunction(() => (document.getElementById('att-alim') || {}).textContent.includes('알림톡'), null, { timeout: 8000 });
+  const omTxt = await modalText();
+  ok('1회 이동 창에 그 날 출석 기록(결석 · 병결)', omTxt.includes('1회 이동 학생') && omTxt.includes('출석 기록') && omTxt.includes('결석') && omTxt.includes('병결'), omTxt);
+  ok('이동이 다른 날이면 그 날짜를 적는다', wkTo === ymd ? omTxt.includes('이 날은 이동한 반에서') : omTxt.includes('에 이동한 반에서 수업해요'), omTxt);
+  const omAlim = await page.textContent('#att-alim');
+  ok('결석 알림톡 줄 — 아직 안 보냄 + [알림톡 보내기]', omAlim.includes('아직 안 보냄') && (await page.textContent('#att-alim button')) === '알림톡 보내기', omAlim);
+  await page.click('#att-alim button');
+  await page.waitForFunction(() => document.getElementById('modal-box').textContent.includes('결석 알림톡'), null, { timeout: 8000 });
+  ok('[알림톡 보내기] → 결석 알림톡 확인 창', (await modalText()).includes('결석 알림톡'));
+  await page.evaluate(() => { closeModal(); onceMoves = onceMoves.filter(o => o.row !== 9001); attend = {}; render(); });
+
   console.log(fail ? ('✗ ' + fail + '건 실패 / ' + pass + '건 통과') : ('✓ ' + pass + '건 통과'));
   await b.close(); srv.close(); process.exit(fail ? 1 : 0);
 })().catch(e => { console.log('ERROR', e); process.exit(1); });
