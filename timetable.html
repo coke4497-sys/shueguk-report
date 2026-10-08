@@ -786,6 +786,75 @@
     border-radius:8px;padding:5px 10px;cursor:pointer;color:var(--ink);white-space:nowrap;}
   .mk-item .mk-row button.done-btn{background:var(--btn);border-color:var(--btn);color:#fff;}
   .mk-sec{font-size:.8rem;color:var(--ink-soft);margin:12px 0 2px;font-weight:700;}
+  /* ── 오늘 할 일 · 전달 사항 (2026-10-08) — 옆 패널 위쪽 상자, 학생 칩 점, 휴대폰 접힌 줄 ── */
+  .tk-cnt{position:absolute;top:-6px;right:-6px;min-width:18px;height:18px;padding:0 5px;border-radius:999px;
+    background:#C64F63;color:#fff;font-family:"Do Hyeon","Gowun Dodum",sans-serif;font-style:normal;font-size:.72rem;
+    display:inline-flex;align-items:center;justify-content:center;line-height:1;}
+  .tk-cnt[hidden]{display:none;}
+  .tk-head b{white-space:nowrap;}
+  .tk-logbtn{font:inherit;font-size:.72rem;border:1px solid var(--line);background:#fff;border-radius:7px;padding:2px 8px;cursor:pointer;color:var(--ink-soft);margin-left:auto;letter-spacing:0;}
+  .tk-logbtn:hover,.tk-logbtn.on{border-color:var(--btn);color:var(--accent);background:var(--icon-bg);}
+  .tk-list{max-height:60%;overflow-y:auto;padding:6px 11px 8px;border-bottom:1px solid var(--line-soft);flex:0 1 auto;}
+  .tk-sec{font-size:.72rem;letter-spacing:.05em;color:var(--ink-soft);margin:8px 0 2px;display:flex;align-items:center;gap:8px;}
+  .tk-item{display:grid;grid-template-columns:auto 1fr;gap:4px 8px;align-items:start;padding:8px 2px;border-bottom:1px dashed var(--line-soft);font-size:.84rem;}
+  .tk-item:last-child{border-bottom:none;}
+  .tk-item.done{opacity:.6;}
+  .tk-loc{font-size:.7rem;font-weight:700;border-radius:6px;padding:2px 7px;white-space:nowrap;margin-top:2px;}
+  .tk-loc.l-본원{background:#F9EFD0;color:#9B8046;} .tk-loc.l-화정센터{background:#EDE4F4;color:#5A4A6A;}
+  .tk-loc.l-민트초코{background:#DFEBE6;color:#4C6E66;} .tk-loc.l-정리정독{background:#E9EDF8;color:#64749E;}
+  .tk-loc.l-전체{background:#EFF1EF;color:#6A716C;}
+  .tk-txt{min-width:0;}
+  .tk-txt .t{line-height:1.4;}
+  .tk-txt .t .carried{font-size:.68rem;background:#F7E2DE;color:#B0736A;border-radius:5px;padding:1px 6px;margin-right:5px;vertical-align:1px;}
+  .tk-txt .stu{display:inline-block;background:#E9EDF8;color:#64749E;border-radius:5px;padding:0 6px;font-size:.74rem;margin-left:4px;}
+  .tk-txt .meta{font-size:.72rem;color:var(--ink-soft);margin-top:2px;}
+  .tk-txt .meta b{color:var(--ink);}
+  .tk-txt .meta .ok{color:var(--accent);font-weight:700;}
+  .tk-hist{display:flex;flex-direction:column;gap:3px;margin-top:4px;}
+  .tk-hist span{font-size:.72rem;color:#B0736A;background:#F7E2DE;border-radius:6px;padding:2px 8px;width:fit-content;max-width:100%;}
+  .tk-acts{grid-column:1 / -1;display:flex;gap:5px;flex-wrap:wrap;justify-content:flex-end;}
+  .tk-acts button{font:inherit;font-size:.76rem;border:1px solid var(--line);background:#fff;border-radius:8px;padding:4px 10px;cursor:pointer;color:var(--ink);}
+  .tk-acts button.ok{background:var(--btn);border-color:var(--btn);color:#fff;}
+  .tk-acts button.no{background:#F7E2DE;border-color:#F7E2DE;color:#B0736A;}
+  .tk-acts button.del{color:var(--ink-soft);}
+  .tk-reason{grid-column:1 / -1;background:#FBF0EE;border-radius:9px;padding:8px 10px;display:flex;flex-direction:column;gap:6px;}
+  .tk-reason label{font-size:.76rem;color:#B0736A;font-weight:700;}
+  .tk-reason textarea{font:inherit;font-size:.84rem;border:1.5px solid var(--line);border-radius:8px;padding:6px 9px;min-height:50px;resize:vertical;width:100%;}
+  .tk-reason .row{display:flex;gap:6px;flex-wrap:wrap;align-items:center;font-size:.76rem;color:#B0736A;}
+  .tk-reason select{font:inherit;font-size:.78rem;border:1px solid var(--line);border-radius:8px;padding:3px 7px;background:#fff;}
+  .tk-compose{padding:8px 11px 10px;border-bottom:1px solid var(--line-soft);display:flex;flex-direction:column;gap:6px;}
+  .tk-pills{display:flex;gap:4px;flex-wrap:wrap;}
+  .tk-pills button{font:inherit;font-size:.72rem;border:0;border-radius:999px;padding:3px 9px;background:var(--line-soft);color:var(--ink-soft);cursor:pointer;}
+  .tk-pills button.on{background:#EDE4F4;color:#5A4A6A;font-weight:700;}
+  .tk-row{display:flex;gap:6px;}
+  .tk-row input{flex:1;min-width:0;font:inherit;font-size:.84rem;border:1.5px solid var(--line);border-radius:8px;padding:6px 9px;}
+  .tk-row input:focus{outline:none;border-color:var(--accent);}
+  .tk-row button{font:inherit;font-size:.8rem;border:0;border-radius:8px;padding:6px 12px;background:#EDE4F4;color:#5A4A6A;cursor:pointer;white-space:nowrap;}
+  .tk-who{font-size:.72rem;color:var(--ink-soft);}
+  .tk-who b{color:var(--ink);}
+  .tk-note{font-size:.78rem;color:#B0736A;background:#FBF0EE;border-radius:8px;padding:6px 9px;margin-top:6px;}
+  .tk-log .tk-day{font-family:"Gowun Batang",serif;font-weight:700;font-size:.82rem;margin:8px 0 2px;}
+  .tk-log .tk-ln{display:flex;gap:6px;align-items:flex-start;flex-wrap:wrap;font-size:.8rem;padding:3px 0;border-bottom:1px dashed var(--line-soft);}
+  .tk-log .tk-ln em{font-style:normal;color:var(--accent);font-weight:700;margin-left:auto;font-size:.74rem;white-space:nowrap;}
+  .tk-log .tk-ln em.no{color:#B0736A;}
+  .tk-log .tk-ln em.wait{color:var(--ink-soft);font-weight:400;}
+  /* 학생 칩에 할 일이 걸려 있으면 붉은 점 */
+  .blk .stus button.task{position:relative;}
+  .blk .stus button.task::after{content:"";position:absolute;top:-3px;right:-3px;width:8px;height:8px;border-radius:50%;background:#C64F63;}
+  /* 휴대폰·좁은 화면: 시간표 위 접힌 줄 — 누르면 옆 패널이 열린다 */
+  .tk-strip{display:flex;align-items:center;gap:8px;width:calc(100% - 8px);margin:0 4px 10px;padding:8px 11px;font:inherit;font-size:.82rem;
+    background:#F6F7F6;border:1px solid var(--line-soft);border-radius:11px;color:var(--ink);cursor:pointer;text-align:left;}
+  .tk-strip b{font-family:"Gowun Batang",serif;color:var(--accent);}
+  .tk-strip .tk-cnt{position:static;}
+  .tk-strip small{color:var(--ink-soft);margin-left:auto;}
+  /* 주차별 아래 '이 주 할 일' 상자 */
+  .tk-week .tk-wd{display:grid;grid-template-columns:72px 1fr;gap:4px 8px;padding:6px 0;border-bottom:1px dashed var(--line-soft);font-size:.84rem;}
+  .tk-week .tk-wd:last-child{border-bottom:none;}
+  .tk-week .wm-day{font-weight:700;color:var(--accent);}
+  .tk-week .tk-ln{display:flex;gap:6px;align-items:flex-start;flex-wrap:wrap;padding:2px 0;}
+  .tk-week .tk-ln em{font-style:normal;color:var(--accent);font-weight:700;font-size:.74rem;}
+  .tk-week .tk-ln em.no{color:#B0736A;} .tk-week .tk-ln em.wait{color:var(--ink-soft);font-weight:400;}
+  @media (max-width:560px){ .tk-week .tk-wd{grid-template-columns:1fr;} }
   /* ── 카카오 알림톡 (2026-09-11) — 결석 알림 확인 창·설정·기록 ── */
   .al-prev{background:#F7F5EC;border-radius:10px;padding:10px 12px;font-size:.86rem;white-space:pre-wrap;word-break:break-word;line-height:1.5;margin-top:8px;}
   .al-row{display:flex;align-items:center;gap:8px;padding:7px 4px;border-bottom:1px solid var(--line-soft);font-size:.88rem;flex-wrap:wrap;}
@@ -1276,16 +1345,25 @@
 <aside class="chpanel closed" id="vmpanel" hidden>
   <button class="ch-tab" id="vm-tab" onclick="vmToggle()" aria-expanded="false" aria-controls="vm-inner">
     <svg class="chev" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
-    오<br>늘<br>보<br>충
+    할<br>일<br>·<br>보<br>충<i class="tk-cnt" id="tk-cnt" hidden></i>
   </button>
   <div class="ch-inner" id="vm-inner">
-    <div class="ch-head">
-      <b>오늘 보충 방문</b><span class="ch-sub" id="vm-sub"></span><span class="sp"></span>
-      <button class="ch-ico" onclick="vmReload()" title="다시 불러오기" aria-label="다시 불러오기">
+    <!-- 오늘 할 일 · 전달 사항 — 오늘 보충 방문 위 (2026-10-08 원장님 "오늘 보충 방문 팝업 위에 표시") -->
+    <div class="ch-head tk-head">
+      <b>오늘 할 일 · 전달 사항</b><span class="ch-sub" id="tk-sub"></span><span class="sp"></span>
+      <button class="ch-ico" onclick="tkReload()" title="다시 불러오기" aria-label="할 일 다시 불러오기">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 3v6h-6"/></svg>
       </button>
       <button class="ch-ico" onclick="vmToggle()" aria-label="접기">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </div>
+    <div class="tk-list" id="tk-list"><span class="ch-none">불러오는 중…</span></div>
+    <div class="tk-compose" id="tk-compose"></div>
+    <div class="ch-head">
+      <b>오늘 보충 방문</b><span class="ch-sub" id="vm-sub"></span><span class="sp"></span>
+      <button class="ch-ico" onclick="vmReload()" title="다시 불러오기" aria-label="다시 불러오기">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 3v6h-6"/></svg>
       </button>
     </div>
     <div class="ch-list" id="vm-side"><span class="ch-none">불러오는 중…</span></div>
@@ -1544,6 +1622,13 @@
     return { date: r.off_date, teacher: String(r.teacher || '').trim(), reason: String(r.reason || '').trim() };
   }
   function attTodayShape(a){ return { classId: a.class_id, student: a.student, status: a.status, memo: a.memo }; }
+  function taskShape(r){
+    var hist = Array.isArray(r.history) ? r.history : [];
+    return { id: r.id, ymd: String(r.ymd || '').slice(0, 10), loc: String(r.loc || '전체'), text: String(r.text || ''),
+             student: String(r.student || ''), author: String(r.author || ''), status: String(r.status || '대기'),
+             doneBy: String(r.done_by || ''), doneAt: r.done_at || '', doneYmd: r.done_ymd ? String(r.done_ymd).slice(0, 10) : '',
+             history: hist, createdAt: r.created_at || '' };
+  }
   function attWeekShape(a){ return { date: a.date, classId: a.class_id, student: a.student, status: a.status, memo: a.memo }; }
 
   /* ── GET 핸들러 ── */
@@ -1591,6 +1676,29 @@
         }
         return ok(out);
       });
+    },
+    /* 오늘 할 일 · 전달 사항 (045) — 대기 중인 것은 그 날짜 이하 전부(지난 요청 포함), 완료는 그 날 끝낸 것만 */
+    ttTaskList: function(p){
+      var d = (p.get('date') || '').trim() || tYmd();
+      return sbGet('/tt_tasks?or=(and(status.eq.%EB%8C%80%EA%B8%B0,ymd.lte.' + q(d) + '),and(status.eq.%EC%99%84%EB%A3%8C,done_ymd.eq.' + q(d) + '))' +
+                   '&select=*&order=ymd,id')
+        .then(function(rows){ return ok({ date: d, tasks: rows.map(taskShape) }); },
+              function(err){
+                if (/sb 404/.test(String(err && err.message))) return ok({ date: d, tasks: [], missing: true });
+                throw err;
+              });
+    },
+    /* 기간 안의 요청 전부 — 보이는 날짜·완료한 날짜·못 함 이력 날짜 중 하나라도 기간에 들면 */
+    ttTaskWeek: function(p){
+      var from = (p.get('from') || '').trim(), to = (p.get('to') || '').trim();
+      if (!from || !to) return Promise.resolve({ result:'error', message:'기간이 필요해요.' });
+      return sbGet('/tt_tasks?or=(and(ymd.gte.' + q(from) + ',ymd.lte.' + q(to) + '),and(done_ymd.gte.' + q(from) + ',done_ymd.lte.' + q(to) + '),updated_at.gte.' + q(from) + ')' +
+                   '&select=*&order=ymd,id')
+        .then(function(rows){ return ok({ from: from, to: to, tasks: rows.map(taskShape) }); },
+              function(err){
+                if (/sb 404/.test(String(err && err.message))) return ok({ from: from, to: to, tasks: [], missing: true });
+                throw err;
+              });
     },
     timetableList: function(p){
       var book = bookOf(p.get('book'));
@@ -2297,6 +2405,52 @@
         return Promise.resolve({ result:'error', message:'날짜와 선생님을 확인해 주세요.' });
       return sbWrite('DELETE', '/tt_teacher_days_off?off_date=eq.' + q(d) + '&teacher=eq.' + q(teacher))
         .then(function(){ return ok({}); });
+    },
+    /* 오늘 할 일 · 전달 사항 (045) */
+    ttTaskAdd: function(b){
+      var d = String(b.date || '').trim() || tYmd(), text = String(b.text || '').trim();
+      var loc = String(b.loc || '전체').trim() || '전체';
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return Promise.resolve({ result:'error', message:'날짜를 확인해 주세요.' });
+      if (!text) return Promise.resolve({ result:'error', message:'내용을 적어 주세요.' });
+      return sbWrite('POST', '/tt_tasks',
+        [{ ymd: d, loc: loc, text: text.slice(0, 300), student: String(b.student || '').trim().slice(0, 40),
+           author: String(b.author || '').trim().slice(0, 40) }],
+        { 'Prefer': 'return=representation' })
+        .then(function(rows){ return ok({ task: taskShape(rows[0]) }); });
+    },
+    ttTaskDone: function(b){
+      var id = parseInt(b.id, 10);
+      if (!id) return Promise.resolve({ result:'error', message:'어느 요청인지 알 수 없어요.' });
+      return sbWrite('PATCH', '/tt_tasks?id=eq.' + id + '&status=eq.%EB%8C%80%EA%B8%B0',
+        { status: '완료', done_by: String(b.by || '').trim().slice(0, 40), done_at: nowIso(), done_ymd: tYmd() },
+        { 'Prefer': 'return=representation' })
+        .then(function(rows){
+          if (!rows.length) return { result:'error', message:'이미 처리된 요청이에요. 목록을 다시 불러옵니다.' };
+          return ok({ task: taskShape(rows[0]) });
+        });
+    },
+    /* 못 함 → 이유를 이력에 남기고 다음 날짜(기본 내일)·받는 곳으로 넘긴다 */
+    ttTaskFail: function(b){
+      var id = parseInt(b.id, 10), reason = String(b.reason || '').trim();
+      var to = String(b.to || '').trim(), loc = String(b.loc || '').trim();
+      if (!id) return Promise.resolve({ result:'error', message:'어느 요청인지 알 수 없어요.' });
+      if (!reason) return Promise.resolve({ result:'error', message:'못 한 이유를 적어 주세요.' });
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(to)) return Promise.resolve({ result:'error', message:'넘길 날짜를 확인해 주세요.' });
+      return sbGet('/tt_tasks?id=eq.' + id + '&select=*').then(function(rows){
+        if (!rows.length || rows[0].status !== '대기') return { result:'error', message:'이미 처리된 요청이에요. 목록을 다시 불러옵니다.' };
+        var r = rows[0], hist = Array.isArray(r.history) ? r.history.slice() : [];
+        hist.push({ ymd: String(r.ymd || '').slice(0, 10), loc: String(r.loc || ''), by: String(b.by || '').trim().slice(0, 40),
+                    reason: reason.slice(0, 300), to: to, at: nowIso() });
+        var patch = { ymd: to, history: hist };
+        if (loc) patch.loc = loc;
+        return sbWrite('PATCH', '/tt_tasks?id=eq.' + id, patch, { 'Prefer': 'return=representation' })
+          .then(function(rs){ return ok({ task: taskShape(rs[0]) }); });
+      });
+    },
+    ttTaskDelete: function(b){
+      var id = parseInt(b.id, 10);
+      if (!id) return Promise.resolve({ result:'error', message:'어느 요청인지 알 수 없어요.' });
+      return sbWrite('DELETE', '/tt_tasks?id=eq.' + id + '&status=eq.%EB%8C%80%EA%B8%B0').then(function(){ return ok({}); });
     },
     timetableWeekClassDel: function(b){
       var book = bookOf(b.book), id = String(b.classId || '').trim();
@@ -3315,6 +3469,7 @@ function renderView(){
     sum.innerHTML = '출석 <b>' + cnt['출석'] + '</b> · 지각 <b>' + cnt['지각'] + '</b> · 결석 <b>' + cnt['결석'] + '</b>';
     host.appendChild(sum);
     var tOff = todayOffStrip(); if (tOff) host.appendChild(tOff);
+    var tkS = tkStrip(); if (tkS) host.appendChild(tkS);
     if (!list.length){
       var em = document.createElement('p');
       em.className = 'empty-day';
@@ -3380,6 +3535,7 @@ function renderView(){
   host.appendChild(useListView() ? buildWeekList()
                  : (weekZoomDay ? buildWeekZoom(weekZoomDay) : buildWeekOverview()));
   host.appendChild(weekMemoSection());
+  host.appendChild(tkWeekSection());
 }
 
 /* ── 슈국 캘린더 (달력 + 주별 기간 + 날짜 메모) ── */
@@ -4067,7 +4223,9 @@ function blockEl(c, forList){
         ? ('이 주만 빠짐' + (awayOf[plain].reason ? ' — ' + awayOf[plain].reason : ''))
         : ('이 주 1회 이동: ' + awayOf[plain].label));
       if (planOf[plain]) tp.push(planOf[plain]);
-      return '<button data-att-cid="'+esc(c.id)+'" data-nm="'+esc(nm)+'" class="'+cls2+(away?' away':'')+(planOf[plain]?' plan-once':'')+'"'+
+      var tk = tkByName[plain];   // 이 학생에게 걸린 할 일(2026-10-08) — 붉은 점 + 설명
+      if (tk) tp.push('할 일: ' + tk.text + (tk.author ? ' (' + tk.author + ')' : ''));
+      return '<button data-att-cid="'+esc(c.id)+'" data-nm="'+esc(nm)+'" class="'+cls2+(away?' away':'')+(planOf[plain]?' plan-once':'')+(tk?' task':'')+'"'+
              (away ? ' data-away-row="'+awayOf[plain].row+'"' : '')+
              (tp.length ? ' title="'+esc(tp.join(' · '))+'"' : '')+'>'+
              esc(plain)+(away ? (awayOf[plain].kind === '주간빼기' ? '<em>이 주 빠짐</em>' : '<em>1회↗</em>')
@@ -9944,6 +10102,8 @@ function vmSyncPanel(){
   if (tab) tab.setAttribute('aria-expanded', vmOpen ? 'true' : 'false');
   vmEnsure();
   vmRenderSide();
+  tkEnsure();
+  tkRender();
 }
 function vmToggle(){
   vmOpen = !vmOpen;
@@ -9995,6 +10155,287 @@ function vmDone(i){
       vmRenderSide();
     } else setStatus('저장 실패: ' + ((res && res.message) || '오류'), 'err');
   });
+}
+
+/* ── 오늘 할 일 · 전달 사항 (2026-10-08 원장님 요청, 045) ──
+ * 옆 패널 위쪽 상자. 요청 한 건 = 날짜·받는 곳(센터)·내용·학생(선택)·작성자.
+ * [완료] = 누른 조교 이름·시각 기록. [못 했어요] = 이유(필수) + 다음 날로 넘김(이력에 남음).
+ * 완료 전 요청은 날마다 '지난 요청'으로 이어서 보인다. 학생을 적으면 그 학생 칩에 붉은 점.
+ * 자동 완료는 없다(원장님 결정 "완료 버튼으로 확인"). 함수 접두 tk, 스타일 .tk-*. */
+var tkList = null, tkFail = false, tkMissing = false, tkLog = null, tkLogOn = false, tkBusy = false, tkByName = {};
+var TK_LOCS = ['본원', '화정센터', '민트초코', '정리정독', '전체'];
+function tkLocLabel(l){ return l === '전체' ? '전체' : wkLocLabel(l); }
+function tkTomorrow(d){ var p = String(d || todayStr()).split('-'); var t = new Date(+p[0], +p[1]-1, +p[2] + 1); return ymdOf(t); }
+function tkMd(ymd){ var p = String(ymd || '').split('-'); return p.length === 3 ? (+p[1]) + '/' + (+p[2]) : ymd; }
+function tkHm(iso){ var d = new Date(iso); return isNaN(d) ? '' : d.getHours() + ':' + String(d.getMinutes()).padStart(2, '0'); }
+function tkVisible(t){ return !viewLoc || t.loc === '전체' || t.loc === viewLoc; }
+function tkEnsure(force){
+  if (mode !== 'today' || tkBusy || (tkList !== null && !force)) return;
+  tkBusy = true;
+  fetch(ENDPOINT + '?action=ttTaskList&date=' + todayStr() + '&pw=' + encodeURIComponent(pw) + '&t=' + Date.now())
+    .then(function(r){ return r.json(); })
+    .then(function(res){
+      tkBusy = false;
+      if (!res || res.result !== 'success'){ tkFail = true; tkList = tkList || []; tkRender(); return; }
+      tkFail = false; tkMissing = !!res.missing;
+      var hadStu = Object.keys(tkByName).length;
+      tkList = res.tasks || [];
+      tkRender();
+      // 학생에게 걸린 할 일이 생기거나 사라지면 칩의 점을 다시 그린다
+      if (Object.keys(tkByName).length !== hadStu || hadStu) { keepScroll = true; render(); }
+    })
+    .catch(function(){ tkBusy = false; tkFail = true; tkList = tkList || []; tkRender(); });
+}
+function tkReload(){ tkList = null; tkLog = null; tkRender(); tkEnsure(true); }
+function tkWaiting(){ return (tkList || []).filter(function(t){ return t.status === '대기'; }); }
+function tkRebuildByName(){
+  tkByName = {};
+  tkWaiting().forEach(function(t){ if (t.student && !tkByName[t.student]) tkByName[t.student] = t; });
+}
+/* 작성자·처리자 이름 — 허브 로그인(alimBy) → 이 기기에 적어 둔 이름 → 한 번 묻는다 */
+function tkWho(cb){
+  var nm = alimBy || localStorage.getItem('tt_task_who') || '';
+  if (nm) return cb(nm);
+  openModal(
+    '<h3>이름을 적어 주세요</h3>' +
+    '<p class="mdesc">누가 남기고 처리했는지 기록에 남습니다. 허브에 로그인하면 자동으로 들어가요. 이 기기에 한 번만 적어 두면 됩니다.</p>' +
+    '<input type="text" id="tk-who-in" placeholder="예: 김상우" maxlength="20">' +
+    '<p class="merr" id="tk-who-err"></p>' +
+    '<div class="mbtns"><button onclick="closeModal()">취소</button><button class="primary" id="tk-who-ok">저장</button></div>');
+  var inp = $('tk-who-in'); if (inp) inp.focus();
+  $('tk-who-ok').onclick = function(){
+    var v = ($('tk-who-in').value || '').trim();
+    if (!v){ $('tk-who-err').textContent = '이름을 적어 주세요.'; return; }
+    localStorage.setItem('tt_task_who', v);
+    closeModal();
+    cb(v);
+  };
+}
+/* 글 안에서 오늘 수업 명단의 학생 이름을 찾는다(가장 긴 이름 하나) — 그 학생 칩에 점을 붙이기 위해 */
+function tkFindStudent(text){
+  var best = '';
+  classes.forEach(function(c){
+    (c.students || []).forEach(function(nm){
+      var p = plainName(nm);
+      if (p.length >= 2 && text.indexOf(p) >= 0 && p.length > best.length) best = p;
+    });
+  });
+  return best;
+}
+function tkItemHtml(t, done){
+  var carried = (!done && t.ymd < todayStr());
+  var hist = (t.history || []).map(function(h){
+    return '<span>' + esc(tkMd(h.ymd)) + ' ' + esc(tkLocLabel(h.loc)) + (h.by ? ' (' + esc(h.by) + ')' : '') + ' 못 함: ' + esc(h.reason) + '</span>';
+  }).join('');
+  return '<div class="tk-item' + (done ? ' done' : '') + '" data-id="' + t.id + '">' +
+    '<span class="tk-loc l-' + esc(t.loc) + '">' + esc(tkLocLabel(t.loc)) + '</span>' +
+    '<div class="tk-txt"><div class="t">' + (carried ? '<span class="carried">지난 요청</span>' : '') + esc(t.text) +
+    (t.student ? '<span class="stu">' + esc(t.student) + '</span>' : '') + '</div>' +
+    '<div class="meta"><b>' + esc(t.author || '이름 없음') + '</b> · ' + esc(tkMd(t.ymd)) + ' (' + mkDayOf(t.ymd) + ')' +
+    (t.createdAt ? ' ' + esc(tkHm(t.createdAt)) : '') + ' 작성' +
+    (done ? ' · <span class="ok">완료 · ' + esc(t.doneBy || '이름 없음') + ' ' + esc(tkHm(t.doneAt)) + '</span>' : '') + '</div>' +
+    (hist ? '<div class="tk-hist">' + hist + '</div>' : '') + '</div>' +
+    (done ? '' : '<div class="tk-acts"><button class="ok" data-act="done">완료</button><button class="no" data-act="fail">못 했어요</button><button class="del" data-act="del" title="잘못 적은 요청 지우기">지우기</button></div>') +
+    '</div>';
+}
+function tkRender(){
+  var el = $('vmpanel'); if (!el || el.hidden) return;
+  var box = $('tk-list'), sub = $('tk-sub'), cnt = $('tk-cnt'), comp = $('tk-compose'); if (!box) return;
+  if (tkLogOn){ tkRenderLog(); return; }
+  if (tkList === null){
+    box.innerHTML = '<span class="ch-none">불러오는 중…</span>';
+    if (sub) sub.textContent = ''; if (comp) comp.innerHTML = '';
+    return;
+  }
+  tkRebuildByName();
+  var all = tkWaiting(), wait = all.filter(tkVisible);
+  var carried = wait.filter(function(t){ return t.ymd < todayStr(); }).length;
+  var done = (tkList || []).filter(function(t){ return t.status === '완료' && tkVisible(t); });
+  if (cnt){ cnt.textContent = all.length; cnt.hidden = !all.length; }
+  if (sub) sub.textContent = tkMissing ? '준비 전' : (wait.length ? ('안 한 일 ' + wait.length + (carried ? ' · 지난 요청 ' + carried : '')) : '모두 마쳤어요');
+  var h = '';
+  if (tkMissing) h += '<div class="tk-note">아직 저장할 곳이 없어요. 수파베이스에 마이그레이션 045(tt_tasks)를 적용하면 바로 쓸 수 있습니다.</div>';
+  else if (tkFail) h += '<div class="tk-note">할 일 목록을 불러오지 못했어요. 지워진 것이 아니니 [다시 불러오기]를 눌러 주세요.</div>';
+  if (viewLoc) h += '<p class="mdesc" style="margin:4px 0 0;font-size:.74rem;">' + esc(wkLocLabel(viewLoc)) + '과 전체 요청만 보여요.</p>';
+  if (wait.length) h += '<div class="tk-sec">대기</div>' + wait.map(function(t){ return tkItemHtml(t, false); }).join('');
+  else if (!tkMissing && !tkFail) h += '<span class="ch-none">' + (all.length ? '이 센터에 남은 요청이 없어요.' : '오늘 할 일을 모두 마쳤어요.') + '</span>';
+  if (!tkMissing && !tkFail)
+    h += '<div class="tk-sec"><span>완료 · 오늘' + (done.length ? '' : ' 없음') + '</span>' +
+         '<button type="button" class="tk-logbtn" id="tk-logbtn" onclick="tkLogToggle()" title="최근 7일에 누가 무엇을 처리했는지">완료 기록</button></div>' +
+         done.map(function(t){ return tkItemHtml(t, true); }).join('');
+  box.innerHTML = h;
+  if (comp && !tkMissing){
+    var cur = viewLoc || localStorage.getItem('tt_task_loc') || '본원';
+    if (TK_LOCS.indexOf(cur) < 0) cur = '본원';
+    comp.innerHTML = '<div class="tk-pills" id="tk-pills">' + TK_LOCS.map(function(l){
+        return '<button type="button" data-loc="' + esc(l) + '"' + (l === cur ? ' class="on"' : '') + '>' + esc(tkLocLabel(l)) + '</button>';
+      }).join('') + '</div>' +
+      '<div class="tk-row"><input type="text" id="tk-in" maxlength="300" placeholder="할 일이나 전달 사항 한 줄 — 학생 이름을 적으면 칩에 표시돼요">' +
+      '<button type="button" id="tk-add">남기기</button></div>' +
+      '<div class="tk-who">작성자 <b>' + esc(alimBy || localStorage.getItem('tt_task_who') || '처음 남길 때 이름을 물어요') + '</b> · ' + esc(tkMd(todayStr())) + ' (' + mkDayOf(todayStr()) + ')</div>';
+    $('tk-pills').onclick = function(e){
+      var b = e.target.closest('button[data-loc]'); if (!b) return;
+      [].forEach.call($('tk-pills').children, function(x){ x.classList.remove('on'); });
+      b.classList.add('on'); localStorage.setItem('tt_task_loc', b.getAttribute('data-loc'));
+    };
+    $('tk-add').onclick = tkAdd;
+    $('tk-in').onkeydown = function(e){ if (e.key === 'Enter'){ e.preventDefault(); tkAdd(); } };
+  } else if (comp) comp.innerHTML = '';
+  box.onclick = tkListClick;
+  tkStripUpdate();
+}
+function tkListClick(e){
+  var b = e.target.closest('button[data-act]'); if (!b) return;
+  var it = b.closest('.tk-item'); if (!it) return;
+  var id = parseInt(it.getAttribute('data-id'), 10);
+  var act = b.getAttribute('data-act');
+  if (act === 'done') tkWho(function(who){ tkDone(id, who); });
+  else if (act === 'fail') tkFailOpen(it, id);
+  else if (act === 'del') tkDelete(id);
+  else if (act === 'fail-cancel'){ var r = it.querySelector('.tk-reason'); if (r) r.remove(); }
+  else if (act === 'fail-save'){
+    var ta = it.querySelector('.tk-reason textarea'), sel = it.querySelector('.tk-reason select');
+    var reason = (ta.value || '').trim();
+    if (!reason){ ta.focus(); ta.style.borderColor = '#C64F63'; return; }
+    var loc = sel ? sel.value : '';
+    tkWho(function(who){ tkFailSave(id, who, reason, loc); });
+  }
+}
+function tkAdd(){
+  var inp = $('tk-in'); if (!inp) return;
+  var text = (inp.value || '').trim();
+  if (!text){ inp.focus(); return; }
+  var pill = document.querySelector('#tk-pills button.on');
+  var loc = pill ? pill.getAttribute('data-loc') : '전체';
+  tkWho(function(who){
+    post({ action:'ttTaskAdd', date: todayStr(), loc: loc, text: text, student: tkFindStudent(text), author: who },
+      '요청을 남기는 중…', function(res){
+        if (res && res.result === 'success'){
+          setStatus(tkLocLabel(loc) + '에 요청을 남겼어요.', 'ok');
+          tkList = null; tkEnsure(true);
+        } else setStatus('남기지 못했어요: ' + ((res && res.message) || '오류'), 'err');
+      });
+  });
+}
+function tkDone(id, who){
+  post({ action:'ttTaskDone', id: id, by: who }, '완료로 저장하는 중…', function(res){
+    if (res && res.result === 'success'){ setStatus('완료 · ' + who + ' 이름으로 기록했어요.', 'ok'); tkList = null; tkEnsure(true); }
+    else { setStatus((res && res.message) || '저장하지 못했어요.', 'err'); tkList = null; tkEnsure(true); }
+  });
+}
+function tkFailOpen(it, id){
+  if (it.querySelector('.tk-reason')) return;
+  var t = (tkList || []).find(function(x){ return x.id === id; }) || { loc: '전체' };
+  var to = tkTomorrow(todayStr());
+  it.insertAdjacentHTML('beforeend',
+    '<div class="tk-reason"><label>왜 못 했나요? 다음 조교에게 그대로 전달됩니다.</label>' +
+    '<textarea placeholder="예: 학생이 오늘 안 와서 / 교재가 본원에 없어서"></textarea>' +
+    '<div class="row">넘길 곳 <select>' + TK_LOCS.map(function(l){
+      return '<option value="' + esc(l) + '"' + (l === t.loc ? ' selected' : '') + '>' + esc(tkLocLabel(l)) + (l === t.loc ? ' (같은 곳, ' + tkMd(to) + '부터)' : '') + '</option>';
+    }).join('') + '</select>' +
+    '<button type="button" data-act="fail-save" style="font:inherit;font-size:.76rem;border:0;border-radius:8px;padding:5px 10px;background:#C64F63;color:#fff;cursor:pointer;">못 함으로 넘기기</button>' +
+    '<button type="button" data-act="fail-cancel" style="font:inherit;font-size:.76rem;border:1px solid var(--line);border-radius:8px;padding:4px 9px;background:#fff;cursor:pointer;">취소</button></div></div>');
+  it.querySelector('textarea').focus();
+}
+function tkFailSave(id, who, reason, loc){
+  var to = tkTomorrow(todayStr());
+  post({ action:'ttTaskFail', id: id, by: who, reason: reason, to: to, loc: loc }, '다음 조교에게 넘기는 중…', function(res){
+    if (res && res.result === 'success') setStatus(tkMd(to) + ' ' + tkLocLabel(loc || '전체') + ' 할 일로 넘겼어요. 이유는 그 줄에 남아요.', 'ok');
+    else setStatus((res && res.message) || '넘기지 못했어요.', 'err');
+    tkList = null; tkEnsure(true);
+  });
+}
+function tkDelete(id){
+  var t = (tkList || []).find(function(x){ return x.id === id; });
+  if (!confirm('이 요청을 지울까요?\n' + (t ? t.text : '') + '\n(처리한 기록이 아니라 잘못 적은 요청을 지울 때만 쓰세요)')) return;
+  post({ action:'ttTaskDelete', id: id }, '지우는 중…', function(res){
+    if (res && res.result === 'success') setStatus('요청을 지웠어요.', 'ok');
+    else setStatus((res && res.message) || '지우지 못했어요.', 'err');
+    tkList = null; tkEnsure(true);
+  });
+}
+/* 기간 안의 요청을 날짜별 줄로 — 대기(보이는 날짜)·완료(끝낸 날짜)·못 함(이력 날짜) */
+function tkLinesByDate(rows, from, to){
+  var by = {};
+  function add(d, html){ if (d < from || d > to) return; (by[d] = by[d] || []).push(html); }
+  function head(t){ return '<span class="tk-loc l-' + esc(t.loc) + '">' + esc(tkLocLabel(t.loc)) + '</span><span>' + esc(t.text) + (t.student ? ' <span class="stu">' + esc(t.student) + '</span>' : '') + '</span>'; }
+  rows.forEach(function(t){
+    (t.history || []).forEach(function(h){
+      add(h.ymd, '<div class="tk-ln">' + head({ loc: h.loc || t.loc, text: t.text, student: t.student }) +
+                 '<em class="no">' + esc(h.by || '이름 없음') + ' 못 함 → ' + esc(tkMd(h.to)) + '</em></div>');
+    });
+    if (t.status === '완료' && t.doneYmd)
+      add(t.doneYmd, '<div class="tk-ln">' + head(t) + '<em>완료 · ' + esc(t.doneBy || '이름 없음') + ' ' + esc(tkHm(t.doneAt)) + '</em></div>');
+    else if (t.status === '대기')
+      add(t.ymd, '<div class="tk-ln">' + head(t) + '<em class="wait">' + (t.ymd < todayStr() ? '대기 (지난 요청)' : t.ymd > todayStr() ? '예정' : '대기') + '</em></div>');
+  });
+  return by;
+}
+function tkLogToggle(){
+  tkLogOn = !tkLogOn;
+  if (tkLogOn && tkLog === null){
+    var to = todayStr(), p = to.split('-'), f = new Date(+p[0], +p[1]-1, +p[2] - 7), from = ymdOf(f);
+    fetch(ENDPOINT + '?action=ttTaskWeek&from=' + from + '&to=' + to + '&pw=' + encodeURIComponent(pw) + '&t=' + Date.now())
+      .then(function(r){ return r.json(); })
+      .then(function(res){ tkLog = (res && res.result === 'success') ? { from: from, to: to, rows: res.tasks || [] } : { from: from, to: to, rows: [], fail: true }; tkRender(); })
+      .catch(function(){ tkLog = { from: from, to: to, rows: [], fail: true }; tkRender(); });
+  }
+  tkRender();
+}
+function tkRenderLog(){
+  var box = $('tk-list'), sub = $('tk-sub'), comp = $('tk-compose');
+  if (comp) comp.innerHTML = '';
+  if (sub) sub.textContent = '최근 7일';
+  if (tkLog === null){ box.innerHTML = '<span class="ch-none">불러오는 중…</span>'; return; }
+  var by = tkLinesByDate(tkLog.rows, tkLog.from, tkLog.to);
+  var days = Object.keys(by).sort().reverse();
+  var h = '<div class="tk-log"><div class="tk-sec"><span>완료 기록 · 최근 7일</span>' +
+          '<button type="button" class="tk-logbtn on" id="tk-logbtn" onclick="tkLogToggle()">오늘 목록으로</button></div>';
+  if (tkLog.fail) h += '<div class="tk-note">기록을 불러오지 못했어요.</div>';
+  else if (!days.length) h += '<span class="ch-none">최근 7일에 처리한 요청이 없어요.</span>';
+  days.forEach(function(d){ h += '<div class="tk-day">' + esc(tkMd(d)) + ' (' + mkDayOf(d) + ')' + (d === todayStr() ? ' · 오늘' : '') + '</div>' + by[d].join(''); });
+  box.innerHTML = h + '</div>';
+}
+/* 좁은 화면: 옆 패널이 접혀 있을 때 시간표 위에 한 줄로 — 누르면 패널이 열린다 */
+function tkStrip(){
+  if (window.innerWidth >= 1100 || mode !== 'today') return null;
+  var b = document.createElement('button');
+  b.type = 'button'; b.className = 'tk-strip'; b.id = 'tk-strip';
+  b.innerHTML = '<b>오늘 할 일</b><span class="tk-strip-txt">불러오는 중…</span><small>열기 ›</small>';
+  b.onclick = function(){ if (!vmOpen) vmToggle(); };
+  tkStripUpdate(b);
+  return b;
+}
+function tkStripUpdate(el){
+  el = el || $('tk-strip'); if (!el || tkList === null) return;
+  var all = tkWaiting(), carried = all.filter(function(t){ return t.ymd < todayStr(); }).length;
+  el.querySelector('.tk-strip-txt').innerHTML = all.length
+    ? '<i class="tk-cnt">' + all.length + '</i> 안 한 일 ' + all.length + (carried ? ' · 지난 요청 ' + carried : '')
+    : (tkMissing ? '준비 전' : '모두 마쳤어요');
+}
+/* 주차별 아래 — 이 주 날짜별 할 일(대기·완료·못 함 이력) */
+function tkWeekSection(){
+  var days = weekDates(), box = document.createElement('div');
+  box.className = 'memobox tk-week';
+  box.innerHTML = '<p class="memotitle">할 일 · 전달 사항 — 이 주</p><span class="ch-none">불러오는 중…</span>';
+  var from = ymdOf(days['월']), to = ymdOf(days['일']);
+  fetch(ENDPOINT + '?action=ttTaskWeek&from=' + from + '&to=' + to + '&pw=' + encodeURIComponent(pw) + '&t=' + Date.now())
+    .then(function(r){ return r.json(); })
+    .then(function(res){
+      if (!box.isConnected) return;
+      if (!res || res.result !== 'success'){ box.querySelector('.ch-none').textContent = '불러오지 못했어요.'; return; }
+      if (res.missing){ box.querySelector('.ch-none').textContent = '아직 저장할 곳이 없어요(마이그레이션 045).'; return; }
+      var by = tkLinesByDate(res.tasks || [], from, to), h = '<p class="memotitle">할 일 · 전달 사항 — 이 주</p>', any = false;
+      WEEK_VIEW_ORDER.forEach(function(dy){
+        var ds = ymdOf(days[dy]), ls = by[ds] || [];
+        if (ls.length) any = true;
+        h += '<div class="tk-wd"><span class="wm-day">' + mdOf(days[dy]) + ' (' + dy + ')</span><div>' +
+             (ls.length ? ls.join('') : '<span class="wm-none">없음</span>') + '</div></div>';
+      });
+      box.innerHTML = h + (any ? '' : '');
+    })
+    .catch(function(){ var n = box.querySelector('.ch-none'); if (n) n.textContent = '불러오지 못했어요.'; });
+  return box;
 }
 
 /* 오프라인 보충 기능창 — 날짜·요일·시간 메모 (영상보충과 동일한 흐름) */
