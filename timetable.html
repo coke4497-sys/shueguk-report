@@ -6791,7 +6791,12 @@ function alimCfgEnsure(cb, force){
     .then(function(r){ return r.json(); })
     .then(function(d){ alimCfg = (d && d.result === 'success') ? d : { ready:false, templates:{}, error:(d && d.message) || '조회 실패' }; })
     .catch(function(){ alimCfg = { ready:false, templates:{}, error:'연결 실패' }; })
-    .then(function(){ alimCfgBusy = false; alimCfgCbs.splice(0).forEach(function(f){ f(alimCfg); }); });
+    .then(function(){
+      // 조회에 실패한 결과는 기억하지 않는다 — 한 번 실패하면 그 세션 내내 '설정 전'으로 보고 결석 확인 창을
+      // 조용히 건너뛰었다(2026-10-08 수정 요청함 최예나 "창도 뜨지 않고" — 앱스스크립트가 가끔 HTML 오류 페이지를 준다).
+      var cfg = alimCfg; if (cfg.error) alimCfg = null;
+      alimCfgBusy = false; alimCfgCbs.splice(0).forEach(function(f){ f(cfg); });
+    });
 }
 function alimLogEnsure(ymd, cb, force){
   if (alimLogByDate[ymd] && !force){ if (cb) cb(alimLogByDate[ymd]); return; }
