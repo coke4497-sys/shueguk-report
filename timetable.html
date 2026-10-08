@@ -6078,8 +6078,11 @@ function asLoad(force){
     asRoster ? Promise.resolve(null) : asFetch(ENDPOINT + '?action=roster&t=' + Date.now()),
     asFetch(ENDPOINT + '?action=attendAbsentList&book=' + encodeURIComponent('정규') + qs),
     asFetch(ENDPOINT + '?action=attendAbsentList&book=' + encodeURIComponent('내신') + qs),
-    cacheGet('list:정규') ? Promise.resolve(null) : asFetch(ENDPOINT + '?action=timetableList&book=' + encodeURIComponent('정규') + qs),
-    cacheGet('list:내신') ? Promise.resolve(null) : asFetch(ENDPOINT + '?action=timetableList&book=' + encodeURIComponent('내신') + qs)
+    // 반 명단은 캐시가 있어도 늘 새로 받는다 — 저장해 둔 옛 명단(이름을 고치기 전 표기)으로
+    // 그 주 수업을 가리면 지금 기간이 아닌 시간표 쪽에 없는 학생('미등록생')이 생긴다
+    // (2026-10-04 김건우B → 김건우 표기수정 뒤 정규 주에만 '김건우B(미등록생)'이 남아 보인 사례).
+    asFetch(ENDPOINT + '?action=timetableList&book=' + encodeURIComponent('정규') + qs),
+    asFetch(ENDPOINT + '?action=timetableList&book=' + encodeURIComponent('내신') + qs)
   ]).then(function(rs){
     asBusy = false;
     if (seq !== asSeq || mode !== 'att') return;
