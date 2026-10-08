@@ -31,10 +31,12 @@ for each row execute function public.set_updated_at();
 
 alter table public.tt_tasks enable row level security;
 drop policy if exists teacher_all on public.tt_tasks;
+-- 공용 교사 계정(teachers@shueguk.internal)은 private.is_active_teacher()가 거짓이라(038 참고)
+-- 034·036·038처럼 로그인한 교사(authenticated)면 허용한다.
 create policy teacher_all on public.tt_tasks
 for all to authenticated
-using (private.is_active_teacher())
-with check (private.is_active_teacher());
+using (true)
+with check (true);
 
 revoke all privileges on public.tt_tasks from anon;
 grant select, insert, update, delete on public.tt_tasks to authenticated;
