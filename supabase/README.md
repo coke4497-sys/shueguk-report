@@ -810,3 +810,8 @@ default privileges 까지 되돌렸다. `tools/check_lock.py` 통과(표 15/15 �
 - 검증: `PGHOST=/home/pgtest PGPORT=5499 PGUSER=postgres bash tools/attendance-history-sql-test.sh`(픽스처를 실제 표기 '1'로 바꿈, 041→044 두 번 얹어 재실행 안전 확인).
 - **적용 상태: 2026-10-06 실제 수파베이스에 적용 완료**(관리 API — 원장님이 준 sbp_ 토큰, 저장 안 함). 확인: 함수 본문에 새 판정이 들어갔고, 공개 키로 박소율(고1) 조회 → 결석 3건(9/5 둘·9/13) 모두 `makeup:true`(보충 완료).
 
+
+## 045 — 오늘 할 일 · 전달 사항 `tt_tasks` (2026-10-08)
+- 슈국 스케쥴 오늘의 시간표 옆 패널의 할 일 상자 원본(시트 사본 없음). 한 행 = 요청 한 건(ymd 보이는 날짜·loc 센터·text·student·author·status '대기'/'완료'·done_by·done_at·done_ymd·history jsonb). 교사 전용 — 공개 키(anon)는 권한 없음(401).
+- **정책은 034·036·038처럼 `authenticated` 전체 허용.** 처음 `private.is_active_teacher()`로 만들어 적용했더니 공용 교사 계정(teachers@shueguk.internal)에서 저장이 RLS로 막혔다(038과 같은 사고) — 같은 날 045 파일을 고쳐 다시 실행했다(재실행 안전). **새 교사 전용 표의 정책에 그 함수를 쓰지 말 것.**
+- **적용 상태: 2026-10-08 실제 수파베이스에 적용 완료**(관리 API — 원장님이 준 sbp_ 토큰, 저장 안 함). 확인: anon 401, 공용 교사 계정으로 INSERT → `status=eq.대기` 목록 → 못 함 PATCH(ymd 내일·history 1건·updated_at 트리거) → 완료 PATCH → 완료 줄에 다시 `status=eq.대기` PATCH는 `[]` → 주간 조회 → DELETE 204, 상태·빈 글 check 제약 거절, 검증 행은 모두 지웠다(표 비어 있음). 한글 조건값은 URL 인코딩해야 한다(`%EB%8C%80%EA%B8%B0` — curl로 날 것을 보내면 빈 결과).
