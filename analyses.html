@@ -95,6 +95,15 @@
   .al-mename{font-weight:700;color:#5A4A6A;}
   .al-me a{color:#5A4A6A;}
   .al-skip label{margin-right:14px;font-size:13.5px;white-space:nowrap;cursor:pointer;}
+  /* 반별로 보내기 (2026-10-09) — 진도 반 알약, 연보라 */
+  .al-clsn{font-size:12.5px;color:var(--ink-soft);line-height:1.6;margin-bottom:7px;}
+  .al-clsl{display:flex;gap:6px;flex-wrap:wrap;}
+  .al-clsp{display:inline-flex;align-items:center;gap:6px;background:#F2F5F3;color:var(--ink-soft);border-radius:999px;padding:6px 12px 6px 9px;font-size:13px;cursor:pointer;white-space:nowrap;}
+  .al-clsp.on{background:#EDE4F4;color:#5A4A6A;font-weight:700;}
+  .al-clsp input{margin:0;accent-color:#8D83A8;}
+  .al-clsp.mine::after{content:'내 반';font-size:11px;font-weight:400;color:#8D83A8;margin-left:2px;}
+  .al-clsb{display:flex;gap:10px;margin-top:7px;}
+  .al-clsb button{border:none;background:none;font:inherit;font-size:12.5px;color:#5A4A6A;text-decoration:underline;cursor:pointer;padding:0;}
   .al-sum{background:#F4F7F5;border-radius:10px;padding:10px 12px;font-size:13.5px;line-height:1.6;}
   .al-warn{color:#9A5A52;font-size:12.5px;margin-top:6px;line-height:1.6;}
   .al-prev{white-space:pre-wrap;background:#FBFAF6;border-radius:10px;padding:12px;font-size:13px;line-height:1.65;}
@@ -888,16 +897,63 @@ function alSbAll(path){
   }
   return step(0);
 }
-function alBuildNsT(rows){
-  var nsT = {};
+function alBuildNs(rows){
+  // nsT = 이름 → {담당T: 1}(제목의 선생님 이름), nsC = 이름 → [진도 반](반별로 보내기 — 2026-10-09)
+  var nsT = {}, nsC = {};
   (rows || []).forEach(function(c){
     if (/확인/.test(c.name || '') || !alTr(c.teacher)) return;
-    String(c.roster || '').split(/\s+/).map(alPlainName).filter(Boolean).forEach(function(nm){ (nsT[nm] = nsT[nm] || {})[alTr(c.teacher)] = 1; });
+    var info = { id: alTr(c.class_id), name: alTr(c.name), teacher: alTr(c.teacher), day: alTr(c.day), start: alTr(c.start) };
+    String(c.roster || '').split(/\s+/).map(alPlainName).filter(Boolean).forEach(function(nm){
+      (nsT[nm] = nsT[nm] || {})[info.teacher] = 1;
+      var arr = nsC[nm] = nsC[nm] || []; if (!arr.some(function(x){ return x.id === info.id; })) arr.push(info);
+    });
   });
-  return nsT;
+  AL.nsT = nsT; AL.nsC = nsC;
+}
+/* ===== 반별로 보내기 (2026-10-09 원장님 "화수고1은 김현지 선생님과 김지원 선생님이 담당하시는데 … 반별로 묶이면 좋겠어요") =====
+ * 한 리포트(학교·학년)에 배정된 학생이 선생님마다 다른 내신 진도 반에 나뉘어 있으니, 창에 '보낼 반' 알약을 두고
+ * 고른 반 학생에게만 보낸다. 반 = 내신 시간표 진도 수업(확인 반·w* 제외 — 제목의 선생님 이름과 같은 alBuildNs 규칙).
+ * 허브에 로그인한 선생님의 반이 있으면 그 반만 기본으로 골라 둔다(다른 선생님은 자기 반을 골라 따로 보낸다). 진도 반이 없는 학생은 '반 정보 없음' 묶음. */
+function alClsOf(stu){
+  var map = AL.nsC || {}, n = stu.name, keys = [n, n.replace(/A$/, ''), /[A-Za-z]$/.test(n) ? '' : n + 'A'];
+  for (var i = 0; i < keys.length; i++){ var k = keys[i]; if (k && map[k] && map[k].length) return map[k]; }
+  return [];
+}
+function alClsOn(stu){
+  if (!AL.cls) return true;
+  var cs = alClsOf(stu);
+  return cs.length ? cs.some(function(c){ return !!AL.cls[c.id]; }) : !!AL.cls['__none'];
+}
+function alClsMine(c){ return !!(AL.me && tfMatchName(AL.me, alFullTeacher(c.teacher))); }
+function alClsGroups(stus){
+  var g = {}, order = [];
+  stus.forEach(function(stu){
+    var cs = alClsOf(stu); if (!cs.length) cs = [{ id: '__none', name: '진도 반 정보 없음', teacher: '', day: '', start: '' }];
+    cs.forEach(function(c){ if (!g[c.id]){ g[c.id] = { id: c.id, name: c.name, teacher: c.teacher, day: c.day, start: c.start, n: 0, mine: c.id !== '__none' && alClsMine(c) }; order.push(c.id); } g[c.id].n++; });
+  });
+  return order.map(function(id){ return g[id]; }).sort(function(a, b){
+    if (a.id === '__none') return 1; if (b.id === '__none') return -1;
+    return (b.mine - a.mine) || a.name.localeCompare(b.name, 'ko') || alFullTeacher(a.teacher).localeCompare(alFullTeacher(b.teacher), 'ko') || a.id.localeCompare(b.id);
+  });
+}
+function alClsLabel(c){
+  if (c.id === '__none') return c.name;
+  var t = alTr(c.teacher).replace(/T$/, ''); return c.name + (t ? ' · ' + t + 'T' : '') + (c.day ? ' · ' + c.day + (c.start ? ' ' + c.start : '') : '');
+}
+function alimClsChange(){
+  var boxes = Array.prototype.slice.call(document.querySelectorAll('.alC'));
+  var on = boxes.filter(function(b){ return b.checked; });
+  if (on.length === boxes.length) AL.cls = null;
+  else { AL.cls = {}; on.forEach(function(b){ AL.cls[b.value] = true; }); }
+  if (AL.done) alimDraw(AL.done);
+}
+function alimClsPick(which){
+  if (which === 'all') AL.cls = null;
+  else { AL.cls = {}; (AL.groups || []).forEach(function(c){ if (c.mine) AL.cls[c.id] = true; }); if (!Object.keys(AL.cls).length) AL.cls = null; }
+  if (AL.done) alimDraw(AL.done);
 }
 /* ===== 담당 선생님 거르기 (2026-10-02 원장님 "선생님이 본인이 담당하는 시험지만 드롭다운으로 선택해서 확인") =====
- * 리포트의 담당 선생님 = 그 리포트 학생들의 내신 진도 수업 담당T(알림톡 제목의 선생님 이름과 같은 규칙 — alBuildNsT·alFullTeacher).
+ * 리포트의 담당 선생님 = 그 리포트 학생들의 내신 진도 수업 담당T(알림톡 제목의 선생님 이름과 같은 규칙 — alBuildNs·alFullTeacher).
  * 학생 = 배정된 재원생(alMatches), 배정이 없거나 아무도 안 잡히면 시험 제목·학교·학년의 재원생. 한 학생이라도 그 선생님 진도 반에 있으면 담당.
  * 기본 선택 = 지난번에 고른 선생님(localStorage an_teacher) → 없으면 허브에 로그인한 선생님(목록에 있을 때) → 모든 선생님. */
 var TF = { ready: false, by: {}, list: [], sel: '', loading: false };
@@ -949,10 +1005,10 @@ function tfLoad(){
   if (TF.loading) return; TF.loading = true;
   Promise.all([
     AL.stus ? Promise.resolve(AL.stus) : alSbAll('/students?select=name,school,grade,student_id,code,enrolled,teacher,phone_student,phone_parent1,phone_parent2&order=seq,id'),
-    AL.nsT ? Promise.resolve(null) : alSbAll('/tt_classes?select=class_id,name,teacher,roster&book=eq.' + encodeURIComponent('내신') + '&class_id=not.like.w*'),
+    AL.nsT ? Promise.resolve(null) : alSbAll('/tt_classes?select=class_id,name,teacher,roster,day,start&book=eq.' + encodeURIComponent('내신') + '&class_id=not.like.w*'),
     TF.saved ? Promise.resolve('') : alLoginTeacher()
   ]).then(function(rs){
-    AL.stus = rs[0]; if (rs[1]) AL.nsT = alBuildNsT(rs[1]);
+    AL.stus = rs[0]; if (rs[1]) alBuildNs(rs[1]);
     tfCompute(); TF.ready = true; TF.failed = false;
     if (!TF.saved && rs[2]){ var hit = TF.list.filter(function(x){ return tfMatchName(rs[2], x.t); })[0]; if (hit){ TF.sel = hit.t; if (!VIEW) VIEW = 't'; } }
     tfDraw(); renderList();
@@ -964,7 +1020,7 @@ function alimOpen(id){
   AL.autoTitle = null;
   var rep = (REPORTS || []).filter(function(r){ return String(r.id) === String(id); })[0];
   if (!rep) return;
-  AL.rep = rep; AL.plan = null; AL.done = null; AL.mode = 'make';
+  AL.rep = rep; AL.plan = null; AL.done = null; AL.mode = 'make'; AL.cls = undefined; AL.groups = null;
   document.getElementById('alBg').classList.add('on');
   var box = document.getElementById('alBox');
   box.innerHTML = '<h3>알림톡 보내기</h3><p class="al-sub">' + esc(rep.title || rep.id) + '</p><div class="al-sum">대상 학생과 연락처를 확인하는 중…</div>';
@@ -979,7 +1035,7 @@ function alimOpen(id){
         .catch(function(){ return alSbAll('/submissions?select=exam,name,parent_phone,teacher_note' + ex); });
     })(),
     // 내신 진도 수업 담당T(피드백 확인 안내 제목의 선생님 이름) — 못 읽어도 창은 그대로 열린다
-    AL.nsT ? Promise.resolve(null) : alSbAll('/tt_classes?select=class_id,name,teacher,roster&book=eq.' + encodeURIComponent('내신') + '&class_id=not.like.w*').catch(function(){ return []; }),
+    AL.nsT ? Promise.resolve(null) : alSbAll('/tt_classes?select=class_id,name,teacher,roster,day,start&book=eq.' + encodeURIComponent('내신') + '&class_id=not.like.w*').catch(function(){ return []; }),
     alLoginTeacher()
   ];
   Promise.all(jobs).then(function(rs){
@@ -987,7 +1043,7 @@ function alimOpen(id){
     AL.cfg = (rs[0] && rs[0].result === 'success') ? rs[0] : null;
     AL.stus = rs[1];
     AL.me = rs[4] || '';
-    if (rs[3]) AL.nsT = alBuildNsT(rs[3]);
+    if (rs[3]) alBuildNs(rs[3]);
     var done = {};   // 키 → { sent: 선생님이 리포트를 보냈는지 }
     rs[2].forEach(function(r){
       var p = alTr(r.parent_phone).replace(/^'/, ''), n = alTr(r.name);
@@ -1009,11 +1065,22 @@ function alimDraw(done){
   var title = alNiceTitle(rep.title || rep.id);
   // 피드백 확인 안내는 제목에 '담당 선생님 피드백'을 알린다(2026-10-02 원장님 — 템플릿 문구는 심사본이라 #{제목} 변수로)
   if (AL.mode === 'up') title += ' 리포트에 담당 선생님 피드백이 등록되었습니다';
-  var list = [], doneN = [], waitN = [], notN = 0;
+  var list = [], doneN = [], waitN = [], notN = 0, allStu = [], clsOut = 0;
   (AL.stus || []).forEach(function(r){
     if (!alTr(r.name) || AL_LEFT.test(alTr(r.enrolled))) return;
     var stu = { name: alTr(r.name), school: alTr(r.school), grade: alTr(r.grade), sid: alTr(r.student_id).replace(/^'/, ''), code: alTr(r.code), r: r };
     if (!alMatches(a.type, a.target, stu)) return;
+    allStu.push(stu);
+  });
+  // 반별로 보내기 — 배정 학생을 진도 반으로 묶고, 처음 열 때 로그인한 선생님의 반이 있으면 그 반만 골라 둔다
+  var groups = AL.groups = alClsGroups(allStu);
+  if (AL.cls === undefined){
+    var mine = groups.filter(function(c){ return c.mine; });
+    AL.cls = (mine.length && mine.length < groups.length) ? mine.reduce(function(o, c){ o[c.id] = true; return o; }, {}) : null;
+  }
+  if (AL.cls && !groups.some(function(c){ return AL.cls[c.id]; })) AL.cls = null;   // 고른 반이 하나도 남지 않으면 전체
+  allStu.forEach(function(stu){
+    if (!alClsOn(stu)){ clsOut++; return; }
     var base = stu.name.replace(/[A-Za-z]$/, '');
     var sub = (stu.sid && done['p:' + stu.sid]) || done['n:' + stu.name] || done['n:' + base];
     if (AL.mode === 'up'){
@@ -1024,9 +1091,23 @@ function alimDraw(done){
     if (sub) { doneN.push(stu); return; }
     list.push(stu);
   });
-  AL.list = list; AL.doneN = doneN; AL.waitN = waitN; AL.notN = notN;
+  AL.list = list; AL.doneN = doneN; AL.waitN = waitN; AL.notN = notN; AL.clsOut = clsOut;
   var ready = !!(tpl && tpl.ready && AL.cfg && AL.cfg.ready);
   var keepTitle = (document.getElementById('alTitle') || {}).value;
+  // 다시 그릴 때(종류·반 바꾸기) 받는 분·빼고 보내기 선택은 그대로 둔다
+  var keepWho = document.querySelector('.alW') ? Array.prototype.slice.call(document.querySelectorAll('.alW:checked')).map(function(x){ return x.value; }) : null;
+  var keepSkip = (document.querySelector('input[name="alSkip"]:checked') || {}).value, keepWait = (document.querySelector('input[name="alWait"]:checked') || {}).value;
+  var clsHtml = '';
+  if (groups.length > 1){
+    var anyMine = groups.some(function(c){ return c.mine; });
+    clsHtml = '<div class="al-row al-cls"><b>보낼 반</b>' +
+      '<div class="al-clsn">같은 학교 친구들이 담당 선생님 반으로 나뉘어 있습니다. 고른 반 학생에게만 보내요. 다른 선생님 반은 그 선생님이 따로 보내면 됩니다.</div>' +
+      '<div class="al-clsl">' + groups.map(function(c){
+        var on = !AL.cls || !!AL.cls[c.id];
+        return '<label class="al-clsp' + (on ? ' on' : '') + (c.mine ? ' mine' : '') + '"><input type="checkbox" class="alC" value="' + esc(c.id) + '"' + (on ? ' checked' : '') + ' onchange="alimClsChange()"> ' + esc(alClsLabel(c)) + ' · ' + c.n + '명</label>';
+      }).join('') + '</div>' +
+      '<div class="al-clsb"><button type="button" onclick="alimClsPick(\'all\')">모든 반 고르기</button>' + (anyMine ? '<button type="button" onclick="alimClsPick(\'mine\')">내 반만 고르기</button>' : '') + '</div></div>';
+  }
   if (keepTitle === AL.autoTitle) keepTitle = '';   // 고치지 않은 기본 제목이면 종류에 맞는 기본 제목으로 바꾼다
   AL.autoTitle = title;
   box.innerHTML = '<h3>알림톡 보내기</h3><p class="al-sub">' + esc(rep.title || rep.id) + ' · 배정: ' + esc(assignSummary(a).tag) + '</p>' +
@@ -1038,17 +1119,18 @@ function alimDraw(done){
     (AL.mode === 'up' ? '<div class="al-row al-me">' + (AL.me
       ? '<b>보내는 선생님</b><div><span class="al-mename">' + esc(AL.me) + ' 선생님</span> (로그인한 계정). 알림톡 제목에 ' + esc(AL.me) + ' 선생님으로 표시됩니다. 본인이 아니면 <a href="' + AL_HUB_LOGIN + '" target="_blank" rel="noopener">본인 계정으로 다시 로그인</a>해 주세요.</div>'
       : '<b>보내는 선생님</b><div>허브에 로그인한 선생님을 찾지 못해 학생마다 내신 진도 수업 담당 선생님 이름이 들어갑니다. <a href="' + AL_HUB_LOGIN + '" target="_blank" rel="noopener">허브에 로그인</a>한 뒤 이 창을 다시 열면 본인 이름으로 보낼 수 있어요.</div>') + '</div>' : '') +
-    '<div class="al-row al-whos"><b>받는 분</b>' + ['학생', '학부모1', '학부모2'].map(function(w){ return '<label><input type="checkbox" class="alW" value="' + w + '" checked onchange="alimRefresh()"> ' + esc(alWho(w)) + '</label>'; }).join('') + '</div>' +
+    clsHtml +
+    '<div class="al-row al-whos"><b>받는 분</b>' + ['학생', '학부모1', '학부모2'].map(function(w){ var on = keepWho ? keepWho.indexOf(w) >= 0 : true; return '<label><input type="checkbox" class="alW" value="' + w + '"' + (on ? ' checked' : '') + ' onchange="alimRefresh()"> ' + esc(alWho(w)) + '</label>'; }).join('') + '</div>' +
     (doneN.length ? '<div class="al-row al-skip"><b>이미 제출한 친구가 있어요</b>' +
       '<div class="al-skipq">' + doneN.length + '명이 이미 복기를 제출했어요. 빼고 보낼까요?</div>' +
       '<div class="al-skipn">' + doneN.map(function(x){ return esc(x.name); }).join(', ') + '</div>' +
-      '<label><input type="radio" name="alSkip" value="1" checked onchange="alimRefresh()"> 네, 빼고 보낼게요</label>' +
-      '<label><input type="radio" name="alSkip" value="0" onchange="alimRefresh()"> 아니요, 함께 보낼게요</label></div>' : '') +
+      '<label><input type="radio" name="alSkip" value="1"' + (keepSkip === '0' ? '' : ' checked') + ' onchange="alimRefresh()"> 네, 빼고 보낼게요</label>' +
+      '<label><input type="radio" name="alSkip" value="0"' + (keepSkip === '0' ? ' checked' : '') + ' onchange="alimRefresh()"> 아니요, 함께 보낼게요</label></div>' : '') +
     (waitN.length ? '<div class="al-row al-skip al-wait"><b>피드백이 완성되지 않은 친구가 있어요</b>' +
       '<div class="al-skipq">' + waitN.length + '명은 복기를 냈지만 선생님이 아직 [리포트 보내기]를 누르지 않았습니다. 빼고 보낼까요?</div>' +
       '<div class="al-skipn">' + waitN.map(function(x){ return esc(x.name); }).join(', ') + '</div>' +
-      '<label><input type="radio" name="alWait" value="1" checked onchange="alimRefresh()"> 네, 빼고 보낼게요</label>' +
-      '<label><input type="radio" name="alWait" value="0" onchange="alimRefresh()"> 아니요, 함께 보낼게요</label></div>' : '') +
+      '<label><input type="radio" name="alWait" value="1"' + (keepWait === '0' ? '' : ' checked') + ' onchange="alimRefresh()"> 네, 빼고 보낼게요</label>' +
+      '<label><input type="radio" name="alWait" value="0"' + (keepWait === '0' ? ' checked' : '') + ' onchange="alimRefresh()"> 아니요, 함께 보낼게요</label></div>' : '') +
     '<div class="al-row"><div class="al-sum" id="alSum"></div></div>' +
     '<div class="al-row"><b>미리보기</b><div class="al-prev" id="alPrev"></div></div>' +
     '<div class="al-btns"><button type="button" onclick="alimClose()">닫기</button><button type="button" class="go" id="alGo" onclick="alimSend()" disabled>알림톡 보내기</button></div>' +
@@ -1072,6 +1154,11 @@ function alimRefresh(){
   var h = (AL.mode === 'up' ? (skipWait ? '선생님 피드백을 보낸 학생 <b>' : '복기를 낸 학생 <b>') : skip ? '배정된 학생 중 아직 복기를 내지 않은 <b>' : '배정된 학생 <b>') + people + '명</b>' + (whos.length ? '의 ' + esc(alWho(whos.join('·'))) + '에게 <b>' + items.length + '건</b> 보냅니다.' : '') +
     (items.length > AL_BATCH ? ' <span style="color:#8B928C">(' + AL_BATCH + '건씩 나눠 보내요)</span>' : '');
   var w = [];
+  if (AL.cls && AL.groups){
+    var picked = AL.groups.filter(function(c){ return AL.cls[c.id]; }).map(function(c){ return alClsLabel(c); });
+    h = '<div style="margin-bottom:4px"><b>' + esc(picked.join(' · ')) + '</b> 반만 보냅니다.</div>' + h;
+    if (AL.clsOut) w.push('고르지 않은 반 학생 ' + AL.clsOut + '명은 보내지 않습니다. 그 반 선생님이 따로 보내 주세요.');
+  }
   if (AL.doneN.length && skip) w.push('이미 제출한 ' + AL.doneN.length + '명은 빼고 보냅니다');
   if (AL.mode === 'up' && (AL.waitN || []).length && skipWait) w.push('피드백이 완성되지 않은 ' + AL.waitN.length + '명은 빼고 보냅니다');
   if (AL.mode === 'up' && AL.notN) w.push('아직 복기를 내지 않은 ' + AL.notN + '명은 받지 않습니다');

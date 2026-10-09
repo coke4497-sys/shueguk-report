@@ -1,5 +1,6 @@
 /* 지필고사 리포트 복기 안내 알림톡(2026-10-02) — 분석지 배정(analyses.html)의 [복기 안내 알림톡].
  * 배정 대상만·복기 낸 학생 빼기·받는 분·제목·확인 창·POST 본문(50건씩)·템플릿 준비 전 잠금·배정 없는 리포트 버튼 없음.
+ * 반별로 보내기(2026-10-09) — 진도 반 알약·반 빼기·로그인한 선생님 반만 기본·[모든 반]/[내 반만]·선택 유지.
  *   NODE_PATH=$(npm root -g) node tools/report-alim-e2e.js
  */
 const path = require('path'), fs = require('fs'), http = require('http');
@@ -36,7 +37,7 @@ const STUS = [
   const posts = [], dialogs = [];
   const pg = await (await br.newContext()).newPage();
   pg.on('pageerror', e => { perr++; console.log('  ✗ pageerror', e.message); });
-  let dismissNext = false, taAuth = '';
+  let dismissNext = false, taAuth = '', extraCls = false;
   pg.on('dialog', d => { dialogs.push(d.message()); if (dismissNext){ dismissNext = false; d.dismiss(); } else d.accept(); });
   await pg.route('**/*', rt => {
     const u = rt.request().url(), m = rt.request().method();
@@ -47,7 +48,7 @@ const STUS = [
     if (/\/rest\/v1\/teacher_accounts/.test(u)){ taAuth = rt.request().headers()['authorization'] || ''; return j(/user_id=eq\.u-kim/.test(u) ? [{ display_name: '김현지', login_id: 'hyunji' }] : /user_id=eq\.u-lee/.test(u) ? [{ display_name: '이현지', login_id: 'lee' }] : []); }
     if (/\/rest\/v1\/tt_classes/.test(u)) return j(/offset=0/.test(u) && /book=eq/.test(u) && /not\.like\.w/.test(u) ? [
       { class_id: 'n001', name: '고1 화정A', teacher: '현지', roster: '박보검 이미낸(8/30부터)' },
-      { class_id: 'n002', name: '고1 확인', teacher: '지원', roster: '(화정)이미낸 박보검' }] : []);
+      { class_id: 'n002', name: '고1 확인', teacher: '지원', roster: '(화정)이미낸 박보검' }].concat(extraCls ? [{ class_id: 'n003', name: '고1 화정B', teacher: '은지', roster: '김하늘 피드백전', day: '목', start: '5:30' }] : []) : []);
     if (/\/rest\/v1\/submissions/.test(u)) return j(/offset=0/.test(u) ? [{ exam: '26-2-중간-화정고1-공통국어2', name: '이미낸', parent_phone: '33333333', sent_at: '2026-10-02T05:00:00Z', teacher_note: '잘했어요' },
       { exam: '26-2-중간-화정고1-공통국어2', name: '피드백전', parent_phone: '77777777', sent_at: null, teacher_note: '' }] : []);
     if (/\/rest\/v1\//.test(u)) return rt.fulfill({ status: 204, body: '' });
@@ -188,6 +189,54 @@ const STUS = [
   await pg.waitForFunction(() => document.getElementById('tsel').value === '이현지' && document.querySelectorAll('.a-item').length === 1, null, { timeout: 8000 }).catch(() => {});
   ok('처음 열 때 허브에 로그인한 선생님이면 선생님별 보기 · 그 선생님 자동 선택', (await pg.inputValue('#tsel')) === '이현지' && await pg.evaluate(() => document.getElementById('vT').classList.contains('on')));
   await pg.evaluate(() => { localStorage.removeItem('shueguk_teacher_session_v2'); localStorage.removeItem('an_teacher'); localStorage.removeItem('an_view'); });
+  // 반별로 보내기(2026-10-09) — 화정A(현지T: 박보검·이미낸) · 화정B(은지T: 김하늘·피드백전) · 진도 반 정보 없음(코드없음)
+  extraCls = true; ready = true;
+  await pg.reload({ waitUntil: 'domcontentloaded' });
+  await pg.waitForSelector('.a-item', { timeout: 8000 });
+  await pg.click('.a-alim');
+  await pg.waitForSelector('#alSum b', { timeout: 8000 });
+  r = await pg.evaluate(() => ({ pills: [...document.querySelectorAll('.al-clsp')].map(l => l.textContent.trim() + (l.querySelector('input').checked ? '*' : '') + (l.classList.contains('mine') ? '#' : '')),
+    sum: document.getElementById('alSum').textContent, btns: [...document.querySelectorAll('.al-clsb button')].map(b => b.textContent) }));
+  ok('보낼 반 알약 — 진도 반마다 담당T·요일·인원, 반 정보 없는 학생은 따로, 로그인 없으면 모두 선택', r.pills.join('|') === '고1 화정A · 현지T · 2명*|고1 화정B · 은지T · 목 5:30 · 2명*|진도 반 정보 없음 · 1명*' &&
+     /2명/.test(r.sum) && /4건/.test(r.sum) && !/반만 보냅니다/.test(r.sum) && r.btns.join() === '모든 반 고르기', JSON.stringify(r));
+  await pg.check('input[name="alSkip"][value="0"]');
+  await pg.uncheck('.alC[value="n003"]');
+  await pg.waitForFunction(() => /반만 보냅니다/.test(document.getElementById('alSum').textContent), null, { timeout: 8000 });
+  r = await pg.evaluate(() => ({ sum: document.getElementById('alSum').textContent, go: document.getElementById('alGo').textContent, skip: (document.querySelector('input[name="alSkip"]:checked') || {}).value,
+    box: (document.querySelector('.al-skip') || {}).textContent || '', on: [...document.querySelectorAll('.al-clsp.on')].length }));
+  ok('화정B를 빼면 그 반 학생(김하늘·피드백전)은 빠지고 안내 — 박보검·이미낸(함께 보내기 유지) 2명 · 4건', /고1 화정A · 현지T · 진도 반 정보 없음 반만 보냅니다/.test(r.sum) && /고르지 않은 반 학생 2명은 보내지 않습니다/.test(r.sum) &&
+     /배정된 학생 2명/.test(r.sum) && /4건/.test(r.sum) && r.go === '알림톡 보내기 (4건)' && r.on === 2, JSON.stringify(r));
+  ok('반을 바꿔도 "함께 보낼게요" 선택·이름 목록은 고른 반 기준(피드백전 빠짐)', r.skip === '0' && /이미낸/.test(r.box) && !/피드백전/.test(r.box), JSON.stringify(r));
+  await pg.click('.al-clsb button');
+  await pg.waitForFunction(() => !/반만 보냅니다/.test(document.getElementById('alSum').textContent), null, { timeout: 8000 });
+  ok('[모든 반 고르기]로 되돌림', await pg.evaluate(() => document.querySelectorAll('.al-clsp.on').length === 3 && /배정된 학생 4명/.test(document.getElementById('alSum').textContent)));
+  dialogs.length = 0;
+  await pg.uncheck('.alC[value="n001"]'); await pg.uncheck('.alC[value="__none"]');
+  await pg.waitForFunction(() => /고1 화정B · 은지T · 목 5:30 반만 보냅니다/.test(document.getElementById('alSum').textContent), null, { timeout: 8000 });
+  await pg.check('input[name="alSkip"][value="1"]');
+  await pg.click('#alGo');
+  await pg.waitForFunction(() => /보냈습니다/.test(document.getElementById('alRes').textContent), null, { timeout: 8000 });
+  const bOnly = posts.filter(p => p.action === 'alimSend').pop();
+  ok('화정B만 고르고 보내면 그 반 학생(김하늘)에게만 — POST 2건', bOnly.items.map(it => it.student).join() === '김하늘,김하늘' && dialogs.some(d => /1명에게 2건/.test(d)), JSON.stringify(bOnly.items.map(it => it.student + ':' + it.who)));
+  await pg.keyboard.press('Escape');
+  // 허브에 로그인한 선생님(이현지)이면 그 선생님 반(화정A)만 기본 선택 + '내 반' 표시 + [내 반만 고르기]
+  await pg.evaluate(() => localStorage.setItem('shueguk_teacher_session_v2', JSON.stringify({ access_token: 'hubtok', refresh_token: 'rt', expires_at: Math.floor(Date.now() / 1000) + 3600, user: { id: 'u-lee' } })));
+  await pg.click('.a-alim');
+  await pg.waitForSelector('#alSum b', { timeout: 8000 });
+  r = await pg.evaluate(() => ({ pills: [...document.querySelectorAll('.al-clsp')].map(l => l.textContent.trim() + (l.querySelector('input').checked ? '*' : '') + (l.classList.contains('mine') ? '#' : '')),
+    sum: document.getElementById('alSum').textContent, btns: [...document.querySelectorAll('.al-clsb button')].map(b => b.textContent) }));
+  ok('로그인한 이현지 선생님 → 내 반(화정A)만 기본 선택 · 내 반 표시 · 다른 반 학생은 보내지 않는다는 안내', r.pills.join('|') === '고1 화정A · 현지T · 2명*#|고1 화정B · 은지T · 목 5:30 · 2명|진도 반 정보 없음 · 1명' &&
+     /고1 화정A · 현지T 반만 보냅니다/.test(r.sum) && /고르지 않은 반 학생 3명은 보내지 않습니다/.test(r.sum) && /1명/.test(r.sum) && r.btns.join() === '모든 반 고르기,내 반만 고르기', JSON.stringify(r));
+  await pg.click('.al-kind[data-mode="up"]');
+  r = await pg.evaluate(() => ({ on: [...document.querySelectorAll('.al-clsp.on')].map(l => l.querySelector('input').value), sum: document.getElementById('alSum').textContent, box: document.getElementById('alBox').textContent }));
+  ok('종류를 바꿔도 고른 반 유지 — 피드백 확인 안내는 화정A의 이미낸 1명, 화정B의 피드백전은 안내 상자에 없음', r.on.join() === 'n001' && /선생님 피드백을 보낸 학생 1명/.test(r.sum) && !/피드백이 완성되지 않은 친구/.test(r.box), JSON.stringify(r));
+  await pg.click('.al-clsb button');   // 모든 반 고르기
+  await pg.waitForFunction(() => /피드백이 완성되지 않은 친구/.test(document.getElementById('alBox').textContent), null, { timeout: 8000 });
+  await pg.click('.al-clsb button:nth-child(2)');   // 내 반만 고르기
+  await pg.waitForFunction(() => !/피드백이 완성되지 않은 친구/.test(document.getElementById('alBox').textContent), null, { timeout: 8000 });
+  ok('[모든 반 고르기] → [내 반만 고르기] 왕복', await pg.evaluate(() => [...document.querySelectorAll('.al-clsp.on')].map(l => l.querySelector('input').value).join() === 'n001'));
+  await pg.keyboard.press('Escape');
+  await pg.evaluate(() => localStorage.removeItem('shueguk_teacher_session_v2'));
   ok('페이지 오류 없음', perr === 0);
   console.log((fail ? '실패 ' + fail + ' / ' : '') + '통과 ' + pass + '건');
   await br.close(); srv.close(); process.exit(fail ? 1 : 0);
