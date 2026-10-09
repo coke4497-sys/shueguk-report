@@ -448,15 +448,25 @@ const STUDENTS = [
     st.notes['정규|r001'] = { id: 1, book: '정규', class_id: 'r001', ymd: TODAYSTR, progress: '', homework: '', report_status: '', comments: { '__태도': { '박보검': '좋음' } } };
     await openCard(page, '고2 가');
     const cards = () => page.evaluate(() => { const o = {}; CR.names.forEach((x, i) => { const c = document.querySelector('.cr-card[data-i="' + i + '"]');
-      o[x.p] = { done: c.classList.contains('done'), tags: [...c.querySelectorAll('.cr-dtag')].map(e => e.textContent).join('|'), all: !!c.querySelector('.cr-dall'), vis: c.offsetParent !== null }; }); return o; });
+      o[x.p] = c ? { done: c.classList.contains('done'), off: c.classList.contains('off'),
+        tag: (c.querySelector('.cr-offtag') || {}).textContent || '',
+        tags: [...c.querySelectorAll('.cr-dtag')].map(e => e.textContent).join('|'), all: !!c.querySelector('.cr-dall'), vis: c.offsetParent !== null } : null; }); return o; });
     r = await cards();
     ok('출석·태도·과제 검사 다 된 박보검은 기록 완료', r['박보검'].done && r['박보검'].all && r['박보검'].tags === '출석 ✓|태도 ✓|과제 검사 ✓', JSON.stringify(r));
     ok('김하늘은 태도 미입력·과제 검사 0/1로 부족', !r['김하늘'].done && r['김하늘'].tags === '출석 ✓|태도 미입력|과제 검사 0/1', JSON.stringify(r));
-    ok('결석한 최다은은 출석만으로 완료', r['최다은'].done && /결석이라/.test(r['최다은'].tags), JSON.stringify(r));
-    ok('위에 기록 완료 2명 · 부족 1명', /기록 완료 2명/.test(await page.$eval('#cr-donebar', e => e.textContent)) && /부족 1명/.test(await page.$eval('#cr-donebar', e => e.textContent)));
+    // 오늘 안 온 친구(결석)는 목록에서 접어 둔다 — 2026-10-09 원장님
+    ok('결석한 최다은 카드는 목록에 없음', r['최다은'] === null, JSON.stringify(r));
+    ok('[오늘 안 온 친구 1명 보기] 줄', /오늘 안 온 친구 1명 보기/.test(await page.$eval('#cr-off-tog', e => e.textContent)));
+    ok('위에 기록 완료 1명 · 부족 1명(안 온 친구는 안 셈)', /기록 완료 1명/.test(await page.$eval('#cr-donebar', e => e.textContent)) && /부족 1명/.test(await page.$eval('#cr-donebar', e => e.textContent)));
+    ok('리포트 준비 확인도 온 친구 2명 기준', /출석 2명 모두 체크/.test(await page.$eval('.cr-check', e => e.textContent)), await page.$eval('.cr-check', e => e.textContent));
+    await page.click('#cr-off-tog');
+    r = await cards();
+    ok('펼치면 결석 표시와 함께 보인다', r['최다은'] && r['최다은'].vis && r['최다은'].off && r['최다은'].tag === '결석' && /결석이라/.test(r['최다은'].tags), JSON.stringify(r));
+    await page.click('#cr-off-tog');
+    ok('다시 누르면 접힌다', await page.evaluate(() => !document.querySelector('.cr-off-list')));
     await page.click('#cr-only-todo');
     r = await cards();
-    ok('[부족한 친구만 보기] → 완료 카드는 숨고 김하늘만', !r['박보검'].vis && !r['최다은'].vis && r['김하늘'].vis, JSON.stringify(r));
+    ok('[부족한 친구만 보기] → 완료 카드는 숨고 김하늘만', !r['박보검'].vis && r['김하늘'].vis, JSON.stringify(r));
     const iK = await page.evaluate(() => CR.names.map(x => x.p).indexOf('김하늘'));
     await page.click(`[data-att="${iK}"][data-lv="1"]`);
     r = await cards();
@@ -793,8 +803,11 @@ const STUDENTS = [
       cards: [...document.querySelectorAll('.cr-card')].map(c => c.querySelector('.cr-top b').textContent + ':' + c.querySelector('.cr-chip').textContent),
       ymd: CR.ymd, wk: CR.hwWeek }));
     ok('⑨ ?cr= 로 그 날짜 창이 바로 열림 — 머리에 날짜·"지난 수업", 주소의 cr 은 지움', r.meta.indexOf(PASTMD) >= 0 && /지난 수업/.test(r.meta) && !/cr=/.test(r.url) && r.ymd === PAST, JSON.stringify(r));
-    ok('⑨ 출석은 그 날 기록(오늘 기록 아님)', r.cards.includes('박보검:결석') && r.cards.includes('김하늘:출석') && r.cards.includes('최다은:미체크'), JSON.stringify(r.cards));
+    ok('⑨ 출석은 그 날 기록(오늘 기록 아님) — 결석한 박보검은 안 온 친구로 접힘', r.cards.includes('김하늘:출석') && r.cards.includes('최다은:미체크') && !r.cards.includes('박보검:결석'), JSON.stringify(r.cards));
     ok('⑨ 과제 검사 주차 = 그 날의 수요일', r.wk === PASTWED, r.wk + ' / ' + PASTWED);
+    await c9.page.click('#cr-off-tog');
+    const off9 = await c9.page.evaluate(() => [...document.querySelectorAll('.cr-off-list .cr-card')].map(c => c.querySelector('.cr-top b').textContent + ':' + c.querySelector('.cr-chip').textContent));
+    ok('⑨ 펼치면 그 날 결석한 박보검', off9.join() === '박보검:결석', JSON.stringify(off9));
     const iKim = await c9.page.evaluate(() => CR.names.map(x => x.p).indexOf('김하늘'));
     await c9.page.click(`.cr-attp[data-att="${iKim}"][data-lv="0"]`);
     await c9.page.waitForTimeout(1200);
