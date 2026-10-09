@@ -475,6 +475,12 @@
   .cr-card{background:#F6F8F7;border-radius:12px;padding:9px 11px;display:flex;flex-direction:column;gap:5px;}
   .cr-card.done{background:#EAF2EE;}
   .cr-stu.only .cr-card.done{display:none;}
+  .cr-off{margin-top:10px;}
+  .cr-off > button{border:0;background:#F2F5F3;color:#5C6A64;border-radius:999px;padding:7px 13px;font:inherit;font-size:.86rem;cursor:pointer;}
+  .cr-off > button:hover{background:#E8EDEA;}
+  .cr-off-list{display:flex;flex-direction:column;gap:8px;margin-top:8px;}
+  .cr-card.off{background:#FBFBFA;}
+  .cr-offtag{background:#F7E2DE;color:#B0736A;border-radius:999px;padding:1px 8px;font-size:.78rem;white-space:nowrap;}
   .cr-done{display:flex;flex-wrap:wrap;align-items:center;gap:4px;font-size:.7rem;}
   .cr-dtag{padding:1px 8px;border-radius:6px;background:#F7EED9;color:#7A6230;}
   .cr-dtag.ok{background:#DCE8E5;color:#3F6159;} .cr-dtag.na{background:#EEF1EF;color:#65726B;}
@@ -7347,15 +7353,32 @@ function crNamesOf(c){
   crOnceOut().forEach(function(o){
     if (o.fromId !== c.id) return;
     if (o.kind === '주간빼기' && o.ymd && o.ymd !== t) return;
-    away[plainName(o.student)] = 1;
+    away[plainName(o.student)] = o.kind === '주간빼기' ? '이 주 빠짐' : '1회 이동';
   });
-  function add(nm){ var p = plainName(nm); if (!p || seen[p]) return; seen[p] = 1; out.push({ nm: nm, p: p }); }
+  function add(nm, off){ var p = plainName(nm); if (!p || seen[p]) return; seen[p] = 1; out.push({ nm: nm, p: p, off: off || '' }); }
   sortNames(c.students).forEach(function(nm){
-    if (!away[plainName(nm)] || crAttMap()[attKey(c.id, nm)]) add(nm);
+    var aw = away[plainName(nm)];
+    if (!aw) add(nm, crNotYet(nm, t) ? nameNote(nm) + ' 등원' : '');
+    else if (crAttMap()[attKey(c.id, nm)]) add(nm, aw);   // 빠졌지만 출석 기록이 남은 학생
   });
   crOnceIn().forEach(function(o){ if (o.toId === c.id) add(o.student); });
-  Object.keys(attend).forEach(function(k){ if (k.indexOf(c.id + '|') === 0) add(k.slice(c.id.length + 1)); });
+  Object.keys(crAttMap()).forEach(function(k){ if (k.indexOf(c.id + '|') === 0) add(k.slice(c.id.length + 1)); });
   return out;
+}
+/* 이름 뒤 'M/D부터' 표기가 아직 오지 않았으면 참 — 등원 시작 전 신입(노트 규칙은 noteExpiredMd 와 같은 해석) */
+function crNotYet(nm, ymd){
+  var m = /^(\d{1,2})\/(\d{1,2})부터$/.exec(String(nameNote(nm) || '').trim());
+  if (!m) return false;
+  var t = new Date(+ymd.slice(0, 4), +ymd.slice(5, 7) - 1, +ymd.slice(8, 10));
+  var d = new Date(t.getFullYear(), +m[1] - 1, +m[2]);
+  if ((d - t) / 86400e3 > 180) d = new Date(t.getFullYear() - 1, +m[1] - 1, +m[2]);   // 해 넘김 표기
+  return d > t;
+}
+/* 오늘 등원하지 않는 친구 — 결석 · 그 날 빠짐(이 주 빠짐·1회 이동) · 등원 시작 전.
+ * 2026-10-09 원장님 "수업 기록에서 오늘 등원하지 않는 친구 리스트는 안보이도록" — 목록에서 접어 둔다 */
+function crOffOf(x, a){
+  if (a && a.status === '결석') return '결석';
+  return x.off || '';
 }
 /* 시간표 이름 → 재원 명단 한 명(숙제 검사 저장에 접근코드가 필요). 정확히 → 끝의 A 떼고 → A 붙여서, 동명이인은 앞 괄호 학교로 */
 function crStuOf(nm){
@@ -7386,7 +7409,7 @@ function openClassNote(c, ctx){
   var ymd = CRX ? CRX.ymd : todayStr(), part = crPartOf(c, bk);
   CR = { c: c, ymd: ymd, bk: bk, part: part, note: null, names: crNamesOf(c), busy: false,
          hwWeek: crPrevWed(ymd), items: CR_HW_DEFAULT.slice(), hw: {}, hwOk: false, more: {},
-         ns: null, sib: [] };
+         ns: null, sib: [], showOff: false };
   if (crRuleBook(c, bk) === '내신' && part === '진도'){
     var pers = crNsPeriods(ymd);
     CR.ns = { periods: pers, period: pers[0], key: crScopeKey(c.cls, c.id), week: crPrevWed(ymd),
@@ -7879,15 +7902,16 @@ function crDoneHtml(r){
 }
 function crRender(){
   var n = CR.note || {}, cm = n.comments || {}, part = CR.part;
-  var unchecked = 0, hwDone = 0, allDone = 0;
-  var cards = CR.names.map(function(x, i){
+  var unchecked = 0, hwDone = 0, allDone = 0, shown = 0, onRows = [], offRows = [];
+  CR.names.forEach(function(x, i){
     var a = crAttMap()[attKey(CR.c.id, x.nm)];
     var ch = a ? (a.status === '출석' ? 'ok' : a.status === '지각' ? 'late' : 'abs') : '';
-    if (!a) unchecked++;
+    var off = crOffOf(x, a);                       // 오늘 안 온 친구는 접어 둔다(수에서도 뺀다)
+    if (!a && !off) unchecked++;
     var code = x.stu ? x.stu.code : '';
     var h = code ? CR.hw[code] : null;
-    if (crHwTouched(h)) hwDone++;
-    var dn = crDoneOf(x, a); if (dn.done) allDone++;
+    if (!off){ shown++; if (crHwTouched(h)) hwDone++; }
+    var dn = crDoneOf(x, a); if (dn.done && !off) allDone++;
     var miss = !!(h && (h.missing || (h.miss || []).length));   // 과제 하나라도 미제출이면 대책 칸
     var allMiss = !!(h && h.missing);
     var ihHtml = '<label class="cr-ihl">이 학생만 과제 <small>(선택 · 한 줄에 하나 · 다음 수업에서 이 학생만 검사)</small>' +
@@ -7905,11 +7929,17 @@ function crRender(){
         (CR.more[i] ? '<textarea class="cr-priv" id="cr-priv-' + i + '" maxlength="300" placeholder="비공개 메모 — 교사·조교만 봐요">' + esc(h ? h.priv : '') + '</textarea>' : '');
     if (!CR.hwOk || !code) hwPart += ihHtml + '<button type="button" class="cr-more" data-pv="' + i + '">리포트 미리보기</button>';
     if (!CR.hwOk || !code) hwPart += '<div class="cr-row2 one"><input id="cr-c-' + i + '" maxlength="200" placeholder="코멘트 (선택) — 학생 페이지에 보여요" value="' + esc(cm[x.p] || '') + '"></div>';
-    return '<div class="cr-card ' + (dn.done ? 'done' : 'todo') + '" data-i="' + i + '"><div class="cr-top"><b title="' + esc(x.nm) + '">' + esc(x.p) + '</b>' +
+    var html = '<div class="cr-card ' + (off ? 'off' : dn.done ? 'done' : 'todo') + '" data-i="' + i + '"><div class="cr-top"><b title="' + esc(x.nm) + '">' + esc(x.p) + '</b>' +
       '<span class="cr-chip ' + ch + '">' + (a ? esc(a.status) : '미체크') + '</span>' +
+      (off ? '<span class="cr-offtag">' + esc(off) + '</span>' : '') +
       '<span id="cr-pct-' + i + '">' + (code && CR.hwOk ? crHwLabel(code) : '') + '</span>' +
       '<span class="cr-dot" id="cr-dot-' + i + '"></span></div>' + crDoneHtml(dn) + crAttHtml(i, x) + hwPart + '</div>';
-  }).join('');
+    (off ? offRows : onRows).push(html);
+  });
+  var cards = onRows.join(''), offCards = offRows.join('');
+  var offBox = offRows.length ? '<div class="cr-off"><button type="button" id="cr-off-tog" aria-expanded="' + !!CR.showOff + '">오늘 안 온 친구 ' +
+      offRows.length + '명 ' + (CR.showOff ? '숨기기' : '보기') + '</button>' +
+      (CR.showOff ? '<div class="cr-off-list">' + offCards + '</div>' : '') + '</div>' : '';
   var st = crStateHtml(n);
   var top = '';
   if (part === '진도' && CR.ns) top = crNsHtml(n);
@@ -7927,15 +7957,15 @@ function crRender(){
   var hasP = part === '진도' ? (crNsUnitsOfWeek(CR.ns || { cleared: {} }).length > 0 || !!String(n.progress || '').trim()) : !!String(n.progress || '').trim();
   var chk = '<div class="cr-check"><b>리포트 준비 확인</b>' +
     (part === '확인' ? '' : '<span class="' + (hasP ? 'ok' : 'warn') + '">' + (hasP ? '진도 입력함' : '진도를 아직 적지 않았어요') + '</span>') +
-    '<span class="' + (unchecked ? 'warn' : 'ok') + '">' + (unchecked ? '출석 미체크 ' + unchecked + '명' : '출석 ' + CR.names.length + '명 모두 체크') + '</span>' +
-    (CR.hwOk ? '<span class="' + (hwDone < CR.names.length && part !== '진도' ? 'warn' : 'ok') + '">' + '과제 검사 ' + hwDone + ' / ' + CR.names.length + '명</span>'
+    '<span class="' + (unchecked ? 'warn' : 'ok') + '">' + (unchecked ? '출석 미체크 ' + unchecked + '명' : '출석 ' + shown + '명 모두 체크') + '</span>' +
+    (CR.hwOk ? '<span class="' + (hwDone < shown && part !== '진도' ? 'warn' : 'ok') + '">' + '과제 검사 ' + hwDone + ' / ' + shown + '명</span>'
              : '<span class="warn">과제 검사 기록을 불러오지 못했어요</span>') + '</div>';
   $('cr-body').innerHTML = st + top +
     '<div class="cr-stu' + (CR.onlyTodo ? ' only' : '') + '"><div class="cr-sh"><b>학생별</b><span>' + hwHead + '</span></div>' + hint +
-      (CR.names.length ? '<div class="cr-prog-bar" id="cr-donebar"><span><b>기록 완료 ' + allDone + '명</b> · 아직 부족 ' + (CR.names.length - allDone) + '명</span>' +
-        (allDone < CR.names.length || CR.onlyTodo ? '<button type="button" id="cr-only-todo" aria-pressed="' + !!CR.onlyTodo + '">' + (CR.onlyTodo ? '모두 보기' : '부족한 친구만 보기') + '</button>' : '') + '</div>' : '') +
-      (CR.hwOk && CR.names.length ? crXtHtml() : '') +
-      (cards || '<p class="mdesc">오늘 이 반에 학생이 없어요.</p>') + '</div>' + chk;
+      (shown ? '<div class="cr-prog-bar" id="cr-donebar"><span><b>기록 완료 ' + allDone + '명</b> · 아직 부족 ' + (shown - allDone) + '명</span>' +
+        (allDone < shown || CR.onlyTodo ? '<button type="button" id="cr-only-todo" aria-pressed="' + !!CR.onlyTodo + '">' + (CR.onlyTodo ? '모두 보기' : '부족한 친구만 보기') + '</button>' : '') + '</div>' : '') +
+      (CR.hwOk && shown ? crXtHtml() : '') +
+      (cards || '<p class="mdesc">' + (offRows.length ? '오늘 등원하는 친구가 없어요.' : '오늘 이 반에 학생이 없어요.') + '</p>') + offBox + '</div>' + chk;
   crGenLabel();
 }
 /* 리포트 상태 띠 — 이미 생성·공개된 수업인지 창 맨 위에서 바로 보이게(2026-10-03 원장님 "이미 생성했고 공개했다는 것을 알 수 있으면") */
@@ -8031,6 +8061,7 @@ document.addEventListener('click', function(e){
   if (b.id === 'cr-ns-save'){ crNsSaveScope(); return; }
   if (b.id === 'cr-sib-go'){ crSibImport(); return; }
   if (b.id === 'cr-only-todo'){ crKeepInputs(); CR.onlyTodo = !CR.onlyTodo; crRender(); return; }
+  if (b.id === 'cr-off-tog'){ crKeepInputs(); CR.showOff = !CR.showOff; crRender(); return; }
   if (b.id === 'cr-xt-add'){ crXtAdd(); return; }
   if (b.id === 'cr-xt-last'){ crXtAdd((CR.xtLast || []).slice()); return; }
   if (b.hasAttribute('data-xtrm')){ crXtRemove(b.getAttribute('data-xtrm')); return; }
@@ -8282,7 +8313,7 @@ function crGenerate(){
   var n = CR.note || {};
   var hasP = CR.part === '확인' || !!String(n.progress || '').trim() || (CR.ns && crNsUnitsOfWeek(CR.ns).length);
   if (!hasP){ crMsg('오늘 진도를 먼저 적어 주세요.', true); if ($('cr-prog')) $('cr-prog').focus(); return; }
-  var unchecked = CR.names.filter(function(x){ return !crAttMap()[attKey(CR.c.id, x.nm)]; }).length;
+  var unchecked = CR.names.filter(function(x){ return !crAttMap()[attKey(CR.c.id, x.nm)] && !crOffOf(x, null); }).length;
   if (unchecked && !confirm('출석을 체크하지 않은 학생이 ' + unchecked + '명 있어요.\n그 학생은 리포트에서 빠져요. 그래도 만들까요?')) return;
   var c = CR.c, st = n.report_status;
   if (st === '요청' && !confirm('이미 리포트를 쓰고 있어요. 한 번 더 요청할까요?')) return;
