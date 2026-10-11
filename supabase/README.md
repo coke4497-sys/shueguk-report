@@ -816,7 +816,9 @@ default privileges 까지 되돌렸다. `tools/check_lock.py` 통과(표 15/15 �
 - 읽는 곳: timetable.html 어댑터(`fetchPeriods` — 열이 없으면 400을 받고 옛 열로 다시 읽는다 `ovCol`), hub sessions.html, classlog.html(같은 폴백).
 - 쓰는 곳: timetable.html 캘린더 [학년 예외] → `ttPeriodSet{week, book, ov}` → 시트 사본(D열 '학년예외', 백엔드 재배포 뒤) + upsert `overrides`.
 - 일일 점검(`audit_heal` `sync_sheet_master('tt_period', …)`)은 주차·book만 대조하므로 overrides 열을 건드리지 않는다(시트 사본에 D열이 생겨도 읽지 않음 — 원본은 수파베이스).
-- **적용 상태: 아직 실제 수파베이스에 적용 전.** 적용은 관리 API(sbp_ 토큰) 또는 SQL Editor에서 `047_tt_period_overrides.sql` 실행 → 공개 키로 `tt_period` 401·교사 계정으로 overrides 저장/조회 확인. 적용 뒤 캘린더에서 10/14·10/21·10/28 주 예외 '중2 → 정규'를 넣는다(원장님 2026-10-11 결정).
+- 모양 검사는 **immutable 함수 `public.tt_period_ov_ok(jsonb)`** + check 제약 — check 제약 안에 서브쿼리를 직접 쓰면 실제 DB가 거절한다(`0A000: cannot use subquery in check constraint`, 2026-10-11 첫 실행에서 겪음).
+- **적용 상태: 2026-10-11 실제 수파베이스에 적용 완료**(관리 API `database/query`, 원장님이 준 sbp_ 토큰 — 저장하지 않음). 확인한 것: `overrides jsonb default '{}'` 열·`tt_period_overrides_shape` 제약, 틀린 키·값·배열 거절, 공개 키 `tt_period` 401, 공용 교사 계정으로 `select …,overrides`(어댑터 `fetchPeriods` 경로)·`on_conflict=week_wednesday` upsert·삭제 왕복(시험 행 2031-01-01은 지움).
+- 같은 날 **10/14·10/21·10/28 주(내신) `overrides = {"중2":"정규"}`** 설정 완료(원장님 2026-10-11 결정 — 11/4 주부터 예외 없음). 시트 사본 D열은 백엔드 재배포 뒤부터.
 
 ## 045 — 오늘 할 일 · 전달 사항 `tt_tasks` (2026-10-08)
 - 슈국 스케쥴 오늘의 시간표 옆 패널의 할 일 상자 원본(시트 사본 없음). 한 행 = 요청 한 건(ymd 보이는 날짜·loc 센터·text·student·author·status '대기'/'완료'·done_by·done_at·done_ymd·history jsonb). 교사 전용 — 공개 키(anon)는 권한 없음(401).
