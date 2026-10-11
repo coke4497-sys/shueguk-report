@@ -152,6 +152,13 @@
   .cal-period button{font:inherit;font-size:.76rem;border:1px solid var(--line);background:#fff;color:var(--ink-soft);border-radius:8px;padding:4px 2px;cursor:pointer;}
   .cal-period button.on-reg{background:var(--reg);border-color:var(--reg-line);color:var(--reg-ink);font-weight:700;}
   .cal-period button.on-exam{background:var(--exam);border-color:var(--exam-line);color:var(--exam-ink);font-weight:700;}
+  .cal-period button.cal-ov{font-size:.68rem;padding:3px 2px;color:#8B978F;border-style:dashed;}
+  .cal-period button.cal-ov.has{border-style:solid;background:#EDE4F4;border-color:#D9CCE8;color:#5A4A6A;font-weight:700;}
+  .pex-list{display:flex;flex-direction:column;gap:6px;margin:6px 0 10px;}
+  .pex-row{display:flex;align-items:center;gap:10px;font-size:.9rem;}
+  .pex-row b{width:34px;}
+  .pex-row select{font:inherit;font-size:.88rem;border:1.5px solid var(--line);border-radius:10px;padding:6px 10px;flex:1;}
+  .pb-ov{color:#5A4A6A;}
   .cal-cell{background:var(--surface);border:1px solid var(--line-soft);border-radius:10px;min-height:76px;padding:6px 8px;cursor:pointer;}
   .cal-cell:hover{border-color:var(--accent);}
   .cal-cell.other{opacity:.4;}
@@ -1578,6 +1585,63 @@
    * 열이 아직 없는 DB(마이그레이션 전)에서는 select가 400으로 떨어지므로 한 번 실패하면
    * 옛 열 목록으로 다시 읽고(kindCol=false) 이후 쓰기에서도 kind를 빼서 보낸다. */
   var kindCol = true;
+  /* ── 학년별 기간 예외(047 — tt_period.overrides {학년: '정규'|'내신'}, 2026-10-11 사용자 결정 "권장안으로") ──
+   * 슈국 캘린더는 주마다 시간표 하나를 고르지만, 어떤 학년만 다른 시간표로 수업하는 주가 있다
+   * (중2는 10/14·10/21·10/28 주 정규, 고1·고2는 기말까지 내신). 그 학년의 반을 다른 시간표에서 가져와 섞고
+   * 출석·기록은 반이 원래 속한 시간표(book)로 남긴다. 열이 없는 DB(047 전)면 예외 없이 종전대로. */
+  var ovCol = true;
+  function periodShape(x){ return { week: x.week_wednesday, book: x.book, ov: (x.overrides && typeof x.overrides === 'object') ? x.overrides : {} }; }
+  function fetchPeriods(){
+    var used = ovCol;
+    return sbGet('/tt_period?select=week_wednesday,book' + (used ? ',overrides' : ''))
+      .catch(function(e){
+        if (!used || !/sb 400/.test(String(e && e.message))) throw e;
+        ovCol = false;   // overrides 열이 없는 DB — 옛 열로 다시
+        return sbGet('/tt_period?select=week_wednesday,book');
+      })
+      .then(function(rows){ return rows.map(periodShape); });
+  }
+  /* 그 날짜가 속한 달력 주(월~일)의 수요일 — 페이지 weekStartOf와 같은 규칙 */
+  function wedOfYmdStr(y){
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(String(y || ''))) return '';
+    var d = new Date(+y.slice(0,4), +y.slice(5,7)-1, +y.slice(8,10));
+    d.setDate(d.getDate() - ((d.getDay() + 6) % 7) + 2);
+    return localYmd(d);
+  }
+  /* 반이름의 학년 — '정리정독 중2' → 중2, '고3파이널A' → 고3, '논술B 국어' → '' */
+  function gradeOfName(name){ var m = /([중고])\s*([1-3])/.exec(String(name || '')); return m ? m[1] + m[2] : ''; }
+  window.ttGradeOf = gradeOfName;
+  /* 요청한 시간표(book) 기준으로 그 주에 다른 시간표를 쓰는 학년 → { grades:{학년:시간표}, other:'정규'|'내신'|'' } */
+  function extrasFor(book, wedYmd, periods){
+    var row = null;
+    (periods || []).forEach(function(p){ if (p.week === wedYmd) row = p; });
+    var ov = (row && row.ov) || {}, grades = {}, other = '';
+    Object.keys(ov).forEach(function(g){ var b = bookOf(ov[g]); if (ov[g] && b !== book){ grades[g] = b; other = b; } });
+    return { grades: grades, other: other };
+  }
+  /* 예외 학년의 반을 다른 시간표에서 가져와 섞는다 — 주 시간표에서 그 학년 반은 빼고, 반마다 book을 붙인다 */
+  function mergeClasses(book, main, ex){
+    var out = main.filter(function(c){ return !ex.grades[gradeOfName(c.cls)]; });
+    out.forEach(function(c){ c.book = book; });
+    if (!ex.other) return Promise.resolve({ classes: out, ids: {} });
+    return fetchClasses(ex.other).then(function(rows){
+      var ids = {};
+      rows.forEach(function(c){ if (ex.grades[gradeOfName(c.cls)] === ex.other){ c.book = ex.other; ids[c.id] = 1; out.push(c); } });
+      return { classes: out, ids: ids };
+    });
+  }
+  function extraIdsFor(book, wedYmd){   // timetableWeek용 — 예외 학년 반ID 집합만
+    return fetchPeriods().then(function(ps){
+      var ex = extrasFor(book, wedYmd, ps);
+      if (!ex.other) return { other: '', ids: {} };
+      return fetchClasses(ex.other).then(function(rows){
+        var ids = {};
+        rows.forEach(function(c){ if (ex.grades[gradeOfName(c.cls)] === ex.other) ids[c.id] = 1; });
+        return { other: ex.other, ids: ids };
+      });
+    });
+  }
+  function logKeep(book, ids){ return function(g){ return g.book === book || !!ids[g.from_class_id] || !!ids[g.to_class_id]; }; }
   var CLS_COLS = 'class_id,day,start_time,end_time,location,teacher,name,roster';
   function fetchClasses(book){
     var usedKind = kindCol;   // 이 요청이 kind를 넣었는지 — 정규·내신을 나란히 읽을 때 둘 다 각자 다시 읽게
@@ -1655,21 +1719,30 @@
       var mfrom = (p.get('mfrom') || '').trim() || dateStr, mto = (p.get('mto') || '').trim() || mfrom;
       var wfrom = (p.get('wfrom') || '').trim(), wto = (p.get('wto') || '').trim();
       var base = [tYmd(), wfrom || tYmd(), mfrom || tYmd()].sort()[0];
+      // ov=1(오늘·주차별)이면 그 주의 학년별 예외를 적용해 반을 섞는다 — 전체 시간표는 순수한 시간표 그대로
+      var useOv = p.get('ov') === '1';
+      var wed = wfrom ? wedOfYmdStr(wfrom) : wedOfYmdStr(dateStr);
+      return fetchPeriods().then(function(periods){
+      var ex = (useOv && wed) ? extrasFor(book, wed, periods) : { grades: {}, other: '' };
       var jobs = [
-        fetchClasses(book),
+        fetchClasses(book).then(function(main){ return mergeClasses(book, main, ex); }),
         fetchOnceLogs(base, WEEK_KINDS, 120),
         dateStr ? fetchAttendRange(dateStr, dateStr, book) : Promise.resolve([]),
         mfrom ? sbGet('/tt_memo?date=gte.' + q(mfrom) + '&date=lte.' + q(mto)) : Promise.resolve([]),
-        sbGet('/tt_period?select=week_wednesday,book'),
+        Promise.resolve(periods),
         (wfrom && wto) ? fetchAttendRange(wfrom, wto, book) : Promise.resolve(null),
         (wfrom && wto) ? fetchTeacherOffs(wfrom, wto) : Promise.resolve(null),
-        dateStr ? fetchTeacherOffs(dateStr, dateStr) : Promise.resolve([])
+        dateStr ? fetchTeacherOffs(dateStr, dateStr) : Promise.resolve([]),
+        (ex.other && dateStr) ? fetchAttendRange(dateStr, dateStr, ex.other) : Promise.resolve([]),
+        (ex.other && wfrom && wto) ? fetchAttendRange(wfrom, wto, ex.other) : Promise.resolve([])
       ];
       return Promise.all(jobs).then(function(rs){
+        var ids = rs[0].ids, keep = logKeep(book, ids);
+        var xa = function(rows){ return (rows || []).filter(function(r){ return !!ids[r.class_id]; }); };   // 예외 학년 반의 출석만
         // 오늘의 시간표가 지난 날짜를 볼 때(date=지난 날짜)는 그 날짜 앞뒤 8일의 기록을 담는다 (2026-10-11)
         var t = dateStr || tYmd(), span = 8 * 86400000;
         var once = rs[1].filter(function(g){
-          if (g.book !== book) return false;
+          if (!keep(g)) return false;
           // 반 전체 이동·보강은 복사본이 열리는 날짜도 본다 — 다른 주로 당긴 경우
           // 적용일(원래 주에 숨는 날)만 보면 여는 주의 오늘 화면에서 명단 동기화가 빠진다.
           var am = Date.parse(applyYmdOf(g)), cm = Date.parse(copyClassYmdOf(g) || '');
@@ -1677,21 +1750,23 @@
                  (cm && Math.abs(cm - Date.parse(t)) <= span);
         }).map(onceListShape);
         var out = { book: book, date: dateStr,
-          classes: rs[0], onceMoves: once,
-          attend: rs[2].map(attTodayShape),
+          classes: rs[0].classes, onceMoves: once,
+          attend: rs[2].concat(xa(rs[8])).map(attTodayShape),
           memos: rs[3].filter(function(m){ return String(m.memo || '').trim(); })
                       .map(function(m){ return { date: m.date, memo: m.memo }; }),
-          periods: rs[4].map(function(x){ return { week: x.week_wednesday, book: x.book }; }),
+          periods: rs[4],
+          ovCol: ovCol,
           todayOffs: (rs[7] || []).map(teacherOffShape) };
         if (rs[5]){
-          out.week = { attend: rs[5].map(attWeekShape), teacherOffs: (rs[6] || []).map(teacherOffShape),
+          out.week = { attend: rs[5].concat(xa(rs[9])).map(attWeekShape), teacherOffs: (rs[6] || []).map(teacherOffShape),
             onceMoves: rs[1].filter(function(g){
-              if (g.book !== book) return false;
+              if (!keep(g)) return false;
               var a = applyYmdOf(g), c = copyClassYmdOf(g);
               return (a >= wfrom && a <= wto) || (c && c >= wfrom && c <= wto);
             }).map(onceWeekShape) };
         }
         return ok(out);
+      });
       });
     },
     /* 오늘 할 일 · 전달 사항 (045) — 대기 중인 것은 그 날짜 이하 전부(지난 요청 포함), 완료는 그 날 끝낸 것만 */
@@ -1733,23 +1808,28 @@
       var book = bookOf(p.get('book'));
       var from = (p.get('from') || '').trim(), to = (p.get('to') || '').trim();
       if (!from || !to) return Promise.resolve({ result:'error', message:'기간이 필요합니다.' });
+      // ov=1(주차별)이면 그 주 예외 학년 반의 출석·기록도 함께 (반은 ttBoot가 이미 섞어 두었다)
+      var exP = (p.get('ov') === '1') ? extraIdsFor(book, wedOfYmdStr(from)) : Promise.resolve({ other: '', ids: {} });
+      return exP.then(function(ex){
+      var keep = logKeep(book, ex.ids);
       return Promise.all([fetchAttendRange(from, to, book), fetchOnceLogs(from, WEEK_KINDS, 120),
-                          fetchTeacherOffs(from, to)]).then(function(rs){
-        return ok({ from: from, to: to, attend: rs[0].map(attWeekShape),
+                          fetchTeacherOffs(from, to),
+                          ex.other ? fetchAttendRange(from, to, ex.other) : Promise.resolve([])]).then(function(rs){
+        var att = rs[0].concat(rs[3].filter(function(r){ return !!ex.ids[r.class_id]; }));
+        return ok({ from: from, to: to, attend: att.map(attWeekShape),
           teacherOffs: rs[2].map(teacherOffShape),
           onceMoves: rs[1].filter(function(g){
-            if (g.book !== book) return false;
+            if (!keep(g)) return false;
             // 반 전체 이동·보강은 숨는 날짜(적용일)와 복사본이 열리는 날짜 중
             // 하나라도 이 주에 들면 포함 — 다른 주로 당긴 기록이 양쪽 주에 다 보이게.
             var a = applyYmdOf(g), c = copyClassYmdOf(g);
             return (a >= from && a <= to) || (c && c >= from && c <= to);
           }).map(onceWeekShape) });
       });
+      });
     },
     ttPeriodList: function(){
-      return sbGet('/tt_period?select=week_wednesday,book').then(function(rows){
-        return ok({ periods: rows.map(function(x){ return { week: x.week_wednesday, book: x.book }; }) });
-      });
+      return fetchPeriods().then(function(rows){ return ok({ periods: rows, ovCol: ovCol }); });
     },
     ttMemoList: function(p){
       var from = (p.get('from') || '').trim(), to = (p.get('to') || '').trim() || from;
@@ -1996,8 +2076,9 @@
   function moveStayRecords(book, tb, moved, fromC, toC, tf, tt, applyFrom, userReason){
     var cur = curWedYmd();
     if (!applyFrom || applyFrom <= cur) return Promise.resolve(0);
-    return sbGet('/tt_period?select=week_wednesday,book').then(function(ps){
-      var per = {}; (ps || []).forEach(function(p){ per[p.week_wednesday] = p.book; });
+    return fetchPeriods().then(function(ps){
+      var per = {}; (ps || []).forEach(function(p){ per[p.week] = p; });
+      var grade = gradeOfName(fromC && fromC.cls);
       var reason = '반 이동 예약 — ' + mdOfYmd(applyFrom) + ' 주부터 새 반' +
                    (userReason ? ' (' + userReason + ')' : '');
       var jobs = [];
@@ -2005,7 +2086,8 @@
       for (var i = 0; i < 16; i++){
         var wy = localYmd(w);
         if (wy >= applyFrom) break;
-        var bk = bookOf(per[wy]);
+        var bk = bookOf(per[wy] && per[wy].book);
+        if (per[wy] && grade && per[wy].ov && per[wy].ov[grade]) bk = bookOf(per[wy].ov[grade]);   // 학년별 예외 주면 그 시간표
         var pair = (bk === book) ? { f: fromC, t: toC } : ((tf && tt) ? { f: tf, t: tt } : null);
         if (pair){
           jobs.push(insertLog({ kind:'주간추가', student: moved, book: bk,
@@ -2559,11 +2641,16 @@
 
     /* 주별 기간 — 내신 페이지가 시트를 읽으므로 기존 백엔드 먼저, 수파베이스 미러 */
     ttPeriodSet: function(b){
+      // b.ov = {학년: '정규'|'내신'} 학년별 예외(047) — 보낸 경우에만 overrides 열을 함께 쓴다(안 보내면 그대로)
+      var hasOv = b.ov && typeof b.ov === 'object';
+      if (hasOv && !ovCol) return Promise.resolve({ result:'error', message:'학년별 예외는 마이그레이션 047을 적용한 뒤 쓸 수 있어요.' });
       return legacyPost(b).then(function(res){
         if (res && res.result === 'success'){
           var bk = String(b.book || '').trim();
+          var row = { week_wednesday: b.week, book: bookOf(bk) };
+          if (hasOv){ row.overrides = {}; Object.keys(b.ov).forEach(function(g){ if (b.ov[g]) row.overrides[g] = bookOf(b.ov[g]); }); }
           var job = bk
-            ? sbWrite('POST', '/tt_period?on_conflict=week_wednesday', [{ week_wednesday: b.week, book: bookOf(bk) }],
+            ? sbWrite('POST', '/tt_period?on_conflict=week_wednesday', [row],
                       { 'Prefer': 'resolution=merge-duplicates,return=minimal' })
             : sbWrite('DELETE', '/tt_period?week_wednesday=eq.' + q(b.week));
           return job.then(function(){ return res; }, function(e){ console.warn('기간 미러 실패', e); return res; });
@@ -2948,6 +3035,9 @@ var weekAttend = {};   // 주차 출석: 날짜|반ID|학생 -> {status, memo}
 var memos = {};        // 오늘의 이슈 메모: 날짜(yyyy-MM-dd) -> 텍스트
 var memoDraft = null;  // 다시 그릴 때 저장 전 입력 보존용
 var periods = {};      // 주별 기간: 주차 수요일(yyyy-MM-dd) -> '정규'|'내신' (미설정=정규)
+var periodsEx = {};    // 주별 학년 예외: 주차 수요일 -> {학년: '정규'|'내신'} (047, 2026-10-11 — 그 학년만 다른 시간표로 수업하는 주)
+var loadedOv = '';     // 지금 classes에 섞여 있는 예외(ovKeyOf 값) — 다른 주·다른 화면으로 가면 다시 받아야 한다
+var ovColOk = true;    // DB에 overrides 열이 있는지(ttBoot 응답) — 없으면 예외 설정 창에서 안내만
 var calMonth = null;   // 캘린더가 보는 달 (그 달 1일 Date)
 var weekOnce = [];     // 주차 1회 이동
 var teacherOffs = [];  // [{date,teacher,reason}] — 수업·출석·회차와 독립된 교사 임시 휴무 표시
@@ -3229,6 +3319,15 @@ function load(isReload, cb){
     var cd = cacheGet('list:' + book);
     if (cd && cd.classes && cd.classes.length){
       classes = cd.classes;
+      if (useOvNow()){   // 예외 학년 반(다른 시간표에서 섞어 둔 것)도 캐시에서 먼저 — 주 기준 반은 book이 비어 있어 cbook이 전역을 쓴다
+        var wk0 = viewWedYmd(), pairs = ovPairs(wk0), exg = {};
+        pairs.forEach(function(x){ exg[x[0]] = 1; });
+        if (pairs.length){   // 주 기준 시간표에서 예외 학년의 반은 빼고, 캐시해 둔 그 학년의 다른 시간표 반을 붙인다
+          var cx = cacheGet('listx:' + book + ':' + wk0) || [];
+          classes = cd.classes.filter(function(c){ return !exg[classGradeOf(c)]; }).concat(cx);
+        }
+        loadedOv = ovKeyOf(wk0);
+      }
       onceMoves = cd.onceMoves || [];
       attend = {};
       var ca = cacheGet('att:' + book + ':' + viewYmd());
@@ -3253,7 +3352,8 @@ function load(isReload, cb){
   setStatus(painted ? '최신 데이터 확인 중…' : '시간표를 불러오는 중…');
   // 통합 부팅 조회 — 시간표·오늘 출석·메모·주별 기간(+주차별이면 주간 기록)을 한 번에 (접속 지연 대책)
   var url = ENDPOINT + '?action=ttBoot&pw=' + encodeURIComponent(pw) + '&book=' + encodeURIComponent(book) +
-            '&date=' + viewYmd();   // 오늘의 시간표가 보는 날짜(지난 날짜로 돌아갔으면 그 날)
+            '&date=' + viewYmd() +   // 오늘의 시간표가 보는 날짜(지난 날짜로 돌아갔으면 그 날)
+            (useOvNow() ? '&ov=1' : '');   // 오늘·주차별은 그 주의 학년별 예외를 섞어 받는다(전체 시간표는 순수)
   var mfrom = viewYmd(), mto = viewYmd(), wfrom = '', wto = '';
   if (mode === 'week'){
     var wf = new Date(weekStart); wf.setDate(wf.getDate() - 2);   // 월요일
@@ -3274,7 +3374,9 @@ function load(isReload, cb){
     // 주별 기간 — 이번 주 기간이 바뀌었으면 맞는 시간표로 한 번 다시 불러온다
     if (d.periods){
       periods = {};
-      d.periods.forEach(function(pd){ periods[pd.week] = pd.book; });
+      periodsEx = {};
+      d.periods.forEach(function(pd){ periods[pd.week] = pd.book; periodsEx[pd.week] = pd.ov || {}; });
+      if (d.ovCol === false) ovColOk = false;
       cacheSet('periods', d.periods);
       if ((mode === 'today' || mode === 'week') && autoBookFor() !== book){
         book = autoBookFor();
@@ -3286,7 +3388,13 @@ function load(isReload, cb){
     }
     classes = d.classes || [];
     onceMoves = d.onceMoves || [];
-    cacheSet('list:' + book, { classes: classes, onceMoves: onceMoves });
+    // 캐시는 순수한 시간표(list:)와 예외 학년 반(listx:주)으로 나눠 둔다 — 다른 화면·다른 주가 섞인 목록을 쓰지 않게
+    var pure = classes.filter(function(c){ return !c.book || c.book === book; });
+    cacheSet('list:' + book, { classes: pure, onceMoves: onceMoves });
+    if (useOvNow()){
+      cacheSet('listx:' + book + ':' + viewWedYmd(), classes.filter(function(c){ return c.book && c.book !== book; }));
+      loadedOv = ovKeyOf(viewWedYmd());
+    } else loadedOv = '';
     attend = {};
     (d.attend || []).forEach(function(x){
       attend[attKey(x.classId, x.student)] = { status: x.status, memo: x.memo };
@@ -3323,8 +3431,9 @@ function loadPeriods(done){
     .then(function(r){ return r.json(); })
     .then(function(d){
       if (d && d.result === 'success'){
-        periods = {};
-        (d.periods || []).forEach(function(p){ periods[p.week] = p.book; });
+        periods = {}; periodsEx = {};
+        (d.periods || []).forEach(function(p){ periods[p.week] = p.book; periodsEx[p.week] = p.ov || {}; });
+        if (d.ovCol === false) ovColOk = false;
         cacheSet('periods', d.periods || []);
       }
       done();
@@ -3332,6 +3441,21 @@ function loadPeriods(done){
     .catch(function(){ done(); });
 }
 function periodOf(weekWedDate){ return periods[ymdOf(weekWedDate)] || '정규'; }
+/* ── 학년별 기간 예외(2026-10-11) — 그 주에 어떤 학년만 다른 시간표로 수업할 때 ──
+ * 주의 기본 시간표는 periodOf 그대로, 학년이 있으면 effBook이 예외를 본다. 섞어 받은 반은 c.book에 자기 시간표가 적혀 있고
+ * (ttBoot ov=1), 출석·기록·수업 기록은 전역 book이 아니라 cbook(반)으로 저장한다. 전체 시간표는 예외 없이 순수한 시간표. */
+function effBook(wedYmd, grade){ var o = periodsEx[wedYmd]; return (grade && o && o[grade]) ? o[grade] : (periods[wedYmd] || '정규'); }
+function classGradeOf(c){ return (window.ttGradeOf && c) ? window.ttGradeOf(c.cls) : ''; }
+function cbook(x){ var c = (typeof x === 'string') ? classes.find(function(k){ return k.id === x; }) : x; return (c && c.book) || book; }
+function viewWedYmd(){ return ymdOf(mode === 'week' ? weekStart : weekStartOf(viewDate())); }
+function ovPairs(wedYmd){   // 주 기준과 다른 예외만 [[학년, 시간표], …]
+  var o = periodsEx[wedYmd] || {}, m = periods[wedYmd] || '정규';
+  return Object.keys(o).filter(function(g){ return o[g] && o[g] !== m; }).sort().map(function(g){ return [g, o[g]]; });
+}
+function ovKeyOf(wedYmd){ return ovPairs(wedYmd).map(function(x){ return x[0] + '=' + x[1]; }).join(','); }
+function ovLabel(wedYmd){ return ovPairs(wedYmd).map(function(x){ return x[0] + ' ' + x[1]; }).join(' · '); }   // '중2 정규 · 고1 정규'
+function useOvNow(){ return mode === 'today' || mode === 'week'; }
+function cachePeriods(){ cacheSet('periods', Object.keys(periods).map(function(w){ return { week: w, book: periods[w], ov: periodsEx[w] || {} }; })); }
 function autoBookFor(){
   if (mode === 'today') return periodOf(weekStartOf(viewDate()));   // 지난 날짜를 보면 그 주의 기간
   if (mode === 'week') return periodOf(weekStart);
@@ -3340,7 +3464,8 @@ function autoBookFor(){
 /* 오늘/주차별 보기에서 캘린더 기간에 맞는 시간표로 자동 전환. 다시 불러왔으면 true */
 function applyAutoBook(){
   var target = autoBookFor();
-  if (target !== book){
+  var ovk = useOvNow() ? ovKeyOf(viewWedYmd()) : '';
+  if (target !== book || ovk !== loadedOv){   // 기간이 다르거나 그 주의 학년 예외가 지금 섞인 것과 다르면 다시 받는다
     book = target;
     sessionStorage.setItem('tt_book', book);
     load(false);
@@ -3429,6 +3554,7 @@ function setMode(m){
   if (m === 'att'){ asLoad(); return; }
   if ((m === 'today' || m === 'week') && applyAutoBook()) return;   // 기간에 맞는 시간표로 다시 불러오는 중
   if (m === 'today' && attendYmd !== todayStr()){ load(false); return; }   // 지난 날짜 기록이 남아 있으면 오늘 것으로 다시
+  if (m === 'all' && loadedOv){ load(false); return; }   // 예외 학년 반이 섞인 목록은 전체 시간표에 쓰지 않는다 — 순수한 시간표로 다시
   if (m === 'week') loadWeek(); else render();
 }
 function setBook(b){
@@ -3448,7 +3574,9 @@ function renderTabs(){
     var wf = new Date(ws); wf.setDate(wf.getDate()-2);
     var wt = new Date(ws); wt.setDate(wt.getDate()+4);
     var dk = ['일','월','화','수','목','금','토'];
-    pb.innerHTML = esc(bk) + ' 주간<span class="pb-range"> · ' + mdOf(wf) + '~' + mdOf(wt) + '</span>';
+    var ol = ovLabel(ymdOf(ws));
+    pb.innerHTML = esc(bk) + ' 주간<span class="pb-range"> · ' + mdOf(wf) + '~' + mdOf(wt) + '</span>' +
+                   (ol ? '<span class="pb-ov"> · ' + esc(ol) + '</span>' : '');
     pb.title = mdOf(wf) + '(' + dk[wf.getDay()] + ') ~ ' + mdOf(wt) + '(' + dk[wt.getDay()] + ') 주차는 ' +
                bk + ' 시간표로 운영합니다.';
     pb.className = 'pbadge' + (bk==='내신' ? ' exam' : '');
@@ -3539,8 +3667,11 @@ function renderView(){
     var onlyIds = null;
     if (viewFilterOn()){ onlyIds = {}; list.forEach(function(c){ onlyIds[c.id] = 1; }); }
     var cnt = { '출석':0, '지각':0, '결석':0 };
+    var haveIds = {}; classes.forEach(function(c){ haveIds[c.id] = 1; });   // 예외 학년 반이 섞여도 이 시간표에 없는 반의 기록은 세지 않는다
     Object.keys(attend).forEach(function(k){
-      if (onlyIds && !onlyIds[k.slice(0, k.indexOf('|'))]) return;
+      var cid0 = k.slice(0, k.indexOf('|'));
+      if (!haveIds[cid0]) return;
+      if (onlyIds && !onlyIds[cid0]) return;
       if (cnt[attend[k].status] != null) cnt[attend[k].status]++;
     });
     var sum = document.createElement('p');
@@ -3672,15 +3803,17 @@ function buildCalendar(){
   var h = '<div class="cal-head"><button onclick="moveCalMonth(-1)">지난달</button>' +
     '<b>' + calMonth.getFullYear() + '년 ' + (calMonth.getMonth()+1) + '월</b>' +
     '<button onclick="moveCalMonth(1)">다음달</button>' +
-    '<small>왼쪽 [정규]/[내신] 버튼으로 그 주에 쓸 시간표를 정하세요 (아무것도 안 고르면 정규). 날짜 칸을 누르면 그 날 메모를 적을 수 있어요.</small></div>';
+    '<small>왼쪽 [정규]/[내신] 버튼으로 그 주에 쓸 시간표를 정하세요 (아무것도 안 고르면 정규). 어떤 학년만 다른 시간표로 수업하는 주는 [학년 예외]에서 그 학년을 고릅니다. 날짜 칸을 누르면 그 날 메모를 적을 수 있어요.</small></div>';
   h += '<div class="calgrid"><div class="cal-dh">기간</div>';
   ['월','화','수','목','금','토','일'].forEach(function(dy){ h += '<div class="cal-dh">' + dy + '</div>'; });
   weeks.forEach(function(w){
     var wed = ymdOf(w[2]);
     var p = periods[wed] || '';
+    var ol = ovLabel(wed);
     h += '<div class="cal-period">' +
       '<button class="' + (p !== '내신' ? 'on-reg' : '') + '" onclick="setPeriod(\'' + wed + '\',\'정규\')">정규</button>' +
-      '<button class="' + (p === '내신' ? 'on-exam' : '') + '" onclick="setPeriod(\'' + wed + '\',\'내신\')">내신</button></div>';
+      '<button class="' + (p === '내신' ? 'on-exam' : '') + '" onclick="setPeriod(\'' + wed + '\',\'내신\')">내신</button>' +
+      '<button type="button" class="cal-ov' + (ol ? ' has' : '') + '" onclick="openPeriodEx(\'' + wed + '\')" title="이 주에 다른 시간표로 수업하는 학년">' + (ol ? esc(ol) : '학년 예외') + '</button></div>';
     w.forEach(function(d, di){
       var ds = ymdOf(d);
       var m = memos[ds];
@@ -4111,11 +4244,50 @@ function exsDel(row, school){
     else setStatus('삭제 실패: ' + ((res && res.message) || '오류'), 'err');
   });
 }
+/* 학년별 예외 설정 창 — 그 주의 기본 시간표와 다르게 수업하는 학년만 고른다 (2026-10-11 사용자 결정 "권장안으로").
+ * 중3·고3은 정규·내신이 같은 짝 반이라 목록에 두지 않는다. 저장은 ttPeriodSet{week, book, ov}. */
+var OV_GRADES = ['중1', '중2', '고1', '고2'];
+function openPeriodEx(wed){
+  var m = periods[wed] || '정규', o = periodsEx[wed] || {};
+  var ds = weekDatesOf(wedOfYmd(wed));
+  var rows = OV_GRADES.map(function(g){
+    var v = o[g] || '';
+    return '<label class="pex-row"><b>' + g + '</b><select data-pex="' + g + '">' +
+      [['', '주 기준 (' + m + ')'], ['정규', '정규 시간표'], ['내신', '내신 시간표']].map(function(x){
+        return '<option value="' + x[0] + '"' + (v === x[0] ? ' selected' : '') + '>' + x[1] + '</option>';
+      }).join('') + '</select></label>';
+  }).join('');
+  openModal(
+    '<h3>학년별 시간표 예외 — ' + mdOf(ds['월']) + '~' + mdOf(ds['일']) + ' 주</h3>' +
+    '<p class="mdesc">이 주는 <b>' + esc(m) + '</b> 기간입니다. 다른 시간표로 수업하는 학년만 고르세요. 중3·고3은 두 시간표가 같은 반이라 고를 필요가 없어요.</p>' +
+    (ovColOk ? '' : '<p class="merr">아직 이 기능을 쓸 수 없습니다 (마이그레이션 047 적용 전). 원장님께 알려 주세요.</p>') +
+    '<div class="pex-list">' + rows + '</div>' +
+    '<p class="subnote">예외 학년의 반은 오늘의 시간표·주차별에 그 시간표에서 가져와 섞여 보이고, 출석·수업 기록·월별 수업 회차도 그 시간표로 기록됩니다. 전체 시간표는 그대로예요.</p>' +
+    '<p class="merr" id="pex-err"></p>' +
+    '<div class="mbtns"><button class="primary" onclick="savePeriodEx(\'' + wed + '\')"' + (ovColOk ? '' : ' disabled') + '>저장</button><button onclick="closeModal()">닫기</button></div>'
+  );
+}
+function savePeriodEx(wed){
+  var m = periods[wed] || '정규', ov = {};
+  document.querySelectorAll('[data-pex]').forEach(function(sel){
+    var g = sel.getAttribute('data-pex'), v = sel.value;
+    if (v && v !== m) ov[g] = v;   // 주 기준과 같은 값은 예외가 아니다
+  });
+  closeModal();
+  post({ action:'ttPeriodSet', week:wed, book:m, ov:ov }, '학년 예외를 저장하는 중…', function(res){
+    if (res && res.result === 'success'){
+      periods[wed] = m; periodsEx[wed] = ov; cachePeriods();
+      var md = wed.slice(5).replace('-', '/'), ol = ovLabel(wed);
+      setStatus(md + ' 주 학년 예외: ' + (ol || '없음') + ' — 오늘의 시간표·주차별에 자동 반영됩니다.', 'ok');
+      render();
+    } else setStatus('저장 실패: ' + ((res && res.message) || '오류'), 'err');
+  });
+}
 function setPeriod(wed, bk){
   if ((periods[wed] || '정규') === bk && periods[wed]) return;   // 이미 그 기간
   post({ action:'ttPeriodSet', week:wed, book:bk }, '기간을 저장하는 중…', function(res){
     if (res && res.result === 'success'){
-      periods[wed] = bk;
+      periods[wed] = bk; cachePeriods();
       var md = wed.slice(5).replace('-', '/');
       setStatus(md + ' 주를 ' + bk + ' 기간으로 설정했어요. 오늘의 시간표·주차별에 자동 반영됩니다.', 'ok');
       render();
@@ -6273,7 +6445,7 @@ function asBuild(weeks, reg, nae, absLists){
                known: !!r, inTT: inTT, left: (!r && !inTT), wk: [], i: [], ex: 0,
                t2: { att:0, late:0, abs:0, move:0, done:0 } };
     weeks.forEach(function(wk){
-      var bk = periods[wk.k] || '정규';
+      var bk = effBook(wk.k, st.g);   // 학년별 예외 주면 그 학년은 다른 시간표 (2026-10-11)
       var cs = belong[bk + '|' + nm] || [[], []];
       var cell = { bk: bk, slots: [[], []], extra: [] };
       var wkMoves = (once[bk + '|' + nm] || []).filter(function(o){ return o.date >= wk.mon && o.date <= wk.sun; });
@@ -7220,7 +7392,7 @@ function labelOf(c){ return c.cls + ' (' + c.day + c.start + ' ' + c.teacher + '
 function onBlockClick(e, c){
   if (mode === 'today'){
     // 지난 날짜면 그 날 기록·출석을 따로 받아 여는 경로(classlog의 [이 수업 기록하기]와 같음) — 창 코드는 오늘 기준이라
-    if (e.target.closest('.crbtn')){ if (viewIsToday()) openClassNote(c); else crOpenAt(book, c.id, viewYmd()); return; }
+    if (e.target.closest('.crbtn')){ if (viewIsToday()) openClassNote(c); else crOpenAt(cbook(c), c.id, viewYmd()); return; }
     var aa = e.target.closest('.attall');
     if (aa){ bulkAttend(c); return; }
     if (multiMode){
@@ -7385,12 +7557,12 @@ function crTodayPoll(){
 setInterval(crTodayPoll, 45000);
 function crHasNote(r){ return !!(String(r.progress || '').trim() || String(r.homework || '').trim() || (r.units && r.units.length)); }
 function crBtnHtml(c){
-  var s = crToday.map && crToday.map[book + '|' + c.id];
+  var s = crToday.map && crToday.map[cbook(c) + '|' + c.id];
   var cls = '', label = '수업 기록', tip = '진도·과제·과제 검사·코멘트를 적고 수업 리포트를 만들어요';
   if (s && s.st === '공개'){ cls = ' pub'; label = '리포트 공개 ✓'; tip = '리포트를 생성해 학생 페이지에 공개했어요' + (s.at ? ' (' + crHm(s.at) + ')' : ''); }
   else if (s && s.st === '요청'){ cls = ' fin'; label = '기록 완료 ✓'; tip = '수업 기록을 마쳤어요. 클로슈가 수업 리포트를 쓰고 있어요'; }
   else if (s && s.has){ cls = ' done'; label = '기록함'; tip = '수업 기록을 적어 두었어요 — 리포트는 아직'; }
-  if (crJustDone === book + '|' + c.id && $('crpanel').hidden) cls += ' popin';
+  if (crJustDone === cbook(c) + '|' + c.id && $('crpanel').hidden) cls += ' popin';
   return '<button class="bbtn crbtn' + cls + '" title="' + tip + '">' + label + '</button>';
 }
 /* 리포트 생성 성공 때 하트 — el 가운데에서 사방으로(위로 치우치게) 퍼진다 */
@@ -7476,7 +7648,7 @@ function crStudentsEnsure(){
 
 function openClassNote(c, ctx){
   CRX = ctx || null;
-  var bk = CRX ? CRX.bk : book;   // 그 수업의 시간표(지난 날짜 창이면 그 날의 시간표)
+  var bk = CRX ? CRX.bk : cbook(c);   // 그 수업의 시간표(지난 날짜 창이면 그 날의 시간표, 예외 학년 반이면 그 반의 시간표)
   var ymd = CRX ? CRX.ymd : todayStr(), part = crPartOf(c, bk);
   CR = { c: c, ymd: ymd, bk: bk, part: part, note: null, names: crNamesOf(c), busy: false,
          hwWeek: crPrevWed(ymd), items: CR_HW_DEFAULT.slice(), hw: {}, hwOk: false, more: {},
@@ -8662,7 +8834,7 @@ function multiApply(status){
       return;
     }
     var cid = cids[i];
-    post({ action:'attendSetBulk', book:book, date:viewYmd(), classId:cid, students:byClass[cid],
+    post({ action:'attendSetBulk', book:cbook(cid), date:viewYmd(), classId:cid, students:byClass[cid],
            status:status, overwrite:'1' }, label + ' 처리 중… (' + (i+1) + '/' + cids.length + ')', function(res){
       if (res && res.result === 'success'){
         if (status === ''){
@@ -8690,7 +8862,7 @@ function bulkAttend(c){
   targets = targets.filter(function(nm){ return !attend[attKey(c.id, nm)]; });
   if (!targets.length){ setStatus(c.cls + ' — 모든 학생이 이미 기록되어 있어요.', 'ok'); return; }
   if (!confirm(labelOf(c) + '\n기록 없는 학생 ' + targets.length + '명을 모두 출석 처리할까요?\n(지각·결석 등 기존 기록은 그대로 둡니다)')) return;
-  post({ action:'attendSetBulk', book:book, date:viewYmd(), classId:c.id, students:targets },
+  post({ action:'attendSetBulk', book:cbook(c), date:viewYmd(), classId:c.id, students:targets },
     '일괄 출석 처리 중…', function(res){
       if (res && res.result === 'success'){
         (res.marked || []).forEach(function(nm){ attend[attKey(c.id, nm)] = { status:'출석', memo:'' }; });
@@ -8799,7 +8971,7 @@ function submitAttend(cid, nm, status){
   if (status === '지각' && !memo){ $('att-err').textContent = '지각은 메모를 적어주세요. (미리 연락 여부, 몇 분 지각 등)'; return; }
   var d = attDate || viewYmd();
   closeModal();
-  post({ action:'attendSet', book:book, date:d, classId:cid, student:nm, status:status, memo:memo },
+  post({ action:'attendSet', book:cbook(cid), date:d, classId:cid, student:nm, status:status, memo:memo },
     '기록하는 중…', function(res){
       if (res && res.result === 'success'){
         if (mode === 'week'){
@@ -9002,17 +9174,17 @@ function wkDayLabel(dstr){
  * 값은 그 주 수요일(yyyy-MM-dd). 시간표 구분(정규/내신)이 지금 화면과 다른 주는
  * 그 주 화면에 이 시간표가 나타나지 않으므로 고를 수 없게 잠근다.
  * (10/5주차 수업을 8/24주차에 당겨서 하기 — 2026-08-23 사용자 요청) */
-function weekSelHtml(id, defWed){
+function weekSelHtml(id, defWed, cls){   // cls가 있으면 그 반의 시간표(예외 학년 반은 자기 시간표)로 잠금 판단
   var cur = weekStartOf(new Date());
   var first = (defWed < cur) ? new Date(defWed) : new Date(cur);
   var defY = ymdOf(defWed), curY = ymdOf(cur);
   var opts = [], w = new Date(first.getFullYear(), first.getMonth(), first.getDate());
   for (var i = 0; i < 40; i++){
-    var wy = ymdOf(w), ds = weekDatesOf(w), bk = periodOf(w);
+    var wy = ymdOf(w), ds = weekDatesOf(w), bk = cls ? effBook(wy, classGradeOf(cls)) : periodOf(w), mine = cls ? cbook(cls) : book;
     var label = mdOf(ds['월']) + '~' + mdOf(ds['일']) + ' 주 · ' + bk +
       (wy === defY ? ' — 지금 보는 주' : (wy === curY ? ' — 이번 주' : ''));
     opts.push('<option value="' + wy + '"' + (wy === defY ? ' selected' : '') +
-              (bk !== book ? ' disabled' : '') + '>' + label + '</option>');
+              (bk !== mine ? ' disabled' : '') + '>' + label + '</option>');
     if (i >= 15 && wy >= defY) break;
     w.setDate(w.getDate() + 7);
   }
@@ -9113,7 +9285,7 @@ function submitAddWeekClass(){
     if (!wkOverlapOk(dstr, d, st0, en0, teacher, (isMove && srcDate === dstr) ? src.id : '')) return;
     closeModal();
     post({ action: isMove ? 'timetableWeekClassMove' : 'timetableWeekClassExtra',
-           book:book, fromId:src.id, date:srcDate, newDate:dstr,
+           book:cbook(src), fromId:src.id, date:srcDate, newDate:dstr,
            day:d, start:st, end:en, loc:loc, teacher:teacher, reason:reason, kind:kind },
       '반을 만드는 중…', function(res){
         if (res && res.result === 'success'){
@@ -9139,7 +9311,7 @@ function submitAddWeekClass(){
 function delWeekClass(cid, cls){
   if (!confirm(cls + '\n\n이 주만 있는 이 반을 지울까요?')) return;
   closeModal();
-  post({ action:'timetableWeekClassDel', book:book, classId:cid, cls:cls }, '지우는 중…', function(res){
+  post({ action:'timetableWeekClassDel', book:cbook(cid), classId:cid, cls:cls }, '지우는 중…', function(res){
     if (res && res.result === 'success'){ setStatus('이 주만 있던 반을 지웠어요.', 'ok'); load(true); }
     else setStatus('삭제 실패: ' + ((res && res.message) || '오류'), 'err');
   });
@@ -9180,7 +9352,7 @@ function submitWeekClassOff(cid, d){
   var c = classes.find(function(x){ return x.id === cid; }); if (!c) return;
   var reason = ($('wo-reason') ? $('wo-reason').value : '').trim();
   closeModal();
-  post({ action:'timetableWeekClassOff', book:book, classId:cid, cls:c.cls, date:d, reason:reason },
+  post({ action:'timetableWeekClassOff', book:cbook(c), classId:cid, cls:c.cls, date:d, reason:reason },
     '휴강으로 바꾸는 중…', function(res){
       if (res && res.result === 'success'){
         setStatus(c.cls + ' — ' + wkDayLabel(d) + ' 수업을 이 주만 휴강으로 했어요.', 'ok');
@@ -9203,7 +9375,7 @@ function openWeekClassOffManage(c, dstr, off){
 function submitWeekClassOn(cid, d){
   var c = classes.find(function(x){ return x.id === cid; });
   closeModal();
-  post({ action:'timetableWeekClassOn', book:book, classId:cid, date:d },
+  post({ action:'timetableWeekClassOn', book:cbook(cid), classId:cid, date:d },
     '되돌리는 중…', function(res){
       if (res && res.result === 'success'){
         setStatus(((c && c.cls) || '반') + ' — ' + wkDayLabel(d) + ' 수업을 되살렸어요.', 'ok');
@@ -9253,7 +9425,7 @@ function submitWeekClassExtra(cid, d){
   if (!wkOverlapOk(nd, day, st0, en0, teacher, '')) return;   // 보충은 원래 수업도 그대로라 자기 자신도 겹침 대상
   var kind = kindSelVal();
   closeModal();
-  post({ action:'timetableWeekClassExtra', book:book, fromId:cid, date:d, newDate:nd,
+  post({ action:'timetableWeekClassExtra', book:cbook(cid), fromId:cid, date:d, newDate:nd,
          day:day, start:st, end:en, loc:loc, teacher:teacher, reason:reason, kind:kind },
     '보충을 만드는 중…', function(res){
       if (res && res.result === 'success'){
@@ -9306,8 +9478,8 @@ function submitWeekClassMove(cid, d){
   // 옮길 주 — 기본은 지금 보는 주. 다른 주를 고르면 그 주로 당기거나 미룬다(2026-08-23 사용자 요청).
   var tw = $('nc-week') ? wedOfYmd($('nc-week').value) : new Date(weekStart);
   var sameWeek = ymdOf(tw) === ymdOf(weekStart);
-  if (periodOf(tw) !== book){
-    $('nc-err').textContent = '그 주는 ' + periodOf(tw) + ' 기간이라 이 ' + book + ' 시간표가 나타나지 않아요. 슈국 캘린더에서 기간을 먼저 확인해 주세요.'; return;
+  if (effBook(ymdOf(tw), classGradeOf(c)) !== cbook(c)){
+    $('nc-err').textContent = '그 주는 ' + effBook(ymdOf(tw), classGradeOf(c)) + ' 기간이라 이 ' + cbook(c) + ' 시간표가 나타나지 않아요. 슈국 캘린더에서 기간을 먼저 확인해 주세요.'; return;
   }
   var nd = ymdOf(weekDatesOf(tw)[day]);
   if (sameWeek && day === c.day && st0 === mins(c.start) && en0 === minsEnd(c) && loc === (c.loc||'') && teacher === (c.teacher||'')){
@@ -9316,7 +9488,7 @@ function submitWeekClassMove(cid, d){
   if (!wkOverlapOk(nd, day, st0, en0, teacher, (nd === d) ? cid : '')) return;   // 같은 날짜면 원본은 어차피 숨어 제외
   var kind = kindSelVal();
   closeModal();
-  post({ action:'timetableWeekClassMove', book:book, fromId:cid, date:d, newDate:nd,
+  post({ action:'timetableWeekClassMove', book:cbook(cid), fromId:cid, date:d, newDate:nd,
          day:day, start:st, end:en, loc:loc, teacher:teacher, reason:reason, kind:kind },
     '옮기는 중…', function(res){
       if (res && res.result === 'success'){
@@ -9365,7 +9537,7 @@ function openWeekClassManage(c, dstr){
 function setWeekClassKind(cid, kind){
   var c = classes.find(function(x){ return x.id === cid; }); if (!c) return;
   closeModal();
-  post({ action:'timetableWeekClassKind', book:book, classId:cid, kind:kind }, '표시를 바꾸는 중…', function(res){
+  post({ action:'timetableWeekClassKind', book:cbook(c), classId:cid, kind:kind }, '표시를 바꾸는 중…', function(res){
     if (res && res.result === 'success'){
       setStatus(c.cls + ' — ' + (kind === '직보' ? '직전보강 표시(직)를 붙였어요.' : '직전보강 표시를 지웠어요.'), 'ok');
       load(true);
@@ -9416,7 +9588,7 @@ function submitWeekBulkAdd(cid, d){
       return;
     }
     setStatus('학생을 넣는 중… (' + (i + 1) + '/' + list.length + ')');
-    post({ action:'timetableWeekAdd', book:book, student:list[i], toId:cid, date:d, reason:reason },
+    post({ action:'timetableWeekAdd', book:cbook(cid), student:list[i], toId:cid, date:d, reason:reason },
       '학생을 넣는 중… (' + (i + 1) + '/' + list.length + ')', function(res){
         if (res && res.result === 'success') okN++; else failN++;
         step(i + 1);
@@ -9445,7 +9617,7 @@ function openWeekAdd(c, dstr){
     var reason = ($('wa-reason') ? $('wa-reason').value : '').trim();
     if (!confirm(nm + ' 을(를) ' + wkDayLabel(d) + ' ' + labelOf(c) + ' 에만 추가할까요?')) return;
     closeModal();
-    post({ action:'timetableWeekAdd', book:book, student:nm, toId:c.id, date:d, reason:reason },
+    post({ action:'timetableWeekAdd', book:cbook(c), student:nm, toId:c.id, date:d, reason:reason },
       '추가하는 중…', function(res){
         if (res && res.result === 'success'){ setStatus(nm + ' — ' + wkDayLabel(d) + ' 하루만 추가했어요.', 'ok'); loadWeek(); }
         else setStatus('추가 실패: ' + ((res && res.message) || '오류'), 'err');
@@ -9497,7 +9669,7 @@ function openWeekStudentMove(cid, nm, dstr){
     '<p class="mdesc"><b>'+esc(plainName(nm))+'</b> — '+esc(labelOf(c))+'<br>원래 수업: '+esc(wkDayLabel(d))+'</p>'+
     '<p class="mdesc hint-x">이 학생만 한 번 옮겨요 — 원래 주에서는 <b>이 주 빠짐</b>으로 표시되고, 옮긴 주의 반에 <b>이 주</b> 학생으로 들어가 출석을 찍을 수 있어요. 반 전체를 옮기려면 반 카드의 [이 주만 시간 옮기기]를 쓰세요.</p>'+
     '<label style="font-size:.8rem;color:var(--ink-soft);">옮길 주</label>'+
-    weekSelHtml('sm-week', weekStart)+
+    weekSelHtml('sm-week', weekStart, c)+
     '<label style="font-size:.8rem;color:var(--ink-soft);display:block;margin-top:8px;">옮길 반 (그 주에 들을 수업 — 새로 만든 \'이 주만\' 반도 고를 수 있어요)</label>'+
     '<select id="sm-cls" onchange="smClsChange()" style="font:inherit;font-size:.92rem;border:1.5px solid var(--line);border-radius:10px;padding:8px 10px;width:100%;margin-top:6px;">'+
     smClsOptions(cid)+'</select>'+
@@ -9516,8 +9688,8 @@ function submitWeekStudentMove(cid, nm, d){
     nd = t.wk;   // '이 주만' 반은 날짜가 반에 정해져 있다 — 옮길 주 선택과 무관
   } else {
     var tw = $('sm-week') ? wedOfYmd($('sm-week').value) : new Date(weekStart);
-    if (periodOf(tw) !== book){
-      $('sm-err').textContent = '그 주는 ' + periodOf(tw) + ' 기간이라 이 ' + book + ' 시간표가 나타나지 않아요.'; return;
+    if (effBook(ymdOf(tw), classGradeOf(t)) !== cbook(t)){
+      $('sm-err').textContent = '그 주는 ' + effBook(ymdOf(tw), classGradeOf(t)) + ' 기간이라 이 ' + cbook(t) + ' 시간표가 나타나지 않아요.'; return;
     }
     nd = ymdOf(weekDatesOf(tw)[t.day]);
   }
@@ -9527,12 +9699,12 @@ function submitWeekStudentMove(cid, nm, d){
   var reason = ($('sm-reason') ? $('sm-reason').value : '').trim();
   closeModal();
   // 옮긴 주에 먼저 넣고, 성공하면 원래 주에서 뺀다 — 중간에 실패해도 학생이 사라지는 일은 없게
-  post({ action:'timetableWeekAdd', book:book, student:nm, toId:t.id, date:nd, reason:reason },
+  post({ action:'timetableWeekAdd', book:cbook(t), student:nm, toId:t.id, date:nd, reason:reason },
     '옮기는 중…', function(res){
       if (!res || res.result !== 'success'){
         setStatus('옮기기 실패: ' + ((res && res.message) || '오류'), 'err'); return;
       }
-      post({ action:'timetableWeekRemove', book:book, student:nm, fromId:cid, date:d, reason:reason },
+      post({ action:'timetableWeekRemove', book:cbook(cid), student:nm, fromId:cid, date:d, reason:reason },
         '원래 주에서 빼는 중…', function(res2){
           if (res2 && res2.result === 'success'){
             setStatus(plainName(nm) + ' — ' + wkDayLabel(nd) + ' ' + t.cls + ' 로 옮겼어요. 원래 수업(' + wkDayLabel(d) + ')에는 [이 주 빠짐]으로 표시돼요.', 'ok');
@@ -9560,7 +9732,7 @@ function openWeekRemove(cid, nm, dstr){
 function submitWeekRemove(cid, nm, d){
   var reason = ($('wr-reason') ? $('wr-reason').value : '').trim();
   closeModal();
-  post({ action:'timetableWeekRemove', book:book, student:nm, fromId:cid, date:d, reason:reason },
+  post({ action:'timetableWeekRemove', book:cbook(cid), student:nm, fromId:cid, date:d, reason:reason },
     '빼는 중…', function(res){
       if (res && res.result === 'success'){ setStatus(plainName(nm) + ' — ' + wkDayLabel(d) + ' 하루만 뺐어요.', 'ok'); loadWeek(); }
       else setStatus('실패: ' + ((res && res.message) || '오류'), 'err');
@@ -9739,7 +9911,7 @@ function submitOnce(toId){
   var reason = $('once-reason').value.trim();
   if (!reason){ $('once-err').textContent = '1회 이동은 사유를 적어주세요.'; return; }
   closeModal();
-  post({ action:'timetableMove', book:book, student:m.name, fromId:m.fromId, toId:toId, moveType:'once',
+  post({ action:'timetableMove', book:cbook(m.fromId), student:m.name, fromId:m.fromId, toId:toId, moveType:'once',
          reason:reason, date:m.applyDate || todayStr() },
     '기록하는 중…', function(res){
       if (res && res.result === 'success'){
@@ -9846,7 +10018,7 @@ function openWeekTempMove(cid, nm, row, d){
     '<p class="mdesc"><b>'+esc(plainName(nm))+'</b> — '+esc(labelOf(c))+' <span class="subnote">(이 주만 추가된 학생)</span><br>지금 수업: '+esc(wkDayLabel(d))+'</p>'+
     '<p class="mdesc hint-x">이 주만 추가된 학생이라, 옮기면 이 반의 <b>이 주</b> 표시가 사라지고 옮긴 반에 <b>이 주</b> 학생으로 들어가요.</p>'+
     '<label style="font-size:.8rem;color:var(--ink-soft);">옮길 주</label>'+
-    weekSelHtml('sm-week', weekStart)+
+    weekSelHtml('sm-week', weekStart, c)+
     '<label style="font-size:.8rem;color:var(--ink-soft);display:block;margin-top:8px;">옮길 반 (새로 만든 \'이 주만\' 반도 고를 수 있어요)</label>'+
     '<select id="sm-cls" onchange="smClsChange()" style="font:inherit;font-size:.92rem;border:1.5px solid var(--line);border-radius:10px;padding:8px 10px;width:100%;margin-top:6px;">'+
     smClsOptions(cid)+'</select>'+
@@ -9865,8 +10037,8 @@ function submitWeekTempMove(cid, nm, row, d){
     nd = t.wk;   // '이 주만' 반은 날짜가 반에 정해져 있다
   } else {
     var tw = $('sm-week') ? wedOfYmd($('sm-week').value) : new Date(weekStart);
-    if (periodOf(tw) !== book){
-      $('sm-err').textContent = '그 주는 ' + periodOf(tw) + ' 기간이라 이 ' + book + ' 시간표가 나타나지 않아요.'; return;
+    if (effBook(ymdOf(tw), classGradeOf(t)) !== cbook(t)){
+      $('sm-err').textContent = '그 주는 ' + effBook(ymdOf(tw), classGradeOf(t)) + ' 기간이라 이 ' + cbook(t) + ' 시간표가 나타나지 않아요.'; return;
     }
     nd = ymdOf(weekDatesOf(tw)[t.day]);
   }
@@ -9876,7 +10048,7 @@ function submitWeekTempMove(cid, nm, row, d){
   var reason = ($('sm-reason') ? $('sm-reason').value : '').trim();
   closeModal();
   // 새 반에 먼저 넣고, 성공하면 원래 '이 주만 추가' 기록을 지운다 — 중간에 실패해도 학생이 사라지지 않게
-  post({ action:'timetableWeekAdd', book:book, student:nm, toId:t.id, date:nd, reason:reason },
+  post({ action:'timetableWeekAdd', book:cbook(t), student:nm, toId:t.id, date:nd, reason:reason },
     '옮기는 중…', function(res){
       if (!res || res.result !== 'success'){
         setStatus('옮기기 실패: ' + ((res && res.message) || '오류'), 'err'); return;
@@ -10950,7 +11122,7 @@ $('bar').style.display = 'block';
 $('sheetcard').style.display = 'block';
 /* 캐시된 주별 기간을 먼저 적용해 시작 시간표를 정확히 고른다 */
 var cachedPeriods = cacheGet('periods');
-if (cachedPeriods){ periods = {}; cachedPeriods.forEach(function(p){ periods[p.week] = p.book; }); }
+if (cachedPeriods){ periods = {}; periodsEx = {}; cachedPeriods.forEach(function(p){ periods[p.week] = p.book; periodsEx[p.week] = p.ov || {}; }); }
 if (mode === 'today' || mode === 'week'){
   book = autoBookFor();
   sessionStorage.setItem('tt_book', book);

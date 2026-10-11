@@ -50,4 +50,5 @@ module.exports={ SHEETS, mkSheet, J, get fns(){ return { timetableMove, timetabl
     alimSend, alimConfigGet, alimConfigSet, alimLogGet, alimDiscover, ALIM_TPL_,
     editReqAdd, grammaReport, getEditReqList, editReqSet,
     hwcheckSave, hwcheckData_, collectHwchecks_, countHwcheckPerfect_, getHwcheckPlans, hwcheckPlanDone, TAB_HWCHECK,
-    addStarBonus, starKey_, TAB_STARS }; } };
+    addStarBonus, starKey_, TAB_STARS,
+    ttPeriodSet, ttPeriodData_, ttPeriodSheet_, TAB_TT_PERIOD }; } };
