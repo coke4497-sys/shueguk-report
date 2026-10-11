@@ -811,6 +811,13 @@ default privileges 까지 되돌렸다. `tools/check_lock.py` 통과(표 15/15 �
 - **적용 상태: 2026-10-06 실제 수파베이스에 적용 완료**(관리 API — 원장님이 준 sbp_ 토큰, 저장 안 함). 확인: 함수 본문에 새 판정이 들어갔고, 공개 키로 박소율(고1) 조회 → 결석 3건(9/5 둘·9/13) 모두 `makeup:true`(보충 완료).
 
 
+## 047 — 슈국 캘린더 학년별 기간 예외 `tt_period.overrides` (2026-10-11)
+- `tt_period`에 `overrides jsonb not null default '{}'` 열 + 모양 검사(키 `중1~고3`, 값 정규/내신). 주 기준 `book`은 그대로.
+- 읽는 곳: timetable.html 어댑터(`fetchPeriods` — 열이 없으면 400을 받고 옛 열로 다시 읽는다 `ovCol`), hub sessions.html, classlog.html(같은 폴백).
+- 쓰는 곳: timetable.html 캘린더 [학년 예외] → `ttPeriodSet{week, book, ov}` → 시트 사본(D열 '학년예외', 백엔드 재배포 뒤) + upsert `overrides`.
+- 일일 점검(`audit_heal` `sync_sheet_master('tt_period', …)`)은 주차·book만 대조하므로 overrides 열을 건드리지 않는다(시트 사본에 D열이 생겨도 읽지 않음 — 원본은 수파베이스).
+- **적용 상태: 아직 실제 수파베이스에 적용 전.** 적용은 관리 API(sbp_ 토큰) 또는 SQL Editor에서 `047_tt_period_overrides.sql` 실행 → 공개 키로 `tt_period` 401·교사 계정으로 overrides 저장/조회 확인. 적용 뒤 캘린더에서 10/14·10/21·10/28 주 예외 '중2 → 정규'를 넣는다(원장님 2026-10-11 결정).
+
 ## 045 — 오늘 할 일 · 전달 사항 `tt_tasks` (2026-10-08)
 - 슈국 스케쥴 오늘의 시간표 옆 패널의 할 일 상자 원본(시트 사본 없음). 한 행 = 요청 한 건(ymd 보이는 날짜·loc 센터·text·student·author·status '대기'/'완료'·done_by·done_at·done_ymd·history jsonb). 교사 전용 — 공개 키(anon)는 권한 없음(401).
 - **정책은 034·036·038처럼 `authenticated` 전체 허용.** 처음 `private.is_active_teacher()`로 만들어 적용했더니 공용 교사 계정(teachers@shueguk.internal)에서 저장이 RLS로 막혔다(038과 같은 사고) — 같은 날 045 파일을 고쳐 다시 실행했다(재실행 안전). **새 교사 전용 표의 정책에 그 함수를 쓰지 말 것.**

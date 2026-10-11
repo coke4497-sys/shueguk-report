@@ -297,6 +297,8 @@ function partOf(cls, book){
 function partLabel(p){ return p ? p + ' 수업' : '수업'; }
 function wIdYmd(id){ var m = /^w(\d{6})/.exec(String(id || '')); return m ? '20' + m[1].slice(0, 2) + '-' + m[1].slice(2, 4) + '-' + m[1].slice(4, 6) : ''; }
 
+/* 반이름의 학년('정리정독 중2' → 중2) — 슈국 캘린더 학년별 예외 판정 */
+function gradeOfName(name){ var m = /([중고])\s*([1-3])/.exec(String(name || '')); return m ? m[1] + m[2] : ''; }
 function sbAll(path, from, acc){
   from = from || 0; acc = acc || [];
   var go = function(){ return fetch(SBR + path, { headers: { apikey: SBK, 'Range-Unit': 'items', Range: from + '-' + (from + 999) }, cache: 'no-store' }); };
@@ -332,18 +334,23 @@ function loadBase(){
   if (BASE) return Promise.resolve(BASE);
   return Promise.all([
     sbAll('/tt_classes?select=book,class_id,name,day,start_time,end_time,teacher,location,roster&order=class_id'),
-    sbAll('/tt_period?select=week_wednesday,book'),
+    sbAll('/tt_period?select=week_wednesday,book,overrides')
+      .catch(function(e){ if (!/sb 400/.test(String(e && e.message))) throw e; return sbAll('/tt_period?select=week_wednesday,book'); }),   // overrides 열 없는 DB(047 전)
     sbAll('/students?select=name,school,grade,code,teacher,enrolled&order=seq,id')
   ]).then(function(a){
-    var cls = {}, period = {}, byName = {}, byCode = {};
+    var cls = {}, period = {}, periodOv = {}, byName = {}, byCode = {};
     a[0].forEach(function(c){ cls[c.book + '|' + c.class_id] = c; cls['*' + c.class_id] = c; });
-    a[1].forEach(function(p){ period[String(p.week_wednesday).slice(0, 10)] = p.book; });
+    a[1].forEach(function(p){
+      var w = String(p.week_wednesday).slice(0, 10);
+      period[w] = p.book;
+      periodOv[w] = (p.overrides && typeof p.overrides === 'object') ? p.overrides : {};   // 학년별 예외 (2026-10-11)
+    });
     a[2].forEach(function(s){
       if (LEFT_RE.test(tr(s.enrolled))) return;
       var k = plain(s.name); (byName[k] = byName[k] || []).push(s);
       if (s.code) byCode[s.code] = s;
     });
-    BASE = { classes: a[0], cls: cls, period: period, byName: byName, byCode: byCode };
+    BASE = { classes: a[0], cls: cls, period: period, periodOv: periodOv, byName: byName, byCode: byCode };
     return BASE;
   });
 }
@@ -421,9 +428,10 @@ function buildSessions(R){
   R.logs.forEach(function(l){ off[l.from_class_id + '|' + String(l.apply_date).slice(0, 10)] = l.kind; });
   var today = todayYmd(), nowM = new Date().getHours() * 60 + new Date().getMinutes();
   for (var d = ST.from; d <= ST.to && d <= today; d = addDays(d, 1)){
-    var book = BASE.period[prevWed(d)] || '정규', dn = DAYS[dOf(d).getDay()];
+    var wed0 = prevWed(d), book0 = BASE.period[wed0] || '정규', ov0 = BASE.periodOv[wed0] || {}, dn = DAYS[dOf(d).getDay()];
     BASE.classes.forEach(function(c){
       var isW = /^w/.test(c.class_id);
+      var g = gradeOfName(c.name), book = (g && ov0[g]) ? ov0[g] : book0;   // 학년별 예외 주면 그 학년 반은 다른 시간표
       if (isW){ if (wIdYmd(c.class_id) !== d) return; }
       else if (c.book !== book || c.day !== dn) return;
       if (!tr(c.roster) && !isW) return;

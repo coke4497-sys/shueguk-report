@@ -165,9 +165,9 @@ const ok = (n, c, x) => { if (c) pass++; else { fail++; console.log('  ✗ ' + n
   await page.waitForTimeout(600);
   await page.evaluate(() => setMode('today'));
   await page.waitForFunction(() => /오늘의 시간표/.test(document.querySelector('.today-head').textContent), null, { timeout: 15000 });
-  await page.waitForTimeout(400);
-  r = await page.evaluate(() => ({ ok: document.querySelectorAll('.stus button.at-ok').length, note: !!document.querySelector('.day-note') }));
-  ok('⑤ 지난 날짜를 보다 주차별 → 오늘 탭: 오늘로 돌아오고 오늘 출석을 다시 받는다', r.ok === 0 && !r.note && attReqDates().indexOf(TS) >= 0, JSON.stringify([r, attReqDates()]));
+  await page.waitForTimeout(1200);   // 기간 조회 뒤에 출석 요청이 나가므로 넉넉히
+  r = await page.evaluate(() => ({ ok: document.querySelectorAll('.stus button.at-ok').length, note: !!document.querySelector('.day-note'), ay: attendYmd, dy: dayYmd }));
+  ok('⑤ 지난 날짜를 보다 주차별 → 오늘 탭: 오늘로 돌아오고 출석 기록도 오늘 것(어제 칩 없음)', r.ok === 0 && !r.note && r.ay === TS && r.dy === null, JSON.stringify(r));
   await page.close();
 
   /* ⑥ 휴대폰 */

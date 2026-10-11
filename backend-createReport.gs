@@ -83,7 +83,7 @@ var TAB_TT_LOG = '시간표이동기록';  // A:일시 B:구분(영구/1회/추�
 var TT_ONCE_DAYS = 8;               // 1회 이동을 시간표에 표시하는 기간(일)
 var TAB_ATTEND = '출석기록';        // A:날짜(yyyy-MM-dd) B:시간표(정규/내신) C:반ID D:학생 E:상태(출석/지각/결석) F:메모 G:기록일시
 var TAB_TT_MEMO = '시간표메모';     // A:날짜(yyyy-MM-dd) B:메모(오늘의 이슈) C:기록일시
-var TAB_TT_PERIOD = '기간설정';     // A:주차수요일(yyyy-MM-dd) B:구분(정규/내신) C:기록일시 — 슈국 캘린더 주별 기간
+var TAB_TT_PERIOD = '기간설정';     // A:주차수요일(yyyy-MM-dd) B:구분(정규/내신) C:기록일시 D:학년예외(JSON {학년:구분}, 2026-10-11) — 슈국 캘린더 주별 기간
 var TAB_EXAM_SCHED = '지필일정';    // A:유형(기간/과목) B:학교 C:시작일(과목은 해당일) D:종료일 E:내용 F:기록일시 — 슈국 캘린더 지필고사 일정
 var TAB_EDIT_REQ = '수정요청';
 var TAB_ALIM = '알림톡기록';       // A:기록일시 B:종류(결석) C:학생 D:받는분(학부모1/학부모2/학생) E:번호 F:반 G:수업일 H:결과(성공/실패) I:메시지 J:그룹ID — 카카오 알림톡 발송 기록 (2026-09-11)      // A:기록일시 B:작성자 C:화면 D:내용 E:상태(접수됨/처리 완료/보류) F:처리메모 G:처리일시 — 티쳐스 수정 요청함
@@ -3907,9 +3907,23 @@ function ttPeriodSheet_(ss) {
   var sh = ss.getSheetByName(TAB_TT_PERIOD);
   if (!sh) {
     sh = ss.insertSheet(TAB_TT_PERIOD);
-    sh.appendRow(['주차수요일', '구분', '기록일시']);
+    sh.appendRow(['주차수요일', '구분', '기록일시', '학년예외']);
   }
+  if (String(sh.getRange(1, 4).getValue() || '').trim() !== '학년예외') sh.getRange(1, 4).setValue('학년예외');   // 옛 시트에 D열 머리글 보충
   return sh;
+}
+/* 학년별 예외 {학년: '정규'|'내신'} — 모양을 검사해 돌려준다(아니면 null) */
+function ttPeriodOv_(v) {
+  if (!v || typeof v !== 'object') return null;
+  var out = {};
+  for (var k in v) {
+    if (!/^[중고][1-3]$/.test(k)) return null;
+    var b = String(v[k] || '').trim();
+    if (!b) continue;
+    if (b !== '정규' && b !== '내신') return null;
+    out[k] = b;
+  }
+  return out;
 }
 /** 저장된 주별 기간 전체. GET action=ttPeriodList&pw= */
 function ttPeriodData_() {
@@ -3922,7 +3936,9 @@ function ttPeriodData_() {
       var d = v[i][0];
       var ds = (d && d.getTime) ? Utilities.formatDate(d, 'Asia/Seoul', 'yyyy-MM-dd') : String(d || '').trim();
       var b = String(v[i][1] || '').trim();
-      if (ds && (b === '정규' || b === '내신')) out.push({ week: ds, book: b });
+      var ov = {};
+      try { ov = ttPeriodOv_(JSON.parse(String(v[i][3] || '') || '{}')) || {}; } catch (e) { ov = {}; }
+      if (ds && (b === '정규' || b === '내신')) out.push({ week: ds, book: b, ov: ov });
     }
   }
   return out;
@@ -4550,6 +4566,10 @@ function ttPeriodSet(data) {
   var bk = String(data.book || '').trim();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(week)) return json({ result:'error', message:'주차(yyyy-MM-dd)가 필요합니다.' });
   if (bk && bk !== '정규' && bk !== '내신') return json({ result:'error', message:'구분은 정규/내신만 가능해요.' });
+  // 학년별 예외(2026-10-11) — 보낸 경우에만 D열을 바꾼다(안 보내면 그대로)
+  var hasOv = data.ov !== undefined && data.ov !== null;
+  var ov = hasOv ? ttPeriodOv_(data.ov) : null;
+  if (hasOv && !ov) return json({ result:'error', message:'학년 예외는 {학년: 정규/내신} 모양이어야 해요.' });
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sh = ttPeriodSheet_(ss);
   var lock = LockService.getScriptLock();
@@ -4566,10 +4586,16 @@ function ttPeriodSet(data) {
       if (row) sh.deleteRow(row);
       return json({ result:'success', deleted: !!row });
     }
+    var isNew = !row;
     if (!row) row = sh.getLastRow() + 1;
     var rg = sh.getRange(row, 1, 1, 3);
     rg.setNumberFormats([['@', '@', 'yyyy-mm-dd hh:mm']]);
     rg.setValues([[week, bk, new Date()]]);
+    if (hasOv || isNew) {
+      var cell = sh.getRange(row, 4);
+      cell.setNumberFormat('@');
+      cell.setValue(ov && Object.keys(ov).length ? JSON.stringify(ov) : '');
+    }
     return json({ result:'success' });
   } finally {
     try { lock.releaseLock(); } catch (e) {}
