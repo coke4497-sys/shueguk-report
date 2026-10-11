@@ -27,7 +27,8 @@ const src = [
   "var DAY_IDX = { '월':0, '화':1, '수':2, '목':3, '금':4, '토':5, '일':6 };",
   "var STUDENT_KINDS = { '1회':1, '주간추가':1, '주간빼기':1 };",
   "var mode = 'week', classes = [], weekOnce = [], weekStart = null, onceMoves = [];",
-  "function todayStr(){ return '2026-09-02'; }"
+  "function todayStr(){ return '2026-09-02'; }",
+  "var dayYmd = null; function viewYmd(){ return dayYmd || todayStr(); }"   // 오늘의 시간표가 보는 날짜 (2026-10-11)
 ].concat(NAMES.map(grab)).join('\n');
 
 const ctx = { console }; vm.createContext(ctx);
