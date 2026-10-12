@@ -27,7 +27,7 @@
   - 예외(유지): `timetable.html` 주차별 보기의 센터 라벨 `.wk-ctr`·소제목 `.wk-ch` 왼쪽 선 — 상자가 아니라 글자 옆 얇은 선이고 교사 전용 화면이라 **그대로 두기로 함**(2026-08-23 사용자 확정). 지우지 말 것.
 
 ## 정규 시간표 시스템 (2026-08-14 구축)
-- **티쳐스 페이지 비밀번호 게이트 전부 제거**(2026-08-14 사용자 확정, 접속 지연 간소화) — timetable·hwcheck·superstar·notice·m·t·analyses·stats + 클리닉(shueguk-clinic teacher.html·clinic_assign.html)·주말 신청(shuegukweekendtest signup_teacher.html) 모두 게이트 없이 바로 열림. 백엔드 TEACHER_PW는 유지하고 페이지에 내장(notice.html과 동일한 공개 수준).
+- **티쳐스 페이지 비밀번호 게이트 전부 제거**(2026-08-14 사용자 확정, 접속 지연 간소화) — timetable·hwcheck·superstar·notice·m·t·analyses·stats + 클리닉(shueguk-clinic teacher.html·clinic_assign.html)·주말 신청(shuegukweekendtest signup_teacher.html) 모두 게이트 없이 바로 열림. 백엔드 TEACHER_PW는 유지하고 페이지에 내장(notice.html과 동일한 공개 수준). → **2026-10-12 허브 로그인 게이트로 되살림**(아래 '교사 페이지 로그인 게이트' 절) — 옛 비밀번호 게이트가 아니라 허브 개인 로그인이 있어야 열린다. TEACHER_PW 내장은 그대로.
 - **교사 페이지**: `timetable.html`
   - 보기: **오늘의 시간표/전체 시간표/주차별/슈국 캘린더** (페이지 이름 '슈국 스케쥴').
   - **슈국 캘린더**(2026-08-14 구축): 달력에서 주마다 [정규]/[내신] 기간을 지정('기간설정' 탭 A:주차수요일 B:구분, 미지정=정규). **오늘의 시간표·주차별은 그 주의 기간에 맞는 시간표를 자동 표시**(상단에 '이번 주 · ○○ 기간' 배지, 수동 선택 불가). **전체 시간표에서만 정규/내신 탭으로 직접 선택.** 날짜 칸 클릭 = 그 날 메모(오늘의 이슈와 같은 '시간표메모' 데이터). API: GET ttPeriodList / POST ttPeriodSet{week,book}.
@@ -540,6 +540,15 @@
 - 원본은 수파베이스 `gramma_results`(027 마이그레이션, 자세한 것은 `supabase/README.md`). 문법 test.html이 시트와 수파베이스 둘 다에 쓴다. **027·028은 2026-09-13 실제 수파베이스에 적용 완료**(공개 키 왕복 확인).
 - **STAR_RULES를 바꾸면 세 벌(백엔드·s.html·superstar.html)을 함께 바꿀 것**(이미 있던 규칙).
 - **별 내역 목록도 두 벌이다** — s.html '내 별은 이렇게 모았어요'와 superstar.html 탑 30의 펼침 내역(`srcRows`). 2026-09-16 사용자 신고 "숙제검사 별이 탑 30에 안 보여요": 집계에는 숙제 검사 만점이 들어 있었는데(총합은 맞았음) 티쳐스 목록에만 줄·아이콘이 빠져 있었다. 항목을 더할 땐 두 목록에 같은 순서로 넣을 것.
+
+## 교사 페이지 로그인 게이트 — 허브 밖 저장소 전부 (2026-10-12 원장님 "로그인하지 않고 접근이 가능해요?" → "전부")
+- 그전엔 허브 메뉴(hub index·ops·study 등, `assets/teacher-auth.js` protected)만 로그인을 요구했고, **슈국 스케쥴을 비롯한 다른 저장소의 교사 페이지는 주소만 알면 열렸다**(2026-08-14 게이트 제거 뒤). 즐겨찾기·홈 화면으로 바로 열면 로그인 없이 쓰게 돼 작성자(048)도 비었다. 원장님 확인: 조교 전원이 허브 계정으로 로그인해 쓴다.
+- **공용 조각 `shueguk-hub/assets/teacher-gate.js`** — 교사 페이지 `<head>` 맨 앞(다른 스크립트보다 먼저) `<script src="https://coke4497-sys.github.io/shueguk-hub/assets/teacher-gate.js"></script>`. 허브 로그인 세션(localStorage `shueguk_teacher_session_v2`, 같은 github.io 출처)이 없으면 허브 `login.html?next=원래 주소&reason=login_required`로 보내고, 로그인하면 원래 페이지로 돌아온다(허브 `safeNext`가 같은 출처 `/shueguk-…/….html` 절대 주소를 허용 — 다른 출처·.html 아닌 경로는 index.html). 만료 직전이면 refresh, 교사 표(teacher_accounts active)에 없으면 `not_teacher`로 세션을 지우고 보낸다. **교사 확인 통신이 실패하면 막지 않는다**(학원 망이 잠깐 끊겨도 출석을 찍게). 확인하는 동안 body 숨김, 통과하면 `data-teacher-auth="ready"`.
+- **teacher-auth.js와 달리 window.fetch를 바꾸지 않는다** — 이 페이지들은 공용 교사 계정 조각이 fetch를 감싸고 있어, 개인 토큰으로 바꿔 붙이면 어느 계정으로 쓰는지가 달라진다(RLS·기록 경로). 이름이 필요한 곳은 종전대로 teacher-name.js.
+- **github.io에서만 켜진다** — 127.0.0.1·localhost(검증 스크립트·로컬 미리보기)는 그냥 지나간다(`ShuegukGate.active=false`, 요청 없음). 그래서 기존 E2E 전부 무변경. 검사용으로 로컬에서 켜려면 `data-force="on"`. 실제 배포 조건은 hub `tools/teacher-gate-test.js`가 github.io 주소를 가로채 검사한다.
+- 넣은 페이지(24): 리포트 timetable·hwcheck·superstar·notice·m·t·analyses·classlog·naeshin·stats / 클리닉 clinic_assign·teacher / 주말 signup_teacher·teacher(보존 원본) / 어휘 links·paper·shueguk-teacher-dashboard / 문법 assign·links·shueguk-teacher-dashboard·stats / H WORK homework_key·hwork_assign·hwork_teacher. **학생 페이지(s·r·omr·signup·클리닉 index·어휘 test/review·문법 index/play/test/top30·hwork)와 링크로 나눠 주는 안내문(question_guide·alim_absent_guide·hwork_guide)에는 넣지 않는다.** 교사 페이지를 새로 만들면 이 한 줄을 넣을 것.
+- 허브 login.html은 `reason`을 한 줄로 알린다('로그인이 필요한 페이지입니다…' / '사용할 수 없는 교사 계정…').
+- 검증: hub `NODE_PATH=$(npm root -g) node tools/teacher-gate-test.js`(12건 — 로그인 없음→login 주소/next/reason·로그인 뒤 복귀·통과·fetch 무변경·not_teacher 세션 삭제·refresh·통신 실패 통과·로컬 꺼짐·data-force) + `node tools/teacher-auth-runtime-test.js`(safeNext 절대 주소 4건 추가, 15건).
 
 ## 시간표 이동·출석 기록에 작성자 — 048 (2026-10-12 원장님 "작성자 칸을 더해 누가 이동했는지 알 수 있게")
 - 배경: 10/10(금) 오후 4:08에 백양고2 양준겸이 내신 고2 확인 n019(목 5:30) → n113(일 6:00)으로 영구 이동됐는데(정규는 r049 일 11:00으로 맞게 감) **누가 했는지 어디에도 남아 있지 않았다** — tt_log·시트 사본 모두 작성자 칸이 없고, 슈국 스케쥴은 공용 교사 계정으로 쓰므로 수파베이스 접속 기록으로도 못 가린다. 같은 날 내신 쪽을 n085 고2 확인(일 11:00~12:30 현정T)으로 정정했다(명단 CAS·tt_log 2628 영구 기록·예약 주간빼기 2550 from n085·시트 사본 timetableMove).
