@@ -1562,40 +1562,55 @@
       })
       .catch(function(e){ console.warn('시간표 명단 조회 실패', e); return []; });
   }
-  /* 아웃 학생이 날짜별로 되살아나는 주간 기록 — '주간추가'(이 주만 넣기·반 이동 예약·'이 주만' 반 명단)와
-   * '1회'(1회 이동)는 명단이 아니라 tt_log에 있어서, 명단만 지우면 그 날짜 시간표에 '이 주'·'1회' 칩으로
-   * 다시 나타난다(2026-10-11 김건우A — 10/4 아웃 뒤 9/18에 미리 넣어 둔 10/11·11/1 정리정독 중2 기록이 남아
-   * 조교가 "퇴원 처리했는데 시간표에 뜬다"고 신고). 오늘 이후 적용분만 찾아 함께 지울 수 있게 보여 준다.
-   * 지난 날짜 기록은 출석 이력과 맞물려 있어 건드리지 않는다. */
+  /* 아웃 학생이 날짜별로 되살아나는 주간 기록 — '주간추가'(이 주만 넣기·반 이동 예약·'이 주만' 반 명단)는 명단이
+   * 아니라 tt_log에 있어서, 명단만 지우면 그 날짜 시간표에 '이 주' 칩으로 다시 나타난다(2026-10-11 김건우A —
+   * 10/4 아웃 뒤 9/18에 미리 넣어 둔 10/11·11/1 정리정독 중2 기록이 남아 조교가 "퇴원 처리했는데 시간표에
+   * 뜬다"고 신고). 오늘 이후 적용분만 찾아 함께 지울 수 있게 보여 준다.
+   * - 지난 날짜 기록은 출석 이력과 맞물려 있어 건드리지 않는다.
+   * - '1회'(1회 이동)는 넣지 않는다 — 만들 때 결석 보충 완료(attendance.makeup_done)를 함께 찍고 시트 이동기록
+   *   사본도 있어, 기록만 지우면 어긋난다(Codex 검토 P1). 1회 이동은 슈국 스케쥴 주차별의 보라 칩에서 취소한다.
+   * - 서버에서 이름으로 먼저 거르고(끝의 A를 뗀 이름이 들어간 것 — '김건우A'·'(화정)김건우' 모두), 1000줄씩
+   *   끝까지 넘긴다(Codex 검토 P2 — 전체 학생 기록을 한 번에 읽으면 응답 상한에 잘린다).
+   * - 조회 실패는 빈 결과로 숨기지 않고 검색 전체를 멈춘다(Codex 검토 P3 — 없는 줄 알고 나머지만 지우면 되살아난다). */
   function todayYmdKST(){
     var d = new Date(Date.now() + 9*3600e3);
     var p2 = function(n){ return ('0'+n).slice(-2); };
     return d.getUTCFullYear()+'-'+p2(d.getUTCMonth()+1)+'-'+p2(d.getUTCDate());
   }
+  var TTLOG_PAGE = 1000;
   function scanTTLog(nm){
     var today = todayYmdKST();
-    return sbx('GET','/tt_log?select=id,kind,student,book,to_class_id,to_class,apply_date&kind=in.('+
-               encodeURIComponent('주간추가,1회')+')&apply_date=gte.'+today+'&order=apply_date.asc')
+    var base = String(nm||'').replace(/A$/, '');
+    var q = '/tt_log?select=id,kind,student,book,to_class_id,to_class,apply_date&kind=eq.'+encodeURIComponent('주간추가')+
+            '&student=like.'+encodeURIComponent('*'+base+'*')+'&apply_date=gte.'+today+'&order=apply_date.asc,id.asc';
+    var all = [];
+    function page(off){
+      return sbx('GET', q+'&limit='+TTLOG_PAGE+'&offset='+off).then(function(rows){
+        rows = rows || [];
+        all = all.concat(rows);
+        return rows.length < TTLOG_PAGE ? all : page(off + TTLOG_PAGE);
+      });
+    }
+    return page(0)
       .then(function(rows){
         var out = [];
-        (rows||[]).forEach(function(r){
+        rows.forEach(function(r){
           if (!ttNameHit(r.student, nm)) return;
           var ad = String(r.apply_date||'');
           var md = ad ? (+ad.slice(5,7))+'/'+(+ad.slice(8,10)) : '';
           out.push({ src:'ttlog', label:'시간표 주간 기록', name: r.student, dbid: r.id, book: r.book, kind: r.kind,
-                     desc: r.book + ' · ' + (r.kind === '1회' ? '1회 이동' : '이 주만 추가') + ' · ' + md +
-                           ' · ' + (r.to_class||'') + (r.to_class_id ? ' (' + r.to_class_id + ')' : '') });
+                     desc: r.book + ' · 이 주만 추가 · ' + md + ' · ' + (r.to_class||'') + (r.to_class_id ? ' (' + r.to_class_id + ')' : '') });
         });
         return out;
       })
-      .catch(function(e){ console.warn('시간표 주간 기록 조회 실패', e); return []; });
+      .catch(function(e){ console.warn('시간표 주간 기록 조회 실패', e); var err = new Error('ttlog'); err.ttlog = true; throw err; });
   }
   /* 체크한 주간 기록 삭제 — id로 정확히, 종류 조건을 함께 걸어 다른 기록을 건드리지 않는다 */
   function removeTTLogs(items){
     if (!items || !items.length) return Promise.resolve({ ok: 0, fail: 0 });
     var ids = items.map(function(it){ return it.dbid; }).filter(function(x){ return x != null; });
     if (!ids.length) return Promise.resolve({ ok: 0, fail: items.length });
-    return sbx('DELETE','/tt_log?id=in.('+ids.join(',')+')&kind=in.('+encodeURIComponent('주간추가,1회')+')',
+    return sbx('DELETE','/tt_log?id=in.('+ids.join(',')+')&kind=eq.'+encodeURIComponent('주간추가'),
                null, { 'Prefer':'return=representation' })
       .then(function(r){ var n = (r||[]).length; return { ok: n, fail: ids.length - n }; },
             function(e){ console.warn('주간 기록 삭제 실패', e); return { ok: 0, fail: ids.length }; });
@@ -1702,6 +1717,11 @@
         renderList(nm, sid);
       })
       .catch(function(e){
+        if (e && e.ttlog){   // 주간 기록을 못 읽었으면 없는 줄 알고 나머지만 지우게 두지 않는다
+          btn.disabled=false;
+          setStatus('scanStatus','시간표 주간 기록을 확인하지 못했어요 — 잠시 후 다시 검색해 주세요.','err');
+          return;
+        }
         console.warn('수파베이스 검색 실패 — 기존 백엔드(시트)로 폴백', e);
         legacyScan(nm, sid, btn);
       });
@@ -1807,7 +1827,7 @@
     var msg = '선택한 '+(sel.length+ttSel.length+sbSel.length+tlSel.length)+'건을 영구 삭제합니다.\n되돌릴 수 없어요. 계속할까요?'+
       (hasRoster?'\n\n(학생정보 행 포함 — 개인 페이지 링크도 즉시 무효화됩니다)':'')+
       (ttSel.length?'\n(시간표 명단 '+ttSel.length+'건 포함 — 전체 시간표에서 바로 사라집니다)':'')+
-      (tlSel.length?'\n(시간표 주간 기록 '+tlSel.length+'건 포함 — 그 날짜의 \'이 주\'·\'1회\' 칩이 사라집니다)':'');
+      (tlSel.length?'\n(시간표 주간 기록 '+tlSel.length+'건 포함 — 그 날짜의 \'이 주\' 칩이 사라집니다)':'');
     if(!confirm(msg)) return;
     var btn=$('delBtn'); btn.disabled=true; setStatus('delStatus','삭제하는 중…');
     var nm = $('x-name').value.trim(), sid = $('x-sid').value.trim();

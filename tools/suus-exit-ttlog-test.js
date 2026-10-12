@@ -13,11 +13,22 @@ function grab(name){
   for (; j < html.length; j++){ const ch = html[j]; if (ch === '{') depth++; else if (ch === '}'){ depth--; if (!depth) break; } }
   return html.slice(at, j + 1);
 }
+function grabVar(name){
+  const m = new RegExp('\\n\\s*var ' + name + ' = [^\\n]*').exec(html);
+  if (!m) throw new Error(name + ' 값을 찾지 못했습니다');
+  return m[0];
+}
 const src = [
+  grabVar('TTLOG_PAGE'),
   "var CALLS = [];", "var ROWS = [];", "var DELFAIL = false;",
+  "var GETFAIL = false;",
   "function sbx(method, p, body, extra){",
   "  CALLS.push({ method: method, path: p, body: body });",
-  "  if (method === 'GET') return Promise.resolve(ROWS);",
+  "  if (method === 'GET'){ if (GETFAIL) return Promise.reject(new Error('503'));",
+  "    var base = decodeURIComponent(/student=like\\.([^&]*)/.exec(p)[1]).replace(/\\*/g,'');",
+  "    var lim = +/limit=(\\d+)/.exec(p)[1], off = +/offset=(\\d+)/.exec(p)[1];",
+  "    var hit = ROWS.filter(function(r){ return r.kind === '주간추가' && String(r.student).indexOf(base) >= 0; });",
+  "    return Promise.resolve(hit.slice(off, off + lim)); }",
   "  if (method === 'DELETE'){ if (DELFAIL) return Promise.reject(new Error('x'));",
   "    var ids = /id=in\\.\\(([^)]*)\\)/.exec(p)[1].split(',').map(Number);",
   "    var gone = ROWS.filter(function(r){ return ids.indexOf(r.id) >= 0 && /주간추가|1회/.test(r.kind); });",
@@ -43,12 +54,13 @@ function ok(cond, msg){ n++; if (!cond){ bad++; console.log('  ✗ ' + msg); } e
   ];
   const items = await ctx.scanTTLog('김건우A');
   const q = ctx.CALLS[0].path;
-  ok(/kind=in\.\(/.test(q) && /apply_date=gte\.\d{4}-\d{2}-\d{2}/.test(q), '조회는 주간추가·1회 + 오늘 이후 적용분만');
-  ok(items.length === 3, '김건우A 검색 → 김건우A 2건 + 끝 A만 다른 김건우 1건 = 3건 (심지후 제외): ' + items.length);
+  ok(/kind=eq\./.test(q) && /apply_date=gte\.\d{4}-\d{2}-\d{2}/.test(q) && /limit=1000&offset=0/.test(q), '조회는 주간추가 + 오늘 이후 적용분, 1000줄씩');
+  ok(/student=like\./.test(q) && decodeURIComponent(q).indexOf('*김건우*') >= 0, '서버에서 끝의 A를 뗀 이름으로 먼저 거른다');
+  ok(items.length === 2, '김건우A 검색 → 주간추가 2건 (1회 이동 김건우·심지후 제외): ' + items.length);
   ok(items.every(it => it.src === 'ttlog' && it.label === '시간표 주간 기록'), 'src ttlog · 라벨 시간표 주간 기록');
   const d = items.map(it => it.desc);
   ok(/내신 · 이 주만 추가 · 10\/11 · 정리정독 중2 \(w261011c\)/.test(d[0]), '설명 줄: ' + d[0]);
-  ok(/정규 · 1회 이동 · 10\/24 · 고2 가 \(r042\)/.test(d[2]), '1회 이동 설명 줄: ' + d[2]);
+  ok(!items.some(it => it.kind === '1회'), "'1회' 기록은 목록에 넣지 않는다(보충 완료·시트 사본과 맞물림)");
   const hit2 = await ctx.scanTTLog('심지후');
   ok(hit2.length === 1 && hit2[0].dbid === 1701, '앞 괄호 학교 표기도 이름으로 대조');
 
@@ -57,13 +69,30 @@ function ok(cond, msg){ n++; if (!cond){ bad++; console.log('  ✗ ' + msg); } e
   const r = await ctx.removeTTLogs(items.slice(0, 2));
   ok(r.ok === 2 && r.fail === 0, '체크한 2건 삭제 → ok 2 · fail 0: ' + JSON.stringify(r));
   const dp = ctx.CALLS[0].path;
-  ok(ctx.CALLS[0].method === 'DELETE' && /id=in\.\(1612,1679\)/.test(dp) && /kind=in\.\(/.test(dp), 'DELETE는 id 묶음 + 종류 조건');
+  ok(ctx.CALLS[0].method === 'DELETE' && /id=in\.\(1612,1679\)/.test(dp) && /kind=eq\./.test(dp), 'DELETE는 id 묶음 + 종류 조건');
   ok(ctx.ROWS.length === 2 && !ctx.ROWS.some(x => x.id === 1612 || x.id === 1679), '다른 기록은 그대로');
   const r0 = await ctx.removeTTLogs([]);
   ok(r0.ok === 0 && r0.fail === 0 && ctx.CALLS.length === 1, '빈 선택은 호출 없음');
   ctx.DELFAIL = true;
   const rf = await ctx.removeTTLogs([{ dbid: 1700 }]);
   ok(rf.ok === 0 && rf.fail === 1, '삭제 실패는 fail로 보고');
+
+  // 1000줄 넘는 기록도 끝까지 — 두 쪽
+  ctx.ROWS = []; for (let i = 0; i < 1203; i++) ctx.ROWS.push({ id: 5000+i, kind:'주간추가', student: (i === 1202 ? '김건우A' : '남학생'+i), book:'내신', to_class_id:'w1', to_class:'정리정독 중2', apply_date:'2026-11-01' });
+  ctx.CALLS = [];
+  const far = await ctx.scanTTLog('김건우A');
+  ok(far.length === 1 && far[0].dbid === 6202, '서버 이름 필터로 한 쪽에 들어와 잡힌다: ' + far.length);
+  ctx.ROWS = []; for (let i = 0; i < 1203; i++) ctx.ROWS.push({ id: 7000+i, kind:'주간추가', student:'김건우A', book:'내신', to_class_id:'w1', to_class:'정리정독 중2', apply_date:'2026-11-01' });
+  ctx.CALLS = [];
+  const many = await ctx.scanTTLog('김건우A');
+  ok(many.length === 1203 && ctx.CALLS.length === 2 && /offset=1000/.test(ctx.CALLS[1].path), '1203건이면 두 쪽으로 끝까지 넘겨 전부 잡는다');
+  // 조회 실패는 숨기지 않고 ttlog 표시가 붙은 오류로 올린다
+  ctx.GETFAIL = true;
+  let thrown = null; try { await ctx.scanTTLog('김건우A'); } catch(e){ thrown = e; }
+  ok(thrown && thrown.ttlog === true, '조회 실패 → 빈 결과가 아니라 ttlog 오류로 거절');
+  ctx.GETFAIL = false;
+  const sc = grab('scan');
+  ok(/e && e\.ttlog/.test(sc) && /다시 검색해 주세요/.test(sc), 'scan(): 주간 기록 조회 실패면 검색을 멈추고 다시 검색 안내');
 
   // removeChecked 가 새 src 를 묶는지 — 소스 검사
   const rc = grab('removeChecked');
