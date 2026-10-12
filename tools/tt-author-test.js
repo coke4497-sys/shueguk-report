@@ -3,7 +3,7 @@
  *   NODE_PATH=$(npm root -g) node tools/tt-author-test.js
  * ① 허브 로그인 이름이 있으면 tt_log·attendance 쓰기에 author로 실린다(이 기기 이름보다 우선)
  * ② 로그인이 없으면 이 기기에 적어 둔 이름(tt_task_who), 그것도 없으면 빈 값
- * ③ 변경사항 패널: 작성자 알약, 048 뒤 기록인데 비면 '이름 없음', 그 전 기록은 표시 없음, 검색도 이름으로
+ * ③ 변경사항 패널: 작성자는 화면에 보이지 않는다(저장만 — 원장님이 물으면 클로슈가 조회), 결석 조회에 author 열
  * ④ 048 적용 전(열 없음 PGRST204): author 없이 다시 쓰고 그 뒤 쓰기는 author를 싣지 않는다, 결석 조회도 옛 열로 */
 const { chromium } = require('playwright');
 const http = require('http'), fs = require('fs'), path = require('path');
@@ -102,24 +102,15 @@ const NOCOL = t => JSON.stringify({ code: 'PGRST204', details: null, hint: null,
   w = writes.find(x => /\/attendance/.test(x.u));
   ok('② 이름이 없으면 author 빈 값(칸은 보냄)', w && w.hasAuthor && w.body[0].author === '', JSON.stringify(w && w.body));
 
-  /* ③ 변경사항 패널 */
+  /* ③ 변경사항 패널 — 작성자는 저장만 하고 화면에는 보이지 않는다(2026-10-12 원장님). 결석 조회에는 author 열이 들어간다 */
   let gets;
   ({ page, ctx, writes, gets } = await open({ who: '박언호' }));
   await page.evaluate(() => { setMode('all'); chOpenFromBar(); });
   await page.waitForSelector('#ch-list .ch-item', { timeout: 10000 });
-  let r = await page.evaluate(() => [...document.querySelectorAll('#ch-list .ch-item')].map(e => ({
-    nm: e.querySelector('b') ? e.querySelector('b').textContent : '',
-    who: e.querySelector('.lr .who') ? e.querySelector('.lr .who').textContent : null,
-    none: !!e.querySelector('.lr .who.none') })));
-  const by = n => r.find(x => x.nm === n);
-  ok('③ 작성자 알약 김지원', by('가나') && by('가나').who === '김지원' && !by('가나').none, JSON.stringify(r));
-  ok('③ 048 뒤 기록인데 비면 이름 없음', by('다라') && /이름 없음/.test(by('다라').who || '') && by('다라').none, JSON.stringify(by('다라')));
-  ok('③ 그 전 기록은 표시 없음', by('마바') && by('마바').who === null, JSON.stringify(by('마바')));
+  let r = await page.evaluate(() => ({ n: document.querySelectorAll('#ch-list .ch-item').length, who: document.querySelectorAll('#ch-list .who').length,
+    txt: document.getElementById('ch-list').textContent }));
+  ok('③ 패널에 작성자 알약·이름 없음 표시가 없다', r.n === 3 && r.who === 0 && !/김지원|이름 없음/.test(r.txt), JSON.stringify(r));
   ok('③ 결석 조회에 author 열', gets.some(u => /\/attendance\?status=eq/.test(u) && /author/.test(u)), gets.filter(u => /attendance/.test(u)).join('\n'));
-  await page.evaluate(() => { document.getElementById('ch-q').value = '김지원'; document.getElementById('ch-q').dispatchEvent(new Event('input', { bubbles: true })); });
-  await page.waitForTimeout(200);
-  r = await page.evaluate(() => [...document.querySelectorAll('#ch-list .ch-item b')].map(e => e.textContent));
-  ok('③ 이름으로 검색', r.length === 1 && r[0] === '가나', JSON.stringify(r));
   await ctx.close();
 
   /* ④ 열 없음 폴백 */
