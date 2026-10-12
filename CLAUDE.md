@@ -555,6 +555,7 @@
 - **`tt_log.author`·`attendance.author`**(048 — `supabase/README.md`). 화면이 `editorName()`으로 이름을 실어 보낸다: **허브 개인 로그인 이름(teacher-name.js → `alimBy`) → 이 기기에 적어 둔 이름(`tt_task_who`) → 빈 값**. 모든 tt_log 기록(`insertLog`)·출석 저장(`upsertAttend`)·보충 처리(`attendMakeupSet`)가 `sbWriteAuthor`를 거친다 — **새로 tt_log·attendance에 쓰는 코드도 이 함수를 쓸 것**(sbWrite로 바로 넣으면 작성자가 빠진다). 열이 없으면(048 적용 전, PGRST204) author 없이 다시 쓰고 `authorCol=false`로 그 뒤 쓰기는 싣지 않는다.
 - 변경사항 패널: 줄마다 작성자 알약(`.lr .who`, 검색도 이름으로). **048이 들어간 날(`CH_AUTHOR_FROM` = 2026-10-12) 뒤 기록인데 비어 있으면 '이름 없음 (로그인 안 함)'**(붉은 알약) — 로그인 없이 쓴 기록이 그대로 드러난다. 그 전 기록은 칸 자체가 없었으니 표시하지 않는다. 결석 조회 select에 `author`를 더했고 400이면 옛 열로 다시 받는다.
 - 시트 사본에는 작성자가 없다(원본만). 조교가 허브 로그인 없이 슈국 스케쥴을 바로 열면 이름이 비므로, **조교에게 허브 로그인 뒤 쓰도록 안내**해야 이름이 남는다.
+- **적용 상태: 048은 2026-10-12 실제 수파베이스에 적용 완료**(관리 API — 원장님이 준 sbp_ 토큰, 저장 안 함. 공용 교사 계정 왕복·공개 키 401 확인). 페이지 머지 뒤부터 이름이 남는다.
 - 검증: `NODE_PATH=$(npm root -g) node tools/tt-author-test.js`(14건) + tt-headsync·tt-daynav·alim-e2e·tt-search 회귀(tt-tasks-test ⑩ 1건 실패는 이 변경 전부터 — 가짜 데이터의 날짜 의존).
 
 ## 학생 연락처 — 전체 번호 저장 (2026-08-26)

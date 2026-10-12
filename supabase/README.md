@@ -816,7 +816,7 @@ default privileges 까지 되돌렸다. `tools/check_lock.py` 통과(표 15/15 �
 - 쓰는 곳: `insertLog`(모든 tt_log 기록)·`upsertAttend`(출석 저장·복수 선택)·`attendMakeupSet`(보충 처리) — `sbWriteAuthor`가 author를 붙이고, **열이 없으면(PGRST204) author 없이 다시 쓰고 그 뒤로는 싣지 않는다**(`authorCol`). 변경사항 패널(`timetableLog`)은 tt_log 전체 열 + 결석 조회에 `author`를 더해 읽고(400이면 옛 열로), 줄마다 작성자 알약·048 뒤(`CH_AUTHOR_FROM`) 기록인데 비면 '이름 없음 (로그인 안 함)'.
 - 시트 사본('시간표이동기록'·'출석기록')에는 이 칸이 없다 — 원본에만 남는다. 일일 점검은 attendance를 시트에서 추가만 하므로(default '') 영향 없음, tt_log는 보고만.
 - 검증: `NODE_PATH=$(npm root -g) node tools/tt-author-test.js`(14건 — 로그인 이름 우선·기기 이름·빈 값·1회 이동/출석/보충 본문·패널 알약/이름 없음/옛 기록/검색·열 없음 폴백).
-- **적용 상태: 아직 실제 수파베이스에 적용 전** — 관리 API(sbp_ 토큰, 저장하지 않음)로 048을 실행하면 바로 기록이 남기 시작한다. 적용 전에도 화면은 옛 열로 돌아간다(이름 없이 저장).
+- **적용 상태: 2026-10-12 실제 수파베이스에 적용 완료**(관리 API `database/query`, 원장님이 준 sbp_ 토큰 — 저장하지 않음, 재실행 안전 확인). 확인: 두 표에 `author text not null default ''` 열, 공용 교사 계정으로 tt_log INSERT·attendance upsert에 author가 실리고 읽히는 것(검증 행은 지움), 공개 키 직접 읽기 401 그대로. 같은 날 양준겸 정정 기록(2628)에 작성자 '클로슈 (원장님 지시)'를 적었다.
 
 ## 047 — 슈국 캘린더 학년별 기간 예외 `tt_period.overrides` (2026-10-11)
 - `tt_period`에 `overrides jsonb not null default '{}'` 열 + 모양 검사(키 `중1~고3`, 값 정규/내신). 주 기준 `book`은 그대로.
