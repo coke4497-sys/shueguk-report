@@ -836,3 +836,7 @@ default privileges 까지 되돌렸다. `tools/check_lock.py` 통과(표 15/15 �
 - 슈국 스케쥴 오늘의 시간표 옆 패널의 할 일 상자 원본(시트 사본 없음). 한 행 = 요청 한 건(ymd 보이는 날짜·loc 센터·text·student·author·status '대기'/'완료'·done_by·done_at·done_ymd·history jsonb). 교사 전용 — 공개 키(anon)는 권한 없음(401).
 - **정책은 034·036·038처럼 `authenticated` 전체 허용.** 처음 `private.is_active_teacher()`로 만들어 적용했더니 공용 교사 계정(teachers@shueguk.internal)에서 저장이 RLS로 막혔다(038과 같은 사고) — 같은 날 045 파일을 고쳐 다시 실행했다(재실행 안전). **새 교사 전용 표의 정책에 그 함수를 쓰지 말 것.**
 - **적용 상태: 2026-10-08 실제 수파베이스에 적용 완료**(관리 API — 원장님이 준 sbp_ 토큰, 저장 안 함). 확인: anon 401, 공용 교사 계정으로 INSERT → `status=eq.대기` 목록 → 못 함 PATCH(ymd 내일·history 1건·updated_at 트리거) → 완료 PATCH → 완료 줄에 다시 `status=eq.대기` PATCH는 `[]` → 주간 조회 → DELETE 204, 상태·빈 글 check 제약 거절, 검증 행은 모두 지웠다(표 비어 있음). 한글 조건값은 URL 인코딩해야 한다(`%EB%8C%80%EA%B8%B0` — curl로 날 것을 보내면 빈 결과).
+
+## 049 — 슈국 캘린더 수정 기록 `tt_calendar_log` (2026-10-12)
+- `migrations/049_calendar_log.sql` — 캘린더(주별 기간·학년 예외·날짜 메모·지필 일정)를 바꿀 때마다 한 줄씩 쌓는 기록 표(at·what·target·action·before·after·author). 교사(authenticated)는 넣기·읽기만, 공개 키 차단, 재실행 안전. 화면에는 보이지 않고 물으면 클로슈가 조회한다(CLAUDE.md '슈국 캘린더 수정 기록' 절).
+- **적용 상태: 아직 실제 수파베이스에 적용 전** — 적용 전에는 화면이 기록만 건너뛴다(저장은 그대로). 로컬 PostgreSQL에서 두 번 실행·교사 넣기/읽기·공개 키 거절 확인.

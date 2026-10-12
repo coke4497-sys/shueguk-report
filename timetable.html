@@ -2023,6 +2023,34 @@
       return sbWrite(method, path, body, extra);
     });
   }
+  /* 슈국 캘린더 수정 기록 (049, 2026-10-12 원장님 "캘린더의 수정사항들을 누가 했는지") —
+   * 기간·학년 예외·메모·지필 일정을 저장할 때마다 tt_calendar_log에 한 줄. 화면에는 보이지 않고
+   * 물으면 클로슈가 조회한다. 저장 자체와 따로 가며 실패해도 저장은 그대로(표가 없으면 그 뒤로 끔). */
+  var calLogOn = true;
+  function calLog(what, target, action, before, after){
+    if (!calLogOn) return Promise.resolve();
+    var rec = { at: nowIso(), what: what, target: String(target || ''), action: action || '저장',
+                before: String(before == null ? '' : before).slice(0, 500),
+                after: String(after == null ? '' : after).slice(0, 500), author: editorName() };
+    return sbWrite('POST', '/tt_calendar_log', rec).catch(function(e){
+      if (/sb 404|tt_calendar_log/.test(String(e && e.message))) calLogOn = false;
+      console.warn('캘린더 기록 실패', e);
+    });
+  }
+  /* 바꾸기 전 값 읽기 — 실패하면 빈 값(기록만 덜 자세해질 뿐 저장은 막지 않는다) */
+  function calBefore(path){
+    if (!calLogOn) return Promise.resolve(null);
+    return sbGet(path).then(function(r){ return (r && r[0]) || null; }, function(){ return null; });
+  }
+  function calOvText(o){
+    if (!o || typeof o !== 'object') return '';
+    return Object.keys(o).sort().map(function(g){ return g + ' ' + o[g]; }).join(', ');
+  }
+  function calExamText(r){
+    if (!r) return '';
+    var d = r.start_date === r.end_date ? r.start_date : r.start_date + '~' + r.end_date;
+    return r.kind + ' · ' + r.school + ' · ' + d + (r.text ? ' · ' + r.text : '');
+  }
   function upsertAttend(rows){
     return sbWriteAuthor('POST', '/attendance?on_conflict=date,book,class_id,student_plain', rows,
                    { 'Prefer': 'resolution=merge-duplicates,return=minimal' });
@@ -2416,10 +2444,14 @@
     ttMemoSet: function(b){
       var d = String(b.date || '').trim(), memo = String(b.memo || '').trim();
       if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return Promise.resolve({ result:'error', message:'날짜가 필요합니다.' });
-      var job = memo
-        ? sbWrite('POST', '/tt_memo?on_conflict=date', [{ date: d, memo: memo }], { 'Prefer': 'resolution=merge-duplicates,return=minimal' })
-        : sbWrite('DELETE', '/tt_memo?date=eq.' + q(d));
-      return job.then(function(){
+      var prev = null;
+      return calBefore('/tt_memo?date=eq.' + q(d) + '&select=memo').then(function(r){
+        prev = r ? String(r.memo || '') : '';
+        return memo
+          ? sbWrite('POST', '/tt_memo?on_conflict=date', [{ date: d, memo: memo }], { 'Prefer': 'resolution=merge-duplicates,return=minimal' })
+          : sbWrite('DELETE', '/tt_memo?date=eq.' + q(d));
+      }).then(function(){
+        if (prev !== memo) calLog('메모', d, memo ? '저장' : '지움', prev, memo);
         legacyBg(b);
         return ok(memo ? {} : { cleared: true });
       });
@@ -2430,11 +2462,14 @@
       var row = parseInt(b.row, 10) || 0;
       if (b.del){
         if (!row) return Promise.resolve({ result:'error', message:'행을 찾을 수 없어요.' });
-        return sbGet('/exam_sched?id=eq.' + row + '&select=school').then(function(rows){
+        return sbGet('/exam_sched?id=eq.' + row + '&select=kind,school,start_date,end_date,text').then(function(rows){
           if (!rows.length) return { result:'error', message:'행을 찾을 수 없어요.' };
           if (String(rows[0].school).trim() !== String(b.school || '').trim())
             return { result:'error', message:'내용이 달라졌어요. 새로고침 후 다시 시도해 주세요.' };
-          return sbWrite('DELETE', '/exam_sched?id=eq.' + row).then(function(){ return ok({ deleted: true }); });
+          return sbWrite('DELETE', '/exam_sched?id=eq.' + row).then(function(){
+            calLog('지필 ' + rows[0].kind, rows[0].school, '지움', calExamText(rows[0]), '');
+            return ok({ deleted: true });
+          });
         });
       }
       var kind = (String(b.kind || '').trim() === '과목') ? '과목' : '기간';
@@ -2448,14 +2483,19 @@
       } else end = start;
       var rec = { kind: kind, school: school, start_date: start, end_date: end, text: text };
       if (row){
-        return sbWrite('PATCH', '/exam_sched?id=eq.' + row, rec, { 'Prefer': 'return=representation' })
-          .then(function(rows){
+        var prevEx = null;
+        return calBefore('/exam_sched?id=eq.' + row + '&select=kind,school,start_date,end_date,text').then(function(r){
+          prevEx = r;
+          return sbWrite('PATCH', '/exam_sched?id=eq.' + row, rec, { 'Prefer': 'return=representation' });
+        }).then(function(rows){
             if (!rows || !rows.length) return { result:'error', message:'행을 찾을 수 없어요.' };
+            var bef = calExamText(prevEx), aft = calExamText(rec);
+            if (bef !== aft) calLog('지필 ' + kind, school, '저장', bef, aft);
             return ok({ row: row });
           });
       }
       return sbWrite('POST', '/exam_sched', rec, { 'Prefer': 'return=representation' })
-        .then(function(rows){ return ok({ row: rows[0].id }); });
+        .then(function(rows){ calLog('지필 ' + kind, school, '저장', '', calExamText(rec)); return ok({ row: rows[0].id }); });
     },
 
     /* 1회 이동 수정·취소 — 수파베이스가 원본, 시트에도 같은 기록을 찾아 미러(실패 무방) */
@@ -2674,9 +2714,21 @@
       // b.ov = {학년: '정규'|'내신'} 학년별 예외(047) — 보낸 경우에만 overrides 열을 함께 쓴다(안 보내면 그대로)
       var hasOv = b.ov && typeof b.ov === 'object';
       if (hasOv && !ovCol) return Promise.resolve({ result:'error', message:'학년별 예외는 마이그레이션 047을 적용한 뒤 쓸 수 있어요.' });
-      return legacyPost(b).then(function(res){
+      var prevP = null;
+      return calBefore('/tt_period?week_wednesday=eq.' + q(b.week) + '&select=' + (ovCol ? 'book,overrides' : 'book')).then(function(r){
+        prevP = r;
+        return legacyPost(b);
+      }).then(function(res){
         if (res && res.result === 'success'){
           var bk = String(b.book || '').trim();
+          var pb = prevP ? String(prevP.book || '') : '', nb = bk ? bookOf(bk) : '';
+          if (pb !== nb) calLog('기간', b.week, nb ? '저장' : '지움', pb || '미지정(정규)', nb || '미지정(정규)');
+          if (hasOv){
+            var po = calOvText(prevP && prevP.overrides), no = {};
+            Object.keys(b.ov).forEach(function(g){ if (b.ov[g]) no[g] = bookOf(b.ov[g]); });
+            no = calOvText(no);
+            if (po !== no) calLog('학년 예외', b.week, no ? '저장' : '지움', po, no);
+          }
           var row = { week_wednesday: b.week, book: bookOf(bk) };
           if (hasOv){ row.overrides = {}; Object.keys(b.ov).forEach(function(g){ if (b.ov[g]) row.overrides[g] = bookOf(b.ov[g]); }); }
           var job = bk
