@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 지필고사 리포트 담당 선생님 이름(048) 검증 — 로컬 PostgreSQL.
+# 지필고사 리포트 담당 선생님 이름(048) + 학생 페이지 담당 선생님(049) 검증 — 로컬 PostgreSQL.
 # 043 위에 048을 두 번 얹어(재실행 안전) teacher_name 열이 생기고, student_bundle 이 보낸 제출에만 이름을 내보내는지,
 # [보내기 취소]하면 이름도 감추는지 확인한다.
 # 사용:  PGHOST=/home/pgtest PGPORT=5499 PGUSER=postgres bash tools/report-teacher-sql-test.sh   (원격에는 절대 돌리지 말 것)
@@ -78,7 +78,26 @@ declare r jsonb;
 begin
   r := student_bundle('tok-park');
   assert (select bool_and(s->>'teacher_name' = '') from jsonb_array_elements(r->'submissions') s), '취소하면 이름도 감춘다';
+  assert r->'me'->>'ns_teacher' is null, '049 전에는 me.ns_teacher 없음';
 end $$;
 reset role;
 SQL
-echo "report-teacher-sql-test: 모두 통과"
+# 049 — 학생 페이지 '담당 선생님' = 내신 진도 반 담당(me.ns_teacher). 두 번 얹어 재실행 안전.
+psql -v ON_ERROR_STOP=1 -q -d "$DB" -f supabase/migrations/049_student_ns_teacher.sql >/dev/null
+psql -v ON_ERROR_STOP=1 -q -d "$DB" -f supabase/migrations/049_student_ns_teacher.sql >/dev/null
+psql -v ON_ERROR_STOP=1 -q -d "$DB" <<'SQL'
+set role anon;
+do $$
+declare r jsonb;
+begin
+  r := student_bundle('tok-park');
+  assert r->'me'->>'ns_teacher' = '이현지', '049: me.ns_teacher = 내신 진도 반 담당(끝 A 떼고·확인 반 제외·전체 이름): ' || (r->'me')::text;
+  assert r->'me'->>'teacher' = '이현지', '049: me.teacher(슈스 링크 담당)는 그대로';
+  r := student_bundle('tok-kim');
+  assert r->'me'->>'ns_teacher' = '', '049: 진도 담당이 둘이면 빈 값(화면은 students.teacher 로 폴백): ' || (r->'me')::text;
+  assert r->'me'->>'teacher' = '이지원', '049: 김하늘 teacher 그대로';
+  assert (select bool_and(s->>'teacher_name' = '') from jsonb_array_elements(student_bundle('tok-park')->'submissions') s), '049: 048 규칙(취소하면 이름 감춤) 유지';
+end $$;
+reset role;
+SQL
+echo "report-teacher-sql-test: 모두 통과 (048·049)"

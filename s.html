@@ -1368,7 +1368,7 @@ function api(extra){
       var key = isId ? '' : qsKey;
       var sid = tr(me.student_id);
       var info = { id: sid, name: tr(me.name), school: String(me.school || ''), grade: String(me.grade || ''),
-                   teacher: String(me.teacher || ''), memo: String(me.memo || ''), classA: String(me.class_a || ''),
+                   teacher: String(me.teacher || ''), nsTeacher: String(me.ns_teacher || ''), memo: String(me.memo || ''), classA: String(me.class_a || ''),
                    classB: String(me.class_b || ''), progress: String(me.naeshin_a || ''), checkup: String(me.naeshin_b || ''),
                    enrolled: String(me.enrolled || '') };
       var myBase = baseName(info.name);
@@ -1918,9 +1918,13 @@ function renderHub(){
     b.style.display='inline-block';
   }
 
-  // 내 수업 정보 (담당 교사 + 정규/내신 시간표 가로 배치)
-  var teacherRow = (info.teacher && String(info.teacher).trim()!=='')
-    ? '<div class="info-teacher"><span class="k">담당 교사</span><span class="v">'+esc(info.teacher)+'</span></div>' : '';
+  // 내 수업 정보 (담당 선생님 + 정규/내신 시간표 가로 배치)
+  // 담당 선생님 = 내신 진도 반 담당 선생님(049 student_bundle의 me.ns_teacher — 2026-10-12 원장님 "이 이름을 내신반 담당 선생님으로").
+  // 진도 반을 못 찾거나(담당이 둘·명단에 없음) 옛 경로(앱스스크립트)면 종전의 슈스 링크 담당(students.teacher)을 쓴다.
+  var tName = String(info.nsTeacher || '').trim() || String(info.teacher || '').trim();
+  if(tName && !/선생님$/.test(tName)) tName += ' 선생님';
+  var teacherRow = tName
+    ? '<div class="info-teacher"><span class="k">담당 선생님</span><span class="v">'+esc(tName)+'</span></div>' : '';
   // 정규 기간: 가·나 둘 다 있으면 '가/나 수업'(고등), 하나만 있으면 '정규 수업'(중등: 주 1회)
   var hasA = info.classA && String(info.classA).trim()!=='';
   var hasB = info.classB && String(info.classB).trim()!=='';

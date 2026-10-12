@@ -816,6 +816,11 @@ default privileges 까지 되돌렸다. `tools/check_lock.py` 통과(표 15/15 �
 - **적용 상태: 2026-10-06 실제 수파베이스에 적용 완료**(관리 API — 원장님이 준 sbp_ 토큰, 저장 안 함). 확인: 함수 본문에 새 판정이 들어갔고, 공개 키로 박소율(고1) 조회 → 결석 3건(9/5 둘·9/13) 모두 `makeup:true`(보충 완료).
 
 
+## 049 — 학생 페이지 '담당 선생님' = 내신 진도 반 담당 `student_bundle.me.ns_teacher` (2026-10-12)
+- `migrations/049_student_ns_teacher.sql` — `student_bundle` 다시 정의(048 본문 + `me.ns_teacher` = 048의 `exam_ns_teacher_(이름)` 값). 원장님 "학생 페이지의 담당 교사 → 담당 선생님. 이 이름을 내신반 담당 선생님으로". s.html '내 수업 정보' 줄이 라벨 '담당 선생님'으로 바뀌고 값은 `ns_teacher`를 먼저, 비어 있으면(진도 담당이 둘·명단에 없음·049 전·옛 경로) 종전 `students.teacher`(슈스 링크 담당)를 쓴다. 표·열 변경 없음, 재실행 안전.
+- **적용 상태: 아직 실제 수파베이스에 적용 전** — 관리 API(sbp_ 토큰)로 실행해야 한다. 적용 전에는 함수가 `ns_teacher`를 주지 않아 화면이 종전 담당(슈스 링크)으로 폴백한다(라벨만 바뀜).
+- 검증: `PGHOST=/home/pgtest PGPORT=5499 PGUSER=postgres bash tools/report-teacher-sql-test.sh`(048·049 — 두 번 얹기·ns_teacher 값·둘이면 빈 값·048 규칙 유지).
+
 ## 048 — 시간표 이동·출석 기록의 작성자 `tt_log.author`·`attendance.author` (2026-10-12)
 - 원장님 "작성자 칸을 더해 누가 이동했는지 알 수 있게"(10/10 양준겸 이동이 일 6:00 반으로 잘못 갔는데 누가 했는지 남아 있지 않았다). 두 표에 `author text not null default ''` — 슈국 스케쥴은 공용 교사 계정 하나로 쓰므로 `auth.uid()`로는 사람을 가릴 수 없어 **화면이 이름을 실어 보낸다**(timetable.html `editorName` — 허브 개인 로그인 이름(teacher-name.js, `alimBy`) → 이 기기에 적어 둔 이름(`tt_task_who`) → 빈 값 = 로그인 없이 쓴 기록).
 - 쓰는 곳: `insertLog`(모든 tt_log 기록)·`upsertAttend`(출석 저장·복수 선택)·`attendMakeupSet`(보충 처리) — `sbWriteAuthor`가 author를 붙이고, **열이 없으면(PGRST204) author 없이 다시 쓰고 그 뒤로는 싣지 않는다**(`authorCol`). 변경사항 패널(`timetableLog`)은 tt_log 전체 열 + 결석 조회에 `author`를 더해 읽지만(400이면 옛 열로) **화면에는 그리지 않는다**(2026-10-12 원장님 — 물으면 클로슈가 조회).
