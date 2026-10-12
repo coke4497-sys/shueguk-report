@@ -1095,8 +1095,6 @@
   .ch-item:last-child{border-bottom:none;}
   .ch-item b{font-family:"Gowun Batang",serif;}
   .ch-item .lr{color:var(--ink-soft);font-size:.74rem;margin-top:2px;}
-  .ch-item .lr .who{display:inline-block;padding:0 6px;border-radius:999px;background:var(--icon-bg);color:var(--accent);font-weight:700;}
-  .ch-item .lr .who.none{background:#F7E2DE;color:#B0736A;font-weight:400;}
   .ch-item .ch-when{color:var(--accent);font-size:.76rem;}
   .ch-none{color:var(--ink-soft);font-size:.82rem;padding:14px 2px;}
   .ch-more{display:block;width:100%;margin-top:9px;padding:7px 0;font:inherit;font-size:.8rem;
@@ -11093,7 +11091,7 @@ function chRender(){
     if (chKind && chGroupOf(g) !== chKind) return false;
     if (!q) return true;
     var idx = chClassIndex();
-    return [g.student, g.fromCls, g.toCls, g.reason, g.date, g.kind, chKindLabel(g), g.book, chWhoLabel(g),
+    return [g.student, g.fromCls, g.toCls, g.reason, g.date, g.kind, chKindLabel(g), g.book,
             idx.when[g.fromId], idx.when[g.toId], idx.name[g.fromId], idx.name[g.toId],
             wkDayLabel(g.date || ''),
             g.apply, wkDayLabel(g.apply || ''), wkDayLabel(wkIdYmd(g.fromId)), wkDayLabel(wkIdYmd(g.toId))]
@@ -11133,9 +11131,7 @@ function chRender(){
     var applyL = g.apply ? ((g.kind === '주간반이동' ? '원래 수업일 ' : '적용 ') + wkDayLabel(g.apply)) : '';
     var lr = (applyL ? '<b>' + esc(applyL) + '</b>' : '') +
              (g.reason ? (applyL ? ' · ' : '') + esc(g.reason) : '');
-    // 작성자(048) — 허브 로그인 이름. 칸이 생긴 뒤의 기록인데 비어 있으면 로그인 없이 쓴 것이라 그렇다고 표시한다
-    var whoL = chWhoLabel(g);
-    if (whoL) lr += (lr ? ' · ' : '') + '<span class="who' + (g.who ? '' : ' none') + '">' + esc(whoL) + '</span>';
+    // 작성자(048)는 저장만 하고 화면에는 보이지 않는다(2026-10-12 원장님 "페이지에 반영할 필요가 없어 내가 물어보면 알려줘")
     html.push('<div class="ch-item"><span class="lk' + kcls + '">' + esc(lbl) + '</span>' +
            (g.book === '내신' ? '<span class="lk" style="background:#8A6FA8;">내신</span>' : '') +
            (g.student ? '<b>' + esc(g.student) + '</b> ' : '') + path +
@@ -11145,13 +11141,6 @@ function chRender(){
   (chMayMore ? '<button type="button" class="ch-more" onclick="chMore()">지난 기록 더 보기</button>' : '');
   // 더 보기로 다시 그렸을 때는 보던 자리를 지킨다
   if (chKeepScroll != null){ list.scrollTop = chKeepScroll; chKeepScroll = null; }
-}
-/* 작성자 표기 — 048이 들어간 뒤(CH_AUTHOR_FROM) 기록만 '이름 없음'을 붙인다(그 전 기록은 칸 자체가 없었다) */
-var CH_AUTHOR_FROM = '2026-10-12';
-function chWhoLabel(g){
-  if (g.who) return g.who;
-  var at = String(g.at || g.date || '').slice(0, 10);
-  return at >= CH_AUTHOR_FROM ? '이름 없음 (로그인 안 함)' : '';
 }
 /* 지난 기록 더 보기 — 200건씩 늘려 다시 받는다 (기록이 적어 통째로 다시 받아도 가볍다) */
 function chMore(){

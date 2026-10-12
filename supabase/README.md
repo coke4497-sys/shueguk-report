@@ -818,9 +818,9 @@ default privileges 까지 되돌렸다. `tools/check_lock.py` 통과(표 15/15 �
 
 ## 048 — 시간표 이동·출석 기록의 작성자 `tt_log.author`·`attendance.author` (2026-10-12)
 - 원장님 "작성자 칸을 더해 누가 이동했는지 알 수 있게"(10/10 양준겸 이동이 일 6:00 반으로 잘못 갔는데 누가 했는지 남아 있지 않았다). 두 표에 `author text not null default ''` — 슈국 스케쥴은 공용 교사 계정 하나로 쓰므로 `auth.uid()`로는 사람을 가릴 수 없어 **화면이 이름을 실어 보낸다**(timetable.html `editorName` — 허브 개인 로그인 이름(teacher-name.js, `alimBy`) → 이 기기에 적어 둔 이름(`tt_task_who`) → 빈 값 = 로그인 없이 쓴 기록).
-- 쓰는 곳: `insertLog`(모든 tt_log 기록)·`upsertAttend`(출석 저장·복수 선택)·`attendMakeupSet`(보충 처리) — `sbWriteAuthor`가 author를 붙이고, **열이 없으면(PGRST204) author 없이 다시 쓰고 그 뒤로는 싣지 않는다**(`authorCol`). 변경사항 패널(`timetableLog`)은 tt_log 전체 열 + 결석 조회에 `author`를 더해 읽고(400이면 옛 열로), 줄마다 작성자 알약·048 뒤(`CH_AUTHOR_FROM`) 기록인데 비면 '이름 없음 (로그인 안 함)'.
+- 쓰는 곳: `insertLog`(모든 tt_log 기록)·`upsertAttend`(출석 저장·복수 선택)·`attendMakeupSet`(보충 처리) — `sbWriteAuthor`가 author를 붙이고, **열이 없으면(PGRST204) author 없이 다시 쓰고 그 뒤로는 싣지 않는다**(`authorCol`). 변경사항 패널(`timetableLog`)은 tt_log 전체 열 + 결석 조회에 `author`를 더해 읽지만(400이면 옛 열로) **화면에는 그리지 않는다**(2026-10-12 원장님 — 물으면 클로슈가 조회).
 - 시트 사본('시간표이동기록'·'출석기록')에는 이 칸이 없다 — 원본에만 남는다. 일일 점검은 attendance를 시트에서 추가만 하므로(default '') 영향 없음, tt_log는 보고만.
-- 검증: `NODE_PATH=$(npm root -g) node tools/tt-author-test.js`(14건 — 로그인 이름 우선·기기 이름·빈 값·1회 이동/출석/보충 본문·패널 알약/이름 없음/옛 기록/검색·열 없음 폴백).
+- 검증: `NODE_PATH=$(npm root -g) node tools/tt-author-test.js`(11건 — 로그인 이름 우선·기기 이름·빈 값·1회 이동/출석/보충 본문·패널에 표시 없음·열 없음 폴백).
 - **적용 상태: 2026-10-12 실제 수파베이스에 적용 완료**(관리 API `database/query`, 원장님이 준 sbp_ 토큰 — 저장하지 않음, 재실행 안전 확인). 확인: 두 표에 `author text not null default ''` 열, 공용 교사 계정으로 tt_log INSERT·attendance upsert에 author가 실리고 읽히는 것(검증 행은 지움), 공개 키 직접 읽기 401 그대로. 같은 날 양준겸 정정 기록(2628)에 작성자 '클로슈 (원장님 지시)'를 적었다.
 
 ## 047 — 슈국 캘린더 학년별 기간 예외 `tt_period.overrides` (2026-10-11)
