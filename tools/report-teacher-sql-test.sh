@@ -20,7 +20,13 @@ for f in supabase/migrations/0{01,02,03,04,05,06,07,08,09,10,11,12,27,28,29,31,3
   psql -v ON_ERROR_STOP=1 -q -d "$DB" -f "$f" >/dev/null || { echo "적용 실패: $f"; exit 1; }
 done
 psql -v ON_ERROR_STOP=1 -q -d "$DB" <<'SQL'
-insert into students (student_id, name, school, grade, code, enrolled) values ('12345678','박보검','화정고','2026 고등 2학년','tok-park','재원');
+insert into students (student_id, name, school, grade, code, enrolled, teacher) values ('12345678','박보검','화정고','2026 고등 2학년','tok-park','재원','이현지');
+insert into students (student_id, name, school, grade, code, enrolled, teacher) values ('11112222','김하늘','화정고','2026 고등 2학년','tok-kim','재원','김지원');
+insert into tt_classes (book, class_id, day, start_time, end_time, teacher, name, roster) values
+  ('내신','n001','수','17:30','19:00','현지','고2 화정A','박보검A 김하늘 (화정)심지후'),
+  ('내신','n002','목','17:30','19:00','지원','고2 확인','박보검 김하늘'),
+  ('내신','n003','금','17:30','19:00','지원','고2 화정B','김하늘'),
+  ('정규','r001','수','17:30','19:00','은지','고2 가','박보검 김하늘');
 insert into submissions (submitted_at, exam, school, grade, name, wrong_count, wrong_text, vow, teacher_note, score, parent_phone, sent_at) values
   ('2026-09-23 10:00+09','26-2-중간-화정고2-문학','화정고','2학년','박보검',2,'','','잘했어요',90,'12345678','2026-10-02 14:30+09'),
   ('2026-09-24 10:00+09','26-2-중간-화정고2-독서','화정고','2학년','박보검',3,'','','아직 비공개',80,'12345678',null);
@@ -30,6 +36,23 @@ psql -v ON_ERROR_STOP=1 -q -d "$DB" -f supabase/migrations/048_report_teacher.sq
 psql -v ON_ERROR_STOP=1 -q -d "$DB" <<'SQL'
 do $$ begin
   assert (select count(*) from information_schema.columns where table_name='submissions' and column_name='teacher_name') = 1, 'teacher_name 열';
+  assert exam_ns_teacher_('박보검') = '이현지', '진도 담당: 끝 A 떼고 대조·확인 반 제외·짧은 이름→전체 이름: ' || exam_ns_teacher_('박보검');
+  assert exam_ns_teacher_('김하늘') = '', '진도 담당이 둘(현지·지원)이면 빈 값: ' || exam_ns_teacher_('김하늘');
+  assert exam_ns_teacher_('없는학생') = '', '명단에 없으면 빈 값';
+end $$;
+set role anon;
+do $$
+declare r jsonb; s jsonb;
+begin
+  r := student_bundle('tok-park');
+  for s in select * from jsonb_array_elements(r->'submissions') loop
+    if s->>'exam' like '%문학' then
+      assert s->>'teacher_name' = '이현지', '이름 없이 보낸 제출: 내신 진도 담당 선생님으로: ' || s::text;
+    end if;
+  end loop;
+end $$;
+reset role;
+do $$ begin
   update submissions set teacher_name = '김현지' where exam like '%문학';
   update submissions set teacher_name = '김지원' where exam like '%독서';
 end $$;

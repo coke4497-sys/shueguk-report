@@ -10,7 +10,37 @@
 
 alter table public.submissions add column if not exists teacher_name text;
 
--- student_bundle: 043 본문 그대로 + submissions 항목에 teacher_name(보낸 뒤에만 — 취소하면 이름도 감춘다)
+-- 이름이 비어 있는(048 전에 보낸) 리포트는 그 학생의 **내신 진도 수업 담당 선생님**으로 보여 준다(2026-10-12 원장님 "내신 진도 담당 선생님이 뜨도록").
+-- 규칙 = analyses.html alNsTeacher: 내신 tt_classes 중 반이름에 '확인'이 없고 w*가 아닌 반의 명단(앞뒤 괄호 뗀 이름, 끝 알파벳 뗌)에서 찾은 담당T,
+-- 담당T가 둘 이상이면 빈 값. 짧은 이름('현지')은 students.teacher 전체 이름 중 끝이 같은 하나('이현지')로, '슈'는 '이수경'.
+create or replace function public.exam_ns_teacher_(p_name text)
+returns text
+language plpgsql
+stable
+security definer
+set search_path = public
+as $$
+declare
+  v_base text := regexp_replace(btrim(coalesce(p_name, '')), '[A-Za-z]$', '');
+  v_n int; v_t text; v_full text; v_fn int;
+begin
+  if v_base = '' then return ''; end if;
+  select count(distinct btrim(c.teacher)), min(btrim(c.teacher)) into v_n, v_t
+    from public.tt_classes c
+    cross join lateral unnest(regexp_split_to_array(coalesce(c.roster, ''), '\s+')) as tok
+   where c.book = '내신' and c.class_id not like 'w%' and coalesce(c.name, '') not like '%확인%'
+     and btrim(coalesce(c.teacher, '')) <> ''
+     and regexp_replace(regexp_replace(regexp_replace(tok, '^\([^)]*\)', ''), '\([^)]*\)$', ''), '[A-Za-z]$', '') = v_base;
+  if coalesce(v_n, 0) <> 1 then return ''; end if;
+  if v_t = '슈' then return '이수경'; end if;
+  select count(distinct btrim(teacher)), min(btrim(teacher)) into v_fn, v_full
+    from public.students
+   where btrim(coalesce(teacher, '')) <> '' and btrim(teacher) like '%' || v_t;
+  return case when v_fn = 1 then v_full else v_t end;
+end $$;
+revoke all on function public.exam_ns_teacher_(text) from public;
+
+-- student_bundle: 043 본문 그대로 + submissions 항목에 teacher_name(보낸 뒤에만 — 취소하면 이름도 감춘다, 비어 있으면 내신 진도 담당 선생님)
 create or replace function public.student_bundle(
   p_key text,
   p_is_id boolean default false,
@@ -30,6 +60,7 @@ declare
   v_authed boolean;
   v_share int := 0;
   v_dup   int := 0;
+  v_nst   text := '';
 begin
   if btrim(v_key) = '' then
     return jsonb_build_object('found', false);
@@ -50,6 +81,7 @@ begin
   v_name   := btrim(coalesce(me.name, ''));
   v_base   := regexp_replace(v_name, '[A-Za-z]$', '');
   v_authed := (coalesce(p_pw, '') <> '' and p_pw = v_sid);
+  v_nst    := public.exam_ns_teacher_(v_name);   -- 048: 이름 없는 리포트의 담당 선생님 폴백
 
   -- 형제 수: 같은 학생ID를 쓰는 학생 수 (연결부와 같이 빈 학생ID도 그대로 센다)
   select count(*) into v_share
@@ -138,7 +170,7 @@ begin
         'id', id, 'submitted_at', submitted_at, 'exam', exam, 'school', school, 'grade', grade,
         'name', name, 'wrong_count', wrong_count, 'wrong_text', wrong_text, 'vow', vow,
         'teacher_note', case when sent_at is not null then teacher_note else '' end,
-        'teacher_name', case when sent_at is not null then coalesce(teacher_name, '') else '' end,
+        'teacher_name', case when sent_at is not null then coalesce(nullif(btrim(teacher_name), ''), v_nst) else '' end,
         'sent_at', sent_at, 'score', score, 'parent_phone', parent_phone)
         order by id), '[]'::jsonb)
       from public.submissions

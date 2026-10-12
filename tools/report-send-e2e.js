@@ -113,7 +113,7 @@ function serve(){
       unsent: card({ sent: false, teacherNote: '' }),
       sent: card({ sent: true, teacherNote: '잘했어요' }),
       named: (() => { const d = document.createElement('div'); d.innerHTML = examCardHtml(Object.assign({}, base, { sent: true, teacherNote: '잘했어요', teacherName: '김현지', sentAt: '2026-10-09 14:30' }));
-        return { txt: d.textContent, who: [...d.querySelectorAll('.sec-h .who')].map(e => e.textContent), sign: d.querySelector('.teacher-box .t-sign') && d.querySelector('.teacher-box .t-sign').textContent }; })(),
+        return { txt: d.textContent, who: [...d.querySelectorAll('.sec-h .rby')].map(e => e.textContent), sign: d.querySelector('.teacher-box .t-sign') && d.querySelector('.teacher-box .t-sign').textContent }; })(),
       legacyNo: card({ teacherNote: '' }), legacyYes: card({ teacherNote: '좋아요' }),
       items: [...document.querySelectorAll('.exam-item')].map(b => b.textContent),
       listShown: document.getElementById('examTabs').style.display, detail: document.getElementById('examList').textContent

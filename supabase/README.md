@@ -749,7 +749,7 @@ curl -s -X POST "https://api.supabase.com/v1/projects/bangdbhqpphqqdwcledg/datab
 - 적용 상태: **2026-09-27 실제 수파베이스에 적용 완료** — 공개 키로 review_done_pct() = 75 확인(당시 시청 기록 0건이라 채움 대상 없음).
 
 ## 048 — 지필 리포트 담당 선생님 이름 `submissions.teacher_name` (2026-10-12)
-- `migrations/048_report_teacher.sql` — `submissions.teacher_name`(선생님이 [리포트 보내기]를 누를 때 함께 적는 이름, 허브 로그인 이름 자동) + `student_bundle` 다시 정의(043 본문 + `teacher_name`을 보낸 뒤에만). 재실행 안전(add column if not exists).
+- `migrations/048_report_teacher.sql` — `submissions.teacher_name`(선생님이 [리포트 보내기]를 누를 때 함께 적는 이름, 허브 로그인 이름 자동) + 함수 `exam_ns_teacher_(이름)`(이름이 빈 리포트의 폴백 — 내신 진도 반 담당T, security definer로 tt_classes·students를 읽음, anon 직접 실행 불가) + `student_bundle` 다시 정의(043 본문 + `teacher_name`을 보낸 뒤에만, 비면 폴백). 재실행 안전(add column if not exists).
 - **적용 상태: 아직 실제 수파베이스에 적용하지 않았다** — 적용 전에는 t.html이 열 없음 오류를 받고 이름 없이 보낸다(리포트는 그대로 보내짐). 적용은 043과 같은 방법(관리 API — sbp_ 토큰을 원장님께 받아 쓰고 저장하지 않음, 또는 원장님이 SQL Editor에서 실행). 적용 뒤 확인: 열 생김, 교사 계정으로 teacher_name 저장 → 공개 키 student_bundle에 보낸 제출만 이름이 옴.
 - 검증: `PGHOST=/home/pgtest PGPORT=5499 PGUSER=postgres bash tools/report-teacher-sql-test.sh`.
 
