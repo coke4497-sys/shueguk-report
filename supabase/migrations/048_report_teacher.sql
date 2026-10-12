@@ -11,7 +11,7 @@
 alter table public.submissions add column if not exists teacher_name text;
 
 -- 이름이 비어 있는(048 전에 보낸) 리포트는 그 학생의 **내신 진도 수업 담당 선생님**으로 보여 준다(2026-10-12 원장님 "내신 진도 담당 선생님이 뜨도록").
--- 규칙 = analyses.html alNsTeacher: 내신 tt_classes 중 반이름에 '확인'이 없고 w*가 아닌 반의 명단(앞뒤 괄호 뗀 이름, 끝 알파벳 뗌)에서 찾은 담당T,
+-- 규칙 = analyses.html alNsTeacher: 내신 tt_classes 중 반이름에 '확인'이 없고 w*가 아닌 반의 명단(앞뒤 괄호 뗀 이름, 끝의 A만 뗌 — B·C는 다른 학생)에서 찾은 담당T,
 -- 담당T가 둘 이상이면 빈 값. 짧은 이름('현지')은 students.teacher 전체 이름 중 끝이 같은 하나('이현지')로, '슈'는 '이수경'.
 create or replace function public.exam_ns_teacher_(p_name text)
 returns text
@@ -21,7 +21,7 @@ security definer
 set search_path = public
 as $$
 declare
-  v_base text := regexp_replace(btrim(coalesce(p_name, '')), '[A-Za-z]$', '');
+  v_base text := regexp_replace(btrim(coalesce(p_name, '')), 'A$', '');   -- 끝의 A만(asKey 규칙 — '양지우A'='양지우', B·C는 다른 사람)
   v_n int; v_t text; v_full text; v_fn int;
 begin
   if v_base = '' then return ''; end if;
@@ -30,7 +30,7 @@ begin
     cross join lateral unnest(regexp_split_to_array(coalesce(c.roster, ''), '\s+')) as tok
    where c.book = '내신' and c.class_id not like 'w%' and coalesce(c.name, '') not like '%확인%'
      and btrim(coalesce(c.teacher, '')) <> ''
-     and regexp_replace(regexp_replace(regexp_replace(tok, '^\([^)]*\)', ''), '\([^)]*\)$', ''), '[A-Za-z]$', '') = v_base;
+     and regexp_replace(regexp_replace(regexp_replace(tok, '^\([^)]*\)', ''), '\([^)]*\)$', ''), 'A$', '') = v_base;
   if coalesce(v_n, 0) <> 1 then return ''; end if;
   if v_t = '슈' then return '이수경'; end if;
   select count(distinct btrim(teacher)), min(btrim(teacher)) into v_fn, v_full

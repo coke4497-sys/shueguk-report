@@ -21,11 +21,11 @@ for f in supabase/migrations/0{01,02,03,04,05,06,07,08,09,10,11,12,27,28,29,31,3
 done
 psql -v ON_ERROR_STOP=1 -q -d "$DB" <<'SQL'
 insert into students (student_id, name, school, grade, code, enrolled, teacher) values ('12345678','박보검','화정고','2026 고등 2학년','tok-park','재원','이현지');
-insert into students (student_id, name, school, grade, code, enrolled, teacher) values ('11112222','김하늘','화정고','2026 고등 2학년','tok-kim','재원','김지원');
+insert into students (student_id, name, school, grade, code, enrolled, teacher) values ('11112222','김하늘','화정고','2026 고등 2학년','tok-kim','재원','이지원');
 insert into tt_classes (book, class_id, day, start_time, end_time, teacher, name, roster) values
   ('내신','n001','수','17:30','19:00','현지','고2 화정A','박보검A 김하늘 (화정)심지후'),
   ('내신','n002','목','17:30','19:00','지원','고2 확인','박보검 김하늘'),
-  ('내신','n003','금','17:30','19:00','지원','고2 화정B','김하늘'),
+  ('내신','n003','금','17:30','19:00','지원','고2 화정B','김하늘 박보검B'),
   ('정규','r001','수','17:30','19:00','은지','고2 가','박보검 김하늘');
 insert into submissions (submitted_at, exam, school, grade, name, wrong_count, wrong_text, vow, teacher_note, score, parent_phone, sent_at) values
   ('2026-09-23 10:00+09','26-2-중간-화정고2-문학','화정고','2학년','박보검',2,'','','잘했어요',90,'12345678','2026-10-02 14:30+09'),
@@ -39,6 +39,7 @@ do $$ begin
   assert exam_ns_teacher_('박보검') = '이현지', '진도 담당: 끝 A 떼고 대조·확인 반 제외·짧은 이름→전체 이름: ' || exam_ns_teacher_('박보검');
   assert exam_ns_teacher_('김하늘') = '', '진도 담당이 둘(현지·지원)이면 빈 값: ' || exam_ns_teacher_('김하늘');
   assert exam_ns_teacher_('없는학생') = '', '명단에 없으면 빈 값';
+  assert exam_ns_teacher_('박보검B') = '이지원', 'B는 다른 학생 — 그 반 담당만: ' || exam_ns_teacher_('박보검B');
 end $$;
 set role anon;
 do $$
