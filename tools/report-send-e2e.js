@@ -27,7 +27,11 @@ function serve(){
     { id: 12, submitted_at: '2026-09-23T02:00:00Z', exam: '26-2-중간-화정고2-문학', school: '화정고', grade: '2학년', name: '김하늘',
       wrong_count: 1, wrong_text: '', vow: '', teacher_note: '좋아요', score: '95', parent_phone: '87654321', sent_at: '2026-10-01T05:30:00Z' }];
   const patches = [];
-  const tp = await (await br.newContext()).newPage();
+  let NO_COL = false;   // 048 적용 전 DB 흉내
+  const tctx = await br.newContext();
+  // 허브 개인 로그인(048 — 담당 선생님 이름 자동 채움)
+  await tctx.addInitScript(() => { try { localStorage.setItem('shueguk_teacher_session_v2', JSON.stringify({ access_token: 'me-tok', refresh_token: 'me-ref', expires_at: Math.floor(Date.now() / 1000) + 3600, user: { id: 'u-hyunji' } })); } catch (e) {} });
+  const tp = await tctx.newPage();
   tp.on('pageerror', e => { perr++; console.log('  ✗ pageerror(t.html)', e.message); });
   tp.on('dialog', d => d.accept());
   await tp.route('**/*', rt => {
@@ -38,11 +42,13 @@ function serve(){
     if (/\/rest\/v1\/submissions/.test(u)){
       if (m === 'PATCH'){
         const b = JSON.parse(rt.request().postData()); patches.push({ u, b });
+        if (NO_COL && 'teacher_name' in b) return j({ code: 'PGRST204', message: "Could not find the 'teacher_name' column of 'submissions' in the schema cache" }, 400);
         const id = +(/id=eq\.(\d+)/.exec(u) || [])[1]; const row = SUBS.find(x => x.id === id);
         Object.assign(row, b); return j([row]);
       }
       return j(SUBS);
     }
+    if (/\/rest\/v1\/teacher_accounts/.test(u)) return j([{ display_name: '김현지', login_id: 'hyunji' }]);
     if (/\/rest\/v1\/students/.test(u)) return j([{ student_id: '12345678', name: '박보검', code: 'tok-park' }, { student_id: '87654321', name: '김하늘', code: 'tok-kim' }]);
     if (/\/rest\/v1\/exams/.test(u)) return j([{ report_id: 'r1', title: '26-2-중간-화정고2-문학', school: '화정고', grade: '2', review: '', scope: '' }]);
     if (/\/rest\/v1\/exam_questions/.test(u)) return j([]);
@@ -55,6 +61,9 @@ function serve(){
   let r = await tp.evaluate(() => [...document.querySelectorAll('#studentSel option')].map(o => o.textContent));
   ok('학생 목록 — 보낸 학생에 "· 보냄"', r.some(t => /김하늘.*· 보냄$/.test(t)) && r.some(t => /^박보검/.test(t) && !/보냄/.test(t)), JSON.stringify(r));
   await tp.selectOption('#studentSel', '0');
+  await tp.waitForFunction(() => document.getElementById('teacherName').value === '김현지', null, { timeout: 5000 }).catch(() => {});
+  r = await tp.evaluate(() => ({ tn: document.getElementById('teacherName').value, note: document.getElementById('teacherNameNote').textContent }));
+  ok('담당 선생님 칸 — 허브 로그인 이름이 자동으로 들어온다', r.tn === '김현지' && /허브 로그인 · 김현지/.test(r.note), JSON.stringify(r));
   r = await tp.evaluate(() => ({ st: document.getElementById('sendState').textContent, btn: document.getElementById('sendBtn').textContent, dis: document.getElementById('sendBtn').disabled }));
   ok('안 보낸 학생 — "아직 학생에게 보내지 않았어요" · [리포트 보내기] 켜짐', /아직 학생에게 보내지 않았어요/.test(r.st) && r.btn === '리포트 보내기' && !r.dis, JSON.stringify(r));
   await tp.click('#sendBtn');
@@ -65,6 +74,9 @@ function serve(){
   await tp.waitForFunction(() => /보냄/.test(document.getElementById('sendState').textContent), null, { timeout: 5000 });
   ok('보내기 — 한 마디와 sent_at 을 함께 PATCH(id·이름 조건)', patches.length === 1 && /id=eq\.11/.test(patches[0].u) && /name=eq\./.test(patches[0].u) &&
      patches[0].b.teacher_note === '문학 지문 정리가 좋았습니다.' && !!patches[0].b.sent_at, JSON.stringify(patches));
+  ok('보내기 — 담당 선생님 이름(teacher_name)도 함께 저장', patches[0] && patches[0].b.teacher_name === '김현지', JSON.stringify(patches[0] && patches[0].b));
+  r = await tp.evaluate(() => document.getElementById('sendState').textContent);
+  ok('보낸 뒤 상태 줄에 선생님 이름', /김현지 선생님/.test(r), r);
   r = await tp.evaluate(() => ({ st: document.getElementById('sendState').textContent, btn: document.getElementById('sendBtn').textContent,
     opt: document.querySelector('#studentSel option[value="0"]').textContent, status: document.getElementById('status').textContent }));
   ok('보낸 뒤 — "학생 페이지에 보냄 · 시각" · [보내기 취소] · 버튼 "다시 보내기" · 목록 "· 보냄"', /학생 페이지에 보냄 · \d+\/\d+ \d\d:\d\d/.test(r.st) && /보내기 취소/.test(r.st) &&
@@ -74,6 +86,15 @@ function serve(){
   ok('보내기 취소 — sent_at null 만 PATCH(한 마디는 그대로)', patches.length === 2 && patches[1].b.sent_at === null && !('teacher_note' in patches[1].b), JSON.stringify(patches[1]));
   await tp.selectOption('#studentSel', '1');
   ok('이미 보낸 학생을 고르면 보냄 상태', /학생 페이지에 보냄/.test(await tp.textContent('#sendState')));
+  // 048 전 DB — teacher_name 열이 없으면 이름 없이 다시 보낸다
+  NO_COL = true; patches.length = 0;
+  await tp.selectOption('#studentSel', '0');
+  await tp.fill('#teacherNote', '다시 보냅니다.');
+  await tp.click('#sendBtn');
+  await tp.waitForFunction(() => /보냈|저장되지 않았어요/.test(document.getElementById('status').textContent), null, { timeout: 8000 });
+  r = await tp.evaluate(() => document.getElementById('status').textContent);
+  ok('048 전 DB — 열 없음 오류면 이름을 빼고 다시 PATCH, 안내 문구', patches.length === 2 && 'teacher_name' in patches[0].b && !('teacher_name' in patches[1].b) && !!patches[1].b.sent_at && /저장되지 않았어요/.test(r), JSON.stringify(patches.map(p => p.b)) + ' ' + r);
+  NO_COL = false;
 
   // ── 학생 페이지 s.html — 보내기 전 리포트 숨김 ──
   const sp = await (await br.newContext()).newPage();
@@ -84,20 +105,25 @@ function serve(){
     STATE.info = { name: '박보검' };
     const base = { title: '26-2-중간-화정고2-문학', school: '화정고', grade: '2학년', submittedAt: '2026-09-23 10:00', wrongCount: 1, wrongText: '', vow: '다짐', review: ['총평'], questions: [] };
     const card = x => { const d = document.createElement('div'); d.innerHTML = examCardHtml(Object.assign({}, base, x)); return d.textContent; };
-    STATE.exams = [Object.assign({}, base, { title: '25-1-기말-화정고1-국어', submittedAt: '2026-07-01 13:24', sent: true, teacherNote: '잘했어요', score: '96' }),
+    STATE.exams = [Object.assign({}, base, { title: '25-1-기말-화정고1-국어', submittedAt: '2026-07-01 13:24', sent: true, teacherNote: '잘했어요', score: '96', teacherName: '김현지', sentAt: '2026-10-09 14:30' }),
                    Object.assign({}, base, { title: '26-2-중간-화정고2-문학', submittedAt: '2026-10-03 00:37', sent: false, teacherNote: '' })];
     document.getElementById('hubView').style.display = 'block';
     renderGrades();
     return {
       unsent: card({ sent: false, teacherNote: '' }),
       sent: card({ sent: true, teacherNote: '잘했어요' }),
+      named: (() => { const d = document.createElement('div'); d.innerHTML = examCardHtml(Object.assign({}, base, { sent: true, teacherNote: '잘했어요', teacherName: '김현지', sentAt: '2026-10-09 14:30' }));
+        return { txt: d.textContent, who: [...d.querySelectorAll('.sec-h .rby')].map(e => e.textContent), sign: d.querySelector('.teacher-box .t-sign') && d.querySelector('.teacher-box .t-sign').textContent }; })(),
       legacyNo: card({ teacherNote: '' }), legacyYes: card({ teacherNote: '좋아요' }),
       items: [...document.querySelectorAll('.exam-item')].map(b => b.textContent),
       listShown: document.getElementById('examTabs').style.display, detail: document.getElementById('examList').textContent
     };
   });
   ok('보내기 전 — "선생님이 리포트를 준비하고 있습니다" 카드만, 총평·다짐 없음', /선생님이 리포트를 준비하고 있습니다/.test(r.unsent) && /2026-09-23 10:00/.test(r.unsent) && !/총평/.test(r.unsent) && !/다짐/.test(r.unsent), r.unsent);
-  ok('보낸 뒤 — 리포트 전체 + 선생님의 한 마디', /시험 총평/.test(r.sent) && /선생님의 한 마디잘했어요/.test(r.sent), r.sent.slice(0, 200));
+  ok('보낸 뒤 — 리포트 전체 + 선생님의 한 마디', /시험 총평/.test(r.sent) && /선생님의 한 마디담당 선생님잘했어요/.test(r.sent), r.sent.slice(0, 200));
+  ok('쓴 사람 표시(048) — 학생 글은 "박보검 작성", 선생님 글은 "김현지 선생님 · 10/9" + 서명 줄',
+     r.named.who.length === 3 && r.named.who[0] === '박보검 작성' && r.named.who[1] === '박보검 작성' && r.named.who[2] === '김현지 선생님 · 10/9' && /담당 선생님김현지/.test(r.named.sign || ''), JSON.stringify(r.named.who) + ' ' + r.named.sign);
+  ok('이름이 없는 옛 리포트 — "담당 선생님"만, 서명 줄 없음', /선생님의 한 마디담당 선생님잘했어요/.test(r.sent) && !/담당 선생님김/.test(r.sent), r.sent.slice(-120));
   ok('보냄 여부를 모르면(043 전·옛 경로) 한 마디가 있을 때만 리포트', /준비하고 있습니다/.test(r.legacyNo) && /시험 총평/.test(r.legacyYes));
   ok('시험 목록 — 세로 목록, 최근 제출이 맨 위', r.listShown === 'flex' && r.items.length === 2 && /26-2-중간/.test(r.items[0]) && /25-1-기말/.test(r.items[1]) && r.detail === '', JSON.stringify(r.items));
   ok('목록 줄 — 준비 중 / 리포트 도착 · 점수', /준비 중/.test(r.items[0]) && /리포트 도착/.test(r.items[1]) && / · 96점/.test(r.items[1]) && /2026-10-03 00:37/.test(r.items[0]), JSON.stringify(r.items));
