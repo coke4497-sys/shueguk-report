@@ -1,0 +1,60 @@
+#!/usr/bin/env bash
+# 지필고사 리포트 담당 선생님 이름(048) 검증 — 로컬 PostgreSQL.
+# 043 위에 048을 두 번 얹어(재실행 안전) teacher_name 열이 생기고, student_bundle 이 보낸 제출에만 이름을 내보내는지,
+# [보내기 취소]하면 이름도 감추는지 확인한다.
+# 사용:  PGHOST=/home/pgtest PGPORT=5499 PGUSER=postgres bash tools/report-teacher-sql-test.sh   (원격에는 절대 돌리지 말 것)
+set -euo pipefail
+export PGOPTIONS="${PGOPTIONS:---client-min-messages=warning}"
+cd "$(dirname "$0")/.."
+DB=rteacher_test_$$
+psql -v ON_ERROR_STOP=1 -qc "create database $DB" postgres
+trap 'psql -qc "drop database if exists $DB" postgres' EXIT
+psql -v ON_ERROR_STOP=1 -q -d "$DB" <<'SQL'
+do $$ begin
+  if not exists (select 1 from pg_roles where rolname='anon') then create role anon nologin; end if;
+  if not exists (select 1 from pg_roles where rolname='authenticated') then create role authenticated nologin; end if;
+end $$;
+grant usage on schema public to anon, authenticated;
+SQL
+for f in supabase/migrations/0{01,02,03,04,05,06,07,08,09,10,11,12,27,28,29,31,35,43}_*.sql; do
+  psql -v ON_ERROR_STOP=1 -q -d "$DB" -f "$f" >/dev/null || { echo "적용 실패: $f"; exit 1; }
+done
+psql -v ON_ERROR_STOP=1 -q -d "$DB" <<'SQL'
+insert into students (student_id, name, school, grade, code, enrolled) values ('12345678','박보검','화정고','2026 고등 2학년','tok-park','재원');
+insert into submissions (submitted_at, exam, school, grade, name, wrong_count, wrong_text, vow, teacher_note, score, parent_phone, sent_at) values
+  ('2026-09-23 10:00+09','26-2-중간-화정고2-문학','화정고','2학년','박보검',2,'','','잘했어요',90,'12345678','2026-10-02 14:30+09'),
+  ('2026-09-24 10:00+09','26-2-중간-화정고2-독서','화정고','2학년','박보검',3,'','','아직 비공개',80,'12345678',null);
+SQL
+psql -v ON_ERROR_STOP=1 -q -d "$DB" -f supabase/migrations/048_report_teacher.sql >/dev/null
+psql -v ON_ERROR_STOP=1 -q -d "$DB" -f supabase/migrations/048_report_teacher.sql >/dev/null   # 재실행 안전
+psql -v ON_ERROR_STOP=1 -q -d "$DB" <<'SQL'
+do $$ begin
+  assert (select count(*) from information_schema.columns where table_name='submissions' and column_name='teacher_name') = 1, 'teacher_name 열';
+  update submissions set teacher_name = '김현지' where exam like '%문학';
+  update submissions set teacher_name = '김지원' where exam like '%독서';
+end $$;
+set role anon;
+do $$
+declare r jsonb; s jsonb;
+begin
+  r := student_bundle('tok-park');
+  for s in select * from jsonb_array_elements(r->'submissions') loop
+    if s->>'exam' like '%문학' then
+      assert s->>'teacher_name' = '김현지' and s->>'teacher_note' = '잘했어요', '보낸 제출: 이름 포함: ' || s::text;
+    else
+      assert s->>'teacher_name' = '' and s->>'teacher_note' = '', '안 보낸 제출: 이름·한 마디 숨김: ' || s::text;
+    end if;
+  end loop;
+end $$;
+reset role;
+update submissions set sent_at = null where exam like '%문학';   -- 보내기 취소
+set role anon;
+do $$
+declare r jsonb;
+begin
+  r := student_bundle('tok-park');
+  assert (select bool_and(s->>'teacher_name' = '') from jsonb_array_elements(r->'submissions') s), '취소하면 이름도 감춘다';
+end $$;
+reset role;
+SQL
+echo "report-teacher-sql-test: 모두 통과"

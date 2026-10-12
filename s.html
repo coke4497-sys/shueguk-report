@@ -502,8 +502,10 @@
   .report .r-title-box{background:var(--sage-fog); border-radius:10px; padding:16px 20px; margin-bottom:24px;}
   .report .r-title-box .sup{font-size:12px; letter-spacing:.08em; color:var(--ink-soft); font-weight:700; margin:0 0 4px;}
   .report .r-title-box .main{font-size:19px; font-weight:700; margin:0; color:var(--ink-deep);}
-  .report .sec-h{font-size:15px; font-weight:700; color:var(--ink-deep); margin:24px 0 12px; padding-bottom:8px; border-bottom:2px solid var(--sage-soft);}
+  .report .sec-h{font-size:15px; font-weight:700; color:var(--ink-deep); margin:24px 0 12px; padding-bottom:8px; border-bottom:2px solid var(--sage-soft); display:flex; align-items:baseline; justify-content:space-between; gap:10px;}
   .report .sec-h:first-of-type{margin-top:0;}
+  /* 쓴 사람 표시(048 — 학생 글·선생님 글 구분): 제목 오른쪽에 작게 */
+  .report .sec-h .who{font-weight:400; font-size:12px; color:var(--ink-soft); white-space:nowrap; flex:0 0 auto;}
   .report .info-grid{display:grid; grid-template-columns:1fr 1fr; gap:0; border:1px solid var(--line); border-radius:8px; overflow:hidden;}
   .report .info-cell{display:flex; border-bottom:1px solid var(--line-soft);}
   .report .info-cell:nth-last-child(-n+2){border-bottom:none;}
@@ -526,6 +528,8 @@
   .report .review .rv-h:first-child{margin-top:0;}
   .report .vow-box, .report .teacher-box{font-family:'Noto Serif KR',serif; font-size:14px; line-height:1.8; color:var(--ink-deep); background:var(--sage-fog); border-radius:10px; padding:16px 18px; white-space:pre-wrap;}
   .report .teacher-box{background:#fff; border:1.5px solid var(--sage-soft); min-height:90px;}
+  .report .teacher-box .t-sign{white-space:normal; margin-top:14px; padding-top:12px; border-top:1px dashed var(--line); text-align:right; font-family:'Gowun Batang',serif; font-size:13px; color:var(--ink-mid);}
+  .report .teacher-box .t-sign b{color:var(--ink-deep); font-size:15px; margin-left:6px;}
   .report .r-foot{text-align:center; color:var(--ink-soft); font-size:11px; padding-top:24px; letter-spacing:.05em;}
   .report .chart-grid{display:flex; gap:0; align-items:stretch;}
   .report .chart-col{flex:1 1 0; min-width:0; padding:0 14px;}
@@ -1704,6 +1708,8 @@ function api(extra){
                          wrongCount: Number(r.wrong_count) || 0, wrongText: String(r.wrong_text || ''),
                          vow: String(r.vow || ''), teacherNote: String(r.teacher_note || ''),
                          sent: ('sent_at' in r) ? !!r.sent_at : undefined,   // 043 — 선생님이 [리포트 보내기]를 눌렀는지
+                         sentAt: r.sent_at ? fmtTsKST(r.sent_at) : '',
+                         teacherName: String(r.teacher_name || ''),           // 048 — 보낼 때 적은 담당 선생님 이름
                          score: String(r.score || '') });
           });
           exams.sort(function(a, b){ return a.submittedAt < b.submittedAt ? 1 : (a.submittedAt > b.submittedAt ? -1 : 0); });
@@ -3115,6 +3121,7 @@ function examWaitHtml(x){
     '<p>복기 입력은 '+esc(x.submittedAt||'')+'에 잘 받았어요. 선생님이 피드백을 적어 리포트를 보내면 이곳에서 볼 수 있어요.</p></div>' +
     '</div></div>';
 }
+function examSentMd(s){ var m = /^\d{4}-(\d{2})-(\d{2})/.exec(String(s || '')); return m ? (+m[1])+'/'+(+m[2]) : ''; }
 function examCardHtml(x){
   if(!examSent(x)) return examWaitHtml(x);
   var name = (STATE.info && STATE.info.name) ? STATE.info.name : '';
@@ -3152,13 +3159,19 @@ function examCardHtml(x){
       '</div>';
   }
 
-  h += '<h2 class="sec-h">틀린 문항 · 학생의 반성</h2>'+wrongItemsHtml(x.wrongText);
+  // 쓴 사람 표시(2026-10-12 원장님 "학생의 반성, 선생님의 한 마디가 학부모님들께 잘 구분되지 않을 것 같아요" → B안):
+  // 제목 오른쪽에 '○○ 작성' / '○○ 선생님 · M/D', 선생님 상자 아래 서명 줄. 이름은 보낼 때 적은 teacher_name(048)
+  var stuWho = name ? '<span class="who">'+esc(name.replace(/[A-Za-z]$/, ''))+' 작성</span>' : '';
+  h += '<h2 class="sec-h"><span>틀린 문항 · 학생의 반성</span>'+stuWho+'</h2>'+wrongItemsHtml(x.wrongText);
 
-  h += '<h2 class="sec-h">다음 시험을 위한 다짐</h2><div class="vow-box">'+
+  h += '<h2 class="sec-h"><span>다음 시험을 위한 다짐</span>'+stuWho+'</h2><div class="vow-box">'+
     ((x.vow && String(x.vow).trim()!=='') ? esc(x.vow) : '<span class="empty">작성하지 않음</span>')+'</div>';
 
   if(x.teacherNote && String(x.teacherNote).trim()!==''){
-    h += '<h2 class="sec-h">선생님의 한 마디</h2><div class="teacher-box">'+esc(x.teacherNote)+'</div>';
+    var tn = String(x.teacherName || '').trim(), sentMd = examSentMd(x.sentAt);
+    var teaWho = (tn ? esc(tn)+' 선생님' : '담당 선생님') + (sentMd ? ' · '+sentMd : '');
+    h += '<h2 class="sec-h"><span>선생님의 한 마디</span><span class="who">'+teaWho+'</span></h2><div class="teacher-box">'+esc(x.teacherNote)+
+      (tn ? '<div class="t-sign">담당 선생님<b>'+esc(tn)+'</b></div>' : '')+'</div>';
   }
 
   h += '<p class="r-foot">SHUEGUK RE:)PORT · 이수경국어</p>';

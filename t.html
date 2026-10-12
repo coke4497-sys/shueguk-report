@@ -128,6 +128,8 @@ body{font-family:'Noto Sans KR',sans-serif; background:var(--sage-fog); color:va
 .sign .role{color:var(--ink-mid); font-size:13px; margin-right:8px;}
 .sign .nm{font-weight:500; font-size:15.5px;}
 .sign.empty-sign{display:none;}
+.lbl-note{font-weight:400; font-size:11.5px; color:var(--ink-soft); margin-left:6px;}
+.lbl-help{margin:6px 2px 0; font-size:12px; color:var(--ink-mid); line-height:1.5;}
 .empty{color:var(--ink-soft); font-style:normal;}
 
 @media print{
@@ -185,8 +187,9 @@ body{font-family:'Noto Sans KR',sans-serif; background:var(--sage-fog); color:va
     </div>
     <div class="ctl-row" style="margin-top:14px;">
       <div class="ctl">
-        <label>담당 강사</label>
+        <label>담당 선생님 <span class="lbl-note" id="teacherNameNote">허브에 로그인한 이름이 자동으로 들어옵니다</span></label>
         <input type="text" id="teacherName" placeholder="예) 이수경" oninput="syncNote()">
+        <p class="lbl-help">학생 페이지의 선생님의 한 마디에 이 이름이 '○○ 선생님'으로 표시됩니다. 다른 이름이면 고쳐 주세요.</p>
       </div>
     </div>
     <div class="note-edit">
@@ -274,6 +277,7 @@ body{font-family:'Noto Sans KR',sans-serif; background:var(--sage-fog); color:va
   </div>
 </div>
 
+<script src="teacher-name.js"></script>
 <script>
 /* ══ 교사 페이지 조용한 인증 (2026-08-25, 3단계) ═══════════════════════
  * 이 아래 연결부들이 수파베이스에 보내는 요청에 '교사 신분'을 붙인다.
@@ -298,6 +302,7 @@ body{font-family:'Noto Sans KR',sans-serif; background:var(--sage-fog); color:va
   var T_PW = 'shg_FCePWvnawH44SV8kYB9BHRKi6aag';
   var tok = null, until = 0, pending = null;
   var raw = window.fetch.bind(window);
+  window.__sbRawFetch = raw;   // 허브 로그인 신분으로 따로 묻는 곳(teacher-name.js — 담당 선생님 이름)이 이 조각을 거치지 않게
   var TOK_LS = 'sb_teacher_tok_v1';   // 받아 둔 신분증은 브라우저에 남겨 다음 페이지에서 다시 받지 않는다(1시간짜리)
 
   function cachedTok(){
@@ -485,6 +490,7 @@ body{font-family:'Noto Sans KR',sans-serif; background:var(--sage-fog); color:va
           wrongCount: Number(row.wrong_count) || 0,
           wrongText: row.wrong_text, vow: row.vow, teacherNote: row.teacher_note,
           sentAt: row.sent_at || '', sentKnown: ('sent_at' in row),
+          teacherName: String(row.teacher_name || ''),   // 048 — 보낼 때 함께 적은 담당 선생님 이름
           score: row.score, parentPhone: phone,
           studentId: roster ? roster.id : phone,
           accessCode: roster ? roster.code : ''
@@ -612,12 +618,20 @@ body{font-family:'Noto Sans KR',sans-serif; background:var(--sage-fog); color:va
       var id = parseInt(b.rowIndex, 10) || 0;
       var body = { sent_at: b.send ? nowIso() : null };
       if (b.send) body.teacher_note = String(b.note || '');
-      return sbWrite('PATCH', '/submissions?id=eq.' + id + '&name=eq.' + q(String(b.name || '').trim()),
-                     body, { 'Prefer': 'return=representation' })
+      // 담당 선생님 이름(048)도 함께 — 학생 페이지가 '○○ 선생님의 한 마디'로 보여 준다. 열이 아직 없으면(048 전) 이름 없이 다시 쓴다
+      if (b.send) body.teacher_name = String(b.teacher || '').trim();
+      var path = '/submissions?id=eq.' + id + '&name=eq.' + q(String(b.name || '').trim());
+      var teacherSaved = b.send;
+      return sbWrite('PATCH', path, body, { 'Prefer': 'return=representation' })
+        .catch(function(e){
+          if (!b.send || !/teacher_name/.test(String(e && e.message || e))) throw e;
+          delete body.teacher_name; teacherSaved = false;
+          return sbWrite('PATCH', path, body, { 'Prefer': 'return=representation' });
+        })
         .then(function(rows){
           if (!rows || !rows.length) return { result:'error', message:'기록을 찾을 수 없어요. 새로고침 후 다시 시도해 주세요.' };
           if (b.send) mirrorNoteToSheet(url, b, rows[0]);
-          return ok({ sentAt: rows[0].sent_at || '' });
+          return ok({ sentAt: rows[0].sent_at || '', teacherName: teacherSaved ? body.teacher_name : '', teacherSaved: teacherSaved });
         }, function(e){
           // 옛 백엔드에는 보내기 기능이 없으므로 넘기지 않고 알린다
           console.warn('리포트 보내기 실패', e);
@@ -887,6 +901,28 @@ function loadStudents(rid){
 // 페이지 로드 시 목록 자동 호출
 loadReportList();
 
+/* 담당 선생님 이름(048) — 허브에 로그인한 이름(teacher-name.js)을 미리 채운다. 보낼 때 함께 저장돼 학생 페이지에
+ * '○○ 선생님의 한 마디'로 보인다. 이미 보낸 학생은 그때 적은 이름이 먼저, 선생님이 직접 고친 값은 유지한다. */
+var LOGIN_TEACHER = '';
+var TEACHER_TYPED = false;
+document.getElementById('teacherName').addEventListener('input', function(){ TEACHER_TYPED = true; });
+function fillTeacherName(saved){
+  var inp = document.getElementById('teacherName');
+  if(saved){ inp.value = saved; TEACHER_TYPED = false; return; }
+  if(TEACHER_TYPED && inp.value.trim()) return;
+  inp.value = LOGIN_TEACHER || inp.value;
+}
+(function(){
+  var note = document.getElementById('teacherNameNote');
+  if(typeof shuegukTeacherName !== 'function'){ if(note) note.textContent = '허브에 로그인하면 이름이 자동으로 들어옵니다'; return; }
+  shuegukTeacherName().then(function(n){
+    LOGIN_TEACHER = n || '';
+    if(note) note.textContent = LOGIN_TEACHER ? '허브 로그인 · '+LOGIN_TEACHER+' 선생님' : '허브에 로그인하면 이름이 자동으로 들어옵니다';
+    var inp = document.getElementById('teacherName');
+    if(LOGIN_TEACHER && !inp.value.trim()){ inp.value = LOGIN_TEACHER; syncNote(); }
+  });
+})();
+
 function syncNote(){
   document.getElementById('rNote').textContent = document.getElementById('teacherNote').value.trim() || '';
   var box = document.getElementById('rNote');
@@ -1029,6 +1065,8 @@ function renderReport(){
   // 선생님 한 마디: 시트에 저장된 값이 있으면 칸에 채워주고, 없으면 비움
   var ta = document.getElementById('teacherNote');
   ta.value = s.teacherNote || '';
+  // 담당 선생님: 보낼 때 적어 둔 이름 → 허브 로그인 이름 → 그대로(직접 적은 값)
+  fillTeacherName(s.teacherName || '');
   syncNote();
 
   document.getElementById('report').classList.add('show');
@@ -1052,7 +1090,7 @@ function renderSendState(s){
   btn.textContent = s.sentAt ? '다시 보내기' : '리포트 보내기';
   if(!s.sentKnown){ box.innerHTML = '<span class="st">리포트 보내기를 쓰려면 데이터베이스 준비(043)가 필요해요</span>'; return; }
   box.innerHTML = s.sentAt
-    ? '<span class="st on">학생 페이지에 보냄 · '+esc(sentLabel(s.sentAt))+'</span><button type="button" onclick="sendReport(false)">보내기 취소</button>'
+    ? '<span class="st on">학생 페이지에 보냄 · '+esc(sentLabel(s.sentAt))+(s.teacherName ? ' · '+esc(s.teacherName)+' 선생님' : '')+'</span><button type="button" onclick="sendReport(false)">보내기 취소</button>'
     : '<span class="st">아직 학생에게 보내지 않았어요</span>';
 }
 // 리포트 보내기(send=true) / 보내기 취소(false) — 한 마디도 함께 저장한다
@@ -1063,21 +1101,25 @@ function sendReport(send){
   if(!s || !s.rowIndex){ setStatus('이 학생의 행 정보를 찾을 수 없어요. 목록을 새로고침해주세요.'); return; }
   var note = document.getElementById('teacherNote').value;
   if(send && !note.trim()){ setStatus('선생님의 한 마디를 먼저 적어 주세요. 한 마디가 있어야 리포트를 보낼 수 있습니다.'); document.getElementById('teacherNote').focus(); return; }
+  var teacher = document.getElementById('teacherName').value.trim();
+  if(send && !teacher){ setStatus('담당 선생님 이름을 적어 주세요. 학생 페이지에 \'○○ 선생님의 한 마디\'로 표시됩니다.'); document.getElementById('teacherName').focus(); return; }
+  if(send && !confirm(s.name+' 학생에게 리포트를 보낼까요?\n학생 페이지에 「'+teacher+' 선생님의 한 마디」로 표시됩니다.')) return;
   if(!send && !confirm(s.name+' 학생의 리포트 보내기를 취소할까요?\n학생 페이지에서 리포트가 다시 숨겨집니다.')) return;
   var btn = document.getElementById('sendBtn'), label = btn.textContent;
   btn.disabled = true; if(send) btn.textContent = '보내는 중...';
   setStatus(send ? '리포트를 보내는 중...' : '보내기를 취소하는 중...');
   fetch(ENDPOINT, {
     method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
-    body: JSON.stringify({ action:'sendReport', rowIndex: s.rowIndex, name: s.name, note: note, send: !!send })
+    body: JSON.stringify({ action:'sendReport', rowIndex: s.rowIndex, name: s.name, note: note, send: !!send, teacher: teacher })
   })
   .then(function(r){ return r.json(); })
   .then(function(res){
     btn.textContent = label;
     if(res.result==='success'){
-      s.sentAt = res.sentAt || ''; if(send) s.teacherNote = note;
+      s.sentAt = res.sentAt || ''; if(send){ s.teacherNote = note; s.teacherName = res.teacherName || ''; }
+      if(send && res.teacherSaved === false) setStatus('리포트는 보냈지만 담당 선생님 이름은 저장되지 않았어요(데이터베이스 준비 048 전). 학생 페이지에는 이름 없이 보입니다.');
       var opt = document.querySelector('#studentSel option[value="'+idx+'"]'); if(opt) opt.innerHTML = studentOptLabel(s);
-      setStatus(send ? '✓ 리포트를 보냈어요. 이제 학생 개별 페이지에서 볼 수 있습니다.' : '✓ 보내기를 취소했어요. 학생 페이지에서 리포트가 숨겨집니다.');
+      if(!(send && res.teacherSaved === false)) setStatus(send ? '✓ 리포트를 보냈어요. 학생 페이지에 「'+(s.teacherName||'담당')+' 선생님의 한 마디」로 보입니다.' : '✓ 보내기를 취소했어요. 학생 페이지에서 리포트가 숨겨집니다.');
     } else {
       setStatus('실패: ' + (res.message || '알 수 없는 오류'));
     }
