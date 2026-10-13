@@ -837,7 +837,13 @@ function alLoginTeacher(){
 function alItemTitle(title, stu){
   if (AL.mode !== 'up') return title;
   var t = AL.me ? AL.me + ' 선생님' : alTeacherName(alNsTeacher(stu) || (stu && stu.r && stu.r.teacher));
-  return t ? title.replace('담당 선생님', t) : title;
+  if (!t) return title;
+  if (/담당 선생님/.test(title)) return title.replace('담당 선생님', t);
+  // 선생님이 제목을 고쳐 '담당 선생님'이 빠져도 이름은 꼭 붙인다(2026-10-13 원장님 "알림톡에 내신 담당 교사 이름이 빠져있어요"
+  //  — 10/13 남주혜T가 제목을 '2학기 중간고사 지필고사 리포트입니다 :)'로 바꿔 보내 이름이 빠졌다). 이미 이름을 적었으면 그대로.
+  var bare = t.replace(/\s*선생님$/, '');
+  if (bare && title.indexOf(bare) >= 0) return title;
+  return title + ' (' + t + ' 피드백)';
 }
 function alKind(){ return AL_KINDS[AL.mode] || AL_KINDS.make; }
 var AL_PHONE = { '학생': 'phone_student', '학부모1': 'phone_parent1', '학부모2': 'phone_parent2' };
@@ -1170,7 +1176,9 @@ function alimRefresh(){
   var tpl = AL.tpl;
   document.getElementById('alPrev').innerHTML = tpl ? esc(String(tpl.text || '').replace(/#\{([^}]+)\}/g, function(_, k){ return k === '학생명' ? (items[0] ? items[0].student : '○○○') : k === '제목' ? ((items[0] && items[0].title) || title || '(제목)') : ''; })) +
     (tpl.buttons || []).map(function(b){ return '<div class="al-pbtn">' + esc(b.name) + '</div>'; }).join('') +
-    (AL.mode === 'up' && /담당 선생님/.test(title) ? '<div class="al-tnote">' + (AL.me ? '제목의 ‘담당 선생님’ 자리에 로그인한 ' + esc(AL.me) + ' 선생님 이름이 들어갑니다.' : '제목의 ‘담당 선생님’ 자리에는 학생마다 내신 진도 수업을 맡은 선생님 이름이 들어갑니다(찾지 못하면 ‘담당 선생님’ 그대로).') + '</div>' : '') : '<span style="color:#8B928C">템플릿을 불러오지 못했습니다.</span>';
+    (AL.mode === 'up' ? '<div class="al-tnote">' + (/담당 선생님/.test(title)
+      ? (AL.me ? '제목의 ‘담당 선생님’ 자리에 로그인한 ' + esc(AL.me) + ' 선생님 이름이 들어갑니다.' : '제목의 ‘담당 선생님’ 자리에는 학생마다 내신 진도 수업을 맡은 선생님 이름이 들어갑니다(찾지 못하면 ‘담당 선생님’ 그대로).')
+      : (AL.me ? '제목 끝에 ‘(' + esc(AL.me) + ' 선생님 피드백)’이 붙습니다.' : '제목 끝에 학생마다 내신 진도 수업을 맡은 선생님 이름이 ‘(○○○ 선생님 피드백)’으로 붙습니다.')) + '</div>' : '') : '<span style="color:#8B928C">템플릿을 불러오지 못했습니다.</span>';
   var go = document.getElementById('alGo');
   go.disabled = !AL.ready || !title || !items.length || AL.busy;
   go.textContent = '알림톡 보내기' + (items.length ? ' (' + items.length + '건)' : '');
