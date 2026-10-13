@@ -32,5 +32,7 @@ using (true)
 with check (true);
 
 revoke all privileges on public.tt_calendar_log from anon;
+-- 수파베이스 기본 권한이 authenticated 에 UPDATE·DELETE 까지 주므로 먼저 거둔다(2026-10-13 적용 때 발견).
+revoke all privileges on public.tt_calendar_log from authenticated;
 grant select, insert on public.tt_calendar_log to authenticated;
 grant usage, select on sequence public.tt_calendar_log_id_seq to authenticated;

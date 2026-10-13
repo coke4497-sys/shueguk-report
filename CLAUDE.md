@@ -563,6 +563,7 @@
 - 캘린더 저장(주별 기간 `tt_period`·학년 예외·날짜 메모 `tt_memo`·지필 일정 `exam_sched`)은 행을 **덮어쓰거나 지우므로** 그 행에 작성자 칸을 두면 마지막 사람만 남고 지운 기록은 사라진다 — 그래서 **바꿀 때마다 한 줄씩 쌓는 표 `tt_calendar_log`**(049: at·what('기간'/'학년 예외'/'메모'/'지필 기간'/'지필 과목')·target(주 수요일·메모 날짜·학교)·action('저장'/'지움')·before·after·author)를 따로 둔다. 교사(authenticated)는 넣기·읽기만, 공개 키 차단, 시트 사본 없음.
 - 화면(timetable.html 어댑터 `ttPeriodSet`·`ttMemoSet`·`examSchedSet`)이 저장 전에 지금 값을 읽어(`calBefore`) 저장이 성공하면 `calLog`로 한 줄 — 작성자는 048과 같은 `editorName()`(허브 로그인 → 이 기기 이름 → 빈 값). **값이 그대로면 남기지 않는다.** 기록 실패는 저장에 영향 없고, 표가 없으면(049 전, 404) 그 뒤로 보내지 않는다. 메모는 오늘의 이슈·주간 메모·캘린더 날짜 칸이 같은 경로라 함께 남는다.
 - **화면에는 보이지 않는다**(048과 같은 방침) — 원장님이 "누가 바꿨는지" 물으면 클로슈가 공용 교사 계정으로 `GET /tt_calendar_log?order=at.desc&select=at,what,target,action,before,after,author`(대상 거르기: `target=eq.2026-10-21` 등)로 조회한다.
+- **적용 상태: 049는 2026-10-13 실제 수파베이스에 적용 완료**(관리 API, 토큰 저장 안 함). 수파베이스 기본 권한이 새 표에 교사 UPDATE·DELETE까지 열어 두어 같은 날 거뒀다(넣기·읽기만 — 049 파일에도 반영). **새 기록 표를 만들 땐 authenticated 기본 권한을 먼저 거둘 것.**
 - 검증: `NODE_PATH=$(npm root -g) node tools/tt-calendar-log-test.js`(12건 — 기간·학년 예외·지움·메모 전후·같은 값 무기록·지필 새로/고침/지움·표 없음 폴백) + tt-period-ex·tt-author·tt-daynav 회귀.
 
 ## 학생 연락처 — 전체 번호 저장 (2026-08-26)
