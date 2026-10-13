@@ -839,4 +839,4 @@ default privileges 까지 되돌렸다. `tools/check_lock.py` 통과(표 15/15 �
 
 ## 049 — 슈국 캘린더 수정 기록 `tt_calendar_log` (2026-10-12)
 - `migrations/049_calendar_log.sql` — 캘린더(주별 기간·학년 예외·날짜 메모·지필 일정)를 바꿀 때마다 한 줄씩 쌓는 기록 표(at·what·target·action·before·after·author). 교사(authenticated)는 넣기·읽기만, 공개 키 차단, 재실행 안전. 화면에는 보이지 않고 물으면 클로슈가 조회한다(CLAUDE.md '슈국 캘린더 수정 기록' 절).
-- **적용 상태: 아직 실제 수파베이스에 적용 전** — 적용 전에는 화면이 기록만 건너뛴다(저장은 그대로). 로컬 PostgreSQL에서 두 번 실행·교사 넣기/읽기·공개 키 거절 확인.
+- **적용 상태: 2026-10-13 실제 수파베이스에 적용 완료**(관리 API — 원장님이 준 sbp_ 토큰, 저장 안 함). 확인: 열 9개 생김, 공개 키 읽기·넣기 401, 공용 교사 계정 넣기 201·읽기 OK, 고치기·지우기는 42501 거절. **적용 때 발견**: 수파베이스 기본 권한이 새 표에 authenticated UPDATE·DELETE·TRUNCATE까지 줘서 '넣기·읽기만'이 지켜지지 않았다 — `revoke all … from authenticated` 뒤 select·insert만 다시 주도록 049 파일을 고치고 실제 DB에도 같은 revoke를 실행했다(검증 행은 지움). **새 기록 표를 만들 땐 authenticated 기본 권한도 먼저 거둘 것.**
