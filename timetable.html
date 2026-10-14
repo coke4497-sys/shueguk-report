@@ -7597,6 +7597,9 @@ function crPrevWed(ymd){   // 가장 최근 수요일(오늘 포함) — 숙제 
 /* 중3·고3(고3파이널·정리정독 중3·논술)은 내신 기간에도 정규 수업이다(2026-10-01 사용자 "중3과 고3은 내신 기간에도 계속 정규 수업이에요").
  * 내신 시간표의 짝 반(n###)에서 열어도 수업 구분·과제 검사·시험범위는 정규 규칙으로 — 저장 book 은 그 반의 시간표 그대로. */
 var CR_ALWAYS_REG = /고3|중3|논술/;
+/* 내신 진도 수업의 시험범위·단원 칩 연동 — 2026-10-14 원장님 "중간고사가 끝났으므로 수업 기록에 시험범위가 연동되지 않고 선생님들이 각자 기록"으로 끔.
+ * 끄면 내신 진도 수업도 정규처럼 '오늘 진도'·'다음 수업까지 과제' 칸만 둔다(내신대비 피드백 페이지와 기록 데이터는 그대로). 기말 대비에 다시 쓰려면 true. */
+var CR_NS_SCOPE = false;
 function crRuleBook(c, bk){ return bk === '내신' && CR_ALWAYS_REG.test(String((c && c.cls) || '')) ? '정규' : bk; }
 function crPartOf(c, bk){
   var n = String(c.cls || '').trim();
@@ -7755,7 +7758,7 @@ function openClassNote(c, ctx){
   CR = { c: c, ymd: ymd, bk: bk, part: part, note: null, names: crNamesOf(c), busy: false,
          hwWeek: crPrevWed(ymd), items: CR_HW_DEFAULT.slice(), hw: {}, hwOk: false, more: {},
          ns: null, sib: [], showOff: false };
-  if (crRuleBook(c, bk) === '내신' && part === '진도'){
+  if (CR_NS_SCOPE && crRuleBook(c, bk) === '내신' && part === '진도'){
     var pers = crNsPeriods(ymd);
     CR.ns = { periods: pers, period: pers[0], key: crScopeKey(c.cls, c.id), week: crPrevWed(ymd),
               scope: null, cleared: {}, weekRec: null, open: false, loaded: false };
@@ -7798,11 +7801,22 @@ function openClassNote(c, ctx){
 /* 같은 수업 = 반이름이 같거나 끝 알파벳만 다른 정규 반(고3파이널A~F — 2026-10-02 원장님 "고3파이널B 진도가 안 채워져 있어요").
  * 가·나는 알파벳이 아니라 갈리지 않는다(가와 나는 다른 수업). 규칙은 1회 이동 드롭다운의 onceBaseCls 와 같다 */
 function crSameLesson(a, b){ var x = onceBaseCls(a); return !!x && x === onceBaseCls(b); }
+/* 내신 같은 수업 = 같은 학년(고1·고2)·같은 수업 구분(진도/확인)의 내신 반 — 학교가 달라도 같다
+ * (2026-10-14 원장님 "고1 각 학교의 진도 수업은 내용이 모두 동일해요. 고1 확인수업도요. 고2도 각각 마찬가지"). 중학교 내신 반은 해당 없음. */
+var CR_NS_SHARE = /^고[12]$/;
+function crSameNsLesson(c, x, bk){
+  var g = classGradeOf(c);
+  if (!CR_NS_SHARE.test(g) || classGradeOf(x) !== g) return false;
+  if (crRuleBook(x, bk) !== '내신') return false;
+  return crPartOf(x, bk) === crPartOf(c, bk);
+}
 function crSibLoad(c, bk, ymd){
-  // 같은 수업 = 정규 수업 한정(2026-10-02 원장님 "같은 수업은 정규 시간표 한정 — 고3파이널·고2 가·고1 나 등").
-  // 내신 진도·확인 반은 이름이 같아도 학교·교재 진도가 달라 불러오지 않는다. 중3·고3은 내신 시간표에서도 정규 수업이라 포함.
-  if (crRuleBook(c, bk) !== '정규') return Promise.resolve([]);
-  var ids = crCls().filter(function(x){ return x.id !== c.id && crSameLesson(x.cls, c.cls); }).map(function(x){ return x.id; });
+  // 정규 = 같은 이름 반(2026-10-02 원장님 "같은 수업은 정규 시간표 한정 — 고3파이널·고2 가·고1 나 등"). 중3·고3은 내신 시간표에서도 정규 수업이라 포함.
+  // 내신 = 고1·고2의 같은 학년·같은 수업 구분 반(crSameNsLesson — 2026-10-14부터). 그 밖의 내신 반은 불러오지 않는다.
+  var rb = crRuleBook(c, bk);
+  var same = rb === '정규' ? function(x){ return crSameLesson(x.cls, c.cls); }
+           : function(x){ return crSameNsLesson(c, x, bk) && (x.book || bk) === bk; };
+  var ids = crCls().filter(function(x){ return x.id !== c.id && same(x); }).map(function(x){ return x.id; });
   if (!ids.length) return Promise.resolve([]);
   var d = new Date(ymd + 'T00:00:00'), mon = new Date(d); mon.setDate(d.getDate() - ((d.getDay() + 6) % 7));
   var sun = new Date(mon); sun.setDate(mon.getDate() + 6);
@@ -7814,7 +7828,7 @@ function crSibLoad(c, bk, ymd){
         .filter(function(r){ return String(r.progress || '').trim() || String(r.homework || '').trim() || r.xt.length; }).map(function(r){
         var x = crCls().filter(function(k){ return k.id === r.class_id; })[0] || {};
         return { cid: r.class_id, ymd: r.ymd, progress: r.progress || '', homework: r.homework || '', xt: r.xt,
-                 label: mdOfYmdStr(r.ymd) + ' ' + (x.day || '') + ' ' + (x.start || '') + (x.teacher ? ' · ' + x.teacher + 'T' : '') };
+                 label: mdOfYmdStr(r.ymd) + ' ' + (x.day || '') + ' ' + (x.start || '') + (x.cls && x.cls !== c.cls ? ' ' + x.cls : '') + (x.teacher ? ' · ' + x.teacher + 'T' : '') };
       });
     });
 }
@@ -7842,7 +7856,7 @@ function crSibHtml(){
   if (!CR.sib || !CR.sib.length) return '';
   var a = CR.sib[CR.sibAuto], ax = CR.xtPending ? CR.sib[CR.xtAuto] : null, sel = CR.sibAuto >= 0 ? CR.sibAuto : (ax ? CR.xtAuto : -1);
   var what = (a ? '수업 내용·과제' : '') + (a && ax ? '와 ' : '') + (ax ? '반 전체 검사 과제' : '');
-  return '<div class="cr-sib">' + ((a || ax) ? '<b>같은 이름 반 기록을 불러왔습니다</b><span class="cr-sib-note">' + esc((a || ax).label) + ' 반의 ' + what + '예요. 이 반에 맞게 고친 뒤 [저장]을 눌러 주세요.</span>' : '<b>같은 이름 반 기록</b>') +
+  return '<div class="cr-sib">' + ((a || ax) ? '<b>같은 수업 반 기록을 불러왔습니다</b><span class="cr-sib-note">' + esc((a || ax).label) + ' 반의 ' + what + '예요. 이 반에 맞게 고친 뒤 [저장]을 눌러 주세요.</span>' : '<b>같은 수업 반 기록</b>') +
     '<select id="cr-sib-sel" aria-label="가져올 반">' + CR.sib.map(function(x, i){ return '<option value="' + i + '"' + (i === sel ? ' selected' : '') + '>' + esc(x.label) + ' — ' + esc(String(x.progress || x.homework || ('검사 과제 ' + (x.xt || []).join(', '))).split('\n')[0].slice(0, 24)) + '</option>'; }).join('') + '</select>' +
     '<button type="button" id="cr-sib-go">가져오기</button></div>';
 }
@@ -8092,7 +8106,7 @@ function crXtHtml(){
   var xt = CR.xt || [], last = (CR.xtLast || []).filter(function(t){ return xt.indexOf(t) < 0; });
   return '<div class="cr-xt"><div class="cr-xt-h"><b>반 전체 검사 과제 추가</b><small>한 줄에 하나씩 추가하세요.</small></div>' +
     (xt.length ? '<div class="cr-units">' + xt.map(function(t){ return '<span class="cr-unit">' + esc(t) + '<button type="button" data-xtrm="' + esc(t) + '" aria-label="' + esc(t) + ' 빼기">×</button></span>'; }).join('') + '</div>' : '') +
-    (CR.xtPending && xt.length ? '<small class="cr-xt-pend">같은 이름 반에서 불러온 과제예요. 별을 매기거나 [저장]하면 이 반에도 저장됩니다.</small>' : '') +
+    (CR.xtPending && xt.length ? '<small class="cr-xt-pend">같은 수업 반에서 불러온 과제예요. 별을 매기거나 [저장]하면 이 반에도 저장됩니다.</small>' : '') +
     (last.length ? '<button type="button" class="cr-mini" id="cr-xt-last">지난번 과제 다시 넣기 · ' + esc(last.join(', ').slice(0, 60)) + '</button>' : '') +
     '<div class="cr-xt-in"><textarea id="cr-xt" rows="2" maxlength="300" placeholder="예) 슈주간지 260930">' + esc(CR.xtDraft || '') + '</textarea>' +
     '<button type="button" class="cr-btn" id="cr-xt-add">반 전체에 추가</button></div></div>';
