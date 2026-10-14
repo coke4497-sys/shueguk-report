@@ -718,6 +718,7 @@
 - 학생 페이지 별 카드의 안내가 '💝 수경쌤이 별 n개를 선물하셨어요'(고정)에서 **'💝 김현지 선생님이 별 n개를 선물하셨어요 · 사유'**로 바뀌었다(s.html renderStars, 최근 14일 보너스 한 건). 이름이 없는 옛 기록은 '선생님이 …'. 처음엔 학생의 담당 강사 이름으로 넣었다가 같은 날 원장님 지적으로 **준 선생님**으로 바꿨다 — 담당 강사로 되돌리지 말 것.
 - 이름 = **슈퍼스타 관리에서 별을 줄 때 허브에 로그인한 선생님**(`teacher-name.js`, superstar.html `giverName` — 공용 교사 계정 조각이 `window.__sbRawFetch`를 내보여 개인 신분으로 묻는다). [별 선물하기]·[별 한꺼번에 주기] 둘 다 `addStarBonus{…, by}`로 보내고, 버튼 아래 '보내는 선생님 ○○ 선생님' 줄(`.giver-line`, 별 더하기 탭을 열 때 `showGiver`). '최근 선물한 별' 목록 날짜 옆에도 이름.
 - 저장: 시트 '별' 탭 **H열 '보낸사람'**(백엔드 `addStarBonus`·`ensureStarsSheet_` 머리글 보충·`sumBonus_` latest.giver·`starLogData_` giver — **재배포해야 남는다**) + 수파베이스 **`star_bonus.giver`**(050, 미러 `AFTER.addStarBonus` — 열이 없으면 이름 없이 다시 넣음) + `student_bundle`의 star_bonus 항목에 giver(050이 048 본문 + 한 칸으로 다시 정의). 일일 점검(audit_heal)도 H열을 읽는다(대조 키·값은 그대로).
+- **적용 상태**: 050은 2026-10-14 실제 수파베이스에 적용 완료(관리 API, 토큰 저장 안 함 — 공개 키 student_bundle 의 giver 왕복 확인). 백엔드(시트 H열)는 재배포 대기.
 - '내 별은 이렇게 모았어요'의 항목 이름 '수경쌤 깜짝 보너스'와 시험 별 사유는 그대로다(원장님 지시 없음).
 - 검증: `node tools/star-bonus-stub-test.js`(15건 — H열·머리글·starLog·sumBonus_) + `NODE_PATH=$(npm root -g) node tools/superstar-exam-stars-e2e.js`(34건 — by·미러 giver·보내는 선생님 줄) + `node tools/star-giver-e2e.js`(6건 — 학생 화면 문구) + `PGHOST=/home/pgtest PGPORT=5499 PGUSER=postgres bash tools/star-giver-sql-test.sh`(050).
 
