@@ -2139,20 +2139,24 @@ function sumBonus_(ss, sid, name, school, grade, uniq) {
     if (!match) continue;
     var n = parseInt(v[i][4], 10) || 0;
     out.sum += n;
-    out.latest = { stars: n, reason: String(v[i][5] || '').trim(), date: fmtCellDate_(v[i][0]) };
+    out.latest = { stars: n, reason: String(v[i][5] || '').trim(), date: fmtCellDate_(v[i][0]),
+                   giver: String(v[i].length > 7 ? v[i][7] : '').trim() };
   }
   return out;
 }
 
-/** '별' 탭이 없으면 만든다. 옛 시트에 '학년'(G열) 머리글이 없으면 추가. */
+/** '별' 탭이 없으면 만든다. 옛 시트에 '학년'(G열)·'보낸사람'(H열) 머리글이 없으면 추가. */
 function ensureStarsSheet_(ss) {
   var sh = ss.getSheetByName(TAB_STARS);
   if (!sh) {
     sh = ss.insertSheet(TAB_STARS);
-    sh.appendRow(['일시', '학생ID', '이름', '학교', '별', '사유', '학년']);
-    sh.getRange(1, 1, 1, 7).setFontWeight('bold').setBackground('#DDE5E1');
-  } else if (String(sh.getRange(1, 7).getValue() || '').trim() !== '학년') {
-    sh.getRange(1, 7).setValue('학년').setFontWeight('bold').setBackground('#DDE5E1');
+    sh.appendRow(['일시', '학생ID', '이름', '학교', '별', '사유', '학년', '보낸사람']);
+    sh.getRange(1, 1, 1, 8).setFontWeight('bold').setBackground('#DDE5E1');
+  } else {
+    if (String(sh.getRange(1, 7).getValue() || '').trim() !== '학년')
+      sh.getRange(1, 7).setValue('학년').setFontWeight('bold').setBackground('#DDE5E1');
+    if (String(sh.getRange(1, 8).getValue() || '').trim() !== '보낸사람')
+      sh.getRange(1, 8).setValue('보낸사람').setFontWeight('bold').setBackground('#DDE5E1');
   }
   return sh;
 }
@@ -2164,7 +2168,9 @@ function addStarBonus(data) {
   var name = String(data.name || '').trim();
   if (!name || !stars || stars < 1 || stars > 50) return json({ result: 'error', message: '학생과 별 개수(1~50)를 확인해주세요.' });
   var school = String(data.school || '').trim(), reason = String(data.reason || '').trim();
-  var row = [new Date(), String(data.id || '').trim() ? "'" + String(data.id).trim() : '', name, school, stars, reason, String(data.grade || '').trim()];
+  // H열 '보낸사람' = 별을 준 선생님(허브 로그인 이름, 2026-10-14 원장님 — 학생 페이지 '○○ 선생님이 별을 선물하셨어요')
+  var giver = String(data.by || '').trim().slice(0, 40);
+  var row = [new Date(), String(data.id || '').trim() ? "'" + String(data.id).trim() : '', name, school, stars, reason, String(data.grade || '').trim(), giver];
   // dedupe:'1' — 같은 학생(이름·학교)·같은 사유가 이미 있으면 다시 쓰지 않는다(시험 별 한꺼번에 주기, 2026-10-06).
   // 중복 확인과 추가를 잠금 안에서 함께 해 두 조교가 동시에 눌러도 한 번만 들어간다. 시트는 캐시가 아니라 바로 읽는다(60초 캐시는 방금 쓴 줄을 모른다).
   if (String(data.dedupe || '') === '1' && reason) {
@@ -2206,7 +2212,8 @@ function starLogData_() {
         rowIndex: i + 1, date: fmtCellDate_(v[i][0]),
         name: String(v[i][2] || '').trim(), school: String(v[i][3] || '').trim(),
         grade: String(v[i].length > 6 ? v[i][6] : '').trim(),
-        stars: parseInt(v[i][4], 10) || 0, reason: String(v[i][5] || '').trim()
+        stars: parseInt(v[i][4], 10) || 0, reason: String(v[i][5] || '').trim(),
+        giver: String(v[i].length > 7 ? v[i][7] : '').trim()
       });
     }
   }

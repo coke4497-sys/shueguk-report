@@ -1626,7 +1626,7 @@ function api(extra){
           if (!match) return;
           var n = parseInt(r.stars, 10) || 0;
           bonus.sum += n;
-          bonus.latest = { stars: n, reason: tr(r.reason), date: fmtTsKST(r.at).slice(0, 10) };
+          bonus.latest = { stars: n, reason: tr(r.reason), date: fmtTsKST(r.at).slice(0, 10), giver: tr(r.giver) };
         });
         var noticeN = Object.keys(checks).length;
         var stars = {
@@ -1878,7 +1878,9 @@ function renderStars(){
   if(b && b.stars > 0 && b.date){
     var days = (Date.now() - new Date(b.date).getTime()) / 86400000;
     if(!isNaN(days) && days >= 0 && days <= 14){
-      html += '<div class="st-bonus">💝 수경쌤이 별 '+b.stars+'개를 선물하셨어요'+(b.reason?' · '+esc(b.reason):'')+'</div>';
+      // 보낸 분 = 별을 준 선생님(star_bonus.giver·시트 H열, 2026-10-14 원장님). 이름이 없는 옛 기록은 '선생님'.
+      var bt = String(b.giver || '').trim();
+      html += '<div class="st-bonus">💝 '+(bt ? esc(bt)+' 선생님' : '선생님')+'이 별 '+b.stars+'개를 선물하셨어요'+(b.reason?' · '+esc(b.reason):'')+'</div>';
     }
   }
 

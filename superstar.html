@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <script src="https://coke4497-sys.github.io/shueguk-hub/assets/teacher-gate.js"></script><!-- 교사 로그인 게이트 (허브 로그인 필요, 2026-10-12) -->
+<script src="teacher-name.js"></script><!-- 별을 준 선생님 이름(허브 로그인) — 공용 교사 계정 조각보다 먼저 -->
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
 <title>슈퍼스타 관리 · 슈국 티쳐스</title>
 <meta name="description" content="신입 슈스 등록과 아웃 슈스 정리를 한 곳에서 (교사용)" />
@@ -145,6 +146,8 @@
   .submit{width:100%;margin-top:18px;padding:14px;border:none;border-radius:12px;background:#F0CFC7;color:#8E5147;
     font-family:"Gowun Batang",serif;font-size:16px;font-weight:700;cursor:pointer;}
   .submit:disabled{background:#9fb3aa;cursor:default;}
+  .giver-line{font-size:12.5px;margin-top:10px;color:var(--ink-soft);text-align:center;}
+  .giver-line b{display:inline-block;font-weight:700;color:#5A4A6A;background:#EDE4F4;border-radius:999px;padding:2px 10px;margin-left:4px;}
   .status{font-size:13px;margin-top:12px;min-height:1.2em;color:var(--ink-soft);text-align:center;}
   .status.ok{color:var(--ok);} .status.err{color:var(--bad);}
 
@@ -524,6 +527,7 @@
       <input type="text" id="reason" maxlength="60" placeholder="예) 수업 태도가 최고였어요" />
 
       <button type="button" class="submit" id="giveBtn" onclick="giveStars()">별 선물하기</button>
+      <div class="giver-line"></div>
       <div class="status" id="giftStatus"></div>
     </section>
 
@@ -546,6 +550,7 @@
         <span class="sumline" id="exSum"></span>
         <button type="button" class="submit" id="exGive" onclick="exGive()" disabled>별 한꺼번에 주기</button>
       </div>
+      <div class="giver-line"></div>
       <div class="status" id="exStatus"></div>
     </section>
 
@@ -590,6 +595,7 @@
   var T_PW = 'shg_FCePWvnawH44SV8kYB9BHRKi6aag';
   var tok = null, until = 0, pending = null;
   var raw = window.fetch.bind(window);
+  if (!window.__sbRawFetch) window.__sbRawFetch = raw;   // 허브 로그인 신분으로 따로 묻는 곳(teacher-name.js — 별을 준 선생님)이 이 조각을 거치지 않게
   var TOK_LS = 'sb_teacher_tok_v1';   // 받아 둔 신분증은 브라우저에 남겨 다음 페이지에서 다시 받지 않는다(1시간짜리)
 
   function cachedTok(){
@@ -737,11 +743,18 @@
     },
     addStarBonus: function(b, res){
       if (res && res.dup) return;   // 백엔드가 같은 사유의 기록을 찾아 쓰지 않은 건 — 미러도 넣지 않는다(시험 별 한꺼번에 주기)
-      sb('POST', '/star_bonus', {
+      var row = {
         at: nowIso(), student_id: String(b.id || ''), name: String(b.name || '').trim(),
         school: String(b.school || ''), stars: parseInt(b.stars, 10) || 0,
-        reason: String(b.reason || ''), grade: String(b.grade || '')
-      }, { 'Prefer': 'return=minimal' }).catch(warn('별 보너스'));
+        reason: String(b.reason || ''), grade: String(b.grade || ''),
+        giver: String(b.by || '').trim().slice(0, 40)   // 별을 준 선생님(050)
+      };
+      sb('POST', '/star_bonus', row, { 'Prefer': 'return=minimal' }).catch(function(e){
+        // 050 적용 전(giver 열 없음) — 이름 없이 다시 넣는다
+        if (!/giver|PGRST204/.test(String(e && e.message))) throw e;
+        delete row.giver;
+        return sb('POST', '/star_bonus', row, { 'Prefer': 'return=minimal' });
+      }).catch(warn('별 보너스'));
     },
     deleteStarBonus: function(b){
       // 같은 학생·별 개수의 가장 최근 기록 하나를 지운다 (모호하면 일일 점검이 정리)
@@ -1214,6 +1227,7 @@
     $('tab-out').style.display  = which==='out'  ? 'block' : 'none';
     $('tab-link').style.display = which==='link' ? 'block' : 'none';
     $('tab-star').style.display = which==='star' ? 'block' : 'none';
+    if(which==='star' && typeof showGiver==='function') showGiver();
     $('tabNewBtn').classList.toggle('on',  which==='new');
     $('tabOutBtn').classList.toggle('on',  which==='out');
     $('tabLinkBtn').classList.toggle('on', which==='link');
@@ -2359,8 +2373,8 @@
     // dedupe:'1' — 백엔드가 같은 학생·같은 사유를 잠금 안에서 확인해 두 번 쓰지 않는다(두 조교가 동시에 눌러도).
     // 옛 배포본은 이 값을 모르고 그냥 쓴다(그때는 화면의 잠금만 중복을 막는다).
     function one(it){
-      return fetch(ENDPOINT, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
-        body: JSON.stringify({ action:'addStarBonus', pw:SERVER_PW, name:it.name, school:it.school, grade:it.grade, stars:it.stars, reason:it.reason, dedupe:'1' }) })
+      return giverName().then(function(by){ return fetch(ENDPOINT, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
+        body: JSON.stringify({ action:'addStarBonus', pw:SERVER_PW, name:it.name, school:it.school, grade:it.grade, stars:it.stars, reason:it.reason, dedupe:'1', by:by }) }); })
       .then(function(r){ return r.json(); })
       .then(function(res){
         if(res && res.result==='success'){ EX.given[it.k+'|'+it.reason]=true; if(res.dup) dups++; }
@@ -2432,15 +2446,32 @@
 
   function setGift(m,k){ var s=$('giftStatus'); s.textContent=m||''; s.className='status'+(k?' '+k:''); }
 
+  /* 별을 준 선생님 = 허브에 로그인한 이름(teacher-name.js, 2026-10-14 원장님 "별을 준 선생님 이름이 나와야 해요").
+   * 학생 페이지에 '○○ 선생님이 별 n개를 선물하셨어요'로 보인다. 로그인 정보가 없으면 빈 값('선생님'으로 표시). */
+  var GIVER_P = null;
+  function giverName(){
+    if(!GIVER_P) GIVER_P = (typeof shuegukTeacherName === 'function' ? shuegukTeacherName() : Promise.resolve(''))
+      .then(function(n){ return String(n || '').trim(); }, function(){ return ''; });
+    return GIVER_P;
+  }
+  function showGiver(){
+    giverName().then(function(n){
+      document.querySelectorAll('.giver-line').forEach(function(el){
+        el.innerHTML = n ? '보내는 선생님 <b>'+esc(n)+' 선생님</b> · 학생 페이지에 이 이름으로 보여요'
+                         : '로그인한 선생님 이름을 찾지 못했어요. 학생 페이지에는 「선생님이 별을 선물하셨어요」로 보입니다.';
+      });
+    });
+  }
+
   function giveStars(){
     if(!SEL){ setGift('학생을 먼저 선택해 주세요.','err'); return; }
     var n = parseInt($('amt').value,10);
     if(!n || n<1 || n>50){ setGift('별 개수를 1~50 사이로 입력해 주세요.','err'); return; }
     var btn=$('giveBtn'); btn.disabled=true; var label=btn.textContent; btn.textContent='선물하는 중…';
-    fetch(ENDPOINT, {
+    giverName().then(function(by){ return fetch(ENDPOINT, {
       method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
-      body: JSON.stringify({ action:'addStarBonus', pw:SERVER_PW, name:SEL.name, school:SEL.school, grade:SEL.grade||'', stars:n, reason:$('reason').value.trim() })
-    })
+      body: JSON.stringify({ action:'addStarBonus', pw:SERVER_PW, name:SEL.name, school:SEL.school, grade:SEL.grade||'', stars:n, reason:$('reason').value.trim(), by:by })
+    }); })
     .then(function(r){ return r.json(); })
     .then(function(res){
       btn.disabled=false; btn.textContent=label;
@@ -2476,7 +2507,7 @@
             '<span class="st">⭐ '+g.stars+'</span>'+
             '<span class="who">'+esc(g.name)+'</span>'+
             '<span class="rsn">'+esc(g.reason||'')+'</span>'+
-            '<span class="dt">'+esc(g.date||'')+'</span>'+
+            '<span class="dt">'+esc(g.date||'')+(g.giver?' · '+esc(g.giver):'')+'</span>'+
             '<button type="button" class="del" onclick="delBonus('+i+',this)">삭제</button>'+
             '</div>';
         }).join('');
