@@ -207,7 +207,7 @@ def extract(xlsx):
                           'school': txt(col(r,3)), 'notice_key': txt(col(r,4))} for r in rows('공지확인')]
     d['star_bonus'] = [{'at': ts(col(r,0)), 'student_id': txt(col(r,1)), 'name': txt(col(r,2)),
                         'school': txt(col(r,3)), 'stars': int(col(r,4) or 0), 'reason': txt(col(r,5)),
-                        'grade': txt(col(r,6))} for r in rows('별') if txt(col(r,2))]
+                        'grade': txt(col(r,6)), 'giver': txt(col(r,7))} for r in rows('별') if txt(col(r,2))]
     # '배정' 탭 — seq = 시트 행 번호(assignList rowIndex와 동일). 빈 행도 행 번호를 차지하므로
     # rows() 필터를 쓰지 않고 원본 위치 그대로 센다.
     asg = []

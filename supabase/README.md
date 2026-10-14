@@ -840,3 +840,7 @@ default privileges 까지 되돌렸다. `tools/check_lock.py` 통과(표 15/15 �
 ## 049 — 슈국 캘린더 수정 기록 `tt_calendar_log` (2026-10-12)
 - `migrations/049_calendar_log.sql` — 캘린더(주별 기간·학년 예외·날짜 메모·지필 일정)를 바꿀 때마다 한 줄씩 쌓는 기록 표(at·what·target·action·before·after·author). 교사(authenticated)는 넣기·읽기만, 공개 키 차단, 재실행 안전. 화면에는 보이지 않고 물으면 클로슈가 조회한다(CLAUDE.md '슈국 캘린더 수정 기록' 절).
 - **적용 상태: 2026-10-13 실제 수파베이스에 적용 완료**(관리 API — 원장님이 준 sbp_ 토큰, 저장 안 함). 확인: 열 9개 생김, 공개 키 읽기·넣기 401, 공용 교사 계정 넣기 201·읽기 OK, 고치기·지우기는 42501 거절. **적용 때 발견**: 수파베이스 기본 권한이 새 표에 authenticated UPDATE·DELETE·TRUNCATE까지 줘서 '넣기·읽기만'이 지켜지지 않았다 — `revoke all … from authenticated` 뒤 select·insert만 다시 주도록 049 파일을 고치고 실제 DB에도 같은 revoke를 실행했다(검증 행은 지움). **새 기록 표를 만들 땐 authenticated 기본 권한도 먼저 거둘 것.**
+
+## 050 — 별을 준 선생님 `star_bonus.giver` (2026-10-14)
+- 슈퍼스타 관리에서 별을 줄 때 허브에 로그인한 선생님 이름. 시트 '별' 탭 H열 '보낸사람'과 같은 값, 옛 기록은 빈 값. `student_bundle`(048 본문 + star_bonus 항목에 giver)로 학생 페이지 '○○ 선생님이 별 n개를 선물하셨어요'에 쓰인다.
+- 적용 전에는 미러가 giver 없이 다시 넣고, 학생 페이지는 '선생님이 …'로 보인다. 검증 `tools/star-giver-sql-test.sh`.

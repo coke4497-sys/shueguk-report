@@ -44,6 +44,7 @@ function serve(){
       const like = decodeURIComponent((/reason=like\.([^&]*)/.exec(u) || [])[1] || '').replace(/\*$/, '');
       return j(GIVEN.filter(r => !like || r.reason.startsWith(like)));
     }
+    if (/\/rest\/v1\/teacher_accounts/.test(u)) return j([{ display_name: '김현지', login_id: 'hj' }]);   // 허브 로그인 선생님(별을 준 선생님, 050)
     if (/\/rest\/v1\/students\?select=\*/.test(u)) return j(ROSTER.map((r, i) => Object.assign({ id: i + 1, seq: i + 1, enrolled: '' }, r)));   // 명단의 원본(SGETS.roster)
     if (/\/rest\/v1\//.test(u)) return j([]);
     if (/script\.google/.test(u)){
@@ -64,6 +65,7 @@ function serve(){
     }
     return rt.fulfill({ status: 204, body: '' });
   });
+  await pg.addInitScript(() => { try { localStorage.setItem('shueguk_teacher_session_v2', JSON.stringify({ access_token: 'me', refresh_token: 'r', expires_at: Date.now() / 1000 + 3600, user: { id: 'u-hj' } })); } catch (e) {} });
   await pg.goto('http://127.0.0.1:' + port + '/superstar.html#star', { waitUntil: 'domcontentloaded' });
   await pg.waitForFunction(() => document.querySelectorAll('#exSchool option').length >= 4, null, { timeout: 8000 });
 
@@ -120,6 +122,11 @@ function serve(){
   const got = posts.map(b => [b.name, b.reason, b.stars]).sort().join(';');
   ok('addStarBonus 3건 — 이름·사유·별 수', got === want.sort().join(';'), got);
   ok('본문에 학교·학년·비밀번호·dedupe', posts.every(b => b.action === 'addStarBonus' && b.pw && b.school === '화정고' && /고등 1학년/.test(b.grade) && b.dedupe === '1'), JSON.stringify(posts[0]));
+  ok('본문에 별을 준 선생님(by = 허브 로그인 이름)', posts.length && posts.every(b => b.by === '김현지'), JSON.stringify(posts[0]));
+  await pg.waitForTimeout(300);
+  ok('미러에 giver', mirrors.length && mirrors.every(m => m.giver === '김현지'), JSON.stringify(mirrors[0]));
+  r = await pg.evaluate(() => [...document.querySelectorAll('.giver-line')].map(e => e.textContent));
+  ok('보내는 선생님 줄 두 곳', r.length === 2 && r.every(t => /김현지 선생님/.test(t)), JSON.stringify(r));
   await pg.waitForFunction(() => true); await new Promise(r => setTimeout(r, 300));
   ok('수파베이스 star_bonus 미러 3건(사유 같음)', mirrors.length === 3 && mirrors.every(m => /26년 2학기 중간고사/.test(m.reason) && m.stars > 0), JSON.stringify(mirrors.map(m => m.reason)));
   r = await pg.evaluate((P) => ({ st: document.getElementById('exStatus').textContent, done: [...document.querySelectorAll(P + ' .ex-pill.given')].map(b => b.getAttribute('data-a')), on: document.querySelectorAll('#exList .ex-pill.on').length, dis: document.getElementById('exGive').disabled }), P);
