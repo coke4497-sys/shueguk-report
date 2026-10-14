@@ -5230,9 +5230,11 @@ function weekBlockEl(c, dstr, forList){
   var meta = esc(c.start)+'~'+esc(c.end)+
              (forList ? ' · '+esc(c.teacher)+'T'+(c.loc ? ' · '+esc(c.loc) : '') : '')+
              ' · '+countLabel(c, awayOf, temps);
+  // 지난 날짜·오늘 수업은 주차별에서도 [수업 기록] (2026-10-14 원장님 "주차별 시간표에서도 수업기록") — 앞날은 기록할 수 없어 버튼 없음
+  var crRow = (dstr && dstr <= todayStr()) ? '<div class="btns">' + crWeekBtnHtml(c, dstr) + '</div>' : '';
   b.innerHTML = '<div class="bt"><span class="nm">'+esc(c.cls)+jbBadge(c)+(c.wk ? ' <em class="wkflag">이 주만</em>' : '')+'</span>'+
                 '<small>'+meta+'</small></div>'+
-                '<div class="stus">'+chips+'</div>';
+                crRow + '<div class="stus">'+chips+'</div>';
   b.addEventListener('click', function(e){ onWeekClick(e, c, dstr); });
   return b;
 }
@@ -6097,6 +6099,7 @@ function buildWeekZoom(dname){
 
 function onWeekClick(e, c, dstr){
   if (editMode && !moving && !classMoving){ applyEdit(c, dstr); return; }
+  if (!moving && !classMoving && e.target.closest('.crbtn')){ crOpenAt(cbook(c), c.id, dstr, true); return; }
   if (moving && moving.once){
     // 주차별 1회 이동: 옮겨 갈 반을 누르면 그 반 요일의 날짜로 기록
     var selChip = e.target.closest('button[data-nm]');
@@ -7661,8 +7664,25 @@ function crTodayPoll(){
 }
 setInterval(crTodayPoll, 45000);
 function crHasNote(r){ return !!(String(r.progress || '').trim() || String(r.homework || '').trim() || (r.units && r.units.length)); }
-function crBtnHtml(c){
-  var s = crToday.map && crToday.map[cbook(c) + '|' + c.id];
+function crBtnHtml(c){ return crBtnOf(c, crToday.map && crToday.map[cbook(c) + '|' + c.id]); }
+/* 주차별 카드 — 그 주(월~일) 기록 상태를 한 번에 받아 'book|반ID|날짜'로 */
+var crWeek = { key: '', map: null, busy: false };
+function crWeekBtnHtml(c, dstr){ crEnsureWeek(); return crBtnOf(c, crWeek.map && crWeek.map[cbook(c) + '|' + c.id + '|' + dstr]); }
+function crEnsureWeek(force){
+  var wd = weekDates(), from = ymdOf(wd['월']), to = ymdOf(wd['일']), key = from + '|' + to;
+  if (!force && crWeek.key === key && (crWeek.map || crWeek.busy)) return;
+  crWeek.key = key; crWeek.busy = true;
+  crGet('/class_notes?ymd=gte.' + from + '&ymd=lte.' + to + '&select=book,class_id,ymd,report_status,reported_at,progress,units,homework')
+    .then(function(rows){
+      if (crWeek.key !== key) return;
+      var m = {};
+      rows.forEach(function(r){ m[r.book + '|' + r.class_id + '|' + r.ymd] = { st: r.report_status || '', has: crHasNote(r), at: r.reported_at || '' }; });
+      crWeek.map = m;
+    })
+    .catch(function(e){ console.warn('주간 수업 기록 상태 조회 실패', e); if (crWeek.key === key) crWeek.map = {}; })
+    .then(function(){ if (crWeek.key === key){ crWeek.busy = false; if (mode === 'week' && $('crpanel').hidden) render(); } });
+}
+function crBtnOf(c, s){
   var cls = '', label = '수업 기록', tip = '진도·과제·과제 검사·코멘트를 적고 수업 리포트를 만들어요';
   if (s && s.st === '공개'){ cls = ' pub'; label = '리포트 공개 ✓'; tip = '리포트를 생성해 학생 페이지에 공개했어요' + (s.at ? ' (' + crHm(s.at) + ')' : ''); }
   else if (s && s.st === '요청'){ cls = ' fin'; label = '기록 완료 ✓'; tip = '수업 기록을 마쳤어요. 클로슈가 수업 리포트를 쓰고 있어요'; }
@@ -7765,7 +7785,7 @@ function openClassNote(c, ctx){
   }
   $('cr-ttl').textContent = c.cls + ' · ' + c.day + ' ' + c.start + '~' + c.end;
   $('cr-kind').textContent = crPartLabel(part);
-  $('cr-meta').textContent = c.teacher + 'T' + (c.loc ? ' · ' + c.loc : '') + ' · ' + mdOfYmdStr(ymd) + ' (' + ['일','월','화','수','목','금','토'][new Date(ymd + 'T00:00:00').getDay()] + ')' + (CRX ? ' 지난 수업' : '') + ' · ' + CR.names.length + '명 · ' + bk + ' 주간';
+  $('cr-meta').textContent = c.teacher + 'T' + (c.loc ? ' · ' + c.loc : '') + ' · ' + mdOfYmdStr(ymd) + ' (' + ['일','월','화','수','목','금','토'][new Date(ymd + 'T00:00:00').getDay()] + ')' + (CRX && CRX.ymd !== todayStr() ? ' 지난 수업' : '') + ' · ' + CR.names.length + '명 · ' + bk + ' 주간';
   $('cr-body').innerHTML = '<p class="mdesc">불러오는 중…</p>';
   crMsg('');
   crGenLabel();
@@ -7918,10 +7938,10 @@ function crUrlKick(){
   var a = v.split('|'); if (a.length < 3) return;
   crOpenAt(a[0], a[1], a[2]);
 }
-function crOpenAt(bk, cid, ymd){
+function crOpenAt(bk, cid, ymd, fresh){   // fresh = 주차별 — 오늘이어도 그 날 기록을 따로 받는다(전역 attend 는 오늘의 시간표 것)
   if (bk !== '정규' && bk !== '내신') return;
   if (!/^\d{4}-\d{2}-\d{2}$/.test(ymd) || ymd > todayStr()){ setStatus('아직 오지 않은 날짜의 수업은 기록할 수 없어요.', 'err'); return; }
-  if (bk === book && ymd === todayStr()){
+  if (!fresh && bk === book && ymd === todayStr()){
     var c0 = classes.find(function(x){ return x.id === cid; });
     if (c0) return openClassNote(c0);
   }
@@ -7950,6 +7970,7 @@ function crClose(){
   crFlushHw();
   if (crAttTimer || crCpTimer){ clearTimeout(crAttTimer); clearTimeout(crCpTimer); crAttTimer = crCpTimer = null; if (CR.c && !CR.busy) crUpsert().then(function(){ render(); }, function(e){ setStatus('수업 태도·베낌 의심 표시를 저장하지 못했어요. 창을 다시 열어 눌러 주세요.', 'err'); console.warn(e); }); }
   $('cr-bg').hidden = true; $('crpanel').hidden = true; CR = { c: null }; CRX = null;
+  if (mode === 'week' && !crJustDone) render();   // 주차별 카드의 [수업 기록]·[기록함] 표시를 바로 바꾼다
   // 방금 리포트를 만든 반이면 창을 닫을 때 카드의 [기록 완료 ✓] 버튼에서도 하트가 한 번 더 터진다
   if (crJustDone){
     var key = crJustDone; render();
@@ -8655,7 +8676,9 @@ function crUpsert(extra){
   var pend = cr.xtPending; cr.xtPending = false;
   return Promise.all(jobs).then(function(r){
     cr.note = (r[0] && r[0][0]) || cr.note;
-    if (crToday.map && cr.ymd === crToday.ymd) crToday.map[key] = { st: cr.note.report_status || '', has: crHasNote(cr.note), at: cr.note.reported_at || '' };
+    var st0 = { st: cr.note.report_status || '', has: crHasNote(cr.note), at: cr.note.reported_at || '' };
+    if (crToday.map && cr.ymd === crToday.ymd) crToday.map[key] = st0;
+    if (crWeek.map) crWeek.map[key + '|' + cr.ymd] = st0;
     return cr.note;
   }, function(e){ if (pend) cr.xtPending = true; throw e; });
 }

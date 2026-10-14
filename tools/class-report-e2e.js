@@ -87,7 +87,7 @@ const STUDENTS = [
     const page = await ctx.newPage();
     page.on('pageerror', e => { perr++; console.log('  ✗ pageerror', e.message); });
     page.on('dialog', d => d.accept());
-    await page.addInitScript(bk => { sessionStorage.setItem('tt_mode', 'today'); sessionStorage.setItem('tt_book', bk); localStorage.clear(); }, opt.book);
+    await page.addInitScript(o => { sessionStorage.setItem('tt_mode', o.mode || 'today'); sessionStorage.setItem('tt_book', o.bk); localStorage.clear(); }, { bk: opt.book, mode: opt.mode });
     await page.goto('http://127.0.0.1:' + port + '/timetable.html' + (opt.qs || ''));
     return { ctx, page, st };
   }
@@ -887,6 +887,38 @@ const STUDENTS = [
     await p10.waitForFunction(() => document.querySelector('.blk .crbtn').textContent === '리포트 공개 ✓', null, { timeout: 8000 });
     ok('⑩ 카드도 새로고침 없이 [리포트 공개 ✓]로', true);
     await c10.ctx.close();
+  }
+
+  // ⑪ 주차별 시간표에서도 [수업 기록] (2026-10-14 원장님) — 오늘·지난 날짜 카드에만, 그 날 기록을 따로 받아 연다
+  {
+    const DN = ['일','월','화','수','목','금','토'], TMR = DN[(T0.getDay() + 1) % 7];
+    const c11 = await ctxOf({ book: '정규', mode: 'week',
+      rows: [row('r001', '고2 가', '지원', '박보검 김하늘'), Object.assign(row('r002', '고1 나', '지원', '최다은'), { day: TMR })],
+      att: [{ class_id: 'r001', student: '박보검', status: '출석' }] });
+    const p11 = c11.page;
+    await p11.waitForFunction(() => typeof weekZoomDay !== 'undefined' && document.querySelector('.wk-mini'), null, { timeout: 15000 });
+    await p11.evaluate(d => { weekZoomDay = d; render(); }, TODAY);
+    await p11.waitForFunction(() => [...document.querySelectorAll('.blk')].some(x => /고2 가/.test(x.textContent) && x.querySelector('.crbtn')), null, { timeout: 8000 });
+    r = await p11.evaluate(() => ({ btn: document.querySelector('.blk .crbtn').textContent }));
+    ok('⑪ 주차별 확대 카드에 [수업 기록]', r.btn === '수업 기록', JSON.stringify(r));
+    await openCard(p11, '고2 가');
+    r = await p11.evaluate(() => ({ meta: document.getElementById('cr-meta').textContent, ymd: CR.ymd, crx: !!CRX,
+      cards: [...document.querySelectorAll('.cr-card')].map(c => c.querySelector('.cr-top b').textContent + ':' + c.querySelector('.cr-chip').textContent) }));
+    ok('⑪ 그 날짜 창이 열림 — 오늘이면 "지난 수업" 표시 없음, 출석은 그 날 기록', r.ymd === TODAYSTR && r.crx && !/지난 수업/.test(r.meta) && r.cards.includes('박보검:출석'), JSON.stringify(r));
+    await p11.fill('#cr-prog', '사미인곡');
+    await p11.click('#cr-save');
+    await p11.waitForTimeout(800);
+    const w11 = c11.st.writes.filter(w => /class_notes/.test(w.u) && w.m === 'POST').pop();
+    ok('⑪ 저장 = 그 날짜·그 반 class_notes', w11 && w11.body[0].ymd === TODAYSTR && w11.body[0].class_id === 'r001' && w11.body[0].progress === '사미인곡', JSON.stringify(w11 && w11.body));
+    await p11.evaluate(() => crClose());
+    await p11.waitForFunction(() => { const b = [...document.querySelectorAll('.blk')].find(x => /고2 가/.test(x.textContent)); return b && b.querySelector('.crbtn').textContent === '기록함'; }, null, { timeout: 5000 }).catch(() => {});
+    ok('⑪ 닫으면 카드 버튼이 [기록함]', await p11.evaluate(() => [...document.querySelectorAll('.blk')].find(x => /고2 가/.test(x.textContent)).querySelector('.crbtn').textContent === '기록함'));
+    if (TODAY !== '일'){
+      await p11.evaluate(d => { weekZoomDay = d; render(); }, TMR);
+      await p11.waitForFunction(() => [...document.querySelectorAll('.blk')].some(x => /고1 나/.test(x.textContent)), null, { timeout: 5000 });
+      ok('⑪ 앞날 카드에는 버튼 없음', await p11.evaluate(() => ![...document.querySelectorAll('.blk')].find(x => /고1 나/.test(x.textContent)).querySelector('.crbtn')));
+    }
+    await c11.ctx.close();
   }
 
   ok('페이지 오류 없음', perr === 0);
