@@ -7838,6 +7838,10 @@ function crSameLesson(a, b){ var x = onceBaseCls(a); return !!x && x === onceBas
 /* 내신 같은 수업 = 같은 학년(고1·고2)·같은 수업 구분(진도/확인)의 내신 반 — 학교가 달라도 같다
  * (2026-10-14 원장님 "고1 각 학교의 진도 수업은 내용이 모두 동일해요. 고1 확인수업도요. 고2도 각각 마찬가지"). 중학교 내신 반은 해당 없음. */
 var CR_NS_SHARE = /^고[12]$/;
+/* 진도·확인을 따로 잇는 학년·기간 — 2026-10-14·10-21 주는 고1·고2가 내신대비 시간표로 정규 수업을 해서 진도·확인이 다른 과목이다
+ * (2026-10-15 원장님 "지금 2주간 내신대비 시간표로 정규수업을 운영하는 중 — 내신 기간에는 진도·확인 수업이 연결됩니다. 10/26주차부터").
+ * 이 기간(수업 날짜 기준, 월·화 직전 날짜 포함)에만 진도↔진도·확인↔확인으로 과제 검사를 잇는다. 기간을 바꾸면 이 값만 고칠 것. */
+var CR_NS_SPLIT = /^고[12]$/, CR_NS_SPLIT_FROM = '2026-10-12', CR_NS_SPLIT_TO = '2026-10-25';
 function crSameNsLesson(c, x, bk){
   var g = classGradeOf(c);
   if (!CR_NS_SHARE.test(g) || classGradeOf(x) !== g) return false;
@@ -8053,8 +8057,10 @@ function crHwSrcLoad2(c, bk, ymd, twinId, othSib){
   var books = twinId ? 'in.(' + encodeURIComponent('정규') + ',' + encodeURIComponent('내신') + ')' : 'eq.' + encodeURIComponent(bk);
   if (crRuleBook(c, bk) === '내신'){
     // 학생마다 자기 내신 반(진도·확인) — 시간표 명단에서 이름으로 찾는다('이 주만' 반은 뺀다)
+    // 10/12~10/25 고1·고2는 진도·확인이 다른 과목이라 같은 수업 구분의 반만 잇는다(2026-10-15 원장님 — 진도 수업에 문학 과제가 연동됨)
+    var split = CR_NS_SPLIT.test(classGradeOf(c)) && ymd >= CR_NS_SPLIT_FROM && ymd <= CR_NS_SPLIT_TO, myPart = crPartOf(c, bk);
     CR.names.forEach(function(x){
-      mine[x.p] = crCls().filter(function(k){ return !/^w/.test(k.id) && (k.students || []).some(function(t){ return plainName(t) === x.p; }); }).map(function(k){ return k.id; });
+      mine[x.p] = crCls().filter(function(k){ return !/^w/.test(k.id) && (!split || crPartOf(k, bk) === myPart) && (k.students || []).some(function(t){ return plainName(t) === x.p; }); }).map(function(k){ return k.id; });
       if (mine[x.p].indexOf(c.id) < 0) mine[x.p].push(c.id);
     });
   } else {
