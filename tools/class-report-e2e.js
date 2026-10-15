@@ -290,6 +290,33 @@ const STUDENTS = [
     await ctx.close();
   }
 
+  // ②-2b 고1은 진도(독서)·확인(문학)이 다른 과목 — 진도 수업은 지난 진도 과제만, 확인 과제는 잇지 않는다(2026-10-15 원장님)
+  {
+    const D1 = (() => { const d = new Date(T0); d.setDate(d.getDate() - 1); return ymd(d); })();
+    const D6 = (() => { const d = new Date(T0); d.setDate(d.getDate() - 6); return ymd(d); })();
+    ({ ctx, page, st } = await ctxOf({ book: '내신',
+      rows: [row('n001', '고1 화정B(천재수 공통국어2)', '현지', '박보검'), Object.assign(row('n002', '고1 확인', '연주', '(화정)박보검'), { start_time: '7:30', end_time: '9:00' })],
+      att: [], hw: [], prev: [{ class_id: 'n002', ymd: D1, homework: '100인의 지혜 문학\n과제집 w14' }, { class_id: 'n001', ymd: D6, homework: '독서 지문 3개' }] }));
+    await openCard(page, '고1 화정B(천재수 공통국어2)');
+    await page.waitForFunction(() => document.querySelector('.cr-tname') || /지난 수업에 적힌 과제가 없습니다/.test(document.getElementById('crpanel').textContent), null, { timeout: 8000 }).catch(() => {});
+    r = await page.evaluate(() => [...document.querySelectorAll('.cr-card')].map(c => ({ nm: c.querySelector('.cr-top b').textContent,
+      tasks: [...c.querySelectorAll('.cr-tname')].map(x => x.textContent) })));
+    const sy = r.find(x => x.nm === '박보검') || {};
+    ok('고1 진도 수업 조회 = 진도 반만(확인 반 n002 제외)', (st.srcGets || []).some(u => /"n001"/.test(u)) && !(st.srcGets || []).some(u => /"n002"/.test(u)), JSON.stringify(st.srcGets));
+    ok('고1 진도 수업: 확인(문학) 과제가 아니라 지난 진도(독서) 과제', sy.tasks && sy.tasks.join('|') === '독서 지문 3개', JSON.stringify(r));
+    await ctx.close();
+    ({ ctx, page, st } = await ctxOf({ book: '내신',
+      rows: [row('n001', '고1 화정B(천재수 공통국어2)', '현지', '박보검'), Object.assign(row('n002', '고1 확인', '연주', '(화정)박보검'), { start_time: '7:30', end_time: '9:00' })],
+      att: [], hw: [], prev: [{ class_id: 'n001', ymd: D1, homework: '독서 지문 3개' }, { class_id: 'n002', ymd: D6, homework: '과제집 w14' }] }));
+    await openCard(page, '고1 확인');
+    await page.waitForFunction(() => document.querySelector('.cr-tname') || /지난 수업에 적힌 과제가 없습니다/.test(document.getElementById('crpanel').textContent), null, { timeout: 8000 }).catch(() => {});
+    r = await page.evaluate(() => [...document.querySelectorAll('.cr-card')].map(c => ({ nm: c.querySelector('.cr-top b').textContent,
+      tasks: [...c.querySelectorAll('.cr-tname')].map(x => x.textContent) })));
+    const sy2 = r.find(x => x.nm === '박보검') || {};
+    ok('고1 확인 수업: 진도(독서) 과제가 아니라 지난 확인(문학) 과제', sy2.tasks && sy2.tasks.join('|') === '과제집 w14', JSON.stringify(r));
+    await ctx.close();
+  }
+
   // ②-4 중3·고3은 내신 기간에도 정규 수업(2026-10-01 사용자) — 진도/확인 구분·시험범위 없음, 지난 과제는 정규 짝 반에서도 찾는다
   {
     const D7 = (() => { const d = new Date(T0); d.setDate(d.getDate() - 7); return ymd(d); })();
