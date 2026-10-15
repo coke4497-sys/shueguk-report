@@ -273,13 +273,13 @@ const STUDENTS = [
   ok('확인 수업은 진도 없이도 생성', st.gas.some(g => g.action === 'editReqAdd' && /n002/.test(g.text) && /확인 수업/.test(g.text)));
   await ctx.close();
 
-  // ②-2 내신 — 확인 수업이 학생마다 지난 진도 수업 과제를 검사한다(2026-09-29)
+  // ②-2 내신(중학교) — 확인 수업이 학생마다 지난 진도 수업 과제를 검사한다(2026-09-29 · 고1·고2는 2026-10-15부터 따로 — ②-2b)
   {
     const D3 = (() => { const d = new Date(T0); d.setDate(d.getDate() - 3); return ymd(d); })();
     ({ ctx, page, st } = await ctxOf({ book: '내신',
-      rows: [row('n001', '고2 화정A(비상 문학)', '주혜', '박보검'), Object.assign(row('n002', '고2 확인', '연주', '(화정)박보검 (화정)김하늘'), { start_time: '7:30', end_time: '9:00' })],
+      rows: [row('n001', '중2 화정A(비상)', '주혜', '박보검'), Object.assign(row('n002', '중2 확인', '연주', '(화정)박보검 (화정)김하늘'), { start_time: '7:30', end_time: '9:00' })],
       att: [], hw: [], prev: [{ class_id: 'n001', ymd: D3, homework: '교과서 1~6번\n서술형 정리' }] }));
-    await openCard(page, '고2 확인');
+    await openCard(page, '중2 확인');
     r = await page.evaluate(() => [...document.querySelectorAll('.cr-card')].map(c => ({ nm: c.querySelector('.cr-top b').textContent,
       tasks: [...c.querySelectorAll('.cr-tname')].map(x => x.textContent), rows: c.querySelectorAll('.cr-item').length,
       src: (c.querySelector('.cr-src') || {}).textContent || '', txt: c.textContent })));
@@ -290,13 +290,14 @@ const STUDENTS = [
     await ctx.close();
   }
 
-  // ②-2b 고1은 진도(독서)·확인(문학)이 다른 과목 — 진도 수업은 지난 진도 과제만, 확인 과제는 잇지 않는다(2026-10-15 원장님)
+  // ②-2b 고1·고2는 진도·확인이 다른 과목 — 진도 수업은 지난 진도 과제만, 확인 과제는 잇지 않는다(2026-10-15 원장님)
   {
     const D1 = (() => { const d = new Date(T0); d.setDate(d.getDate() - 1); return ymd(d); })();
     const D6 = (() => { const d = new Date(T0); d.setDate(d.getDate() - 6); return ymd(d); })();
     ({ ctx, page, st } = await ctxOf({ book: '내신',
       rows: [row('n001', '고1 화정B(천재수 공통국어2)', '현지', '박보검'), Object.assign(row('n002', '고1 확인', '연주', '(화정)박보검'), { start_time: '7:30', end_time: '9:00' })],
       att: [], hw: [], prev: [{ class_id: 'n002', ymd: D1, homework: '100인의 지혜 문학\n과제집 w14' }, { class_id: 'n001', ymd: D6, homework: '독서 지문 3개' }] }));
+    await page.evaluate(t => { CR_NS_SPLIT_FROM = t; CR_NS_SPLIT_TO = t; }, TODAYSTR);   // 오늘이 '따로 잇는 기간'
     await openCard(page, '고1 화정B(천재수 공통국어2)');
     await page.waitForFunction(() => document.querySelector('.cr-tname') || /지난 수업에 적힌 과제가 없습니다/.test(document.getElementById('crpanel').textContent), null, { timeout: 8000 }).catch(() => {});
     r = await page.evaluate(() => [...document.querySelectorAll('.cr-card')].map(c => ({ nm: c.querySelector('.cr-top b').textContent,
@@ -308,12 +309,23 @@ const STUDENTS = [
     ({ ctx, page, st } = await ctxOf({ book: '내신',
       rows: [row('n001', '고1 화정B(천재수 공통국어2)', '현지', '박보검'), Object.assign(row('n002', '고1 확인', '연주', '(화정)박보검'), { start_time: '7:30', end_time: '9:00' })],
       att: [], hw: [], prev: [{ class_id: 'n001', ymd: D1, homework: '독서 지문 3개' }, { class_id: 'n002', ymd: D6, homework: '과제집 w14' }] }));
+    await page.evaluate(t => { CR_NS_SPLIT_FROM = t; CR_NS_SPLIT_TO = t; }, TODAYSTR);   // 오늘이 '따로 잇는 기간'
     await openCard(page, '고1 확인');
     await page.waitForFunction(() => document.querySelector('.cr-tname') || /지난 수업에 적힌 과제가 없습니다/.test(document.getElementById('crpanel').textContent), null, { timeout: 8000 }).catch(() => {});
     r = await page.evaluate(() => [...document.querySelectorAll('.cr-card')].map(c => ({ nm: c.querySelector('.cr-top b').textContent,
       tasks: [...c.querySelectorAll('.cr-tname')].map(x => x.textContent) })));
     const sy2 = r.find(x => x.nm === '박보검') || {};
     ok('고1 확인 수업: 진도(독서) 과제가 아니라 지난 확인(문학) 과제', sy2.tasks && sy2.tasks.join('|') === '과제집 w14', JSON.stringify(r));
+    await ctx.close();
+    // 기간 밖(10/26부터)은 종전대로 진도·확인이 이어진다 — 진도 수업이 어제 확인 수업 과제를 검사
+    ({ ctx, page, st } = await ctxOf({ book: '내신',
+      rows: [row('n001', '고1 화정B(천재수 공통국어2)', '현지', '박보검'), Object.assign(row('n002', '고1 확인', '연주', '(화정)박보검'), { start_time: '7:30', end_time: '9:00' })],
+      att: [], hw: [], prev: [{ class_id: 'n002', ymd: D1, homework: '과제집 w14' }, { class_id: 'n001', ymd: D6, homework: '독서 지문 3개' }] }));
+    await page.evaluate(() => { CR_NS_SPLIT_FROM = '2000-01-01'; CR_NS_SPLIT_TO = '2000-01-02'; });
+    await openCard(page, '고1 화정B(천재수 공통국어2)');
+    await page.waitForFunction(() => document.querySelector('.cr-tname'), null, { timeout: 8000 }).catch(() => {});
+    r = await page.evaluate(() => [...document.querySelectorAll('.cr-tname')].map(x => x.textContent));
+    ok('기간 밖 고1 진도 수업: 진도·확인이 이어져 가장 최근(확인) 과제', r.join('|') === '과제집 w14', JSON.stringify(r));
     await ctx.close();
   }
 
