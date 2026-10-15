@@ -3885,7 +3885,7 @@ function buildCalendar(){
   var h = '<div class="cal-head"><button onclick="moveCalMonth(-1)">지난달</button>' +
     '<b>' + calMonth.getFullYear() + '년 ' + (calMonth.getMonth()+1) + '월</b>' +
     '<button onclick="moveCalMonth(1)">다음달</button>' +
-    '<small>왼쪽 [정규]/[내신] 버튼으로 그 주에 쓸 시간표를 정하세요 (아무것도 안 고르면 정규). 어떤 학년만 다른 시간표로 수업하는 주는 [학년 예외]에서 그 학년을 고릅니다. 날짜 칸을 누르면 그 날 메모를 적을 수 있어요.</small></div>';
+    '<small>왼쪽 [정규]/[내신] 버튼으로 그 주에 쓸 시간표를 정하세요 (아무것도 안 고르면 정규). 어떤 학년만 다른 시간표로 수업하는 주는 [학년 예외]에서 그 학년을 고릅니다. 기간을 바꿀 때는 비밀번호를 묻습니다. 날짜 칸을 누르면 그 날 메모를 적을 수 있어요.</small></div>';
   h += '<div class="calgrid"><div class="cal-dh">기간</div>';
   ['월','화','수','목','금','토','일'].forEach(function(dy){ h += '<div class="cal-dh">' + dy + '</div>'; });
   weeks.forEach(function(w){
@@ -4329,7 +4329,8 @@ function exsDel(row, school){
 /* 학년별 예외 설정 창 — 그 주의 기본 시간표와 다르게 수업하는 학년만 고른다 (2026-10-11 사용자 결정 "권장안으로").
  * 중3·고3은 정규·내신이 같은 짝 반이라 목록에 두지 않는다. 저장은 ttPeriodSet{week, book, ov}. */
 var OV_GRADES = ['중1', '중2', '고1', '고2'];
-function openPeriodEx(wed){
+function openPeriodEx(wed){ periodPwGate(function(){ openPeriodExGo(wed); }); }
+function openPeriodExGo(wed){
   var m = periods[wed] || '정규', o = periodsEx[wed] || {};
   var ds = weekDatesOf(wedOfYmd(wed));
   var rows = OV_GRADES.map(function(g){
@@ -4365,8 +4366,21 @@ function savePeriodEx(wed){
     } else setStatus('저장 실패: ' + ((res && res.message) || '오류'), 'err');
   });
 }
+/* 정규/내신·학년 예외 변경은 비밀번호를 묻는다 (2026-10-15 원장님 "어휘 테스트 주차 설정처럼") —
+ * 어휘 주차와 같은 비밀번호(TEACHER_PW), 한 번 맞으면 이 탭에서는 다시 묻지 않는다(sessionStorage tt_period_pw). */
+function periodPwGate(cb){
+  try { if (sessionStorage.getItem('tt_period_pw') === '1') return cb(); } catch(e){}
+  var v = prompt('시간표 기간(정규/내신)을 바꾸려면 비밀번호를 입력하세요.');
+  if (v === null || v === '') return;
+  if (v !== pw){ alert('비밀번호가 틀렸습니다.'); return; }
+  try { sessionStorage.setItem('tt_period_pw', '1'); } catch(e){}
+  cb();
+}
 function setPeriod(wed, bk){
   if ((periods[wed] || '정규') === bk && periods[wed]) return;   // 이미 그 기간
+  periodPwGate(function(){ setPeriodGo(wed, bk); });
+}
+function setPeriodGo(wed, bk){
   post({ action:'ttPeriodSet', week:wed, book:bk }, '기간을 저장하는 중…', function(res){
     if (res && res.result === 'success'){
       periods[wed] = bk; cachePeriods();

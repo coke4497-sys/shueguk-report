@@ -78,8 +78,10 @@ const ok = (n, c, x) => { if (c) pass++; else { fail++; console.log('  ✗ ' + n
     });
     return ctx;
   }
+  let pwAns = 'sh'; const dlg = [];
   async function open(ctx, mode){
     const page = await ctx.newPage();
+    page.on('dialog', d => { dlg.push(d.type() + ':' + d.message()); d.type() === 'prompt' ? d.accept(pwAns) : d.accept(); });
     await page.addInitScript(m => {
       sessionStorage.setItem('tt_mode', m); sessionStorage.setItem('tt_book', '내신');
       sessionStorage.setItem('tt_vmopen', '0'); sessionStorage.setItem('tt_chopen', '0');
@@ -168,14 +170,27 @@ const ok = (n, c, x) => { if (c) pass++; else { fail++; console.log('  ✗ ' + n
     return { n: btns.length, has, plain: btns.filter(b => !b.classList.contains('has')).map(b => b.textContent)[0] };
   }, W0);
   ok('⑤ 캘린더 주마다 [학년 예외] 버튼 · 이번 주는 "중2 정규"', r.n >= 4 && r.has.length === 1 && r.has[0] === '중2 정규' && r.plain === '학년 예외', JSON.stringify(r));
+  /* 비밀번호(2026-10-15) — 틀리면 창이 안 열리고, 맞으면 열리며 그 뒤 탭 안에서는 다시 묻지 않는다 */
+  pwAns = 'xx'; dlg.length = 0;
+  await page.evaluate(() => document.querySelector('.cal-ov.has').click());
+  await page.waitForTimeout(400);
+  r = await page.evaluate(() => ({ modal: !!document.querySelector('.pex-list'), mem: sessionStorage.getItem('tt_period_pw') }));
+  ok('⑤ 비밀번호가 틀리면 학년 예외 창이 열리지 않는다', !r.modal && r.mem === null && dlg.some(x => /^prompt:.*비밀번호/.test(x)) && dlg.some(x => /^alert:.*틀렸/.test(x)), JSON.stringify([r, dlg]));
+  posts.length = 0; legacy.length = 0; dlg.length = 0;
+  await page.evaluate(() => [...document.querySelectorAll('.cal-period button')].find(b => b.textContent === '정규' && !b.classList.contains('on-reg')).click());
+  await page.waitForTimeout(400);
+  ok('⑤ 비밀번호가 틀리면 [정규] 저장 요청을 보내지 않는다', !posts.some(p => /\/tt_period/.test(p.url)) && !legacy.some(x => /ttPeriodSet/.test(x)), JSON.stringify(posts.map(p => p.url)));
+  pwAns = 'sh'; dlg.length = 0;
   await page.evaluate(() => document.querySelector('.cal-ov.has').click());
   await page.waitForSelector('.pex-list');
+  ok('⑤ 비밀번호가 맞으면 창이 열리고 이 탭에 기억', dlg.filter(x => /^prompt:/.test(x)).length === 1 && await page.evaluate(() => sessionStorage.getItem('tt_period_pw')) === '1', JSON.stringify(dlg));
   r = await page.evaluate(() => ({ title: document.querySelector('#modal h3').textContent,
     rows: [...document.querySelectorAll('[data-pex]')].map(s => s.getAttribute('data-pex') + '=' + s.value), note: document.querySelector('#modal .mdesc').textContent }));
   ok('⑤ 설정 창: 중1·중2·고1·고2 줄, 중2 = 정규, 주 기준 내신 안내', r.rows.join() === '중1=,중2=정규,고1=,고2=' && /내신/.test(r.note) && /중3·고3/.test(r.note), JSON.stringify(r));
   posts.length = 0; legacy.length = 0;
   await page.selectOption('[data-pex="고1"]', '정규');
   await page.selectOption('[data-pex="고2"]', '내신');   // 주 기준과 같은 값 — 예외가 아니다
+  dlg.length = 0;
   await page.evaluate(() => document.querySelector('#modal .mbtns .primary').click());
   await page.waitForFunction(() => /자동 반영/.test(document.getElementById('status').textContent), null, { timeout: 10000 });
   const sbp = posts.find(p => /\/tt_period/.test(p.url));
@@ -184,6 +199,7 @@ const ok = (n, c, x) => { if (c) pass++; else { fail++; console.log('  ✗ ' + n
      !!lg && lg.week === W0 && lg.book === '내신' && JSON.stringify(lg.ov) === JSON.stringify({ '중2': '정규', '고1': '정규' }) &&
      !!sbp && /on_conflict=week_wednesday/.test(sbp.url) && /"overrides":\{"중2":"정규","고1":"정규"\}/.test(sbp.body), JSON.stringify([lg, sbp && sbp.body]));
   r = await page.evaluate(() => ({ lab: document.querySelector('.cal-ov.has').textContent, st: document.getElementById('status').textContent }));
+  ok('⑤ 한 번 맞힌 뒤에는 다시 묻지 않는다', !dlg.some(x => /^prompt:/.test(x)), JSON.stringify(dlg));
   ok('⑤ 저장 뒤 캘린더 표기 "고1 정규 · 중2 정규"', r.lab === '고1 정규 · 중2 정규' && /고1 정규 · 중2 정규/.test(r.st), JSON.stringify(r));
   await page.evaluate(() => setMode('today'));
   await page.waitForFunction(() => /고1 정규/.test(document.getElementById('period-badge').textContent) && [...document.querySelectorAll('.blk')].some(e => /^고1 가/.test(e.querySelector('.nm').textContent.trim())), null, { timeout: 15000 });
