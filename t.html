@@ -52,6 +52,21 @@ body{font-family:'Noto Sans KR',sans-serif; background:var(--sage-fog); color:va
 .ctl label{display:block; font-size:13px; color:var(--ink-mid); margin-bottom:6px; font-weight:500;}
 .ctl select, .ctl input{width:100%; border:1.5px solid var(--line); border-radius:10px; padding:11px 12px; font-size:15px; font-family:'Noto Sans KR'; background:#FBFCFB;}
 .ctl select:focus, .ctl input:focus{outline:none; border-color:var(--sage-deep);}
+.edit-state{font-size:13px; color:#65726B; align-self:center;}
+#subEdit{display:none; position:fixed; inset:0; background:rgba(40,50,45,.35); z-index:60; overflow:auto; padding:24px 12px;}
+#subEdit.show{display:block;}
+#subEdit .se-box{max-width:720px; margin:0 auto; background:#fff; border-radius:16px; padding:20px; box-shadow:0 10px 30px rgba(0,0,0,.15);}
+#subEdit h3{margin:0 0 4px; font-size:18px;}
+#subEdit .se-sub{font-size:13px; color:#65726B; margin:0 0 14px; line-height:1.6;}
+#subEdit .se-q{border-radius:10px; background:#F6F8F7; margin-bottom:8px; padding:10px 12px;}
+#subEdit .se-q.on{background:#F7E2DE;}
+#subEdit .se-qh{display:flex; gap:8px; align-items:flex-start; cursor:pointer;}
+#subEdit .se-no{font-weight:700; min-width:44px;}
+#subEdit .se-tx{flex:1; font-size:14px; line-height:1.5;}
+#subEdit .se-mk{font-size:12px; color:#8E5147; white-space:nowrap;}
+#subEdit textarea{width:100%; box-sizing:border-box; border:1px solid #DCE4DF; border-radius:8px; padding:8px; font-size:14px; font-family:inherit; margin-top:8px;}
+#subEdit .se-score{font-size:15px; margin:12px 0;}
+#subEdit .se-btns{display:flex; gap:8px; justify-content:flex-end; margin-top:14px; position:sticky; bottom:0; background:#fff; padding-top:10px;}
 .btn{border:none; border-radius:10px; padding:12px 20px; font-size:15px; font-weight:700; font-family:'Noto Sans KR'; cursor:pointer; background:#F0CFC7; color:#8E5147;} /* 지필 리포트 포인트 = 연핑크 (2026-08-22) */
 .btn:active{opacity:.85;} .btn.ghost{background:var(--sage-fog); color:var(--ink-mid);}
 .btn:disabled{opacity:.4;}
@@ -210,10 +225,20 @@ body{font-family:'Noto Sans KR',sans-serif; background:var(--sage-fog); color:va
         <button class="btn" id="sendBtn" onclick="sendReport(true)" disabled>리포트 보내기</button>
       </div>
       <div class="send-state" id="sendState"></div>
+      <div class="ctl-row" style="margin-top:10px;"><button class="btn" id="editSubBtn" onclick="openSubEdit()" disabled>학생 복기 고치기</button><span class="edit-state" id="editState"></span></div>
       <div class="alim-guide">리포트를 보낸 뒤에는 <a href="analyses.html" target="_blank" rel="noopener">리포트 수정 및 학생 배정</a> 메뉴의 [알림톡 보내기]에서 <b>‘피드백 확인 안내’</b>를 골라 학생·학부모님께 리포트를 열람하도록 알림톡을 보낼 수 있습니다. 보낼 때 로그인한 선생님 이름이 알림톡에 함께 표시돼요.</div>
       <p class="hint">여기 적은 내용은 아래 보고서에 실시간 반영됩니다. 학생 개별 페이지에는 <b>한 마디를 적고 ‘리포트 보내기’를 누른 뒤에</b> 리포트가 나타납니다. 보내기 전에는 학생에게 ‘선생님이 리포트를 준비하고 있습니다’로 보여요.</p>
     </div>
     <div class="status" id="status"></div>
+    <div id="subEdit" onclick="if(event.target===this) closeSubEdit()"><div class="se-box">
+      <h3>학생 복기 고치기</h3>
+      <p class="se-sub" id="seSub"></p>
+      <div id="seList"></div>
+      <label style="font-weight:700; font-size:14px;">다음 시험을 위한 다짐</label>
+      <textarea id="seVow" rows="3"></textarea>
+      <p class="se-score">점수 <b id="seScore">—</b> <span id="seScoreNote" style="font-size:13px; color:#65726B;"></span></p>
+      <div class="se-btns"><button class="btn" style="background:#F2F5F3;color:#4F5C56;" onclick="closeSubEdit()">닫기</button><button class="btn" id="seSave" onclick="saveSubEdit()">고친 내용 저장</button></div>
+    </div></div>
     <div class="ctl-row" style="margin-top:6px;">
       <button class="btn" id="htmlBtn" onclick="saveAsHtml()" disabled>HTML로 저장 (노션·모바일용)</button>
       <button class="btn ghost" id="pdfBtn" onclick="printReport()" disabled>PDF로 저장 / 인쇄</button>
@@ -441,7 +466,7 @@ body{font-family:'Noto Sans KR',sans-serif; background:var(--sage-fog); color:va
         review: String(e.review || '').split(/\n\s*\n/).map(function(s){ return s.trim(); }).filter(Boolean),
         questions: rs[1].map(function(x){
           return { no: x.no, area: x.area, type: x.qtype, lv: x.lv, txt: x.txt,
-                   detail: x.detail, group: x.grp, multi: !!x.multi };
+                   detail: x.detail, group: x.grp, multi: !!x.multi, pts: x.pts };
         }) });
     });
   }
@@ -492,6 +517,7 @@ body{font-family:'Noto Sans KR',sans-serif; background:var(--sage-fog); color:va
           wrongText: row.wrong_text, vow: row.vow, teacherNote: row.teacher_note,
           sentAt: row.sent_at || '', sentKnown: ('sent_at' in row),
           teacherName: String(row.teacher_name || ''),   // 048 — 보낼 때 함께 적은 담당 선생님 이름
+          editedAt: row.edited_at || '', editedBy: String(row.edited_by || ''),   // 051 — 마지막으로 고친 시각·사람
           score: row.score, parentPhone: phone,
           studentId: roster ? roster.id : phone,
           accessCode: roster ? roster.code : ''
@@ -637,6 +663,27 @@ body{font-family:'Noto Sans KR',sans-serif; background:var(--sage-fog); color:va
           // 옛 백엔드에는 보내기 기능이 없으므로 넘기지 않고 알린다
           console.warn('리포트 보내기 실패', e);
           return { result:'error', message:'리포트를 보내지 못했어요. 잠시 뒤 다시 시도해 주세요.' };
+        });
+    },
+    // 학생 복기 고치기(051, 2026-10-16) — 선생님은 보낸 뒤에도 고칠 수 있다. 열이 없으면(051 전) 고친 사람 없이 다시 쓴다
+    editSubmission: function(b){
+      var id = parseInt(b.rowIndex, 10) || 0;
+      var path = '/submissions?id=eq.' + id + '&name=eq.' + q(String(b.name || '').trim());
+      var body = { wrong_count: String(b.wrongCount == null ? 0 : b.wrongCount), wrong_text: String(b.wrongText || ''),
+                   vow: String(b.vow || ''), score: String(b.score || ''),
+                   edited_at: nowIso(), edited_by: String(b.by || '선생님').trim() || '선생님' };
+      return sbWrite('PATCH', path, body, { 'Prefer': 'return=representation' })
+        .catch(function(e){
+          if (!/edited_/.test(String(e && e.message || e))) throw e;
+          delete body.edited_at; delete body.edited_by;
+          return sbWrite('PATCH', path, body, { 'Prefer': 'return=representation' });
+        })
+        .then(function(rows){
+          if (!rows || !rows.length) return { result:'error', message:'기록을 찾을 수 없어요. 새로고침 후 다시 시도해 주세요.' };
+          return ok({ editedAt: rows[0].edited_at || '', editedBy: rows[0].edited_by || '' });
+        }, function(e){
+          console.warn('복기 고치기 실패', e);
+          return { result:'error', message:'고친 내용을 저장하지 못했어요. 잠시 뒤 다시 시도해 주세요.' };
         });
     },
     __submit: function(b, url){
@@ -994,7 +1041,7 @@ function fillNoteTemplate(){
 function renderReport(){
   var idx = document.getElementById('studentSel').value;
   var pdfBtn = document.getElementById('pdfBtn');
-  if(idx===''){ document.getElementById('report').classList.remove('show'); pdfBtn.disabled=true; document.getElementById('saveNoteBtn').disabled=true; document.getElementById('sendBtn').disabled=true; document.getElementById('sendState').innerHTML=''; return; }
+  if(idx===''){ document.getElementById('report').classList.remove('show'); pdfBtn.disabled=true; document.getElementById('saveNoteBtn').disabled=true; document.getElementById('sendBtn').disabled=true; document.getElementById('sendState').innerHTML=''; renderEditState(null); return; }
   var s = STUDENTS[parseInt(idx,10)];
 
   var fx=document.getElementById('fnameEx'); if(fx) fx.textContent=reportFileName();
@@ -1075,6 +1122,7 @@ function renderReport(){
   document.getElementById('htmlBtn').disabled = false;
   document.getElementById('saveNoteBtn').disabled = false;
   renderSendState(s);
+  renderEditState(s);
 
 }
 
@@ -1083,6 +1131,94 @@ function sentLabel(iso){
   var d = new Date(iso); if(isNaN(d)) return '';
   return (d.getMonth()+1)+'/'+d.getDate()+' '+('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2);
 }
+/* ── 학생 복기 고치기 (051, 2026-10-16 원장님 "학생이 제출한 지필고사 리포트를 수정할 수 있게") ──
+ * 틀린 문항·문항별 반성·다짐을 고치고 점수는 틀린 문항 배점으로 다시 계산한다(r.html calcScore 와 같은 규칙).
+ * 저장 형식은 r.html buildPayload 그대로 — 두 벌이니 고치면 함께. 학생은 보내기 전까지만, 선생님은 언제나 고친다. */
+var SE = null;
+function renderEditState(s){
+  var btn = document.getElementById('editSubBtn'), st = document.getElementById('editState');
+  if(!btn) return;
+  if(!s){ btn.disabled = true; st.textContent = ''; return; }
+  btn.disabled = !s.sentKnown || !QUESTIONS.length;
+  var who = s.editedBy === '학생' ? '학생이' : (s.editedBy ? s.editedBy + (/선생님$/.test(s.editedBy)?'이':' 선생님이') : '');
+  st.textContent = s.editedAt ? ((who ? who + ' ' : '') + sentLabel(s.editedAt) + '에 고쳤어요') :
+                   (!s.sentKnown ? '복기를 고치려면 데이터베이스(043)가 필요해요' : (!QUESTIONS.length ? '시험을 하나 골라야 고칠 수 있어요' : ''));
+}
+function seParse(t){
+  var out = {}, src = String(t == null ? '' : t), m;
+  var re = /(?:^|\n)\[([^\]\n]+?)번 · [^\n]*\n[ \t]*→ ?([\s\S]*?)(?=\n\s*\n\[[^\]\n]+?번 · |\s*$)/g;
+  while((m = re.exec(src))){ var r = m[2].trim(); if(r === '(반성 미작성)') r = ''; out[m[1].trim()] = r; }
+  return out;
+}
+function sePtsNum(v){ var n = parseFloat(String(v == null ? '' : v).replace(/[^\d.]/g, '')); return (isNaN(n) || n < 0) ? 0 : n; }
+function seScore(){
+  var n = QUESTIONS.length, even = !QUESTIONS.some(function(q){ return sePtsNum(q.pts) > 0; }), lost = 0;
+  QUESTIONS.forEach(function(q){ if(SE.wrong.hasOwnProperty(String(q.no))) lost += even ? (n ? 100/n : 0) : sePtsNum(q.pts); });
+  lost = Math.round(lost*10)/10;
+  return { score: Math.max(0, Math.round((100-lost)*10)/10), lost: lost, even: even };
+}
+function seRender(){
+  var list = document.getElementById('seList');
+  list.innerHTML = QUESTIONS.map(function(q){
+    var no = String(q.no), on = SE.wrong.hasOwnProperty(no);
+    return '<div class="se-q'+(on?' on':'')+'" data-no="'+esc(no)+'"><div class="se-qh"><span class="se-no">'+esc(no)+'번</span>'+
+      '<span class="se-tx">'+esc(q.txt)+'</span><span class="se-mk">'+(on?'틀림 ✓':'누르면 틀림')+'</span></div>'+
+      (on ? '<textarea rows="2" placeholder="틀린 이유 · 반성">'+esc(SE.wrong[no])+'</textarea>' : '')+'</div>';
+  }).join('');
+  var sc = seScore();
+  document.getElementById('seScore').textContent = sc.score + '점';
+  document.getElementById('seScoreNote').textContent = '틀린 문항 ' + Object.keys(SE.wrong).length + '개' + (sc.even ? ' · 배점이 없어 문항마다 같은 점수로 계산' : '');
+}
+function openSubEdit(){
+  var idx = document.getElementById('studentSel').value; if(idx === '') return;
+  var s = STUDENTS[parseInt(idx,10)];
+  SE = { s: s, wrong: seParse(s.wrongText) };
+  document.getElementById('seSub').innerHTML = esc(s.name) + ' 학생의 복기입니다. 문항을 누르면 틀림 표시가 바뀌고, 점수는 틀린 문항 배점으로 다시 계산돼요.' +
+    (s.sentAt ? '<br><b>이미 학생에게 보낸 리포트입니다.</b> 저장하면 학생 페이지에도 바로 바뀌어 보입니다.' : '');
+  document.getElementById('seVow').value = s.vow || '';
+  seRender();
+  document.getElementById('subEdit').classList.add('show');
+}
+function closeSubEdit(){ document.getElementById('subEdit').classList.remove('show'); SE = null; }
+document.addEventListener('click', function(e){
+  if(!SE) return;
+  var h = e.target.closest && e.target.closest('#seList .se-qh'); if(!h) return;
+  var no = h.parentNode.getAttribute('data-no');
+  if(SE.wrong.hasOwnProperty(no)) delete SE.wrong[no]; else SE.wrong[no] = '';
+  seRender();
+});
+document.addEventListener('input', function(e){
+  if(!SE || !e.target.closest) return;
+  var box = e.target.closest('#seList .se-q'); if(!box || e.target.tagName !== 'TEXTAREA') return;
+  SE.wrong[box.getAttribute('data-no')] = e.target.value;
+});
+function saveSubEdit(){
+  if(!SE) return;
+  var s = SE.s, qmap = {};
+  QUESTIONS.forEach(function(q){ qmap[String(q.no)] = q; });
+  var keys = QUESTIONS.map(function(q){ return String(q.no); }).filter(function(no){ return SE.wrong.hasOwnProperty(no); });
+  var text = keys.map(function(no){
+    var q = qmap[no], r = (SE.wrong[no] || '').trim() || '(반성 미작성)';
+    return '['+no+'번 · '+q.area+(q.detail?'·'+q.detail:'')+' · '+q.lv+'] '+q.txt+'\n  → '+r;
+  }).join('\n\n');
+  var vow = document.getElementById('seVow').value.trim(), score = String(seScore().score);
+  var by = (document.getElementById('teacherName').value || LOGIN_TEACHER || '').trim();
+  var btn = document.getElementById('seSave'); btn.disabled = true;
+  fetch(ENDPOINT, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
+    body: JSON.stringify({ action:'editSubmission', rowIndex: s.rowIndex, name: s.name,
+      wrongCount: keys.length, wrongText: text, vow: vow, score: score, by: by ? by + ' 선생님' : '선생님' }) })
+    .then(function(r){ return r.json(); })
+    .then(function(res){
+      btn.disabled = false;
+      if(!res || res.result !== 'success'){ alert((res && res.message) || '저장하지 못했어요.'); return; }
+      s.wrongText = text; s.wrongCount = keys.length; s.vow = vow; s.score = score;
+      s.editedAt = res.editedAt || ''; s.editedBy = res.editedBy || '';
+      closeSubEdit(); renderReport();
+      setStatus(s.name + ' 학생의 복기를 고쳤어요.');
+    })
+    .catch(function(){ btn.disabled = false; alert('인터넷 연결을 확인해 주세요.'); });
+}
+
 // 리포트 보내기 상태 줄 (2026-10-02, 043)
 function renderSendState(s){
   var box = document.getElementById('sendState'), btn = document.getElementById('sendBtn');

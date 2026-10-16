@@ -88,6 +88,10 @@ body{font-family:'Noto Sans KR',sans-serif; background:var(--sage-fog); color:va
 .rv-h:first-child{margin-top:0;}
 .q-mark{flex-shrink:0; width:26px; height:26px; border:2px solid var(--sage-mid); border-radius:8px; display:flex; align-items:center; justify-content:center; background:#fff; margin-top:6px;}
 .q-mark svg{width:15px; height:15px; opacity:0;}
+.edit-note{margin:14px 0 0; padding:12px 14px; border-radius:12px; background:#EDE4F4; color:#5A4A6A; font-size:14px; line-height:1.6;}
+.edit-note b{font-weight:700;}
+.edit-note.lock{background:#F7E2DE; color:#8A4F47;}
+body.sub-locked .q-head{cursor:default;}
 .q.wrong{border-color:var(--sage-deep); background:#FCFDFC;}
 .q.wrong .q-no{background:var(--sage-deep); color:#fff;}
 .q.wrong .q-mark{background:var(--sage-deep); border-color:var(--sage-deep);}
@@ -156,6 +160,7 @@ body.capturing ::placeholder{ color:transparent !important; }
   <div class="intro">
     <p class="ttl">시험 복기 · 개인별 분석</p>
     <p class="exam-name" id="r_examName" style="display:none;"></p>
+    <div class="edit-note" id="editNote" style="display:none;"></div>
     <p class="sub">친구들, 이번 시험을 스스로 되짚어 보는 시간이에요. 틀린 문항을 직접 표시하고, 왜 틀렸는지 솔직하게 적어주면 다음 시험을 더 촘촘하게 준비할 수 있습니다.</p>
   </div>
 
@@ -288,6 +293,13 @@ body.capturing ::placeholder{ color:transparent !important; }
     });
   }
 
+  /* 지필 복기 고치기(051, 2026-10-16) — 이미 낸 복기를 다시 열고, 리포트를 보내기 전이면 그 줄을 고친다.
+   * 함수가 없으면(051 적용 전) mine 이 실패해 예전처럼 새로 제출한다. */
+  window.__sbSub = {
+    mine: function(p){ return sbRpc('submission_mine', { p: p }); },
+    update: function(p){ return sbRpc('submission_update', { p: p }); }
+  };
+
   window.fetch = function(url, opts){
     try {
       if (typeof url !== 'string' || url.indexOf(LEGACY_SIG) < 0) return rawFetch(url, opts);
@@ -348,6 +360,8 @@ var ENDPOINT = "https://script.google.com/macros/s/AKfycbzhCncBwn-JlqXARC3wfrWUC
 
 var REPORT = null;          // 시트에서 불러온 데이터가 담깁니다
 var wrong = {};             // no -> reason
+var EDIT = null;            // 이미 낸 복기를 고치는 중이면 {id, name, phone, sent, at} (051)
+var SUB_LOCK = false;       // 선생님이 리포트를 보낸 뒤 — 학생은 고칠 수 없다
 /* 지문 묶음 라벨 아이콘 — 가는 라인 스트로크 (컬러 이모지 금지 지침, r.html·m.html 두 벌) */
 var BOOK_ICON='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;vertical-align:-2.5px;flex-shrink:0;" aria-hidden="true"><path d="M3.5 5.2h3.3c2 0 3.8.6 5.2 1.8v12.3c-1.4-1.2-3.2-1.8-5.2-1.8H3.5V5.2Z"/><path d="M20.5 5.2h-3.3c-2 0-3.8.6-5.2 1.8v12.3c1.4-1.2 3.2-1.8 5.2-1.8h3.3V5.2Z"/></svg>';
 var CHK='<svg viewBox="0 0 16 16" fill="none"><path d="M3 8.5L6.5 12L13 4.5" stroke="white" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
@@ -380,6 +394,7 @@ function boot(){
       document.getElementById('formBar').style.display='flex';
       prefillStudent();
       autoBlankIfNeeded();
+      loadMine();
     })
     .catch(function(){ showError('연결에 실패했습니다.', '인터넷 상태를 확인하고 새로고침해주세요.'); });
 }
@@ -436,6 +451,7 @@ function renderReport(){
       '</div></div>';
     var head=d.querySelector('.q-head'), ta=d.querySelector('textarea');
     head.onclick=function(){
+      if(SUB_LOCK) return;
       if(d.classList.contains('wrong')){ d.classList.remove('wrong'); delete wrong[q.no]; }
       else { d.classList.add('wrong'); wrong[q.no]=ta.value; setTimeout(function(){ta.focus();},260); }
       updateCount();
@@ -626,6 +642,82 @@ function toast(msg, kind){
   if(kind!=='wait'){ setTimeout(function(){ t.className=t.className.replace('show',''); }, 2600); }
 }
 
+/* ── 지필 복기 고치기 (051, 2026-10-16 원장님 "학생이 제출한 지필고사 리포트를 수정할 수 있게") ──
+ * 학생 페이지에서 넘어온 이름·학부모 휴대전화 8자리로 이 시험에 이미 낸 복기를 찾는다.
+ * 있으면 틀린 문항·반성·다짐을 채워 두고, 선생님이 [리포트 보내기]를 누르기 전이면 [수정 제출]로 같은 줄을 고친다.
+ * 보낸 뒤에는 보기만 한다(고치려면 선생님께). t.html studentWrong 과 같은 저장 형식을 되읽는다. */
+function parseWrongText(t){
+  var out={}, src=String(t==null?'':t), m;
+  var re=/(?:^|\n)\[([^\]\n]+?)번 · [^\n]*\n[ \t]*→ ?([\s\S]*?)(?=\n\s*\n\[[^\]\n]+?번 · |\s*$)/g;
+  while((m=re.exec(src))){
+    var r=m[2].trim(); if(r==='(반성 미작성)') r='';
+    out[m[1].trim()]=r;
+  }
+  return out;
+}
+function fmtKst(iso){
+  var d=new Date(iso); if(isNaN(d)) return '';
+  var k=new Date(d.getTime()+9*3600e3);
+  return (k.getUTCMonth()+1)+'/'+k.getUTCDate()+' '+String(k.getUTCHours()).padStart(2,'0')+':'+String(k.getUTCMinutes()).padStart(2,'0');
+}
+function applyMine(r){
+  var map=parseWrongText(r.wrong_text);
+  wrong={};
+  document.querySelectorAll('#qList .q').forEach(function(d){
+    var no=d.dataset.no, ta=d.querySelector('textarea');
+    if(Object.prototype.hasOwnProperty.call(map, no)){ d.classList.add('wrong'); ta.value=map[no]; wrong[no]=map[no]; }
+    else { d.classList.remove('wrong'); ta.value=''; }
+  });
+  document.getElementById('f_vow').value=r.vow||'';
+  updateCount();
+}
+function loadMine(nm, ph){
+  if(!window.__sbSub) return;
+  var qs; try { qs=new URLSearchParams(location.search); } catch(e){ return; }
+  if(qs.get('blank')==='1') return;
+  var name=(nm||qs.get('name')||'').trim(), p8=(ph||qs.get('p8')||'').trim();
+  if(!name || !/^\d{8}$/.test(p8)) return;
+  window.__sbSub.mine({ exam_id: getId(), title: (REPORT && REPORT.title) || '', name: name, phone: p8 })
+    .then(function(r){
+      if(!r || r.found!==true) return;
+      EDIT={ id: r.id, name: name, phone: p8, sent: !!r.sent, at: r.edited_at || r.submitted_at };
+      applyMine(r);
+      var note=document.getElementById('editNote'), btn=document.getElementById('submitBtn');
+      var when=fmtKst(r.edited_at || r.submitted_at);
+      if(EDIT.sent){
+        SUB_LOCK=true; document.body.classList.add('sub-locked');
+        document.querySelectorAll('#formView textarea, #formView input').forEach(function(el){ el.readOnly=true; });
+        note.className='edit-note lock';
+        note.innerHTML='<b>선생님이 리포트를 보냈습니다.</b> 이제 복기를 고칠 수 없습니다. 고칠 내용이 있으면 담당 선생님께 말씀해 주세요.';
+        btn.disabled=true; btn.textContent='리포트를 보낸 뒤라 고칠 수 없어요';
+      } else {
+        note.className='edit-note';
+        note.innerHTML='<b>이미 제출한 복기입니다'+(when?' · '+esc(when)+(r.edited_at?' 고침':' 제출'):'')+'.</b> 고친 뒤 [수정 제출]을 누르면 바뀝니다. 선생님이 리포트를 보내기 전까지 고칠 수 있어요.';
+        btn.disabled=false; btn.textContent='수정 제출';
+      }
+      note.style.display='';
+    })
+    .catch(function(e){ console.warn('이미 낸 복기 확인 실패 — 새로 제출합니다', e); });
+}
+function updateMine(p, btn){
+  window.__sbSub.update({ id: EDIT.id, name: EDIT.name, phone: EDIT.phone,
+      wrong_count: String(p.wrongCount), wrong_text: p.wrongText, vow: p.vow, score: p.score })
+    .then(function(r){
+      if(r && r.ok){
+        toast('수정했어요!', 'ok');
+        var dm=document.getElementById('doneMark'); dm.textContent='✓ 고친 복기를 선생님께 다시 보냈습니다.'; dm.classList.add('show');
+        btn.disabled=false; btn.textContent='수정 제출';
+        return;
+      }
+      btn.disabled=false;
+      if(r && r.reason==='sent'){
+        EDIT.sent=true; btn.disabled=true; btn.textContent='리포트를 보낸 뒤라 고칠 수 없어요';
+        toast('선생님이 이미 리포트를 보내서 고칠 수 없어요. 담당 선생님께 말씀해 주세요.', 'err');
+      } else toast('고친 내용을 저장하지 못했어요. 새로고침한 뒤 다시 해 주세요.', 'err');
+    })
+    .catch(function(){ btn.disabled=false; toast('전송 실패 — 인터넷을 확인해주세요', 'err'); });
+}
+
 function buildPayload(){
   var qmap={}; REPORT.questions.forEach(function(q){qmap[q.no]=q;});
   var keys=Object.keys(wrong);
@@ -656,7 +748,9 @@ function submitToSheet(){
   if(ENDPOINT.indexOf('http')!==0){ toast('전송 주소가 설정되지 않았어요', 'err'); return; }
 
   var btn=document.getElementById('submitBtn');
-  btn.disabled=true; toast('제출하는 중...', 'wait');
+  if(EDIT && EDIT.sent){ toast('선생님이 리포트를 보낸 뒤라 고칠 수 없어요.', 'err'); return; }
+  btn.disabled=true; toast(EDIT ? '고친 내용을 보내는 중...' : '제출하는 중...', 'wait');
+  if(EDIT){ updateMine(p, btn); return; }
 
   fetch(ENDPOINT, {
     method:'POST',
@@ -677,6 +771,7 @@ function submitToSheet(){
     toast('제출 완료!', 'ok');
     document.getElementById('doneMark').classList.add('show');
     btn.textContent='제출됨';
+    setTimeout(function(){ loadMine(p.name, p.parentPhone); }, 800);   // 이어서 고치면 같은 줄을 고치게(두 줄로 들어가지 않게)
   })
   .catch(function(){
     btn.disabled=false;
