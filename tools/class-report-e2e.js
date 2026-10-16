@@ -960,6 +960,23 @@ const STUDENTS = [
     await c11.ctx.close();
   }
 
+  // ⑪-2 주차별에서 연 창 — 다른 날 반으로 1회 이동해 나간 학생은 목록에 없다(2026-10-16 윤예준 금 B → 토 D, 적용일 = 토요일)
+  {
+    const o = new Date(T0); o.setDate(o.getDate() + (T0.getDay() === 0 ? -1 : 1));
+    const OTHER = o.getFullYear() + '-' + String(o.getMonth() + 1).padStart(2, '0') + '-' + String(o.getDate()).padStart(2, '0');
+    const c12 = await ctxOf({ book: '정규', mode: 'week',
+      rows: [row('r001', '고2 가', '지원', '박보검 김하늘'), row('r002', '고2 가', '현정', '최다은')],
+      att: [{ class_id: 'r001', student: '박보검', status: '출석' }],
+      log: [{ id: 21, kind: '1회', at: new Date().toISOString(), apply_date: OTHER, student: '김하늘', from_class_id: 'r001', to_class_id: 'r002', reason: '면접연습', book: '정규' }] });
+    const p12 = c12.page;
+    await p12.waitForFunction(() => typeof weekZoomDay !== 'undefined' && document.querySelector('.wk-mini'), null, { timeout: 15000 });
+    await p12.evaluate(d => crOpenAt('정규', 'r001', d, true), TODAYSTR);
+    await p12.waitForFunction(() => !!CRX && document.querySelectorAll('.cr-card').length, null, { timeout: 8000 });
+    r = await p12.evaluate(() => [...document.querySelectorAll('.cr-card')].map(c => c.querySelector('.cr-top b').textContent));
+    ok('⑪-2 다른 날로 1회 이동해 나간 학생은 수업 기록 목록에 없다', r.includes('박보검') && !r.includes('김하늘'), JSON.stringify(r));
+    await c12.ctx.close();
+  }
+
   ok('페이지 오류 없음', perr === 0);
   console.log((fail ? '실패 ' + fail + ' / ' : '') + '통과 ' + pass + '건');
   await b.close(); srv.close();
