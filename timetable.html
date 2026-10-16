@@ -7171,11 +7171,15 @@ function alimCfgEnsure(cb, force){
  * 결석 통보를 해서 기록하면 바로 보낼 수 있도록") — 앞날 결석을 기록하면 결석 안내('결석했습니다') 대신 이 창이 뜬다. */
 var ALIM_UI = {
   absent:    { title:'결석 알림톡', short:'결석 알림톡', must:'<b>결석 알림톡은 반드시 보냅니다.</b> 받는 분을 확인하고 [알림톡 보내기]를 눌러 주세요.' },
-  preabsent: { title:'결석 예고 알림톡', short:'결석 예고 알림톡', must:'<b>앞날 결석을 기록했습니다. 결석 예고 알림톡을 보냅니다.</b> 학생이 말한 사유를 확인하고 보충 안내를 골라 주세요.' }
+  preabsent: { title:'결석 예고 알림톡', short:'결석 예고 알림톡', must:'<b>앞날 결석을 기록했습니다. 결석 예고 알림톡을 보냅니다.</b> 누가 알렸는지 고르고, 사유와 보충 안내를 확인해 주세요.' }
 };
 /* 보충 안내 선택지 — 백엔드 ALIM_TPL_.preabsent.options 와 같은 문구(응답 options 가 있으면 그것을 쓴다) */
 var ALIM_MK_OPTS = ['보충 일정은 별도 안내드립니다.', '당일 결석이므로 보충을 진행하지 않습니다.'];
 function alimMkOpts(cfg){ var o = cfg && cfg.templates && cfg.templates.preabsent && cfg.templates.preabsent.options; return (o && o['보충안내'] && o['보충안내'].length) ? o['보충안내'] : ALIM_MK_OPTS; }
+/* 결석 연락을 누구에게 받았는지 — 백엔드 options['알린분']과 같은 문구. 기본값 없이 조교가 꼭 고른다(틀린 쪽이 나가면 학부모님이 오해한다) */
+var ALIM_FROM_OPTS = ['학부모님께', '학생에게'];
+function alimFromOpts(cfg){ var o = cfg && cfg.templates && cfg.templates.preabsent && cfg.templates.preabsent.options; return (o && o['알린분'] && o['알린분'].length) ? o['알린분'] : ALIM_FROM_OPTS; }
+function alimFromLabel(o){ return /학부모/.test(o) ? '학부모님이 알렸어요' : /학생/.test(o) ? '학생이 알렸어요' : o; }
 function alimReady(cfg, kind){ return !!(cfg && cfg.ready && cfg.templates && cfg.templates[kind] && cfg.templates[kind].ready); }
 /* 앞날(오늘 뒤) 수업의 결석 = 결석 예고 */
 function alimKindOf(ymd){ return String(ymd || '') > todayStr() ? 'preabsent' : 'absent'; }
@@ -7277,7 +7281,7 @@ function alimOpenConfirm(items, ymd, log, cfg, opt){
       '<b>'+esc(plainName(it.nm))+'</b>'+
       '<span class="al-note">'+esc(c ? c.cls + ' · ' + c.day + c.start : '반 정보 없음')+'</span>'+
       // 결석 예고는 사유가 문구에 들어간다 — 출석 메모를 미리 채우고 고칠 수 있게
-      (isPre ? '<input type="text" class="al-rs" id="al-rs'+i+'" maxlength="60" autocomplete="off" placeholder="학생이 말한 사유 (예: 학교 행사, 병원 진료)" value="'+esc(memo)+'" oninput="alimPreviewRefresh()">'
+      (isPre ? '<input type="text" class="al-rs" id="al-rs'+i+'" maxlength="60" autocomplete="off" placeholder="학생·학부모님이 말한 사유 (예: 학교 행사, 병원 진료)" value="'+esc(memo)+'" oninput="alimPreviewRefresh()">'
              : (memo ? '<span class="al-memo">사유 · '+esc(memo)+'</span>' : ''))+
       (preOk ? '<span class="al-sent">결석 예고 '+esc(String(pre.ts).slice(5))+' 보냄 — 결석 안내는 안 보내도 됩니다</span>' : '')+
       (tg.length ? '<div class="al-whos">'+whos+'</div>'
@@ -7289,7 +7293,10 @@ function alimOpenConfirm(items, ymd, log, cfg, opt){
   var warn = '';
   if (stuPhonesFailed) warn += '<p class="al-warn">연락처를 불러오지 못했습니다. <button type="button" onclick="alimRetryPhones()">다시 불러오기</button></p>';
   if (alimLogFailed[alimLogKey(ymd, kind)]) warn += '<p class="al-warn">보낸 기록을 불러오지 못해 \'보냄\' 표시가 없을 수 있습니다. 이미 받은 분은 서버가 걸러 주니 그대로 보내도 돼요.</p>';
-  var extra = isPre ? '<p class="mk-sec">보충 안내</p><div class="al-mk">'+alimMkOpts(cfg).map(function(o, i){
+  var extra = isPre ? '<p class="mk-sec">누가 알렸나요?</p><div class="al-mk al-from">'+alimFromOpts(cfg).map(function(o){
+      return '<label><input type="radio" name="al-from" value="'+esc(o)+'" onchange="alimPreviewRefresh()"> '+esc(alimFromLabel(o))+'</label>';
+    }).join('')+'</div>'+
+    '<p class="mk-sec">보충 안내</p><div class="al-mk">'+alimMkOpts(cfg).map(function(o, i){
       return '<label><input type="radio" name="al-mk" value="'+esc(o)+'"'+(i ? '' : ' checked')+' onchange="alimPreviewRefresh()"> '+esc(o)+'</label>';
     }).join('')+'</div>' : '';
   openModal(
@@ -7314,14 +7321,14 @@ function alimOpenConfirm(items, ymd, log, cfg, opt){
 /* 결석 예고 창의 사유·보충 안내 — 학생마다 사유가 다를 수 있어 줄마다 칸, 보충 안내는 창 하나에 하나 */
 function alimExtraVars(i){
   var cf = alimConfirm; if (!cf || cf.kind !== 'preabsent') return {};
-  var r = $('al-rs' + i), mk = document.querySelector('input[name="al-mk"]:checked');
-  return { '사유': r ? r.value.trim() : '', '보충안내': mk ? mk.value : '' };
+  var r = $('al-rs' + i), mk = document.querySelector('input[name="al-mk"]:checked'), fr = document.querySelector('input[name="al-from"]:checked');
+  return { '알린분': fr ? fr.value : '', '사유': r ? r.value.trim() : '', '보충안내': mk ? mk.value : '' };
 }
 function alimPreviewRefresh(){
   var cf = alimConfirm, el = document.querySelector('#modal-box .al-prev'); if (!cf || !el || !alimCfg) return;
   var first = cf.items[0], c0 = classes.find(function(x){ return x.id === first.cid; });
   var v = alimVarsOf(c0, first.nm, cf.ymd), ex = alimExtraVars(0);
-  Object.keys(ex).forEach(function(k){ v[k] = ex[k] || (k === '사유' ? '(사유)' : ''); });
+  Object.keys(ex).forEach(function(k){ v[k] = ex[k] || (k === '사유' ? '(사유)' : k === '알린분' ? '(학부모님께/학생에게)' : ''); });
   el.textContent = alimFill(alimCfg.templates[cf.kind].text, v);
 }
 /* 연락처 조회가 실패했을 때 — 다시 받아서 같은 창을 다시 연다 */
@@ -7347,7 +7354,8 @@ function alimSendConfirm(){
     if (picked && cf.kind === 'preabsent' && !ex['사유'] && !noReason) noReason = plainName(it.nm);
   });
   if (!items.length){ $('al-err').textContent = '받을 분을 한 명 이상 체크해 주세요.'; return; }
-  if (noReason){ $('al-err').textContent = noReason + ' 학생이 말한 사유를 적어 주세요. 알림톡 문구에 들어갑니다.'; return; }
+  if (noReason){ $('al-err').textContent = noReason + ' 학생의 결석 사유를 적어 주세요. 알림톡 문구에 들어갑니다.'; return; }
+  if (cf.kind === 'preabsent' && !alimExtraVars(0)['알린분']){ $('al-err').textContent = '누가 결석을 알렸는지(학부모님·학생) 골라 주세요. 알림톡 문구에 들어갑니다.'; return; }
   var btn = $('al-go'); if (btn){ btn.disabled = true; btn.textContent = '보내는 중…'; }
   document.querySelectorAll('#modal-box .mbtns button').forEach(function(b){ b.disabled = true; });
   alimPostItems(items, cf.ymd, cf.force, function(out){ closeModal(); alimReport(out, cf.ymd, cf.kind); }, cf.kind);
@@ -9181,7 +9189,7 @@ function openAttend(c, nm, dateStr){
     '<button class="pick-abs'+(cur&&cur.status==='결석'?' on':'')+'" onclick="submitAttend(\''+esc(c.id)+'\',\''+esc(nm)+'\',\'결석\')">결석</button>'+
     '</div>'+
     '<textarea id="att-memo" placeholder="'+(attDate > todayStr()
-      ? '앞날 결석 — 학생이 말한 사유를 적어 주세요 (결석 예고 알림톡 문구에 들어갑니다)'
+      ? '앞날 결석 — 학생·학부모님이 말한 사유를 적어 주세요 (결석 예고 알림톡 문구에 들어갑니다)'
       : '메모 — 지각은 꼭 적어주세요 (예: 미리 연락, 10분 지각)')+'">'+esc(cur ? cur.memo : '')+'</textarea>'+
     '<p class="merr" id="att-err"></p>'+
     '<div class="mbtns">'+

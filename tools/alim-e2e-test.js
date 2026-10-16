@@ -251,11 +251,12 @@ const posts = [];
 
   // 13) 결석 예고(2026-10-16 원장님 "내일 결석 친구가 오늘 결석 통보를 해서 기록하면 바로 보낼 수 있도록") —
   //     앞날 수업에 결석을 기록하면 결석 안내 대신 결석 예고 창(사유·보충 안내), 그 날이 되면 결석 안내는 체크 없이
-  const PTPL = '[이수경국어학원] 결석 예고 안내\n#{학생명} 학생이 #{수업일} #{반이름} 수업에 결석한다고 학원에 알려 왔습니다.\n사유: #{사유}\n#{보충안내}\n학부모님께서도 알고 계신 내용인지 확인 부탁드립니다.';
+  const PTPL = '[이수경국어학원] 결석 예고 안내\n#{학생명} 학생이 #{수업일} #{반이름} 수업에 결석한다는 연락을 #{알린분} 받았습니다.\n사유: #{사유}\n#{보충안내}\n내용이 다르면 학원으로 연락 부탁드립니다.';
+  const FRO = ['학부모님께', '학생에게'];
   const MKO = ['보충 일정은 별도 안내드립니다.', '당일 결석이므로 보충을 진행하지 않습니다.'];
   cfg = { result:'success', ready:true, has:{ key:true, secret:true, from:true, pfId:true }, smsFallback:true,
           templates:{ absent:{ label:'결석 안내', text: TPL, vars:['학생명','수업일','반이름'], ready:true },
-                      preabsent:{ label:'결석 예고 안내', text: PTPL, vars:['학생명','수업일','반이름','사유','보충안내'], options:{ '보충안내': MKO }, ready:false } } };
+                      preabsent:{ label:'결석 예고 안내', text: PTPL, vars:['학생명','수업일','반이름','알린분','사유','보충안내'], options:{ '알린분': FRO, '보충안내': MKO }, ready:false } } };
   const tmr = await page.evaluate(() => { closeModal(); alimCfg = null; alimLogByDate = {}; var d = new Date(); d.setDate(d.getDate() + 1);
     return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'); });
   // 13-0) 템플릿 준비 전 — 앞날 결석을 기록해도 결석 안내('결석했습니다')는 뜨지 않는다
@@ -281,7 +282,9 @@ const posts = [];
   ok('사유 칸에 출석 메모가 미리 들어간다', (await page.inputValue('#al-rs0')) === '학교 체험학습');
   ok('보충 안내 두 가지, 첫째가 기본', (await page.$$eval('input[name="al-mk"]', e => e.map(x => x.value + (x.checked ? '+' : '')).join('|'))) === MKO[0] + '+|' + MKO[1]);
   let pv = await page.textContent('.al-prev');
-  ok('미리보기 — 예고 문구·사유·보충 안내', pv.includes('결석한다고 학원에 알려 왔습니다') && pv.includes('사유: 학교 체험학습') && pv.includes(MKO[0]), pv);
+  ok('미리보기 — 예고 문구·사유·보충 안내', pv.includes('결석한다는 연락을') && pv.includes('사유: 학교 체험학습') && pv.includes(MKO[0]), pv);
+  ok('알린 분 두 가지, 기본값 없음', (await page.$$eval('input[name="al-from"]', e => e.map(x => x.value + (x.checked ? '+' : '')).join('|'))) === FRO.join('|'));
+  ok('알린 분을 안 고르면 미리보기에 자리 표시', pv.includes('(학부모님께/학생에게)'), pv);
   ok('결석 예고 창도 [보내지 않기]·[닫기] 없음', !(await page.$('#modal-box .mbtns button:not(#al-go)')));
   await page.click('input[name="al-mk"][value="' + MKO[1] + '"]');
   ok('보충 안내를 바꾸면 미리보기도', (await page.textContent('.al-prev')).includes(MKO[1]));
@@ -291,10 +294,15 @@ const posts = [];
   ok('사유가 비면 보내지 않고 안내', (await page.textContent('#al-err')).includes('사유') && (await page.evaluate(() => posts_len())) === nSend);
   await page.fill('#al-rs0', '병원 진료');
   await page.click('input[name="al-mk"][value="' + MKO[0] + '"]');
+  nSend = await page.evaluate(() => posts_len());
+  await page.click('#al-go');
+  ok('알린 분을 안 고르면 보내지 않고 안내', (await page.textContent('#al-err')).includes('누가 결석을 알렸는지') && (await page.evaluate(() => posts_len())) === nSend);
+  await page.click('input[name="al-from"][value="' + FRO[0] + '"]');
+  ok('알린 분을 고르면 미리보기 — 학부모님께 받았습니다', (await page.textContent('.al-prev')).includes('연락을 학부모님께 받았습니다'));
   await page.click('#al-go');
   await page.waitForFunction(() => document.getElementById('status').textContent.includes('결석 예고 알림톡'), null, { timeout: 8000 });
   const pp = posts.filter(p => p.action === 'alimSend').pop();
-  ok('POST kind preabsent·앞날 날짜·사유·보충 안내', pp && pp.kind === 'preabsent' && pp.items.length === 3 && pp.items.every(x => x.date === tmr && x.vars['사유'] === '병원 진료' && x.vars['보충안내'] === MKO[0] && x.vars['학생명'] === '박지우'), JSON.stringify(pp));
+  ok('POST kind preabsent·앞날 날짜·사유·보충 안내', pp && pp.kind === 'preabsent' && pp.items.length === 3 && pp.items.every(x => x.date === tmr && x.vars['사유'] === '병원 진료' && x.vars['알린분'] === FRO[0] && x.vars['보충안내'] === MKO[0] && x.vars['학생명'] === '박지우'), JSON.stringify(pp));
   ok('상태 줄 — 결석 예고 알림톡 n건', (await page.textContent('#status')).includes('결석 예고 알림톡 3건 보냈어요'));
   // 13-2) 출석 창 줄 — 결석 예고 보냄
   await page.evaluate(t => { attend[attKey('r010', '박지우')] = { status: '결석', memo: '병원 진료' }; openAttend(classes[0], '박지우', t); }, tmr);

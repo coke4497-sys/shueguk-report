@@ -276,20 +276,24 @@ console.log('11) 결석 예고 (2026-10-16)');
 reset();
 fns.alimConfigSet({ pw: 'sh', apiKey: 'KEY1', apiSecret: 'SEC1', pfId: 'PF1', tpl: { absent: 'KA01TP1' } });
 r = J(fns.alimConfigGet());
-eq('결석 예고 템플릿 — 이름·변수·보충 안내 선택지·준비 전', [r.templates.preabsent.label, r.templates.preabsent.vars, r.templates.preabsent.options['보충안내'].length, r.templates.preabsent.ready, !!r.templates.preabsent.notice],
-   ['결석 예고 안내', ['학생명', '수업일', '반이름', '사유', '보충안내'], 2, false, false]);
+eq('결석 예고 템플릿 — 이름·변수·보충 안내 선택지·준비 전', [r.templates.preabsent.label, r.templates.preabsent.vars, r.templates.preabsent.options['보충안내'].length, r.templates.preabsent.options['알린분'], r.templates.preabsent.ready, !!r.templates.preabsent.notice],
+   ['결석 예고 안내', ['학생명', '수업일', '반이름', '알린분', '사유', '보충안내'], 2, ['학부모님께', '학생에게'], false, false]);
+eq('문구 — 알린 분 자리', /결석한다는 연락을 #\{알린분\} 받았습니다/.test(r.templates.preabsent.text), true);
 eq('문구 첫 줄', r.templates.preabsent.text.split('\n')[0], '[이수경국어학원] 결석 예고 안내');
-const pitem = (nm, to, d, why, mk) => ({ student: nm, to, who: '학부모1', cls: '고1 가', date: d, vars: { 학생명: nm, 수업일: '10/17(토) 2:00', 반이름: '고1 가', 사유: why, 보충안내: mk } });
+const pitem = (nm, to, d, why, mk) => ({ student: nm, to, who: '학부모1', cls: '고1 가', date: d, vars: { 학생명: nm, 수업일: '10/17(토) 2:00', 반이름: '고1 가', 알린분: '학부모님께', 사유: why, 보충안내: mk } });
 r = J(fns.alimSend({ pw: 'sh', kind: 'preabsent', items: [pitem('김예고', '01012345678', '2026-10-17', '학교 행사', '보충 일정은 별도 안내드립니다.')] }));
 eq('템플릿 ID 없으면 거절', [r.result, /결석 예고/.test(r.message)], ['error', true]);
 fns.alimConfigSet({ pw: 'sh', tpl: { preabsent: 'KA01TPP' } });
 r = J(fns.alimSend({ pw: 'sh', kind: 'preabsent', items: [pitem('김예고', '01012345678', '2026-10-17', '학교 행사', '보충 일정은 별도 안내드립니다.')] }));
 let pb = JSON.parse(CALLS[CALLS.length - 1].opt.payload).messages[0].kakaoOptions;
-eq('발송 — 템플릿 ID·사유·보충 안내 변수', [r.okCount, pb.templateId, pb.variables['#{사유}'], pb.variables['#{보충안내}']], [1, 'KA01TPP', '학교 행사', '보충 일정은 별도 안내드립니다.']);
+eq('발송 — 템플릿 ID·알린 분·사유·보충 안내 변수', [r.okCount, pb.templateId, pb.variables['#{알린분}'], pb.variables['#{사유}'], pb.variables['#{보충안내}']], [1, 'KA01TPP', '학부모님께', '학교 행사', '보충 일정은 별도 안내드립니다.']);
 eq('기록 — 종류 preabsent·수업일', [SHEETS['알림톡기록'][1][1], SHEETS['알림톡기록'][1][6]], ['preabsent', '2026-10-17']);
 { const nc = CALLS.length;
   r = J(fns.alimSend({ pw: 'sh', kind: 'preabsent', items: [pitem('김사유', '01000000002', '2026-10-17', ' ', '보충 일정은 별도 안내드립니다.')] }));
   eq('사유가 비면 보내지 않음', [r.okCount, /사유/.test(r.sent[0].message), CALLS.length === nc], [0, true, true]); }
+{ const nc = CALLS.length, it = pitem('김알림', '01000000003', '2026-10-17', '학교 행사', '보충 일정은 별도 안내드립니다.'); it.vars.알린분 = '';
+  r = J(fns.alimSend({ pw: 'sh', kind: 'preabsent', items: [it] }));
+  eq('알린 분이 비면 보내지 않음', [r.okCount, /알린분/.test(r.sent[0].message), CALLS.length === nc], [0, true, true]); }
 r = J(fns.alimSend({ pw: 'sh', kind: 'preabsent', items: [pitem('김예고', '01012345678', '2026-10-17', '학교 행사', '보충 일정은 별도 안내드립니다.')] }));
 eq('같은 결석 예고는 중복 건너뜀', r.sent[0].dup, true);
 r = J(fns.alimSend({ pw: 'sh', kind: 'absent', items: [item('김예고', '01012345678', '2026-10-17')] }));
