@@ -2987,10 +2987,10 @@ function ttTwinRoster_(ss, book, v, fromRow, toRow, name) {
       var pn = String(name || '').replace(/\(.*\)$/, '');
       if (tr >= 0) {
         var tk = ttKind_(t.v[tr][6]);
-        if (tk) ttRosterSet_(ss, pn, tk, String(t.v[tr][1] || '').trim() + ttTime_(t.v[tr][2]));
+        if (tk) ttRosterSet_(ss, pn, tk, String(t.v[tr][1] || '').trim() + ttTime_(t.v[tr][2]), name);
       } else if (fr >= 0) {
         var fk = ttKind_(t.v[fr][6]);
-        if (fk) ttRosterSet_(ss, pn, fk, '');
+        if (fk) ttRosterSet_(ss, pn, fk, '', name);
       }
     }
   }
@@ -3164,7 +3164,9 @@ function timetableMove(data) {
     var tk = (book === '내신') ? ttNKind_(v[toRow][6]) : ttKind_(v[toRow][6]);
     var slot = String(v[toRow][1] || '').trim() + ttTime_(v[toRow][2]);   // 예: 토6:00
     var rosterUpdated = false, rosterMsg = '';
-    if (tk) {
+    if (tk && ttPendingName_(moved)) {
+      rosterMsg = TT_PENDING_MSG;
+    } else if (tk) {
       var colOf = ttKindCol_;   // 정규가 G=7 · 정규나 H=8 · 내신진도 I=9 · 내신확인 J=10
       var ssh = ss.getSheetByName(TAB_STUDENTS);
       var sv = ssh ? ssh.getDataRange().getValues() : null;
@@ -3192,9 +3194,19 @@ function timetableMove(data) {
     try { lock.releaseLock(); } catch (e) {}
   }
 }
-/** 학생정보의 정규가/나 열 갱신 (이름 유일 매칭일 때만). kind: 'A'/'B'/'S', slot 빈 문자열이면 비우기 */
-function ttRosterSet_(ss, plainName, kind, slot) {
+/** 아직 등록 전인 학생 표기('박서연(입학예정)'·'(미정)'·'(입테)' 등)인가.
+ *  괄호를 떼면 같은 이름의 재원생과 겹쳐 그 학생의 학생정보를 덮어썼다(2026-10-16 수정 요청함 189 — 박서연 무원중3).
+ *  'M/D부터'처럼 등록을 마친 학생의 표기는 해당 없음. */
+function ttPendingName_(raw) {
+  var m = String(raw || '').trim().match(/\(([^()]*)\)\s*$/);
+  return !!m && /입학|예비|미정|입테|상담|체험/.test(m[1]);
+}
+var TT_PENDING_MSG = '입학 예정 등 아직 등록 전 표기라 리포트에는 반영하지 않았어요.';
+/** 학생정보의 정규가/나 열 갱신 (이름 유일 매칭일 때만). kind: 'A'/'B'/'S', slot 빈 문자열이면 비우기.
+ *  raw(명단의 원래 표기)가 등록 전 표기면 건드리지 않는다. */
+function ttRosterSet_(ss, plainName, kind, slot, raw) {
   if (!kind) return { updated: false, msg: '논술 수업은 리포트 시간표에 반영하지 않아요.' };
+  if (raw && ttPendingName_(raw)) return { updated: false, msg: TT_PENDING_MSG };
   var ssh = ss.getSheetByName(TAB_STUDENTS);
   if (!ssh) return { updated: false, msg: "'학생정보' 탭이 없습니다." };
   var sv = ssh.getDataRange().getValues();
@@ -3235,7 +3247,7 @@ function timetableAdd(data) {
     sh.getRange(toRow + 1, 8).setValue(toList.join(' '));
     var tk = (book === '내신') ? ttNKind_(v[toRow][6]) : ttKind_(v[toRow][6]);
     var slot = String(v[toRow][1] || '').trim() + ttTime_(v[toRow][2]);
-    var r = ttRosterSet_(ss, plain, tk, slot);
+    var r = ttRosterSet_(ss, plain, tk, slot, name);
     ttLog_(ss, '추가', name, '', '', toId, String(v[toRow][6] || ''), String(data.reason || ''), book);
     var twin = ttTwinRoster_(ss, book, v, -1, toRow, name);
     return json({ result:'success', added: name, rosterUpdated: r.updated, rosterMsg: r.msg,
@@ -3270,7 +3282,7 @@ function timetableRemove(data) {
     var removed = fromList.splice(idx, 1)[0];
     sh.getRange(fromRow + 1, 8).setValue(fromList.join(' '));
     var fk = (book === '내신') ? ttNKind_(v[fromRow][6]) : ttKind_(v[fromRow][6]);
-    var r = ttRosterSet_(ss, plain, fk, '');   // 해당 열 비우기
+    var r = ttRosterSet_(ss, plain, fk, '', removed);   // 해당 열 비우기
     ttLog_(ss, '빼기', removed, fromId, String(v[fromRow][6] || ''), '', '', String(data.reason || ''), book);
     var twin = ttTwinRoster_(ss, book, v, fromRow, -1, removed);
     return json({ result:'success', removed: removed, rosterUpdated: r.updated, rosterMsg: r.msg,
@@ -3398,7 +3410,7 @@ function timetableMoveClass(data) {
       var names = String(v[row][7] || '').trim().split(/\s+/).filter(String);
       for (var n = 0; n < names.length; n++) {
         var plain = names[n].replace(/\(.*\)$/, '');
-        var r = ttRosterSet_(ss, plain, kind, slot);
+        var r = ttRosterSet_(ss, plain, kind, slot, names[n]);
         if (r.updated) updated++; else skipped.push(plain);
       }
     }
@@ -3416,7 +3428,7 @@ function timetableMoveClass(data) {
       if (tkind) {
         var tnames = ttListAt_(twin.v, twinRow);
         for (var tn = 0; tn < tnames.length; tn++) {
-          ttRosterSet_(ss, tnames[tn].replace(/\(.*\)$/, ''), tkind, newDay + newStart);
+          ttRosterSet_(ss, tnames[tn].replace(/\(.*\)$/, ''), tkind, newDay + newStart, tnames[tn]);
         }
       }
     }

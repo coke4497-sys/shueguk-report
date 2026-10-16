@@ -2253,6 +2253,10 @@
    * 시트 '학생정보'는 기존 백엔드가 갱신하지만 미러는 밤 점검 때까지 옛 반이 남아
    * 학생 페이지 시간표가 하루 뒤처졌다 (2026-08-23 사용자 지적).
    * 내신은 원래 학생정보에 반영하지 않는 규칙이라 건드리지 않는다. */
+  function ttPendingName(raw){
+    var m = String(raw || '').trim().match(/\(([^()]*)\)\s*$/);
+    return !!m && /입학|예비|미정|입테|상담|체험/.test(m[1]);
+  }
   function syncStudentSlots(book, names, fresh){
     var out = { updated: 0, msg: '' };
     if (bookOf(book) !== '정규' || !names || !names.length) return Promise.resolve(out);
@@ -2260,13 +2264,15 @@
     var seen = {}, jobs = [];
     names.forEach(function(nm){
       var p = plain(nm);
+      // 아직 등록 전인 표기('박서연(입학예정)')는 괄호를 떼면 같은 이름 재원생과 겹친다 — 건드리지 않는다(백엔드 ttPendingName_와 같은 규칙)
+      if (ttPendingName(nm)){ out.msg = out.msg || '입학 예정 등 아직 등록 전 표기라 리포트에는 반영하지 않았어요.'; return; }
       if (!p || seen[p]) return;
       seen[p] = true;
       var slot = { A: '', B: '' };
       list.forEach(function(c){
         var k = slotKind(c.cls);
         if (!k) return;
-        var has = (c.students || []).some(function(s){ return plain(s) === p; });
+        var has = (c.students || []).some(function(s){ return !ttPendingName(s) && plain(s) === p; });
         if (has) slot[k === 'B' ? 'B' : 'A'] = String(c.day || '') + String(c.start || '');
       });
       // 이름이 유일할 때만 — 백엔드 ttRosterSet_와 같은 안전 규칙
