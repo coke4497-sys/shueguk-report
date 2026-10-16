@@ -8061,6 +8061,7 @@ function crHwSrcLoad2(c, bk, ymd, twinId, othSib){
   var from = d.getFullYear() + '-' + crPad(d.getMonth() + 1) + '-' + crPad(d.getDate());
   var ids = [c.id], mine = {}, sibIds = [];
   var weekWed = crPrevWed(ymd);
+  var nsRule = crRuleBook(c, bk) === '내신';
   var books = twinId ? 'in.(' + encodeURIComponent('정규') + ',' + encodeURIComponent('내신') + ')' : 'eq.' + encodeURIComponent(bk);
   if (crRuleBook(c, bk) === '내신'){
     // 학생마다 자기 내신 반(진도·확인) — 시간표 명단에서 이름으로 찾는다('이 주만' 반은 뺀다)
@@ -8120,7 +8121,8 @@ function crHwSrcLoad2(c, bk, ymd, twinId, othSib){
         var moved = mine[x.p].length === 1 && mine[x.p][0] !== c.id && mine[x.p][0] !== twinId;
         // 1회 이동해 온 학생: 원래 반의 '이번 주' 수업은 빠진 수업이라 그때 낸 과제는 다음 주 몫이다 — 지난주까지만 본다
         // (2026-10-02 원장님 "다음 주차 과제가 여기에 들어있어요" — 민서연 목5:30 → 금5:30, 10/1 고3파이널A 과제가 10/2 B 검사 목록에)
-        var own = ord.filter(function(r){ return mine[x.p].indexOf(r.class_id) >= 0 && (!moved || r.ymd < weekWed) && crRowTasks(r, x.p).length; })[0];
+        // 내신: 이번 주에 받은 과제는 다음 주 수업에서 검사한다 — 지난주까지 낸 과제만(2026-10-16 원장님 · 현지T "진도수업 숙제를 '다음 주' 확인수업 때 검사")
+        var own = ord.filter(function(r){ return mine[x.p].indexOf(r.class_id) >= 0 && ((!moved && !nsRule) || r.ymd < weekWed) && crRowTasks(r, x.p).length; })[0];
         // 이 반 기록이 없거나 같은 이름 반보다 한 주 이상 오래됐으면 같은 이름 반 과제로
         if (sibRow && (!moved || crSameLesson((byId[mine[x.p][0]] || {}).cls, c.cls)) && (!own || own.ymd < crPrevWed(sibRow.ymd))) by[x.p] = pack({ class_id: sibRow.class_id, ymd: sibRow.ymd, homework: sibRow.homework, comments: {} }, x.p);
         else by[x.p] = pack(own, x.p);
