@@ -8061,11 +8061,12 @@ function crHwSrcLoad2(c, bk, ymd, twinId, othSib){
   var from = d.getFullYear() + '-' + crPad(d.getMonth() + 1) + '-' + crPad(d.getDate());
   var ids = [c.id], mine = {}, sibIds = [];
   var weekWed = crPrevWed(ymd);
+  var nsRule = crRuleBook(c, bk) === '내신', split = false;
   var books = twinId ? 'in.(' + encodeURIComponent('정규') + ',' + encodeURIComponent('내신') + ')' : 'eq.' + encodeURIComponent(bk);
   if (crRuleBook(c, bk) === '내신'){
     // 학생마다 자기 내신 반(진도·확인) — 시간표 명단에서 이름으로 찾는다('이 주만' 반은 뺀다)
     // 10/12~10/25 고1·고2는 진도·확인이 다른 과목이라 같은 수업 구분의 반만 잇는다(2026-10-15 원장님 — 진도 수업에 문학 과제가 연동됨)
-    var split = CR_NS_SPLIT.test(classGradeOf(c)) && ymd >= CR_NS_SPLIT_FROM && ymd <= CR_NS_SPLIT_TO, myPart = crPartOf(c, bk);
+    split = CR_NS_SPLIT.test(classGradeOf(c)) && ymd >= CR_NS_SPLIT_FROM && ymd <= CR_NS_SPLIT_TO, myPart = crPartOf(c, bk);
     CR.names.forEach(function(x){
       mine[x.p] = crCls().filter(function(k){ return !/^w/.test(k.id) && (!split || crPartOf(k, bk) === myPart) && (k.students || []).some(function(t){ return plainName(t) === x.p; }); }).map(function(k){ return k.id; });
       if (mine[x.p].indexOf(c.id) < 0) mine[x.p].push(c.id);
@@ -8120,7 +8121,21 @@ function crHwSrcLoad2(c, bk, ymd, twinId, othSib){
         var moved = mine[x.p].length === 1 && mine[x.p][0] !== c.id && mine[x.p][0] !== twinId;
         // 1회 이동해 온 학생: 원래 반의 '이번 주' 수업은 빠진 수업이라 그때 낸 과제는 다음 주 몫이다 — 지난주까지만 본다
         // (2026-10-02 원장님 "다음 주차 과제가 여기에 들어있어요" — 민서연 목5:30 → 금5:30, 10/1 고3파이널A 과제가 10/2 B 검사 목록에)
-        var own = ord.filter(function(r){ return mine[x.p].indexOf(r.class_id) >= 0 && (!moved || r.ymd < weekWed) && crRowTasks(r, x.p).length; })[0];
+        // 내신 예외 기간(split — 내신 시간표로 정규 수업): 진도·확인을 따로, 정규처럼 주차 단위 — 이번 주에 받은 과제는 다음 주 몫(2026-10-16 원장님)
+        var weekly = moved || (nsRule && split);
+        var own = ord.filter(function(r){ return mine[x.p].indexOf(r.class_id) >= 0 && (!weekly || r.ymd < weekWed) && crRowTasks(r, x.p).length; })[0];
+        // 보통 내신 기간: 진도·확인·지난 주차가 모두 이어진다 — 지난주 수요일부터 지금 수업 전까지 받은 과제를 모두 합친다(2026-10-16 원장님)
+        if (nsRule && !split && own){
+          var lastWed = crPrevWedShift(weekWed, -7);
+          var all = ord.filter(function(r){ return mine[x.p].indexOf(r.class_id) >= 0 && r.ymd >= lastWed && crRowTasks(r, x.p).length; });
+          if (all.length > 1){
+            var tasks = [], labs = [];
+            all.slice().reverse().forEach(function(r){ var pk = pack(r, x.p); labs.push(pk.label); pk.tasks.forEach(function(t){ if (tasks.indexOf(t) < 0) tasks.push(t); }); });
+            var top = pack(own, x.p);
+            by[x.p] = { tasks: tasks, ymd: top.ymd, cls: top.cls, part: top.part, label: labs.join(' · ') };
+            return;
+          }
+        }
         // 이 반 기록이 없거나 같은 이름 반보다 한 주 이상 오래됐으면 같은 이름 반 과제로
         if (sibRow && (!moved || crSameLesson((byId[mine[x.p][0]] || {}).cls, c.cls)) && (!own || own.ymd < crPrevWed(sibRow.ymd))) by[x.p] = pack({ class_id: sibRow.class_id, ymd: sibRow.ymd, homework: sibRow.homework, comments: {} }, x.p);
         else by[x.p] = pack(own, x.p);
