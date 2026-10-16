@@ -845,3 +845,8 @@ default privileges 까지 되돌렸다. `tools/check_lock.py` 통과(표 15/15 �
 - 슈퍼스타 관리에서 별을 줄 때 허브에 로그인한 선생님 이름. 시트 '별' 탭 H열 '보낸사람'과 같은 값, 옛 기록은 빈 값. `student_bundle`(048 본문 + star_bonus 항목에 giver)로 학생 페이지 '○○ 선생님이 별 n개를 선물하셨어요'에 쓰인다.
 - **2026-10-14 실제 수파베이스에 적용 완료**(관리 API — 원장님이 준 sbp_ 토큰, 저장 안 함). 확인: 열 생김(기본 빈 값)·기존 25건 그대로·공개 키 표 401·공개 키 student_bundle 이 giver 를 돌려줌(검증 행은 지움).
 - 적용 전에는 미러가 giver 없이 다시 넣고, 학생 페이지는 '선생님이 …'로 보인다. 검증 `tools/star-giver-sql-test.sh`.
+
+## 051 — 지필 복기 고치기 `submission_mine`·`submission_update` (2026-10-16)
+- `submissions.edited_at`·`edited_by`(마지막으로 고친 시각·사람 — '학생' 또는 '○○ 선생님').
+- 학생 함수(anon): `submission_mine(p {exam_id,title,name,phone})` — 이름(끝 알파벳 뗌)+학부모 8자리+시험이 같은 가장 최근 제출(한 마디 없음). `submission_update(p {id,name,phone,wrong_count,wrong_text,vow,score})` — 보내기 전(sent_at 없음)일 때만 그 줄을 고친다(`not_found`/`sent` 거절).
+- 선생님은 교사 인증으로 표를 바로 PATCH(t.html). **적용 상태: 2026-10-16 실제 수파베이스에 적용 완료**(관리 API — 원장님이 준 sbp_ 토큰, 저장 안 함). 확인: edited_at·edited_by 열 생김, 공개 키로 두 함수 응답(없는 학생 found false·not_found), 표 직접 읽기 401, 실제 최근 제출 3건을 submission_mine 이 찾음.

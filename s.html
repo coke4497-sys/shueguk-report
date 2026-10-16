@@ -1455,10 +1455,14 @@ function api(extra){
           r._nm = nm; r._phone = tr(r.parent_phone); r._sc = tr(r.school);
           subMatch.push(r);
         });
-        var submittedSet = {};
+        var submittedSet = {}, sentByExam = {};
         subMatch.forEach(function(r){
           var m = (r._phone && r._phone === sid) || (r._nm && (r._nm === name || r._nm === base));
-          if (m && tr(r.exam)) submittedSet[tr(r.exam)] = true;
+          if (m && tr(r.exam)){
+            submittedSet[tr(r.exam)] = true;
+            // 가장 최근 제출의 보냄 여부(043) — 보내기 전이면 복기를 고칠 수 있다(051). id 순서대로 오므로 뒤에 온 값이 최근
+            if ('sent_at' in r) sentByExam[tr(r.exam)] = !!r.sent_at;
+          }
         });
         /* 시험 수 — countExams_. 주의: 백엔드의 잠금 전 examCount는 uniq·grade 인자 없이 호출되어
          * (countExams_(ss,sid,name,siblingShared,school)) 더 엄격하고, 별 집계(collectStars_)는
@@ -1487,7 +1491,8 @@ function api(extra){
         examList.forEach(function(e, i){ titleById[tr(e.report_id)] = tr(e.title); listOrder[tr(e.report_id)] = i + 1; });
         var analyses = Object.keys(assigned).map(function(id){
           var title = titleById[id] || id;
-          return { id: id, title: title, done: !!(submittedSet[id] || (title && submittedSet[title])),
+          var sentV = (id in sentByExam) ? sentByExam[id] : ((title && title in sentByExam) ? sentByExam[title] : undefined);
+          return { id: id, title: title, done: !!(submittedSet[id] || (title && submittedSet[title])), sent: sentV,
                    _ord: (typeof listOrder[id] === 'number') ? listOrder[id] : -1 };
         });
         analyses.sort(function(a, b){ return b._ord - a._ord; });
@@ -1719,6 +1724,7 @@ function api(extra){
             x.scope = rep ? rep.scope : '';
             x.review = rep ? rep.review : [];
             x.questions = rep ? rep.questions : [];
+            x.reportId = rep ? rep.id : '';   // 복기 고치기 링크(051)
           });
           resp.exams = exams;
         } else {
@@ -2660,11 +2666,14 @@ function rStuQuery(){
 function analysisNoticeHtml(a){
   var href = 'r.html?id=' + encodeURIComponent(a.id) + rStuQuery();
   if(a.done){
+    /* 선생님이 리포트를 보내기 전(sent false)이면 복기를 고칠 수 있다(051, 2026-10-16). 모르면(옛 경로) 예전 문구 */
+    var canEdit = a.sent === false;
     return '<div class="notice-item">' +
       '<span class="ntag" style="background:#DCE6E0;color:var(--accent);">지필고사 분석지</span>' +
       '<div class="nh"><span class="ntitle">'+esc(a.title||'지필고사 분석지')+'</span></div>' +
-      '<div class="nbody" style="color:var(--accent);">✓ 복기 입력을 마쳤어요.</div>' +
-      '<a class="hw-go" href="'+esc(href)+'">다시 보기 '+svg(ICON.arrow)+'</a>' +
+      '<div class="nbody" style="color:var(--accent);">✓ 복기 입력을 마쳤어요.' +
+        (canEdit ? '<br><span style="color:var(--ink-soft,#5C6A64);">선생님이 리포트를 보내기 전까지 복기를 고칠 수 있어요.</span>' : '') + '</div>' +
+      '<a class="hw-go" href="'+esc(href)+'">'+(canEdit ? '복기 고치기' : '다시 보기')+' '+svg(ICON.arrow)+'</a>' +
       '</div>';
   }
   return '<div class="notice-item" style="border-color:#8FA89C;background:#F4F8F6;">' +
@@ -3120,7 +3129,9 @@ function examWaitHtml(x){
   return '<div class="report show"><div class="r-pad">' +
     '<div class="r-title-box"><p class="sup">SHUEGUK REPORT · 개인별 분석</p><p class="main">'+esc(x.title||'시험')+'</p></div>' +
     '<div class="exam-wait"><b>선생님이 리포트를 준비하고 있습니다.</b>' +
-    '<p>복기 입력은 '+esc(x.submittedAt||'')+'에 잘 받았어요. 선생님이 피드백을 적어 리포트를 보내면 이곳에서 볼 수 있어요.</p></div>' +
+    '<p>복기 입력은 '+esc(x.submittedAt||'')+'에 잘 받았어요. 선생님이 피드백을 적어 리포트를 보내면 이곳에서 볼 수 있어요.</p>' +
+    (x.reportId ? '<p>리포트를 받기 전까지는 복기를 고칠 수 있어요. <a class="hw-go" href="'+esc('r.html?id='+encodeURIComponent(x.reportId)+rStuQuery())+'">복기 고치기 '+svg(ICON.arrow)+'</a></p>' : '') +
+    '</div>' +
     '</div></div>';
 }
 function examSentMd(s){ var m = /^\d{4}-(\d{2})-(\d{2})/.exec(String(s || '')); return m ? (+m[1])+'/'+(+m[2]) : ''; }
