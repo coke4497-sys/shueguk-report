@@ -318,16 +318,26 @@ const STUDENTS = [
     const sy2 = r.find(x => x.nm === '박보검') || {};
     ok('고1 확인 수업: 진도(독서) 과제가 아니라 지난 확인(문학) 과제', sy2.tasks && sy2.tasks.join('|') === '과제집 w14', JSON.stringify(r));
     await ctx.close();
-    // 기간 밖(10/26부터)은 종전대로 진도·확인이 이어진다 — 진도 수업이 지난주 확인 수업 과제를 검사.
-    // 이번 주(수요일부터)에 받은 과제는 다음 주 검사분이라 잇지 않는다(2026-10-16 원장님 · 현지T)
+    // 예외 기간에는 정규처럼 주차 단위 — 이번 주(수요일부터)에 받은 과제는 다음 주 몫(2026-10-16 원장님 · 현지T)
     ({ ctx, page, st } = await ctxOf({ book: '내신',
       rows: [row('n001', '고1 화정B(천재수 공통국어2)', '현지', '박보검'), Object.assign(row('n002', '고1 확인', '연주', '(화정)박보검'), { start_time: '7:30', end_time: '9:00' })],
-      att: [], hw: [], prev: [{ class_id: 'n002', ymd: PREVWED, homework: '과제집 w15' }, { class_id: 'n002', ymd: D1, homework: '과제집 w14' }, { class_id: 'n001', ymd: D6, homework: '독서 지문 3개' }] }));
+      att: [], hw: [], prev: [{ class_id: 'n001', ymd: PREVWED, homework: '이번 주 과제' }, { class_id: 'n001', ymd: D6, homework: '독서 지문 3개' }] }));
+    await page.evaluate(t => { CR_NS_SPLIT_FROM = t; CR_NS_SPLIT_TO = t; }, TODAYSTR);
+    await openCard(page, '고1 화정B(천재수 공통국어2)');
+    await page.waitForFunction(() => document.querySelector('.cr-tname'), null, { timeout: 8000 }).catch(() => {});
+    r = await page.evaluate(() => [...document.querySelectorAll('.cr-tname')].map(x => x.textContent));
+    ok('예외 기간 진도 수업: 이번 주 과제는 빼고 지난주 진도 과제만', r.join('|') === '독서 지문 3개', JSON.stringify(r));
+    await ctx.close();
+    // 기간 밖(10/26부터)은 진도·확인·지난 주차가 모두 이어진다 — 지난주 수요일부터 받은 과제를 모두 합쳐 검사(2026-10-16 원장님)
+    const D10 = (() => { const d = new Date(PREVWED + 'T00:00:00'); d.setDate(d.getDate() - 10); return ymd(d); })();
+    ({ ctx, page, st } = await ctxOf({ book: '내신',
+      rows: [row('n001', '고1 화정B(천재수 공통국어2)', '현지', '박보검'), Object.assign(row('n002', '고1 확인', '연주', '(화정)박보검'), { start_time: '7:30', end_time: '9:00' })],
+      att: [], hw: [], prev: [{ class_id: 'n002', ymd: D1, homework: '과제집 w14' }, { class_id: 'n001', ymd: D6, homework: '독서 지문 3개' }, { class_id: 'n002', ymd: D10, homework: '옛 과제' }] }));
     await page.evaluate(() => { CR_NS_SPLIT_FROM = '2000-01-01'; CR_NS_SPLIT_TO = '2000-01-02'; });
     await openCard(page, '고1 화정B(천재수 공통국어2)');
     await page.waitForFunction(() => document.querySelector('.cr-tname'), null, { timeout: 8000 }).catch(() => {});
     r = await page.evaluate(() => [...document.querySelectorAll('.cr-tname')].map(x => x.textContent));
-    ok('기간 밖 고1 진도 수업: 이번 주 과제(w15)는 빼고 지난주 가장 최근(확인) 과제', r.join('|') === '과제집 w14', JSON.stringify(r));
+    ok('기간 밖 고1 진도 수업: 지난주 진도·확인 과제를 모두(그보다 앞 주 과제는 빼고)', r.join('|') === '독서 지문 3개|과제집 w14', JSON.stringify(r));
     await ctx.close();
   }
 
