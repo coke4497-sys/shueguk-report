@@ -7966,7 +7966,13 @@ function crOpenAt(bk, cid, ymd, fresh){   // fresh = 주차별 — 오늘이어�
   setStatus(mdOfYmdStr(ymd) + ' 수업 기록을 불러오는 중…');
   var qs = '&pw=' + encodeURIComponent(pw) + '&book=' + encodeURIComponent(bk) + '&t=' + Date.now();
   var get = function(u){ return fetch(u).then(function(r){ return r.json(); }).catch(function(){ return null; }); };
-  Promise.all([get(ENDPOINT + '?action=timetableList' + qs), get(ENDPOINT + '?action=timetableWeek&from=' + ymd + '&to=' + ymd + qs)]).then(function(rs){
+  // 1회 이동은 적용일이 옮겨 간 반의 날짜라(금 수업 → 토 수업이면 토요일) 그 날 하루만 받으면 빠진다 —
+  // 그 주(월~일) 기록을 받아 '이 반에서 나간 학생'을 가린다(2026-10-16 윤예준 고3파이널B → D)
+  var wd = new Date(ymd + 'T00:00:00'), ws = weekStartOf(wd);
+  var wMon = new Date(ws); wMon.setDate(wMon.getDate() - 2);
+  var wSun = new Date(ws); wSun.setDate(wSun.getDate() + 4);
+  var wFrom = ymdOf(wMon), wTo = ymdOf(wSun);
+  Promise.all([get(ENDPOINT + '?action=timetableList' + qs), get(ENDPOINT + '?action=timetableWeek&from=' + wFrom + '&to=' + wTo + qs)]).then(function(rs){
     if (!rs[0] || rs[0].result !== 'success' || !rs[1] || rs[1].result !== 'success'){ setStatus('그 수업 기록을 불러오지 못했어요. 새로고침 후 다시 눌러 주세요.', 'err'); return; }
     var cls = rs[0].classes || [], logs = rs[1].onceMoves || [];
     var c = cls.find(function(x){ return x.id === cid; });
@@ -7978,9 +7984,10 @@ function crOpenAt(bk, cid, ymd, fresh){   // fresh = 주차별 — 오늘이어�
     }
     var att = {};
     (rs[1].attend || []).forEach(function(x){ if (x.date === ymd) att[attKey(x.classId, x.student)] = { status: x.status, memo: x.memo }; });
-    var stu = logs.filter(function(o){ return isStudentLog(o) && o.date === ymd; }).map(function(o){ return Object.assign({}, o, { ymd: o.date }); });
+    var wk = logs.filter(function(o){ return isStudentLog(o) && o.date >= wFrom && o.date <= wTo; }).map(function(o){ return Object.assign({}, o, { ymd: o.date }); });
+    var stu = wk.filter(function(o){ return o.date === ymd; });
     setStatus('');
-    openClassNote(c, { bk: bk, ymd: ymd, att: att, onceIn: stu, onceOut: stu, classes: cls });
+    openClassNote(c, { bk: bk, ymd: ymd, att: att, onceIn: stu, onceOut: wk, classes: cls });
   });
 }
 function crClose(){
