@@ -118,7 +118,7 @@ async function submit(pg){ await pg.click('#formBar .btn-primary'); await pg.cli
   const tp = await tctx.newPage();
   tp.on('pageerror', e => ok(false, 'pageerror(t.html) ' + e.message));
   tp.on('dialog', d => d.accept());
-  await tp.route('**/*', rt => {
+  const tRoute = rt => {
     const u = rt.request().url(), m = rt.request().method();
     const j = (o, st) => rt.fulfill({ status: st || 200, contentType: 'application/json', body: JSON.stringify(o) });
     if (u.startsWith('http://127.0.0.1:' + port)) return rt.continue();
@@ -137,7 +137,8 @@ async function submit(pg){ await pg.click('#formBar .btn-primary'); await pg.cli
     if (/\/rest\/v1\/exam_questions/.test(u)) return j(EXAM.questions.map((x, i) => Object.assign({ seq: i + 1 }, x)));
     if (/script\.google/.test(u)) return j({ result: 'success', students: [] });
     return rt.fulfill({ status: 204, body: '' });
-  });
+  };
+  await tp.route('**/*', tRoute);
   await tp.goto('http://127.0.0.1:' + port + '/t.html', { waitUntil: 'domcontentloaded' });
   await tp.evaluate(() => loadStudents('r1'));
   await tp.waitForFunction(() => document.querySelectorAll('#studentSel option').length === 2, null, { timeout: 8000 });
@@ -153,6 +154,8 @@ async function submit(pg){ await pg.click('#formBar .btn-primary'); await pg.cli
   await tp.click('#seList .se-q[data-no="3"] .se-qh');
   await tp.fill('#seList .se-q[data-no="3"] textarea', '시간이 부족했어요');
   ok(await tp.textContent('#seScore') === '50점', '점수 다시 계산(2·3번 틀림 = 50점)', await tp.textContent('#seScore'));
+  ok(/김현지 선생님이 기록됩니다/.test(await tp.textContent('#seWho')), '창에 고친 선생님 안내', await tp.textContent('#seWho'));
+  await tp.fill('#teacherName', '이수경');   // 리포트 담당 칸이 달라도 고친 사람은 로그인한 선생님
   await tp.fill('#seVow', '선생님이 고친 다짐');
   await tp.click('#seSave');
   await tp.waitForFunction(() => !document.getElementById('subEdit').classList.contains('show'), null, { timeout: 5000 });
@@ -163,10 +166,32 @@ async function submit(pg){ await pg.click('#formBar .btn-primary'); await pg.cli
   r = await tp.evaluate(() => ({ st: document.getElementById('editState').textContent, sc: document.getElementById('rScore').textContent, wc: document.getElementById('rWc').textContent }));
   ok(/김현지 선생님이 .* 고쳤어요/.test(r.st) && r.sc === '50점' && r.wc === '2개', '보고서·상태 줄 갱신', JSON.stringify(r));
   NO_COL = true;
-  await tp.click('#editSubBtn'); await tp.click('#seSave');
-  await tp.waitForFunction(() => !document.getElementById('subEdit').classList.contains('show'), null, { timeout: 5000 });
-  ok(!('edited_at' in patches[patches.length - 1].b) && patches.length >= 3, '051 전 DB — 고친 사람 없이 다시 저장');
+  const before = patches.length; let alertMsg = '';
+  tp.removeAllListeners('dialog'); tp.on('dialog', d => { alertMsg = d.message(); d.accept(); });
+  await tp.click('#editSubBtn'); await tp.click('#seSave'); await tp.waitForTimeout(600);
+  ok(patches.length === before + 1 && 'edited_by' in patches[before].b && /051/.test(alertMsg) &&
+     await tp.$eval('#subEdit', e => e.classList.contains('show')), '051 전 DB — 고친 선생님 없이 저장하지 않고 알린다', alertMsg);
   await tctx.close();
+
+  console.log('⑤-2 t.html — 로그인하지 않았으면 이름을 묻는다');
+  NO_COL = false;
+  const t2 = await br.newContext().then(c => c.newPage());
+  const asks = [];
+  t2.on('dialog', d => { asks.push(d.type() + ':' + d.message()); d.type() === 'prompt' ? d.accept(asks.length === 1 ? '' : '박언호') : d.accept(); });
+  await t2.route('**/*', tRoute);
+  await t2.goto('http://127.0.0.1:' + port + '/t.html', { waitUntil: 'domcontentloaded' });
+  await t2.evaluate(() => loadStudents('r1'));
+  await t2.waitForFunction(() => document.querySelectorAll('#studentSel option').length === 2, null, { timeout: 8000 });
+  await t2.selectOption('#studentSel', '0');
+  await t2.click('#editSubBtn');
+  ok(/로그인하지 않아/.test(await t2.textContent('#seWho')), '로그인 없음 안내');
+  const n0 = patches.length;
+  await t2.click('#seSave'); await t2.waitForTimeout(400);
+  ok(patches.length === n0 && asks.some(a => /^alert:.*이름이 있어야/.test(a)), '이름을 비우면 저장하지 않는다', JSON.stringify(asks));
+  await t2.click('#seSave');
+  await t2.waitForFunction(() => !document.getElementById('subEdit').classList.contains('show'), null, { timeout: 5000 });
+  ok(patches.length === n0 + 1 && patches[n0].b.edited_by === '박언호 선생님', '물어본 이름으로 기록', JSON.stringify(patches[n0] && patches[n0].b.edited_by));
+  await t2.close();
 
   console.log('⑥ s.html — 보내기 전이면 복기 고치기 링크');
   const sp = await br.newContext().then(c => c.newPage());

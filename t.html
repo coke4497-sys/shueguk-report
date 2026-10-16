@@ -236,6 +236,7 @@ body{font-family:'Noto Sans KR',sans-serif; background:var(--sage-fog); color:va
       <div id="seList"></div>
       <label style="font-weight:700; font-size:14px;">다음 시험을 위한 다짐</label>
       <textarea id="seVow" rows="3"></textarea>
+      <p class="se-sub" id="seWho" style="margin:8px 0 0;"></p>
       <p class="se-score">점수 <b id="seScore">—</b> <span id="seScoreNote" style="font-size:13px; color:#65726B;"></span></p>
       <div class="se-btns"><button class="btn" style="background:#F2F5F3;color:#4F5C56;" onclick="closeSubEdit()">닫기</button><button class="btn" id="seSave" onclick="saveSubEdit()">고친 내용 저장</button></div>
     </div></div>
@@ -671,18 +672,17 @@ body{font-family:'Noto Sans KR',sans-serif; background:var(--sage-fog); color:va
       var path = '/submissions?id=eq.' + id + '&name=eq.' + q(String(b.name || '').trim());
       var body = { wrong_count: String(b.wrongCount == null ? 0 : b.wrongCount), wrong_text: String(b.wrongText || ''),
                    vow: String(b.vow || ''), score: String(b.score || ''),
-                   edited_at: nowIso(), edited_by: String(b.by || '선생님').trim() || '선생님' };
+                   edited_at: nowIso(), edited_by: String(b.by || '').trim() };
+      if (!body.edited_by) return Promise.resolve({ result:'error', message:'고친 선생님 이름이 없어 저장하지 않았어요.' });
+      // 고친 선생님이 반드시 남아야 한다(2026-10-16 원장님) — 열이 없으면(051 전) 저장하지 않고 알린다
       return sbWrite('PATCH', path, body, { 'Prefer': 'return=representation' })
-        .catch(function(e){
-          if (!/edited_/.test(String(e && e.message || e))) throw e;
-          delete body.edited_at; delete body.edited_by;
-          return sbWrite('PATCH', path, body, { 'Prefer': 'return=representation' });
-        })
         .then(function(rows){
           if (!rows || !rows.length) return { result:'error', message:'기록을 찾을 수 없어요. 새로고침 후 다시 시도해 주세요.' };
           return ok({ editedAt: rows[0].edited_at || '', editedBy: rows[0].edited_by || '' });
         }, function(e){
           console.warn('복기 고치기 실패', e);
+          if (/edited_/.test(String(e && e.message || e)))
+            return { result:'error', message:'고친 선생님을 기록할 준비(데이터베이스 051)가 아직 안 됐습니다. 원장님께 알려 주세요.' };
           return { result:'error', message:'고친 내용을 저장하지 못했어요. 잠시 뒤 다시 시도해 주세요.' };
         });
     },
@@ -1176,6 +1176,7 @@ function openSubEdit(){
   document.getElementById('seSub').innerHTML = esc(s.name) + ' 학생의 복기입니다. 문항을 누르면 틀림 표시가 바뀌고, 점수는 틀린 문항 배점으로 다시 계산돼요.' +
     (s.sentAt ? '<br><b>이미 학생에게 보낸 리포트입니다.</b> 저장하면 학생 페이지에도 바로 바뀌어 보입니다.' : '');
   document.getElementById('seVow').value = s.vow || '';
+  document.getElementById('seWho').textContent = LOGIN_TEACHER ? '고친 선생님으로 ' + LOGIN_TEACHER + ' 선생님이 기록됩니다.' : '허브에 로그인하지 않아 저장할 때 이름을 묻습니다.';
   seRender();
   document.getElementById('subEdit').classList.add('show');
 }
@@ -1202,11 +1203,17 @@ function saveSubEdit(){
     return '['+no+'번 · '+q.area+(q.detail?'·'+q.detail:'')+' · '+q.lv+'] '+q.txt+'\n  → '+r;
   }).join('\n\n');
   var vow = document.getElementById('seVow').value.trim(), score = String(seScore().score);
-  var by = (document.getElementById('teacherName').value || LOGIN_TEACHER || '').trim();
+  /* 고친 선생님 = 허브에 로그인한 선생님(담당 선생님 칸이 아니다 — 리포트 담당과 고친 사람이 다를 수 있다).
+   * 로그인 이름이 없으면 한 번 묻고, 비우면 저장하지 않는다(2026-10-16 원장님 "고친 선생님 기록되어야해요"). */
+  var by = String(LOGIN_TEACHER || '').trim();
+  if(!by){
+    by = String(window.prompt('고친 선생님 이름을 적어 주세요. (허브에 로그인하면 자동으로 들어갑니다)', '') || '').trim().replace(/\s*선생님$/, '');
+    if(!by){ alert('고친 선생님 이름이 있어야 저장할 수 있습니다.'); return; }
+  }
   var btn = document.getElementById('seSave'); btn.disabled = true;
   fetch(ENDPOINT, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
     body: JSON.stringify({ action:'editSubmission', rowIndex: s.rowIndex, name: s.name,
-      wrongCount: keys.length, wrongText: text, vow: vow, score: score, by: by ? by + ' 선생님' : '선생님' }) })
+      wrongCount: keys.length, wrongText: text, vow: vow, score: score, by: by + ' 선생님' }) })
     .then(function(r){ return r.json(); })
     .then(function(res){
       btn.disabled = false;
