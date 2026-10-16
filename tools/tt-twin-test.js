@@ -94,5 +94,18 @@ eq('결과',r.result,'success');
 eq('정규 r009 그대로',roster('정규시간표','r009'),'김지윤 전민성 허민');
 eq('내신 n015 그대로',roster('내신시간표','n015'),'김지윤 전민성 허민');
 
+console.log('9) 등록 전 표기(입학예정)는 같은 이름 재원생의 학생정보를 덮어쓰지 않는다(2026-10-16 수정 요청함 189)');
+reset();
+r=J(fns.timetableAdd({pw:'sh',book:'정규',student:'전민성(입학예정)',toId:'r023'}));
+eq('결과',r.result,'success');
+eq('명단에는 들어감',roster('정규시간표','r023'),'채다미 이서린 전민성(입학예정)');
+eq('재원생 전민성 정규가 그대로',SHEETS['학생정보'].find(x=>x[1]==='전민성')[6],'목5:30');
+eq('rosterUpdated',r.rosterUpdated,false);
+r=J(fns.timetableRemove({pw:'sh',book:'정규',student:'전민성(입학예정)',fromId:'r023'}));
+eq('빼도 재원생 정규가 그대로',SHEETS['학생정보'].find(x=>x[1]==='전민성')[6],'목5:30');
+reset();
+r=J(fns.timetableAdd({pw:'sh',book:'정규',student:'전민성(8/30부터)',toId:'r023'}));
+eq('M/D부터 표기는 종전대로 반영',r.rosterUpdated,true);
+
 console.log(fail? '\n실패 '+fail+'건' : '\n전부 통과');
 process.exit(fail?1:0);
