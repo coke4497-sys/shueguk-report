@@ -849,4 +849,4 @@ default privileges 까지 되돌렸다. `tools/check_lock.py` 통과(표 15/15 �
 ## 051 — 지필 복기 고치기 `submission_mine`·`submission_update` (2026-10-16)
 - `submissions.edited_at`·`edited_by`(마지막으로 고친 시각·사람 — '학생' 또는 '○○ 선생님').
 - 학생 함수(anon): `submission_mine(p {exam_id,title,name,phone})` — 이름(끝 알파벳 뗌)+학부모 8자리+시험이 같은 가장 최근 제출(한 마디 없음). `submission_update(p {id,name,phone,wrong_count,wrong_text,vow,score})` — 보내기 전(sent_at 없음)일 때만 그 줄을 고친다(`not_found`/`sent` 거절).
-- 선생님은 교사 인증으로 표를 바로 PATCH(t.html). **적용 상태: 아직 실제 수파베이스에 적용 전** — 적용 전에는 학생 화면이 예전처럼 새로 제출하고, 선생님 고치기는 고친 선생님을 남길 수 없어 저장을 막는다.
+- 선생님은 교사 인증으로 표를 바로 PATCH(t.html). **적용 상태: 2026-10-16 실제 수파베이스에 적용 완료**(관리 API — 원장님이 준 sbp_ 토큰, 저장 안 함). 확인: edited_at·edited_by 열 생김, 공개 키로 두 함수 응답(없는 학생 found false·not_found), 표 직접 읽기 401, 실제 최근 제출 3건을 submission_mine 이 찾음.
