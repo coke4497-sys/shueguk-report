@@ -895,6 +895,8 @@
   .al-sent.no{background:#F5EBCF;color:#5F4E14;}
   .al-sent.bad{background:#F3DFDD;color:#7E2B3D;}
   .al-row .al-memo{flex:1 1 100%;font-size:.78rem;color:#7E2B3D;padding-left:2px;}
+  .al-row .al-rs{flex:1 1 100%;font:inherit;font-size:.84rem;border:1px solid var(--line);border-radius:8px;padding:5px 8px;}
+  .al-mk{display:flex;flex-direction:column;gap:4px;margin:4px 0 8px;font-size:.86rem;} .al-mk label{display:flex;gap:6px;align-items:center;cursor:pointer;}
   .al-warn{font-size:.8rem;background:#FBF4DF;color:#5F4E14;border-radius:10px;padding:8px 10px;margin:0 0 8px;line-height:1.5;}
   .al-warn button{font:inherit;font-size:.78rem;margin-left:6px;border:0;border-radius:8px;padding:3px 9px;background:#fff;color:#5F4E14;cursor:pointer;}
   .al-badn{color:#7E2B3D;}
@@ -7165,15 +7167,31 @@ function alimCfgEnsure(cb, force){
       alimCfgBusy = false; alimCfgCbs.splice(0).forEach(function(f){ f(cfg); });
     });
 }
-function alimLogEnsure(ymd, cb, force){
-  if (alimLogByDate[ymd] && !force){ if (cb) cb(alimLogByDate[ymd]); return; }
+/* 알림 종류별 화면 문구 — 백엔드 ALIM_TPL_ 의 kind 와 같은 키. preabsent = 결석 예고(2026-10-16 원장님 "내일 결석 친구가 오늘
+ * 결석 통보를 해서 기록하면 바로 보낼 수 있도록") — 앞날 결석을 기록하면 결석 안내('결석했습니다') 대신 이 창이 뜬다. */
+var ALIM_UI = {
+  absent:    { title:'결석 알림톡', short:'결석 알림톡', must:'<b>결석 알림톡은 반드시 보냅니다.</b> 받는 분을 확인하고 [알림톡 보내기]를 눌러 주세요.' },
+  preabsent: { title:'결석 예고 알림톡', short:'결석 예고 알림톡', must:'<b>앞날 결석을 기록했습니다. 결석 예고 알림톡을 보냅니다.</b> 학생이 말한 사유를 확인하고 보충 안내를 골라 주세요.' }
+};
+/* 보충 안내 선택지 — 백엔드 ALIM_TPL_.preabsent.options 와 같은 문구(응답 options 가 있으면 그것을 쓴다) */
+var ALIM_MK_OPTS = ['보충 일정은 별도 안내드립니다.', '당일 결석이므로 보충을 진행하지 않습니다.'];
+function alimMkOpts(cfg){ var o = cfg && cfg.templates && cfg.templates.preabsent && cfg.templates.preabsent.options; return (o && o['보충안내'] && o['보충안내'].length) ? o['보충안내'] : ALIM_MK_OPTS; }
+function alimReady(cfg, kind){ return !!(cfg && cfg.ready && cfg.templates && cfg.templates[kind] && cfg.templates[kind].ready); }
+/* 앞날(오늘 뒤) 수업의 결석 = 결석 예고 */
+function alimKindOf(ymd){ return String(ymd || '') > todayStr() ? 'preabsent' : 'absent'; }
+/* 보낸 기록 캐시 키 — 결석 안내는 옛 그대로 날짜, 다른 종류는 '종류|날짜' */
+function alimLogKey(ymd, kind){ return (!kind || kind === 'absent') ? ymd : kind + '|' + ymd; }
+function alimLogEnsure(ymd, cb, force, kind){
+  kind = kind || 'absent';
+  var lk = alimLogKey(ymd, kind);
+  if (alimLogByDate[lk] && !force){ if (cb) cb(alimLogByDate[lk]); return; }
   fetch(ENDPOINT + '?action=alimLog&pw=' + encodeURIComponent(pw) + '&from=' + ymd + '&to=' + ymd + '&t=' + Date.now())
     .then(function(r){ return r.json(); })
     .then(function(d){
       if (!d || d.result !== 'success') throw new Error((d && d.message) || '조회 실패');
       var m = {};
       (d.rows || []).slice().reverse().forEach(function(r){   // 오래된 것부터 덮어 마지막 시도가 남게
-        if (r.kind !== 'absent') return;
+        if (r.kind !== kind) return;
         var k = plainName(r.student), w = r.who || '';
         var e = m[k] || (m[k] = { byWho: {} });
         if (!e.byWho[w] || r.ok || !e.byWho[w].ok) e.byWho[w] = { ts: r.ts, ok: r.ok, message: r.message };
@@ -7185,10 +7203,10 @@ function alimLogEnsure(ymd, cb, force){
           .sort(function(a, b){ return String(b.ts).localeCompare(String(a.ts)); })[0] || {};
         e.ok = okW.length > 0; e.ts = last.ts || ''; e.message = last.message || ''; e.who = okW.length ? okW.join('·') : ws.join('·');
       });
-      alimLogByDate[ymd] = m; delete alimLogFailed[ymd];
+      alimLogByDate[lk] = m; delete alimLogFailed[lk];
     })
-    .catch(function(){ alimLogByDate[ymd] = alimLogByDate[ymd] || {}; alimLogFailed[ymd] = true; })
-    .then(function(){ if (cb) cb(alimLogByDate[ymd]); });
+    .catch(function(){ alimLogByDate[lk] = alimLogByDate[lk] || {}; alimLogFailed[lk] = true; })
+    .then(function(){ if (cb) cb(alimLogByDate[lk]); });
 }
 /* 알림 문구 변수: 수업일 '9/11(금) 5:30' · 반이름 '고1 가' */
 function alimVarsOf(c, nm, ymd){
@@ -7217,94 +7235,131 @@ function alimMemoOf(cid, nm, ymd){
   return a && a.status === '결석' ? String(a.memo || '').trim() : '';
 }
 /* 결석 저장 뒤 확인 창. cid가 null이면 items의 cid를 쓴다(복수 선택). names: 이름 배열 또는 {cid,nm} 배열 */
-function alimOfferAbsent(cid, names, ymd){
-  var items = names.map(function(x){ return typeof x === 'string' ? { cid: cid, nm: x } : x; });
+function alimOfferAbsent(cid, names, ymd, memo){
+  var items = names.map(function(x){ return typeof x === 'string' ? { cid: cid, nm: x, memo: memo || '' } : x; });
+  var kind = alimKindOf(ymd);   // 앞날 결석 = 결석 예고, 오늘·지난 날 = 결석 안내
   alimCfgEnsure(function(cfg){
-    if (!cfg.ready || !cfg.templates.absent || !cfg.templates.absent.ready) return;   // 설정 전에는 조용히
+    // 설정 전에는 조용히 — 결석 예고 템플릿이 준비 전이면 앞날 결석은 그 날 출석 창의 결석 알림으로 보낸다
+    if (!alimReady(cfg, kind)) return;
     stuPhonesEnsure(function(){
-      alimLogEnsure(ymd, function(log){ alimOpenConfirm(items, ymd, log, cfg); });
+      alimLogEnsure(ymd, function(log){ alimOpenWith(kind, items, ymd, log, cfg, {}); }, false, kind);
     });
   });
 }
+/* 결석 안내 창은 그 날짜에 결석 예고를 이미 보낸 학생을 함께 알린다 — 학부모님께 같은 결석이 두 번 가지 않게 */
+function alimOpenWith(kind, items, ymd, log, cfg, opt){
+  opt.kind = kind;
+  if (kind === 'absent' && alimReady(cfg, 'preabsent'))
+    alimLogEnsure(ymd, function(pre){ opt.pre = pre; alimOpenConfirm(items, ymd, log, cfg, opt); }, false, 'preabsent');
+  else alimOpenConfirm(items, ymd, log, cfg, opt);
+}
 /* opt.all = 이미 받은 분도 체크해 둔다(모두 받은 뒤 한 번 더 보내기) · opt.force = 백엔드 중복 방지를 건너뛴다.
  * force는 이 창에만 붙는다(alimConfirm.force) — 전역 플래그로 두면 '보내지 않기'로 닫은 뒤 다음 결석 알림까지 force로 나갔다(2026-10-03 고침). */
-var alimConfirm = null;   // { items, ymd, force }
+var alimConfirm = null;   // { items, ymd, force, kind }
 function alimOpenConfirm(items, ymd, log, cfg, opt){
   opt = opt || {};
-  var tpl = cfg.templates.absent;
+  var kind = opt.kind || 'absent', ui = ALIM_UI[kind] || ALIM_UI.absent, isPre = kind === 'preabsent';
+  var tpl = cfg.templates[kind];
+  var preN = 0;
   var rows = items.map(function(it, i){
     var c = classes.find(function(x){ return x.id === it.cid; });
     var tg = alimTargets(it.nm), sent = log[plainName(it.nm)], byWho = (sent && sent.byWho) || {};
+    var pre = !isPre && opt.pre && opt.pre[plainName(it.nm)];
+    var preOk = !!(pre && pre.ok && !(sent && sent.ok));   // 결석 예고를 이미 보냈다 — 결석 안내는 체크 없이
+    if (preOk) preN++;
     var whos = tg.map(function(t, j){
       var done = !opt.all && byWho[t.who] && byWho[t.who].ok;
-      return '<label class="al-who"><input type="checkbox" id="al-t'+i+'_'+j+'" data-who="'+esc(t.who)+'" data-to="'+esc(t.to)+'"'+(done ? '' : ' checked')+'>'+
+      return '<label class="al-who"><input type="checkbox" id="al-t'+i+'_'+j+'" data-who="'+esc(t.who)+'" data-to="'+esc(t.to)+'"'+((done || preOk) ? '' : ' checked')+'>'+
         esc(alimWhoLabel(t))+' <small>'+esc(phoneFmt(t.to))+'</small>'+(done ? ' <span class="al-sent">'+esc(String(byWho[t.who].ts).slice(11))+' 보냄</span>' : '')+'</label>';
     }).join('');
-    var memo = alimMemoOf(it.cid, it.nm, ymd);
+    var memo = alimMemoOf(it.cid, it.nm, ymd) || String(it.memo || '').trim();   // 방금 저장한 결석 메모(화면 캐시에 없을 때)
     return '<div class="al-row" data-i="'+i+'">'+
       '<b>'+esc(plainName(it.nm))+'</b>'+
       '<span class="al-note">'+esc(c ? c.cls + ' · ' + c.day + c.start : '반 정보 없음')+'</span>'+
-      (memo ? '<span class="al-memo">사유 · '+esc(memo)+'</span>' : '')+
+      // 결석 예고는 사유가 문구에 들어간다 — 출석 메모를 미리 채우고 고칠 수 있게
+      (isPre ? '<input type="text" class="al-rs" id="al-rs'+i+'" maxlength="60" autocomplete="off" placeholder="학생이 말한 사유 (예: 학교 행사, 병원 진료)" value="'+esc(memo)+'" oninput="alimPreviewRefresh()">'
+             : (memo ? '<span class="al-memo">사유 · '+esc(memo)+'</span>' : ''))+
+      (preOk ? '<span class="al-sent">결석 예고 '+esc(String(pre.ts).slice(5))+' 보냄 — 결석 안내는 안 보내도 됩니다</span>' : '')+
       (tg.length ? '<div class="al-whos">'+whos+'</div>'
         : '<span class="al-none">'+(stuPhonesFailed ? '연락처를 불러오지 못했습니다' : '등록된 연락처가 없습니다')+'</span>')+
       '</div>';
   }).join('');
-  var first = items[0], c0 = classes.find(function(x){ return x.id === first.cid; });
-  var preview = alimFill(tpl.text, alimVarsOf(c0, first.nm, ymd));
   var anyTg = items.some(function(it){ return alimTargets(it.nm).length > 0; });
+  var allPre = !isPre && preN === items.length;   // 모두 결석 예고를 받았으면 닫아도 된다
   var warn = '';
   if (stuPhonesFailed) warn += '<p class="al-warn">연락처를 불러오지 못했습니다. <button type="button" onclick="alimRetryPhones()">다시 불러오기</button></p>';
-  if (alimLogFailed[ymd]) warn += '<p class="al-warn">보낸 기록을 불러오지 못해 \'보냄\' 표시가 없을 수 있습니다. 이미 받은 분은 서버가 걸러 주니 그대로 보내도 돼요.</p>';
+  if (alimLogFailed[alimLogKey(ymd, kind)]) warn += '<p class="al-warn">보낸 기록을 불러오지 못해 \'보냄\' 표시가 없을 수 있습니다. 이미 받은 분은 서버가 걸러 주니 그대로 보내도 돼요.</p>';
+  var extra = isPre ? '<p class="mk-sec">보충 안내</p><div class="al-mk">'+alimMkOpts(cfg).map(function(o, i){
+      return '<label><input type="radio" name="al-mk" value="'+esc(o)+'"'+(i ? '' : ' checked')+' onchange="alimPreviewRefresh()"> '+esc(o)+'</label>';
+    }).join('')+'</div>' : '';
   openModal(
-    '<h3>결석 알림톡</h3>'+
-    '<p class="mdesc"><b>결석 알림톡은 반드시 보냅니다.</b> 받는 분을 확인하고 [알림톡 보내기]를 눌러 주세요.'+(items.length > 1 ? ' (' + items.length + '명)' : '')+'</p>'+
+    '<h3>'+esc(ui.title)+'</h3>'+
+    '<p class="mdesc">'+(allPre ? '결석 예고 알림톡을 이미 보낸 결석입니다. 따로 보낼 분만 체크하세요.' : ui.must)+(items.length > 1 ? ' (' + items.length + '명)' : '')+'</p>'+
     warn+
-    '<div id="al-rows">'+rows+'</div>'+
+    '<div id="al-rows">'+rows+'</div>'+extra+
     '<p class="mk-sec">보낼 내용'+(items.length > 1 ? ' (첫 학생 기준 — 학생마다 이름·반·시간이 바뀌어요)' : '')+'</p>'+
-    '<div class="al-prev">'+esc(preview)+'</div>'+
+    '<div class="al-prev"></div>'+
     (cfg.smsFallback ? '' : '<p class="subnote">카카오톡을 받을 수 없는 번호는 문자로 대체되지 않아요 (발신번호 미설정).</p>')+
     (anyTg ? '' : '<p class="al-warn">보낼 연락처가 없어 알림톡을 보낼 수 없습니다. 슈스 링크에서 번호를 넣은 뒤 출석 창의 [알림톡 보내기]로 보내 주세요.</p>')+
     '<p class="merr" id="al-err"></p>'+
     // [보내지 않기]는 없다(2026-10-03 원장님 "보내지 않기는 없애주세요" — 결석 알림톡은 반드시 보낸다). 닫는 길은
     // 보낼 곳이 아예 없을 때와, 모두 받은 뒤 한 번 더 보내려고 연 창(opt.all)에만 둔다.
-    '<div class="mbtns">'+((!anyTg || opt.all) ? '<button onclick="closeModal()">닫기</button>' : '')+
+    '<div class="mbtns">'+((!anyTg || opt.all || allPre) ? '<button onclick="closeModal()">닫기</button>' : '')+
     (anyTg ? '<button class="primary" id="al-go" onclick="alimSendConfirm()">알림톡 보내기</button>' : '')+'</div>'
   );
-  modalLock = anyTg && !opt.all;   // 바깥을 눌러도 안 닫힘 — 보내기만
-  alimConfirm = { items: items, ymd: ymd, force: !!opt.force };
+  modalLock = anyTg && !opt.all && !allPre;   // 바깥을 눌러도 안 닫힘 — 보내기만
+  alimConfirm = { items: items, ymd: ymd, force: !!opt.force, kind: kind };
+  alimPreviewRefresh();
+}
+/* 결석 예고 창의 사유·보충 안내 — 학생마다 사유가 다를 수 있어 줄마다 칸, 보충 안내는 창 하나에 하나 */
+function alimExtraVars(i){
+  var cf = alimConfirm; if (!cf || cf.kind !== 'preabsent') return {};
+  var r = $('al-rs' + i), mk = document.querySelector('input[name="al-mk"]:checked');
+  return { '사유': r ? r.value.trim() : '', '보충안내': mk ? mk.value : '' };
+}
+function alimPreviewRefresh(){
+  var cf = alimConfirm, el = document.querySelector('#modal-box .al-prev'); if (!cf || !el || !alimCfg) return;
+  var first = cf.items[0], c0 = classes.find(function(x){ return x.id === first.cid; });
+  var v = alimVarsOf(c0, first.nm, cf.ymd), ex = alimExtraVars(0);
+  Object.keys(ex).forEach(function(k){ v[k] = ex[k] || (k === '사유' ? '(사유)' : ''); });
+  el.textContent = alimFill(alimCfg.templates[cf.kind].text, v);
 }
 /* 연락처 조회가 실패했을 때 — 다시 받아서 같은 창을 다시 연다 */
 function alimRetryPhones(){
   var cf = alimConfirm; if (!cf) return;
   var b = document.querySelector('.al-warn button'); if (b){ b.disabled = true; b.textContent = '불러오는 중…'; }
   stuPhonesEnsure(function(){
-    alimCfgEnsure(function(cfg){ alimLogEnsure(cf.ymd, function(log){ alimOpenConfirm(cf.items, cf.ymd, log, cfg, { force: cf.force }); }); });
+    alimCfgEnsure(function(cfg){ alimLogEnsure(cf.ymd, function(log){ alimOpenWith(cf.kind, cf.items, cf.ymd, log, cfg, { force: cf.force }); }, false, cf.kind); });
   }, true);
 }
 /* 체크된 받는 분을 모아 50건씩 나눠 보낸다. 창은 다 보낼 때까지 열어 두고(버튼 잠금 — 두 번 눌림 방지) 결과를 알린다 */
 function alimSendConfirm(){
   var cf = alimConfirm; if (!cf) return;
-  var items = [];
+  var items = [], noReason = '';
   cf.items.forEach(function(it, i){
-    var c = classes.find(function(x){ return x.id === it.cid; });
+    var c = classes.find(function(x){ return x.id === it.cid; }), ex = alimExtraVars(i), picked = false;
     document.querySelectorAll('#al-rows .al-row[data-i="'+i+'"] input[data-who]').forEach(function(ck){
       if (!ck.checked) return;
-      items.push({ student: plainName(it.nm), who: ck.getAttribute('data-who'), to: ck.getAttribute('data-to'), cls: c ? c.cls : '', date: cf.ymd, vars: alimVarsOf(c, it.nm, cf.ymd) });
+      var vars = alimVarsOf(c, it.nm, cf.ymd); Object.keys(ex).forEach(function(k){ vars[k] = ex[k]; });
+      items.push({ student: plainName(it.nm), who: ck.getAttribute('data-who'), to: ck.getAttribute('data-to'), cls: c ? c.cls : '', date: cf.ymd, vars: vars });
+      picked = true;
     });
+    if (picked && cf.kind === 'preabsent' && !ex['사유'] && !noReason) noReason = plainName(it.nm);
   });
   if (!items.length){ $('al-err').textContent = '받을 분을 한 명 이상 체크해 주세요.'; return; }
+  if (noReason){ $('al-err').textContent = noReason + ' 학생이 말한 사유를 적어 주세요. 알림톡 문구에 들어갑니다.'; return; }
   var btn = $('al-go'); if (btn){ btn.disabled = true; btn.textContent = '보내는 중…'; }
   document.querySelectorAll('#modal-box .mbtns button').forEach(function(b){ b.disabled = true; });
-  alimPostItems(items, cf.ymd, cf.force, function(out){ closeModal(); alimReport(out, cf.ymd); });
+  alimPostItems(items, cf.ymd, cf.force, function(out){ closeModal(); alimReport(out, cf.ymd, cf.kind); }, cf.kind);
 }
 /* 백엔드 alimSend를 ALIM_BATCH씩 차례로 부른다. 결과 { okCount, dup:[], bad:[{item,message}], err:'', sentN } — err는 응답을 못 받은 경우(전송·서버 오류) */
-function alimPostItems(items, ymd, force, done){
+function alimPostItems(items, ymd, force, done, kind){
   var chunks = []; for (var i = 0; i < items.length; i += ALIM_BATCH) chunks.push(items.slice(i, i + ALIM_BATCH));
   var out = { okCount: 0, dup: [], bad: [], err: '', sentN: 0, total: items.length };
   var run = function(k){
     if (k >= chunks.length || out.err){ done(out); return; }
     setStatus('알림톡 보내는 중…' + (chunks.length > 1 ? ' (' + (k + 1) + '/' + chunks.length + ')' : ''));
-    var body = { action:'alimSend', kind:'absent', items: chunks[k], pw: pw, by: alimBy };   // by = 보낸 사람(허브 로그인 선생님, #493)
+    var body = { action:'alimSend', kind: kind || 'absent', items: chunks[k], pw: pw, by: alimBy };   // by = 보낸 사람(허브 로그인 선생님, #493)
     if (force) body.force = '1';
     fetch(ENDPOINT, { method:'POST', headers:{ 'Content-Type':'text/plain;charset=utf-8' }, body: JSON.stringify(body) })
       .then(function(r){ return r.json(); })
@@ -7325,10 +7380,11 @@ function alimPostItems(items, ymd, force, done){
   run(0);
 }
 /* 결과 알림 — 모두 성공이면 아래 상태 줄만, 실패·오류가 있으면 창으로 보여 주고 실패한 분께 다시 보낼 수 있게 (2026-10-03) */
-function alimReport(out, ymd){
-  delete alimLogByDate[ymd];
+function alimReport(out, ymd, kind){
+  kind = kind || 'absent';
+  delete alimLogByDate[alimLogKey(ymd, kind)];
   var nm = function(it){ return it.student + (it.who ? ' ' + whoLbl(it.who) : ''); };
-  var msg = '결석 알림톡 ' + out.okCount + '건 보냈어요.';
+  var msg = (ALIM_UI[kind] || ALIM_UI.absent).short + ' ' + out.okCount + '건 보냈어요.';
   if (out.dup.length) msg += ' ' + out.dup.map(nm).join('·') + '은(는) 이미 보낸 기록이 있어 건너뛰었어요.';
   if (out.bad.length) msg += ' 실패 ' + out.bad.length + '건.';
   if (out.err) msg += ' ' + out.err;
@@ -7344,30 +7400,43 @@ function alimReport(out, ymd){
     (out.bad.length ? '<button class="primary" id="al-retry" onclick="alimRetryFailed()">실패한 ' + out.bad.length + '건 다시 보내기</button>' : '')+
     '<button onclick="closeModal()">닫기</button></div>'
   );
-  alimLastBad = { items: out.bad.map(function(b){ return b.item; }), ymd: ymd };
+  alimLastBad = { items: out.bad.map(function(b){ return b.item; }), ymd: ymd, kind: kind };
 }
 var alimLastBad = null;
 function alimRetryFailed(){
   var lb = alimLastBad; if (!lb || !lb.items.length) return;
   var btn = $('al-retry'); if (btn){ btn.disabled = true; btn.textContent = '보내는 중…'; }
-  alimPostItems(lb.items, lb.ymd, false, function(out){ closeModal(); alimReport(out, lb.ymd); });
+  alimPostItems(lb.items, lb.ymd, false, function(out){ closeModal(); alimReport(out, lb.ymd, lb.kind); }, lb.kind);
 }
 /* 출석 창의 '결석 알림' 줄 — 보냈으면 시각, 아니면 [알림톡 보내기] */
 function alimAttLine(cid, nm, ymd){
+  var kind = alimKindOf(ymd), ui = ALIM_UI[kind];
   alimCfgEnsure(function(cfg){
     var el = $('att-alim'); if (!el) return;
-    if (!cfg.ready || !cfg.templates.absent || !cfg.templates.absent.ready){ el.innerHTML = '<span class="al-note">결석 알림톡은 설정 전이에요 (슈국 운영 → 알림톡)</span>'; return; }
+    if (!alimReady(cfg, kind)){
+      el.innerHTML = '<span class="al-note">'+(kind === 'preabsent'
+        ? '결석 예고 알림톡은 준비 전이에요 — 수업 날 출석 창에서 결석 알림톡을 보내 주세요'
+        : '결석 알림톡은 설정 전이에요 (슈국 운영 → 알림톡)')+'</span>';
+      return;
+    }
     alimLogEnsure(ymd, function(log){
-      var el2 = $('att-alim'); if (!el2) return;
-      var s = log[plainName(nm)];
-      var cidE = esc(cid), nmE = esc(nm), ymdE = esc(ymd);
-      var missW = s && s.ok ? alimTargets(nm).filter(function(t){ return !(s.byWho && s.byWho[t.who] && s.byWho[t.who].ok); }).map(alimWhoLabel) : [];
-      if (s && s.ok) el2.innerHTML = '<span class="al-sent">'+esc(whoLbl(s.who))+'께 알림톡 보냄 '+esc(s.ts.slice(5))+'</span>'+
-        (missW.length ? '<span class="al-sent no">'+esc(missW.join('·'))+' 아직 안 보냄</span>' : '')+
-        '<button onclick="alimResend(\''+cidE+'\',\''+nmE+'\',\''+ymdE+'\')">다시 보내기</button>';
-      else el2.innerHTML = (s ? '<span class="al-sent bad">알림톡 실패 · '+esc(s.message || '')+'</span>' : '<span class="al-sent no">결석 알림톡 아직 안 보냄 · 꼭 보내 주세요'+(alimLogFailed[ymd] ? ' (기록 조회 실패)' : '')+'</span>')+
-        '<button onclick="alimResend(\''+cidE+'\',\''+nmE+'\',\''+ymdE+'\')">알림톡 보내기</button>';
-    });
+      var draw = function(pre){
+        var el2 = $('att-alim'); if (!el2) return;
+        var s = log[plainName(nm)], p = pre && pre[plainName(nm)];
+        var cidE = esc(cid), nmE = esc(nm), ymdE = esc(ymd);
+        var missW = s && s.ok ? alimTargets(nm).filter(function(t){ return !(s.byWho && s.byWho[t.who] && s.byWho[t.who].ok); }).map(alimWhoLabel) : [];
+        if (s && s.ok) el2.innerHTML = '<span class="al-sent">'+esc(whoLbl(s.who))+'께 '+esc(kind === 'preabsent' ? '결석 예고 ' : '')+'알림톡 보냄 '+esc(s.ts.slice(5))+'</span>'+
+          (missW.length ? '<span class="al-sent no">'+esc(missW.join('·'))+' 아직 안 보냄</span>' : '')+
+          '<button onclick="alimResend(\''+cidE+'\',\''+nmE+'\',\''+ymdE+'\')">다시 보내기</button>';
+        else if (kind === 'absent' && p && p.ok)   // 그 날 결석은 앞서 결석 예고로 알렸다 — 꼭 보낼 필요 없음
+          el2.innerHTML = '<span class="al-sent">'+esc(whoLbl(p.who))+'께 결석 예고 보냄 '+esc(p.ts.slice(5))+'</span>'+
+            '<button onclick="alimResend(\''+cidE+'\',\''+nmE+'\',\''+ymdE+'\')">결석 안내도 보내기</button>';
+        else el2.innerHTML = (s ? '<span class="al-sent bad">알림톡 실패 · '+esc(s.message || '')+'</span>' : '<span class="al-sent no">'+esc(ui.short)+' 아직 안 보냄 · 꼭 보내 주세요'+(alimLogFailed[alimLogKey(ymd, kind)] ? ' (기록 조회 실패)' : '')+'</span>')+
+          '<button onclick="alimResend(\''+cidE+'\',\''+nmE+'\',\''+ymdE+'\')">알림톡 보내기</button>';
+      };
+      if (kind === 'absent' && alimReady(cfg, 'preabsent')) alimLogEnsure(ymd, draw, false, 'preabsent');
+      else draw(null);
+    }, false, kind);
   });
 }
 /* 받는 분 표시 — 저장 값('학부모1')은 그대로 두고 화면에만 '학부모님1'(2026-09-29 사용자 "학부모라는 표현을 모두 학부모님으로") */
@@ -7376,17 +7445,19 @@ function whoLbl(w){ return String(w || '').replace(/학부모(?!님)/g, '학부�
  * 발송 기록 캐시(alimLogByDate)는 건드리지 않는다 — 전에는 창을 열려고 그 학생 기록을 캐시에서 지워, '보내지 않기'로 닫으면
  * 출석 창에 '아직 안 보냄'이 잘못 남았다(2026-10-03 고침). */
 function alimResend(cid, nm, ymd){
+  var kind = alimKindOf(ymd);
   stuPhonesEnsure(function(){
     alimCfgEnsure(function(cfg){
+      if (!alimReady(cfg, kind)) return;
       alimLogEnsure(ymd, function(log){
         var s = log[plainName(nm)], one = [{ cid: cid, nm: nm }];
         if (s && s.ok){
           var left = alimTargets(nm).filter(function(t){ return !(s.byWho && s.byWho[t.who] && s.byWho[t.who].ok); });
-          if (left.length){ alimOpenConfirm(one, ymd, log, cfg); return; }   // 아직 못 받은 분에게만
+          if (left.length){ alimOpenWith(kind, one, ymd, log, cfg, {}); return; }   // 아직 못 받은 분에게만
           if (!confirm(plainName(nm) + ' 학생·학부모님께 이미 보냈어요. 한 번 더 보낼까요?')) return;
-          alimOpenConfirm(one, ymd, log, cfg, { all: true, force: true });
-        } else alimOpenConfirm(one, ymd, log, cfg);
-      });
+          alimOpenWith(kind, one, ymd, log, cfg, { all: true, force: true });
+        } else alimOpenWith(kind, one, ymd, log, cfg, {});   // 결석 예고를 받은 결석이면 창이 체크 없이·닫을 수 있게 열린다
+      }, false, kind);
     });
   });
 }
@@ -9109,7 +9180,9 @@ function openAttend(c, nm, dateStr){
     '<button class="pick-late'+(cur&&cur.status==='지각'?' on':'')+'" onclick="submitAttend(\''+esc(c.id)+'\',\''+esc(nm)+'\',\'지각\')">지각</button>'+
     '<button class="pick-abs'+(cur&&cur.status==='결석'?' on':'')+'" onclick="submitAttend(\''+esc(c.id)+'\',\''+esc(nm)+'\',\'결석\')">결석</button>'+
     '</div>'+
-    '<textarea id="att-memo" placeholder="메모 — 지각은 꼭 적어주세요 (예: 미리 연락, 10분 지각)">'+esc(cur ? cur.memo : '')+'</textarea>'+
+    '<textarea id="att-memo" placeholder="'+(attDate > todayStr()
+      ? '앞날 결석 — 학생이 말한 사유를 적어 주세요 (결석 예고 알림톡 문구에 들어갑니다)'
+      : '메모 — 지각은 꼭 적어주세요 (예: 미리 연락, 10분 지각)')+'">'+esc(cur ? cur.memo : '')+'</textarea>'+
     '<p class="merr" id="att-err"></p>'+
     '<div class="mbtns">'+
     (cur ? '<button onclick="submitAttend(\''+esc(c.id)+'\',\''+esc(nm)+'\',\'\')">기록 지우기</button>' : '')+
@@ -9143,7 +9216,7 @@ function submitAttend(cid, nm, status){
         }
         render();
         setStatus(plainName(nm) + (status ? ' — ' + status + ' 기록 완료.' : ' 기록을 지웠어요.') + (d !== todayStr() ? ' (' + d + ')' : ''), 'ok');
-        if (status === '결석') alimOfferAbsent(cid, [nm], d);   // 학부모 결석 알림톡 — 확인 창 (2026-09-11)
+        if (status === '결석') alimOfferAbsent(cid, [nm], d, memo);   // 학부모 결석 알림톡 — 확인 창 (2026-09-11), 앞날이면 결석 예고 (2026-10-16)
       } else setStatus('기록 실패: ' + ((res && res.message) || '오류'), 'err');
     });
 }
