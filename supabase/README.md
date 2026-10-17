@@ -850,3 +850,9 @@ default privileges 까지 되돌렸다. `tools/check_lock.py` 통과(표 15/15 �
 - `submissions.edited_at`·`edited_by`(마지막으로 고친 시각·사람 — '학생' 또는 '○○ 선생님').
 - 학생 함수(anon): `submission_mine(p {exam_id,title,name,phone})` — 이름(끝 알파벳 뗌)+학부모 8자리+시험이 같은 가장 최근 제출(한 마디 없음). `submission_update(p {id,name,phone,wrong_count,wrong_text,vow,score})` — 보내기 전(sent_at 없음)일 때만 그 줄을 고친다(`not_found`/`sent` 거절).
 - 선생님은 교사 인증으로 표를 바로 PATCH(t.html). **적용 상태: 2026-10-16 실제 수파베이스에 적용 완료**(관리 API — 원장님이 준 sbp_ 토큰, 저장 안 함). 확인: edited_at·edited_by 열 생김, 공개 키로 두 함수 응답(없는 학생 found false·not_found), 표 직접 읽기 401, 실제 최근 제출 3건을 submission_mine 이 찾음.
+
+## 052 — 27 예상 정규 시간표 학생 배치 `tt_plan_students` (2026-10-17)
+- 예비 고1(지금 중3) 반 배치 계획. 슈국 스케쥴 [27 예상] 탭(원장님 계정에만 보임)이 학생마다 가 반·나 반 ID를 upsert(on_conflict plan,student)한다. 반 자체는 timetable.html `P27_CLASSES`에 고정.
+- 실제 시간표 `tt_classes`·학생정보와 무관 — 읽는 화면도 이 탭 하나뿐이다.
+- 권한: authenticated(공용 교사 계정 포함) select/insert/update/delete, anon 없음.
+- **적용 상태: 아직 적용 전**. 적용 전에는 탭에 '데이터베이스 052' 안내가 뜨고 저장되지 않는다.

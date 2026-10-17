@@ -12,7 +12,7 @@
   var REST = 'https://bangdbhqpphqqdwcledg.supabase.co/rest/v1';
   var KEY = 'sb_publishable_dE9d1KIbpgYaQkaS2MSrlg_-7SiRJuT';
   var LS = 'shueguk_teacher_session_v2';
-  var cache = null;
+  var cache = null, info = null;
 
   function raw(){ return global.__sbRawFetch || global.fetch.bind(global); }
   function tr(v){ return String(v == null ? '' : v).trim(); }
@@ -36,22 +36,27 @@
       });
   }
 
+  // 이름과 함께 역할(role: 'admin' = 원장님 · 'teacher' · 'assistant')도 받아 둔다 — 원장님만 보는 메뉴용(2026-10-17)
   function load(){
     return session().then(function (s) {
       var uid = s && s.user && s.user.id;
-      if (!uid) return '';
-      return raw()(REST + '/teacher_accounts?select=display_name,login_id&active=is.true&limit=1&user_id=eq.' + encodeURIComponent(uid),
+      if (!uid) return { name: '', role: '' };
+      return raw()(REST + '/teacher_accounts?select=display_name,login_id,role&active=is.true&limit=1&user_id=eq.' + encodeURIComponent(uid),
           { headers: { apikey: KEY, Authorization: 'Bearer ' + s.access_token }, cache: 'no-store' })
         .then(function (r) { return r.ok ? r.json() : []; })
         .then(function (rows) {
           var t = rows && rows[0];
-          return t ? tr(t.display_name || t.login_id).replace(/\s*(선생님|쌤|T)$/, '') : '';
+          return t ? { name: tr(t.display_name || t.login_id).replace(/\s*(선생님|쌤|T)$/, ''), role: tr(t.role) } : { name: '', role: '' };
         });
-    }).catch(function () { return ''; });
+    }).catch(function () { return { name: '', role: '' }; });
   }
+  function getInfo(){ if (!info) info = load(); return info; }
 
   global.shuegukTeacherName = function (){
-    if (!cache) cache = load().then(function (n) { return n || ''; });
+    if (!cache) cache = getInfo().then(function (o) { return (o && o.name) || ''; });
     return cache;
+  };
+  global.shuegukTeacherRole = function (){
+    return getInfo().then(function (o) { return (o && o.role) || ''; });
   };
 })(window);
