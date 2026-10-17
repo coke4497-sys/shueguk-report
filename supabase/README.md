@@ -855,4 +855,4 @@ default privileges 까지 되돌렸다. `tools/check_lock.py` 통과(표 15/15 �
 - 예비 고1(지금 중3) 반 배치 계획. 슈국 스케쥴 [27 예상] 탭(원장님 계정에만 보임)이 학생마다 가 반·나 반 ID를 upsert(on_conflict plan,student)한다. 반 자체는 timetable.html `P27_CLASSES`에 고정.
 - 실제 시간표 `tt_classes`·학생정보와 무관 — 읽는 화면도 이 탭 하나뿐이다.
 - 권한: authenticated(공용 교사 계정 포함) select/insert/update/delete, anon 없음.
-- **적용 상태: 아직 적용 전**. 적용 전에는 탭에 '데이터베이스 052' 안내가 뜨고 저장되지 않는다.
+- **적용 상태: 2026-10-17 실제 수파베이스에 적용 완료**(관리 API — 원장님이 준 sbp_ 토큰, 저장 안 함). 확인: authenticated 권한 4종, 공개 키 401, 공용 교사 계정으로 넣기→고치기(merge)→읽기→지우기 왕복(검증 줄은 지움). 적용 전이면 탭에 '데이터베이스 052' 안내가 뜨고 저장되지 않는다.
