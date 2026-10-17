@@ -21,7 +21,7 @@ const BIG = Array.from({ length: 18 }, (_, i) => '학생' + String(i + 1).padSta
 const CLASSES = [ mk('r010', DN, '5:30', '7:00', '화정센터', '지원', '고1 가', ['박지우','최민하(9/20부터)','정서현','이같은']),
                   mk('r011', DN, '7:30', '9:00', '화정센터', '지원', '고2 가', BIG) ];
 const PHONES = [
-  { name: '박지우', phone_student: '01011112222', phone_parent1: '01033334444', phone_parent2: '01055556666' },
+  { name: '박지우', phone_student: '01011112222', phone_parent1: '01033334444', phone_parent2: '01055556666', code: 'pjwkey' },
   { name: '최민하', phone_student: '', phone_parent1: '01077778888', phone_parent2: '' },
   { name: '이같은', phone_student: '01012341234', phone_parent1: '01012341234', phone_parent2: '01099990000' },   // 학생 번호 = 학부모1 번호
 ].concat(BIG.map((n, i) => ({ name: n, phone_student: '0102000' + String(i).padStart(4, '0'), phone_parent1: '0103000' + String(i).padStart(4, '0'), phone_parent2: '0104000' + String(i).padStart(4, '0') })));
@@ -104,6 +104,8 @@ const posts = [];
   await page.waitForFunction(() => (document.getElementById('att-alim') || {}).textContent.includes('보냄'), null, { timeout: 8000 });
   const attTxt = await page.textContent('#att-alim');
   ok('출석 창 보냄 표시 + 못 받은 분', attTxt.includes('학부모님1·학부모님2께 알림톡 보냄') && attTxt.includes('학생 아직 안 보냄'), attTxt);
+  await page.waitForFunction(() => { const a = document.getElementById('att-spage'); return a && !a.hidden; }, null, { timeout: 8000 });
+  ok('출석 창 학생 페이지 링크', (await page.getAttribute('#att-spage', 'href')) === 'https://coke4497-sys.github.io/shueguk-report/s.html?key=pjwkey' && (await page.getAttribute('#att-spage', 'target')) === '_blank');
   await page.click('#att-alim button');
   await page.waitForSelector('#al-rows');
   ok('다시 보내기 = 못 받은 학생만 체크', (await whoBoxes(0)).join() === '학부모1-,학부모2-,학생+', (await whoBoxes(0)).join());

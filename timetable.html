@@ -1012,6 +1012,10 @@
   .att-tel a:hover{text-decoration:underline;}
   .att-tel .tel-sep{margin:0 7px;color:var(--ink-soft);}
   .att-tel .tel-none{color:var(--ink-soft);}
+  #modal-box{position:relative;}
+  .att-spage{position:absolute;top:18px;right:20px;display:inline-flex;align-items:center;gap:5px;font-size:.85rem;font-weight:700;color:#5A4A6A;background:#EDE4F4;border-radius:999px;padding:6px 12px;text-decoration:none;}
+  .att-spage:hover{background:#E3D7EE;}
+  .att-spage[hidden]{display:none;}
   .blk.wkoff{opacity:.62;border-style:dashed;border-width:1.5px;border-color:var(--btn);}
   .blk.wkoff .bt .nm{text-decoration:line-through;text-decoration-thickness:1px;}
   .blk.wkoff .wkflag{text-decoration:none;}
@@ -9081,16 +9085,18 @@ function stuPhonesEnsure(cb, force){
   if (cb) stuPhonesCbs.push(cb);
   if (stuPhonesBusy) return;
   stuPhonesBusy = true;
-  fetch('https://bangdbhqpphqqdwcledg.supabase.co/rest/v1/students?select=name,phone_student,phone_parent1,phone_parent2',
+  fetch('https://bangdbhqpphqqdwcledg.supabase.co/rest/v1/students?select=name,phone_student,phone_parent1,phone_parent2,code',
         { headers: { apikey: 'sb_publishable_dE9d1KIbpgYaQkaS2MSrlg_-7SiRJuT' } })
     .then(function(r){ if (!r.ok) throw new Error('students ' + r.status); return r.json(); })
     .then(function(rows){
       stuPhones = {}; stuPhonesFailed = false;
       rows.forEach(function(r){
         var k = plainName(r.name);
-        if (k) stuPhones[k] = { ps: String(r.phone_student || '').trim(),
+        if (k && stuPhones[k]) stuPhones[k].dupName = true;   // 같은 이름이 둘 — 학생 페이지 링크는 잘못 이을 수 있어 숨긴다
+        if (k) stuPhones[k] = { dupName: !!(stuPhones[k] && stuPhones[k].dupName), ps: String(r.phone_student || '').trim(),
                                 p1: String(r.phone_parent1 || '').trim(),
-                                p2: String(r.phone_parent2 || '').trim() };
+                                p2: String(r.phone_parent2 || '').trim(),
+                                code: String(r.code || '').trim() };
       });
     })
     .catch(function(e){ console.warn('연락처 조회 실패', e); stuPhones = stuPhones || {}; stuPhonesFailed = true; })
@@ -9119,9 +9125,18 @@ function attTelFill(nm){
     }
     el.innerHTML = parts.length ? parts.join('<span class="tel-sep">·</span>')
                                 : '<span class="tel-none">등록된 연락처가 없어요</span>';
+    // 학생 페이지 링크 (2026-10-17 원장님 "학생 이름을 누르면 뜨는 메뉴에 학생 페이지 링크") — 접근코드가 있을 때만
+    var a = $('att-spage');
+    if (a && s && s.code && !s.dupName){ a.href = SPAGE_BASE + encodeURIComponent(s.code); a.hidden = false; }
   });
 }
-function attTelHtml(){ return '<p class="mdesc att-tel" id="att-tel"><span class="tel-none">연락처 확인 중…</span></p>'; }
+var SPAGE_BASE = 'https://coke4497-sys.github.io/shueguk-report/s.html?key=';
+function attTelHtml(){
+  return '<a class="att-spage" id="att-spage" target="_blank" rel="noopener" hidden>'+
+           '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c1.2-3.6 4-5.4 7-5.4s5.8 1.8 7 5.4"/></svg>'+
+           '학생 페이지</a>'+
+         '<p class="mdesc att-tel" id="att-tel"><span class="tel-none">연락처 확인 중…</span></p>';
+}
 function openAttend(c, nm, dateStr){
   attDate = dateStr || viewYmd();
   var cur = attendAt(attDate, c.id, nm);
