@@ -977,10 +977,15 @@
   .p27-trh{font-size:.84rem;font-weight:700;margin-bottom:6px;}
   .p27-grp{display:flex;flex-wrap:wrap;gap:3px;align-items:center;margin:3px 0;}
   .p27-gl{font-size:.7rem;color:var(--ink-soft);margin-right:4px;white-space:nowrap;}
-  .p27-ov{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;align-items:start;}
-  .p27-col{display:flex;flex-direction:column;gap:5px;min-width:0;}
+  .p27-ov{display:grid;gap:14px;}
+  .p27-blk{display:grid;gap:6px;}
+  .p27-blkh{font-family:"Gowun Batang",serif;font-weight:700;font-size:.95rem;color:var(--accent);}
+  .p27-g{display:grid;gap:6px 8px;align-items:stretch;}
   .p27-dayh{font-weight:700;color:#fff;background:#5F8377;border-radius:9px;text-align:center;padding:5px 0;font-size:.92rem;}
-  .p27-time{font-size:.74rem;font-weight:700;color:var(--ink-soft);margin:6px 0 0;font-variant-numeric:tabular-nums;}
+  .p27-time{font-size:.8rem;font-weight:700;color:var(--accent);font-variant-numeric:tabular-nums;text-align:right;padding:6px 4px 0 0;white-space:nowrap;
+    border-top:1px dotted #BFCFC9;}
+  .p27-time small{font-weight:400;color:var(--ink-soft);font-size:.7rem;}
+  .p27-cell{display:flex;flex-direction:column;gap:5px;min-width:0;border-top:1px dotted #BFCFC9;padding-top:6px;}
   .p27-card{border-radius:9px;padding:6px 7px;min-width:0;}
   .p27-card.ga{background:#DFEBE6;} .p27-card.na{background:#fff;border:1px solid var(--line-soft);}
   .p27-card.target{cursor:pointer;outline:2px dashed rgba(76,110,102,.45);outline-offset:-2px;}
@@ -1004,9 +1009,8 @@
   .p27-foot{display:grid;gap:8px;background:#F4F7F5;border-radius:12px;padding:10px 12px;}
   .p27-add{display:flex;flex-wrap:wrap;gap:6px;align-items:center;}
   .p27-add input{font:inherit;font-size:.84rem;border:1px solid var(--line);border-radius:8px;padding:4px 8px;width:120px;}
-  @media (max-width:900px){ .p27-ov{grid-template-columns:repeat(3,minmax(0,1fr));} }
-  @media (max-width:620px){ .p27-ov{grid-template-columns:repeat(2,minmax(0,1fr));} .p27-trays{grid-template-columns:1fr;} }
-  @media (max-width:420px){ .p27-ov{grid-template-columns:1fr;} }
+  .p27-tn .s{display:none;}
+  @media (max-width:620px){ .p27-tn .f{display:none;} .p27-tn .s{display:inline;} .p27-trays{grid-template-columns:1fr;} .p27-g{gap:5px 4px;} .p27-card{padding:5px;} .p27-tn{font-size:.72rem;} }
   /* ── 주차별: 한 페이지 개요 + 요일 확대 (2026-08-21 사용자 확정 시안) ── */
   .wk-ov{display:grid;grid-template-columns:repeat(7,1fr);gap:8px;align-items:start;}
   .wk-dayh{width:100%;font:inherit;font-size:.9rem;font-weight:700;color:#fff;background:#5F8377;
@@ -7654,22 +7658,33 @@ function p27View(){
       order.map(function(k){ return '<div class="p27-grp"><span class="p27-gl">' + esc(k) + '</span>' + g[k].map(function(o){ return p27Chip(o); }).join('') + '</div>'; }).join('') + '</div>';
   }
   h += '<div class="p27-trays">' + tray(noGa, '가') + tray(noNa, '나') + '</div>';
-  h += '<div class="p27-ov">' + P27_DAYS.map(function(d){
-    var slots = P27_SLOTS.filter(function(x){ return x[0] === d; });
-    return '<div class="p27-col"><div class="p27-dayh">' + d + '</div>' + slots.map(function(x){
-      var cs = P27_CLASSES.filter(function(c){ return c.day === d && c.start === x[1] && (P27.tf === 'all' || c.teacher === P27.tf); });
-      return '<div class="p27-time">' + x[1] + '~' + x[2] + '</div>' + cs.map(function(c){
-        var mem = act.filter(function(o){ return o.ga === c.id || o.na === c.id; }).sort(function(a, b){ return a.name < b.name ? -1 : 1; });
-        var n = mem.length;
-        var sp = P27.sel && P27.st[P27.sel];
-        var here = sp && (sp.ga === c.id || sp.na === c.id);
-        return '<div class="p27-card ' + (c.part === '가' ? 'ga' : 'na') + (sp ? ' target' : '') + (here ? ' here' : '') + '" data-p27c="' + c.id + '" role="button" tabindex="0">' +
-          '<div class="p27-ch"><span class="p27-tag">' + c.part + '</span><span class="p27-tn">' + c.tname + '</span>' +
-          '<span class="p27-cnt' + (n > P27_CAP ? ' over' : (n === P27_CAP ? ' full' : '')) + '">' + n + '/' + P27_CAP + '</span></div>' +
-          '<div class="p27-chips">' + (mem.length ? mem.map(function(o){ return p27Chip(o); }).join('') : '<span class="p27-empty">비어 있음</span>') + '</div></div>';
-      }).join('');
-    }).join('') + '</div>';
-  }).join('') + '</div>';
+  // 평일(수목금)·주말(토일) 두 묶음 — 같은 시간 수업이 한 줄에 나란히 (2026-10-17 원장님)
+  function cardHtml(c){
+    var mem = act.filter(function(o){ return o.ga === c.id || o.na === c.id; }).sort(function(a, b){ return a.name < b.name ? -1 : 1; });
+    var n = mem.length;
+    var sp = P27.sel && P27.st[P27.sel];
+    var here = sp && (sp.ga === c.id || sp.na === c.id);
+    return '<div class="p27-card ' + (c.part === '가' ? 'ga' : 'na') + (sp ? ' target' : '') + (here ? ' here' : '') + '" data-p27c="' + c.id + '" role="button" tabindex="0">' +
+      '<div class="p27-ch"><span class="p27-tag">' + c.part + '</span><span class="p27-tn"><span class="f">' + c.tname + '</span><span class="s">' + c.teacher + 'T</span></span>' +
+      '<span class="p27-cnt' + (n > P27_CAP ? ' over' : (n === P27_CAP ? ' full' : '')) + '">' + n + '/' + P27_CAP + '</span></div>' +
+      '<div class="p27-chips">' + (mem.length ? mem.map(function(o){ return p27Chip(o); }).join('') : '<span class="p27-empty">비어 있음</span>') + '</div></div>';
+  }
+  function block(title, days){
+    var times = [];
+    P27_SLOTS.forEach(function(x){ if (days.indexOf(x[0]) >= 0 && !times.some(function(t){ return t[0] === x[1]; })) times.push([x[1], x[2], x[3]]); });
+    times.sort(function(a, b){ return a[2] - b[2]; });
+    var g = '<div class="p27-blk"><div class="p27-blkh">' + title + '</div><div class="p27-g" style="grid-template-columns:auto repeat(' + days.length + ',minmax(0,1fr))">' +
+      '<div></div>' + days.map(function(d){ return '<div class="p27-dayh">' + d + '</div>'; }).join('');
+    times.forEach(function(t){
+      g += '<div class="p27-time">' + t[0] + '<br><small>~' + t[1] + '</small></div>';
+      days.forEach(function(d){
+        var cs = P27_CLASSES.filter(function(c){ return c.day === d && c.start === t[0] && (P27.tf === 'all' || c.teacher === P27.tf); });
+        g += '<div class="p27-cell">' + cs.map(cardHtml).join('') + '</div>';
+      });
+    });
+    return g + '</div></div>';
+  }
+  h += '<div class="p27-ov">' + block('평일 · 수 목 금', ['수','목','금']) + block('주말 · 토 일', ['토','일']) + '</div>';
   var outs = all.filter(function(o){ return o.excluded; });
   h += '<div class="p27-foot">' +
     '<form class="p27-add" id="p27-add"><span class="p27-gl">신입 학생 넣기</span>' +
