@@ -109,6 +109,9 @@ const ok = (n, c, x) => { if (c) pass++; else { fail++; console.log('  ✗ ' + n
   ok('③ 괄호 뗀 이름으로 미배치', /김하나/.test(trayText) && /박둘/.test(trayText) && /이셋/.test(trayText) && !/\(/.test(trayText.replace(/\([^)]*\)/g, m => /부터|화정/.test(m) ? m : '')), trayText.slice(0, 200));
   ok('③ 지금 반 묶음 표기', /토 11:00 승연T/.test(trayText));
   ok('③ 저장된 가 배치가 카드에', await page.$eval('[data-p27c="수5:30-사명"]', e => /최넷/.test(e.textContent) && /1\/9/.test(e.textContent)));
+  { const ts = await page.$$eval('.p27-tcard', e => e.map(x => x.textContent.replace(/\s+/g, ' ')));
+    ok('⑥ 선생님별 인원 카드 셋(지원·승연·사명 순)', ts.length === 3 && /김지원T/.test(ts[0]) && /이승연T/.test(ts[1]) && /김사명T/.test(ts[2]), JSON.stringify(ts));
+    ok('⑥ 사명T 가 1명(최넷)·나 0명', /가1명 반 1\/6/.test(ts[2]) && /나0명/.test(ts[2]) && /합계 1명/.test(ts[2]), ts[2]); }
   ok('③ 요약: 대상 5명', /5명 대상/.test(await page.$eval('.p27-sum', e => e.textContent)));
 
   // ④ 배치
