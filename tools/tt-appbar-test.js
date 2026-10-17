@@ -32,7 +32,7 @@ const ok = (n, c, x) => { if (c) pass++; else { fail++; console.log('  ✗ ' + n
       localStorage.setItem('ttc:list:정규', JSON.stringify({ t: Date.now(), d: { classes: cls, onceMoves: [] } }));
     }, { cls: CLASSES, mode });
     await page.goto('http://127.0.0.1:' + port + '/timetable.html');
-    await page.waitForSelector('#bar .viewtabs button', { timeout: 15000 });
+    await page.waitForSelector('#bar .viewtabs button:not([hidden])', { timeout: 15000 });
     await page.waitForTimeout(500);
     return page;
   }
@@ -67,7 +67,7 @@ const ok = (n, c, x) => { if (c) pass++; else { fail++; console.log('  ✗ ' + n
   ok('칩은 낮다(30px 이하)·둥근 알약', pb[2] <= 30 && pb[3].indexOf('999') === 0, JSON.stringify([pb[2], pb[3]]));
 
   /* ④ 보기 탭 6개 한 줄 */
-  const tabs = await page.$$eval('#bar .viewtabs button', bs => bs.map(x => [x.id, x.textContent.trim(), x.offsetTop]));
+  const tabs = await page.$$eval('#bar .viewtabs button:not([hidden])', bs => bs.map(x => [x.id, x.textContent.trim(), x.offsetTop]));
   ok('탭 6개 · 순서', JSON.stringify(tabs.map(t => t[0])) === JSON.stringify(['v-today','v-week','v-all','v-att','v-cal','v-exs']), JSON.stringify(tabs));
   ok('짧은 이름', JSON.stringify(tabs.map(t => t[1])) === JSON.stringify(['오늘','주차별','전체','출석 현황','캘린더','지필고사']), JSON.stringify(tabs.map(t => t[1])));
   ok('한 줄(줄바꿈 없음)', tabs.every(t => t[2] === tabs[0][2]), JSON.stringify(tabs.map(t => t[2])));
@@ -130,7 +130,7 @@ const ok = (n, c, x) => { if (c) pass++; else { fail++; console.log('  ✗ ' + n
   await small.route(/script\.google\.com|supabase\.co|googleusercontent/, r => r.fulfill({ status: 200, contentType: 'application/json', body: '{"result":"error"}' }));
   await small.route(/fonts\.g/, r => r.abort());
   const m = await open(small, 'today');
-  const mt = await m.$$eval('#bar .viewtabs button', bs => bs.map(x => x.offsetTop));
+  const mt = await m.$$eval('#bar .viewtabs button:not([hidden])', bs => bs.map(x => x.offsetTop));
   ok('휴대폰에서도 탭 한 줄', mt.every(t => t === mt[0]), JSON.stringify(mt));
   ok('탭 줄은 가로로 민다', await m.$eval('#bar .viewtabs', e => e.scrollWidth > e.clientWidth + 2 && getComputedStyle(e).overflowX === 'auto'));
   ok('기간 칩은 날짜를 숨겨 안 잘린다', await m.$eval('#period-badge .pb-range', e => getComputedStyle(e).display === 'none'));

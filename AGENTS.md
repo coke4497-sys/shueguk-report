@@ -82,3 +82,4 @@
 - timetable.html [수업 기록] 창은 지난 날짜로도 열립니다(`?cr=시간표|반ID|날짜` → `crOpenAt`, 2026-10-03). 창 코드(함수 접두 `cr`)가 오늘 데이터(`attend`·`onceInToday()`·`onceOutThisWeek()`·`classes`)를 접근자(`crAttMap`·`crOnceIn`·`crOnceOut`·`crCls`)를 거치지 않고 직접 읽는 변경은 지적하세요 — 지난 날짜 창에서 오늘 출석·명단이 섞입니다.
 - 수업 리포트 재요청을 처리할 때 class_notes.report_status가 '요청'으로 남지 않게 할 것 — 새로 썼으면 `class_report.py publish`, 바뀐 게 없으면 `class_report.py same`(요청함 '처리 완료'만으로는 반 카드가 '기록 완료 ✓'에 머문다).
 - 시간표 명단의 등록 전 표기(마지막 괄호에 입학·예비·미정·입테·상담·체험 — '박서연(입학예정)')는 학생정보 정규가/나·students 미러를 갱신하지 않습니다(백엔드 `ttPendingName_`·timetable `ttPendingName` 두 벌). 괄호를 떼고 같은 이름 학생을 갱신하는 변경은 지적하세요.
+- 27 예상 정규 시간표(timetable.html p27, 052): 학생 배치는 tt_plan_students에만 쓴다 — tt_classes·명단·학생정보를 바꾸는 코드가 섞이면 지적할 것. 반 고정표(P27_SLOTS)는 '선생님마다 요일마다 가·나 둘 다' 원칙을 지켜야 한다.
