@@ -37,7 +37,8 @@ let ALIM_CFG = { result: 'success', ready: true, smsFallback: false, has: { key:
                  text: '[이수경국어학원] 주말 실전 모의고사 신청 안내\n#{학생명} 학생에게 주말 실전 모의고사 신청 안내가 도착했어요.\n\n▶ #{제목}\n\n1. #{장소}에서 실시합니다.\n3. #{신청일} 중 택1하여 신청합니다.\n4. 각 요일 #{정원}명 선착순으로 마감합니다.\n\n학생 페이지에서 내용을 확인해 주세요.' }),
                notice_hwork: ntpl('H WORK 안내', false),
                notice_report: ntpl('지필고사 리포트 제작 안내', true), notice_reportup: ntpl('지필고사 리포트 업데이트 안내', true),
-               notice_voca: ntpl('어휘 테스트 참여 안내', true), notice_gramma: ntpl('문법 테스트 참여 안내', true) } };
+               notice_voca: ntpl('어휘 테스트 참여 안내', true), notice_gramma: ntpl('문법 테스트 참여 안내', true),
+               notice_enroll: ntpl('수강 신청 안내', true) } };
 let PREV_TXT = '';
 const posts = [];   // 백엔드 POST 본문
 let NOTICE_ROWS = [];   // 공지 목록(관리) 응답 — ①-2 목록 줄의 [알림톡 보내기] 검사에서 채운다
@@ -101,7 +102,7 @@ const alimSends = () => posts.filter(b => b.action === 'alimSend');
   await page.goto(NURL, { waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => !document.getElementById('alimOn').disabled, { timeout: 8000 });
   ok(true, '설정이 준비되면 [알림톡도 보내기] 체크가 열린다');
-  ok((await page.$$eval('#alimKind option', els => els.map(o => o.value + ':' + o.textContent))).join('|') === 'notice_sched:수업 일정 안내|notice_mock:주말 실전 모의고사 신청 안내|notice_hwork:H WORK 안내 (준비 전)|notice_report:지필고사 리포트 제작 안내|notice_reportup:지필고사 리포트 업데이트 안내|notice_voca:어휘 테스트 참여 안내|notice_gramma:문법 테스트 참여 안내', '종류 드롭다운 = 일곱 종류, 심사 전은 “(준비 전)”');
+  ok((await page.$$eval('#alimKind option', els => els.map(o => o.value + ':' + o.textContent))).join('|') === 'notice_sched:수업 일정 안내|notice_mock:주말 실전 모의고사 신청 안내|notice_hwork:H WORK 안내 (준비 전)|notice_report:지필고사 리포트 제작 안내|notice_reportup:지필고사 리포트 업데이트 안내|notice_voca:어휘 테스트 참여 안내|notice_gramma:문법 테스트 참여 안내|notice_enroll:수강 신청 안내', '종류 드롭다운 = 여덟 종류(수강 신청 안내 포함), 심사 전은 “(준비 전)”');
   ok(await page.$eval('#alimKind', e => e.value) === 'notice_sched' && /“수업 일정 안내” 알림톡/.test(await page.$eval('#alimNote', e => e.textContent)), '기본 종류 = 준비된 첫 종류(수업 일정 안내) + 안내 문구');
   await pickKind('notice_mock');
   await pickKind('notice_hwork');
