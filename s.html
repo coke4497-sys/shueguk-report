@@ -195,6 +195,41 @@
 
   /* 복습 영상 (2026-09-27) — 유튜브 복습 영상 시청. 화면이 보이는 동안 재생된 시간만 센다 */
   #reviewView{display:none;}
+  #planView{display:none;}
+  /* 예비 고1 반 신청(2026-10-17, 053) — 가 민트 · 나 연보라 */
+  .pl-box{background:var(--surface);border-radius:var(--radius);padding:15px 17px;margin-bottom:12px;}
+  .pl-intro{font-size:.86rem;color:var(--ink-soft);margin:0 0 12px;line-height:1.65;}
+  .pl-mine{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+  .pl-slot{border-radius:12px;padding:11px 13px;}
+  .pl-slot.ga{background:#E2F4EC;} .pl-slot.na{background:#EFE7F7;}
+  .pl-slot .k{font-size:.74rem;font-weight:700;border-radius:5px;padding:1px 7px;color:#fff;}
+  .pl-slot.ga .k{background:#3E8E77;} .pl-slot.na .k{background:#7B67A3;}
+  .pl-slot .v{display:block;font-family:"Do Hyeon",var(--sans);font-size:1.15rem;margin-top:6px;color:var(--ink);}
+  .pl-slot .v.none{font-family:var(--sans);font-size:.88rem;color:#B0736A;}
+  .pl-slot .t{display:block;font-size:.8rem;color:var(--ink-soft);margin-top:2px;}
+  .pl-state{font-size:.84rem;border-radius:12px;padding:9px 13px;margin:0 0 12px;}
+  .pl-state.open{background:#E2F4EC;color:#2A6555;} .pl-state.closed{background:#F2F5F3;color:var(--ink-soft);}
+  .pl-h{font-family:var(--serif);font-weight:700;font-size:1rem;margin:4px 0 4px;}
+  .pl-sub{font-size:.8rem;color:var(--ink-soft);margin:0 0 10px;}
+  .pl-day{font-size:.8rem;font-weight:700;color:var(--ink-soft);margin:10px 0 5px;}
+  .pl-opts{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:6px;}
+  .pl-opt{font:inherit;text-align:left;border:none;border-radius:11px;padding:9px 12px;cursor:pointer;display:flex;flex-direction:column;gap:2px;}
+  .pl-opt.ga{background:#F1FAF6;} .pl-opt.na{background:#F8F4FB;}
+  .pl-opt b{font-size:.92rem;color:var(--ink);}
+  .pl-opt small{font-size:.76rem;color:var(--ink-soft);}
+  .pl-opt.mine{outline:2px solid #5A4A6A;}
+  .pl-opt.mine.ga{outline-color:#3E8E77;}
+  .pl-opt:disabled{cursor:default;opacity:.5;}
+  .pl-opt.mine:disabled{opacity:1;}
+  .pl-opt .left{font-weight:700;color:#3E8E77;} .pl-opt.na .left{color:#7B67A3;}
+  .pl-opt .left.few{color:#B0736A;}
+  .pl-btn{font:inherit;font-size:.84rem;border:none;border-radius:10px;padding:7px 13px;background:#F7E2DE;color:#B0736A;cursor:pointer;margin-top:10px;}
+  .pl-msg{font-size:.86rem;border-radius:11px;padding:9px 13px;margin:0 0 12px;display:none;}
+  .pl-msg.on{display:block;} .pl-msg.ok{background:#E2F4EC;color:#2A6555;} .pl-msg.err{background:#F7E2DE;color:#7E2B3D;}
+  details.pl-move > summary{cursor:pointer;font-family:var(--serif);font-weight:700;font-size:1rem;list-style:none;}
+  details.pl-move > summary::-webkit-details-marker{display:none;}
+  details.pl-move > summary small{font-family:var(--sans);font-weight:400;font-size:.78rem;color:var(--ink-soft);margin-left:6px;}
+  @media (max-width:420px){ .pl-mine{grid-template-columns:1fr;} .pl-opts{grid-template-columns:1fr;} }
 
   /* 수업 리포트 (2026-09-28) — 수업마다 한 장, 주차로 묶어 넘긴다 */
   .crp-nav{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 2px 12px;}
@@ -785,6 +820,17 @@
   <footer><p>이수경국어 Shueguk · 학생용</p></footer>
 </main></div>
 
+<!-- 예비 고1 반 신청 (2026-10-17, 053) — 27 예상 정규 시간표에서 나 반 고르기·가 반 옮기기(선착순) -->
+<div id="planView"><main class="wrap gwrap">
+  <div class="gv-bar">
+    <button class="gv-back" onclick="plBack()" id="plBack"></button>
+    <span class="gv-ttl">예비 고1 반 신청</span>
+  </div>
+  <div class="pl-msg" id="plMsg"></div>
+  <div id="plBody"></div>
+  <footer><p>이수경국어 Shueguk · 학생용</p></footer>
+</main></div>
+
 <!-- 질문하기 — 선생님별 질문 대기열 (2026-09-06) -->
 <div id="questionView"><main class="wrap gwrap">
   <div class="gv-bar">
@@ -917,6 +963,7 @@ var ICON = {
   clip:'<path d="M9 3h6a1 1 0 0 1 1 1v1a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M16 5h2a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2"/><path d="M9 14l2 2 4-4"/>',
   check:'<path d="M20 6L9 17l-5-5"/>',
   play:'<rect x="2.5" y="4.5" width="19" height="15" rx="3"/><path d="M10 9.2v5.6l4.8-2.8z"/>',
+  cal:'<rect x="3" y="4.5" width="18" height="16.5" rx="2.5"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4"/><path d="M8 14h3M13 14h3M8 17.5h3"/>',
   hist:'<path d="M3 12a9 9 0 1 0 2.6-6.4L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l3 2"/>',
   ask:'<path d="M21 11.5a8.4 8.4 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7A8.5 8.5 0 1 1 21 11.5z"/><path d="M9.8 9.3a2.4 2.4 0 0 1 4.7.8c0 1.6-2.4 2.1-2.4 3.4"/><line x1="12.1" y1="16.6" x2="12.1" y2="16.7"/>'
 };
@@ -1146,7 +1193,7 @@ var IS_ID = false;
 var STATE = { info:null, authed:false, exams:null, examCount:0, notices:null, homework:null, analyses:null, clinic:null, stars:null, vocaOpen:null, vocaWeek:null, mockGrades:null, mockOpen:null, clinicEligible:null, vocaTaken:null, mockSignups:null, mockFromServer:false, mockGatesFromServer:false, vocaFromServer:false, clinicFromServer:false, hwcheck:null, qq:null, qqLoading:false, qqTeachers:null, review:null, reviewLoading:false };
 
 function showError(title, msg){
-  hide('loadBox'); hide('hubView'); $('gradeView').style.display='none'; $('mockHubView').style.display='none'; $('mockView').style.display='none'; $('clinicView').style.display='none'; $('hwcheckView').style.display='none'; $('questionView').style.display='none'; $('reviewView').style.display='none'; $('lhView').style.display='none';
+  hide('loadBox'); hide('hubView'); $('gradeView').style.display='none'; $('mockHubView').style.display='none'; $('mockView').style.display='none'; $('clinicView').style.display='none'; $('hwcheckView').style.display='none'; $('questionView').style.display='none'; $('reviewView').style.display='none'; $('planView').style.display='none'; $('lhView').style.display='none';
   $('errTitle').textContent = title || '불러올 수 없습니다';
   $('errMsg').textContent = msg || '';
   show('errBox');
@@ -2000,6 +2047,19 @@ function renderHub(){
               '<span class="go">'+(rvTodo>0?'보기 ':'열기 ')+svg(ICON.arrow)+'</span></button>';
   }
 
+  // 예비 고1 반 신청 (2026-10-17, 053) — 27 예상 계획에 들어 있는 학생에게, 선생님이 신청을 연 동안만 보인다
+  // (계획은 원장님 안내 전까지 비공개 — 닫혀 있으면 카드 자체를 숨긴다)
+  if(STATE.plan === undefined && !PL.loading) plRefresh(true);
+  var pl0 = STATE.plan;
+  if(pl0 && pl0.eligible && pl0.open){
+    var plDo = !pl0.na;
+    var plDesc = pl0.na ? '나 수업 신청 완료 · 마감 전까지 바꿀 수 있어요' : '나 수업을 골라 주세요 · 선착순';
+    html += '<button class="card t-lav" onclick="openPlan()">' +
+              '<span class="icon">'+svg(ICON.cal)+(plDo?'<span class="new-dot">1</span>':'')+'</span>' +
+              '<h3>예비 고1 반 신청</h3><p class="desc">'+esc(plDesc)+'</p>' +
+              '<span class="go">'+(plDo?'신청 ':'열기 ')+svg(ICON.arrow)+'</span></button>';
+  }
+
   // 과제 검사 카드는 2026-10-02 원장님 "학생 개별 페이지의 과제 검사 메뉴 불필요"로 뺐다 — 과제 검사 결과는 수업 리포트 카드 안에서 본다
 
   // 질문 대기열 상태 (2026-09-06) — 클리닉 카드 안에 '질문하기'가 들어 있어 카드 설명에 상태를 붙인다
@@ -2121,7 +2181,7 @@ function renderHub(){
 
   renderStars();   // 슈퍼스타 별 카드 (백엔드가 stars를 주면 표시)
 
-  hide('loadBox'); hide('errBox'); $('gradeView').style.display='none'; $('noticeView').style.display='none'; $('homeworkView').style.display='none'; $('mockHubView').style.display='none'; $('mockView').style.display='none'; $('clinicView').style.display='none'; $('hwcheckView').style.display='none'; $('questionView').style.display='none'; $('reviewView').style.display='none'; $('lhView').style.display='none'; show('hubView');
+  hide('loadBox'); hide('errBox'); $('gradeView').style.display='none'; $('noticeView').style.display='none'; $('homeworkView').style.display='none'; $('mockHubView').style.display='none'; $('mockView').style.display='none'; $('clinicView').style.display='none'; $('hwcheckView').style.display='none'; $('questionView').style.display='none'; $('reviewView').style.display='none'; $('planView').style.display='none'; $('lhView').style.display='none'; show('hubView');
   noticePopupMaybe();   // 미확인 공지 팝업(허브 화면일 때만, 탭당 한 번)
 }
 
@@ -3827,6 +3887,101 @@ var RVC = (function(){
   return { bitsFrom: bitsFrom, pct: pct, merge: merge, step: step, fmt: fmt, ytId: ytId };
 })();
 /* ==/REVIEW-CORE== */
+
+/* ── 예비 고1 반 신청 (2026-10-17 원장님 "학생 페이지 신청으로 만들어줘, 선착순으로" + "가 반 이동도 가능하게", 053) ──
+ * 27 예상 정규 시간표(선생님 화면 [27 예상])에 놓인 학생이 나 반을 고르고, 가 반을 다른 시간으로 옮긴다.
+ * 정원·같은 날 시간 겹침·신청 닫힘은 서버(plan_pick)가 잠금 안에서 막는다 — 화면 판단은 안내용. */
+var PL = { loading: false, busy: false };
+function plRefresh(quiet){
+  PL.loading = true;
+  return rvRpc('plan_view').then(function(r){
+    PL.loading = false;
+    STATE.plan = (r && r.ok) ? r : null;
+    if ($('planView').style.display === 'block') plRender();
+    else if (quiet && $('hubView').style.display !== 'none') renderHub();
+  }).catch(function(){ PL.loading = false; if (STATE.plan === undefined) STATE.plan = null; if ($('planView').style.display === 'block') plRender(); });
+}
+function openPlan(){
+  hide('hubView'); $('planView').style.display = 'block'; window.scrollTo(0, 0);
+  $('plBack').innerHTML = svg(ICON.back) + ' 메뉴';
+  plMsg('', '');
+  plRender(); plRefresh();
+}
+function plBack(){ $('planView').style.display = 'none'; show('hubView'); renderHub(); window.scrollTo(0, 0); }
+function plMsg(t, k){ var e = $('plMsg'); e.textContent = t; e.className = 'pl-msg' + (t ? ' on ' + k : ''); }
+function plCls(id){ var p = STATE.plan; return (p && p.classes || []).filter(function(c){ return c.id === id; })[0] || null; }
+function plLabel(c){ return c ? c.day + ' ' + c.start + '~' + c.end : ''; }
+function plClash(c, otherId){
+  var o = plCls(otherId); return !!(o && c && o.day === c.day && Math.abs((+o.m) - (+c.m)) < 120);
+}
+function plSlot(part, id){
+  var c = plCls(id), pc = part === '가' ? 'ga' : 'na';
+  return '<div class="pl-slot ' + pc + '"><span class="k">' + part + ' 수업</span>' +
+    (c ? '<span class="v">' + esc(plLabel(c)) + '</span><span class="t">' + esc(c.tname) + ' · 화정센터</span>'
+       : '<span class="v none">' + (part === '나' ? '아직 고르지 않았어요' : '아직 정해지지 않았어요') + '</span>') + '</div>';
+}
+function plOpts(part){
+  var p = STATE.plan, cap = +p.cap || 9, mine = part === '가' ? p.ga : p.na, other = part === '가' ? p.na : p.ga;
+  var pc = part === '가' ? 'ga' : 'na', days = ['수','목','금','토','일'], h = '';
+  days.forEach(function(d){
+    var cs = (p.classes || []).filter(function(c){ return c.part === part && c.day === d; }).sort(function(a, b){ return a.m - b.m; });
+    if (!cs.length) return;
+    h += '<div class="pl-day">' + d + '요일</div><div class="pl-opts">' + cs.map(function(c){
+      var isMine = c.id === mine, left = cap - (+c.cnt || 0), clash = plClash(c, other);
+      var note = isMine ? '지금 내 반' : (clash ? (part === '나' ? '가 수업과 시간이 겹쳐요' : '나 수업과 시간이 겹쳐요') : (left <= 0 ? '자리가 없어요' : ''));
+      var dis = isMine || clash || left <= 0 || PL.busy;
+      return '<button type="button" class="pl-opt ' + pc + (isMine ? ' mine' : '') + '" data-pl="' + esc(c.id) + '" data-plp="' + part + '"' + (dis ? ' disabled' : '') + '>' +
+        '<b>' + esc(c.start + '~' + c.end) + ' · ' + esc(c.tname) + '</b>' +
+        '<small>' + (note ? esc(note) : '<span class="left' + (left <= 2 ? ' few' : '') + '">남은 자리 ' + left + '</span> / ' + cap + '명') + '</small></button>';
+    }).join('') + '</div>';
+  });
+  return h;
+}
+function plRender(){
+  var p = STATE.plan, box = $('plBody');
+  if (p === undefined){ box.innerHTML = '<div class="rv-empty">불러오는 중…</div>'; return; }
+  if (!p){ box.innerHTML = '<div class="rv-empty">불러오지 못했어요. 잠시 뒤 다시 열어 주세요.</div>'; return; }
+  if (!p.eligible){ box.innerHTML = '<div class="rv-empty">예비 고1 반 신청 대상이 아니에요.</div>'; return; }
+  var h = '<div class="pl-box"><p class="pl-intro">2026년 12월 16일(수)부터 화정센터에서 일주일에 두 번(가 수업·나 수업) 수업합니다. 가 수업은 선생님이 정해 두었고, 나 수업은 직접 고릅니다.</p>' +
+    '<div class="pl-mine">' + plSlot('가', p.ga) + plSlot('나', p.na) + '</div></div>';
+  if (!p.open){
+    h += '<p class="pl-state closed">지금은 신청 기간이 아닙니다. 위의 반이 지금 정해진 반이에요.</p>';
+    box.innerHTML = h; return;
+  }
+  h += '<p class="pl-state open">신청 받는 중 · 선착순입니다. 반마다 ' + (+p.cap || 9) + '명까지 들어갈 수 있어요. 마감 전까지는 바꿀 수 있습니다.</p>';
+  h += '<div class="pl-box"><p class="pl-h">나 수업 고르기</p><p class="pl-sub">가 수업과 같은 날 같은 시간인 반은 고를 수 없습니다. 가 수업과 같은 선생님 반을 고르면 좋아요.</p>' + plOpts('나') +
+    (p.na ? '<button type="button" class="pl-btn" id="plCancel">나 수업 신청 취소</button>' : '') + '</div>';
+  h += '<details class="pl-box pl-move"' + (PL.moveOpen ? ' open' : '') + '><summary>가 수업 옮기기<small>다른 시간이 필요할 때만</small></summary>' +
+    '<p class="pl-sub" style="margin-top:8px">지금 가 수업에 올 수 없으면 자리가 남은 다른 가 반으로 옮길 수 있습니다. 옮기면 원래 반 자리는 다른 친구에게 돌아가요.</p>' + plOpts('가') + '</details>';
+  box.innerHTML = h;
+  var mv = box.querySelector('.pl-move'); if (mv) mv.addEventListener('toggle', function(){ PL.moveOpen = mv.open; });
+}
+var PL_ERR = { closed: '신청이 마감됐어요.', full: '방금 자리가 다 찼어요. 다른 반을 골라 주세요.', clash: '다른 수업과 시간이 겹쳐요.',
+  not_in_plan: '예비 고1 반 신청 대상이 아니에요.', ga_required: '가 수업은 비울 수 없어요.', bad_class: '없는 반이에요. 화면을 새로 불러올게요.', no_student: '학생 정보를 찾지 못했어요.' };
+function plPick(part, id){
+  if (PL.busy) return;
+  var c = plCls(id), p = STATE.plan;
+  var q = id ? (part + ' 수업을 ' + plLabel(c) + ' ' + (c ? c.tname : '') + ' 반으로 ' + ((part === '가' ? p.ga : p.na) ? '바꿀까요?' : '신청할까요?'))
+             : '나 수업 신청을 취소할까요?';
+  if (!confirm(q)) return;
+  PL.busy = true; plRender(); plMsg('저장하는 중…', 'ok');
+  rvRpc('plan_pick', { part: part, cls: id }).then(function(r){
+    PL.busy = false;
+    if (r && r.ok){
+      STATE.plan = r;
+      plMsg(id ? (part + ' 수업을 ' + plLabel(c) + ' ' + (c ? c.tname : '') + ' 반으로 ' + (part === '가' ? '옮겼어요.' : '신청했어요.')) : '나 수업 신청을 취소했어요.', 'ok');
+      plRender(); window.scrollTo(0, 0);
+      return;
+    }
+    plMsg(PL_ERR[r && r.error] || '저장하지 못했어요. 다시 시도해 주세요.', 'err');
+    plRefresh();
+  }).catch(function(){ PL.busy = false; plMsg('인터넷 연결을 확인하고 다시 시도해 주세요.', 'err'); plRender(); });
+}
+document.addEventListener('click', function(e){
+  var b = e.target.closest && e.target.closest('#planView [data-pl]');
+  if (b){ plPick(b.getAttribute('data-plp'), b.getAttribute('data-pl')); return; }
+  if (e.target.closest && e.target.closest('#plCancel')) plPick('나', '');
+});
 
 var RV = { cur: null, player: null, st: null, timer: null, saveTimer: null, inView: true, saving: false, apiJob: null, hidPaused: false };
 function rvWho(){ return { key: IS_ID ? '' : KEY, student: IS_ID ? KEY : '' }; }

@@ -59,7 +59,7 @@ const ok = (n, c, x) => { if (c) pass++; else { fail++; console.log('  ✗ ' + n
   const b = await chromium.launch();
   async function open(opts){
     opts = opts || {};
-    const ups = [];
+    const ups = [], cfgs = [];
     const ctx = await b.newContext({ viewport: { width: 1300, height: 900 }, timezoneId: 'Asia/Seoul' });
     await ctx.route(/fonts\.g/, r => r.abort());
     await ctx.route(/script\.google\.com|googleusercontent/, r => r.fulfill({ status: 200, contentType: 'application/json', body: '{"result":"success"}' }));
@@ -70,9 +70,16 @@ const ok = (n, c, x) => { if (c) pass++; else { fail++; console.log('  ✗ ' + n
       if (/teacher_accounts/.test(u)) return json([{ display_name: opts.dn || '이수경', login_id: opts.login || 'shue', role: opts.role || 'admin' }]);
       if (/tt_plan_students/.test(u)){
         if (opts.missing) return json({ code: 'PGRST205', message: "Could not find the table 'public.tt_plan_students'" }, 404);
-        if (m === 'POST'){ ups.push({ url: u, prefer: req.headers()['prefer'], body: JSON.parse(req.postData()) }); return json('', opts.saveFail ? 500 : 201); }
+        if (m === 'POST'){ ups.push({ url: u, method: 'POST', prefer: req.headers()['prefer'], body: JSON.parse(req.postData()) }); return json('', opts.saveFail ? 500 : 201); }
+        if (m === 'PATCH'){ ups.push({ url: u, method: 'PATCH', prefer: req.headers()['prefer'], body: [JSON.parse(req.postData())] }); return json('', opts.saveFail ? 500 : 204); }
         return json(opts.plan || []);
       }
+      if (/tt_plan_config/.test(u)){
+        if (opts.cfgMissing) return json({ code: 'PGRST205' }, 404);
+        if (m === 'POST'){ cfgs.push({ url: u, prefer: req.headers()['prefer'], body: JSON.parse(req.postData()) }); return json('', 201); }
+        return json(opts.cfg ? [opts.cfg] : []);
+      }
+      if (/tt_plan_log/.test(u)) return json(opts.log || []);
       if (m !== 'GET') return json('[]', 201);
       if (/\/tt_classes/.test(u)) return json(/class_id=not\.like/.test(u) && /roster/.test(u) && /select=class_id,day/.test(u) ? CLASSES.filter(c => c.book === '정규') : CLASSES);
       if (/\/students/.test(u)) return json([{ name: '김하나', school: '화정중', grade: '중3' }, { name: '박둘', school: '화정중', grade: '중3' }, { name: '정다섯', school: '화수중', grade: '중3' }]);
@@ -86,7 +93,7 @@ const ok = (n, c, x) => { if (c) pass++; else { fail++; console.log('  ✗ ' + n
     }, opts.mode || 'today');
     await page.goto('http://127.0.0.1:' + port + '/timetable.html');
     await page.waitForTimeout(1500);
-    return { page, ctx, ups };
+    return { page, ctx, ups, cfgs };
   }
 
   // ② 다른 선생님 — 탭 숨김, p27로 열려 있으면 오늘로
@@ -126,7 +133,8 @@ const ok = (n, c, x) => { if (c) pass++; else { fail++; console.log('  ✗ ' + n
   // 나 반 — 다른 선생님 → 점
   await page.click('.p27-card [data-p27s="김하나"]');
   await page.click('[data-p27c="토11:00-지원"]'); await page.waitForTimeout(200);
-  ok('④ 나 반에 놓임(가 그대로)', o.ups[o.ups.length - 1].body[0].na === '토11:00-지원' && o.ups[o.ups.length - 1].body[0].ga === '토11:00-승연');
+  { const L = o.ups[o.ups.length - 1];
+    ok('④ 나 반에 놓임 — 저장된 줄은 바꾼 칸만 PATCH(가는 안 보냄)', L.method === 'PATCH' && /plan=eq\.2027&student=eq\./.test(L.url) && L.body[0].na === '토11:00-지원' && !('ga' in L.body[0]) && L.body[0].author === '이수경', JSON.stringify(L)); }
   ok('⑤ 가·나 선생님 다름 점', await page.$eval('[data-p27c="토11:00-지원"] [data-p27s="김하나"]', e => !!e.querySelector('.p27-dot')));
   // 옮기기
   await page.click('[data-p27c="토11:00-승연"] [data-p27s="김하나"]');
@@ -166,6 +174,27 @@ const ok = (n, c, x) => { if (c) pass++; else { fail++; console.log('  ✗ ' + n
   await page.setViewportSize({ width: 390, height: 800 }); await page.waitForTimeout(300);
   ok('⑤ 휴대폰 가로 넘침 없음', await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1));
   await ctx.close();
+
+  // ⑦ 학생 반 신청(053) — 열기·마감·기록
+  o = await open({ mode: 'p27', log: [{ at: '2026-10-17T09:05:00Z', student: '김하나', part: '나', from_cls: '', to_cls: '토1:30-승연', by: '학생 신청' }] });
+  await o.page.waitForSelector('.p27-ov');
+  ok('⑦ 처음엔 닫힘', /닫힘/.test(await o.page.$eval('.p27-sign', e => e.textContent)) && /학생 신청 받기 시작/.test(await o.page.$eval('[data-p27open]', e => e.textContent)));
+  o.page.once('dialog', d => d.accept());
+  await o.page.click('[data-p27open="1"]'); await o.page.waitForTimeout(300);
+  { const c = o.cfgs[o.cfgs.length - 1];
+    ok('⑦ 열기 저장 — 반 36개·정원 9·작성자', c && /on_conflict=plan/.test(c.url) && c.body[0].open === true && c.body[0].cap === 9 && c.body[0].classes.length === 36
+       && c.body[0].classes.some(x => x.id === '토4:30-지원' && x.part === '가' && x.m === 990 && x.day === '토') && c.body[0].author === '이수경', c && JSON.stringify(c.body[0]).slice(0, 200)); }
+  ok('⑦ 받는 중 표시·마감 버튼', /받는 중/.test(await o.page.$eval('.p27-sign', e => e.textContent)) && /신청 마감/.test(await o.page.$eval('[data-p27open]', e => e.textContent)));
+  o.page.once('dialog', d => d.dismiss());
+  await o.page.click('[data-p27open="0"]'); await o.page.waitForTimeout(200);
+  ok('⑦ 마감 확인 창 취소면 저장 안 함', o.cfgs.length === 1);
+  await o.page.click('#p27-logtog');
+  ok('⑦ 최근 학생 신청 기록', /김하나/.test(await o.page.$eval('.p27-log', e => e.textContent)) && /10\/17 18:05/.test(await o.page.$eval('.p27-log', e => e.textContent)) && /토 1:30 이승연T 나/.test(await o.page.$eval('.p27-log', e => e.textContent)));
+  await o.ctx.close();
+  o = await open({ mode: 'p27', cfgMissing: true });
+  await o.page.waitForSelector('.p27-ov');
+  ok('⑦ 053 전 안내', /053/.test(await o.page.$eval('.p27-sign', e => e.textContent)) && !(await o.page.$('[data-p27open]')));
+  await o.ctx.close();
 
   // 052 전
   o = await open({ missing: true, mode: 'p27' });
