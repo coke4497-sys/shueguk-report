@@ -969,6 +969,16 @@
   .p27-tsumall{font-size:.78rem;color:var(--l-ink);font-weight:700;margin-left:auto;}
   @media (max-width:620px){ .p27-tsum{grid-template-columns:1fr;} }
   .p27-ctl{display:flex;flex-wrap:wrap;gap:8px;align-items:center;}
+  .p27-sign{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;background:var(--l-tint);border-radius:12px;padding:9px 12px;}
+  .p27-sign.on{background:var(--m-tint);}
+  .p27-sign > b{font-size:.9rem;color:var(--ink);}
+  .p27-signst{font-size:.74rem;font-weight:700;border-radius:999px;padding:2px 9px;background:#fff;color:var(--l-ink);}
+  .p27-sign.on .p27-signst{background:var(--m-strong);color:#fff;}
+  .p27-sign .p27-note{flex:1;min-width:180px;}
+  .p27-btn.go{background:var(--l-ink);color:#fff;}
+  .p27-btn:disabled{opacity:.5;cursor:default;}
+  .p27-log{list-style:none;margin:2px 0 0;padding:0;width:100%;display:grid;gap:2px;font-size:.78rem;color:var(--ink-soft);max-height:220px;overflow:auto;}
+  .p27-log b{color:var(--ink);}
   .p27-pills{display:flex;flex-wrap:wrap;gap:5px;}
   .p27-pill{font:inherit;font-size:.82rem;border:none;border-radius:999px;padding:5px 13px;background:var(--l-tint);color:var(--ink-soft);cursor:pointer;}
   .p27-pill.on{background:var(--l-ink);color:#fff;font-weight:700;}
@@ -7526,7 +7536,8 @@ P27_SLOTS.forEach(function(x){
 });
 var P27_BY = {}; P27_CLASSES.forEach(function(c){ P27_BY[c.id] = c; });
 var p27Admin = null;         // null = 확인 중
-var P27 = { st: {}, loaded: false, loading: false, err: '', missing: false, sel: null, tf: 'all', q: '', showOut: false };
+var P27 = { st: {}, loaded: false, loading: false, err: '', missing: false, sel: null, tf: 'all', q: '', showOut: false,
+            cfg: null, cfgMissing: false, log: [], showLog: false, cfgBusy: false };
 try { P27.tf = sessionStorage.getItem('tt_p27_tf') || 'all'; } catch (e) {}
 var P27_SB = 'https://bangdbhqpphqqdwcledg.supabase.co/rest/v1';
 var P27_KEY = 'sb_publishable_dE9d1KIbpgYaQkaS2MSrlg_-7SiRJuT';
@@ -7558,7 +7569,14 @@ function p27Load(){
   var rosterP = p27Get('/tt_classes?book=eq.' + encodeURIComponent('정규') + '&class_id=not.like.w*&select=class_id,day,start_time,teacher,name,roster');
   var stuP = p27Get('/students?select=name,school,grade,enrolled').catch(function(){ return []; });
   var planP = p27Get('/tt_plan_students?plan=eq.' + P27_PLAN + '&select=*').catch(function(e){ if (e.missing){ P27.missing = true; return []; } throw e; });
-  Promise.all([rosterP, stuP, planP]).then(function(a){
+  // 학생 신청(053) — 설정 한 줄 + 최근 학생 신청 기록. 053 전이면 없음으로 둔다.
+  P27.cfgMissing = false;
+  var cfgP = p27Get('/tt_plan_config?plan=eq.' + P27_PLAN + '&select=plan,open,cap,updated_at,author')
+    .then(function(d){ return d[0] || null; }).catch(function(e){ if (e.missing) P27.cfgMissing = true; return null; });
+  var logP = p27Get('/tt_plan_log?plan=eq.' + P27_PLAN + '&order=at.desc&limit=40&select=at,student,part,from_cls,to_cls,by').catch(function(){ return []; });
+  cfgP.then(function(c){ P27.cfg = c; });
+  logP.then(function(l){ P27.log = l || []; });
+  Promise.all([rosterP, stuP, planP, cfgP, logP]).then(function(a){
     var schoolOf = {};
     a[1].forEach(function(s){ var n = String(s.name||'').trim(); if (n && !schoolOf[n]) schoolOf[n] = s.school || ''; });
     var st = {};
@@ -7588,10 +7606,20 @@ function p27Load(){
 function p27Save(o, prev){
   if (P27.missing){ setStatus('데이터베이스 052를 적용해야 저장할 수 있어요.', 'err'); return; }
   var who = (typeof alimBy === 'string' && alimBy) || '';
-  var body = [{ plan: P27_PLAN, student: o.name, school: o.school || '', src: o.src || '', ga: o.ga || '', na: o.na || '',
-                excluded: !!o.excluded, author: who, updated_at: new Date().toISOString() }];
-  fetch(P27_SB + '/tt_plan_students?on_conflict=plan,student', { method: 'POST',
-      headers: p27Hdr({ Prefer: 'resolution=merge-duplicates,return=minimal' }), body: JSON.stringify(body) })
+  var req;
+  if (o.saved){
+    // 이미 있는 줄은 바꾼 칸만 고친다 — 학생 신청(053)으로 바뀐 다른 칸(가·나)을 옛 화면 값으로 덮지 않게
+    var patch = { author: who, updated_at: new Date().toISOString() };
+    for (var k in prev) patch[k] = (k === 'excluded') ? !!o[k] : (o[k] || '');
+    req = fetch(P27_SB + '/tt_plan_students?plan=eq.' + P27_PLAN + '&student=eq.' + encodeURIComponent(o.name), { method: 'PATCH',
+      headers: p27Hdr({ Prefer: 'return=minimal' }), body: JSON.stringify(patch) });
+  } else {
+    var body = [{ plan: P27_PLAN, student: o.name, school: o.school || '', src: o.src || '', ga: o.ga || '', na: o.na || '',
+                  excluded: !!o.excluded, author: who, updated_at: new Date().toISOString() }];
+    req = fetch(P27_SB + '/tt_plan_students?on_conflict=plan,student', { method: 'POST',
+      headers: p27Hdr({ Prefer: 'resolution=merge-duplicates,return=minimal' }), body: JSON.stringify(body) });
+  }
+  req
     .then(function(r){
       if (!r.ok) return r.text().then(function(t){ throw new Error(r.status + ' ' + t.slice(0, 80)); });
       o.saved = true; var se = $('status'); if (!se || !/err/.test(se.className)) setStatus('저장했어요.', 'ok');
@@ -7667,6 +7695,7 @@ function p27View(){
       '<span class="p27-tn2"><i class="p27-tg na">나</i><em>' + nn + '</em>명 <small>반 ' + Object.keys(n).length + '/' + allN + '</small></span>' +
       '<span class="p27-tsumall">합계 ' + (ng + nn) + '명</span></div>';
   }).join('') + '</div>';
+  h += p27SignupHtml();
   h += '<div class="p27-ctl"><div class="p27-pills">' +
     [['all','모든 선생님']].concat(P27_T.map(function(t){ return [t[0], t[1]]; })).map(function(x){
       return '<button type="button" class="p27-pill' + (P27.tf === x[0] ? ' on' : '') + '" data-p27t="' + x[0] + '">' + x[1] + '</button>';
@@ -7743,6 +7772,59 @@ function p27View(){
   });
   return root;
 }
+/* 학생 신청(053) — 학생 페이지 [예비 고1 반 신청]에서 학생이 나 반을 고르고 가 반을 옮긴다(선착순, 정원·같은 날 시간 겹침은 서버가 막음).
+ * 열 때 지금 반 목록(P27_CLASSES)을 설정에 함께 넣는다 — 서버는 이 목록으로만 확인한다. */
+function p27CfgClasses(){
+  return P27_CLASSES.map(function(c){ return { id: c.id, day: c.day, start: c.start, end: c.end, m: c.m, teacher: c.teacher, tname: c.tname, part: c.part }; });
+}
+function p27SetOpen(open){
+  if (P27.cfgMissing){ setStatus('데이터베이스 053을 적용해야 학생 신청을 열 수 있어요.', 'err'); return; }
+  if (P27.cfgBusy) return;
+  var msg = open ? '학생 페이지에서 반 신청을 받을까요?\n\n학생이 나 반을 고르고, 가 반을 다른 시간으로 옮길 수 있습니다(선착순 · 반마다 ' + P27_CAP + '명).'
+                 : '학생 반 신청을 마감할까요?\n\n학생 페이지에서는 배치만 보이고 바꿀 수 없게 됩니다.';
+  if (!confirm(msg)) return;
+  P27.cfgBusy = true; render();
+  var body = [{ plan: P27_PLAN, open: !!open, cap: P27_CAP, classes: p27CfgClasses(),
+                author: (typeof alimBy === 'string' && alimBy) || '', updated_at: new Date().toISOString() }];
+  fetch(P27_SB + '/tt_plan_config?on_conflict=plan', { method: 'POST',
+      headers: p27Hdr({ Prefer: 'resolution=merge-duplicates,return=minimal' }), body: JSON.stringify(body) })
+    .then(function(r){
+      if (!r.ok) return r.text().then(function(t){ throw new Error(r.status + ' ' + t.slice(0, 80)); });
+      P27.cfg = { plan: P27_PLAN, open: !!open, cap: P27_CAP, updated_at: body[0].updated_at, author: body[0].author };
+      P27.cfgBusy = false;
+      setStatus(open ? '학생 반 신청을 열었어요.' : '학생 반 신청을 마감했어요.', 'ok');
+      render();
+    }).catch(function(e){
+      P27.cfgBusy = false;
+      setStatus('저장하지 못했습니다. 다시 눌러 주세요. (' + e.message + ')', 'err');
+      render();
+    });
+}
+function p27LogTime(at){
+  var d = new Date(at); if (isNaN(d)) return '';
+  var k = new Date(d.getTime() + 9 * 3600 * 1000);
+  return (k.getUTCMonth() + 1) + '/' + k.getUTCDate() + ' ' + String(k.getUTCHours()).padStart(2, '0') + ':' + String(k.getUTCMinutes()).padStart(2, '0');
+}
+function p27SignupHtml(){
+  if (P27.cfgMissing) return '<div class="p27-sign"><b>학생 반 신청</b><span class="p27-note">데이터베이스 053이 아직 적용되지 않아 학생 신청을 열 수 없습니다.</span></div>';
+  var open = !!(P27.cfg && P27.cfg.open);
+  var h = '<div class="p27-sign' + (open ? ' on' : '') + '"><b>학생 반 신청</b>' +
+    '<span class="p27-signst">' + (open ? '받는 중' : '닫힘') + '</span>' +
+    '<span class="p27-note">' + (open ? '학생 페이지 [예비 고1 반 신청]에서 나 반을 고르고 가 반을 옮길 수 있습니다. 선착순 · 반마다 ' + P27_CAP + '명.'
+                                      : '열면 이 계획의 학생 페이지에 [예비 고1 반 신청]이 나타나 나 반을 고르고 가 반을 옮길 수 있어요(선착순). 닫혀 있는 동안 학생에게는 보이지 않습니다.') + '</span>' +
+    '<button type="button" class="p27-btn' + (open ? '' : ' go') + '" data-p27open="' + (open ? '0' : '1') + '"' + (P27.cfgBusy ? ' disabled' : '') + '>' +
+      (open ? '신청 마감' : '학생 신청 받기 시작') + '</button>';
+  if (P27.log.length){
+    h += '<button type="button" class="p27-link" id="p27-logtog">최근 학생 신청 ' + P27.log.length + '건 ' + (P27.showLog ? '접기' : '보기') + '</button>';
+    if (P27.showLog){
+      var lab = function(id){ var c = P27_BY[id]; return c ? p27ClsLabel(c) : (id ? id : '없음'); };
+      h += '<ul class="p27-log">' + P27.log.map(function(l){
+        return '<li><span>' + p27LogTime(l.at) + '</span> <b>' + esc(l.student) + '</b> ' + esc(l.part) + ' · ' + esc(lab(l.from_cls)) + ' → ' + esc(lab(l.to_cls)) + '</li>';
+      }).join('') + '</ul>';
+    }
+  }
+  return h + '</div>';
+}
 function p27Hilite(root){
   var q = String(P27.q || '').trim();
   root.querySelectorAll('.p27-chip[data-p27s]').forEach(function(b){ b.classList.toggle('hit', !!q && b.getAttribute('data-p27s').indexOf(q) >= 0); });
@@ -7753,6 +7835,9 @@ function p27Click(e){
   if (tf){ P27.tf = tf.getAttribute('data-p27t'); try { sessionStorage.setItem('tt_p27_tf', P27.tf); } catch (x) {} render(); return; }
   if (t.closest('#p27-reload')){ P27.loaded = false; bootKicked.p27 = false; render(); return; }
   if (t.closest('#p27-outtog')){ P27.showOut = !P27.showOut; render(); return; }
+  if (t.closest('#p27-logtog')){ P27.showLog = !P27.showLog; render(); return; }
+  var ob = t.closest('[data-p27open]');
+  if (ob){ p27SetOpen(ob.getAttribute('data-p27open') === '1'); return; }
   var rb = t.closest('[data-p27r]');
   if (rb){ p27Set(rb.getAttribute('data-p27r'), { excluded: false }); return; }
   var xb = t.closest('[data-p27x]');
