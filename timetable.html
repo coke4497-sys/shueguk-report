@@ -7642,7 +7642,7 @@ function p27Warn(o){
   var w = [], g = P27_BY[o.ga], n = P27_BY[o.na];
   if (g && n){
     if (g.teacher !== n.teacher) w.push('diff');
-    if (g.day === n.day && Math.abs(g.m - n.m) < 120) w.push('clash');
+    if (g.day === n.day) w.push('clash');
   }
   return w;
 }
@@ -7650,7 +7650,7 @@ function p27Chip(o, where){
   var w = p27Warn(o);
   var t = o.name + (o.school ? ' · ' + o.school : '') + '\n지금 반: ' + (o.src || '-') +
           '\n가: ' + (P27_BY[o.ga] ? p27ClsLabel(P27_BY[o.ga]) : '아직 안 놓음') + '\n나: ' + (P27_BY[o.na] ? p27ClsLabel(P27_BY[o.na]) : '아직 안 놓음') +
-          (w.indexOf('diff') >= 0 ? '\n가·나 선생님이 다릅니다(3월 전까지 가능)' : '') + (w.indexOf('clash') >= 0 ? '\n가·나 시간이 겹칩니다' : '');
+          (w.indexOf('diff') >= 0 ? '\n가·나 선생님이 다릅니다(3월 전까지 가능)' : '') + (w.indexOf('clash') >= 0 ? '\n가·나가 같은 요일입니다' : '');
   return '<button type="button" class="p27-chip' + (P27.sel === o.name ? ' sel' : '') + (w.indexOf('clash') >= 0 ? ' clash' : '') +
     '" data-p27s="' + esc(o.name) + '" title="' + esc(t) + '">' + esc(o.name) +
     (w.indexOf('diff') >= 0 ? '<i class="p27-dot" aria-label="가·나 선생님 다름"></i>' : '') + '</button>';
@@ -7680,7 +7680,7 @@ function p27View(){
     '<span' + (noNa.length ? ' class="todo"' : '') + '>나 미배치 <b>' + noNa.length + '</b></span>' +
     '<span' + (over ? ' class="bad"' : '') + '>정원(9명) 넘은 반 <b>' + over + '</b></span>' +
     '<span>가·나 선생님 다름 <b>' + diff + '</b></span>' +
-    (clash ? '<span class="bad">가·나 시간 겹침 <b>' + clash + '</b></span>' : '') + '</div>';
+    (clash ? '<span class="bad">가·나 같은 요일 <b>' + clash + '</b></span>' : '') + '</div>';
   // 선생님별 담당 인원 — 가·나 각각 학생 수와 쓰는 반 수 (2026-10-17 원장님 "김지원 가 몇명 나 몇명")
   h += '<div class="p27-tsum">' + P27_T.map(function(t){
     var g = {}, n = {}, ng = 0, nn = 0, allG = 0, allN = 0;

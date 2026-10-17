@@ -3890,7 +3890,7 @@ var RVC = (function(){
 
 /* ── 예비 고1 반 신청 (2026-10-17 원장님 "학생 페이지 신청으로 만들어줘, 선착순으로" + "가 반 이동도 가능하게", 053) ──
  * 27 예상 정규 시간표(선생님 화면 [27 예상])에 놓인 학생이 나 반을 고르고, 가 반을 다른 시간으로 옮긴다.
- * 정원·같은 날 시간 겹침·신청 닫힘은 서버(plan_pick)가 잠금 안에서 막는다 — 화면 판단은 안내용. */
+ * 정원·가·나 같은 요일·신청 닫힘은 서버(plan_pick)가 잠금 안에서 막는다 — 화면 판단은 안내용. */
 var PL = { loading: false, busy: false };
 function plRefresh(quiet){
   PL.loading = true;
@@ -3912,7 +3912,7 @@ function plMsg(t, k){ var e = $('plMsg'); e.textContent = t; e.className = 'pl-m
 function plCls(id){ var p = STATE.plan; return (p && p.classes || []).filter(function(c){ return c.id === id; })[0] || null; }
 function plLabel(c){ return c ? c.day + ' ' + c.start + '~' + c.end : ''; }
 function plClash(c, otherId){
-  var o = plCls(otherId); return !!(o && c && o.day === c.day && Math.abs((+o.m) - (+c.m)) < 120);
+  var o = plCls(otherId); return !!(o && c && o.day === c.day);
 }
 function plSlot(part, id){
   var c = plCls(id), pc = part === '가' ? 'ga' : 'na';
@@ -3928,7 +3928,7 @@ function plOpts(part){
     if (!cs.length) return;
     h += '<div class="pl-day">' + d + '요일</div><div class="pl-opts">' + cs.map(function(c){
       var isMine = c.id === mine, left = cap - (+c.cnt || 0), clash = plClash(c, other);
-      var note = isMine ? '지금 내 반' : (clash ? (part === '나' ? '가 수업과 시간이 겹쳐요' : '나 수업과 시간이 겹쳐요') : (left <= 0 ? '자리가 없어요' : ''));
+      var note = isMine ? '지금 내 반' : (clash ? (part === '나' ? '가 수업과 같은 요일이에요' : '나 수업과 같은 요일이에요') : (left <= 0 ? '자리가 없어요' : ''));
       var dis = isMine || clash || left <= 0 || PL.busy;
       return '<button type="button" class="pl-opt ' + pc + (isMine ? ' mine' : '') + '" data-pl="' + esc(c.id) + '" data-plp="' + part + '"' + (dis ? ' disabled' : '') + '>' +
         '<b>' + esc(c.start + '~' + c.end) + ' · ' + esc(c.tname) + '</b>' +
@@ -3948,15 +3948,15 @@ function plRender(){
     h += '<p class="pl-state closed">지금은 신청 기간이 아닙니다. 위의 반이 지금 정해진 반이에요.</p>';
     box.innerHTML = h; return;
   }
-  h += '<p class="pl-state open">신청 받는 중 · 선착순입니다. 반마다 ' + (+p.cap || 9) + '명까지 들어갈 수 있어요. 마감 전까지는 바꿀 수 있습니다.</p>';
-  h += '<div class="pl-box"><p class="pl-h">나 수업 고르기</p><p class="pl-sub">가 수업과 같은 날 같은 시간인 반은 고를 수 없습니다. 가 수업과 같은 선생님 반을 고르면 좋아요.</p>' + plOpts('나') +
+  h += '<p class="pl-state open">신청 받는 중 · 선착순입니다. 반마다 ' + (+p.cap || 9) + '명까지 들어갈 수 있어요. 가 수업과 나 수업은 서로 다른 요일이어야 합니다. 마감 전까지는 바꿀 수 있습니다.</p>';
+  h += '<div class="pl-box"><p class="pl-h">나 수업 고르기</p><p class="pl-sub">가 수업과 같은 요일의 반은 고를 수 없습니다. 가 수업과 같은 선생님 반을 고르면 좋아요.</p>' + plOpts('나') +
     (p.na ? '<button type="button" class="pl-btn" id="plCancel">나 수업 신청 취소</button>' : '') + '</div>';
   h += '<details class="pl-box pl-move"' + (PL.moveOpen ? ' open' : '') + '><summary>가 수업 옮기기<small>다른 시간이 필요할 때만</small></summary>' +
-    '<p class="pl-sub" style="margin-top:8px">지금 가 수업에 올 수 없으면 자리가 남은 다른 가 반으로 옮길 수 있습니다. 옮기면 원래 반 자리는 다른 친구에게 돌아가요.</p>' + plOpts('가') + '</details>';
+    '<p class="pl-sub" style="margin-top:8px">지금 가 수업에 올 수 없으면 자리가 남은 다른 가 반으로 옮길 수 있습니다. 나 수업과 같은 요일로는 옮길 수 없습니다. 옮기면 원래 반 자리는 다른 친구에게 돌아가요.</p>' + plOpts('가') + '</details>';
   box.innerHTML = h;
   var mv = box.querySelector('.pl-move'); if (mv) mv.addEventListener('toggle', function(){ PL.moveOpen = mv.open; });
 }
-var PL_ERR = { closed: '신청이 마감됐어요.', full: '방금 자리가 다 찼어요. 다른 반을 골라 주세요.', clash: '다른 수업과 시간이 겹쳐요.',
+var PL_ERR = { closed: '신청이 마감됐어요.', full: '방금 자리가 다 찼어요. 다른 반을 골라 주세요.', clash: '가 수업과 나 수업은 같은 요일에 들을 수 없어요.',
   not_in_plan: '예비 고1 반 신청 대상이 아니에요.', ga_required: '가 수업은 비울 수 없어요.', bad_class: '없는 반이에요. 화면을 새로 불러올게요.', no_student: '학생 정보를 찾지 못했어요.' };
 function plPick(part, id){
   if (PL.busy) return;

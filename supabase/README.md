@@ -860,7 +860,7 @@ default privileges 까지 되돌렸다. `tools/check_lock.py` 통과(표 15/15 �
 ## 053 — 27 예상 학생 반 신청(선착순) `tt_plan_config`·`tt_plan_log`·`plan_view`·`plan_pick` (2026-10-17)
 - 원장님 "학생 페이지 신청으로 만들어줘, 선착순으로" + "가 반 이동도 가능하게". 052 tt_plan_students 위에 얹는다.
 - `tt_plan_config`(plan 기본키 · open · cap · classes jsonb — 선생님 화면 [학생 신청 받기 시작]이 P27_CLASSES를 넣는다) · `tt_plan_log`(학생이 바꾼 기록 — 교사 읽기만). 둘 다 공개 키 차단.
-- `plan_view(p {key|student})` = 내 가·나 + 반마다 인원. `plan_pick(p {key|student, part, cls})` = 가 옮기기·나 고르기/바꾸기/취소(cls ''는 나만). 잠금(`pg_advisory_xact_lock`) 안에서 열림·반 구분·정원(cap, 내 반은 제외하고 셈)·같은 날 120분 안 겹침을 확인한다. 거절 값: closed·full·clash·bad_class·bad_part·ga_required·not_in_plan·no_student.
+- `plan_view(p {key|student})` = 내 가·나 + 반마다 인원. `plan_pick(p {key|student, part, cls})` = 가 옮기기·나 고르기/바꾸기/취소(cls ''는 나만). 잠금(`pg_advisory_xact_lock`) 안에서 열림·반 구분·정원(cap, 내 반은 제외하고 셈)·가·나 같은 요일(054부터 시간과 상관없이 — 053은 120분 안만)을 확인한다. 거절 값: closed·full·clash·bad_class·bad_part·ga_required·not_in_plan·no_student.
 - 학생 ↔ 계획 줄: 031 `review_me_` → 이름 정확히 → 끝 A 붙여서 → 끝 A 떼고, 두 쪽 학교가 다 적혀 있는데 다르면 다른 학생. 계획에서 뺀 학생(excluded)은 신청 불가.
 - **적용 상태: 2026-10-17 실제 수파베이스에 적용 완료**(관리 API — 원장님이 준 sbp_ 토큰, 저장 안 함). 확인: 공개 키로 tt_plan_config 401·plan_view/plan_pick 응답, 실제 계획 학생으로 열기→보기(인원 8)→나 고르기를 한 거래 안에서 해 보고 되돌림(설정·기록 0줄, 나 배치 0줄 그대로).
 - 검증: `PGHOST=/home/pgtest PGPORT=5499 PGUSER=postgres bash tools/plan-signup-sql-test.sh`.
