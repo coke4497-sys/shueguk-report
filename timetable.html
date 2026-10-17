@@ -957,6 +957,16 @@
   .p27-sum span{background:#F4F7F5;border-radius:999px;padding:4px 12px;font-size:.82rem;color:var(--ink-soft);}
   .p27-sum b{color:var(--ink);font-variant-numeric:tabular-nums;}
   .p27-sum .todo b{color:var(--accent);} .p27-sum .bad{background:#F7E2DE;color:#7E2B3D;}
+  .p27-tsum{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;}
+  .p27-tcard{background:#F4F7F5;border-radius:12px;padding:9px 12px;display:flex;flex-wrap:wrap;align-items:center;gap:4px 12px;min-width:0;}
+  .p27-tcard b{font-family:"Do Hyeon","Gowun Dodum",sans-serif;font-weight:400;font-size:1.08rem;color:var(--ink);width:100%;}
+  .p27-tn2{font-size:.84rem;color:var(--ink-soft);display:inline-flex;align-items:center;gap:4px;white-space:nowrap;}
+  .p27-tn2 em{font-style:normal;font-weight:700;color:var(--ink);font-size:1rem;font-variant-numeric:tabular-nums;}
+  .p27-tn2 small{font-size:.72rem;}
+  .p27-tg{font-style:normal;font-size:.7rem;font-weight:700;border-radius:5px;padding:0 6px;}
+  .p27-tg.ga{background:var(--btn);color:#fff;} .p27-tg.na{background:#fff;color:var(--accent);}
+  .p27-tsumall{font-size:.78rem;color:var(--accent);font-weight:700;margin-left:auto;}
+  @media (max-width:620px){ .p27-tsum{grid-template-columns:1fr;} }
   .p27-ctl{display:flex;flex-wrap:wrap;gap:8px;align-items:center;}
   .p27-pills{display:flex;flex-wrap:wrap;gap:5px;}
   .p27-pill{font:inherit;font-size:.82rem;border:none;border-radius:999px;padding:5px 13px;background:#F4F7F5;color:var(--ink-soft);cursor:pointer;}
@@ -7639,6 +7649,20 @@ function p27View(){
     '<span' + (over ? ' class="bad"' : '') + '>정원(9명) 넘은 반 <b>' + over + '</b></span>' +
     '<span>가·나 선생님 다름 <b>' + diff + '</b></span>' +
     (clash ? '<span class="bad">가·나 시간 겹침 <b>' + clash + '</b></span>' : '') + '</div>';
+  // 선생님별 담당 인원 — 가·나 각각 학생 수와 쓰는 반 수 (2026-10-17 원장님 "김지원 가 몇명 나 몇명")
+  h += '<div class="p27-tsum">' + P27_T.map(function(t){
+    var g = {}, n = {}, ng = 0, nn = 0, allG = 0, allN = 0;
+    P27_CLASSES.forEach(function(c){ if (c.teacher === t[0]){ if (c.part === '가') allG++; else allN++; } });
+    act.forEach(function(o){
+      var cg = P27_BY[o.ga], cn = P27_BY[o.na];
+      if (cg && cg.teacher === t[0]){ ng++; g[cg.id] = 1; }
+      if (cn && cn.teacher === t[0]){ nn++; n[cn.id] = 1; }
+    });
+    return '<div class="p27-tcard" data-p27ts="' + t[0] + '"><b>' + t[1] + '</b>' +
+      '<span class="p27-tn2"><i class="p27-tg ga">가</i><em>' + ng + '</em>명 <small>반 ' + Object.keys(g).length + '/' + allG + '</small></span>' +
+      '<span class="p27-tn2"><i class="p27-tg na">나</i><em>' + nn + '</em>명 <small>반 ' + Object.keys(n).length + '/' + allN + '</small></span>' +
+      '<span class="p27-tsumall">합계 ' + (ng + nn) + '명</span></div>';
+  }).join('') + '</div>';
   h += '<div class="p27-ctl"><div class="p27-pills">' +
     [['all','모든 선생님']].concat(P27_T.map(function(t){ return [t[0], t[1]]; })).map(function(x){
       return '<button type="button" class="p27-pill' + (P27.tf === x[0] ? ' on' : '') + '" data-p27t="' + x[0] + '">' + x[1] + '</button>';
