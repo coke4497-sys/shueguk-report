@@ -7668,7 +7668,7 @@ function p27View(){
   var over = P27_CLASSES.filter(function(c){ return p27Count(c.id) > P27_CAP; }).length;
   var diff = act.filter(function(o){ return p27Warn(o).indexOf('diff') >= 0; }).length;
   var clash = act.filter(function(o){ return p27Warn(o).indexOf('clash') >= 0; }).length;
-  var h = '<div class="p27-head"><div><div class="p27-eye">예비 고1 · 화정센터 · 2026년 12월 16일(수) 시작 · 원장님·대표님만 보이는 메뉴</div>' +
+  var h = '<div class="p27-head"><div><div class="p27-eye">2027 고1 · 화정센터 · 2026년 12월 16일(수) 시작 · 원장님·대표님만 보이는 메뉴</div>' +
     '<h2 class="p27-title">27 예상 정규 시간표</h2></div>' +
     '<button type="button" class="p27-btn" id="p27-reload">다시 불러오기</button></div>';
   if (P27.missing) h += '<p class="p27-warn">데이터베이스 052가 아직 적용되지 않아 배치를 저장할 수 없습니다. 적용되면 바로 저장돼요.</p>';
@@ -7810,8 +7810,8 @@ function p27SignupHtml(){
   var open = !!(P27.cfg && P27.cfg.open);
   var h = '<div class="p27-sign' + (open ? ' on' : '') + '"><b>학생 반 신청</b>' +
     '<span class="p27-signst">' + (open ? '받는 중' : '닫힘') + '</span>' +
-    '<span class="p27-note">' + (open ? '학생 페이지 [예비 고1 반 신청]에서 나 반을 고르고 가 반을 옮길 수 있습니다. 선착순 · 반마다 ' + P27_CAP + '명.'
-                                      : '열면 이 계획의 학생 페이지에 [예비 고1 반 신청]이 나타나 나 반을 고르고 가 반을 옮길 수 있어요(선착순). 닫혀 있는 동안 학생에게는 보이지 않습니다.') + '</span>' +
+    '<span class="p27-note">' + (open ? '학생 페이지 [2027 고1 반 신청]에서 나 반을 고르고 가 반을 옮길 수 있습니다. 선착순 · 반마다 ' + P27_CAP + '명.'
+                                      : '열면 이 계획의 학생 페이지에 [2027 고1 반 신청]이 나타나 나 반을 고르고 가 반을 옮길 수 있어요(선착순). 닫혀 있는 동안 학생에게는 보이지 않습니다.') + '</span>' +
     '<button type="button" class="p27-btn' + (open ? '' : ' go') + '" data-p27open="' + (open ? '0' : '1') + '"' + (P27.cfgBusy ? ' disabled' : '') + '>' +
       (open ? '신청 마감' : '학생 신청 받기 시작') + '</button>';
   if (P27.log.length){

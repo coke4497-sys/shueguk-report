@@ -103,7 +103,7 @@ const view = (o) => Object.assign({ ok: true, eligible: true, open: true, cap: 9
     await plRefresh();
     STATE.notices = []; STATE.homework = []; STATE.analyses = []; STATE.review = []; STATE.lhist = []; STATE.ahist = []; STATE.qq = [];
     try { renderHub(); } catch (e) { return 'ERR ' + e.message; }
-    const c = [...document.querySelectorAll('#menu .card')].find(x => /예비 고1 반 신청/.test(x.textContent));
+    const c = [...document.querySelectorAll('#menu .card')].find(x => /2027 고1 반 신청/.test(x.textContent));
     return c ? c.textContent + (c.querySelector('.new-dot') ? ' [DOT]' : '') : null;
   }); };
   let t = await card(view());
