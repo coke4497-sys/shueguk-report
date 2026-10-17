@@ -948,31 +948,31 @@
   .p27-head{display:flex;align-items:flex-end;justify-content:space-between;gap:10px;flex-wrap:wrap;}
   .p27-eye{font-size:.74rem;color:var(--ink-soft);}
   .p27-title{font-family:"Do Hyeon","Gowun Dodum",sans-serif;font-weight:400;font-size:1.6rem;margin:2px 0 0;color:var(--ink);}
-  .p27-btn{font:inherit;font-size:.8rem;background:#EDE4F4;color:#5A4A6A;border:none;border-radius:9px;padding:5px 11px;cursor:pointer;white-space:nowrap;}
-  .p27-btn:hover{background:#E3D7EE;}
-  .p27-link{font:inherit;font-size:.82rem;background:none;border:none;color:#5A4A6A;text-decoration:underline;cursor:pointer;padding:0;}
+  .p27-btn{font:inherit;font-size:.8rem;background:var(--icon-bg);color:var(--accent);border:none;border-radius:9px;padding:5px 11px;cursor:pointer;white-space:nowrap;}
+  .p27-btn:hover{background:#DFEBE6;}
+  .p27-link{font:inherit;font-size:.82rem;background:none;border:none;color:var(--accent);text-decoration:underline;cursor:pointer;padding:0;}
   .p27-warn{background:#F7E2DE;color:#7E2B3D;border-radius:10px;padding:8px 12px;margin:0;font-size:.86rem;}
   .p27-note{font-size:.8rem;color:var(--ink-soft);margin:0;}
   .p27-sum{display:flex;flex-wrap:wrap;gap:6px;}
-  .p27-sum span{background:#F2F5F3;border-radius:999px;padding:4px 12px;font-size:.82rem;color:var(--ink-soft);}
+  .p27-sum span{background:#F4F7F5;border-radius:999px;padding:4px 12px;font-size:.82rem;color:var(--ink-soft);}
   .p27-sum b{color:var(--ink);font-variant-numeric:tabular-nums;}
-  .p27-sum .todo{background:#F9EFD0;color:#7A6430;} .p27-sum .bad{background:#F7E2DE;color:#7E2B3D;}
+  .p27-sum .todo b{color:var(--accent);} .p27-sum .bad{background:#F7E2DE;color:#7E2B3D;}
   .p27-ctl{display:flex;flex-wrap:wrap;gap:8px;align-items:center;}
   .p27-pills{display:flex;flex-wrap:wrap;gap:5px;}
-  .p27-pill{font:inherit;font-size:.82rem;border:none;border-radius:999px;padding:5px 13px;background:#F2F5F3;color:var(--ink-soft);cursor:pointer;}
-  .p27-pill.on{background:#EDE4F4;color:#5A4A6A;font-weight:700;}
+  .p27-pill{font:inherit;font-size:.82rem;border:none;border-radius:999px;padding:5px 13px;background:#F4F7F5;color:var(--ink-soft);cursor:pointer;}
+  .p27-pill.on{background:var(--accent);color:#fff;font-weight:700;}
   .p27-q{font:inherit;font-size:.86rem;border:1px solid var(--line);border-radius:9px;padding:5px 10px;width:170px;max-width:100%;}
   .p27-leg{display:inline-flex;align-items:center;gap:5px;font-size:.76rem;color:var(--ink-soft);flex-wrap:wrap;}
   .p27-leg .lg{display:inline-block;width:12px;height:12px;border-radius:3px;margin-left:6px;}
-  .p27-leg .lg.ga{background:#F9EFD0;} .p27-leg .lg.na{background:#EDE4F4;}
+  .p27-leg .lg.ga{background:#DFEBE6;} .p27-leg .lg.na{background:#fff;box-shadow:inset 0 0 0 1px var(--line);}
   .p27-dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:#C64F63;margin-left:3px;vertical-align:middle;}
-  .p27-selbar{position:sticky;top:calc(var(--abh, 0px) + 4px);z-index:20;background:#5A4A6A;color:#fff;border-radius:12px;padding:8px 12px;font-size:.86rem;
+  .p27-selbar{position:sticky;top:calc(var(--abh, 0px) + 4px);z-index:20;background:var(--accent);color:#fff;border-radius:12px;padding:8px 12px;font-size:.86rem;
     display:flex;flex-wrap:wrap;gap:4px 10px;align-items:center;}
   .p27-selbar .p27-selnow{opacity:.85;font-size:.78rem;}
   .p27-selbar .p27-selbtns{display:flex;gap:5px;flex-wrap:wrap;margin-left:auto;}
   .p27-selbar .p27-btn{background:rgba(255,255,255,.18);color:#fff;}
   .p27-trays{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
-  .p27-tray{background:#fff;border-radius:12px;padding:10px 12px;min-width:0;}
+  .p27-tray{background:#F4F7F5;border-radius:12px;padding:10px 12px;min-width:0;}
   .p27-tray.done{color:var(--ink-soft);font-size:.84rem;}
   .p27-trh{font-size:.84rem;font-weight:700;margin-bottom:6px;}
   .p27-grp{display:flex;flex-wrap:wrap;gap:3px;align-items:center;margin:3px 0;}
@@ -982,26 +982,26 @@
   .p27-dayh{font-weight:700;color:#fff;background:#5F8377;border-radius:9px;text-align:center;padding:5px 0;font-size:.92rem;}
   .p27-time{font-size:.74rem;font-weight:700;color:var(--ink-soft);margin:6px 0 0;font-variant-numeric:tabular-nums;}
   .p27-card{border-radius:9px;padding:6px 7px;min-width:0;}
-  .p27-card.ga{background:#F9EFD0;} .p27-card.na{background:#EDE4F4;}
-  .p27-card.target{cursor:pointer;outline:2px dashed rgba(90,74,106,.45);outline-offset:-2px;}
+  .p27-card.ga{background:#DFEBE6;} .p27-card.na{background:#fff;border:1px solid var(--line-soft);}
+  .p27-card.target{cursor:pointer;outline:2px dashed rgba(76,110,102,.45);outline-offset:-2px;}
   .p27-card.target:hover{outline-style:solid;}
-  .p27-card.here{outline:2px solid #5A4A6A;}
+  .p27-card.here{outline:2px solid var(--accent);}
   .p27-ch{display:flex;align-items:center;gap:5px;margin-bottom:4px;}
-  .p27-tag{font-size:.7rem;font-weight:700;background:rgba(255,255,255,.7);border-radius:5px;padding:0 6px;}
-  .p27-card.ga .p27-tag{color:#7A6430;} .p27-card.na .p27-tag{color:#5A4A6A;}
+  .p27-tag{font-size:.7rem;font-weight:700;border-radius:5px;padding:0 6px;}
+  .p27-card.ga .p27-tag{background:var(--btn);color:#fff;} .p27-card.na .p27-tag{background:var(--icon-bg);color:var(--accent);}
   .p27-tn{font-size:.78rem;font-weight:700;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
   .p27-cnt{font-size:.72rem;color:var(--ink-soft);font-variant-numeric:tabular-nums;}
-  .p27-cnt.full{color:#4C6E66;font-weight:700;} .p27-cnt.over{color:#B4574E;font-weight:700;}
+  .p27-cnt.full{color:var(--accent);font-weight:700;} .p27-cnt.over{color:#B4574E;font-weight:700;}
   .p27-chips{display:flex;flex-wrap:wrap;gap:3px;}
-  .p27-chip{font:inherit;font-size:.74rem;background:rgba(255,255,255,.85);border:none;border-radius:4px;padding:1px 6px;cursor:pointer;color:var(--ink);}
-  .p27-tray .p27-chip{background:#F2F5F3;}
-  .p27-chip:hover{background:#fff;outline:1px solid #B9A5CC;}
-  .p27-chip.sel{background:#5A4A6A;color:#fff;}
-  .p27-chip.hit{outline:2px solid #D2941C;}
+  .p27-chip{font:inherit;font-size:.74rem;background:rgba(255,255,255,.9);border:none;border-radius:4px;padding:1px 6px;cursor:pointer;color:var(--ink);}
+  .p27-tray .p27-chip{background:#fff;} .p27-card.na .p27-chip{background:var(--icon-bg);}
+  .p27-chip:hover{outline:1px solid var(--btn);}
+  .p27-chip.sel{background:var(--accent);color:#fff;}
+  .p27-chip.hit{outline:2px solid var(--btn);}
   .p27-chip.clash{box-shadow:inset 0 0 0 1px #C64F63;}
-  .p27-chip.out{background:#F2F5F3;color:var(--ink-soft);}
+  .p27-chip.out{background:var(--icon-bg);color:var(--ink-soft);}
   .p27-empty{font-size:.7rem;color:var(--ink-soft);}
-  .p27-foot{display:grid;gap:8px;background:#fff;border-radius:12px;padding:10px 12px;}
+  .p27-foot{display:grid;gap:8px;background:#F4F7F5;border-radius:12px;padding:10px 12px;}
   .p27-add{display:flex;flex-wrap:wrap;gap:6px;align-items:center;}
   .p27-add input{font:inherit;font-size:.84rem;border:1px solid var(--line);border-radius:8px;padding:4px 8px;width:120px;}
   @media (max-width:900px){ .p27-ov{grid-template-columns:repeat(3,minmax(0,1fr));} }
@@ -3754,7 +3754,7 @@ function renderTabs(){
     : (mode === 'att') ? '<b>기간·보기·정렬</b>을 골라 전체 학생의 주차별 출석을 한눈에 봐요. 학생 줄을 누르면 그 학생 상세 기록이 펼쳐져요. '
         + '<span class="hint-x">출석 체크는 오늘의 시간표에서 합니다.</span>'
     : (mode === 'cal') ? '주마다 [정규]/[내신]을 골라 그 주에 쓸 시간표를 정하세요. 오늘의 시간표·주차별이 자동으로 따라갑니다. 날짜 칸을 누르면 메모를 적을 수 있어요.'
-    : (mode === 'p27') ? '<b>27 예상 정규 시간표</b>입니다. 학생 이름을 누르고 놓을 반을 누르면 배치돼요. <span class="hint-x">실제 시간표·명단은 바뀌지 않습니다. 원장님 계정에만 보이는 메뉴예요.</span>'
+    : (mode === 'p27') ? '<b>27 예상 정규 시간표</b>입니다. 학생 이름을 누르고 놓을 반을 누르면 배치돼요. <span class="hint-x">실제 시간표·명단은 바뀌지 않습니다. 원장님·대표님 계정에만 보이는 메뉴예요.</span>'
     : (mode === 'exs') ? '학교별 시험 기간을 등록하고, 시험 시간표가 나오면 막대 아래 날짜 칸을 눌러 학년·과목을 넣으세요. 넣은 과목은 슈국 캘린더 날짜 칸에도 표시돼요.'
     : '<b>여기서는 영구 이동만 합니다.</b> 요일 머리글이나 반 카드를 누르면 그 요일이 크게 열려요. 학생 이름을 누르면 이동 모드가 켜지고, 옮길 반(다른 요일 포함)을 누르면 영구 이동됩니다. '
         + '<span class="hint-x">출석 체크는 오늘의 시간표에서, 1회 이동은 주차별 시간표에서 하세요.</span>';
@@ -7476,7 +7476,7 @@ if (window.shuegukTeacherName) shuegukTeacherName().then(function(n){ alimBy = n
  * 반은 아래 P27_SLOTS에 고정(화정센터 강의실 3실, 수·목·금 저녁 2칸 + 토·일 4칸, 선생님마다 가 7 + 나 7).
  * 원칙: 선생님마다·요일마다 가와 나를 둘 다 둔다(어느 두 요일만 와도 같은 선생님의 가·나), 토·일 같은 시간은 가·나를 뒤집는다.
  * 학생 배치는 tt_plan_students(plan '2027')에만 쌓는다 — 실제 시간표(tt_classes)·명단은 건드리지 않는다.
- * 메뉴는 허브 로그인 역할이 admin(원장님)일 때만 보인다(teacher-name.js shuegukTeacherRole). 화면에서만 가린다. */
+ * 메뉴는 허브 로그인 역할이 admin(원장님)이거나 P27_VIEWERS 계정(박언호 대표님)일 때만 보인다(teacher-name.js shuegukTeacherInfo). 화면에서만 가린다. */
 var P27_PLAN = '2027';
 var P27_CAP = 9;
 var P27_DAYS = ['수','목','금','토','일'];
@@ -7518,9 +7518,11 @@ function p27Get(path){
     });
   });
 }
-if (window.shuegukTeacherRole){
-  shuegukTeacherRole().then(function(r){
-    p27Admin = (r === 'admin');
+// 원장님(admin) + 따로 허용한 계정 — 박언호 대표님(parkeh, 2026-10-17 원장님 "박언호 대표님도 볼 수 있게")
+var P27_VIEWERS = ['parkeh'];
+if (window.shuegukTeacherInfo){
+  shuegukTeacherInfo().then(function(info){
+    p27Admin = (info.role === 'admin' || P27_VIEWERS.indexOf(info.login) >= 0);
     var b = $('v-p27'); if (b) b.hidden = !p27Admin;
     if (mode === 'p27'){ if (p27Admin) render(); else setMode('today'); }
   });
@@ -7607,8 +7609,8 @@ function p27ClsLabel(c){ return c.day + ' ' + c.start + ' ' + c.tname + ' ' + c.
 function p27View(){
   var root = document.createElement('div');
   root.className = 'p27';
-  if (p27Admin === null){ root.innerHTML = '<p class="p27-note">원장님 계정인지 확인하고 있어요…</p>'; return root; }
-  if (!p27Admin){ root.innerHTML = '<p class="p27-note">이 메뉴는 원장님 계정에서만 볼 수 있습니다.</p>'; return root; }
+  if (p27Admin === null){ root.innerHTML = '<p class="p27-note">볼 수 있는 계정인지 확인하고 있어요…</p>'; return root; }
+  if (!p27Admin){ root.innerHTML = '<p class="p27-note">이 메뉴는 원장님·대표님 계정에서만 볼 수 있습니다.</p>'; return root; }
   if (!bootKicked.p27) p27Load();
   var all = Object.keys(P27.st).map(function(k){ return P27.st[k]; });
   var act = all.filter(function(o){ return !o.excluded; });
@@ -7616,7 +7618,7 @@ function p27View(){
   var over = P27_CLASSES.filter(function(c){ return p27Count(c.id) > P27_CAP; }).length;
   var diff = act.filter(function(o){ return p27Warn(o).indexOf('diff') >= 0; }).length;
   var clash = act.filter(function(o){ return p27Warn(o).indexOf('clash') >= 0; }).length;
-  var h = '<div class="p27-head"><div><div class="p27-eye">예비 고1 · 화정센터 · 2026년 12월 16일(수) 시작 · 원장님만 보이는 메뉴</div>' +
+  var h = '<div class="p27-head"><div><div class="p27-eye">예비 고1 · 화정센터 · 2026년 12월 16일(수) 시작 · 원장님·대표님만 보이는 메뉴</div>' +
     '<h2 class="p27-title">27 예상 정규 시간표</h2></div>' +
     '<button type="button" class="p27-btn" id="p27-reload">다시 불러오기</button></div>';
   if (P27.missing) h += '<p class="p27-warn">데이터베이스 052가 아직 적용되지 않아 배치를 저장할 수 없습니다. 적용되면 바로 저장돼요.</p>';

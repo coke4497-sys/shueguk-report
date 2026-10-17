@@ -40,21 +40,25 @@
   function load(){
     return session().then(function (s) {
       var uid = s && s.user && s.user.id;
-      if (!uid) return { name: '', role: '' };
+      if (!uid) return { name: '', role: '', login: '' };
       return raw()(REST + '/teacher_accounts?select=display_name,login_id,role&active=is.true&limit=1&user_id=eq.' + encodeURIComponent(uid),
           { headers: { apikey: KEY, Authorization: 'Bearer ' + s.access_token }, cache: 'no-store' })
         .then(function (r) { return r.ok ? r.json() : []; })
         .then(function (rows) {
           var t = rows && rows[0];
-          return t ? { name: tr(t.display_name || t.login_id).replace(/\s*(선생님|쌤|T)$/, ''), role: tr(t.role) } : { name: '', role: '' };
+          return t ? { name: tr(t.display_name || t.login_id).replace(/\s*(선생님|쌤|T)$/, ''), role: tr(t.role), login: tr(t.login_id) } : { name: '', role: '', login: '' };
         });
-    }).catch(function () { return { name: '', role: '' }; });
+    }).catch(function () { return { name: '', role: '', login: '' }; });
   }
   function getInfo(){ if (!info) info = load(); return info; }
 
   global.shuegukTeacherName = function (){
     if (!cache) cache = getInfo().then(function (o) { return (o && o.name) || ''; });
     return cache;
+  };
+  // 이름·역할·로그인 아이디 한꺼번에 — 특정 계정에만 여는 메뉴용
+  global.shuegukTeacherInfo = function (){
+    return getInfo().then(function (o) { return { name: (o && o.name) || '', role: (o && o.role) || '', login: (o && o.login) || '' }; });
   };
   global.shuegukTeacherRole = function (){
     return getInfo().then(function (o) { return (o && o.role) || ''; });

@@ -57,7 +57,7 @@ const ok = (n, c, x) => { if (c) pass++; else { fail++; console.log('  ✗ ' + n
       const req = r.request(), u = req.url(), m = req.method();
       const json = (x, st) => r.fulfill({ status: st || 200, contentType: 'application/json', body: typeof x === 'string' ? x : JSON.stringify(x) });
       if (/\/auth\/v1\/token/.test(u)) return json({ access_token: 't', refresh_token: 'r', expires_at: Math.floor(Date.now() / 1000) + 3600, user: { id: 'u' } });
-      if (/teacher_accounts/.test(u)) return json([{ display_name: '이수경', login_id: 'sk', role: opts.role || 'admin' }]);
+      if (/teacher_accounts/.test(u)) return json([{ display_name: opts.dn || '이수경', login_id: opts.login || 'shue', role: opts.role || 'admin' }]);
       if (/tt_plan_students/.test(u)){
         if (opts.missing) return json({ code: 'PGRST205', message: "Could not find the table 'public.tt_plan_students'" }, 404);
         if (m === 'POST'){ ups.push({ url: u, prefer: req.headers()['prefer'], body: JSON.parse(req.postData()) }); return json('', opts.saveFail ? 500 : 201); }
@@ -85,6 +85,9 @@ const ok = (n, c, x) => { if (c) pass++; else { fail++; console.log('  ✗ ' + n
   ok('② 남아 있던 p27 → 오늘', await page.evaluate(() => mode) === 'today');
   await ctx.close();
 
+  ({ page, ctx } = await open({ role: 'teacher', login: 'parkeh', dn: '박언호', mode: 'p27' }));
+  ok('② 박언호 대표님(선생님 역할)은 보임', !(await page.$eval('#v-p27', e => e.hidden)) && await page.evaluate(() => mode) === 'p27');
+  await ctx.close();
   // ③ 원장님
   let o = await open({ plan: [{ student: '최넷', school: '백양중', src: '', ga: '수5:30-승연', na: '', excluded: false }] });
   page = o.page; ctx = o.ctx;
