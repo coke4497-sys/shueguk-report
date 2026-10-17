@@ -2,7 +2,7 @@
 /* 학생 페이지 '예비 고1 반 신청'(053, 2026-10-17) 검증.
  *   NODE_PATH=$(npm root -g) node tools/plan-signup-e2e.js
  * plan_view 응답으로 내 가·나 반·신청 상태를 그리고, 나 반 고르기·바꾸기·취소, 가 반 옮기기(접이식),
- * 같은 날 시간 겹침·꽉 찬 반 잠금, 서버 거절 안내, 닫힌 상태, 허브 카드(대상·신청 중·이미 고름)를 확인한다. */
+ * 가·나 같은 요일 잠김·꽉 찬 반 잠금, 서버 거절 안내, 닫힌 상태, 허브 카드(대상·신청 중·이미 고름)를 확인한다. */
 const path = require('path'), fs = require('fs'), http = require('http');
 const { chromium } = require('playwright');
 const ROOT = path.resolve(__dirname, '..');
@@ -12,7 +12,8 @@ const C = (id, day, start, end, m, t, tname, part) => ({ id, day, start, end, m,
 const CLASSES = [
   C('토11:00-승연','토','11:00','1:00',660,'승연','이승연T','가'), C('토1:30-지원','토','1:30','3:30',810,'지원','김지원T','가'),
   C('토11:00-지원','토','11:00','1:00',660,'지원','김지원T','나'), C('토1:30-승연','토','1:30','3:30',810,'승연','이승연T','나'),
-  C('일11:00-승연','일','11:00','1:00',660,'승연','이승연T','나'), C('수5:30-지원','수','5:30','7:30',1050,'지원','김지원T','나')];
+  C('일11:00-승연','일','11:00','1:00',660,'승연','이승연T','나'), C('수5:30-지원','수','5:30','7:30',1050,'지원','김지원T','나'),
+  C('일1:30-승연','일','1:30','3:30',810,'승연','이승연T','나'), C('일4:30-지원','일','4:30','6:30',990,'지원','김지원T','가')];
 const view = (o) => Object.assign({ ok: true, eligible: true, open: true, cap: 9, name: '박보검', ga: '토11:00-승연', na: '',
   classes: CLASSES.map(c => Object.assign({ cnt: c.id === '일11:00-승연' ? 9 : (c.id === '수5:30-지원' ? 7 : 3) }, c)) }, o || {});
 (async () => {
@@ -47,10 +48,14 @@ const view = (o) => Object.assign({ ok: true, eligible: true, open: true, cap: 9
   const mine = await pg.$eval('.pl-mine', e => e.textContent);
   ok('내 가 반 표시', /토 11:00~1:00/.test(mine) && /이승연T/.test(mine), mine);
   ok('나 반 아직', /아직 고르지 않았어요/.test(mine), mine);
-  ok('신청 받는 중 안내', /선착순/.test(await pg.$eval('.pl-state', e => e.textContent)));
+  const stt = await pg.$eval('.pl-state', e => e.textContent);
+  ok('신청 받는 중 안내(선착순·정원 9명·같은 요일 안 됨)', /선착순/.test(stt) && /9명까지/.test(stt) && /서로 다른 요일/.test(stt), stt);
+  ok('나 고르기 안내에 같은 요일 금지', /같은 요일의 반은 고를 수 없습니다/.test(await pg.$eval('.pl-box .pl-sub', e => e.textContent)));
   const st = id => pg.$eval('.pl-box [data-pl="' + id + '"][data-plp="나"]', e => ({ dis: e.disabled, t: e.textContent }));
   let s1 = await st('토11:00-지원');
-  ok('가와 같은 날·같은 시간 나 반은 잠김', s1.dis && /가 수업과 시간이 겹쳐요/.test(s1.t), JSON.stringify(s1));
+  ok('가와 같은 요일·같은 시간 나 반은 잠김', s1.dis && /가 수업과 같은 요일이에요/.test(s1.t), JSON.stringify(s1));
+  s1 = await st('토1:30-승연');
+  ok('가와 같은 요일이면 시간이 달라도 잠김', s1.dis && /가 수업과 같은 요일이에요/.test(s1.t), JSON.stringify(s1));
   s1 = await st('일11:00-승연');
   ok('꽉 찬 반은 잠김', s1.dis && /자리가 없어요/.test(s1.t), JSON.stringify(s1));
   s1 = await st('수5:30-지원');
@@ -60,21 +65,21 @@ const view = (o) => Object.assign({ ok: true, eligible: true, open: true, cap: 9
 
   // 나 고르기
   next = p => view({ na: p.cls });
-  await pg.click('[data-pl="토1:30-승연"][data-plp="나"]'); await pg.waitForTimeout(300);
-  ok('plan_pick 본문', picks.length === 1 && picks[0].key === 'tok-park' && picks[0].part === '나' && picks[0].cls === '토1:30-승연', JSON.stringify(picks));
-  ok('신청 안내', /나 수업을 토 1:30~3:30 이승연T 반으로 신청했어요/.test(await pg.$eval('#plMsg', e => e.textContent)));
-  ok('내 반으로 표시', await pg.$eval('[data-pl="토1:30-승연"][data-plp="나"]', e => e.classList.contains('mine') && e.disabled && /지금 내 반/.test(e.textContent)));
+  await pg.click('[data-pl="일1:30-승연"][data-plp="나"]'); await pg.waitForTimeout(300);
+  ok('plan_pick 본문', picks.length === 1 && picks[0].key === 'tok-park' && picks[0].part === '나' && picks[0].cls === '일1:30-승연', JSON.stringify(picks));
+  ok('신청 안내', /나 수업을 일 1:30~3:30 이승연T 반으로 신청했어요/.test(await pg.$eval('#plMsg', e => e.textContent)));
+  ok('내 반으로 표시', await pg.$eval('[data-pl="일1:30-승연"][data-plp="나"]', e => e.classList.contains('mine') && e.disabled && /지금 내 반/.test(e.textContent)));
   ok('취소 버튼 생김', !!(await pg.$('#plCancel')));
   // 꽉 찬 반 거절(서버)
   next = () => ({ ok: false, error: 'full' });
   await pg.click('[data-pl="수5:30-지원"][data-plp="나"]'); await pg.waitForTimeout(300);
   ok('서버가 꽉 찼다고 하면 안내 + 다시 불러옴', /방금 자리가 다 찼어요/.test(await pg.$eval('#plMsg', e => e.textContent)) && await pg.$eval('#plMsg', e => e.classList.contains('err')));
-  ok('거절 뒤에도 내 나 반 그대로', /토 1:30~3:30/.test(await pg.$eval('.pl-slot.na', e => e.textContent)));
+  ok('거절 뒤에도 내 나 반 그대로', /일 1:30~3:30/.test(await pg.$eval('.pl-slot.na', e => e.textContent)));
   // 가 옮기기
   await pg.click('details.pl-move > summary');
-  let g = await pg.$eval('details.pl-move [data-pl="토1:30-지원"]', e => ({ dis: e.disabled, t: e.textContent }));
-  ok('가를 나와 같은 시간으로는 못 옮김', g.dis && /나 수업과 시간이 겹쳐요/.test(g.t), JSON.stringify(g));
-  next = p => view({ ga: p.cls, na: '토1:30-승연' });
+  let g = await pg.$eval('details.pl-move [data-pl="일4:30-지원"]', e => ({ dis: e.disabled, t: e.textContent }));
+  ok('가를 나와 같은 요일로는 못 옮김(시간이 달라도)', g.dis && /나 수업과 같은 요일이에요/.test(g.t), JSON.stringify(g));
+  next = p => view({ ga: p.cls, na: '일11:00-승연' });
   cur = view({ na: '일11:00-승연' }); await pg.evaluate(() => plRefresh()); await pg.waitForTimeout(200);
   await pg.click('details.pl-move [data-pl="토1:30-지원"]'); await pg.waitForTimeout(300);
   ok('가 옮기기 본문', picks[picks.length - 1].part === '가' && picks[picks.length - 1].cls === '토1:30-지원');
