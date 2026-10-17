@@ -31,15 +31,24 @@ const ok = (n, c, x) => { if (c) pass++; else { fail++; console.log('  ✗ ' + n
   const blk = src.slice(src.indexOf('var P27_PLAN'), src.indexOf('var p27Admin'));
   const ctx0 = {}; new Function('ctx', blk + '; ctx.C = P27_CLASSES; ctx.S = P27_SLOTS;')(ctx0);
   const C = ctx0.C;
-  ok('① 반 42개', C.length === 42, C.length);
+  ok('① 반 36개', C.length === 36, C.length);
   ['승연','지원','사명'].forEach(t => {
     const mine = C.filter(c => c.teacher === t);
-    ok('① ' + t + ' 가 7 + 나 7', mine.filter(c => c.part === '가').length === 7 && mine.filter(c => c.part === '나').length === 7);
+    ok('① ' + t + ' 가 6 + 나 6', mine.filter(c => c.part === '가').length === 6 && mine.filter(c => c.part === '나').length === 6);
     ['수','목','금','토','일'].forEach(d => {
       const p = mine.filter(c => c.day === d).map(c => c.part);
-      ok('① ' + t + ' ' + d + ' 가·나 둘 다', p.includes('가') && p.includes('나'), p.join(''));
+      if (p.length) ok('① ' + t + ' ' + d + ' 가·나 둘 다', p.includes('가') && p.includes('나'), p.join(''));
     });
   });
+  ['수','목','금'].forEach(d => {
+    const p = C.filter(c => c.day === d);
+    ok('① ' + d + ' 가 2 + 나 2', p.filter(c => c.part === '가').length === 2 && p.filter(c => c.part === '나').length === 2);
+    [...new Set(p.map(c => c.start))].forEach(st => {
+      const q = p.filter(c => c.start === st).map(c => c.part);
+      ok('① ' + d + st + ' 가·나 섞임', q.includes('가') && q.includes('나'), q.join(''));
+    });
+  });
+  ok('① 쉬는 선생님 수 승연·목 사명·금 지원', !C.some(c => (c.day === '수' && c.teacher === '승연') || (c.day === '목' && c.teacher === '사명') || (c.day === '금' && c.teacher === '지원')));
   const slotN = {}; C.forEach(c => { const k = c.day + c.start; slotN[k] = (slotN[k] || 0) + 1; });
   ok('① 같은 시간 3실 이하', Object.values(slotN).every(n => n <= 3));
   const sat = C.filter(c => c.day === '토'), sun = C.filter(c => c.day === '일');
@@ -89,22 +98,22 @@ const ok = (n, c, x) => { if (c) pass++; else { fail++; console.log('  ✗ ' + n
   ok('② 박언호 대표님(선생님 역할)은 보임', !(await page.$eval('#v-p27', e => e.hidden)) && await page.evaluate(() => mode) === 'p27');
   await ctx.close();
   // ③ 원장님
-  let o = await open({ plan: [{ student: '최넷', school: '백양중', src: '', ga: '수5:30-승연', na: '', excluded: false }] });
+  let o = await open({ plan: [{ student: '최넷', school: '백양중', src: '', ga: '수5:30-사명', na: '', excluded: false }] });
   page = o.page; ctx = o.ctx;
   ok('② 원장님 계정은 탭 보임', !(await page.$eval('#v-p27', e => e.hidden)));
   await page.click('#v-p27'); await page.waitForSelector('.p27-ov');
-  ok('③ 반 카드 42개', (await page.$$('.p27-card')).length === 42);
+  ok('③ 반 카드 36개', (await page.$$('.p27-card')).length === 36);
   ok('③ 요일 열 5개', (await page.$$eval('.p27-dayh', e => e.map(x => x.textContent))).join('') === '수목금토일');
   const trayText = await page.$eval('.p27-trays', e => e.textContent);
   ok('③ 괄호 뗀 이름으로 미배치', /김하나/.test(trayText) && /박둘/.test(trayText) && /이셋/.test(trayText) && !/\(/.test(trayText.replace(/\([^)]*\)/g, m => /부터|화정/.test(m) ? m : '')), trayText.slice(0, 200));
   ok('③ 지금 반 묶음 표기', /토 11:00 승연T/.test(trayText));
-  ok('③ 저장된 가 배치가 카드에', await page.$eval('[data-p27c="수5:30-승연"]', e => /최넷/.test(e.textContent) && /1\/9/.test(e.textContent)));
+  ok('③ 저장된 가 배치가 카드에', await page.$eval('[data-p27c="수5:30-사명"]', e => /최넷/.test(e.textContent) && /1\/9/.test(e.textContent)));
   ok('③ 요약: 대상 5명', /5명 대상/.test(await page.$eval('.p27-sum', e => e.textContent)));
 
   // ④ 배치
   await page.click('.p27-tray [data-p27s="김하나"]');
   ok('④ 선택 띠', /김하나/.test(await page.$eval('.p27-selbar', e => e.textContent)));
-  ok('④ 반 카드가 놓을 자리로', (await page.$$('.p27-card.target')).length === 42);
+  ok('④ 반 카드가 놓을 자리로', (await page.$$('.p27-card.target')).length === 36);
   await page.click('[data-p27c="토11:00-승연"]'); await page.waitForTimeout(200);
   ok('④ 가 반에 놓임', await page.$eval('[data-p27c="토11:00-승연"]', e => /김하나/.test(e.textContent)));
   const u1 = o.ups[o.ups.length - 1];
@@ -117,10 +126,10 @@ const ok = (n, c, x) => { if (c) pass++; else { fail++; console.log('  ✗ ' + n
   ok('⑤ 가·나 선생님 다름 점', await page.$eval('[data-p27c="토4:30-지원"] [data-p27s="김하나"]', e => !!e.querySelector('.p27-dot')));
   // 옮기기
   await page.click('[data-p27c="토11:00-승연"] [data-p27s="김하나"]');
-  await page.click('[data-p27c="수5:30-승연"]'); await page.waitForTimeout(200);
-  ok('④ 다른 가 반으로 옮김', await page.$eval('[data-p27c="수5:30-승연"]', e => /김하나/.test(e.textContent)) && !(await page.$eval('[data-p27c="토11:00-승연"]', e => /김하나/.test(e.textContent))));
+  await page.click('[data-p27c="수5:30-사명"]'); await page.waitForTimeout(200);
+  ok('④ 다른 가 반으로 옮김', await page.$eval('[data-p27c="수5:30-사명"]', e => /김하나/.test(e.textContent)) && !(await page.$eval('[data-p27c="토11:00-승연"]', e => /김하나/.test(e.textContent))));
   // 빼기
-  await page.click('[data-p27c="수5:30-승연"] [data-p27s="김하나"]');
+  await page.click('[data-p27c="수5:30-사명"] [data-p27s="김하나"]');
   await page.click('[data-p27x="na"]'); await page.waitForTimeout(200);
   ok('④ 나에서 빼기', o.ups[o.ups.length - 1].body[0].na === '' && /김하나/.test(await page.$eval('.p27-trays', e => e.textContent)));
   // 계획에서 빼기 / 되돌리기
@@ -131,7 +140,7 @@ const ok = (n, c, x) => { if (c) pass++; else { fail++; console.log('  ✗ ' + n
   ok('④ 되돌리기', o.ups[o.ups.length - 1].body[0].excluded === false && /박둘/.test(await page.$eval('.p27-trays', e => e.textContent)));
   // ⑤ 거르기·찾기
   await page.click('[data-p27t="사명"]');
-  ok('⑤ 선생님 거르기 14반', (await page.$$('.p27-card')).length === 14);
+  ok('⑤ 선생님 거르기 12반', (await page.$$('.p27-card')).length === 12);
   await page.click('[data-p27t="all"]');
   await page.fill('#p27-q', '정다');
   { const hs = await page.$$eval('.p27-chip.hit', e => e.map(x => x.textContent)); ok('⑤ 이름 찾기 강조', hs.length >= 1 && hs.every(x => /정다섯A/.test(x)), JSON.stringify(hs)); }
@@ -158,14 +167,14 @@ const ok = (n, c, x) => { if (c) pass++; else { fail++; console.log('  ✗ ' + n
   o = await open({ missing: true, mode: 'p27' });
   await o.page.waitForSelector('.p27-ov');
   ok('⑤ 052 전 안내', /052/.test(await o.page.$eval('.p27-warn', e => e.textContent)));
-  await o.page.click('.p27-tray [data-p27s="김하나"]'); await o.page.click('[data-p27c="수5:30-승연"]'); await o.page.waitForTimeout(200);
+  await o.page.click('.p27-tray [data-p27s="김하나"]'); await o.page.click('[data-p27c="수5:30-사명"]'); await o.page.waitForTimeout(200);
   ok('⑤ 052 전 저장 안 함 안내', /052/.test(await o.page.$eval('#status', e => e.textContent)));
   await o.ctx.close();
   // 저장 실패 → 되돌림
   o = await open({ saveFail: true, mode: 'p27' });
   await o.page.waitForSelector('.p27-ov');
-  await o.page.click('.p27-tray [data-p27s="김하나"]'); await o.page.click('[data-p27c="수5:30-승연"]'); await o.page.waitForTimeout(400);
-  ok('⑤ 저장 실패면 되돌림', !(await o.page.$eval('[data-p27c="수5:30-승연"]', e => /김하나/.test(e.textContent))) && /저장하지 못했/.test(await o.page.$eval('#status', e => e.textContent)));
+  await o.page.click('.p27-tray [data-p27s="김하나"]'); await o.page.click('[data-p27c="수5:30-사명"]'); await o.page.waitForTimeout(400);
+  ok('⑤ 저장 실패면 되돌림', !(await o.page.$eval('[data-p27c="수5:30-사명"]', e => /김하나/.test(e.textContent))) && /저장하지 못했/.test(await o.page.$eval('#status', e => e.textContent)));
   await o.ctx.close();
 
   await b.close(); srv.close();
