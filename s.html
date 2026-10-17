@@ -824,7 +824,7 @@
 <div id="planView"><main class="wrap gwrap">
   <div class="gv-bar">
     <button class="gv-back" onclick="plBack()" id="plBack"></button>
-    <span class="gv-ttl">예비 고1 반 신청</span>
+    <span class="gv-ttl">2027 고1 반 신청</span>
   </div>
   <div class="pl-msg" id="plMsg"></div>
   <div id="plBody"></div>
@@ -2056,7 +2056,7 @@ function renderHub(){
     var plDesc = pl0.na ? '나 수업 신청 완료 · 마감 전까지 바꿀 수 있어요' : '나 수업을 골라 주세요 · 선착순';
     html += '<button class="card t-lav" onclick="openPlan()">' +
               '<span class="icon">'+svg(ICON.cal)+(plDo?'<span class="new-dot">1</span>':'')+'</span>' +
-              '<h3>예비 고1 반 신청</h3><p class="desc">'+esc(plDesc)+'</p>' +
+              '<h3>2027 고1 반 신청</h3><p class="desc">'+esc(plDesc)+'</p>' +
               '<span class="go">'+(plDo?'신청 ':'열기 ')+svg(ICON.arrow)+'</span></button>';
   }
 
@@ -3941,7 +3941,7 @@ function plRender(){
   var p = STATE.plan, box = $('plBody');
   if (p === undefined){ box.innerHTML = '<div class="rv-empty">불러오는 중…</div>'; return; }
   if (!p){ box.innerHTML = '<div class="rv-empty">불러오지 못했어요. 잠시 뒤 다시 열어 주세요.</div>'; return; }
-  if (!p.eligible){ box.innerHTML = '<div class="rv-empty">예비 고1 반 신청 대상이 아니에요.</div>'; return; }
+  if (!p.eligible){ box.innerHTML = '<div class="rv-empty">2027 고1 반 신청 대상이 아니에요.</div>'; return; }
   var h = '<div class="pl-box"><p class="pl-intro">2026년 12월 16일(수)부터 화정센터에서 일주일에 두 번(가 수업·나 수업) 수업합니다. 가 수업은 선생님이 정해 두었고, 나 수업은 직접 고릅니다.</p>' +
     '<div class="pl-mine">' + plSlot('가', p.ga) + plSlot('나', p.na) + '</div></div>';
   if (!p.open){
@@ -3957,7 +3957,7 @@ function plRender(){
   var mv = box.querySelector('.pl-move'); if (mv) mv.addEventListener('toggle', function(){ PL.moveOpen = mv.open; });
 }
 var PL_ERR = { closed: '신청이 마감됐어요.', full: '방금 자리가 다 찼어요. 다른 반을 골라 주세요.', clash: '가 수업과 나 수업은 같은 요일에 들을 수 없어요.',
-  not_in_plan: '예비 고1 반 신청 대상이 아니에요.', ga_required: '가 수업은 비울 수 없어요.', bad_class: '없는 반이에요. 화면을 새로 불러올게요.', no_student: '학생 정보를 찾지 못했어요.' };
+  not_in_plan: '2027 고1 반 신청 대상이 아니에요.', ga_required: '가 수업은 비울 수 없어요.', bad_class: '없는 반이에요. 화면을 새로 불러올게요.', no_student: '학생 정보를 찾지 못했어요.' };
 function plPick(part, id){
   if (PL.busy) return;
   var c = plCls(id), p = STATE.plan;
