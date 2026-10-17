@@ -48,6 +48,7 @@ const ok = (n, c, x) => { if (c) pass++; else { fail++; console.log('  ✗ ' + n
       ok('① ' + d + st + ' 가·나 섞임', q.includes('가') && q.includes('나'), q.join(''));
     });
   });
+  ok('① 토 4:30 가 둘(승연·지원)', C.filter(c => c.day === '토' && c.start === '4:30' && c.part === '가').map(c => c.teacher).join() === '지원,승연');
   ok('① 쉬는 선생님 수 승연·목 사명·금 지원', !C.some(c => (c.day === '수' && c.teacher === '승연') || (c.day === '목' && c.teacher === '사명') || (c.day === '금' && c.teacher === '지원')));
   const slotN = {}; C.forEach(c => { const k = c.day + c.start; slotN[k] = (slotN[k] || 0) + 1; });
   ok('① 같은 시간 3실 이하', Object.values(slotN).every(n => n <= 3));
@@ -121,9 +122,9 @@ const ok = (n, c, x) => { if (c) pass++; else { fail++; console.log('  ✗ ' + n
   ok('④ 작성자 실림', u1 && u1.body[0].author === '이수경', u1 && u1.body[0].author);
   // 나 반 — 다른 선생님 → 점
   await page.click('.p27-card [data-p27s="김하나"]');
-  await page.click('[data-p27c="토4:30-지원"]'); await page.waitForTimeout(200);
-  ok('④ 나 반에 놓임(가 그대로)', o.ups[o.ups.length - 1].body[0].na === '토4:30-지원' && o.ups[o.ups.length - 1].body[0].ga === '토11:00-승연');
-  ok('⑤ 가·나 선생님 다름 점', await page.$eval('[data-p27c="토4:30-지원"] [data-p27s="김하나"]', e => !!e.querySelector('.p27-dot')));
+  await page.click('[data-p27c="토11:00-지원"]'); await page.waitForTimeout(200);
+  ok('④ 나 반에 놓임(가 그대로)', o.ups[o.ups.length - 1].body[0].na === '토11:00-지원' && o.ups[o.ups.length - 1].body[0].ga === '토11:00-승연');
+  ok('⑤ 가·나 선생님 다름 점', await page.$eval('[data-p27c="토11:00-지원"] [data-p27s="김하나"]', e => !!e.querySelector('.p27-dot')));
   // 옮기기
   await page.click('[data-p27c="토11:00-승연"] [data-p27s="김하나"]');
   await page.click('[data-p27c="수5:30-사명"]'); await page.waitForTimeout(200);
