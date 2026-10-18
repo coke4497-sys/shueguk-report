@@ -2615,6 +2615,7 @@ function doPost(e) {
     if (data && data.action === 'editReqSet')       { return editReqSet(data); }
     if (data && data.action === 'editReqTokenSet')  { return editReqTokenSet(data); }
     if (data && data.action === 'alimSend')         { return alimSend(data); }
+    if (data && data.action === 'alimCancel')       { return alimCancel(data); }
     if (data && data.action === 'alimConfigSet')    { return alimConfigSet(data); }
     if (data && data.action === 'alimDiscover')     { return alimDiscover(data); }
     if (data && data.action === 'naeshinSet')       { return naeshinSet(data); }
@@ -4190,11 +4191,17 @@ function alimSheet_(ss) {
   var sh = ss.getSheetByName(TAB_ALIM);
   if (!sh) {
     sh = ss.insertSheet(TAB_ALIM);
-    sh.appendRow(['기록일시', '종류', '학생', '받는분', '번호', '반', '수업일', '결과', '메시지', '그룹ID', '보낸사람']);
-    sh.getRange(1, 1, 1, 11).setFontWeight('bold').setBackground('#DDE5E1');
-  } else if (String(sh.getRange(1, 11).getValue() || '').trim() !== '보낸사람') {
-    // 옛 시트(A~J)에 K열 머리글 보충 — 2026-10-03 '누가 보냈는지'를 남기기 시작
-    sh.getRange(1, 11).setValue('보낸사람').setFontWeight('bold').setBackground('#DDE5E1');
+    sh.appendRow(['기록일시', '종류', '학생', '받는분', '번호', '반', '수업일', '결과', '메시지', '그룹ID', '보낸사람', '예약시각']);
+    sh.getRange(1, 1, 1, 12).setFontWeight('bold').setBackground('#DDE5E1');
+  } else {
+    if (String(sh.getRange(1, 11).getValue() || '').trim() !== '보낸사람') {
+      // 옛 시트(A~J)에 K열 머리글 보충 — 2026-10-03 '누가 보냈는지'를 남기기 시작
+      sh.getRange(1, 11).setValue('보낸사람').setFontWeight('bold').setBackground('#DDE5E1');
+    }
+    if (String(sh.getRange(1, 12).getValue() || '').trim() !== '예약시각') {
+      // L열 — 예약 발송(2026-10-18). 결과 '예약'/'예약 취소' 줄의 보낼 시각(yyyy-MM-dd HH:mm, 한국 시각)
+      sh.getRange(1, 12).setValue('예약시각').setFontWeight('bold').setBackground('#DDE5E1');
+    }
   }
   return sh;
 }
@@ -4265,6 +4272,10 @@ function alimSend(data) {
   var tplId = String(props.getProperty(tpl.prop) || '').trim();
   if (!key || !secret || !pfId) return json({ result:'error', message:'알림톡 설정(API 키·채널)이 아직 없어요. [알림톡] 설정에서 넣어 주세요.' });
   if (!tplId) return json({ result:'error', message:"'" + tpl.label + "' 템플릿 ID가 아직 없어요. 솔라피 심사가 끝나면 [알림톡] 설정에 넣어 주세요." });
+  var sched = alimSchedule_(data.schedule);
+  if (sched && sched.error) return json({ result:'error', message: sched.error });
+  if (sched && kind === 'absent') return json({ result:'error', message:'결석 안내는 예약하지 않고 바로 보냅니다.' });
+  data._sched = sched;
   // 중복 확인 → 발송 → 기록을 한 잠금 안에서 — 조교 둘이 같은 결석을 거의 동시에 보내면 둘 다 중복 확인을 통과해 두 번 갔다(2026-10-03)
   var lock = LockService.getScriptLock();
   try { lock.waitLock(20000); }
@@ -4283,7 +4294,8 @@ function alimSendLocked_(data, kind, tpl, items, key, secret, pfId, from, tplId)
     tail.forEach(function(r) {
       // 받는 분(D열)까지 키에 넣는다 — 학생·학부모에게 함께 보내므로(2026-09-29 사용자 "학생, 학부모님 모두에게")
       // 한 사람에게 간 기록이 다른 사람 발송을 막지 않게.
-      if (String(r[1]) === kind && String(r[7]) === '성공') done[String(r[2]).trim() + '|' + alimYmd_(r[6]) + '|' + String(r[3]).trim()] = true;
+      // 예약해 둔 것도 보낸 것으로 본다(예약 취소한 것은 아님) — 같은 알림이 예약과 바로 보내기로 두 번 가지 않게
+      if (String(r[1]) === kind && (String(r[7]) === '성공' || String(r[7]) === '예약')) done[String(r[2]).trim() + '|' + alimYmd_(r[6]) + '|' + String(r[3]).trim()] = true;
     });
   }
   var msgs = [], sent = [], pending = [];
@@ -4310,7 +4322,7 @@ function alimSendLocked_(data, kind, tpl, items, key, secret, pfId, from, tplId)
         method: 'post', contentType: 'application/json',
         headers: { 'Authorization': alimAuthHeader_(key, secret) },
         muteHttpExceptions: true,
-        payload: JSON.stringify({ messages: msgs })
+        payload: JSON.stringify(data._sched ? { messages: msgs, scheduledDate: data._sched.iso } : { messages: msgs })
       });
       code = res.getResponseCode();
       try { body = JSON.parse(res.getContentText() || '{}'); } catch (e) { body = {}; }
@@ -4325,21 +4337,84 @@ function alimSendLocked_(data, kind, tpl, items, key, secret, pfId, from, tplId)
     var errAll = code === 200 ? '' : ('솔라피 오류 ' + (code || '') + ' ' + String(body.errorMessage || body.message || '')).trim();
     pending.forEach(function(p) {
       var err = errAll || failedByTo[p.to] || '';
-      sent.push({ student: p.student, who: p.who, ok: !err, message: err || '보냈어요' });
+      sent.push({ student: p.student, who: p.who, ok: !err, message: err || (data._sched ? '예약했어요' : '보냈어요') });
     });
     // 기록 — 학생마다 한 줄
     var rows = pending.map(function(p) {
       var err = errAll || failedByTo[p.to] || '';
-      return [new Date(), kind, p.student, p.who, p.to, p.cls, p.date, err ? '실패' : '성공', err, groupId, by];
+      var res = err ? '실패' : (data._sched ? '예약' : '성공');
+      return [new Date(), kind, p.student, p.who, p.to, p.cls, p.date, res, err, groupId, by, data._sched ? data._sched.text : ''];
     });
     var r0 = sh.getLastRow() + 1;
-    var rg = sh.getRange(r0, 1, rows.length, 11);
-    rg.setNumberFormats(rows.map(function() { return ['yyyy-mm-dd hh:mm', '@', '@', '@', '@', '@', '@', '@', '@', '@', '@']; }));
+    var rg = sh.getRange(r0, 1, rows.length, 12);
+    rg.setNumberFormats(rows.map(function() { return ['yyyy-mm-dd hh:mm', '@', '@', '@', '@', '@', '@', '@', '@', '@', '@', '@']; }));
     rg.setValues(rows);
   }
   var okCount = sent.filter(function(x) { return x.ok && !x.dup; }).length;
   var failCount = sent.filter(function(x) { return !x.ok; }).length;
-  return json({ result:'success', sent: sent, okCount: okCount, failCount: failCount, groupId: groupId });
+  return json({ result:'success', sent: sent, okCount: okCount, failCount: failCount, groupId: groupId,
+                scheduled: data._sched ? data._sched.text : '' });
+}
+/* 예약 시각 — 'yyyy-MM-dd HH:mm'(한국 시각). 없으면 null(바로 보내기).
+ * 30분 단위(사용자 결정 2026-10-18) · 지금부터 10분 뒤 ~ 30일 안. 솔라피에는 ISO(+09:00)로 넘긴다. */
+function alimSchedule_(v) {
+  var s = String(v || '').trim();
+  if (!s) return null;
+  var m = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})$/.exec(s);
+  if (!m) return { error: '예약 시각 형식이 맞지 않아요: ' + s };
+  if (+m[5] % 30 !== 0) return { error: '예약 시각은 30분 단위로 골라 주세요.' };
+  var iso = m[1] + '-' + m[2] + '-' + m[3] + 'T' + m[4] + ':' + m[5] + ':00+09:00';
+  var t = Date.parse(iso);
+  if (isNaN(t)) return { error: '예약 시각을 읽지 못했어요: ' + s };
+  if (t < Date.now() + 10 * 60 * 1000) return { error: '예약 시각은 지금부터 10분 뒤 이후로 골라 주세요.' };
+  if (t > Date.now() + 30 * 24 * 3600 * 1000) return { error: '예약은 30일 안까지만 할 수 있어요.' };
+  return { iso: iso, text: m[1] + '-' + m[2] + '-' + m[3] + ' ' + m[4] + ':' + m[5], at: t };
+}
+/** 예약 취소. { pw, groupId } — 솔라피 그룹 예약을 지우고(DELETE groups/{id}/schedule) 그 그룹의 '예약' 줄을 '예약 취소'로.
+ *  보낼 시각이 지났으면 거절(이미 나갔을 수 있다). */
+function alimCancel(data) {
+  if (String(data.pw || '') !== TEACHER_PW) return json({ result:'error', message:'unauthorized' });
+  var gid = String(data.groupId || '').trim();
+  if (!/^[A-Za-z0-9_-]{2,80}$/.test(gid)) return json({ result:'error', message:'예약 묶음 번호가 없어요.' });
+  var props = alimProps_();
+  var key = String(props.getProperty(ALIM_PROP_.key) || '').trim();
+  var secret = String(props.getProperty(ALIM_PROP_.secret) || '').trim();
+  if (!key || !secret) return json({ result:'error', message:'알림톡 설정(API 키)이 아직 없어요.' });
+  var lock = LockService.getScriptLock();
+  try { lock.waitLock(20000); } catch (e) { return json({ result:'error', message:'다른 알림톡 작업이 진행 중이에요. 잠시 뒤 다시 눌러 주세요.' }); }
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var sh = alimSheet_(ss);
+    // 예약은 30일 안까지라 기록일시 31일 꼬리만 본다
+    var tail = sheetTail_(sh, 0, Date.now() - 31 * 24 * 3600 * 1000);
+    var hit = [], schedAt = 0;
+    tail.rows.forEach(function(r, i) {
+      if (String(r[9]).trim() === gid && String(r[7]).trim() === '예약') {
+        hit.push(tail.start + i);
+        var st = alimSchedule_parse_(r[11]); if (st) schedAt = st;
+      }
+    });
+    if (!hit.length) return json({ result:'error', message:'취소할 예약이 없어요. 이미 취소했거나 보낸 알림톡이에요.' });
+    if (schedAt && schedAt <= Date.now() + 60 * 1000) return json({ result:'error', message:'보낼 시각이 지나 취소할 수 없어요.' });
+    var res, code, body;
+    try {
+      res = UrlFetchApp.fetch('https://api.solapi.com/messages/v4/groups/' + encodeURIComponent(gid) + '/schedule', {
+        method: 'delete', headers: { 'Authorization': alimAuthHeader_(key, secret) }, muteHttpExceptions: true });
+      code = res.getResponseCode();
+      try { body = JSON.parse(res.getContentText() || '{}'); } catch (e) { body = {}; }
+    } catch (e) { code = 0; body = { errorMessage: '솔라피 연결 실패: ' + e }; }
+    if (code !== 200) return json({ result:'error', message: ('솔라피에서 예약을 취소하지 못했어요 ' + (code || '') + ' ' + String(body.errorMessage || body.message || '')).trim() });
+    var by = String(data.by || '').trim().slice(0, 40);
+    hit.forEach(function(row) {
+      sh.getRange(row, 8, 1, 2).setNumberFormat('@').setValues([['예약 취소', '취소함' + (by ? ' · ' + by : '')]]);
+    });
+    return json({ result:'success', canceled: hit.length });
+  } finally { lock.releaseLock(); }
+}
+function alimSchedule_parse_(v) {
+  if (v && v.getTime) return v.getTime();
+  var m = /^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2})/.exec(String(v || '').trim());
+  return m ? Date.parse(m[1] + 'T' + m[2] + ':00+09:00') : 0;
 }
 /** 솔라피에서 채널(pfId)·승인된 템플릿 ID를 읽어 와 저장 — 원장님이 콘솔에서 값을 찾아 옮겨 적지 않아도 되게.
  *  { pw } — 저장된 API 키·비밀로 GET kakao/v1/plus-friends, kakao/v1/templates 를 부른다.
@@ -4450,7 +4525,9 @@ function alimLogGet(from, to, limit) {
       if (to && ymd && ymd > to) return;
       out.push({ ts: (r[0] && r[0].getTime) ? alimFmtTs_(r[0]) : String(r[0] || ''), kind: String(r[1] || ''),
                  student: String(r[2] || '').trim(), who: String(r[3] || ''), to: String(r[4] || ''),
-                 cls: String(r[5] || ''), date: ymd, ok: String(r[7] || '') === '성공', message: String(r[8] || ''), by: String(r[10] || '').trim() });
+                 cls: String(r[5] || ''), date: ymd, ok: String(r[7] || '') === '성공', message: String(r[8] || ''), by: String(r[10] || '').trim(),
+                 res: String(r[7] || '').trim(), groupId: String(r[9] || '').trim(),
+                 sched: (r[11] && r[11].getTime) ? alimFmtTs_(r[11]) : String(r[11] || '').trim() });
     });
   }
   out.reverse();
