@@ -132,6 +132,15 @@
     background:var(--accent);color:#fff;font-family:var(--sans);font-size:.86rem;font-weight:700;
     padding:10px 16px;cursor:pointer;}
   .nchk-btn:active{opacity:.85;} .nchk-btn:disabled{background:#9fb3aa;cursor:default;}
+  /* 공지 첨부 파일 (055, 2026-10-18) */
+  .nfiles{margin-top:12px;}
+  .nfile{display:flex;align-items:center;gap:10px;padding:8px 0;border-top:1px solid var(--line-soft);font-size:.9rem;}
+  .nfile .nm{flex:1;min-width:0;color:var(--ink);overflow-wrap:anywhere;}
+  .nfile .sz{color:var(--ink-soft);font-size:.78rem;white-space:nowrap;}
+  .nf-dl{display:inline-flex;align-items:center;gap:5px;border:none;border-radius:10px;background:#EDE4F4;color:#5A4A6A;
+    font-family:var(--sans);font-size:.84rem;font-weight:700;padding:8px 13px;cursor:pointer;white-space:nowrap;}
+  .nf-dl svg{width:15px;height:15px;} .nf-dl:disabled{opacity:.6;cursor:default;}
+  .nf-warn{font-size:.8rem;color:#B0736A;margin-top:6px;}
   /* 슈퍼스타 TOP 30 — 시상대 + 순위 막대 (2026-10-03 원장님 시안) */
   #top30Card .nh{align-items:center;}
   #top30Card .ntitle{font-size:1.3rem;}
@@ -2034,6 +2043,8 @@ function renderHub(){
             '<h3>H-work</h3><p class="desc">'+esc(hDesc)+'</p>' +
             '<span class="go">'+(hCnt>0?'확인 ':'열기 ')+svg(ICON.arrow)+'</span></button>';
 
+  // 공지 첨부 파일 (055) — 처음 한 번 뒤에서 받는다. 공지 화면이 열려 있으면 다시 그린다
+  if(STATE.noticeFiles === undefined){ STATE.noticeFiles = null; nfRefresh(); }
   // 복습 영상 (2026-09-27) — 배정된 영상이 있을 때만 카드. 목록은 처음 한 번 뒤에서 받는다(rvRefresh)
   if(STATE.review === null && !STATE.reviewLoading) rvRefresh(true);
   var rv0 = STATE.review || [];
@@ -2760,6 +2771,7 @@ function noticeItemHtml(n){
     '<div class="nh"><span class="ntitle">'+esc(n.title||'공지')+'</span>' +
     (n.date ? '<span class="ndate">'+esc(n.date)+'</span>' : '') + '</div>' +
     (n.body ? '<div class="nbody">'+esc(n.body)+'</div>' : '') +
+    nfFilesHtml(n.key) +
     chk +
     '</div>';
 }
@@ -4119,6 +4131,47 @@ function rvDownload(id){
         done('');
       });
   }).catch(function(){ done('자료를 내려받지 못했어요. 잠시 후 다시 눌러 주세요.'); });
+}
+/* ---- 공지 첨부 파일 (055, 2026-10-18 원장님 "이 파일을 고3 친구들의 공지사항에 업로드") ----
+ * 선생님이 공지에 붙인 파일을 그 공지를 받는 학생만 내려받는다. 목록 notice_files_mine, 받기는
+ * notice_file_url 이 10분 창을 열어 준 경로를 공개 키로 받는다(복습 영상 자료와 같은 방식). */
+function nfRefresh(){
+  return rvRpc('notice_files_mine').then(function(r){
+    var by = {};
+    ((r && r.ok && r.files) || []).forEach(function(f){ (by[f.key] = by[f.key] || []).push(f); });
+    STATE.noticeFiles = by;
+    if ($('noticeView') && $('noticeView').style.display === 'block') renderNotices();
+  }).catch(function(){ STATE.noticeFiles = {}; });
+}
+function nfFilesHtml(key){
+  var fs = (STATE.noticeFiles || {})[key] || [];
+  if (!fs.length) return '';
+  var dl = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7 10l5 5 5-5"/><path d="M5 20h14"/></svg>';
+  return '<div class="nfiles">' + fs.map(function(f){
+    return '<div class="nfile"><span class="nm">' + esc(f.name || '첨부 파일') + '</span><span class="sz">' + rvSize(f.size) + '</span>' +
+      '<button type="button" class="nf-dl" id="nfDl' + (+f.id) + '" onclick="nfDownload(' + (+f.id) + ')">' + dl + '내려받기</button></div>';
+  }).join('') + '<div class="nf-warn" id="nfWarn" style="display:none"></div>' + rvIosGuide() + '</div>';
+}
+function nfDownload(id){
+  var btn = $('nfDl' + id), label = btn ? btn.innerHTML : '';
+  if (btn){ btn.disabled = true; btn.textContent = '받는 중…'; }
+  function done(msg){
+    if (btn){ btn.disabled = false; btn.innerHTML = label; }
+    var w = btn && btn.closest('.nfiles') ? btn.closest('.nfiles').querySelector('.nf-warn') : null;
+    if (w){ w.textContent = msg || ''; w.style.display = msg ? 'block' : 'none'; }
+  }
+  rvRpc('notice_file_url', { file: id }).then(function(r){
+    if (!r || !r.ok) throw new Error(r && r.error || 'x');
+    return fetch(QQ_REST.replace('/rest/v1', '') + '/storage/v1/object/authenticated/' + r.bucket + '/' + r.path.split('/').map(encodeURIComponent).join('/'), {
+      headers: { 'apikey': QQ_KEY, 'Authorization': 'Bearer ' + QQ_KEY }
+    }).then(function(res){ if (!res.ok) throw new Error('dl ' + res.status); return res.blob(); })
+      .then(function(b){
+        var u = URL.createObjectURL(b), a = document.createElement('a');
+        a.href = u; a.download = r.name || 'file'; document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(function(){ URL.revokeObjectURL(u); }, 30000);
+        done('');
+      });
+  }).catch(function(){ done('파일을 내려받지 못했어요. 잠시 후 다시 눌러 주세요.'); });
 }
 function rvCounting(){
   var p = RV.player;
