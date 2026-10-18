@@ -95,6 +95,17 @@
   .n-actions .tog:hover{border-color:var(--accent);color:var(--accent);}
   .n-actions .alim{background:#EDE4F4;border-color:#EDE4F4;color:#5A4A6A;}
   .n-actions .alim:hover{background:#E3D7EE;border-color:#E3D7EE;}
+  /* 공지 첨부 파일 (055) */
+  #nfFiles{display:block;width:100%;font:inherit;font-size:13.5px;padding:9px 10px;border:1px dashed var(--line);border-radius:10px;background:#fff;}
+  .nf-note{font-size:12.5px;color:var(--ink-soft);margin-top:6px;}
+  .nf-note.err{color:var(--bad);}
+  .n-files{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;}
+  .n-file{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;padding:4px 6px 4px 10px;border-radius:8px;background:#EDE4F4;color:#5A4A6A;}
+  .n-file a{color:inherit;text-decoration:none;cursor:pointer;}
+  .n-file .sz{color:#8A7C99;font-size:11.5px;}
+  .n-file button{border:none;background:transparent;color:#8A7C99;font:inherit;font-size:14px;line-height:1;padding:0 4px;cursor:pointer;}
+  .n-file button:hover{color:var(--bad);}
+  .n-actions .addf{position:relative;}
   .mgr-empty{text-align:center;color:#9aa6a0;font-size:13.5px;padding:24px;}
 
   /* 잠금 화면 */
@@ -153,6 +164,10 @@
 
     <label for="body">내용 <span style="font-weight:400;color:#9aa6a0">(선택)</span></label>
     <textarea id="body" placeholder="자세한 안내 내용을 적어주세요."></textarea>
+
+    <label for="nfFiles">첨부 파일 <span style="font-weight:400;color:#9aa6a0">(선택 · 파일당 20MB까지)</span></label>
+    <input type="file" id="nfFiles" multiple onchange="nfPicked()" />
+    <div class="nf-note" id="nfNote">학습지·정답지 같은 파일을 붙이면 그 공지를 받는 학생만 내려받을 수 있습니다.</div>
 
     <label class="pub"><input type="checkbox" id="pub" checked onchange="alimPubChanged()" /> 지금 바로 노출하기 (끄면 ‘숨김’으로 저장)</label>
     <div class="pub alim-row"><label><input type="checkbox" id="alimOn" disabled /> 등록 뒤 카카오 알림톡도 보내기</label> — 종류
@@ -241,7 +256,8 @@
   }
   window.fetch = function(url, opts){
     var u = (typeof url === 'string') ? url : ((url && url.url) || '');
-    if (u.indexOf(SB_URL + '/rest/v1') !== 0) return raw(url, opts);
+    // 공지 첨부 파일(055)은 저장소(/storage/v1)에도 교사 신분이 필요하다 — 이 페이지에서만 넓힌다
+    if (u.indexOf(SB_URL + '/rest/v1') !== 0 && u.indexOf(SB_URL + '/storage/v1') !== 0) return raw(url, opts);
     return auth().then(function(t){
       return raw(url, withAuth(url, opts, t)).then(function(r){
         if (r.status !== 401) return r;
@@ -636,6 +652,9 @@
     if(document.getElementById('alimOn').checked && !alimWhos().length){ setStatus('알림톡 받는 분을 한 명 이상 골라 주십시오.', 'err'); return; }
     if(document.getElementById('alimOn').checked && hidden){ setStatus('숨김으로 저장하면 알림톡이 가지 않습니다 — [지금 바로 노출하기]를 켜거나 알림톡 체크를 풀어 주십시오.', 'err'); alimKindChanged(); return; }
 
+    var files = nfChosen(), bad = nfCheck(files);
+    if(bad){ setStatus(bad, 'err'); return; }
+
     var btn=document.getElementById('submitBtn');
     btn.disabled=true; var label=btn.textContent; btn.textContent='등록 중…';
     setStatus('공지를 등록하는 중…');
@@ -649,7 +668,8 @@
     .then(function(res){
       btn.disabled=false; btn.textContent=label;
       if(res.result==='success'){
-        setStatus('✓ 등록됐어요 — '+sel.summary+(hidden?' · (숨김으로 저장)':''), 'ok');
+        var doneMsg = '✓ 등록됐어요 — '+sel.summary+(hidden?' · (숨김으로 저장)':'');
+        setStatus(doneMsg, 'ok');
         var alimOn = document.getElementById('alimOn').checked, alimK = alimKind(), wantAlim = alimOn && alimReady(alimK) && !hidden;   // 숨김 공지는 알리지 않는다
         var whyNot = alimOn && !wantAlim ? alimWhyNot(alimK, hidden) : '';   // 체크했는데 못 묻는 경우 — 이유를 보여 준다(조용히 건너뛰지 않음)
         document.getElementById('title').value='';
@@ -657,7 +677,16 @@
         document.getElementById('pub').checked=true;
         alimKindChanged();   // 숨김 때문에 잠갔던 알림톡 체크를 되돌린다
         if(picker) picker.reset();
-        loadNotices();
+        var nkey = todayKst() + '|' + title;   // 공지 키 = 작성일|제목 (학생 페이지·공지 확인과 같은 규칙)
+        nfReset();
+        if (files.length){
+          setStatus(doneMsg + ' · 첨부 파일 올리는 중…', 'ok');
+          nfUploadAll(nkey, files).then(function(r){
+            if (r.fail.length) setStatus(doneMsg + ' · 첨부 파일 ' + r.ok + '개 올림, ' + r.fail.length + '개 실패(' + r.fail.join(', ') + ') — 목록의 [파일 추가]로 다시 올려 주십시오.', 'err');
+            else setStatus(doneMsg + ' · 첨부 파일 ' + r.ok + '개를 올렸습니다.', 'ok');
+            loadNotices();
+          });
+        } else loadNotices();
         if (wantAlim) alimOfferNotice(sel, title || body.trim().split('\n')[0].slice(0, 40), alimK);
         else if (whyNot) alimShowWhy(whyNot);
       } else {
@@ -677,7 +706,7 @@
         if(!d || d.result!=='success'){ box.innerHTML='<div class="mgr-empty">목록을 불러오지 못했어요.</div>'; return; }
         if(!d.notices.length){ box.innerHTML='<div class="mgr-empty">아직 등록된 공지가 없어요.</div>'; return; }
         NOTICES = d.notices;
-        box.innerHTML = d.notices.map(renderNotice).join('');
+        nfLoad().then(function(){ box.innerHTML = NOTICES.map(renderNotice).join(''); });
       })
       .catch(function(){ box.innerHTML='<div class="mgr-empty">목록을 불러오지 못했어요. 인터넷을 확인해 주세요.</div>'; });
   }
@@ -707,9 +736,11 @@
         '</div>' +
         (n.title?'<div class="n-title">'+esc(n.title)+'</div>':'') +
         (n.body?'<div class="n-body">'+esc(n.body)+'</div>':'') +
+        nfRowHtml(n) +
         '<div class="n-actions">' +
           '<button type="button" class="tog" onclick="toggleNotice('+n.rowIndex+','+(n.hidden?'false':'true')+',this)">'+(n.hidden?'다시 노출':'숨기기')+'</button>' +
           '<button type="button" class="alim" onclick="alimFromList('+n.rowIndex+')"'+(n.hidden?' title="숨김 공지는 알림톡을 보내지 않아요 — 다시 노출한 뒤"':'')+'>알림톡 보내기</button>' +
+          (NF.ok ? '<button type="button" class="addf" onclick="nfAddTo('+n.rowIndex+')">파일 추가</button>' : '') +
           '<button type="button" class="del" onclick="deleteNotice('+n.rowIndex+',this)">삭제</button>' +
         '</div>' +
       '</div>';
@@ -729,15 +760,131 @@
   function deleteNotice(rowIndex, btn){
     var item=btn.closest('.n-item');
     var title=item?item.getAttribute('data-title'):'';
-    if(!confirm('이 공지를 삭제할까요? 되돌릴 수 없어요.')) return;
+    var dn = NOTICES.filter(function(x){ return String(x.rowIndex) === String(rowIndex); })[0];
+    var dkey = dn ? nfKeyOf(dn) : '', dfiles = dkey ? (NF.byKey[dkey] || []) : [];
+    if(!confirm('이 공지를 삭제할까요? 되돌릴 수 없어요.' + (dfiles.length ? '\n붙어 있는 첨부 파일 ' + dfiles.length + '개도 함께 지웁니다.' : ''))) return;
     btn.disabled=true;
     fetch(ENDPOINT, {
       method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
       body: JSON.stringify({ action:'deleteNotice', pw:SERVER_PW, rowIndex:rowIndex, title:title })
     })
     .then(function(r){ return r.json(); })
-    .then(function(res){ if(res.result==='success'){ loadNotices(); } else { btn.disabled=false; alert('삭제 실패: '+(res.message||'오류')); } })
+    .then(function(res){
+      if(res.result==='success'){
+        // 같은 날·같은 제목 공지가 남아 있으면 파일은 그 공지 것이기도 하니 지우지 않는다
+        var twin = NOTICES.some(function(x){ return String(x.rowIndex) !== String(rowIndex) && nfKeyOf(x) === dkey; });
+        (dfiles.length && !twin ? Promise.all(dfiles.map(function(f){ return nfRemove(f).catch(function(){}); })) : Promise.resolve()).then(loadNotices);
+      } else { btn.disabled=false; alert('삭제 실패: '+(res.message||'오류')); }
+    })
     .catch(function(){ btn.disabled=false; alert('삭제 실패 — 인터넷을 확인해 주세요.'); });
+  }
+
+  /* ===== 공지 첨부 파일 (055, 2026-10-18) =====
+   * 파일은 수파베이스 비공개 저장소 'notice-files'에, 목록은 notice_files 표에 둔다(교사 신분 — 위 조각).
+   * 공지와는 공지 키 '작성일|제목'으로 잇는다(공지 미러는 통째로 다시 넣어 id 가 바뀌므로).
+   * 학생은 학생 페이지의 [내려받기]로 받는다 — 그 공지가 보이는 학생만(notice_file_url). */
+  var NF_REST = 'https://bangdbhqpphqqdwcledg.supabase.co/rest/v1';
+  var NF_STORE = 'https://bangdbhqpphqqdwcledg.supabase.co/storage/v1/object/notice-files/';
+  var NF_KEY = 'sb_publishable_dE9d1KIbpgYaQkaS2MSrlg_-7SiRJuT';
+  var NF_MAX = 20 * 1024 * 1024;
+  var NF = { ok: false, byKey: {}, missing: false };
+  function nfKeyOf(n){ return String(n.date || '').trim() + '|' + String(n.title || '').trim(); }
+  function nfSize(b){ b = +b || 0; return b >= 1048576 ? (b / 1048576).toFixed(1) + 'MB' : Math.max(1, Math.round(b / 1024)) + 'KB'; }
+  function nfChosen(){ var el = document.getElementById('nfFiles'); return el && el.files ? Array.prototype.slice.call(el.files) : []; }
+  function nfCheck(files){
+    var big = files.filter(function(f){ return f.size > NF_MAX; }).map(function(f){ return f.name; });
+    var empty = files.filter(function(f){ return !f.size; }).map(function(f){ return f.name; });
+    if (big.length) return '20MB가 넘는 파일은 올릴 수 없습니다: ' + big.join(', ');
+    if (empty.length) return '빈 파일은 올릴 수 없습니다: ' + empty.join(', ');
+    if (files.length && NF.missing) return '첨부 파일 기능이 아직 준비되지 않았습니다(데이터베이스 055). 파일을 빼고 등록하거나 원장님께 알려 주십시오.';
+    return '';
+  }
+  function nfPicked(){
+    var files = nfChosen(), note = document.getElementById('nfNote'), bad = nfCheck(files);
+    if (!files.length){ note.className = 'nf-note'; note.textContent = '학습지·정답지 같은 파일을 붙이면 그 공지를 받는 학생만 내려받을 수 있습니다.'; return; }
+    note.className = 'nf-note' + (bad ? ' err' : '');
+    note.textContent = bad || ('붙일 파일 ' + files.length + '개: ' + files.map(function(f){ return f.name + ' (' + nfSize(f.size) + ')'; }).join(', '));
+  }
+  function nfReset(){ var el = document.getElementById('nfFiles'); if (el) el.value = ''; nfPicked(); }
+  function nfLoad(){
+    return fetch(NF_REST + '/notice_files?select=id,notice_key,path,name,size,mime&order=id', { headers: { apikey: NF_KEY } })
+      .then(function(r){
+        if (r.status === 404){ NF.missing = true; NF.ok = false; NF.byKey = {}; return null; }
+        if (!r.ok) throw new Error('nf ' + r.status);
+        return r.json();
+      })
+      .then(function(rows){
+        if (!rows) return;
+        NF.ok = true; NF.missing = false; NF.byKey = {};
+        rows.forEach(function(f){ (NF.byKey[f.notice_key] = NF.byKey[f.notice_key] || []).push(f); });
+      })
+      .catch(function(){ NF.ok = false; });
+  }
+  function nfRowHtml(n){
+    var fs = NF.byKey[nfKeyOf(n)] || [];
+    if (!fs.length) return '';
+    return '<div class="n-files">' + fs.map(function(f){
+      return '<span class="n-file"><a onclick="nfOpen(' + (+f.id) + ')" title="눌러서 내려받기">' + esc(f.name || '파일') + '</a>' +
+        '<span class="sz">' + nfSize(f.size) + '</span>' +
+        '<button type="button" title="이 파일 지우기" onclick="nfDelete(' + (+f.id) + ')">×</button></span>';
+    }).join('') + '</div>';
+  }
+  function nfFind(id){ for (var k in NF.byKey){ var f = NF.byKey[k].filter(function(x){ return +x.id === +id; })[0]; if (f) return f; } return null; }
+  function nfRand(){ var a = new Uint8Array(12); (window.crypto || {}).getRandomValues ? crypto.getRandomValues(a) : a.forEach(function(_, i){ a[i] = Math.random() * 256; }); return Array.prototype.map.call(a, function(b){ return ('0' + b.toString(16)).slice(-2); }).join(''); }
+  function nfUpload(key, file){
+    var m = /\.([A-Za-z0-9]{1,8})$/.exec(file.name || ''), path = 'n/' + nfRand() + (m ? '.' + m[1].toLowerCase() : '');
+    return fetch(NF_STORE + path, { method: 'POST', headers: { apikey: NF_KEY, 'Content-Type': file.type || 'application/octet-stream', 'x-upsert': 'false' }, body: file })
+      .then(function(r){ if (!r.ok) throw new Error('up ' + r.status); })
+      .then(function(){
+        return fetch(NF_REST + '/notice_files', { method: 'POST', headers: { apikey: NF_KEY, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+          body: JSON.stringify({ notice_key: key, path: path, name: file.name || '파일', size: file.size || 0, mime: file.type || '' }) });
+      })
+      .then(function(r){ if (!r.ok) throw new Error('row ' + r.status); });
+  }
+  function nfUploadAll(key, files){
+    var out = { ok: 0, fail: [] }, chain = Promise.resolve();
+    files.forEach(function(f){
+      chain = chain.then(function(){ return nfUpload(key, f).then(function(){ out.ok++; }, function(){ out.fail.push(f.name); }); });
+    });
+    return chain.then(function(){ return out; });
+  }
+  function nfAddTo(rowIndex){
+    var n = NOTICES.filter(function(x){ return String(x.rowIndex) === String(rowIndex); })[0];
+    if (!n) return;
+    var inp = document.createElement('input'); inp.type = 'file'; inp.multiple = true;
+    inp.onchange = function(){
+      var files = Array.prototype.slice.call(inp.files || []), bad = nfCheck(files);
+      if (!files.length) return;
+      if (bad){ setStatus(bad, 'err'); return; }
+      setStatus('첨부 파일 ' + files.length + '개를 올리는 중…');
+      nfUploadAll(nfKeyOf(n), files).then(function(r){
+        setStatus(r.fail.length ? '첨부 파일 ' + r.ok + '개 올림, ' + r.fail.length + '개 실패(' + r.fail.join(', ') + ')' : '✓ 첨부 파일 ' + r.ok + '개를 올렸습니다 — ' + (n.title || '공지'), r.fail.length ? 'err' : 'ok');
+        loadNotices();
+      });
+    };
+    inp.click();
+  }
+  function nfRemove(f){
+    return fetch(NF_STORE + f.path, { method: 'DELETE', headers: { apikey: NF_KEY } })
+      .then(function(){ return fetch(NF_REST + '/notice_files?id=eq.' + (+f.id), { method: 'DELETE', headers: { apikey: NF_KEY } }); })
+      .then(function(r){ if (!r.ok) throw new Error('del ' + r.status); });
+  }
+  function nfDelete(id){
+    var f = nfFind(id); if (!f) return;
+    if (!confirm('첨부 파일 「' + (f.name || '파일') + '」을 지울까요? 학생 페이지에서도 사라집니다.')) return;
+    nfRemove(f).then(function(){ setStatus('✓ 첨부 파일을 지웠습니다.', 'ok'); loadNotices(); },
+                     function(){ setStatus('첨부 파일을 지우지 못했습니다. 잠시 후 다시 해 주십시오.', 'err'); });
+  }
+  function nfOpen(id){
+    var f = nfFind(id); if (!f) return;
+    fetch(NF_STORE.replace('/object/notice-files/', '/object/authenticated/notice-files/') + f.path.split('/').map(encodeURIComponent).join('/'), { headers: { apikey: NF_KEY } })
+      .then(function(r){ if (!r.ok) throw new Error('dl ' + r.status); return r.blob(); })
+      .then(function(b){
+        var u = URL.createObjectURL(b), a = document.createElement('a');
+        a.href = u; a.download = f.name || 'file'; document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(function(){ URL.revokeObjectURL(u); }, 30000);
+      })
+      .catch(function(){ setStatus('파일을 받지 못했습니다. 잠시 후 다시 눌러 주십시오.', 'err'); });
   }
 </script>
 

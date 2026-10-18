@@ -864,3 +864,6 @@ default privileges 까지 되돌렸다. `tools/check_lock.py` 통과(표 15/15 �
 - 학생 ↔ 계획 줄: 031 `review_me_` → 이름 정확히 → 끝 A 붙여서 → 끝 A 떼고, 두 쪽 학교가 다 적혀 있는데 다르면 다른 학생. 계획에서 뺀 학생(excluded)은 신청 불가.
 - **적용 상태: 2026-10-17 실제 수파베이스에 적용 완료**(관리 API — 원장님이 준 sbp_ 토큰, 저장 안 함). 확인: 공개 키로 tt_plan_config 401·plan_view/plan_pick 응답, 실제 계획 학생으로 열기→보기(인원 8)→나 고르기를 한 거래 안에서 해 보고 되돌림(설정·기록 0줄, 나 배치 0줄 그대로).
 - 검증: `PGHOST=/home/pgtest PGPORT=5499 PGUSER=postgres bash tools/plan-signup-sql-test.sh`.
+
+## 055 — 공지 첨부 파일 `notice_files`·버킷 `notice-files` (2026-10-18)
+- 공지에 붙인 파일(비공개 버킷, 파일당 20MB)과 목록 표. 공지와는 공지 키 '작성일|제목'으로 잇는다. 교사(authenticated)는 표·저장소 전부, 공개 키는 함수 `notice_files_mine`·`notice_file_url`(그 공지가 보이는 학생만, 10분 창)과 창이 열린 경로 읽기(`notice_file_ok`)만. 022·031 뒤에 실행. 검증 `tools/notice-files-sql-test.sh`.
