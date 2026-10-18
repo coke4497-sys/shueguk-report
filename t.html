@@ -39,7 +39,7 @@ html,body{margin:0;padding:0;}
 body{font-family:'Noto Sans KR',sans-serif; background:var(--sage-fog); color:var(--ink-deep); font-size:15px; line-height:1.6;}
 
 /* 선생님 조작 영역 (인쇄 시 숨김) */
-.panel{max-width:680px; margin:0 auto; padding:20px; }
+.panel{max-width:860px; margin:0 auto; padding:20px; }
 .back{display:inline-flex;align-items:center;gap:6px;margin:0 0 12px;color:var(--ink-soft,#6b7a72);text-decoration:none;font-size:14px;}
 .back svg{width:16px;height:16px;}
 .back:hover{color:var(--accent,#4C8A5C);}
@@ -81,7 +81,8 @@ body{font-family:'Noto Sans KR',sans-serif; background:var(--sage-fog); color:va
 .send-state button{font:inherit; font-size:12px; border:none; background:none; color:#9A5A52; text-decoration:underline; cursor:pointer; padding:0;}
 .note-edit{margin-top:14px;}
 .note-edit label{display:block; font-size:13px; color:var(--ink-mid); margin-bottom:6px; font-weight:500;}
-.note-edit textarea{width:100%; border:1.5px solid var(--line); border-radius:10px; padding:12px; font-size:15px; font-family:'Noto Serif KR',serif; line-height:1.7; resize:vertical; min-height:90px; background:#FBFCFB;}
+.note-edit textarea{width:100%; box-sizing:border-box; border:1.5px solid var(--line); border-radius:10px; padding:14px; font-size:15px; font-family:'Noto Serif KR',serif; line-height:1.7; resize:vertical; min-height:280px; background:#FBFCFB;}
+/* 한 마디 칸은 글이 길어지면 칸이 따라 늘어난다(noteAutoSize) — 안에서 스크롤되면 고치는 중에 다른 문단으로 넘어가 버렸다(2026-10-18 수정 요청) */
 .note-edit textarea:focus{outline:none; border-color:var(--sage-deep);}
 .note-edit .hint{font-size:12px; color:var(--ink-soft); margin-top:6px;}
 .note-guide{background:var(--sage-fog); border:1px solid var(--line-soft); border-radius:10px; padding:11px 14px; margin-bottom:9px;}
@@ -971,7 +972,16 @@ function fillTeacherName(saved){
   });
 })();
 
+/* 한 마디 칸 높이를 글 길이에 맞춘다 — 칸 안 스크롤 없이 전체 글이 보이게. 줄이기 전 페이지 위치를 지켜 화면이 튀지 않게 한다 */
+function noteAutoSize(){
+  var ta = document.getElementById('teacherNote'); if(!ta) return;
+  var y = window.scrollY;
+  ta.style.height = 'auto';
+  ta.style.height = Math.max(280, ta.scrollHeight + 4) + 'px';
+  if(window.scrollY !== y) window.scrollTo(0, y);
+}
 function syncNote(){
+  noteAutoSize();
   document.getElementById('rNote').textContent = document.getElementById('teacherNote').value.trim() || '';
   var box = document.getElementById('rNote');
   if(!document.getElementById('teacherNote').value.trim()){ box.innerHTML='<span class="empty">—</span>'; }
