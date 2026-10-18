@@ -73,7 +73,7 @@ eq('kakaoOptions', [body.messages[0].kakaoOptions.pfId, body.messages[0].kakaoOp
 eq('변수 #{} 형식·순서', body.messages[0].kakaoOptions.variables, { '#{학생명}': '김하나', '#{수업일}': '9/11(금) 5:30', '#{반이름}': '고1 가' });
 const rows = SHEETS['알림톡기록'];
 eq('기록 1줄', rows.length, 2);
-eq('기록 내용', rows[1].slice(1), ['absent', '김하나', '학부모1', '01012345678', '고1 가', '2026-09-11', '성공', '', 'G1', '']);
+eq('기록 내용', rows[1].slice(1), ['absent', '김하나', '학부모1', '01012345678', '고1 가', '2026-09-11', '성공', '', 'G1', '', '']);
 eq('머리글에 보낸사람 열', rows[0][10], '보낸사람');
 
 console.log('4) 발신번호 있으면 문자 대체');
@@ -298,6 +298,55 @@ r = J(fns.alimSend({ pw: 'sh', kind: 'preabsent', items: [pitem('김예고', '01
 eq('같은 결석 예고는 중복 건너뜀', r.sent[0].dup, true);
 r = J(fns.alimSend({ pw: 'sh', kind: 'absent', items: [item('김예고', '01012345678', '2026-10-17')] }));
 eq('결석 안내는 종류가 달라 막히지 않음(화면이 체크를 풀어 둔다)', r.okCount, 1);
+
+console.log('12) 예약 발송 (2026-10-18)');
+reset();
+fns.alimConfigSet({ pw: 'sh', apiKey: 'KEY1', apiSecret: 'SEC1', pfId: 'PF1', tpl: { absent: 'KA01TP1', notice_sched: 'KA01TPS' } });
+{
+  const p = n => String(n).padStart(2, '0');
+  const kst = t => { const d = new Date(t + 9 * 3600000); return d.getUTCFullYear() + '-' + p(d.getUTCMonth() + 1) + '-' + p(d.getUTCDate()) + ' ' + p(d.getUTCHours()) + ':' + p(d.getUTCMinutes()); };
+  const slot = t => { const x = Math.ceil(t / 1800000) * 1800000; return x; };   // 30분 단위로 올림
+  const at = slot(Date.now() + 2 * 3600000), when = kst(at);
+  const nitem = (st, to) => ({ student: st, to, who: '학생', cls: '', date: 'N:2026-10-18|일정', vars: { 학생명: st, 제목: '일정', 접근코드: 'c1' } });
+  let r = J(fns.alimSend({ pw: 'sh', kind: 'notice_sched', schedule: kst(at + 15 * 60000), items: [nitem('김예약', '01011112222')] }));
+  eq('30분 단위가 아니면 거절', [r.result, /30분 단위/.test(r.message), CALLS.length], ['error', true, 0]);
+  r = J(fns.alimSend({ pw: 'sh', kind: 'notice_sched', schedule: kst(Math.floor(Date.now() / 1800000) * 1800000), items: [nitem('김예약', '01011112222')] }));
+  eq('10분 안·지난 시각은 거절', [r.result, /10분 뒤/.test(r.message)], ['error', true]);
+  r = J(fns.alimSend({ pw: 'sh', kind: 'notice_sched', schedule: kst(slot(Date.now() + 40 * 86400000)), items: [nitem('김예약', '01011112222')] }));
+  eq('30일 넘으면 거절', [r.result, /30일/.test(r.message)], ['error', true]);
+  r = J(fns.alimSend({ pw: 'sh', kind: 'absent', schedule: when, items: [item('김결석', '01011113333', '2026-10-18')] }));
+  eq('결석 안내는 예약 거절', [r.result, /바로 보냅니다/.test(r.message), CALLS.length], ['error', true, 0]);
+  NEXT = { code: 200, body: { groupInfo: { _id: 'GS1' }, failedMessageList: [] } };
+  r = J(fns.alimSend({ pw: 'sh', kind: 'notice_sched', schedule: when, by: '김현지 선생님', items: [nitem('김예약', '01011112222'), nitem('이예약', '01011114444')] }));
+  const pl = JSON.parse(CALLS[0].opt.payload);
+  eq('예약 성공 응답', [r.result, r.okCount, r.scheduled, r.sent[0].message], ['success', 2, when, '예약했어요']);
+  eq('솔라피 scheduledDate = ISO +09:00', pl.scheduledDate, when.replace(' ', 'T') + ':00+09:00');
+  const R = SHEETS['알림톡기록'];
+  eq('머리글 L열 예약시각', R[0][11], '예약시각');
+  eq('기록 결과 예약 · 예약시각 · 그룹ID', [R[1][7], R[1][11], R[1][9], R[2][7]], ['예약', when, 'GS1', '예약']);
+  r = J(fns.alimSend({ pw: 'sh', kind: 'notice_sched', items: [nitem('김예약', '01011112222')] }));
+  eq('예약해 둔 알림은 바로 보내기에서 중복으로 건너뜀', [r.sent[0].dup, CALLS.length], [true, 1]);
+  const lg = J(fns.alimLogGet('', '', 10)).rows;
+  eq('기록 조회에 res·sched·groupId', [lg[0].res, lg[0].sched, lg[0].groupId, lg[0].ok], ['예약', when, 'GS1', false]);
+  // 취소
+  eq('묶음 번호 없으면 거절', J(fns.alimCancel({ pw: 'sh', groupId: '' })).result, 'error');
+  NEXT = { code: 400, body: { errorMessage: 'nope' } };
+  r = J(fns.alimCancel({ pw: 'sh', groupId: 'GS1' }));
+  eq('솔라피가 거절하면 기록은 그대로', [r.result, R[1][7]], ['error', '예약']);
+  NEXT = { code: 200, body: {} };
+  r = J(fns.alimCancel({ pw: 'sh', groupId: 'GS1', by: '김현지 선생님' }));
+  const cc = CALLS[CALLS.length - 1];
+  eq('취소 = DELETE groups/{id}/schedule', [cc.url, cc.opt.method], ['https://api.solapi.com/messages/v4/groups/GS1/schedule', 'delete']);
+  eq('두 줄 예약 취소로', [r.result, r.canceled, R[1][7], R[2][7], R[1][8]], ['success', 2, '예약 취소', '예약 취소', '취소함 · 김현지 선생님']);
+  eq('다시 취소하면 거절', J(fns.alimCancel({ pw: 'sh', groupId: 'GS1' })).result, 'error');
+  NEXT = { code: 200, body: { groupInfo: { _id: 'G2' }, failedMessageList: [] } };
+  r = J(fns.alimSend({ pw: 'sh', kind: 'notice_sched', items: [nitem('김예약', '01011112222')] }));
+  eq('취소한 뒤에는 다시 보낼 수 있다', [r.okCount, R[R.length - 1][7]], [1, '성공']);
+  // 시각 지난 예약은 취소 거절
+  R.push([new Date(), 'notice_sched', '박지남', '학생', '01011115555', '', 'N:x', '예약', '', 'GOLD', '', kst(Date.now() + 30000)]);
+  r = J(fns.alimCancel({ pw: 'sh', groupId: 'GOLD' }));
+  eq('보낼 시각이 지난 예약은 취소 거절', [r.result, /지나/.test(r.message)], ['error', true]);
+}
 
 console.log(fail ? ('\n' + fail + '건 실패') : '\n전부 통과');
 process.exit(fail ? 1 : 0);
