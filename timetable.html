@@ -7995,7 +7995,7 @@ function reqRenderList(){
   if (!box) return;
   if (reqRows === null){ box.innerHTML = '<p class="mdesc">목록을 불러오지 못했어요. 인터넷을 확인해 주세요.</p>'; return; }
   var shown = reqRows.map(function(r, i){ return { r: r, i: i }; })
-    .filter(function(x){ return x.r.screen !== CR_SCREEN; });   // 수업 리포트 요청은 '수업 기록' 창에서 상태를 본다
+    .filter(function(x){ return x.r.screen !== CR_SCREEN && x.r.screen !== '별 사유'; });   // 수업 리포트 요청은 '수업 기록' 창에서 상태를 본다, 별 사유 다듬기(클로슈 전용)는 목록에 넣지 않는다
   if (!shown.length){ box.innerHTML = '<p class="mdesc">아직 남긴 요청이 없어요.</p>'; return; }
   box.innerHTML = shown.map(function(x){
     var r = x.r, i = x.i;

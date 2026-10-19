@@ -28,7 +28,9 @@ const ok = (m, c, x) => { c ? (pass++, console.log('  ✓ ' + m)) : (fail++, con
   }, latest);
   const today = new Date().toISOString().slice(0, 10);
   let t = await msg({ stars: 2, reason: '수업 태도', date: today, giver: '김현지' });
-  ok('준 선생님 이름', t && /김현지 선생님이 별 2개를 선물하셨어요 · 수업 태도/.test(t), t);
+  ok('준 선생님 이름', t && /김현지 선생님이 별 2개를 선물하셨어요수업 태도/.test(t), t);
+  const why = await pg.evaluate(() => { const e = document.querySelector('#starSec .st-bonus-why'); return e ? [e.textContent, getComputedStyle(e).display] : null; });
+  ok('사유는 아래 줄(다듬은 문장, 056)', why && why[0] === '수업 태도' && why[1] === 'block', JSON.stringify(why));
   ok('담당 강사(이은지)·수경쌤이 아님', t && !/이은지|수경쌤/.test(t), t);
   t = await msg({ stars: 1, reason: '', date: today, giver: '' });
   ok('이름 없는 옛 기록 — 선생님이', t && /^💝 선생님이 별 1개를 선물하셨어요$/.test(t.trim()), t);

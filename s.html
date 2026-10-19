@@ -451,6 +451,7 @@
   .st-msg{font-family:var(--serif);font-size:.9rem;color:var(--ink);margin:6px 0 0;line-height:1.7;}
   .st-msg b{color:var(--accent);}
   .st-bonus{margin-top:11px;font-family:var(--serif);font-size:.87rem;color:#8A6A14;background:#FBF4DE;border-radius:11px;padding:9px 13px;line-height:1.7;}
+  .st-bonus-why{display:block;margin-top:3px;color:#5F4E14;}
   /* 별 획득 내역 (동기부여용 — 내 별이 어디서 왔는지) */
   .st-src{margin:13px 0 0;padding:11px 13px;background:#F4F8F5;border-radius:11px;}
   .st-src .t{font-size:.76rem;font-weight:700;color:var(--ink-soft);margin:0 0 7px;}
@@ -1687,7 +1688,10 @@ function api(extra){
           if (!match) return;
           var n = parseInt(r.stars, 10) || 0;
           bonus.sum += n;
-          bonus.latest = { stars: n, reason: tr(r.reason), date: fmtTsKST(r.at).slice(0, 10), giver: tr(r.giver) };
+          // 사유는 클로슈가 다듬은 문장(reason_nice, 056)만 보여 준다 — 다듬기 전(빈 값)이면 사유 없이.
+          // 열이 없는 옛 응답(056 전)은 원문 그대로.
+          var why = ('reason_nice' in r) ? tr(r.reason_nice) : tr(r.reason);
+          bonus.latest = { stars: n, reason: why, date: fmtTsKST(r.at).slice(0, 10), giver: tr(r.giver) };
         });
         var noticeN = Object.keys(checks).length;
         var stars = {
@@ -1942,7 +1946,8 @@ function renderStars(){
     if(!isNaN(days) && days >= 0 && days <= 14){
       // 보낸 분 = 별을 준 선생님(star_bonus.giver·시트 H열, 2026-10-14 원장님). 이름이 없는 옛 기록은 '선생님'.
       var bt = String(b.giver || '').trim();
-      html += '<div class="st-bonus">💝 '+(bt ? esc(bt)+' 선생님' : '선생님')+'이 별 '+b.stars+'개를 선물하셨어요'+(b.reason?' · '+esc(b.reason):'')+'</div>';
+      // 사유는 다듬은 문장이라 아래 줄에 따로 쓴다(2026-10-19).
+      html += '<div class="st-bonus">💝 '+(bt ? esc(bt)+' 선생님' : '선생님')+'이 별 '+b.stars+'개를 선물하셨어요'+(b.reason?'<span class="st-bonus-why">'+esc(b.reason)+'</span>':'')+'</div>';
     }
   }
 
