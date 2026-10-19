@@ -871,4 +871,4 @@ default privileges 까지 되돌렸다. `tools/check_lock.py` 통과(표 15/15 �
 ## 056 — 별 선물 사유 다듬은 문장 `star_bonus.reason_nice` (2026-10-19)
 - 선생님 원문(reason)은 그대로, 클로슈가 다듬은 문장을 `reason_nice`에(빈 값 = 다듬기 전 — 학생 화면에 사유를 안 보임). 처음 적용할 때 옛 기록은 원문으로 채운다(열이 이미 있으면 다시 채우지 않음 — 재실행 안전). `student_bundle`은 050 본문 + reason_nice.
 - 다듬기·처리 절차는 저장소 CLAUDE.md '별 선물 사유 다듬기' 절, 도구 `tools/star_reason.py`. 검증 `tools/star-reason-sql-test.sh`.
-- **적용 상태: 아직 적용 전** — 적용 전에는 화면이 열을 빼고 넣어 원문이 그대로 보인다.
+- **적용 상태: 2026-10-19 실제 수파베이스에 적용 완료**(관리 API, 토큰 저장 안 함 — 59건 원문 채움, 공개 키 student_bundle 의 reason_nice 확인). 같은 날 최근 14일 사유 10건(id 36·37·72·98~101·103~105)을 다듬었다.
