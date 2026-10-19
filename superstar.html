@@ -741,19 +741,38 @@
         sb('DELETE', '/students?name=eq.' + q(String(it.name).trim())).catch(warn('퇴원 정리'));
       });
     },
-    addStarBonus: function(b, res){
+    addStarBonus: function(b, res, endpoint){
       if (res && res.dup) return;   // 백엔드가 같은 사유의 기록을 찾아 쓰지 않은 건 — 미러도 넣지 않는다(시험 별 한꺼번에 주기)
+      var reason = String(b.reason || '').trim();
+      // 사유 다듬기(056, 2026-10-19 원장님 "키워드로 적어도 단정하지만 따뜻한 문장으로"):
+      // 선생님이 직접 적은 사유는 reason_nice 를 비워 두고 수정 요청함(화면 '별 사유')으로 클로슈를 부른다.
+      // 시험 별(dedupe — 화면이 정한 '26년 2학기 중간고사 1등급' 같은 문구)은 그대로 쓴다.
+      var polish = !!reason && String(b.dedupe || '') !== '1';
       var row = {
         at: nowIso(), student_id: String(b.id || ''), name: String(b.name || '').trim(),
         school: String(b.school || ''), stars: parseInt(b.stars, 10) || 0,
-        reason: String(b.reason || ''), grade: String(b.grade || ''),
-        giver: String(b.by || '').trim().slice(0, 40)   // 별을 준 선생님(050)
+        reason: reason, grade: String(b.grade || ''),
+        giver: String(b.by || '').trim().slice(0, 40),   // 별을 준 선생님(050)
+        reason_nice: polish ? '' : reason                // 다듬은 사유(056)
       };
-      sb('POST', '/star_bonus', row, { 'Prefer': 'return=minimal' }).catch(function(e){
-        // 050 적용 전(giver 열 없음) — 이름 없이 다시 넣는다
-        if (!/giver|PGRST204/.test(String(e && e.message))) throw e;
-        delete row.giver;
-        return sb('POST', '/star_bonus', row, { 'Prefer': 'return=minimal' });
+      // 056·050 적용 전(열 없음, PGRST204) — 오류에 이름이 나온 열을 빼고 다시 넣는다(최대 두 번)
+      function post(left){
+        return sb('POST', '/star_bonus', row, { 'Prefer': 'return=representation' }).catch(function(e){
+          var m = String(e && e.message), col = /reason_nice/.test(m) ? 'reason_nice' : /giver/.test(m) ? 'giver' : '';
+          if (!left || !col || !(col in row)) throw e;
+          delete row[col];
+          if (col === 'reason_nice') polish = false;   // 열이 없으면 다듬은 사유를 둘 곳이 없다 — 원문 그대로 보인다
+          return post(left - 1);
+        });
+      }
+      post(2).then(function(rows){
+        var id = rows && rows[0] && rows[0].id;
+        if (!polish || !id || !endpoint) return;
+        var who = row.name + (row.school ? ' (' + row.school + (row.grade ? ' ' + row.grade : '') + ')' : '');
+        var text = '[별 사유] b' + id + ' · ' + who + ' · 별 ' + row.stars + '개' +
+                   (row.giver ? ' · ' + row.giver + ' 선생님' : '') + '\n원문: ' + reason;
+        return rawFetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify({ action: 'editReqAdd', pw: b.pw, writer: row.giver ? row.giver + 'T' : '', screen: '별 사유', text: text }) });
       }).catch(warn('별 보너스'));
     },
     deleteStarBonus: function(b){

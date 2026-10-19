@@ -418,12 +418,13 @@ def copy_compare(table, sheet_rows, keyf, ts_of, tol_min=3):
         for k in only_sh[:5]: print(f'      · 시트에만: {str(k)[:150]}')
 
 def sync_sheet_master(table, sheet_rows, keyf, valf, heal, id_field='id', keep=None,
-                      patch_fields=None, soft_valf=None, soft_label=''):
+                      patch_fields=None, soft_valf=None, soft_label='', fill_add=None):
     """시트가 원본 — 수파베이스를 시트에 맞춘다.
     keep(row)=True 인 행은 '시트에 없어도 지우지 않는다' — 시트에 대응이 없는
     수파베이스 전용 데이터(주간 전용 반 등)를 이 도구가 지우지 않게 하는 안전장치.
     patch_fields: 갱신할 때 이 열만 쓴다(수파베이스가 원본인 열을 덮어쓰지 않으려고).
-    soft_valf: 이 값이 다르면 보고만 하고 고치지 않는다(수파베이스가 원본인 열)."""
+    soft_valf: 이 값이 다르면 보고만 하고 고치지 않는다(수파베이스가 원본인 열).
+    fill_add(row, to_del): 시트에서 새로 넣는 행에 수파베이스 전용 열을 채운다(지울 행에서 옮겨 오기 등)."""
     cur = sb_all(table)
     if keep: cur = [r for r in cur if not keep(r)]
     curmap = {}
@@ -447,6 +448,8 @@ def sync_sheet_master(table, sheet_rows, keyf, valf, heal, id_field='id', keep=N
     if n == 0: return
     report(tag)
     if not heal: return
+    if fill_add:
+        to_add = [fill_add(dict(r), to_del) for r in to_add]
     for r in to_add: sb('POST', f'/{table}', [r], 'return=minimal')
     for r, c in to_upd:
         body = {k: r[k] for k in patch_fields} if patch_fields else r
@@ -512,8 +515,18 @@ def main():
     copy_compare('notice_reads', d['notice_reads'],
         lambda r: (r.get('student_id',''), r.get('name',''), r.get('notice_key','')),
         lambda r: r.get('at',''))
+    # reason_nice(056 — 클로슈가 다듬은 사유)는 수파베이스에만 있다. 시트 기준으로 새로 넣는 행은
+    # 지워질 같은 기록(이름·별 수·원문 사유)의 다듬은 문장을 옮겨 오고, 없으면 원문을 그대로 쓴다
+    # (빈 값이면 학생 화면에서 사유가 사라진다). 갱신은 시트 열만 PATCH 해 다듬은 문장을 지키지 않는다.
+    def star_fill(r, dels):
+        for c in dels:
+            if (c.get('name',''), c.get('stars',0), c.get('reason','')) == (r['name'], r['stars'], r['reason']) and c.get('reason_nice'):
+                r['reason_nice'] = c['reason_nice']; return r
+        r['reason_nice'] = r['reason']
+        return r
     sync_sheet_master('star_bonus', d['star_bonus'],
-        lambda r: (ep(r['at']), r.get('name',''), r.get('stars',0)), lambda r: r.get('reason',''), heal)
+        lambda r: (ep(r['at']), r.get('name',''), r.get('stars',0)), lambda r: r.get('reason',''), heal,
+        patch_fields=['at','student_id','name','school','stars','reason','grade','giver'], fill_add=star_fill)
     # 시험(exams·exam_questions)은 2026-08-26부터 수파베이스가 원본(등록·삭제가 페이지에서 먼저).
     # 시트 사본이 빠졌을 수 있으니 **보고만** 한다 — 여기서 시트 기준으로 고치면 방금 등록한
     # 시험이 지워지거나 삭제한 시험이 되살아난다. heal=False 로 대조만 수행.

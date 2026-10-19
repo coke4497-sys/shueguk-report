@@ -867,3 +867,8 @@ default privileges 까지 되돌렸다. `tools/check_lock.py` 통과(표 15/15 �
 
 ## 055 — 공지 첨부 파일 `notice_files`·버킷 `notice-files` (2026-10-18)
 - 공지에 붙인 파일(비공개 버킷, 파일당 20MB)과 목록 표. 공지와는 공지 키 '작성일|제목'으로 잇는다. 교사(authenticated)는 표·저장소 전부, 공개 키는 함수 `notice_files_mine`·`notice_file_url`(그 공지가 보이는 학생만, 10분 창)과 창이 열린 경로 읽기(`notice_file_ok`)만. 022·031 뒤에 실행. 검증 `tools/notice-files-sql-test.sh`.
+
+## 056 — 별 선물 사유 다듬은 문장 `star_bonus.reason_nice` (2026-10-19)
+- 선생님 원문(reason)은 그대로, 클로슈가 다듬은 문장을 `reason_nice`에(빈 값 = 다듬기 전 — 학생 화면에 사유를 안 보임). 처음 적용할 때 옛 기록은 원문으로 채운다(열이 이미 있으면 다시 채우지 않음 — 재실행 안전). `student_bundle`은 050 본문 + reason_nice.
+- 다듬기·처리 절차는 저장소 CLAUDE.md '별 선물 사유 다듬기' 절, 도구 `tools/star_reason.py`. 검증 `tools/star-reason-sql-test.sh`.
+- **적용 상태: 아직 적용 전** — 적용 전에는 화면이 열을 빼고 넣어 원문이 그대로 보인다.

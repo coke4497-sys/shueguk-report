@@ -30,7 +30,7 @@ function serve(){
   let GIVEN = [{ name: '김하늘', school: '화정고', reason: '26년 2학기 중간고사 1등급' },   // 이미 준 별
                { name: '이도윤', school: '능곡고', reason: '26년 2학기 중간고사 2등급' }];   // 표기를 'A'로 바꾸기 전 기록
   let dupNext = 0;   // 백엔드가 '이미 있음'(dup:true)으로 답할 건수
-  const posts = [], mirrors = []; let failNext = 0, confirms = [];
+  const posts = [], mirrors = [], reqs = []; let failNext = 0, confirms = [];
   const pg = await (await br.newContext()).newPage();
   let perr = 0; pg.on('pageerror', e => { perr++; console.log('  ✗ pageerror', e.message); });
   pg.on('dialog', d => { confirms.push(d.message()); d.accept(); });
@@ -40,7 +40,7 @@ function serve(){
     if (u.startsWith('http://127.0.0.1:' + port)) return rt.continue();
     if (/\/auth\/v1\/token/.test(u)) return j({ access_token: 'tok', expires_in: 3600, refresh_token: 'r' });
     if (/\/rest\/v1\/star_bonus/.test(u)){
-      if (m === 'POST'){ mirrors.push(JSON.parse(rt.request().postData())); return rt.fulfill({ status: 201, body: '' }); }
+      if (m === 'POST'){ const row = JSON.parse(rt.request().postData()); mirrors.push(row); return j([Object.assign({ id: 900 + mirrors.length }, row)], 201); }
       const like = decodeURIComponent((/reason=like\.([^&]*)/.exec(u) || [])[1] || '').replace(/\*$/, '');
       return j(GIVEN.filter(r => !like || r.reason.startsWith(like)));
     }
@@ -56,6 +56,7 @@ function serve(){
           if (dupNext > 0){ dupNext--; return j({ result: 'success', dup: true }); }
           return j({ result: 'success' });
         }
+        if (b.action === 'editReqAdd') reqs.push(b);
         return j({ result: 'success' });
       }
       if (/action=roster/.test(u)) return j({ result: 'success', students: ROSTER });
@@ -128,6 +129,7 @@ function serve(){
   r = await pg.evaluate(() => [...document.querySelectorAll('.giver-line')].map(e => e.textContent));
   ok('보내는 선생님 줄 두 곳', r.length === 2 && r.every(t => /김현지 선생님/.test(t)), JSON.stringify(r));
   await pg.waitForFunction(() => true); await new Promise(r => setTimeout(r, 300));
+  ok('시험 별은 다듬지 않음 — reason_nice = 사유, 수정 요청 없음(056)', mirrors.every(m => m.reason_nice === m.reason) && reqs.length === 0, JSON.stringify(reqs));
   ok('수파베이스 star_bonus 미러 3건(사유 같음)', mirrors.length === 3 && mirrors.every(m => /26년 2학기 중간고사/.test(m.reason) && m.stars > 0), JSON.stringify(mirrors.map(m => m.reason)));
   r = await pg.evaluate((P) => ({ st: document.getElementById('exStatus').textContent, done: [...document.querySelectorAll(P + ' .ex-pill.given')].map(b => b.getAttribute('data-a')), on: document.querySelectorAll('#exList .ex-pill.on').length, dis: document.getElementById('exGive').disabled }), P);
   ok('완료 문구 · 준 알약은 ✓ 잠김 · 선택 비움 · 버튼 잠김', /별 10개를 학생 2명에게/.test(r.st) && r.done.join(',') === 'lv1,top' && r.on === 0 && r.dis, JSON.stringify(r));
@@ -189,6 +191,18 @@ function serve(){
   ok('dup 응답 건은 수파베이스 미러에 넣지 않음(2건 중 1건만)', mirrors.length === 1, String(mirrors.length));
   await pg.unroute(/script\.google.*/);
 
+  // ⑦ 별 선물하기(직접 적은 사유) — 다듬기 전(reason_nice 빈 값) + 수정 요청함 '별 사유' 한 건(056)
+  mirrors.length = 0; reqs.length = 0;
+  await pg.evaluate(() => fetch(ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify({ action: 'addStarBonus', pw: SERVER_PW, name: '박보검', school: '화정고', grade: '2026 고등 1학년', stars: 1, reason: '10모대비 모고 잘했고 빨리제출함', by: '김덕기' }) }));
+  await new Promise(r => setTimeout(r, 600));
+  ok('직접 적은 사유 — 미러 reason_nice 빈 값', mirrors.length === 1 && mirrors[0].reason_nice === '' && mirrors[0].reason === '10모대비 모고 잘했고 빨리제출함', JSON.stringify(mirrors));
+  ok('수정 요청함 화면 별 사유 · b{id} · 원문', reqs.length === 1 && reqs[0].screen === '별 사유' && reqs[0].pw && /^\[별 사유\] b\d+ · 박보검 \(화정고/.test(reqs[0].text) && /김덕기 선생님/.test(reqs[0].text) && /원문: 10모대비 모고 잘했고 빨리제출함/.test(reqs[0].text), JSON.stringify(reqs[0]));
+  mirrors.length = 0; reqs.length = 0;
+  await pg.evaluate(() => fetch(ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify({ action: 'addStarBonus', pw: SERVER_PW, name: '박보검', school: '화정고', grade: '', stars: 1, reason: '', by: '김덕기' }) }));
+  await new Promise(r => setTimeout(r, 600));
+  ok('사유 없으면 요청 없음', mirrors.length === 1 && reqs.length === 0, JSON.stringify(reqs));
   // ⑧ 이미 준 별 조회 실패 → 경고 + 확인 창에도 경고
   await pg.route(/\/rest\/v1\/star_bonus/, rt => rt.request().method() === 'GET' ? rt.fulfill({ status: 500, body: 'x' }) : rt.fulfill({ status: 201, body: '' }));
   await pg.click('#exPeriod button[data-p="26-2-중간"]');
