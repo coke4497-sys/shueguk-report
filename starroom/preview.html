@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>스타룸 소재 확인</title>
+<link href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=Gowun+Dodum&display=swap" rel="stylesheet">
+<style>
+  :root { --bg:#E4EFEA; --surface:#FFFFFF; --ink:#2A332F; --ink-soft:#5C6A64; }
+  body { margin:0; background:var(--bg); color:var(--ink); font-family:"Gowun Dodum",sans-serif; }
+  main { max-width:960px; margin:0 auto; padding:20px 16px 40px; display:flex; flex-direction:column; gap:16px; }
+  h1 { font-family:"Gowun Batang",serif; font-size:22px; margin:0; }
+  h2 { font-family:"Gowun Batang",serif; font-size:17px; margin:0 0 10px; }
+  p { margin:0; color:var(--ink-soft); font-size:14px; line-height:1.6; }
+  .card { background:var(--surface); border-radius:18px; padding:16px; }
+  .rooms { display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:12px; }
+  .room { border-radius:16px; overflow:hidden; background:linear-gradient(160deg,#FBF6EC,#EAF3EE); }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:10px; }
+  .cell { background:#F7F9F8; border-radius:14px; padding:10px; }
+  .cell b { font-weight:400; font-size:14px; }
+  .cell small { color:var(--ink-soft); font-size:12px; margin-left:4px; }
+  .big { height:110px; margin:6px 0; }
+  .row5 { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:2px; }
+  .row5 div { height:44px; }
+  #err { color:#9A4A3E; font-size:14px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>스타룸 소재 확인</h1>
+  <p>기본 아이템 6종 × 모양 2 × 색 5 = 60가지 조합과 예시 방입니다. 그림 파일(starroom/items/*.svg, starroom/room.svg)을 바꾸면 이 화면에서 바로 확인할 수 있어요.</p>
+  <div id="err"></div>
+  <section class="card">
+    <h2>예시 방</h2>
+    <div class="rooms">
+      <div class="room" id="room1"></div>
+      <div class="room" id="room2"></div>
+      <div class="room" id="room3"></div>
+    </div>
+  </section>
+  <section class="card">
+    <h2>아이템 · 모양 · 색</h2>
+    <div class="grid" id="grid"></div>
+  </section>
+</main>
+<script src="sr-art.js"></script>
+<script>
+(function () {
+  function fail(e) { document.getElementById('err').textContent = String(e && e.message || e); }
+  SRArt.room(document.getElementById('room1'), [
+    { kind: 'rug', shape: 'B', color: 'sage', spot: 'f1' },
+    { kind: 'shelf', shape: 'A', color: 'cream', spot: 's3' },
+    { kind: 'desk', shape: 'B', color: 'cream', spot: 's1' },
+    { kind: 'lamp', shape: 'B', color: 'pink', spot: 't1' },
+    { kind: 'chair', shape: 'A', color: 'sky', spot: 's4' },
+    { kind: 'sofa', shape: 'A', color: 'sage', spot: 's2' }
+  ]).catch(fail);
+  SRArt.room(document.getElementById('room2'), [
+    { kind: 'rug', shape: 'A', color: 'pink', spot: 'f1' },
+    { kind: 'sofa', shape: 'B', color: 'sky', spot: 's4' },
+    { kind: 'shelf', shape: 'B', color: 'charcoal', spot: 's1' },
+    { kind: 'lamp', shape: 'A', color: 'cream', spot: 's3' },
+    { kind: 'desk', shape: 'A', color: 'sage', spot: 's2' },
+    { kind: 'chair', shape: 'B', color: 'pink', spot: 's5' }
+  ]).catch(fail);
+  SRArt.room(document.getElementById('room3'), [
+    { kind: 'sofa', shape: 'A', color: 'charcoal', spot: 's5' },
+    { kind: 'lamp', shape: 'A', color: 'sky', spot: 's1' }
+  ]).catch(fail);
+  SRArt.catalog().then(function (cat) {
+    var grid = document.getElementById('grid'), names = Object.keys(cat.colors);
+    cat.items.forEach(function (it) {
+      ['A', 'B'].forEach(function (sh) {
+        var cell = document.createElement('div');
+        cell.className = 'cell';
+        cell.dataset.item = it.id + '-' + sh;
+        cell.innerHTML = '<b>' + it.label + '</b><small>' + it.shapes[sh].label + '</small><div class="big"></div><div class="row5"></div>';
+        grid.appendChild(cell);
+        SRArt.paint(cell.querySelector('.big'), it.id, sh, 'sage').catch(fail);
+        names.forEach(function (c) {
+          var d = document.createElement('div');
+          d.title = cat.colors[c].label;
+          cell.querySelector('.row5').appendChild(d);
+          SRArt.paint(d, it.id, sh, c).catch(fail);
+        });
+      });
+    });
+  }).catch(fail);
+})();
+</script>
+</body>
+</html>

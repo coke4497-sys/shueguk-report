@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-60 -100 120 130" data-item="sofa-A">
+<!-- 임시 그림(클로슈). 규칙은 starroom/ART-GUIDE.md -->
+<defs><filter id="srsh-sofaA" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="3"/></filter></defs>
+<ellipse class="sr-shadow" cx="0" cy="2" rx="52" ry="22" fill="#7A6450" opacity="0.16" filter="url(#srsh-sofaA)"/>
+<g stroke-width="4" stroke-linejoin="round">
+<polygon points="-48,-10 20,24 20,10 -48,-24" fill="var(--sr-base)" stroke="var(--sr-base)"/>
+<polygon points="20,24 48,10 48,-4 20,10" fill="var(--sr-shade)" stroke="var(--sr-shade)"/>
+<polygon points="-48,-24 20,10 48,-4 -20,-38" fill="var(--sr-top)" stroke="var(--sr-top)"/>
+<polygon points="-28,-34 40,0 40,-18 -28,-52" fill="var(--sr-base)" stroke="var(--sr-base)"/>
+<polygon points="40,0 48,-4 48,-22 40,-18" fill="var(--sr-shade)" stroke="var(--sr-shade)"/>
+<polygon points="-28,-52 40,-18 48,-22 -20,-56" fill="var(--sr-top)" stroke="var(--sr-top)"/>
+</g>
+<ellipse cx="-14" cy="-36" rx="13" ry="8" fill="var(--sr-top)" transform="rotate(27 -14 -36)"/>
+<ellipse cx="14" cy="-22" rx="13" ry="8" fill="var(--sr-top)" transform="rotate(27 14 -22)"/>
+<path d="M-24,-40 C-20,-44 -12,-44 -6,-38" stroke="var(--sr-hi)" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+<g stroke-width="4" stroke-linejoin="round">
+<polygon points="-48,-24 -40,-20 -40,-28 -48,-32" fill="var(--sr-base)" stroke="var(--sr-base)"/>
+<polygon points="-40,-20 -12,-34 -12,-42 -40,-28" fill="var(--sr-shade)" stroke="var(--sr-shade)"/>
+<polygon points="-48,-32 -40,-28 -12,-42 -20,-46" fill="var(--sr-top)" stroke="var(--sr-top)"/>
+<polygon points="12,6 20,10 20,2 12,-2" fill="var(--sr-base)" stroke="var(--sr-base)"/>
+<polygon points="20,10 48,-4 48,-12 20,2" fill="var(--sr-shade)" stroke="var(--sr-shade)"/>
+<polygon points="12,-2 20,2 48,-12 40,-16" fill="var(--sr-top)" stroke="var(--sr-top)"/>
+</g>
+<circle cx="30" cy="-6" r="5.5" fill="#FFF6E2"/>
+<path d="M30,-9 l1,2 2.2,.3 -1.6,1.5 .4,2.2 -2,-1.1 -2,1.1 .4,-2.2 -1.6,-1.5 2.2,-.3 z" fill="#F4C76A"/>
+</svg>

@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-60 -100 120 130" data-item="desk-A">
+<!-- 임시 그림(클로슈). 규칙은 starroom/ART-GUIDE.md -->
+<defs><filter id="srsh-deskA" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="3"/></filter></defs>
+<ellipse class="sr-shadow" cx="0" cy="8" rx="46" ry="18" fill="#7A6450" opacity="0.16" filter="url(#srsh-deskA)"/>
+<g stroke-width="3" stroke-linejoin="round">
+<polygon points="-45,-7.5 -41,-5.5 -41,-33.5 -45,-35.5" fill="var(--sr-base)" stroke="var(--sr-base)"/>
+<polygon points="-41,-5.5 -11,-20.5 -11,-48.5 -41,-33.5" fill="var(--sr-shade)" stroke="var(--sr-shade)"/>
+<polygon points="11,20.5 15,22.5 15,-5.5 11,-7.5" fill="var(--sr-base)" stroke="var(--sr-base)"/>
+<polygon points="15,22.5 45,7.5 45,-20.5 15,-5.5" fill="var(--sr-shade)" stroke="var(--sr-shade)"/>
+<polygon points="-46,-35 14,-5 14,-10 -46,-40" fill="var(--sr-base)" stroke="var(--sr-base)"/>
+<polygon points="14,-5 46,-21 46,-26 14,-10" fill="var(--sr-shade)" stroke="var(--sr-shade)"/>
+<polygon points="-46,-40 14,-10 46,-26 -14,-56" fill="var(--sr-top)" stroke="var(--sr-top)"/>
+<path d="M-36,-39 L10,-16" stroke="var(--sr-hi)" stroke-width="2" stroke-linecap="round" opacity="0.8"/>
+</g>
+</svg>

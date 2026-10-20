@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-60 -100 120 130" data-item="shelf-B">
+<!-- 임시 그림(클로슈). 규칙은 starroom/ART-GUIDE.md -->
+<defs><filter id="srsh-shelfB" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="3"/></filter></defs>
+<ellipse class="sr-shadow" cx="0" cy="5" rx="38" ry="17" fill="#7A6450" opacity="0.16" filter="url(#srsh-shelfB)"/>
+<g stroke-width="3.4" stroke-linejoin="round">
+<polygon points="-36,-8 16,18 16,-12 -36,-38" fill="var(--sr-base)" stroke="var(--sr-base)"/>
+<polygon points="16,18 36,8 36,-22 16,-12" fill="var(--sr-shade)" stroke="var(--sr-shade)"/>
+<polygon points="-36,-38 16,-12 36,-22 -16,-48" fill="var(--sr-top)" stroke="var(--sr-top)"/>
+</g>
+<g stroke="var(--sr-line)" stroke-width="1.4" stroke-linecap="round" opacity="0.5">
+<line x1="-34" y1="-23" x2="14" y2="1"/>
+<line x1="-10" y1="-23" x2="-10" y2="3"/>
+</g>
+<g fill="var(--sr-line)" opacity="0.7">
+<circle cx="-14" cy="-19" r="1.7"/>
+<circle cx="-6" cy="-15" r="1.7"/>
+<circle cx="-14" cy="-4" r="1.7"/>
+<circle cx="-6" cy="0" r="1.7"/>
+</g>
+<circle cx="4" cy="-34" r="5" fill="#F6D3D5"/>
+<circle cx="4" cy="-34" r="2" fill="#FFF6E2"/>
+</svg>

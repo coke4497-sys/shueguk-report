@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-60 -100 120 130" data-item="rug-A">
+<!-- 임시 그림(클로슈). 규칙은 starroom/ART-GUIDE.md -->
+<polygon points="-54,-6 12,27 54,6 -12,-27" fill="var(--sr-base)" stroke="var(--sr-base)" stroke-width="6" stroke-linejoin="round"/>
+<polygon points="-42,-5 10,21 42,5 -10,-21" fill="none" stroke="var(--sr-top)" stroke-width="2.4" stroke-linejoin="round" stroke-dasharray="1 5" stroke-linecap="round"/>
+<circle cx="0" cy="0" r="4" fill="var(--sr-top)"/>
+</svg>
