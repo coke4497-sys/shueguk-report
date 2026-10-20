@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-60 -100 120 130" data-item="chair-B">
+<!-- 임시 그림(클로슈). 규칙은 starroom/ART-GUIDE.md -->
+<defs><filter id="srsh-chairB" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="3"/></filter></defs>
+<ellipse class="sr-shadow" cx="0" cy="1" rx="17" ry="8" fill="#7A6450" opacity="0.16" filter="url(#srsh-chairB)"/>
+<path d="M-14,-20 L-14,-2 C-14,8 14,8 14,-2 L14,-20 Z" fill="var(--sr-base)"/>
+<path d="M2,-20 L14,-20 L14,-2 C14,4 8,6.5 2,6.8 Z" fill="var(--sr-shade)"/>
+<ellipse cx="0" cy="-20" rx="14" ry="7" fill="var(--sr-top)"/>
+<ellipse cx="-3" cy="-21.5" rx="7" ry="2.6" fill="var(--sr-hi)" opacity="0.7"/>
+<path d="M-8,-11 C-3,-8 3,-8 8,-11" stroke="var(--sr-line)" stroke-width="1.2" fill="none" stroke-linecap="round" opacity="0.6"/>
+</svg>

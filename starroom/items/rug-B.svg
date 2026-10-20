@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-60 -100 120 130" data-item="rug-B">
+<!-- 임시 그림(클로슈). 규칙은 starroom/ART-GUIDE.md -->
+<ellipse cx="0" cy="0" rx="50" ry="25" fill="var(--sr-base)"/>
+<ellipse cx="0" cy="0" rx="38" ry="18" fill="none" stroke="var(--sr-top)" stroke-width="2.4" stroke-dasharray="1 5" stroke-linecap="round"/>
+<ellipse cx="0" cy="0" rx="20" ry="9" fill="var(--sr-top)" opacity="0.7"/>
+</svg>

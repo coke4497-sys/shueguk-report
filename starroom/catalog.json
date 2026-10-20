@@ -1,0 +1,43 @@
+{
+  "version": 1,
+  "note": "스타룸 아이템 카탈로그. 아이템·모양·색 ID는 학생 배치 기록의 열쇠라 바꾸지 않는다(그림 파일만 갈아 끼운다).",
+  "itemViewBox": "-60 -100 120 130",
+  "roomViewBox": "0 0 320 260",
+  "itemScale": 0.85,
+  "colors": {
+    "cream":    { "label": "크림",   "base": "#F6EDDA" },
+    "sage":     { "label": "세이지", "base": "#BBD5C5" },
+    "pink":     { "label": "연분홍", "base": "#F6D3D5" },
+    "sky":      { "label": "하늘색", "base": "#CADFF2" },
+    "charcoal": { "label": "차콜",   "base": "#7C8580" }
+  },
+  "spots": {
+    "s1": { "label": "왼쪽 벽 앞",  "x": 98,  "y": 158, "layer": "floor" },
+    "s2": { "label": "오른쪽 벽 앞", "x": 222, "y": 158, "layer": "floor" },
+    "s3": { "label": "안쪽 구석",   "x": 160, "y": 128, "layer": "floor" },
+    "s4": { "label": "앞 왼쪽",     "x": 104, "y": 202, "layer": "floor" },
+    "s5": { "label": "앞 오른쪽",   "x": 216, "y": 202, "layer": "floor" },
+    "f1": { "label": "가운데 바닥",  "x": 160, "y": 182, "layer": "rug" },
+    "t1": { "label": "책상 위",     "on": "desk", "layer": "surface" }
+  },
+  "items": [
+    { "id": "desk",  "label": "책상", "minTier": 0, "spots": ["s1","s2","s3","s4","s5"], "surfaceDy": -33,
+      "shapes": { "A": { "label": "기본 책상",   "file": "items/desk-A.svg" },
+                  "B": { "label": "서랍 책상",   "file": "items/desk-B.svg" } } },
+    { "id": "chair", "label": "의자", "minTier": 0, "spots": ["s1","s2","s3","s4","s5"],
+      "shapes": { "A": { "label": "등받이 의자", "file": "items/chair-A.svg" },
+                  "B": { "label": "둥근 스툴",   "file": "items/chair-B.svg" } } },
+    { "id": "sofa",  "label": "소파", "minTier": 0, "spots": ["s1","s2","s3","s4","s5"],
+      "shapes": { "A": { "label": "2인 소파",    "file": "items/sofa-A.svg" },
+                  "B": { "label": "빈백",        "file": "items/sofa-B.svg" } } },
+    { "id": "shelf", "label": "책장", "minTier": 0, "spots": ["s1","s2","s3","s4","s5"],
+      "shapes": { "A": { "label": "높은 책장",   "file": "items/shelf-A.svg" },
+                  "B": { "label": "낮은 수납장", "file": "items/shelf-B.svg" } } },
+    { "id": "lamp",  "label": "조명", "minTier": 0, "spots": ["s1","s2","s3","s4","s5"],
+      "shapes": { "A": { "label": "스탠드 조명", "file": "items/lamp-A.svg" },
+                  "B": { "label": "탁상 조명",   "file": "items/lamp-B.svg", "spots": ["t1"] } } },
+    { "id": "rug",   "label": "러그", "minTier": 0, "spots": ["f1"],
+      "shapes": { "A": { "label": "사각 러그",   "file": "items/rug-A.svg" },
+                  "B": { "label": "둥근 러그",   "file": "items/rug-B.svg" } } }
+  ]
+}

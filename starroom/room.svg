@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 260" data-room="basic">
+<!-- 기본 방 배경(임시 그림). 바닥 마름모: 왼(20,180) 위(160,110) 오른(300,180) 아래(160,250). 규칙은 starroom/ART-GUIDE.md -->
+<style>@keyframes srTw{0%,100%{opacity:1}50%{opacity:.45}}.tw{animation:srTw 3.2s ease-in-out infinite}.tw2{animation:srTw 2.4s ease-in-out infinite .8s}@media (prefers-reduced-motion: reduce){.tw,.tw2{animation:none}}</style>
+<defs>
+  <linearGradient id="srWL" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--sr-wall-top, #FFFBF3)"/><stop offset="1" stop-color="var(--sr-wall-l, #F7F0E3)"/></linearGradient>
+  <linearGradient id="srWR" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--sr-wall-top, #FFFBF3)"/><stop offset="1" stop-color="var(--sr-wall-r, #EFE6D6)"/></linearGradient>
+  <linearGradient id="srSky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#CFE4F5"/><stop offset="1" stop-color="#F8E9DD"/></linearGradient>
+  <radialGradient id="srSun" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="#FFF7DE" stop-opacity="0.9"/><stop offset="1" stop-color="#FFF7DE" stop-opacity="0"/></radialGradient>
+</defs>
+<path d="M20,178 Q20,180 22,181 L158,111 Q160,110 160,108 L160,10 Q160,4 155,6 L25,71 Q20,74 20,79 Z" fill="url(#srWL)"/>
+<path d="M160,108 Q160,110 162,111 L298,181 Q300,180 300,178 L300,79 Q300,74 295,71 L165,6 Q160,4 160,10 Z" fill="url(#srWR)"/>
+<path d="M24,180 L156,112 Q160,110 164,112 L296,180 Q300,182 296,184 L164,248 Q160,250 156,248 L24,184 Q20,182 24,180 Z" fill="var(--sr-floor, #EBD9BE)"/>
+<g stroke="var(--sr-plank, #D8C0A0)" stroke-width="1.2" stroke-linecap="round" opacity="0.45">
+  <line x1="52" y1="196" x2="186" y2="128"/>
+  <line x1="80" y1="210" x2="214" y2="142"/>
+  <line x1="108" y1="224" x2="242" y2="156"/>
+  <line x1="136" y1="238" x2="270" y2="170"/>
+</g>
+<ellipse cx="128" cy="168" rx="70" ry="26" fill="url(#srSun)" transform="rotate(-24 128 168)"/>
+<path d="M22,179 L158,111 L158,106 L22,174 Z" fill="var(--sr-baseboard, #F2E7D6)" opacity="0.9"/>
+<path d="M162,111 L298,179 L298,174 L162,106 Z" fill="var(--sr-baseboard, #F2E7D6)" opacity="0.9"/>
+<path d="M62,108 Q58,110 58,106 L58,72 Q58,66 63,64 L117,37 Q122,35 122,40 L122,79 Q122,84 117,86 Z" fill="#FFFFFF"/>
+<path d="M65,103 L65,73 Q65,69 69,67 L112,45 Q115,44 115,47 L115,77 Q115,81 111,83 Z" fill="url(#srSky)"/>
+<path d="M78,71 c2,-5 9,-6 11,-2 c3,-2 8,0 7,4 c-4,2 -13,6 -18,-2 z" fill="#FFFFFF" opacity="0.95"/>
+<path d="M90,96 L90,56" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round"/>
+<path d="M65,88 L115,63" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round"/>
+<path d="M60,108 Q72,96 76,74 Q70,92 62,100 Z" fill="#F6D3D5" opacity="0.85"/>
+<path d="M120,80 Q108,72 106,52 Q112,68 120,72 Z" fill="#F6D3D5" opacity="0.85"/>
+<path d="M178,30 Q206,52 236,48 Q262,46 284,64" stroke="#D9C9B6" stroke-width="1.2" fill="none"/>
+<g class="tw">
+  <path d="M190,44 l2,4 4.5,.6 -3.2,3 .8,4.4 -4.1,-2.2 -4.1,2.2 .8,-4.4 -3.2,-3 4.5,-.6 z" fill="#FFE29A"/>
+  <path d="M214,52 l2,4 4.5,.6 -3.2,3 .8,4.4 -4.1,-2.2 -4.1,2.2 .8,-4.4 -3.2,-3 4.5,-.6 z" fill="#F6D3D5"/>
+  <path d="M238,51 l2,4 4.5,.6 -3.2,3 .8,4.4 -4.1,-2.2 -4.1,2.2 .8,-4.4 -3.2,-3 4.5,-.6 z" fill="#CADFF2"/>
+  <path d="M262,55 l2,4 4.5,.6 -3.2,3 .8,4.4 -4.1,-2.2 -4.1,2.2 .8,-4.4 -3.2,-3 4.5,-.6 z" fill="#BBD5C5"/>
+</g>
+<path d="M207,82 Q204,84 204,80 L204,62 Q204,58 208,59 L236,73 Q240,75 240,79 L240,96 Q240,100 236,98 Z" fill="#FFFFFF"/>
+<path d="M222,72 l2.6,5.2 5.6,.8 -4,3.9 1,5.6 -5.2,-2.7 -5.2,2.7 1,-5.6 -4,-3.9 5.6,-.8 z" fill="#FFE29A"/>
+<circle class="tw2" cx="140" cy="40" r="1.6" fill="#FFFFFF"/>
+<circle class="tw" cx="40" cy="96" r="1.4" fill="#FFFFFF"/>
+<circle class="tw2" cx="282" cy="120" r="1.6" fill="#FFFFFF"/>
+</svg>

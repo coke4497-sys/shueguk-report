@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-60 -100 120 130" data-item="lamp-A">
+<!-- 임시 그림(클로슈). 규칙은 starroom/ART-GUIDE.md -->
+<defs><filter id="srsh-lampA" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="3"/></filter></defs>
+<ellipse class="sr-shadow" cx="0" cy="1" rx="12" ry="5" fill="#7A6450" opacity="0.16" filter="url(#srsh-lampA)"/>
+<ellipse cx="0" cy="-40" rx="30" ry="40" fill="#FFF1C2" opacity="0.38" filter="url(#srsh-lampA)"/>
+<ellipse cx="0" cy="0" rx="9" ry="4.5" fill="var(--sr-shade)"/>
+<line x1="0" y1="0" x2="0" y2="-56" stroke="var(--sr-shade)" stroke-width="2.8" stroke-linecap="round"/>
+<polygon points="-12,-56 12,-56 7,-76 -7,-76" fill="var(--sr-base)" stroke="var(--sr-base)" stroke-width="3" stroke-linejoin="round"/>
+<polygon points="1,-56 12,-56 7,-76 1,-76" fill="var(--sr-shade)" opacity="0.6"/>
+<ellipse cx="0" cy="-56" rx="12" ry="3" fill="#FFF4CF"/>
+<ellipse cx="0" cy="-76" rx="7" ry="2.5" fill="var(--sr-top)"/>
+</svg>

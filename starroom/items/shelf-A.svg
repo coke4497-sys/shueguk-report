@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-60 -100 120 130" data-item="shelf-A">
+<!-- 임시 그림(클로슈). 규칙은 starroom/ART-GUIDE.md -->
+<defs><filter id="srsh-shelfA" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="3"/></filter></defs>
+<ellipse class="sr-shadow" cx="0" cy="4" rx="32" ry="15" fill="#7A6450" opacity="0.16" filter="url(#srsh-shelfA)"/>
+<g stroke-width="3" stroke-linejoin="round">
+<polygon points="-30,-7 14,15 14,-55 -30,-77" fill="var(--sr-base)" stroke="var(--sr-base)"/>
+<polygon points="14,15 30,7 30,-63 14,-55" fill="var(--sr-shade)" stroke="var(--sr-shade)"/>
+<polygon points="-30,-77 14,-55 30,-63 -14,-85" fill="var(--sr-top)" stroke="var(--sr-top)"/>
+</g>
+<g stroke="var(--sr-line)" stroke-width="1.6" stroke-linecap="round" opacity="0.55">
+<line x1="-28" y1="-30" x2="12" y2="-10"/>
+<line x1="-28" y1="-53" x2="12" y2="-33"/>
+</g>
+<g stroke-linejoin="round" stroke-width="1.5">
+<polygon points="-25,-35 -21,-33 -21,-47 -25,-49" fill="#F8E7BF" stroke="#F8E7BF"/>
+<polygon points="-20,-32 -16,-30 -16,-42 -20,-44" fill="#D3E3F2" stroke="#D3E3F2"/>
+<polygon points="-15,-30 -11,-28 -11,-41 -15,-43" fill="#F4D3D6" stroke="#F4D3D6"/>
+<polygon points="0,-0.5 5,2 5,-11 0,-13.5" fill="#CFE2D6" stroke="#CFE2D6"/>
+<polygon points="5.5,2.3 10,4.5 10,-7 5.5,-9.2" fill="#F8E7BF" stroke="#F8E7BF"/>
+</g>
+<ellipse cx="-2" cy="-60" rx="5" ry="2.5" fill="#E9C9A6"/>
+<path d="M-2,-61 C-6,-70 -10,-70 -11,-66 C-8,-66 -5,-64 -2,-61 Z M-2,-61 C1,-71 6,-72 7,-67 C4,-67 1,-65 -2,-61 Z" fill="#9CC2A4"/>
+</svg>
