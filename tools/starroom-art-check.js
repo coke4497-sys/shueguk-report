@@ -17,11 +17,20 @@ const BAN = [/<script/i, /<image/i, /<text/i, /<foreignObject/i, /href\s*=/i, /x
 let errors = 0;
 function bad(file, msg) { errors++; console.log('✗ ' + file + ': ' + msg); }
 
+// 색이 들어갈 수 있는 곳을 모두 본다 — 속성(따옴표 두 가지·대소문자), style="…", <style> 블록.
+const PAINT = '(?:fill|stroke|stop-color|flood-color|lighting-color|color)';
 function colorsIn(text) {
   const out = [];
-  const re = /(fill|stroke|stop-color)\s*=\s*"([^"]+)"/g;
   let m;
-  while ((m = re.exec(text))) out.push(m[2].trim());
+  const attr = new RegExp('\\s' + PAINT + '\\s*=\\s*(["\'])(.*?)\\1', 'gi');
+  while ((m = attr.exec(text))) out.push(m[2].trim());
+  const decls = [];
+  const st = /\sstyle\s*=\s*(["'])(.*?)\1/gi;
+  while ((m = st.exec(text))) decls.push(m[2]);
+  const blk = /<style[^>]*>([\s\S]*?)<\/style>/gi;
+  while ((m = blk.exec(text))) decls.push(m[1]);
+  const prop = new RegExp('(?:^|[;{\\s])' + PAINT + '\\s*:\\s*([^;}]+)', 'gi');
+  decls.forEach(function (d) { let k; while ((k = prop.exec(d))) out.push(k[1].replace(/!important/i, '').trim()); });
   return out;
 }
 

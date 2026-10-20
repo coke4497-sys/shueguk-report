@@ -78,7 +78,7 @@
         var K = cat.itemScale;
         container.style.position = 'relative';
         container.style.aspectRatio = '320 / 260';
-        container.innerHTML = '<div class="sr-bg" style="position:absolute;inset:0">' + t + '</div>';
+        container.innerHTML = '<div class="sr-bg" style="position:absolute;inset:0">' + uniq(t) + '</div>';
         var bg = container.querySelector('svg');
         bg.setAttribute('width', '100%'); bg.setAttribute('height', '100%'); bg.setAttribute('aria-hidden', 'true');
         var list = (items || []).map(function (x) { return { x: x, p: spotPos(cat, x.spot, items) }; })
