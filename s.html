@@ -205,6 +205,73 @@
   /* 복습 영상 (2026-09-27) — 유튜브 복습 영상 시청. 화면이 보이는 동안 재생된 시간만 센다 */
   #reviewView{display:none;}
   #planView{display:none;}
+  /* 학력평가 성적(2026-10-21, 057) — 학교 모의고사 점수·틀린 문항을 회차마다 입력·누적. 회차 하나 = 별 +1 */
+  #smView{display:none;}
+  .sm-box{background:var(--surface);border-radius:var(--radius);padding:16px 18px;margin-bottom:12px;}
+  .sm-intro{font-size:.86rem;color:var(--ink-soft);margin:0 2px 12px;line-height:1.65;}
+  .sm-todo{display:flex;align-items:center;gap:12px;background:#F8F4FB;border-radius:14px;padding:13px 15px;margin-bottom:8px;}
+  .sm-todo .t{flex:1;min-width:0;}
+  .sm-todo b{display:block;font-size:.95rem;color:var(--ink);}
+  .sm-todo small{font-size:.78rem;color:var(--ink-soft);}
+  .sm-btn{font:inherit;font-size:.86rem;border:none;border-radius:11px;padding:8px 15px;background:#EDE4F4;color:#5A4A6A;cursor:pointer;white-space:nowrap;}
+  .sm-btn:hover{background:#E3D7EE;}
+  .sm-btn.ghost{background:#F2F5F3;color:var(--ink-soft);}
+  .sm-btn.main{padding:11px 22px;font-size:.95rem;}
+  .sm-btn:disabled{opacity:.55;cursor:default;}
+  .sm-ent{background:var(--surface);border-radius:var(--radius);padding:15px 17px;margin-bottom:10px;}
+  .sm-ent .hd{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;}
+  .sm-ent .ttl{font-family:var(--serif);font-weight:700;font-size:.98rem;color:var(--ink);flex:1;min-width:0;}
+  .sm-ent .sc{font-family:"Do Hyeon",var(--sans);font-size:1.6rem;color:#5A4A6A;line-height:1;}
+  .sm-ent .sc small{font-size:.9rem;margin-left:1px;}
+  .sm-ent .sc.txt{font-family:var(--sans);font-size:.9rem;color:var(--ink-soft);}
+  .sm-meta{font-size:.8rem;color:var(--ink-soft);margin:6px 0 0;}
+  .sm-wr{display:flex;flex-direction:column;gap:5px;margin-top:10px;}
+  .sm-wr .r{display:flex;gap:8px;align-items:flex-start;font-size:.84rem;}
+  .sm-wr .k{flex:0 0 46px;font-weight:700;color:var(--ink-soft);}
+  .sm-wr .v{display:flex;flex-wrap:wrap;gap:4px;}
+  .sm-wr .v i{font-style:normal;background:#F7E2DE;color:#8A4B42;border-radius:6px;padding:0 7px;font-size:.8rem;}
+  .sm-wr .v .ok{color:#3E8E77;}
+  .sm-rv{font-size:.84rem;color:var(--ink);background:#F4F7F5;border-radius:10px;padding:8px 11px;margin:10px 0 0;white-space:pre-wrap;}
+  .sm-ent .ft{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:10px;}
+  .sm-src{font-size:.74rem;color:var(--ink-soft);}
+  .sm-trend{display:flex;flex-direction:column;gap:7px;}
+  .sm-trend .r{display:grid;grid-template-columns:96px 1fr 40px;gap:8px;align-items:center;font-size:.8rem;}
+  .sm-trend .bar{background:#F2F5F3;border-radius:6px;height:12px;overflow:hidden;}
+  .sm-trend .bar i{display:block;height:100%;background:#B9A5CC;border-radius:6px;}
+  .sm-trend .n{text-align:right;font-weight:700;color:#5A4A6A;}
+  .sm-f h3{font-family:var(--serif);font-size:1.02rem;margin:0 0 4px;}
+  .sm-f .lab{display:block;font-size:.84rem;font-weight:700;color:var(--ink);margin:16px 0 7px;}
+  .sm-f .lab small{font-weight:400;color:var(--ink-soft);margin-left:4px;}
+  .sm-f input[type=text],.sm-f textarea{width:100%;font:inherit;font-size:.95rem;border:1px solid var(--line);border-radius:11px;padding:9px 12px;background:#fff;color:var(--ink);}
+  .sm-f input.score{width:120px;font-family:"Do Hyeon",var(--sans);font-size:1.3rem;text-align:center;}
+  .sm-f textarea{min-height:76px;resize:vertical;}
+  .sm-pills{display:flex;flex-wrap:wrap;gap:6px;}
+  .sm-pill{font:inherit;font-size:.86rem;border:none;border-radius:999px;padding:6px 15px;background:#F2F5F3;color:var(--ink-soft);cursor:pointer;}
+  .sm-pill.on{background:#5A4A6A;color:#fff;}
+  .sm-area{margin-top:12px;}
+  .sm-area .an{font-size:.8rem;color:var(--ink-soft);margin:0 0 5px;}
+  .sm-area .an b{color:var(--ink);margin-right:4px;}
+  .sm-nums{display:grid;grid-template-columns:repeat(auto-fill,minmax(42px,1fr));gap:5px;}
+  .sm-n{font:inherit;font-size:.9rem;border:none;border-radius:9px;padding:7px 0;background:#F2F5F3;color:var(--ink);cursor:pointer;}
+  .sm-n.on{background:#F7E2DE;color:#8A4B42;font-weight:700;}
+  .sm-err{font-size:.84rem;color:#B0736A;margin:12px 0 0;min-height:1em;}
+  .sm-ok{font-size:.9rem;background:#E2F4EC;color:#2A6555;border-radius:12px;padding:10px 13px;margin-bottom:12px;}
+  .sm-acts{display:flex;gap:8px;margin-top:16px;flex-wrap:wrap;}
+  .sm-live{background:#F3EDF8;border-radius:14px;padding:12px 14px;display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;}
+  .sm-live .raw{font-family:"Do Hyeon",var(--sans);font-size:1.9rem;color:#5A4A6A;line-height:1;}
+  .sm-live .raw small{font-size:1rem;margin-left:1px;}
+  .sm-live .gr{font-size:.86rem;color:var(--ink);}
+  .sm-live .gr b{font-family:"Do Hyeon",var(--sans);font-weight:400;font-size:1.15rem;color:#5A4A6A;margin-right:2px;}
+  .sm-live .nt{flex-basis:100%;font-size:.74rem;color:var(--ink-soft);}
+  .sm-n.p3{position:relative;}
+  .sm-n.p3::after{content:'3점';position:absolute;top:1px;right:3px;font-size:.55rem;color:#B0736A;font-weight:400;}
+  .sm-gr{display:inline-block;font-size:.8rem;background:#EDE4F4;color:#5A4A6A;border-radius:999px;padding:2px 10px;margin:6px 6px 0 0;}
+  .sm-det{margin-top:10px;}
+  .sm-det summary{font-size:.82rem;color:#5A4A6A;cursor:pointer;}
+  .sm-det ul{list-style:none;margin:8px 0 0;padding:0;display:flex;flex-direction:column;gap:6px;}
+  .sm-det li{font-size:.8rem;background:#FBF7F6;border-radius:10px;padding:7px 10px;line-height:1.5;}
+  .sm-det li b{color:#8A4B42;margin-right:4px;}
+  .sm-det li small{color:var(--ink-soft);}
   /* 예비 고1 반 신청(2026-10-17, 053) — 가 민트 · 나 연보라 */
   .pl-box{background:var(--surface);border-radius:var(--radius);padding:15px 17px;margin-bottom:12px;}
   .pl-intro{font-size:.86rem;color:var(--ink-soft);margin:0 0 12px;line-height:1.65;}
@@ -830,6 +897,16 @@
   <footer><p>이수경국어 Shueguk · 학생용</p></footer>
 </main></div>
 
+<!-- 학력평가 성적 (2026-10-21, 057) — 학교 모의고사(교육청·평가원) 점수와 틀린 문항을 회차마다 입력하고 쌓아 본다 -->
+<div id="smView"><main class="wrap gwrap">
+  <div class="gv-bar">
+    <button class="gv-back" onclick="smBack()" id="smBack"></button>
+    <span class="gv-ttl" id="smTtl">교육청, 평가원 모의고사 리포트</span>
+  </div>
+  <div id="smBody"></div>
+  <footer><p>이수경국어 Shueguk · 학생용</p></footer>
+</main></div>
+
 <!-- 예비 고1 반 신청 (2026-10-17, 053) — 27 예상 정규 시간표에서 나 반 고르기·가 반 옮기기(선착순) -->
 <div id="planView"><main class="wrap gwrap">
   <div class="gv-bar">
@@ -1203,7 +1280,7 @@ var IS_ID = false;
 var STATE = { info:null, authed:false, exams:null, examCount:0, notices:null, homework:null, analyses:null, clinic:null, stars:null, vocaOpen:null, vocaWeek:null, mockGrades:null, mockOpen:null, clinicEligible:null, vocaTaken:null, mockSignups:null, mockFromServer:false, mockGatesFromServer:false, vocaFromServer:false, clinicFromServer:false, hwcheck:null, qq:null, qqLoading:false, qqTeachers:null, review:null, reviewLoading:false };
 
 function showError(title, msg){
-  hide('loadBox'); hide('hubView'); $('gradeView').style.display='none'; $('mockHubView').style.display='none'; $('mockView').style.display='none'; $('clinicView').style.display='none'; $('hwcheckView').style.display='none'; $('questionView').style.display='none'; $('reviewView').style.display='none'; $('planView').style.display='none'; $('lhView').style.display='none';
+  hide('loadBox'); hide('hubView'); $('gradeView').style.display='none'; $('mockHubView').style.display='none'; $('mockView').style.display='none'; $('clinicView').style.display='none'; $('hwcheckView').style.display='none'; $('questionView').style.display='none'; $('reviewView').style.display='none'; $('planView').style.display='none'; $('smView').style.display='none'; $('lhView').style.display='none';
   $('errTitle').textContent = title || '불러올 수 없습니다';
   $('errMsg').textContent = msg || '';
   show('errBox');
@@ -1239,7 +1316,8 @@ function api(extra){
   function p2(n){ return ('0' + n).slice(-2); }
 
   /* ── 백엔드 규칙 이식 ── */
-  var STAR_RULES = { exam: 2, clinic: 1, voca: 1, hwork: 1, notice: 1, mock: 1, hwcheck: 1, gramma: 1 };   // 복습 영상은 별 없음(2026-09-27 사용자 "결석자 보충이므로 포상이 되면 안됨") · gramma = 문법 세트 클리어(스테이지 5개를 모두 70% 이상 — 2026-09-16, 옛 '회차마다 90%' 규칙 대체)
+  var STAR_RULES = { exam: 2, clinic: 1, voca: 1, hwork: 1, notice: 1, mock: 1, hwcheck: 1, gramma: 1, smock: 1 };   // smock = 학력평가 성적 입력 회차당(057, 2026-10-21)
+  // 복습 영상은 별 없음(2026-09-27 사용자 "결석자 보충이므로 포상이 되면 안됨") · gramma = 문법 세트 클리어(스테이지 5개를 모두 70% 이상 — 2026-09-16, 옛 '회차마다 90%' 규칙 대체)
   function baseName(s){ return tr(s).replace(/[A-Za-z]$/, ''); }
   function schoolMatch(a, b){
     a = String(a || '').replace(/\s+/g, ''); b = String(b || '').replace(/\s+/g, '');
@@ -1441,7 +1519,7 @@ function api(extra){
       var notices = B.notices || [], reads = B.notice_reads || [], assigns = B.assignments || [],
           clinicRows = B.clinic_requests || [], hwsub = B.hwork_submissions || [], voca = B.voca_results || [],
           omr = B.omr_responses || [], hwc = B.hwcheck_records || [], signup = B.signup_entries || [],
-          bonusRows = B.star_bonus || [], cfg = B.report_config || [], subs = B.submissions || [], grammaSets = B.gramma_sets || [],
+          bonusRows = B.star_bonus || [], cfg = B.report_config || [], subs = B.submissions || [], grammaSets = B.gramma_sets || [], smockRows = B.smock_entries || [],
           examList = B.exams || [], qRows = B.exam_questions || [],
           clinicSet = B.clinic_settings || [], signupSet = B.signup_settings || [];
 
@@ -1672,6 +1750,10 @@ function api(extra){
           grammaSet[tr(r.unit) + '|' + tr(r.set_no)] = true;
         });
         var grammaN = Object.keys(grammaSet).length;
+        /* 학력평가 성적 입력(smock_entries — 057) — 회차 단위, 접근코드로 찾은 내 기록만 온다 */
+        var smockSet = {};
+        smockRows.forEach(function(r){ if(tr(r.exam)) smockSet[tr(r.exam)] = true; });
+        var smockN = Object.keys(smockSet).length;
         var bonus = { sum: 0, latest: null };
         bonusRows.forEach(function(r){
           var rid = tr(r.student_id).replace(/^'/, ''), rnm = tr(r.name), rsc = tr(r.school);
@@ -1698,10 +1780,10 @@ function api(extra){
           total: examCountStars * STAR_RULES.exam + clinicN * STAR_RULES.clinic
                + Object.keys(vocaRounds).length * STAR_RULES.voca + Object.keys(hworkSet).length * STAR_RULES.hwork
                + Object.keys(mockSet).length * STAR_RULES.mock + hwPerfect * STAR_RULES.hwcheck
-               + noticeN * STAR_RULES.notice + grammaN * STAR_RULES.gramma + bonus.sum,
+               + noticeN * STAR_RULES.notice + grammaN * STAR_RULES.gramma + smockN * STAR_RULES.smock + bonus.sum,
           breakdown: { exam: examCountStars, clinic: clinicN, voca: Object.keys(vocaRounds).length,
                        hwork: Object.keys(hworkSet).length, mock: Object.keys(mockSet).length,
-                       hwcheck: hwPerfect, notice: noticeN, gramma: grammaN, bonus: bonus.sum },
+                       hwcheck: hwPerfect, notice: noticeN, gramma: grammaN, smock: smockN, bonus: bonus.sum },
           latestBonus: bonus.latest
         };
 
@@ -1912,6 +1994,7 @@ function renderStars(){
       notice:'<path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>',
       hwcheck:'<path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>',
       gramma:'<path d="M4 7V4h16v3"/><path d="M9 20h6"/><path d="M12 4v16"/>',
+      smock: '<path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/>',
       review:'<rect x="2.5" y="4.5" width="19" height="15" rx="3"/><path d="M10 9.2v5.6l4.8-2.8z"/>',
       bonus: '<path d="M12 2l2.9 6.2 6.8.8-5 4.7 1.3 6.7L12 17.1 6 20.4l1.3-6.7-5-4.7 6.8-.8z"/>'
     };
@@ -1927,6 +2010,7 @@ function renderStars(){
       ['hwcheck','과제 검사 만점',     bd.hwcheck,'회', bd.hwcheck],
       ['notice', '공지 확인',          bd.notice, '건', bd.notice],
       ['gramma', '문법 세트 클리어', bd.gramma || 0, '세트', bd.gramma || 0],
+      ['smock',  '모의고사 리포트 입력', bd.smock || 0, '회', bd.smock || 0],
       ['bonus',  '수경쌤 깜짝 보너스', bd.bonus ? 1 : 0, '', bd.bonus]
     ].filter(function(s){ return s[2] > 0; });
     if(srcs.length){
@@ -2186,6 +2270,8 @@ function renderHub(){
       html += '<div class="card pending'+tcl+'">'+body+'<span class="tag">준비 중</span></div>';
     }
   });
+  // 학력평가 성적 (2026-10-21, 057) — 고등학생에게만. 회차가 열리면 입력, 기록은 계속 쌓인다
+  html += smHubCard();
   // 지필고사 데이터 (잠금)
   var cntTxt = STATE.examCount>0 ? ('내신 기록 '+STATE.examCount+'건') : '내신 기록';
   if(anTodo>0) cntTxt += ' · 복기 '+anTodo+'건 입력 필요';
@@ -2197,7 +2283,7 @@ function renderHub(){
 
   renderStars();   // 슈퍼스타 별 카드 (백엔드가 stars를 주면 표시)
 
-  hide('loadBox'); hide('errBox'); $('gradeView').style.display='none'; $('noticeView').style.display='none'; $('homeworkView').style.display='none'; $('mockHubView').style.display='none'; $('mockView').style.display='none'; $('clinicView').style.display='none'; $('hwcheckView').style.display='none'; $('questionView').style.display='none'; $('reviewView').style.display='none'; $('planView').style.display='none'; $('lhView').style.display='none'; show('hubView');
+  hide('loadBox'); hide('errBox'); $('gradeView').style.display='none'; $('noticeView').style.display='none'; $('homeworkView').style.display='none'; $('mockHubView').style.display='none'; $('mockView').style.display='none'; $('clinicView').style.display='none'; $('hwcheckView').style.display='none'; $('questionView').style.display='none'; $('reviewView').style.display='none'; $('planView').style.display='none'; $('smView').style.display='none'; $('lhView').style.display='none'; show('hubView');
   noticePopupMaybe();   // 미확인 공지 팝업(허브 화면일 때만, 탭당 한 번)
 }
 
@@ -3998,6 +4084,294 @@ document.addEventListener('click', function(e){
   var b = e.target.closest && e.target.closest('#planView [data-pl]');
   if (b){ plPick(b.getAttribute('data-plp'), b.getAttribute('data-pl')); return; }
   if (e.target.closest && e.target.closest('#plCancel')) plPick('나', '');
+});
+
+/* ── 학력평가 성적 (2026-10-21, 057) ─────────────────────────────
+ * 원장님 "구글 설문(○월 모의고사 리포트)을 학생 개인 페이지 메뉴로 — 입력하고 누적" → 새 카드 · 입력하면 별 +1.
+ * 선생님이 티쳐스 [학력평가 성적]에서 회차를 열면(smock_exams.open) 그 학년 학생에게 입력 칸이 보인다.
+ * 같은 회차는 다시 내면 고쳐진다(별은 회차마다 한 번). 지난 구글 설문 응답은 선생님 화면에서 옮겨 온다(src '설문').
+ * 영역 범위는 DB smock_range_ 와 같은 표 — 고치면 함께. */
+var SMOCK_LAYOUT = {
+  '통합': [['화법', 1, 6], ['언어', 7, 10], ['독서', 11, 23], ['작문', 24, 30], ['문학', 31, 45]],
+  '고3':  [['독서', 1, 17], ['문학', 18, 34], ['선택', 35, 45]]
+};
+var SM_FEEL = ['최상', '상', '중', '하'];
+var SM_SUBJ = ['화법과작문', '언어와매체'];
+var SM_ERR = {
+  no_student: '학생 정보를 찾지 못했습니다. 페이지를 새로 열어 주세요.',
+  no_exam: '없는 회차입니다. 새로고침해 주세요.',
+  closed: '이 회차는 입력이 마감되었습니다.',
+  wrong_grade: '내 학년의 회차가 아닙니다.',
+  no_score: '점수를 적어 주세요.',
+  bad_score: '점수는 100점까지 적을 수 있어요.',
+  bad_wrong: '틀린 문항 번호를 다시 확인해 주세요.',
+  no_subject: '선택과목을 골라 주세요.'
+};
+var SM = { loading: false, form: null, busy: false, ok: '' };
+var SM_CIRCLE = ['', '①', '②', '③', '④', '⑤'];
+/* 회차에 정답·배점·등급컷(info, 058)이 있으면 틀린 문항만으로 점수·등급을 계산한다.
+ * 표준점수 = 100 + 20 × (원점수 − 평균) ÷ 표준편차(공식 계산), 백분위는 등급컷표 사이를 이어 추정(약).
+ * 허브 smock.html 의 smCalc 와 같은 계산 — 고치면 둘 다. 서버(smock_submit)도 같은 배점으로 점수를 저장한다. */
+function smAuto(info){ return !!(info && info.points && info.points.length >= 45); }
+function smCalc(info, wrong){
+  if (!smAuto(info)) return null;
+  var lost = 0;
+  Object.keys(wrong || {}).forEach(function(k){ (wrong[k] || []).forEach(function(n){ lost += Number(info.points[n - 1]) || 0; }); });
+  return smCut(info.cuts, Math.max(0, 100 - lost));
+}
+function smCut(c, raw){
+  var out = { raw: raw, grade: null, std: null, pct: null };
+  if (!c || !c.rows) return out;
+  var rows = c.rows.filter(function(r){ return typeof r.grade === 'number'; }).sort(function(a, b){ return a.grade - b.grade; });
+  if (rows.length){ out.grade = 9; for (var i = 0; i < rows.length; i++) if (raw >= rows[i].raw){ out.grade = rows[i].grade; break; } }
+  if (c.sd) out.std = Math.round(100 + 20 * (raw - c.avg) / c.sd);
+  var pts = c.rows.filter(function(r){ return r.pct != null && r.raw != null; }).map(function(r){ return [Number(r.raw), Number(r.pct)]; });
+  pts.push([0, 0]); pts.sort(function(a, b){ return a[0] - b[0]; });
+  for (var j = 0; j < pts.length - 1; j++){
+    var a = pts[j], b = pts[j + 1];
+    if (raw >= a[0] && raw <= b[0]){ out.pct = Math.round(b[0] === a[0] ? b[1] : a[1] + (b[1] - a[1]) * (raw - a[0]) / (b[0] - a[0])); break; }
+  }
+  if (out.pct == null && pts.length && raw >= pts[pts.length - 1][0]) out.pct = pts[pts.length - 1][1];
+  return out;
+}
+function smGradeLine(r){
+  if (!r || r.grade == null) return '';
+  return '<b>' + r.grade + '</b>등급' + (r.std != null ? ' · 표준점수 ' + r.std : '') + (r.pct != null ? ' · 백분위 약 ' + r.pct : '');
+}
+function smWrongList(info, wrong){
+  var nums = [];
+  Object.keys(wrong || {}).forEach(function(k){ (wrong[k] || []).forEach(function(n){ nums.push(n); }); });
+  nums.sort(function(a, b){ return a - b; });
+  if (!nums.length || !info || !info.items) return '';
+  return '<details class="sm-det"><summary>틀린 문항 살펴보기 ' + nums.length + '개</summary><ul>' + nums.map(function(n){
+    var it = info.items[n - 1] || {}, nt = info.nat && info.nat[String(n)];
+    return '<li><b>' + n + '번</b>' + esc(it.sub || it.area || '') + (it.intent ? ' · ' + esc(it.intent) : '') +
+      '<br><small>' + (info.points ? info.points[n - 1] + '점' : '') + (info.answers ? ' · 정답 ' + SM_CIRCLE[info.answers[n - 1]] : '') +
+      (nt ? ' · 전국 오답률 ' + nt.rate + '%' : '') + (it.work ? ' · ' + esc(it.work) : '') + '</small></li>';
+  }).join('') + '</ul></details>';
+}
+function smLiveHtml(f){
+  var r = smCalc(f.exam.info, f.wrong);
+  return '<span class="raw">' + r.raw + '<small>점</small></span><span class="gr">' + (smGradeLine(r) || '') + '</span>' +
+    '<span class="nt">틀린 번호를 누르면 배점대로 바로 계산돼요. 등급·표준점수는 발표된 등급컷 기준이고, 백분위는 등급컷 사이를 이어 낸 추정값입니다.</span>';
+}
+function smGrade(){ var g = levelGrade(STATE.info && STATE.info.grade); return /^고[1-3]$/.test(g) ? g : ''; }
+function smRefresh(quiet){
+  SM.loading = true;
+  return rvRpc('smock_mine').then(function(r){
+    SM.loading = false;
+    STATE.smock = (r && r.ok) ? r : { grade: '', open: [], entries: [] };
+    if ($('smView').style.display === 'block') smRender();
+    else if (quiet && $('hubView').style.display !== 'none') renderHub();
+  }).catch(function(){
+    SM.loading = false;
+    if (STATE.smock === undefined) STATE.smock = { grade: '', open: [], entries: [], failed: true };
+    if ($('smView').style.display === 'block') smRender();
+  });
+}
+function smEntryOf(key){ return ((STATE.smock && STATE.smock.entries) || []).filter(function(e){ return e.exam === key; })[0] || null; }
+function smTodo(){ return ((STATE.smock && STATE.smock.open) || []).filter(function(x){ return !smEntryOf(x.key); }); }
+function smShort(x){ return (x.month ? x.month + '월' : '') + ' ' + (x.grade || ''); }
+function smScoreText(e){
+  if (e.score != null && e.score !== '') return String(Number(e.score));
+  return String(e.score_text || '').trim();
+}
+function smHubCard(){
+  if (!smGrade()) return '';
+  if (STATE.smock === undefined && !SM.loading) smRefresh(true);
+  var d = STATE.smock;
+  var ic = svg(ICON.chart);
+  if (!d){
+    return '<div class="card pending t-lav" aria-disabled="true"><span class="icon">'+ic+'</span>' +
+           '<h3>교육청, 평가원 모의고사 리포트</h3><p class="desc">불러오는 중…</p><span class="tag">확인 중</span></div>';
+  }
+  var todo = smTodo(), ents = d.entries || [];
+  if (!todo.length && !ents.length){
+    return '<div class="card pending t-lav" aria-disabled="true"><span class="icon">'+ic+'</span>' +
+           '<h3>교육청, 평가원 모의고사 리포트</h3><p class="desc">입력할 회차가 열리면 여기서 성적을 기록해요.</p><span class="tag">아직 없음</span></div>';
+  }
+  var desc = todo.length ? (smShort(todo[0]) + ' 모의고사 성적을 입력해 주세요 · 별 +1')
+           : ('기록 ' + ents.length + '회 · 최근 ' + smShort(ents[0]) + ' ' + (smScoreText(ents[0]) ? smScoreText(ents[0]) + (ents[0].score != null ? '점' : '') : ''));
+  var dot = todo.length ? '<span class="new-dot">'+todo.length+'</span>' : '';
+  return '<button class="card t-lav" onclick="openSmock()"><span class="icon">'+ic+dot+'</span>' +
+         '<h3>교육청, 평가원 모의고사 리포트</h3><p class="desc">'+esc(desc)+'</p>' +
+         '<span class="go">'+(todo.length?'입력 ':'열기 ')+svg(ICON.arrow)+'</span></button>';
+}
+function openSmock(){
+  hide('hubView'); $('smView').style.display = 'block'; window.scrollTo(0, 0);
+  SM.form = null; SM.ok = '';
+  smRender();
+  smRefresh();
+}
+function smBack(){
+  if (SM.form){ SM.form = null; smRender(); window.scrollTo(0, 0); return; }
+  $('smView').style.display = 'none'; show('hubView'); renderHub(); window.scrollTo(0, 0);
+}
+function smWrongHtml(layout, wrong){
+  wrong = wrong || {};
+  return '<div class="sm-wr">' + (SMOCK_LAYOUT[layout] || SMOCK_LAYOUT['통합']).map(function(a){
+    var ns = wrong[a[0]] || [];
+    return '<div class="r"><span class="k">'+esc(a[0])+'</span><span class="v">' +
+      (ns.length ? ns.map(function(n){ return '<i>'+esc(n)+'</i>'; }).join('') : '<span class="ok">모두 맞음</span>') + '</span></div>';
+  }).join('') + '</div>';
+}
+function smRender(){
+  var d = STATE.smock, body = $('smBody');
+  $('smBack').innerHTML = svg(ICON.back) + (SM.form ? ' 목록' : ' 메뉴');
+  if (SM.form){ $('smTtl').textContent = SM.form.exam.title || '성적 입력'; smRenderForm(); return; }
+  $('smTtl').textContent = '교육청, 평가원 모의고사 리포트';
+  if (!d){ body.innerHTML = '<div class="rv-empty">불러오는 중…</div>'; return; }
+  if (d.failed){ body.innerHTML = '<div class="rv-empty">불러오지 못했어요. 잠시 뒤 다시 열어 주세요.</div>'; return; }
+  var html = '';
+  if (SM.ok) html += '<div class="sm-ok">'+esc(SM.ok)+'</div>';
+  html += '<p class="sm-intro">학교에서 본 교육청·평가원 모의고사 점수와 틀린 문항을 회차마다 기록합니다. 처음 입력한 회차마다 <b>별 +1</b>을 받아요.</p>';
+  var open = d.open || [];
+  if (open.length){
+    html += '<h2 class="sec-h">입력할 회차</h2>';
+    open.forEach(function(x){
+      var e = smEntryOf(x.key);
+      html += '<div class="sm-todo"><div class="t"><b>'+esc(x.title || (x.year+'년 '+x.month+'월 '+x.grade))+'</b>' +
+              '<small>'+(e ? '입력함 · 마감 전까지 고칠 수 있어요' : '아직 입력하지 않았어요')+'</small></div>' +
+              '<button class="sm-btn" data-sm-open="'+esc(x.key)+'">'+(e ? '고치기' : '입력하기')+'</button></div>';
+    });
+  }
+  var ents = d.entries || [];
+  var withNum = ents.filter(function(e){ return e.score != null && e.score !== ''; }).slice().reverse();
+  if (withNum.length >= 2){
+    html += '<h2 class="sec-h">점수 흐름</h2><div class="sm-box"><div class="sm-trend">' + withNum.map(function(e){
+      var v = Math.max(0, Math.min(100, Number(e.score)));
+      return '<div class="r"><span>'+esc(e.year+'. '+e.month+'월')+'</span><span class="bar"><i style="width:'+v+'%"></i></span><span class="n">'+esc(String(Number(e.score)))+'</span></div>';
+    }).join('') + '</div></div>';
+  }
+  html += '<h2 class="sec-h">내 기록 <span class="n">'+ents.length+'회</span></h2>';
+  if (!ents.length) html += '<div class="rv-empty">아직 기록이 없어요.</div>';
+  ents.forEach(function(e){
+    var st = smScoreText(e), num = e.score != null && e.score !== '';
+    var meta = [];
+    if (e.feel) meta.push('체감 난이도 ' + e.feel);
+    if (e.subject) meta.push('선택과목 ' + e.subject);
+    html += '<div class="sm-ent"><div class="hd"><span class="ttl">'+esc(e.title || e.exam)+'</span>' +
+            '<span class="sc'+(num ? '' : ' txt')+'">'+esc(st || '점수 없음')+(num ? '<small>점</small>' : '')+'</span></div>' +
+            (meta.length ? '<p class="sm-meta">'+esc(meta.join(' · '))+'</p>' : '') +
+            (num && e.info && e.info.cuts ? '<span class="sm-gr">'+smGradeLine(smCut(e.info.cuts, Number(e.score)))+'</span>' : '') +
+            smWrongHtml(e.layout, e.wrong) + smWrongList(e.info, e.wrong) +
+            (e.review ? '<p class="sm-rv">'+esc(e.review)+'</p>' : '') +
+            '<div class="ft"><span class="sm-src">'+(e.src === '설문' ? '구글 설문에서 옮겨 온 기록' : '')+'</span>' +
+            (e.open ? '<button class="sm-btn ghost" data-sm-open="'+esc(e.exam)+'">고치기</button>' : '') + '</div></div>';
+  });
+  body.innerHTML = html;
+}
+function smOpenForm(key){
+  var d = STATE.smock || {};
+  var x = (d.open || []).filter(function(o){ return o.key === key; })[0];
+  if (!x) return;
+  var e = smEntryOf(key) || {};
+  var wrong = {};
+  Object.keys(e.wrong || {}).forEach(function(k){ wrong[k] = (e.wrong[k] || []).slice(); });
+  SM.form = { exam: x, score: e.score_text || smScoreText(e) || '', feel: String(e.feel || '').split(/\s*,\s*/).filter(Boolean),
+              subject: e.subject || '', wrong: wrong, review: e.review || '', err: '' , had: !!e.exam };
+  SM.ok = '';
+  smRender(); window.scrollTo(0, 0);
+}
+function smRenderForm(){
+  var f = SM.form, x = f.exam;
+  var areas = SMOCK_LAYOUT[x.layout] || SMOCK_LAYOUT['통합'];
+  var html = '<div class="sm-box sm-f"><h3>'+esc(x.title || '')+'</h3>' +
+    '<p class="sm-intro" style="margin:0">채점한 점수와 틀린 문항을 적어 주세요. '+(f.had ? '저장하면 지난 입력을 고칩니다.' : '처음 저장하면 별 +1을 받아요.')+'</p>' +
+    (smAuto(x.info)
+      ? '<span class="lab">내 점수 <small>틀린 문항으로 자동 계산</small></span><div class="sm-live" id="smLive">' + smLiveHtml(f) + '</div>'
+      : '<label class="lab" for="smScore">점수 <small>필수 · 아직 채점 전이면 \'미채점\'</small></label>' +
+        '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><input type="text" id="smScore" class="score" inputmode="decimal" maxlength="20" value="'+esc(f.score)+'" placeholder="84">' +
+        '<button class="sm-pill" data-sm-nos="1">미채점</button></div>') +
+    '<span class="lab">체감 난이도 <small>여러 개 고를 수 있어요</small></span><div class="sm-pills">' +
+    SM_FEEL.map(function(v){ return '<button class="sm-pill'+(f.feel.indexOf(v)>=0?' on':'')+'" data-sm-feel="'+v+'">'+v+'</button>'; }).join('') + '</div>';
+  if (x.layout === '고3'){
+    html += '<span class="lab">선택과목 <small>필수</small></span><div class="sm-pills">' +
+      SM_SUBJ.map(function(v){ return '<button class="sm-pill'+(f.subject===v?' on':'')+'" data-sm-subj="'+v+'">'+v+'</button>'; }).join('') + '</div>';
+  }
+  html += '<span class="lab">틀린 문항 <small>틀린 번호를 눌러 주세요 · 다 맞은 영역은 그대로 두세요</small></span>';
+  areas.forEach(function(a){
+    var on = f.wrong[a[0]] || [], btns = '';
+    for (var n = a[1]; n <= a[2]; n++){
+      var it = (x.info && x.info.items && x.info.items[n - 1]) || null, p3 = x.info && x.info.points && x.info.points[n - 1] === 3;
+      btns += '<button class="sm-n'+(on.indexOf(n)>=0?' on':'')+(p3?' p3':'')+'" data-sm-a="'+a[0]+'" data-sm-q="'+n+'"'+(it?' title="'+esc(n+'번 · '+(it.sub||'')+' · '+(it.intent||''))+'"':'')+'>'+n+'</button>';
+    }
+    html += '<div class="sm-area"><p class="an" data-r="'+a[1]+'~'+a[2]+'"><b>'+esc(a[0] === '선택' ? '선택과목' : a[0])+'</b>'+a[1]+'~'+a[2]+'번'+(on.length ? ' · 틀림 '+on.length : '')+'</p><div class="sm-nums">'+btns+'</div></div>';
+  });
+  html += '<label class="lab" for="smReview">시험 후기 <small>선택 · 어떤 말이든 잘 듣겠습니다</small></label>' +
+    '<textarea id="smReview" maxlength="1000">'+esc(f.review)+'</textarea>' +
+    '<p class="sm-err" id="smErr">'+esc(f.err || '')+'</p>' +
+    '<div class="sm-acts"><button class="sm-btn main" id="smSave"'+(SM.busy?' disabled':'')+'>'+(SM.busy?'저장하는 중…':'저장하기')+'</button>' +
+    '<button class="sm-btn ghost main" data-sm-cancel="1">취소</button></div></div>';
+  $('smBody').innerHTML = html;
+}
+function smKeep(){   // 다시 그리기 전에 입력 중인 글을 옮겨 둔다
+  if (!SM.form) return;
+  var s = $('smScore'), r = $('smReview');
+  if (s) SM.form.score = s.value;
+  if (r) SM.form.review = r.value;
+}
+function smSave(){
+  var f = SM.form; if (!f || SM.busy) return;
+  smKeep();
+  var auto = smAuto(f.exam.info);
+  var sc = auto ? '' : String(f.score || '').trim();
+  if (!auto && !sc){ f.err = SM_ERR.no_score; smRender(); return; }
+  if (/^\d+(\.\d+)?$/.test(sc) && Number(sc) > 100){ f.err = SM_ERR.bad_score; smRender(); return; }
+  if (f.exam.layout === '고3' && !f.subject){ f.err = SM_ERR.no_subject; smRender(); return; }
+  var wrong = {};
+  Object.keys(f.wrong).forEach(function(k){ if (f.wrong[k].length) wrong[k] = f.wrong[k].slice().sort(function(a, b){ return a - b; }); });
+  SM.busy = true; f.err = ''; smRender();
+  rvRpc('smock_submit', { exam: f.exam.key, score: sc, feel: f.feel.join(', '), subject: f.subject, wrong: wrong, review: f.review || '' })
+    .then(function(r){
+      SM.busy = false;
+      if (r && r.ok){
+        if (r.first && STATE.stars && typeof STATE.stars.total === 'number'){
+          STATE.stars.total += STAR_SMOCK;
+          if (STATE.stars.breakdown) STATE.stars.breakdown.smock = (STATE.stars.breakdown.smock || 0) + 1;
+        }
+        SM.ok = r.first ? '저장했습니다. 별 +1을 받았어요!' : '고친 내용을 저장했습니다.';
+        SM.form = null;
+        smRender(); window.scrollTo(0, 0);
+        smRefresh();
+        return;
+      }
+      f.err = SM_ERR[r && r.error] || '저장하지 못했어요. 다시 시도해 주세요.';
+      smRender();
+    }).catch(function(){ SM.busy = false; f.err = '인터넷 연결을 확인하고 다시 시도해 주세요.'; smRender(); });
+}
+var STAR_SMOCK = 1;   // STAR_RULES.smock 과 같은 값(별 계산 블록 밖이라 따로 둔다)
+document.addEventListener('click', function(e){
+  if (!e.target.closest || !e.target.closest('#smView')) return;
+  var b;
+  if ((b = e.target.closest('[data-sm-open]'))){ smOpenForm(b.getAttribute('data-sm-open')); return; }
+  if (!SM.form) return;
+  var f = SM.form;
+  if ((b = e.target.closest('[data-sm-q]'))){
+    smKeep();
+    var a = b.getAttribute('data-sm-a'), n = +b.getAttribute('data-sm-q');
+    var arr = f.wrong[a] = f.wrong[a] || [], i = arr.indexOf(n);
+    if (i >= 0) arr.splice(i, 1); else arr.push(n);
+    b.classList.toggle('on', i < 0);
+    var an = b.closest('.sm-area').querySelector('.an');
+    an.innerHTML = '<b>'+esc(a === '선택' ? '선택과목' : a)+'</b>' + an.getAttribute('data-r') + '번' + (arr.length ? ' · 틀림 '+arr.length : '');
+    if ($('smLive')) $('smLive').innerHTML = smLiveHtml(f);
+    return;
+  }
+  if ((b = e.target.closest('[data-sm-feel]'))){
+    var v = b.getAttribute('data-sm-feel'), j = f.feel.indexOf(v);
+    if (j >= 0) f.feel.splice(j, 1); else f.feel.push(v);
+    f.feel.sort(function(p, q){ return SM_FEEL.indexOf(p) - SM_FEEL.indexOf(q); });
+    b.classList.toggle('on', j < 0); return;
+  }
+  if ((b = e.target.closest('[data-sm-subj]'))){
+    f.subject = f.subject === b.getAttribute('data-sm-subj') ? '' : b.getAttribute('data-sm-subj');
+    Array.prototype.forEach.call(document.querySelectorAll('#smView [data-sm-subj]'), function(x){ x.classList.toggle('on', x.getAttribute('data-sm-subj') === f.subject); });
+    return;
+  }
+  if (e.target.closest('[data-sm-nos]')){ $('smScore').value = '미채점'; f.score = '미채점'; return; }
+  if (e.target.closest('#smSave')){ smSave(); return; }
+  if (e.target.closest('[data-sm-cancel]')){ SM.form = null; smRender(); window.scrollTo(0, 0); }
 });
 
 var RV = { cur: null, player: null, st: null, timer: null, saveTimer: null, inView: true, saving: false, apiJob: null, hidPaused: false };
