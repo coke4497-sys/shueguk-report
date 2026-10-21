@@ -4179,7 +4179,8 @@ function smScoreText(e){
   return String(e.score_text || '').trim();
 }
 function smHubCard(){
-  if (!smGrade()) return '';
+  // 고3은 이 메뉴를 쓰지 않는다(2026-10-21 원장님 — 옮겨 둔 기록·회차는 지우지 않고 학생 화면에만 안 보임)
+  if (!smGrade() || smGrade() === '고3') return '';
   if (STATE.smock === undefined && !SM.loading) smRefresh(true);
   var d = STATE.smock;
   var ic = svg(ICON.chart);
