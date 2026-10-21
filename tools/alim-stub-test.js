@@ -218,9 +218,9 @@ global.UrlFetchApp = { fetch: (url, opt) => { CALLS.push({ url, opt }); const n 
   return { getResponseCode: () => n.code, getContentText: () => JSON.stringify(n.body) }; } };
 fns.alimConfigSet({ pw: 'sh', apiKey: 'KEY1', apiSecret: 'SEC1', pfId: 'PF1', tpl: { absent: 'KA01TP1' } });
 r = J(fns.alimConfigGet());
-const NK = Object.keys(r.templates).filter(k => r.templates[k].notice);
+const NK = Object.keys(r.templates).filter(k => r.templates[k].notice && k !== 'notice_mockrep');   // notice_mockrep 는 문구 모양이 달라 12-2에서 따로 본다
 eq('공지 종류 일곱(notice 표시) + 결석 안내·결석 예고 — 옛 단일 notice 없음', [NK, 'notice' in r.templates, r.templates.absent.notice, Object.keys(r.templates).length],
-   [['notice_sched', 'notice_mock', 'notice_hwork', 'notice_report', 'notice_reportup', 'notice_voca', 'notice_gramma'], false, false, 9]);
+   [['notice_sched', 'notice_mock', 'notice_hwork', 'notice_report', 'notice_reportup', 'notice_voca', 'notice_gramma'], false, false, 10]);
 eq('종류 이름', NK.map(k => r.templates[k].label), ['수업 일정 안내', '주말 실전 모의고사 신청 안내', 'H WORK 과제 안내', '지필고사 리포트 제작 안내', '지필고사 리포트 업데이트 안내', '어휘 테스트 참여 안내', '문법 테스트 참여 안내']);
 eq('설정 목록에 공지 템플릿(아직 ID 없음)', [typeof r.templates.notice_mock.text, r.templates.notice_mock.ready, r.templates.notice_mock.vars, r.templates.notice_voca.vars], ['string', false, ['학생명', '제목', '장소', '신청일', '정원', '접근코드'], ['학생명', '제목', '접근코드']]);
 const MOCK_BODY = '1. #{장소}에서 실시합니다.\n2. 8:30까지 등원하여 8:40-10:00까지, 모의수능시험에 응시합니다. 8:35분이 지나면 출입을 통제하고 이후 입실이 <불가>합니다.\n3. #{신청일} 중 택1하여 신청합니다. 마감되면 설문을 종료합니다.\n4. 장소가 협소하므로 각 요일 #{정원}명 선착순으로 마감합니다. 임의로 요일을 이동할 수 없습니다.\n\n';
@@ -346,6 +346,24 @@ fns.alimConfigSet({ pw: 'sh', apiKey: 'KEY1', apiSecret: 'SEC1', pfId: 'PF1', tp
   R.push([new Date(), 'notice_sched', '박지남', '학생', '01011115555', '', 'N:x', '예약', '', 'GOLD', '', kst(Date.now() + 30000)]);
   r = J(fns.alimCancel({ pw: 'sh', groupId: 'GOLD' }));
   eq('보낼 시각이 지난 예약은 취소 거절', [r.result, /지나/.test(r.message)], ['error', true]);
+}
+
+console.log('12-2) 교육청·평가원 모의고사 리포트 제출 안내 (2026-10-21)');
+reset();
+fns.alimConfigSet({ pw: 'sh', apiKey: 'KEY1', apiSecret: 'SEC1', pfId: 'PF1' });
+{
+  let r = J(fns.alimConfigGet()), t = r.templates.notice_mockrep;
+  eq('공지 종류로 표시·변수 넷·아직 준비 전', [t.notice, t.vars, t.ready, t.label], [true, ['학생명', '제목', '마감일', '접근코드'], false, '교육청·평가원 모의고사 리포트 제출 안내']);
+  eq('문구 = 원장님 확정본 그대로', t.text, '[이수경국어학원] 교육청·평가원 모의고사 리포트 제출 안내\n#{학생명} 학생, #{제목}을 성실하게 치러 내느라 정말 고생 많았습니다.\n\n학생 페이지의 교육청·평가원 모의고사 리포트 메뉴에서 틀린 문제를 선택 입력해 주세요.\n채점한 시험지를 준비했다면 1분이면 끝나요!\n\n▶ 제출 기한: #{마감일}\n\n애타게 기다리고 있을 선생님들의 마음을 헤아려 얼른 제출해 주세요.');
+  eq('버튼 = 학생 페이지 링크', t.buttons.map(b => [b.name, b.type, /s\.html\?key=#\{접근코드\}$/.test(b.linkMo), b.linkMo === b.linkPc]), [['학생 페이지 링크', 'WL', true, true]]);
+  fns.alimConfigSet({ pw: 'sh', tpl: { notice_mockrep: 'KA01TPMR' } });
+  const it = (st, due) => ({ student: st, to: '01012340000', who: '학생', cls: '공지', date: 'N:2026-10-21|26년 10월 학력평가', vars: { 학생명: st, 제목: '26년 10월 학력평가', 마감일: due, 접근코드: 'k1' } });
+  const nc = CALLS.length;
+  r = J(fns.alimSend({ pw: 'sh', kind: 'notice_mockrep', items: [it('김마감', ' ')] }));
+  eq('마감일이 비면 보내지 않음', [r.okCount, /마감일/.test(r.sent[0].message), CALLS.length === nc], [0, true, true]);
+  r = J(fns.alimSend({ pw: 'sh', kind: 'notice_mockrep', items: [it('김하나', '10/25(일)')] }));
+  const v = JSON.parse(CALLS[CALLS.length - 1].opt.payload).messages[0].kakaoOptions;
+  eq('발송 — 템플릿 ID·변수', [r.okCount, v.templateId, v.variables], [1, 'KA01TPMR', { '#{학생명}': '김하나', '#{제목}': '26년 10월 학력평가', '#{마감일}': '10/25(일)', '#{접근코드}': 'k1' }]);
 }
 
 console.log(fail ? ('\n' + fail + '건 실패') : '\n전부 통과');
