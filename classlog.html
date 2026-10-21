@@ -44,7 +44,15 @@
   .tabs .tab-warn.on{background:var(--pnk);color:var(--pnk-ink);}
   @media (max-width:480px){ .tabs{gap:6px;} .tabs .pill{padding:8px 12px;font-size:14px;} .tabs .tn{margin-left:4px;font-size:15px;} }
   .tiles{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin:0 0 14px;}
-  .tile{background:var(--surface);border-radius:14px;padding:10px 12px;}
+  .tile{background:var(--surface);border-radius:14px;padding:10px 12px;border:0;font:inherit;text-align:left;color:inherit;cursor:pointer;width:100%;min-width:0;}
+  .tile:hover{background:#FAFBFA;}
+  .tile.on{background:var(--lav);}
+  .tile.on b,.tile.on span{color:var(--lav-ink);}
+  .tile.on span{font-weight:700;}
+  .tfnote{display:flex;flex-wrap:wrap;align-items:center;gap:4px 10px;background:var(--lav);color:var(--lav-ink);border-radius:12px;padding:8px 14px;margin:0 0 12px;font-size:13.5px;font-weight:700;}
+  .tfnote .linkbtn{color:var(--lav-ink);}
+  .missln{font-size:12.5px;color:#9A4A42;margin-top:3px;word-break:keep-all;}
+  .missln b{font-weight:700;}
   .tile b{display:block;font-family:"Do Hyeon",sans-serif;font-weight:400;font-size:24px;line-height:1.2;color:var(--ink);}
   .tile span{font-size:12px;color:var(--ink-soft);}
   .tile.warn b{color:#B4574E;}
@@ -225,6 +233,7 @@
 
   <p class="status" id="status">불러오는 중…</p>
   <div class="tiles" id="tiles"></div>
+  <div id="tfNote"></div>
   <div id="recView"></div>
   <div id="pcView" style="display:none;"></div>
 </main>
@@ -309,7 +318,7 @@ function sbAll(path, from, acc){
 }
 
 /* ── 상태 ─────────────────────────────────────────────── */
-var ST = { tab: 'rec', view: 'all', sub: '', per: 'this', from: '', to: '', showNone: true, open: {}, openAll: false, limit: 60 };
+var ST = { tab: 'rec', tf: '', view: 'all', sub: '', per: 'this', from: '', to: '', showNone: true, open: {}, openAll: false, limit: 60 };
 var D = null;          // 받아 둔 데이터
 var PD = [];           // 화면에 그린 미제출 대책 줄의 과제 검사 기록([확인] 버튼 번호 → 기록)
 var ENDPOINT = 'https://script.google.com/macros/s/AKfycbzhCncBwn-JlqXARC3wfrWUCuNHzlNK2df0bdhx-w78Xr8mzYUcIYZOJdRi9N4bHtsb/exec';
@@ -442,7 +451,8 @@ function buildSessions(R){
       var s = get(c.book, c.class_id, d); s.none = true; s.part = partOf(s.cls, s.book); s.grade = gradeOfName(s.cls);
     });
   }
-  list.sort(function(a, b){ return a.ymd !== b.ymd ? (a.ymd < b.ymd ? 1 : -1) : (mins(a.start) - mins(b.start)) || String(a.cls).localeCompare(String(b.cls), 'ko'); });
+  // 빠른 날짜가 위, 같은 날은 시작 시간이 빠른 순 (2026-10-21 원장님)
+  list.sort(function(a, b){ return a.ymd !== b.ymd ? (a.ymd < b.ymd ? -1 : 1) : (mins(a.start) - mins(b.start)) || String(a.cls).localeCompare(String(b.cls), 'ko'); });
   return list;
 }
 
@@ -604,10 +614,12 @@ function cardHtml(s){
   var prog = s.none ? '<span class="prog">수업 기록이 없습니다</span>'
     : '<span class="prog">출석 <b' + (stt.att < stt.n ? ' class="no"' : '') + '>' + stt.att + '/' + stt.n + '</b> · 태도 <b' + (stt.attd < stt.need ? ' class="no"' : '') + '>' + stt.attd + '/' + stt.need + '</b>' +
       (stt.exp ? ' · 과제 검사 <b' + (stt.hwd < stt.need ? ' class="no"' : '') + '>' + stt.hwd + '/' + stt.need + '</b>' : '') + '</span>';
-  var open = !s.none && (ST.openAll || ST.open[s.key] || ST.view === 'person');
+  var open = !s.none && (ST.openAll || ST.open[s.key] || ST.view === 'person' || (ST.tf === 'miss' && ST.open[s.key] !== false));
+  var mr = ST.tf === 'miss' ? missRows(s) : [];
+  var missLn = mr.length ? '<div class="missln"><b>미제출</b> ' + mr.map(function(r){ return esc(r.name) + (r.missAll ? '(전체)' : '(' + r.missItems.length + '개)'); }).join(', ') + '</div>' : '';
   var html = '<div class="card' + (s.none ? ' none' : '') + '" data-key="' + esc(s.key) + '">' +
     '<div class="ch" data-tog="' + esc(s.key) + '"><div class="tm">' + esc(time) + '</div><div class="mid"><div class="nm">' + esc(s.cls) + '</div><div class="meta">' + esc(sub) +
-    ((ST.view === 'school' || ST.view === 'person') && !s.none ? ' · 이 중 ' + rows.length + '명' : '') + '</div></div>' +
+    ((ST.view === 'school' || ST.view === 'person') && !s.none ? ' · 이 중 ' + rows.length + '명' : '') + '</div>' + missLn + '</div>' +
     '<div class="right">' + stTag(s) + (stt.lacking ? '<span class="tag pnk">기록 부족</span>' : '') + prog +
     '<a class="crgo" target="_blank" rel="noopener" href="' + crLink(s) + '">이 수업 기록하기</a></div></div>';
   if (open){
@@ -650,17 +662,33 @@ function subControl(){
   box.innerHTML = '<input type="text" id="subIn" list="stuList" placeholder="학생 이름" value="' + esc(ST.sub) + '" /><datalist id="stuList">' +
     Object.keys(BASE.byName).sort(function(a, b){ return a.localeCompare(b, 'ko'); }).map(function(k){ return '<option value="' + esc(k) + '">'; }).join('') + '</datalist>';
 }
+/* 요약 카드 = 거르기 (2026-10-21 원장님 "카드를 누르면 그 조건의 수업만") — 숫자와 거른 목록이 같은 판정(TF)을 쓴다 */
+function missRows(s){ return visRows(s).filter(function(r){ return r.missAll || r.missItems.length; }); }
+var TF = {
+  rec:  { label: '기록한 수업', unit: '개', on: function(s){ return !!s.note; } },
+  pub:  { label: '리포트 공개', unit: '개', on: function(s){ return !!s.note && s.note.report_status === '공개'; } },
+  none: { label: '기록 없는 수업', unit: '개', warn: 1, on: function(s){ return !s.note; } },
+  lack: { label: '기록이 부족한 수업', unit: '개', warn: 1, on: function(s){ return !!s.note && sessStats(s, rowsOf(s)).lacking; } },
+  miss: { label: '미제출 학생', unit: '명', warn: 1, on: function(s){ return missRows(s).length > 0; } }
+};
+var TF_ORDER = ['rec', 'pub', 'none', 'lack', 'miss'];
+function tfCount(k, vis){
+  if (k !== 'miss') return vis.filter(TF[k].on).length;
+  var m = {}; vis.forEach(function(s){ missRows(s).forEach(function(r){ m[r.key + '|' + schoolBase(r.school)] = 1; }); });
+  return Object.keys(m).length;
+}
 function tiles(vis){
-  var rec = 0, pub = 0, none = 0, lack = 0, miss = {};
-  vis.forEach(function(s){
-    if (!s.note){ none++; return; }
-    rec++;
-    if (s.note && s.note.report_status === '공개') pub++;
-    if (sessStats(s, rowsOf(s)).lacking) lack++;
-    visRows(s).forEach(function(r){ if (r.missAll || r.missItems.length) miss[r.key] = 1; });
-  });
-  var t = function(n, l, w){ return '<div class="tile' + (w && n ? ' warn' : '') + '"><b>' + n + '</b><span>' + l + '</span></div>'; };
-  $('tiles').innerHTML = t(rec, '기록한 수업') + t(pub, '리포트 공개') + t(none, '기록 없는 수업', 1) + t(lack, '기록이 부족한 수업', 1) + t(Object.keys(miss).length, '미제출 학생', 1);
+  $('tiles').innerHTML = TF_ORDER.map(function(k){
+    var n = tfCount(k, vis), on = ST.tf === k;
+    return '<button type="button" class="tile' + (TF[k].warn && n ? ' warn' : '') + (on ? ' on' : '') + '" data-tf="' + k + '" aria-pressed="' + on + '"><b>' + n + '</b><span>' + TF[k].label + '</span></button>';
+  }).join('');
+}
+function tfNote(vis, list){
+  if (!ST.tf || ST.tab !== 'rec'){ $('tfNote').innerHTML = ''; return; }
+  var t = TF[ST.tf], txt = ST.tf === 'miss'
+    ? '미제출 학생 ' + tfCount('miss', vis) + '명 · 수업 ' + list.length + '개 보는 중'
+    : t.label + ' ' + list.length + '개 보는 중';
+  $('tfNote').innerHTML = '<div class="tfnote"><span>' + txt + '</span><button type="button" class="linkbtn" data-tf="">전체 보기</button></div>';
 }
 function render(){
   document.querySelectorAll('#viewRow .pill').forEach(function(b){ b.classList.toggle('on', b.getAttribute('data-view') === ST.view); });
@@ -674,6 +702,9 @@ function render(){
   if (!D){ $('recView').innerHTML = ''; $('pcView').innerHTML = ''; $('tiles').innerHTML = ''; $('tnPraise').textContent = ''; $('tnWarn').textContent = ''; return; }
   var vis = visibleSessions();
   tiles(vis);
+  var all = vis;
+  if (ST.tf && ST.tab === 'rec') vis = vis.filter(TF[ST.tf].on);
+  tfNote(all, vis);
   $('recView').style.display = ST.tab === 'rec' ? '' : 'none';
   $('pcView').style.display = ST.tab !== 'rec' ? '' : 'none';
   var PC = pcCount(vis);
@@ -682,7 +713,7 @@ function render(){
   if ((ST.view === 'school' || ST.view === 'person') && !tr(ST.sub)){
     $('recView').innerHTML = '<div class="empty">' + (ST.view === 'school' ? '학교를 고르세요.' : '학생 이름을 넣어 주세요.') + '</div>'; return;
   }
-  if (!vis.length){ $('recView').innerHTML = '<div class="empty">이 기간에 보여 드릴 수업이 없습니다.</div>'; return; }
+  if (!vis.length){ $('recView').innerHTML = '<div class="empty">' + (ST.tf ? '이 조건에 맞는 수업이 없습니다.' : '이 기간에 보여 드릴 수업이 없습니다.') + '</div>'; return; }
   PD = [];
   var html = '', day = '', shown = vis.slice(0, ST.limit);
   shown.forEach(function(s){
@@ -837,6 +868,7 @@ function saveView(){ lsSet('cl_view', JSON.stringify({ view: ST.view, sub: ST.vi
 
 document.addEventListener('click', function(e){
   var b;
+  if ((b = e.target.closest('[data-tf]'))){ var f = b.getAttribute('data-tf'); ST.tf = (f && ST.tf !== f) ? f : ''; if (ST.tf) ST.tab = 'rec'; ST.open = {}; ST.limit = 60; render(); return; }
   if ((b = e.target.closest('[data-tab]'))){ ST.tab = b.getAttribute('data-tab'); render(); return; }
   if ((b = e.target.closest('[data-view]'))){
     var v = b.getAttribute('data-view');
@@ -845,7 +877,7 @@ document.addEventListener('click', function(e){
   }
   if ((b = e.target.closest('[data-per]'))){ setPeriod(b.getAttribute('data-per')); ST.limit = 60; render(); reload(); return; }
   if (e.target.closest('.crgo')) return;   // 새 탭으로 여는 링크 — 카드 펼침과 겹치지 않게
-  if ((b = e.target.closest('[data-tog]'))){ var k = b.getAttribute('data-tog'); ST.open[k] = !ST.open[k]; render(); return; }
+  if ((b = e.target.closest('[data-tog]'))){ var k = b.getAttribute('data-tog'); ST.open[k] = ST.open[k] === undefined ? (ST.tf === 'miss' ? false : true) : !ST.open[k]; render(); return; }
   if ((b = e.target.closest('[data-person]'))){
     ST.tab = 'rec'; ST.view = 'person'; ST.sub = b.getAttribute('data-person'); $('viewSub').innerHTML = ''; render(); window.scrollTo(0, 0); return;
   }
