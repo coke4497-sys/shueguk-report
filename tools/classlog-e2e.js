@@ -160,6 +160,41 @@ const LOGS = [];
   ok('"기록 없는 수업도 보기"를 끄면 수업 기록 있는 카드만', r.length === 3, JSON.stringify(r));
   await p.check('#showNone');
 
+  // ⑤-2 날짜 정렬 · 요약 카드 거르기 (2026-10-21 원장님)
+  r = await p.$$eval('.card', cs => cs.map(c => c.getAttribute('data-key').split('|')[2] + ' ' + c.querySelector('.tm').textContent));
+  ok('빠른 날짜가 위 · 같은 날은 시작 시간이 빠른 순', r.length > 1 && r.every((x, i) => {
+    if (!i) return true; const [d0, t0] = r[i - 1].split(' '), [d1, t1] = x.split(' ');
+    const m = t => { const [h, mm] = t.split(':').map(Number); return (h < 9 ? h + 12 : h) * 60 + mm; };
+    return d0 < d1 || (d0 === d1 && m(t0) <= m(t1));
+  }), JSON.stringify(r));
+  const tileN = async k => +(await p.textContent('#tiles [data-tf="' + k + '"] b'));
+  const cardN = () => p.$$eval('#recView .card', a => a.length);
+  for (const [k, lab] of [['rec', '기록한 수업'], ['pub', '리포트 공개'], ['none', '기록 없는 수업'], ['lack', '기록이 부족한 수업']]){
+    const n = await tileN(k);
+    await p.click('#tiles [data-tf="' + k + '"]');
+    const c = await cardN(), on = await p.$eval('#tiles [data-tf="' + k + '"]', e => e.classList.contains('on')), note = await p.textContent('#tfNote');
+    ok('[' + lab + '] 카드 → 수업 ' + n + '개만 · 선택 표시 · 안내 줄', c === n && on && note.indexOf(lab + ' ' + n + '개 보는 중') >= 0 && /전체 보기/.test(note), JSON.stringify({ n, c, on, note }));
+    await p.click('#tiles [data-tf="' + k + '"]');
+  }
+  r = { c: await cardN(), note: await p.textContent('#tfNote'), on: await p.$$eval('#tiles .tile.on', a => a.length) };
+  ok('같은 카드를 다시 누르면 필터 해제', r.note === '' && r.on === 0, JSON.stringify(r));
+  const allN = await cardN();
+  await p.click('#tiles [data-tf="miss"]');
+  r = await p.$$eval('#recView .card', cs => cs.map(c => ({ ln: (c.querySelector('.missln') || {}).textContent || '', open: !!c.querySelector('.cb') })));
+  const missN = await tileN('miss');
+  ok('[미제출 학생] → 미제출 학생이 있는 수업만, 이름이 펼쳐진 채로', r.length >= 1 && r.length < allN && r.every(x => /미제출/.test(x.ln) && x.open) && r.some(x => /박보검/.test(x.ln)), JSON.stringify(r));
+  r = await p.textContent('#tfNote');
+  ok('미제출 안내 줄 — 학생 수가 카드 숫자와 같다', r.indexOf('미제출 학생 ' + missN + '명') >= 0, r);
+  await p.click('#tfNote [data-tf=""]');
+  ok('[전체 보기] → 전체 목록으로', (await cardN()) === allN && (await p.textContent('#tfNote')) === '');
+  await p.click('#tiles [data-tf="lack"]');
+  await p.click('[data-view="teacher"]');
+  await p.selectOption('#subSel', '현지');
+  r = { n: await tileN('lack'), c: await cardN(), nm: await p.$$eval('#recView .card .meta', a => a.map(x => x.textContent)) };
+  ok('보기 거르기(담당 선생님)와 함께 — 숫자와 목록이 같다', r.n === r.c && r.nm.every(t => /현지/.test(t)), JSON.stringify(r));
+  await p.click('#tiles [data-tf="lack"]');
+  await p.click('[data-view="all"]');
+
   // ⑥ 칭찬 · 요주의
   r = await p.evaluate(() => [document.getElementById('tnPraise').textContent, document.getElementById('tnWarn').textContent]);
   ok('칭찬 슈스·요주의 슈스 버튼이 따로, 옆에 학생 수', JSON.stringify(r) === '["1","1"]', JSON.stringify(r));
@@ -209,6 +244,10 @@ const LOGS = [];
   await p.setViewportSize({ width: 390, height: 1400 });
   r = await p.evaluate(() => document.documentElement.scrollWidth <= 390);
   ok('휴대폰 폭에서 가로 스크롤 없음', r);
+  await p.click('#tiles [data-tf="none"]');
+  r = await p.evaluate(() => ({ w: document.documentElement.scrollWidth <= 390, t: [...document.querySelectorAll('#tiles .tile')].every(e => e.getBoundingClientRect().right <= 390), n: document.getElementById('tfNote').getBoundingClientRect().right <= 390 }));
+  ok('휴대폰 — 카드를 눌러 거른 상태에서도 화면 안', r.w && r.t && r.n, JSON.stringify(r));
+  if (process.env.SHOT) await p.screenshot({ path: process.env.SHOT, fullPage: false });
 
   ok('페이지 오류 없음', perr === 0);
   await br.close(); srv.close();
