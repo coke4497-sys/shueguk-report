@@ -886,7 +886,7 @@
 <div id="smView"><main class="wrap gwrap">
   <div class="gv-bar">
     <button class="gv-back" onclick="smBack()" id="smBack"></button>
-    <span class="gv-ttl" id="smTtl">학력평가 성적</span>
+    <span class="gv-ttl" id="smTtl">교육청, 평가원 모의고사 리포트</span>
   </div>
   <div id="smBody"></div>
   <footer><p>이수경국어 Shueguk · 학생용</p></footer>
@@ -1995,7 +1995,7 @@ function renderStars(){
       ['hwcheck','과제 검사 만점',     bd.hwcheck,'회', bd.hwcheck],
       ['notice', '공지 확인',          bd.notice, '건', bd.notice],
       ['gramma', '문법 세트 클리어', bd.gramma || 0, '세트', bd.gramma || 0],
-      ['smock',  '학력평가 성적 입력', bd.smock || 0, '회', bd.smock || 0],
+      ['smock',  '모의고사 리포트 입력', bd.smock || 0, '회', bd.smock || 0],
       ['bonus',  '수경쌤 깜짝 보너스', bd.bonus ? 1 : 0, '', bd.bonus]
     ].filter(function(s){ return s[2] > 0; });
     if(srcs.length){
@@ -4121,18 +4121,18 @@ function smHubCard(){
   var ic = svg(ICON.chart);
   if (!d){
     return '<div class="card pending t-lav" aria-disabled="true"><span class="icon">'+ic+'</span>' +
-           '<h3>학력평가 성적</h3><p class="desc">불러오는 중…</p><span class="tag">확인 중</span></div>';
+           '<h3>교육청, 평가원 모의고사 리포트</h3><p class="desc">불러오는 중…</p><span class="tag">확인 중</span></div>';
   }
   var todo = smTodo(), ents = d.entries || [];
   if (!todo.length && !ents.length){
     return '<div class="card pending t-lav" aria-disabled="true"><span class="icon">'+ic+'</span>' +
-           '<h3>학력평가 성적</h3><p class="desc">입력할 회차가 열리면 여기서 성적을 기록해요.</p><span class="tag">아직 없음</span></div>';
+           '<h3>교육청, 평가원 모의고사 리포트</h3><p class="desc">입력할 회차가 열리면 여기서 성적을 기록해요.</p><span class="tag">아직 없음</span></div>';
   }
-  var desc = todo.length ? (smShort(todo[0]) + ' 학력평가 성적을 입력해 주세요 · 별 +1')
+  var desc = todo.length ? (smShort(todo[0]) + ' 모의고사 성적을 입력해 주세요 · 별 +1')
            : ('기록 ' + ents.length + '회 · 최근 ' + smShort(ents[0]) + ' ' + (smScoreText(ents[0]) ? smScoreText(ents[0]) + (ents[0].score != null ? '점' : '') : ''));
   var dot = todo.length ? '<span class="new-dot">'+todo.length+'</span>' : '';
   return '<button class="card t-lav" onclick="openSmock()"><span class="icon">'+ic+dot+'</span>' +
-         '<h3>학력평가 성적</h3><p class="desc">'+esc(desc)+'</p>' +
+         '<h3>교육청, 평가원 모의고사 리포트</h3><p class="desc">'+esc(desc)+'</p>' +
          '<span class="go">'+(todo.length?'입력 ':'열기 ')+svg(ICON.arrow)+'</span></button>';
 }
 function openSmock(){
@@ -4157,12 +4157,12 @@ function smRender(){
   var d = STATE.smock, body = $('smBody');
   $('smBack').innerHTML = svg(ICON.back) + (SM.form ? ' 목록' : ' 메뉴');
   if (SM.form){ $('smTtl').textContent = SM.form.exam.title || '성적 입력'; smRenderForm(); return; }
-  $('smTtl').textContent = '학력평가 성적';
+  $('smTtl').textContent = '교육청, 평가원 모의고사 리포트';
   if (!d){ body.innerHTML = '<div class="rv-empty">불러오는 중…</div>'; return; }
   if (d.failed){ body.innerHTML = '<div class="rv-empty">불러오지 못했어요. 잠시 뒤 다시 열어 주세요.</div>'; return; }
   var html = '';
   if (SM.ok) html += '<div class="sm-ok">'+esc(SM.ok)+'</div>';
-  html += '<p class="sm-intro">학교에서 본 모의고사(학력평가) 점수와 틀린 문항을 회차마다 기록합니다. 처음 입력한 회차마다 <b>별 +1</b>을 받아요.</p>';
+  html += '<p class="sm-intro">학교에서 본 교육청·평가원 모의고사 점수와 틀린 문항을 회차마다 기록합니다. 처음 입력한 회차마다 <b>별 +1</b>을 받아요.</p>';
   var open = d.open || [];
   if (open.length){
     html += '<h2 class="sec-h">입력할 회차</h2>';

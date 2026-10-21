@@ -68,7 +68,7 @@ function submit(p){
     renderHub();
   }, grade);
   const card = () => pg.evaluate(() => {
-    const c = [...document.querySelectorAll('#menu .card')].find(x => /학력평가 성적/.test(x.textContent));
+    const c = [...document.querySelectorAll('#menu .card')].find(x => /모의고사 리포트/.test(x.textContent));
     return c ? { text: c.textContent.replace(/\s+/g, ' '), pending: c.classList.contains('pending'), dot: (c.querySelector('.new-dot') || {}).textContent || '' } : null;
   });
 
@@ -79,7 +79,7 @@ function submit(p){
   // ② 고1 — 입력할 회차 있음
   await hub('2026 고등 1학년'); await pg.waitForTimeout(300);
   let c = await card();
-  ok('고1 카드: 입력 안내·별 +1', c && /10월 고1 학력평가 성적을 입력해 주세요 · 별 \+1/.test(c.text), c && c.text);
+  ok('고1 카드: 입력 안내·별 +1', c && /10월 고1 모의고사 성적을 입력해 주세요 · 별 \+1/.test(c.text), c && c.text);
   ok('입력할 회차 수 점', c && c.dot === '1', c && c.dot);
   await shot(pg, '1-학생-메뉴카드', '#menu');
 
@@ -163,7 +163,7 @@ function submit(p){
 
   // ⑧ 별 내역 목록
   const src = await pg.evaluate(() => { STATE.stars = { total: 2, breakdown: { smock: 2 } }; renderStars(); return (document.querySelector('#starSec .st-src') || {}).textContent || ''; });
-  ok('내 별 내역에 학력평가 성적 입력', /학력평가 성적 입력\s*2회/.test(src), src);
+  ok('내 별 내역에 모의고사 리포트 입력', /모의고사 리포트 입력\s*2회/.test(src), src);
 
   ok('페이지 오류 없음', perr === 0);
   await br.close(); srv.close();

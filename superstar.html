@@ -1692,7 +1692,7 @@
       desc:function(r){ return [r.ts, (r.unit||'')+' '+(r.round||'')+'회', r.score, (r.pct!=null? r.pct+'%':'')].map(function(x){return String(x||'').trim();}).filter(Boolean).join(' · '); } },
     { table:'gramma_sets',       label:'문법 세트 클리어',  sel:'id,name,phone8,cleared_at,unit,set_no', idf:'phone8', optional:true,
       desc:function(r){ return [exYmd(r.cleared_at), (r.unit||'')+' 세트 '+(r.set_no||'')].map(function(x){return String(x||'').trim();}).filter(Boolean).join(' · '); } },
-    { table:'smock_entries',     label:'학력평가 성적',     sel:'id,name,student_id,submitted_at,exam_key,score_text', idf:'student_id', optional:true,
+    { table:'smock_entries',     label:'모의고사 리포트',     sel:'id,name,student_id,submitted_at,exam_key,score_text', idf:'student_id', optional:true,
       desc:function(r){ return [exYmd(r.submitted_at), r.exam_key, r.score_text ? r.score_text+'점' : ''].map(function(x){return String(x||'').trim();}).filter(Boolean).join(' · '); } },
     { table:'review_watch',      label:'복습 영상 시청',    sel:'id,name,student_id,updated_at,pct,total_sec', idf:'student_id', optional:true,
       desc:function(r){ return [exYmd(r.updated_at), '본 구간 '+(r.pct||0)+'%', Math.round((r.total_sec||0)/60)+'분'].map(function(x){return String(x||'').trim();}).filter(Boolean).join(' · '); } },
@@ -2173,7 +2173,7 @@
       ['hwcheck','과제 검사 만점',    bd.hwcheck || 0, '회', bd.hwcheck || 0],   // 2026-09-16 사용자 신고 "숙제검사 별이 탑 30에 안 보여요" — 집계(computeRanking)에는 있었고 이 목록에만 빠져 있었다
       ['notice','공지 확인',          bd.notice, '건', bd.notice],
       ['gramma','문법 세트 클리어', bd.gramma || 0, '세트', bd.gramma || 0],
-      ['smock', '학력평가 성적 입력', bd.smock || 0, '회', bd.smock || 0],
+      ['smock', '모의고사 리포트 입력', bd.smock || 0, '회', bd.smock || 0],
       ['bonus', '깜짝 보너스',        bd.bonus ? 1 : 0, '', bd.bonus]
     ].filter(function(s){ return s[2] > 0; });
     if(!srcs.length) return '<p class="none">아직 획득 내역이 없어요.</p>';
