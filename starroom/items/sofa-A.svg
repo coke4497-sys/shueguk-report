@@ -1,26 +1,47 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="-60 -100 120 130" data-item="sofa-A">
-<!-- 임시 그림(클로슈). 규칙은 starroom/ART-GUIDE.md -->
-<defs><filter id="srsh-sofaA" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="3"/></filter></defs>
-<ellipse class="sr-shadow" cx="0" cy="2" rx="52" ry="22" fill="#7A6450" opacity="0.16" filter="url(#srsh-sofaA)"/>
-<g stroke-width="4" stroke-linejoin="round">
-<polygon points="-48,-10 20,24 20,10 -48,-24" fill="var(--sr-base)" stroke="var(--sr-base)"/>
-<polygon points="20,24 48,10 48,-4 20,10" fill="var(--sr-shade)" stroke="var(--sr-shade)"/>
-<polygon points="-48,-24 20,10 48,-4 -20,-38" fill="var(--sr-top)" stroke="var(--sr-top)"/>
-<polygon points="-28,-34 40,0 40,-18 -28,-52" fill="var(--sr-base)" stroke="var(--sr-base)"/>
-<polygon points="40,0 48,-4 48,-22 40,-18" fill="var(--sr-shade)" stroke="var(--sr-shade)"/>
-<polygon points="-28,-52 40,-18 48,-22 -20,-56" fill="var(--sr-top)" stroke="var(--sr-top)"/>
+<!-- 2인 소파 — 제페토 스타일 시안(클로슈). 규칙은 starroom/ART-GUIDE.md -->
+<defs>
+<filter id="srsh-sofaA" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="3"/></filter>
+<filter id="srsoft-sofaA" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="1.6"/></filter>
+<linearGradient id="srgT-sofaA" x1="0" y1="0" x2="0.3" y2="1"><stop offset="0" stop-color="var(--sr-hi)"/><stop offset="1" stop-color="var(--sr-top)"/></linearGradient>
+<linearGradient id="srgL-sofaA" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--sr-top)"/><stop offset="1" stop-color="var(--sr-base)"/></linearGradient>
+<linearGradient id="srgR-sofaA" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--sr-base)"/><stop offset="1" stop-color="var(--sr-shade)"/></linearGradient>
+<radialGradient id="srgC-sofaA" cx="0.38" cy="0.32" r="0.75"><stop offset="0" stop-color="var(--sr-hi)"/><stop offset="0.55" stop-color="var(--sr-top)"/><stop offset="1" stop-color="var(--sr-base)"/></radialGradient>
+</defs>
+<ellipse class="sr-shadow" cx="0" cy="6" rx="54" ry="22" fill="#7A6450" opacity="0.18" filter="url(#srsh-sofaA)"/>
+<!-- 받침(통통한 몸통) -->
+<g stroke-linejoin="round" stroke-width="9">
+<polygon points="-46,-10 18,22 18,10 -46,-22" fill="url(#srgL-sofaA)" stroke="url(#srgL-sofaA)"/>
+<polygon points="18,22 46,8 46,-4 18,10" fill="url(#srgR-sofaA)" stroke="url(#srgR-sofaA)"/>
+<polygon points="-46,-22 18,10 46,-4 -18,-36" fill="url(#srgT-sofaA)" stroke="url(#srgT-sofaA)"/>
 </g>
-<ellipse cx="-14" cy="-36" rx="13" ry="8" fill="var(--sr-top)" transform="rotate(27 -14 -36)"/>
-<ellipse cx="14" cy="-22" rx="13" ry="8" fill="var(--sr-top)" transform="rotate(27 14 -22)"/>
-<path d="M-24,-40 C-20,-44 -12,-44 -6,-38" stroke="var(--sr-hi)" stroke-width="1.8" fill="none" stroke-linecap="round"/>
-<g stroke-width="4" stroke-linejoin="round">
-<polygon points="-48,-24 -40,-20 -40,-28 -48,-32" fill="var(--sr-base)" stroke="var(--sr-base)"/>
-<polygon points="-40,-20 -12,-34 -12,-42 -40,-28" fill="var(--sr-shade)" stroke="var(--sr-shade)"/>
-<polygon points="-48,-32 -40,-28 -12,-42 -20,-46" fill="var(--sr-top)" stroke="var(--sr-top)"/>
-<polygon points="12,6 20,10 20,2 12,-2" fill="var(--sr-base)" stroke="var(--sr-base)"/>
-<polygon points="20,10 48,-4 48,-12 20,2" fill="var(--sr-shade)" stroke="var(--sr-shade)"/>
-<polygon points="12,-2 20,2 48,-12 40,-16" fill="var(--sr-top)" stroke="var(--sr-top)"/>
+<!-- 등받이 -->
+<g stroke-linejoin="round" stroke-width="10">
+<polygon points="-26,-36 38,-4 38,-24 -26,-56" fill="url(#srgL-sofaA)" stroke="url(#srgL-sofaA)"/>
+<polygon points="38,-4 44,-7 44,-27 38,-24" fill="url(#srgR-sofaA)" stroke="url(#srgR-sofaA)"/>
+<polygon points="-26,-56 38,-24 44,-27 -20,-59" fill="url(#srgT-sofaA)" stroke="url(#srgT-sofaA)"/>
 </g>
-<circle cx="30" cy="-6" r="5.5" fill="#FFF6E2"/>
-<path d="M30,-9 l1,2 2.2,.3 -1.6,1.5 .4,2.2 -2,-1.1 -2,1.1 .4,-2.2 -1.6,-1.5 2.2,-.3 z" fill="#F4C76A"/>
+<!-- 방석 두 개(말랑한 덩어리) -->
+<ellipse cx="-16" cy="-22" rx="20" ry="10" fill="url(#srgC-sofaA)" transform="rotate(27 -16 -22)"/>
+<ellipse cx="12" cy="-8" rx="20" ry="10" fill="url(#srgC-sofaA)" transform="rotate(27 12 -8)"/>
+<path d="M-4,-14 C-2,-12 1,-10 3,-9" stroke="var(--sr-line)" stroke-width="1.2" fill="none" stroke-linecap="round" opacity="0.35"/>
+<!-- 팔걸이(둥근 원통) -->
+<g stroke-linejoin="round">
+<ellipse cx="-42" cy="-24" rx="9" ry="13" fill="url(#srgL-sofaA)" transform="rotate(-62 -42 -24)"/>
+<ellipse cx="-38" cy="-30" rx="7" ry="10" fill="url(#srgC-sofaA)" transform="rotate(-62 -38 -30)"/>
+<ellipse cx="38" cy="-2" rx="9" ry="13" fill="url(#srgR-sofaA)" transform="rotate(-62 38 -2)"/>
+<ellipse cx="41" cy="-8" rx="7" ry="10" fill="url(#srgC-sofaA)" transform="rotate(-62 41 -8)"/>
+</g>
+<!-- 하트 쿠션 -->
+<path d="M-6,-44 C-6,-50 2,-52 3,-46 C4,-52 12,-50 11,-43 C10,-37 3,-33 3,-33 C3,-33 -5,-37 -6,-44 Z" fill="#F6C9CC"/>
+<path d="M-3,-46 C-2,-48 0,-49 1,-47" stroke="#FFFFFF" stroke-width="1.4" fill="none" stroke-linecap="round" opacity="0.8"/>
+<!-- 넓고 흐린 하이라이트 -->
+<ellipse cx="-30" cy="-50" rx="14" ry="3" fill="#FFFFFF" opacity="0.55" filter="url(#srsoft-sofaA)" transform="rotate(27 -30 -50)"/>
+<ellipse cx="-22" cy="-27" rx="9" ry="2.4" fill="#FFFFFF" opacity="0.6" filter="url(#srsoft-sofaA)" transform="rotate(27 -22 -27)"/>
+<!-- 짧고 굵은 다리 -->
+<g fill="var(--sr-line)" opacity="0.55">
+<ellipse cx="-40" cy="-2" rx="3" ry="2"/>
+<ellipse cx="14" cy="26" rx="3" ry="2"/>
+<ellipse cx="44" cy="12" rx="3" ry="2"/>
+</g>
 </svg>
