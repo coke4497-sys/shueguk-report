@@ -7,6 +7,8 @@ const path = require('path'), fs = require('fs'), http = require('http');
 const { chromium } = require('playwright');
 const ROOT = path.resolve(__dirname, '..');
 let pass = 0, fail = 0;
+const SHOT = process.env.SHOT || '';
+const shot = (pg, n, sel) => SHOT ? (sel ? pg.locator(sel).screenshot({ path: path.join(SHOT, n + '.png') }) : pg.screenshot({ path: path.join(SHOT, n + '.png'), fullPage: true })) : Promise.resolve();   // SHOT=폴더면 화면 캡처
 const ok = (m, c, x) => { c ? (pass++, console.log('  ✓ ' + m)) : (fail++, console.log('  ✗ ' + m + (x ? ' ' + x : ''))); };
 
 const EXAMS = {
@@ -79,6 +81,7 @@ function submit(p){
   let c = await card();
   ok('고1 카드: 입력 안내·별 +1', c && /10월 고1 학력평가 성적을 입력해 주세요 · 별 \+1/.test(c.text), c && c.text);
   ok('입력할 회차 수 점', c && c.dot === '1', c && c.dot);
+  await shot(pg, '1-학생-메뉴카드', '#menu');
 
   // ③ 화면 열기 → 입력하기
   await pg.evaluate(() => openSmock()); await pg.waitForTimeout(300);
@@ -101,6 +104,7 @@ function submit(p){
   await pg.fill('#smReview', '시간이 부족했어요');
   await pg.click('[data-sm-q="7"]');     // 다른 칸을 눌러도 쓴 글이 남는지
   ok('다시 그려도 점수·후기 유지', (await pg.inputValue('#smScore')) === '84' && (await pg.inputValue('#smReview')) === '시간이 부족했어요');
+  if (SHOT){ await pg.evaluate(() => { smKeep(); SM.form.err = ''; smRender(); window.scrollTo(0, 0); }); await shot(pg, '2-학생-입력창'); }
   await pg.click('#smSave'); await pg.waitForTimeout(400);
   const p1 = CALLS[0] || {};
   ok('저장 본문: 회차·점수·키', p1.exam === '2026-10-고1' && p1.score === '84' && p1.key === 'tok-kim', JSON.stringify(p1));
@@ -130,6 +134,8 @@ function submit(p){
   t = await pg.textContent('#smBody');
   ok('점수 흐름 두 회차', (await pg.$$('.sm-trend .r')).length === 2);
   ok('설문에서 옮겨 온 기록 표시', /구글 설문에서 옮겨 온 기록/.test(t));
+  await pg.evaluate(() => { SM.ok = ''; smRender(); window.scrollTo(0, 0); });
+  await shot(pg, '3-학생-내기록');
   ok('닫힌 회차는 고치기 없음', (await pg.$$('.sm-ent [data-sm-open="2026-09-고1"]')).length === 0);
   await pg.evaluate(() => smBack()); await pg.waitForTimeout(200);
   c = await card();
