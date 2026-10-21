@@ -244,7 +244,9 @@
   .sm-f .lab small{font-weight:400;color:var(--ink-soft);margin-left:4px;}
   .sm-f input[type=text],.sm-f textarea{width:100%;font:inherit;font-size:.95rem;border:1px solid var(--line);border-radius:11px;padding:9px 12px;background:#fff;color:var(--ink);}
   .sm-f input.score{width:120px;font-family:"Do Hyeon",var(--sans);font-size:1.3rem;text-align:center;}
-  .sm-f textarea{min-height:76px;resize:vertical;}
+  .sm-f textarea{min-height:110px;resize:vertical;}
+  .sm-f .sm-guide{font-size:.84rem;color:var(--ink);line-height:1.55;margin:-2px 0 8px;}
+  .sm-f .sm-guide span{font-size:.78rem;color:var(--ink-soft);}
   .sm-pills{display:flex;flex-wrap:wrap;gap:6px;}
   .sm-pill{font:inherit;font-size:.86rem;border:none;border-radius:999px;padding:6px 15px;background:#F2F5F3;color:var(--ink-soft);cursor:pointer;}
   .sm-pill.on{background:#5A4A6A;color:#fff;}
@@ -4298,8 +4300,9 @@ function smRenderForm(){
     }
     html += '<div class="sm-area"><p class="an" data-r="'+a[1]+'~'+a[2]+'"><b>'+esc(a[0] === '선택' ? '선택과목' : a[0])+'</b>'+a[1]+'~'+a[2]+'번'+(on.length ? ' · 틀림 '+on.length : '')+'</p><div class="sm-nums">'+btns+'</div></div>';
   });
-  html += '<label class="lab" for="smReview">시험 후기 <small>선택 · 어떤 말이든 잘 듣겠습니다</small></label>' +
-    '<textarea id="smReview" maxlength="1000">'+esc(f.review)+'</textarea>' +
+  html += '<label class="lab" for="smReview">시험 후기 <small>선택</small></label>' +
+    '<p class="sm-guide">슈스 여러분의 솔직한 마음을 들려주세요. 귀 기울여 듣겠습니다.<br><span>시험 운영, 난도, 반성 및 다짐, 도움 요청 등</span></p>' +
+    '<textarea id="smReview" maxlength="1000" placeholder="시험 운영, 난도, 반성 및 다짐, 도움 요청 등 무엇이든 적어 주세요">'+esc(f.review)+'</textarea>' +
     '<p class="sm-err" id="smErr">'+esc(f.err || '')+'</p>' +
     '<div class="sm-acts"><button class="sm-btn main" id="smSave"'+(SM.busy?' disabled':'')+'>'+(SM.busy?'저장하는 중…':'저장하기')+'</button>' +
     '<button class="sm-btn ghost main" data-sm-cancel="1">취소</button></div></div>';

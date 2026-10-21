@@ -101,6 +101,9 @@ let submit = function(p){
   await pg.click('[data-sm-q="13"]'); await pg.click('[data-sm-q="12"]'); await pg.click('[data-sm-q="40"]');
   await pg.click('[data-sm-q="40"]');   // 다시 누르면 해제
   ok('누른 문항 표시·틀림 수', (await pg.textContent('#smView .sm-area:nth-child(n) .an >> nth=2')).includes('틀림 2'));
+  ok('후기 안내 문구', (await pg.textContent('.sm-guide')).indexOf('슈스 여러분의 솔직한 마음을 들려주세요. 귀 기울여 듣겠습니다.') >= 0
+     && (await pg.textContent('.sm-guide')).indexOf('시험 운영, 난도, 반성 및 다짐, 도움 요청 등') >= 0
+     && ((await pg.getAttribute('#smReview', 'placeholder')) || '').indexOf('도움 요청') >= 0);
   await pg.fill('#smReview', '시간이 부족했어요');
   await pg.click('[data-sm-q="7"]');     // 다른 칸을 눌러도 쓴 글이 남는지
   ok('다시 그려도 점수·후기 유지', (await pg.inputValue('#smScore')) === '84' && (await pg.inputValue('#smReview')) === '시간이 부족했어요');
