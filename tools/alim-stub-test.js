@@ -354,7 +354,7 @@ fns.alimConfigSet({ pw: 'sh', apiKey: 'KEY1', apiSecret: 'SEC1', pfId: 'PF1' });
 {
   let r = J(fns.alimConfigGet()), t = r.templates.notice_mockrep;
   eq('공지 종류로 표시·변수 넷·아직 준비 전', [t.notice, t.vars, t.ready, t.label], [true, ['학생명', '제목', '마감일', '접근코드'], false, '교육청·평가원 모의고사 리포트 제출 안내']);
-  eq('문구 = 원장님 확정본 그대로', t.text, '[이수경국어학원] 교육청·평가원 모의고사 리포트 제출 안내\n#{학생명} 학생, #{제목}을 성실하게 치러 내느라 정말 고생 많았습니다.\n\n학생 페이지의 교육청·평가원 모의고사 리포트 메뉴에서 틀린 문제를 선택 입력해 주세요.\n채점한 시험지를 준비했다면 1분이면 끝나요!\n\n▶ 제출 기한: #{마감일}\n\n애타게 기다리고 있을 선생님들의 마음을 헤아려 얼른 제출해 주세요.');
+  eq('문구 = 원장님 확정본 그대로', t.text, '[이수경국어학원] 교육청·평가원 모의고사 리포트 제출 안내\n#{학생명} 학생, #{제목}을(를) 성실하게 치러 내느라 정말 고생 많았습니다.\n\n학생 페이지의 교육청·평가원 모의고사 리포트 메뉴에서 틀린 문제를 선택 입력해 주세요.\n채점한 시험지를 준비했다면 1분이면 끝나요!\n\n▶ 제출 기한: #{마감일}\n\n애타게 기다리고 있을 선생님들의 마음을 헤아려 얼른 제출해 주세요.');
   eq('버튼 = 학생 페이지 링크', t.buttons.map(b => [b.name, b.type, /s\.html\?key=#\{접근코드\}$/.test(b.linkMo), b.linkMo === b.linkPc]), [['학생 페이지 링크', 'WL', true, true]]);
   fns.alimConfigSet({ pw: 'sh', tpl: { notice_mockrep: 'KA01TPMR' } });
   const it = (st, due) => ({ student: st, to: '01012340000', who: '학생', cls: '공지', date: 'N:2026-10-21|26년 10월 학력평가', vars: { 학생명: st, 제목: '26년 10월 학력평가', 마감일: due, 접근코드: 'k1' } });
