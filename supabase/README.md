@@ -872,3 +872,10 @@ default privileges 까지 되돌렸다. `tools/check_lock.py` 통과(표 15/15 �
 - 선생님 원문(reason)은 그대로, 클로슈가 다듬은 문장을 `reason_nice`에(빈 값 = 다듬기 전 — 학생 화면에 사유를 안 보임). 처음 적용할 때 옛 기록은 원문으로 채운다(열이 이미 있으면 다시 채우지 않음 — 재실행 안전). `student_bundle`은 050 본문 + reason_nice.
 - 다듬기·처리 절차는 저장소 CLAUDE.md '별 선물 사유 다듬기' 절, 도구 `tools/star_reason.py`. 검증 `tools/star-reason-sql-test.sh`.
 - **적용 상태: 2026-10-19 실제 수파베이스에 적용 완료**(관리 API, 토큰 저장 안 함 — 59건 원문 채움, 공개 키 student_bundle 의 reason_nice 확인). 같은 날 최근 14일 사유 10건(id 36·37·72·98~101·103~105)을 다듬었다.
+
+## 057 — 학력평가 성적 `smock_exams`·`smock_entries`·`smock_mine`·`smock_submit` (2026-10-21)
+- 학교 모의고사(학력평가) 회차와 학생 입력 기록. 표는 교사(authenticated)만 읽고 쓰고, 학생은 함수 두 개(anon)로만 — 접근코드(key) 또는 학생ID(student)로 031 `review_me_`가 학생을 찾는다.
+- `smock_submit`은 열린 회차·학생 학년(`smock_grade_` — '2026 고등 1학년' → '고1')·점수(100 이하, 숫자가 아니면 score null + score_text)·틀린 문항 범위(`smock_clean_wrong_`/`smock_range_`)·고3 선택과목을 확인하고, 같은 회차는 덮어쓴다(first로 처음 여부).
+- `student_bundle`을 056 본문 그대로 + `smock_entries` 항목(내 기록의 회차·시각 — 별 집계용)으로 다시 정의한다. **057 뒤에 056을 다시 돌리면 이 항목이 빠지니 057도 다시 돌릴 것.**
+- 검증: `tools/smock-sql-test.sh`.
+- 적용 상태: **아직 실제 수파베이스에 적용 전**(2026-10-21).
