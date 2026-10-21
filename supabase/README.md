@@ -878,4 +878,4 @@ default privileges 까지 되돌렸다. `tools/check_lock.py` 통과(표 15/15 �
 - `smock_submit`은 열린 회차·학생 학년(`smock_grade_` — '2026 고등 1학년' → '고1')·점수(100 이하, 숫자가 아니면 score null + score_text)·틀린 문항 범위(`smock_clean_wrong_`/`smock_range_`)·고3 선택과목을 확인하고, 같은 회차는 덮어쓴다(first로 처음 여부).
 - `student_bundle`을 056 본문 그대로 + `smock_entries` 항목(내 기록의 회차·시각 — 별 집계용)으로 다시 정의한다. **057 뒤에 056을 다시 돌리면 이 항목이 빠지니 057도 다시 돌릴 것.**
 - 검증: `tools/smock-sql-test.sh`.
-- 적용 상태: **아직 실제 수파베이스에 적용 전**(2026-10-21).
+- **적용 상태: 2026-10-21 실제 수파베이스에 적용 완료**(관리 API — 원장님이 준 sbp_ 토큰, 저장 안 함). 적용 전 student_bundle 정의가 056과 같음을 확인했다. 확인: 표 두 개·함수 다섯 개 생김, 공개 키로 표 읽기 401, 공개 키 smock_mine 은 없는 학생 거절, 실제 고1 학생으로 거래 안에서 회차 열기→제출(first)→smock_mine·student_bundle 반영을 돌리고 되돌림(남은 기록 0). 같은 날 **2026년 10월 고1·고2·고3 모의고사 회차를 만들어 두었다(입력 받기 꺼짐)**.
