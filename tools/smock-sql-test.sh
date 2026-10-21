@@ -30,6 +30,7 @@ for f in supabase/migrations/0*.sql; do
   psql -v ON_ERROR_STOP=1 -q -d "$DB" -f "$f" >/dev/null || { echo "적용 실패: $f"; exit 1; }
 done
 psql -v ON_ERROR_STOP=1 -q -d "$DB" -f supabase/migrations/057_school_mock.sql >/dev/null   # 재실행 안전
+psql -v ON_ERROR_STOP=1 -q -d "$DB" -f supabase/migrations/058_school_mock_info.sql >/dev/null
 
 psql -v ON_ERROR_STOP=1 -q -d "$DB" <<'SQL'
 insert into students (student_id, name, school, grade, code, enrolled) values
@@ -100,6 +101,21 @@ begin
   assert jsonb_array_length(r->'smock_entries') = 1, 'bundle smock_entries';
   r := public.student_bundle('87654321', true, '');
   assert jsonb_array_length(r->'smock_entries') = 1, 'bundle 학생ID로 연 경우도';
+end $$;
+
+-- 058: 배점이 있는 회차는 서버가 점수를 계산한다
+update smock_exams set info = jsonb_build_object('points', (select jsonb_agg(case when i in (3,6,14,16,22,27,33,38,42,45) then 3 else 2 end order by i) from generate_series(1,45) i))
+ where key = '2026-10-고1';
+do $$
+declare r jsonb;
+begin
+  r := public.smock_submit('{"key":"tok-kim","exam":"2026-10-고1","score":"","wrong":{"독서":[14,15],"문학":[45]}}');
+  assert r->>'ok' = 'true' and (r->>'score')::numeric = 92, '자동 점수 100-3-2-3=92: ' || r::text;
+  r := public.smock_submit('{"key":"tok-kim","exam":"2026-10-고1","score":"10","wrong":{}}');
+  assert (r->>'score')::numeric = 100, '화면 점수는 무시';
+  assert (select score_text from smock_entries where code='tok-kim' and exam_key='2026-10-고1') = '100', 'score_text';
+  r := public.smock_mine('{"key":"tok-kim"}');
+  assert jsonb_array_length(r->'open'->0->'info'->'points') = 45, 'mine 에 info';
 end $$;
 
 -- 권한: anon 은 표를 못 읽고 함수만

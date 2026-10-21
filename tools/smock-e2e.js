@@ -23,7 +23,7 @@ function mine(){
     entries: ENTRIES.map(x => Object.assign({}, EXAMS[x.exam], x, { exam: x.exam }))
       .sort((a, b) => b.year - a.year || b.month - a.month) };
 }
-function submit(p){
+let submit = function(p){
   const e = EXAMS[p.exam];
   if (!e) return { ok: false, error: 'no_exam' };
   if (!e.open) return { ok: false, error: 'closed' };
@@ -33,7 +33,7 @@ function submit(p){
   const row = { exam: p.exam, score: n, score_text: p.score, feel: p.feel, subject: p.subject, wrong: p.wrong, review: p.review, src: '학생' };
   if (old) Object.assign(old, row); else ENTRIES.push(row);
   return { ok: true, first: !old, exam: p.exam };
-}
+};
 
 (async () => {
   const srv = await new Promise(res => { const s = http.createServer((q, r) => {
@@ -160,6 +160,32 @@ function submit(p){
   await pg.evaluate(() => { SM.form = { exam: { key: '2026-10-고3', layout: '고3', title: 'x' }, score: '90', feel: [], subject: '언어와매체', wrong: {}, review: '', err: '', had: true }; smRender(); });
   await pg.click('#smSave'); await pg.waitForTimeout(400);
   ok('마감된 회차 안내', /입력이 마감되었습니다/.test(await pg.textContent('#smErr')));
+
+  // ⑦-2 정답·배점·등급컷이 있는 회차(058) — 점수 자동 계산·등급·틀린 문항 살펴보기
+  const INFO = JSON.parse(fs.readFileSync(path.join(ROOT, 'supabase/smock-info/2026-10-고1.json'), 'utf8'));
+  GRADE = '고1'; ENTRIES = []; CALLS = [];
+  EXAMS['2026-10-고1'].info = INFO; EXAMS['2026-10-고1'].open = true;
+  const sub0 = submit;
+  submit = p => { if (EXAMS[p.exam].info){ let lost = 0; Object.values(p.wrong || {}).forEach(a => a.forEach(n => { lost += INFO.points[n - 1]; })); p = Object.assign({}, p, { score: String(100 - lost) }); } return sub0(p); };
+  await hub('2026 고등 1학년'); await pg.waitForTimeout(300);
+  await pg.evaluate(() => openSmock()); await pg.waitForTimeout(300);
+  await pg.click('[data-sm-open="2026-10-고1"]');
+  ok('점수 칸 대신 자동 계산 상자', (await pg.$$('#smScore')).length === 0 && /100점/.test(await pg.textContent('#smLive')));
+  ok('3점 문항 표시', await pg.$eval('[data-sm-q="14"]', b => b.classList.contains('p3')) && !(await pg.$eval('[data-sm-q="13"]', b => b.classList.contains('p3'))));
+  ok('번호에 영역·출제 의도', (await pg.getAttribute('[data-sm-q="14"]', 'title')) === '14번 · 독서(과학) · 세부 내용 적용하기');
+  for (const n of [14, 21, 45, 33, 32, 7, 13, 5]) await pg.click('[data-sm-q="' + n + '"]');
+  let live = (await pg.textContent('#smLive')).replace(/\s+/g, '');
+  ok('자동 점수 100−(3+2+3+3+2+2+2+2)=81 · 2등급 · 표준점수 135', /^81점2등급·표준점수135·백분위약9[0-9]/.test(live), live);
+  await pg.click('[data-sm-q="7"]');
+  live = (await pg.textContent('#smLive')).replace(/\s+/g, '');
+  ok('다시 누르면 83점 · 1등급(컷 83)', /^83점1등급·표준점수137·백분위약96/.test(live), live);
+  await pg.click('#smSave'); await pg.waitForTimeout(400);
+  ok('자동 계산 회차는 점수를 보내지 않음', CALLS[0] && CALLS[0].score === '', JSON.stringify(CALLS[0]));
+  t = (await pg.textContent('#smBody')).replace(/\s+/g, ' ');
+  ok('기록에 등급 줄', /1등급 · 표준점수 137 · 백분위 약 96/.test(t), t.slice(0, 300));
+  await pg.click('.sm-det summary');
+  const det = (await pg.textContent('.sm-det')).replace(/\s+/g, ' ');
+  ok('틀린 문항 살펴보기: 영역·의도·배점·정답·전국 오답률', /틀린 문항 살펴보기 7개/.test(det) && /14번독서\(과학\) · 세부 내용 적용하기3점 · 정답 ③ · 전국 오답률 69.9%/.test(det), det.slice(0, 260));
 
   // ⑧ 별 내역 목록
   const src = await pg.evaluate(() => { STATE.stars = { total: 2, breakdown: { smock: 2 } }; renderStars(); return (document.querySelector('#starSec .st-src') || {}).textContent || ''; });

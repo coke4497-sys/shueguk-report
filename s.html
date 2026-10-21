@@ -257,6 +257,21 @@
   .sm-err{font-size:.84rem;color:#B0736A;margin:12px 0 0;min-height:1em;}
   .sm-ok{font-size:.9rem;background:#E2F4EC;color:#2A6555;border-radius:12px;padding:10px 13px;margin-bottom:12px;}
   .sm-acts{display:flex;gap:8px;margin-top:16px;flex-wrap:wrap;}
+  .sm-live{background:#F3EDF8;border-radius:14px;padding:12px 14px;display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;}
+  .sm-live .raw{font-family:"Do Hyeon",var(--sans);font-size:1.9rem;color:#5A4A6A;line-height:1;}
+  .sm-live .raw small{font-size:1rem;margin-left:1px;}
+  .sm-live .gr{font-size:.86rem;color:var(--ink);}
+  .sm-live .gr b{font-family:"Do Hyeon",var(--sans);font-weight:400;font-size:1.15rem;color:#5A4A6A;margin-right:2px;}
+  .sm-live .nt{flex-basis:100%;font-size:.74rem;color:var(--ink-soft);}
+  .sm-n.p3{position:relative;}
+  .sm-n.p3::after{content:'3점';position:absolute;top:1px;right:3px;font-size:.55rem;color:#B0736A;font-weight:400;}
+  .sm-gr{display:inline-block;font-size:.8rem;background:#EDE4F4;color:#5A4A6A;border-radius:999px;padding:2px 10px;margin:6px 6px 0 0;}
+  .sm-det{margin-top:10px;}
+  .sm-det summary{font-size:.82rem;color:#5A4A6A;cursor:pointer;}
+  .sm-det ul{list-style:none;margin:8px 0 0;padding:0;display:flex;flex-direction:column;gap:6px;}
+  .sm-det li{font-size:.8rem;background:#FBF7F6;border-radius:10px;padding:7px 10px;line-height:1.5;}
+  .sm-det li b{color:#8A4B42;margin-right:4px;}
+  .sm-det li small{color:var(--ink-soft);}
   /* 예비 고1 반 신청(2026-10-17, 053) — 가 민트 · 나 연보라 */
   .pl-box{background:var(--surface);border-radius:var(--radius);padding:15px 17px;margin-bottom:12px;}
   .pl-intro{font-size:.86rem;color:var(--ink-soft);margin:0 0 12px;line-height:1.65;}
@@ -4093,6 +4108,53 @@ var SM_ERR = {
   no_subject: '선택과목을 골라 주세요.'
 };
 var SM = { loading: false, form: null, busy: false, ok: '' };
+var SM_CIRCLE = ['', '①', '②', '③', '④', '⑤'];
+/* 회차에 정답·배점·등급컷(info, 058)이 있으면 틀린 문항만으로 점수·등급을 계산한다.
+ * 표준점수 = 100 + 20 × (원점수 − 평균) ÷ 표준편차(공식 계산), 백분위는 등급컷표 사이를 이어 추정(약).
+ * 허브 smock.html 의 smCalc 와 같은 계산 — 고치면 둘 다. 서버(smock_submit)도 같은 배점으로 점수를 저장한다. */
+function smAuto(info){ return !!(info && info.points && info.points.length >= 45); }
+function smCalc(info, wrong){
+  if (!smAuto(info)) return null;
+  var lost = 0;
+  Object.keys(wrong || {}).forEach(function(k){ (wrong[k] || []).forEach(function(n){ lost += Number(info.points[n - 1]) || 0; }); });
+  return smCut(info.cuts, Math.max(0, 100 - lost));
+}
+function smCut(c, raw){
+  var out = { raw: raw, grade: null, std: null, pct: null };
+  if (!c || !c.rows) return out;
+  var rows = c.rows.filter(function(r){ return typeof r.grade === 'number'; }).sort(function(a, b){ return a.grade - b.grade; });
+  if (rows.length){ out.grade = 9; for (var i = 0; i < rows.length; i++) if (raw >= rows[i].raw){ out.grade = rows[i].grade; break; } }
+  if (c.sd) out.std = Math.round(100 + 20 * (raw - c.avg) / c.sd);
+  var pts = c.rows.filter(function(r){ return r.pct != null && r.raw != null; }).map(function(r){ return [Number(r.raw), Number(r.pct)]; });
+  pts.push([0, 0]); pts.sort(function(a, b){ return a[0] - b[0]; });
+  for (var j = 0; j < pts.length - 1; j++){
+    var a = pts[j], b = pts[j + 1];
+    if (raw >= a[0] && raw <= b[0]){ out.pct = Math.round(b[0] === a[0] ? b[1] : a[1] + (b[1] - a[1]) * (raw - a[0]) / (b[0] - a[0])); break; }
+  }
+  if (out.pct == null && pts.length && raw >= pts[pts.length - 1][0]) out.pct = pts[pts.length - 1][1];
+  return out;
+}
+function smGradeLine(r){
+  if (!r || r.grade == null) return '';
+  return '<b>' + r.grade + '</b>등급' + (r.std != null ? ' · 표준점수 ' + r.std : '') + (r.pct != null ? ' · 백분위 약 ' + r.pct : '');
+}
+function smWrongList(info, wrong){
+  var nums = [];
+  Object.keys(wrong || {}).forEach(function(k){ (wrong[k] || []).forEach(function(n){ nums.push(n); }); });
+  nums.sort(function(a, b){ return a - b; });
+  if (!nums.length || !info || !info.items) return '';
+  return '<details class="sm-det"><summary>틀린 문항 살펴보기 ' + nums.length + '개</summary><ul>' + nums.map(function(n){
+    var it = info.items[n - 1] || {}, nt = info.nat && info.nat[String(n)];
+    return '<li><b>' + n + '번</b>' + esc(it.sub || it.area || '') + (it.intent ? ' · ' + esc(it.intent) : '') +
+      '<br><small>' + (info.points ? info.points[n - 1] + '점' : '') + (info.answers ? ' · 정답 ' + SM_CIRCLE[info.answers[n - 1]] : '') +
+      (nt ? ' · 전국 오답률 ' + nt.rate + '%' : '') + (it.work ? ' · ' + esc(it.work) : '') + '</small></li>';
+  }).join('') + '</ul></details>';
+}
+function smLiveHtml(f){
+  var r = smCalc(f.exam.info, f.wrong);
+  return '<span class="raw">' + r.raw + '<small>점</small></span><span class="gr">' + (smGradeLine(r) || '') + '</span>' +
+    '<span class="nt">틀린 번호를 누르면 배점대로 바로 계산돼요. 등급·표준점수는 발표된 등급컷 기준이고, 백분위는 등급컷 사이를 이어 낸 추정값입니다.</span>';
+}
 function smGrade(){ var g = levelGrade(STATE.info && STATE.info.grade); return /^고[1-3]$/.test(g) ? g : ''; }
 function smRefresh(quiet){
   SM.loading = true;
@@ -4191,7 +4253,8 @@ function smRender(){
     html += '<div class="sm-ent"><div class="hd"><span class="ttl">'+esc(e.title || e.exam)+'</span>' +
             '<span class="sc'+(num ? '' : ' txt')+'">'+esc(st || '점수 없음')+(num ? '<small>점</small>' : '')+'</span></div>' +
             (meta.length ? '<p class="sm-meta">'+esc(meta.join(' · '))+'</p>' : '') +
-            smWrongHtml(e.layout, e.wrong) +
+            (num && e.info && e.info.cuts ? '<span class="sm-gr">'+smGradeLine(smCut(e.info.cuts, Number(e.score)))+'</span>' : '') +
+            smWrongHtml(e.layout, e.wrong) + smWrongList(e.info, e.wrong) +
             (e.review ? '<p class="sm-rv">'+esc(e.review)+'</p>' : '') +
             '<div class="ft"><span class="sm-src">'+(e.src === '설문' ? '구글 설문에서 옮겨 온 기록' : '')+'</span>' +
             (e.open ? '<button class="sm-btn ghost" data-sm-open="'+esc(e.exam)+'">고치기</button>' : '') + '</div></div>';
@@ -4215,9 +4278,11 @@ function smRenderForm(){
   var areas = SMOCK_LAYOUT[x.layout] || SMOCK_LAYOUT['통합'];
   var html = '<div class="sm-box sm-f"><h3>'+esc(x.title || '')+'</h3>' +
     '<p class="sm-intro" style="margin:0">채점한 점수와 틀린 문항을 적어 주세요. '+(f.had ? '저장하면 지난 입력을 고칩니다.' : '처음 저장하면 별 +1을 받아요.')+'</p>' +
-    '<label class="lab" for="smScore">점수 <small>필수 · 아직 채점 전이면 \'미채점\'</small></label>' +
-    '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><input type="text" id="smScore" class="score" inputmode="decimal" maxlength="20" value="'+esc(f.score)+'" placeholder="84">' +
-    '<button class="sm-pill" data-sm-nos="1">미채점</button></div>' +
+    (smAuto(x.info)
+      ? '<span class="lab">내 점수 <small>틀린 문항으로 자동 계산</small></span><div class="sm-live" id="smLive">' + smLiveHtml(f) + '</div>'
+      : '<label class="lab" for="smScore">점수 <small>필수 · 아직 채점 전이면 \'미채점\'</small></label>' +
+        '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><input type="text" id="smScore" class="score" inputmode="decimal" maxlength="20" value="'+esc(f.score)+'" placeholder="84">' +
+        '<button class="sm-pill" data-sm-nos="1">미채점</button></div>') +
     '<span class="lab">체감 난이도 <small>여러 개 고를 수 있어요</small></span><div class="sm-pills">' +
     SM_FEEL.map(function(v){ return '<button class="sm-pill'+(f.feel.indexOf(v)>=0?' on':'')+'" data-sm-feel="'+v+'">'+v+'</button>'; }).join('') + '</div>';
   if (x.layout === '고3'){
@@ -4227,7 +4292,10 @@ function smRenderForm(){
   html += '<span class="lab">틀린 문항 <small>틀린 번호를 눌러 주세요 · 다 맞은 영역은 그대로 두세요</small></span>';
   areas.forEach(function(a){
     var on = f.wrong[a[0]] || [], btns = '';
-    for (var n = a[1]; n <= a[2]; n++) btns += '<button class="sm-n'+(on.indexOf(n)>=0?' on':'')+'" data-sm-a="'+a[0]+'" data-sm-q="'+n+'">'+n+'</button>';
+    for (var n = a[1]; n <= a[2]; n++){
+      var it = (x.info && x.info.items && x.info.items[n - 1]) || null, p3 = x.info && x.info.points && x.info.points[n - 1] === 3;
+      btns += '<button class="sm-n'+(on.indexOf(n)>=0?' on':'')+(p3?' p3':'')+'" data-sm-a="'+a[0]+'" data-sm-q="'+n+'"'+(it?' title="'+esc(n+'번 · '+(it.sub||'')+' · '+(it.intent||''))+'"':'')+'>'+n+'</button>';
+    }
     html += '<div class="sm-area"><p class="an" data-r="'+a[1]+'~'+a[2]+'"><b>'+esc(a[0] === '선택' ? '선택과목' : a[0])+'</b>'+a[1]+'~'+a[2]+'번'+(on.length ? ' · 틀림 '+on.length : '')+'</p><div class="sm-nums">'+btns+'</div></div>';
   });
   html += '<label class="lab" for="smReview">시험 후기 <small>선택 · 어떤 말이든 잘 듣겠습니다</small></label>' +
@@ -4246,8 +4314,9 @@ function smKeep(){   // 다시 그리기 전에 입력 중인 글을 옮겨 둔�
 function smSave(){
   var f = SM.form; if (!f || SM.busy) return;
   smKeep();
-  var sc = String(f.score || '').trim();
-  if (!sc){ f.err = SM_ERR.no_score; smRender(); return; }
+  var auto = smAuto(f.exam.info);
+  var sc = auto ? '' : String(f.score || '').trim();
+  if (!auto && !sc){ f.err = SM_ERR.no_score; smRender(); return; }
   if (/^\d+(\.\d+)?$/.test(sc) && Number(sc) > 100){ f.err = SM_ERR.bad_score; smRender(); return; }
   if (f.exam.layout === '고3' && !f.subject){ f.err = SM_ERR.no_subject; smRender(); return; }
   var wrong = {};
@@ -4286,6 +4355,7 @@ document.addEventListener('click', function(e){
     b.classList.toggle('on', i < 0);
     var an = b.closest('.sm-area').querySelector('.an');
     an.innerHTML = '<b>'+esc(a === '선택' ? '선택과목' : a)+'</b>' + an.getAttribute('data-r') + '번' + (arr.length ? ' · 틀림 '+arr.length : '');
+    if ($('smLive')) $('smLive').innerHTML = smLiveHtml(f);
     return;
   }
   if ((b = e.target.closest('[data-sm-feel]'))){
