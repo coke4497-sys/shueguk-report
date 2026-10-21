@@ -147,6 +147,7 @@ let submit = function(p){
   // ⑥ 고3 — 선택과목 필수, 세 영역
   GRADE = '고3'; ENTRIES = []; CALLS = [];
   await hub('2026 고등 3학년'); await pg.waitForTimeout(300);
+  ok('고3은 허브 카드 없음(원장님 — 고3은 이 메뉴를 쓰지 않음)', (await card()) === null);
   await pg.evaluate(() => openSmock()); await pg.waitForTimeout(300);
   await pg.click('[data-sm-open="2026-10-고3"]');
   const a3 = await pg.$$eval('#smView .sm-area .an', a => a.map(x => x.textContent));
