@@ -818,7 +818,12 @@
   .tk-head b{white-space:nowrap;}
   .tk-logbtn{font:inherit;font-size:.72rem;border:1px solid var(--line);background:#fff;border-radius:7px;padding:2px 8px;cursor:pointer;color:var(--ink-soft);margin-left:auto;letter-spacing:0;}
   .tk-logbtn:hover,.tk-logbtn.on{border-color:var(--btn);color:var(--accent);background:var(--icon-bg);}
-  .tk-list{max-height:60%;overflow-y:auto;padding:6px 11px 8px;border-bottom:1px solid var(--line-soft);flex:0 1 auto;}
+  .tk-list{padding:6px 11px 8px;border-bottom:1px solid var(--line-soft);flex:none;}
+  /* 할 일 · 보충 패널은 통째로 한 번에 스크롤한다 (2026-10-22 수정 요청함 최예나 — 할 일이 쌓이면 할 일 칸만 따로 스크롤돼
+     아래 '오늘 보충 방문'이 좁게 눌려 보기 어려웠다). 칸마다 따로 스크롤하지 않는다. */
+  #vmpanel .ch-inner{overflow-y:auto;overscroll-behavior:contain;}
+  #vmpanel .ch-inner > *{flex:none;}
+  #vmpanel #vm-side{overflow:visible;}
   .tk-sec{font-size:.72rem;letter-spacing:.05em;color:var(--ink-soft);margin:8px 0 2px;display:flex;align-items:center;gap:8px;}
   .tk-item{display:grid;grid-template-columns:auto 1fr;gap:4px 8px;align-items:start;padding:8px 2px;border-bottom:1px dashed var(--line-soft);font-size:.84rem;}
   .tk-item:last-child{border-bottom:none;}
