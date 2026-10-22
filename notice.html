@@ -576,7 +576,7 @@
           { headers: { apikey: 'sb_publishable_dE9d1KIbpgYaQkaS2MSrlg_-7SiRJuT' } })
       .then(function(r){ if (!r.ok) throw new Error('students ' + r.status); return r.json(); })
       .then(function(rows){
-        var items = [], missing = [], nocode = [], people = 0;
+        var items = [], missing = [], nocode = [], same = [], seenTo = {}, people = 0;   // 같은 번호는 한 통만(2026-10-22 — 솔라피가 한 묶음 안 같은 번호를 둘 다 실패시킴)
         rows.forEach(function(r){
           if (!tr(r.name) || LEFT_RE.test(tr(r.enrolled))) return;
           var stu = { name: tr(r.name), school: tr(r.school), grade: tr(r.grade), sid: tr(r.student_id).replace(/^'/, ''), code: tr(r.code) };
@@ -585,7 +585,9 @@
                         .filter(function(t){ return /^01\d{8,9}$/.test(t.to); });
           if (!tos.length) missing.push(stu.name);   // 고른 분 누구의 번호도 없음
           else if (!stu.code) nocode.push(stu.name);   // [학생 페이지 열기] 버튼 주소가 못 만들어지므로 보내지 않는다
-          else { people++; tos.forEach(function(t){ items.push({ student: stu.name, to: t.to, who: t.who, code: stu.code }); }); }
+          else { people++; tos.forEach(function(t){
+            if (seenTo[t.to]) { same.push(stu.name + ' ' + String(t.who).replace(/학부모(?!님)/g, '학부모님') + '(' + seenTo[t.to] + ' 쪽으로 한 통)'); return; }
+            seenTo[t.to] = stu.name; items.push({ student: stu.name, to: t.to, who: t.who, code: stu.code }); }); }
         });
         var btns = (tpl.buttons || []).map(function(b){ return '<div class="alim-btn">' + esc(b.name) + '</div>'; }).join('');
         alimPending = { kind: kind, tpl: tpl, btns: btns, ref: 'N:' + todayKst() + '|' + title, title: title, items: items, missing: missing };
@@ -598,6 +600,7 @@
           '<div class="prev" id="alimPrev">' + esc(preview) + btns + '</div>' +
           (missing.length ? '<p class="miss">연락처가 없어 못 보내는 학생 ' + missing.length + '명: ' + esc(missing.join(', ')) + '</p>' : '') +
           (nocode.length ? '<p class="miss">학생 페이지 접근코드가 없어 못 보내는 학생 ' + nocode.length + '명: ' + esc(nocode.join(', ')) + '</p>' : '') +
+          (same.length ? '<p class="alim-note">같은 번호라 한 통만 보냅니다 ' + same.length + '건: ' + esc(same.join(', ')) + '</p>' : '') +
           (alimCfg.smsFallback ? '' : '<p class="miss">카카오톡을 받을 수 없는 번호는 문자로 대체되지 않아요 (발신번호 미설정).</p>') +
           '<div class="btns"><button type="button" onclick="alimCancel()">보내지 않기</button>' +
           '<button type="button" class="go" id="alimGo" onclick="alimSendNotice()"' + (items.length && xs.every(function(v){ return ALIM_X_DEFAULT[v]; }) ? '' : ' disabled') + '>알림톡 보내기 (' + items.length + '건)</button></div>';

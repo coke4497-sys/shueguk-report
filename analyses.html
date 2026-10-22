@@ -1149,14 +1149,16 @@ function alimRefresh(){
   if (!AL.rep || !AL.list) return;
   var whos = Array.prototype.slice.call(document.querySelectorAll('.alW:checked')).map(function(x){ return x.value; });
   var title = alTr((document.getElementById('alTitle') || {}).value);
-  var items = [], nophone = [], nocode = [], people = 0;
+  var items = [], nophone = [], nocode = [], same = [], seenTo = {}, people = 0;   // 같은 번호는 한 통만(2026-10-22 — 솔라피가 한 묶음 안 같은 번호를 둘 다 실패시킴)
   var skipEl = document.querySelector('input[name="alSkip"]:checked'), skip = !skipEl || skipEl.value === '1';   // 이미 제출한 친구 빼기(기본)
   var waitEl = document.querySelector('input[name="alWait"]:checked'), skipWait = !waitEl || waitEl.value === '1';   // 피드백 전 친구 빼기(기본)
   AL.list.concat(skip ? [] : AL.doneN, (AL.mode === 'up' && !skipWait) ? (AL.waitN || []) : []).forEach(function(stu){
     var tos = whos.map(function(w){ return { who: w, to: String(stu.r[AL_PHONE[w]] || '').replace(/\D/g, '') }; }).filter(function(t){ return /^01\d{8,9}$/.test(t.to); });
     if (!tos.length) nophone.push(stu.name);
     else if (!stu.code) nocode.push(stu.name);
-    else { people++; tos.forEach(function(t){ items.push({ student: stu.name, to: t.to, who: t.who, code: stu.code, title: alItemTitle(title, stu) }); }); }
+    else { people++; tos.forEach(function(t){
+      if (seenTo[t.to]) { same.push(stu.name + ' ' + alWho(t.who) + '(' + seenTo[t.to] + ' 쪽으로 한 통)'); return; }
+      seenTo[t.to] = stu.name; items.push({ student: stu.name, to: t.to, who: t.who, code: stu.code, title: alItemTitle(title, stu) }); }); }
   });
   var h = (AL.mode === 'up' ? (skipWait ? '선생님 피드백을 보낸 학생 <b>' : '복기를 낸 학생 <b>') : skip ? '배정된 학생 중 아직 복기를 내지 않은 <b>' : '배정된 학생 <b>') + people + '명</b>' + (whos.length ? '의 ' + esc(alWho(whos.join('·'))) + '에게 <b>' + items.length + '건</b> 보냅니다.' : '') +
     (items.length > AL_BATCH ? ' <span style="color:#8B928C">(' + AL_BATCH + '건씩 나눠 보내요)</span>' : '');
@@ -1172,6 +1174,7 @@ function alimRefresh(){
   if (nophone.length) w.push('고른 분의 연락처가 없는 학생 ' + nophone.length + '명: ' + nophone.map(esc).join(', '));
   if (nocode.length) w.push('학생 페이지 링크(접근코드)가 없는 학생 ' + nocode.length + '명: ' + nocode.map(esc).join(', '));
   if (w.length) h += '<div class="al-warn">' + w.join('<br>') + '</div>';
+  if (same.length) h += '<div style="color:#8B928C;margin-top:4px">같은 번호라 한 통만 보냅니다 ' + same.length + '건 — ' + same.map(esc).join(', ') + '</div>';
   document.getElementById('alSum').innerHTML = h;
   var tpl = AL.tpl;
   document.getElementById('alPrev').innerHTML = tpl ? esc(String(tpl.text || '').replace(/#\{([^}]+)\}/g, function(_, k){ return k === '학생명' ? (items[0] ? items[0].student : '○○○') : k === '제목' ? ((items[0] && items[0].title) || title || '(제목)') : ''; })) +
