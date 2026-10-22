@@ -2616,6 +2616,7 @@ function doPost(e) {
     if (data && data.action === 'editReqTokenSet')  { return editReqTokenSet(data); }
     if (data && data.action === 'alimSend')         { return alimSend(data); }
     if (data && data.action === 'alimCancel')       { return alimCancel(data); }
+    if (data && data.action === 'alimLogDelete')    { return alimLogDelete(data); }
     if (data && data.action === 'alimConfigSet')    { return alimConfigSet(data); }
     if (data && data.action === 'alimDiscover')     { return alimDiscover(data); }
     if (data && data.action === 'naeshinSet')       { return naeshinSet(data); }
@@ -4551,6 +4552,33 @@ function alimLogGet(from, to, limit) {
   out.reverse();
   var lim = Math.max(1, Math.min(2000, parseInt(limit, 10) || 300));
   return json({ result:'success', rows: out.slice(0, lim) });
+}
+/** 실패한 발송 기록 지우기(2026-10-22 원장님 "실패 내역은 지워주세요"). { pw, items:[{ts, kind, student, who, to}] }
+ *  결과가 '실패'인 줄만, 기록일시(분까지)·종류·학생·받는 분·번호가 모두 맞을 때만 지운다 — 성공·예약 기록은 지우지 않는다. */
+function alimLogDelete(data) {
+  if (String(data.pw || '') !== TEACHER_PW) return json({ result:'error', message:'unauthorized' });
+  var items = Array.isArray(data.items) ? data.items.slice(0, 200) : [];
+  if (!items.length) return json({ result:'error', message:'지울 기록이 없습니다.' });
+  var want = {};
+  items.forEach(function(it) {
+    want[[String(it.ts || '').trim(), String(it.kind || '').trim(), String(it.student || '').trim(),
+          String(it.who || '').trim(), String(it.to || '').replace(/\D/g, '')].join('|')] = true;
+  });
+  var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(TAB_ALIM);
+  if (!sh || sh.getLastRow() < 2) return json({ result:'success', deleted: 0 });
+  var lock = LockService.getScriptLock();
+  try { lock.waitLock(20000); } catch (e) { return json({ result:'error', message:'잠시 후 다시 시도해 주세요.' }); }
+  try {
+    var n = sh.getLastRow() - 1, vals = sh.getRange(2, 1, n, 8).getValues(), hit = [];
+    vals.forEach(function(r, i) {
+      if (String(r[7] || '').trim() !== '실패') return;
+      var ts = (r[0] && r[0].getTime) ? alimFmtTs_(r[0]) : String(r[0] || '').trim();
+      var k = [ts, String(r[1] || '').trim(), String(r[2] || '').trim(), String(r[3] || '').trim(), String(r[4] || '').replace(/\D/g, '')].join('|');
+      if (want[k]) hit.push(i + 2);
+    });
+    for (var j = hit.length - 1; j >= 0; j--) sh.deleteRow(hit[j]);
+    return json({ result:'success', deleted: hit.length });
+  } finally { lock.releaseLock(); }
 }
 /** 요청 상태·처리메모 변경(클로드 코드 세션·페이지 공용). { pw, row, ts, status, note, del }
  *  ts = 그 줄의 기록일시(목록 응답의 값 그대로) — 줄이 지워져 행이 밀렸을 때 엉뚱한 줄을 고치지 않기 위한 대조.
