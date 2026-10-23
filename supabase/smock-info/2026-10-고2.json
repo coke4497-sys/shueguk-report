@@ -1,5 +1,5 @@
 {
- "source": "2026학년도 10월 고2 전국연합학력평가 국어 — 문제지·정답 및 해설·등급컷·전국 오답률(상위 15문항)",
+ "source": "2026학년도 10월 고2 전국연합학력평가 국어 — 문제지·정답 및 해설·등급컷·EBSi 오답률(채점 참여자 기준)(상위 15문항)",
  "answers": [
   2,
   4,
@@ -433,7 +433,11 @@
     "pct": 4,
     "prev": 14
    }
-  ]
+  ],
+  "kind": "예상",
+  "src": "EBSi 시험별 풀서비스 — 분석 중 예상 등급컷(원점수)",
+  "checked": "2026-10-23",
+  "url": "https://www.ebsi.co.kr/ebs/xip/xipa/retrieveSCVMainInfo.ebs?irecord=202610202&targetCd=D200"
  },
  "nat": {
   "23": {
@@ -586,5 +590,89 @@
     5.3
    ]
   }
- }
+ },
+ "top": {
+  "basis": "EBSi 채점 참여자 기준",
+  "src": "EBSi 오답률 TOP15",
+  "checked": "2026-10-23",
+  "url": "https://www.ebsi.co.kr/ebs/xip/xipa/retrieveSCVMainInfo.ebs?irecord=202610202&targetCd=D200",
+  "rows": [
+   {
+    "rank": 1,
+    "no": 23,
+    "rate": 63.4
+   },
+   {
+    "rank": 2,
+    "no": 7,
+    "rate": 60.0
+   },
+   {
+    "rank": 3,
+    "no": 31,
+    "rate": 59.1
+   },
+   {
+    "rank": 4,
+    "no": 35,
+    "rate": 56.7
+   },
+   {
+    "rank": 5,
+    "no": 20,
+    "rate": 55.0
+   },
+   {
+    "rank": 6,
+    "no": 3,
+    "rate": 53.6
+   },
+   {
+    "rank": 7,
+    "no": 8,
+    "rate": 45.9
+   },
+   {
+    "rank": 8,
+    "no": 45,
+    "rate": 40.0
+   },
+   {
+    "rank": 9,
+    "no": 34,
+    "rate": 39.7
+   },
+   {
+    "rank": 10,
+    "no": 15,
+    "rate": 39.4
+   },
+   {
+    "rank": 11,
+    "no": 9,
+    "rate": 39.1
+   },
+   {
+    "rank": 12,
+    "no": 14,
+    "rate": 37.5
+   },
+   {
+    "rank": 13,
+    "no": 27,
+    "rate": 37.3
+   },
+   {
+    "rank": 14,
+    "no": 33,
+    "rate": 35.3
+   },
+   {
+    "rank": 15,
+    "no": 39,
+    "rate": 32.4
+   }
+  ]
+ },
+ "nat_basis": "EBSi 채점 참여자 기준"
 }

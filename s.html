@@ -269,6 +269,17 @@
   .sm-n.p3::after{content:'3점';position:absolute;top:1px;right:3px;font-size:.55rem;color:#B0736A;font-weight:400;}
   .sm-gr{display:inline-block;font-size:.8rem;background:#EDE4F4;color:#5A4A6A;border-radius:999px;padding:2px 10px;margin:6px 6px 0 0;}
   .sm-det{margin-top:10px;}
+  .sm-gr small{color:var(--ink-soft);font-size:.72rem;}
+  .sm-cut .cg{display:flex;flex-wrap:wrap;gap:5px;margin:8px 0 6px;}
+  .sm-cut .cg span{font-size:.78rem;background:#F4F7F5;border-radius:8px;padding:3px 8px;color:var(--ink);}
+  .sm-cut .cg b{font-weight:700;color:#5A4A6A;margin-right:4px;}
+  .sm-cut small,.sm-top small{display:block;font-size:.72rem;color:var(--ink-soft);line-height:1.5;}
+  .sm-top ol{list-style:none;margin:8px 0 6px;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:4px 10px;}
+  .sm-det.sm-top li{display:flex;align-items:center;gap:6px;font-size:.8rem;padding:3px 6px;border-radius:7px;background:transparent;white-space:nowrap;}
+  .sm-det.sm-top li.me{background:#F7E2DE;}
+  .sm-top .rk{flex:0 0 20px;font-size:.72rem;color:var(--ink-soft);text-align:right;}
+  .sm-top .rt{color:var(--ink-soft);}
+  .sm-top em{font-style:normal;font-size:.7rem;color:#8A4B42;}
   .sm-det summary{font-size:.82rem;color:#5A4A6A;cursor:pointer;}
   .sm-det ul{list-style:none;margin:8px 0 0;padding:0;display:flex;flex-direction:column;gap:6px;}
   .sm-det li{font-size:.8rem;background:#FBF7F6;border-radius:10px;padding:7px 10px;line-height:1.5;}
@@ -4128,7 +4139,8 @@ function smCut(c, raw){
   if (rows.length){ out.grade = 9; for (var i = 0; i < rows.length; i++) if (raw >= rows[i].raw){ out.grade = rows[i].grade; break; } }
   if (c.sd) out.std = Math.round(100 + 20 * (raw - c.avg) / c.sd);
   var pts = c.rows.filter(function(r){ return r.pct != null && r.raw != null; }).map(function(r){ return [Number(r.raw), Number(r.pct)]; });
-  pts.push([0, 0]); pts.sort(function(a, b){ return a[0] - b[0]; });
+  if (pts.length) pts.push([0, 0]);   /* 백분위가 없는 등급컷(EBSi 역대 원점수만)이면 추정하지 않는다 */
+  pts.sort(function(a, b){ return a[0] - b[0]; });
   for (var j = 0; j < pts.length - 1; j++){
     var a = pts[j], b = pts[j + 1];
     if (raw >= a[0] && raw <= b[0]){ out.pct = Math.round(b[0] === a[0] ? b[1] : a[1] + (b[1] - a[1]) * (raw - a[0]) / (b[0] - a[0])); break; }
@@ -4136,9 +4148,37 @@ function smCut(c, raw){
   if (out.pct == null && pts.length && raw >= pts[pts.length - 1][0]) out.pct = pts[pts.length - 1][1];
   return out;
 }
-function smGradeLine(r){
+/* 등급컷 자료 표시 — EBSi 자체 분석 원점수(교육청 확정값 아님), 10월은 분석 중 예상치(cuts.kind '예상').
+ * 허브 smock.html 의 smCutSrc 와 같은 문구 — 고치면 둘 다. */
+function smCutSrc(c){
+  if (!c || !c.src) return '';
+  return 'EBSi 분석 ' + (c.kind === '예상' ? '예상 ' : '') + '등급컷 기준';
+}
+function smGradeLine(r, c){
   if (!r || r.grade == null) return '';
-  return '<b>' + r.grade + '</b>등급' + (r.std != null ? ' · 표준점수 ' + r.std : '') + (r.pct != null ? ' · 백분위 약 ' + r.pct : '');
+  return '<b>' + r.grade + '</b>등급' + (c && c.kind === '예상' ? '(예상)' : '') + (r.std != null ? ' · 표준점수 ' + r.std : '') + (r.pct != null ? ' · 백분위 약 ' + r.pct : '') +
+    (smCutSrc(c) ? ' <small>· ' + smCutSrc(c) + '</small>' : '');
+}
+function smCutHtml(c){
+  if (!c || !c.rows || !c.src) return '';
+  var rows = c.rows.filter(function(r){ return typeof r.grade === 'number'; }).sort(function(a, b){ return a.grade - b.grade; });
+  if (!rows.length) return '';
+  var last = rows[rows.length - 1];
+  return '<details class="sm-det sm-cut"><summary>등급컷 보기' + (c.kind === '예상' ? ' (예상)' : '') + '</summary>' +
+    '<div class="cg">' + rows.map(function(r){ return '<span><b>' + r.grade + '등급</b>' + r.raw + '점 이상</span>'; }).join('') +
+    '<span><b>' + (last.grade + 1) + '등급</b>' + last.raw + '점 미만</span></div>' +
+    '<small>원점수 · ' + (c.kind === '예상' ? 'EBSi 분석 중 예상 등급컷' : 'EBSi 자체 분석 등급컷') + '(교육청 확정 원점수가 아닙니다)' + (c.checked ? ' · ' + esc(c.checked) + ' 확인' : '') + '</small></details>';
+}
+/* EBSi 오답률 TOP15(info.top) — EBSi 채점 참여자 기준, 순위는 EBSi 표시 순서 그대로. */
+function smTopHtml(info, wrong){
+  var t = info && info.top;
+  if (!t || !t.rows || !t.rows.length) return '';
+  var mine = {};
+  Object.keys(wrong || {}).forEach(function(k){ (wrong[k] || []).forEach(function(n){ mine[n] = true; }); });
+  var hit = t.rows.filter(function(r){ return mine[r.no]; }).length;
+  return '<details class="sm-det sm-top"><summary>EBSi 오답률 TOP15' + (hit ? ' · 내가 틀린 문항 ' + hit + '개' : '') + '</summary><ol>' +
+    t.rows.map(function(r){ return '<li' + (mine[r.no] ? ' class="me"' : '') + '><span class="rk">' + r.rank + '</span><b>' + r.no + '번</b><span class="rt">' + Number(r.rate).toFixed(1) + '%</span>' + (mine[r.no] ? '<em>틀림</em>' : '') + '</li>'; }).join('') +
+    '</ol><small>' + esc(t.basis || 'EBSi 채점 참여자 기준') + ' 오답률입니다(전체 응시자 기준이 아닙니다)' + (t.checked ? ' · ' + esc(t.checked) + ' 확인' : '') + '</small></details>';
 }
 function smWrongList(info, wrong){
   var nums = [];
@@ -4149,13 +4189,14 @@ function smWrongList(info, wrong){
     var it = info.items[n - 1] || {}, nt = info.nat && info.nat[String(n)];
     return '<li><b>' + n + '번</b>' + esc(it.sub || it.area || '') + (it.intent ? ' · ' + esc(it.intent) : '') +
       '<br><small>' + (info.points ? info.points[n - 1] + '점' : '') + (info.answers ? ' · 정답 ' + SM_CIRCLE[info.answers[n - 1]] : '') +
-      (nt ? ' · 전국 오답률 ' + nt.rate + '%' : '') + (it.work ? ' · ' + esc(it.work) : '') + '</small></li>';
+      (nt ? ' · EBSi 오답률 ' + nt.rate + '%' : '') + (it.work ? ' · ' + esc(it.work) : '') + '</small></li>';
   }).join('') + '</ul></details>';
 }
 function smLiveHtml(f){
   var r = smCalc(f.exam.info, f.wrong);
-  return '<span class="raw">' + r.raw + '<small>점</small></span><span class="gr">' + (smGradeLine(r) || '') + '</span>' +
-    '<span class="nt">틀린 번호를 누르면 배점대로 바로 계산돼요. 등급·표준점수는 발표된 등급컷 기준이고, 백분위는 등급컷 사이를 이어 낸 추정값입니다.</span>';
+  var c = f.exam.info.cuts;
+  return '<span class="raw">' + r.raw + '<small>점</small></span><span class="gr">' + (smGradeLine(r, c) || '') + '</span>' +
+    '<span class="nt">틀린 번호를 누르면 배점대로 바로 계산돼요. 등급은 ' + (c && c.src ? 'EBSi 자체 분석' + (c.kind === '예상' ? ' 예상' : '') + ' 등급컷' : '등급컷') + ' 기준이고, 백분위는 등급컷 사이를 이어 낸 추정값입니다.</span>';
 }
 function smGrade(){ var g = levelGrade(STATE.info && STATE.info.grade); return /^고[1-3]$/.test(g) ? g : ''; }
 function smRefresh(quiet){
@@ -4256,8 +4297,8 @@ function smRender(){
     html += '<div class="sm-ent"><div class="hd"><span class="ttl">'+esc(e.title || e.exam)+'</span>' +
             '<span class="sc'+(num ? '' : ' txt')+'">'+esc(st || '점수 없음')+(num ? '<small>점</small>' : '')+'</span></div>' +
             (meta.length ? '<p class="sm-meta">'+esc(meta.join(' · '))+'</p>' : '') +
-            (num && e.info && e.info.cuts ? '<span class="sm-gr">'+smGradeLine(smCut(e.info.cuts, Number(e.score)))+'</span>' : '') +
-            smWrongHtml(e.layout, e.wrong) + smWrongList(e.info, e.wrong) +
+            (num && e.info && e.info.cuts ? '<span class="sm-gr">'+smGradeLine(smCut(e.info.cuts, Number(e.score)), e.info.cuts)+'</span>' : '') +
+            smWrongHtml(e.layout, e.wrong) + smWrongList(e.info, e.wrong) + smCutHtml(e.info && e.info.cuts) + smTopHtml(e.info, e.wrong) +
             (e.review ? '<p class="sm-rv">'+esc(e.review)+'</p>' : '') +
             '<div class="ft"><span class="sm-src">'+(e.src === '설문' ? '구글 설문에서 옮겨 온 기록' : '')+'</span>' +
             (e.open ? '<button class="sm-btn ghost" data-sm-open="'+esc(e.exam)+'">고치기</button>' : '') + '</div></div>';
