@@ -927,7 +927,7 @@
   .req-note b{color:var(--accent);font-size:.74rem;display:block;margin-bottom:2px;}
   .req-del{margin-left:auto;font:inherit;font-size:.74rem;background:#fff;border:1px solid var(--line-soft);border-radius:8px;padding:2px 8px;cursor:pointer;color:var(--ink-soft);flex:none;}
   .req-msg{font-size:.8rem;color:var(--accent);min-height:1.1em;margin:6px 0 0;}
-  /* 슈콩 조교 (2026-10-23 원장님 "수정 요청함을 슈콩이 조교로 의인화") — 그림은 assets/sk-*.png(문법 저장소 슈콩을 200px로) */
+  /* 슈국 조교 슈콩이 (2026-10-23 원장님 "수정 요청함을 슈콩이 조교로 의인화") — 그림은 assets/sk-*.png(문법 저장소 슈콩을 200px로) */
   .req-sk{display:flex;align-items:flex-end;gap:10px;margin:0 0 6px;}
   .req-sk img{width:84px;height:84px;object-fit:contain;flex:none;}
   .req-bub{position:relative;background:#F3EEF8;color:#4A3F57;border-radius:14px;padding:9px 12px;font-size:.86rem;line-height:1.55;margin-bottom:14px;}
@@ -7997,7 +7997,7 @@ function openEditReq(){
   if (w) $('req-writer').value = w;
   reqLoad();
 }
-// 슈콩 조교 — 맞이 말풍선. 확인할 요청이 있으면 책상에서 일하고, 다 처리했으면 응원한다
+// 슈국 조교 슈콩이 — 맞이 말풍선. 확인할 요청이 있으면 책상에서 일하고, 다 처리했으면 응원한다
 var REQ_SK = 'assets/';
 function reqSkHtml(){
   var n = (reqRows || []).filter(function(r){ return r.status === '접수됨' && r.screen !== CR_SCREEN && r.screen !== '별 사유'; }).length;
@@ -8005,8 +8005,8 @@ function reqSkHtml(){
   var say = reqRows === null ? '시간표에서 잘못됐거나 고치고 싶은 것을 적어 주세요. 제가 확인해서 처리하고, 결과를 아래 목록에 남겨 둘게요.'
     : n ? '지금 요청 ' + n + '건을 확인하고 있어요. 처리하면 아래에 결과를 남겨 둘게요.'
     : '확인할 요청을 모두 처리했어요. 고칠 곳이 생기면 언제든 적어 주세요.';
-  return '<img src="' + REQ_SK + img + '.png" alt="슈콩 조교" width="84" height="84">' +
-    '<div class="req-bub"><b>슈콩 조교</b>' + say + '</div>';
+  return '<img src="' + REQ_SK + img + '.png" alt="슈국 조교 슈콩이" width="84" height="84">' +
+    '<div class="req-bub"><b>슈국 조교 슈콩이</b>' + say + '</div>';
 }
 function reqLoad(){
   if (reqLoading) return;
@@ -8039,8 +8039,8 @@ function reqRenderList(){
       '</div>'+
       '<div class="req-text">'+esc(r.text)+'</div>'+
       (r.note ? '<div class="req-reply'+(st === 'hold' ? ' hold' : '')+'"><img src="'+REQ_SK+(st === 'hold' ? 'sk-notice' : 'sk-best')+'.png" alt="" width="40" height="40">'+
-        '<div class="req-note"><b>슈콩 조교'+(st === 'hold' ? ' · 확인이 필요해요' : '')+(r.doneTs ? ' · '+esc(r.doneTs) : '')+'</b>'+esc(r.note)+'</div></div>' :
-        st === 'wait' ? '<div class="req-wait"><img src="'+REQ_SK+'sk-desk.png" alt="" width="26" height="26">슈콩 조교가 확인할 거예요.</div>' : '')+
+        '<div class="req-note"><b>슈국 조교 슈콩이'+(st === 'hold' ? ' · 확인이 필요해요' : '')+(r.doneTs ? ' · '+esc(r.doneTs) : '')+'</b>'+esc(r.note)+'</div></div>' :
+        st === 'wait' ? '<div class="req-wait"><img src="'+REQ_SK+'sk-desk.png" alt="" width="26" height="26">슈국 조교 슈콩이가 확인할 거예요.</div>' : '')+
       '</div>';
   }).join('');
 }
@@ -8060,7 +8060,7 @@ function reqSubmit(){
       return;
     }
     if ($('req-text')) $('req-text').value = '';
-    if (msg) msg.textContent = '슈콩 조교가 요청을 받았어요. 처리하면 아래 목록에 결과를 남겨 둘게요.';
+    if (msg) msg.textContent = '슈국 조교 슈콩이가 요청을 받았어요. 처리하면 아래 목록에 결과를 남겨 둘게요.';
     setStatus('수정 요청을 남겼어요.', 'ok');
     reqLoad();
   });

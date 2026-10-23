@@ -1,8 +1,8 @@
 #!/usr/bin/env node
-/* 수정 요청함 슈콩 조교 검증 (timetable.html, 2026-10-23 원장님 "수정 요청함을 슈콩이 조교로 의인화")
+/* 수정 요청함 슈국 조교 슈콩이 검증 (timetable.html, 2026-10-23 원장님 "수정 요청함을 슈콩이 조교로 의인화")
  *   NODE_PATH=$(npm root -g) node tools/req-shukong-e2e.js   (SHOT=폴더 면 화면을 찍어 둔다)
  * ① 맞이 말풍선 — 확인할 요청이 있으면 책상 슈콩 + 'n건 확인', 없으면 응원 슈콩 ② 처리 결과 = 슈콩 말풍선(완료 엄지 · 보류 확성기 '확인이 필요해요')
- * ③ 접수됨 = '슈콩 조교가 확인할 거예요' ④ 수업 리포트·별 사유 요청은 세지 않음 ⑤ 남긴 뒤 안내 ⑥ 목록 실패 ⑦ 그림 불러옴 */
+ * ③ 접수됨 = '슈국 조교 슈콩이가 확인할 거예요' ④ 수업 리포트·별 사유 요청은 세지 않음 ⑤ 남긴 뒤 안내 ⑥ 목록 실패 ⑦ 그림 불러옴 */
 const { chromium } = require('playwright');
 const http = require('http'), fs = require('fs'), path = require('path');
 const ROOT = path.join(__dirname, '..');
@@ -49,11 +49,11 @@ const BASE = [
   await page.waitForSelector('#req-list .req-item');
   ok('맞이 = 책상 슈콩', (await src(page, '#req-sk img')) === 'assets/sk-desk.png');
   const say = await page.textContent('#req-sk .req-bub');
-  ok('말풍선 = 슈콩 조교 · 요청 1건 확인 중(수업 리포트·별 사유 빼고)', say.includes('슈콩 조교') && say.includes('요청 1건'), say);
+  ok('말풍선 = 슈국 조교 슈콩이 · 요청 1건 확인 중(수업 리포트·별 사유 빼고)', say.includes('슈국 조교 슈콩이') && say.includes('요청 1건'), say);
   ok('목록 3건(수업 리포트·별 사유 없음)', (await page.$$('#req-list .req-item')).length === 3);
   const items = await page.$$eval('#req-list .req-item', es => es.map(e => e.textContent));
-  ok('접수됨 = 슈콩 조교가 확인할 거예요', items[0].includes('슈콩 조교가 확인할 거예요'));
-  ok('처리 완료 = 슈콩 말풍선 + 엄지 슈콩', items[1].includes('슈콩 조교') && items[1].includes('다시 찍어 두었어요'));
+  ok('접수됨 = 슈국 조교 슈콩이가 확인할 거예요', items[0].includes('슈국 조교 슈콩이가 확인할 거예요'));
+  ok('처리 완료 = 슈콩 말풍선 + 엄지 슈콩', items[1].includes('슈국 조교 슈콩이') && items[1].includes('다시 찍어 두었어요'));
   ok('처리 완료 그림', (await page.$$eval('#req-list .req-reply img', es => es.map(e => e.getAttribute('src')))).join() === 'assets/sk-best.png,assets/sk-notice.png');
   ok('보류 = 확인이 필요해요', items[2].includes('확인이 필요해요') && await page.$('#req-list .req-reply.hold') !== null);
   await page.waitForTimeout(300);
@@ -61,8 +61,8 @@ const BASE = [
   if (process.env.SHOT) await page.screenshot({ path: path.join(process.env.SHOT, 'req-shukong.png'), clip: await page.$eval('#modal-box', e => { const r = e.getBoundingClientRect(); return { x: r.x, y: r.y, width: r.width, height: Math.min(r.height, 900) }; }) });
   await page.fill('#req-text', '새 요청');
   await page.click('#modal-box .mbtns .primary');
-  await page.waitForFunction(() => (document.getElementById('req-msg') || {}).textContent.includes('슈콩 조교가 요청을 받았어요'));
-  ok('남긴 뒤 = 슈콩 조교가 받았어요', true);
+  await page.waitForFunction(() => (document.getElementById('req-msg') || {}).textContent.includes('슈국 조교 슈콩이가 요청을 받았어요'));
+  ok('남긴 뒤 = 슈국 조교 슈콩이가 받았어요', true);
   await page.waitForFunction(() => document.querySelector('#req-sk .req-bub').textContent.includes('요청 2건'));
   ok('다시 받으면 말풍선 숫자 갱신', true);
   await ctx.close();
