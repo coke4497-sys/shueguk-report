@@ -927,6 +927,20 @@
   .req-note b{color:var(--accent);font-size:.74rem;display:block;margin-bottom:2px;}
   .req-del{margin-left:auto;font:inherit;font-size:.74rem;background:#fff;border:1px solid var(--line-soft);border-radius:8px;padding:2px 8px;cursor:pointer;color:var(--ink-soft);flex:none;}
   .req-msg{font-size:.8rem;color:var(--accent);min-height:1.1em;margin:6px 0 0;}
+  /* 슈콩 조교 (2026-10-23 원장님 "수정 요청함을 슈콩이 조교로 의인화") — 그림은 assets/sk-*.png(문법 저장소 슈콩을 200px로) */
+  .req-sk{display:flex;align-items:flex-end;gap:10px;margin:0 0 6px;}
+  .req-sk img{width:84px;height:84px;object-fit:contain;flex:none;}
+  .req-bub{position:relative;background:#F3EEF8;color:#4A3F57;border-radius:14px;padding:9px 12px;font-size:.86rem;line-height:1.55;margin-bottom:14px;}
+  .req-bub::before{content:"";position:absolute;left:-7px;bottom:12px;border:7px solid transparent;border-right-color:#F3EEF8;border-left:0;}
+  .req-bub b{display:block;font-family:"Do Hyeon",sans-serif;font-weight:400;font-size:.95rem;color:#5A4A6A;margin-bottom:1px;}
+  .req-reply{display:flex;align-items:flex-start;gap:8px;margin-top:7px;}
+  .req-reply img{width:40px;height:40px;object-fit:contain;flex:none;margin-top:2px;}
+  .req-reply .req-note{margin-top:0;flex:1;min-width:0;position:relative;}
+  .req-reply .req-note::before{content:"";position:absolute;left:-6px;top:12px;border:6px solid transparent;border-right-color:#F4F8F6;border-left:0;}
+  .req-reply.hold .req-note{background:#FBF3DE;} .req-reply.hold .req-note::before{border-right-color:#FBF3DE;}
+  .req-reply.hold .req-note b{color:#7A5D1E;}
+  .req-wait{display:flex;align-items:center;gap:6px;margin-top:6px;font-size:.76rem;color:var(--ink-soft);}
+  .req-wait img{width:26px;height:26px;object-fit:contain;}
   .mk-item .mk-alt{font-size:.76rem;color:var(--ink-soft);white-space:nowrap;}
   .mk-item .mk-plan{font-size:.82rem;color:var(--accent);margin-top:5px;}
   /* 변경사항 항목의 구분 배지 (옛 이동 기록 모달에서 옮겨 옴 — 모달은 오른쪽 패널로 대체) */
@@ -7962,7 +7976,7 @@ var REQ_SCREENS = ['오늘의 시간표','주차별 시간표','전체 시간표
 function openEditReq(){
   openModal(
     '<h3>수정 요청</h3>'+
-    '<p class="mdesc">시간표에서 잘못됐거나 고치고 싶은 것을 적어 두세요. 슈가 확인해 처리하고, 결과를 아래 목록에 남겨요.</p>'+
+    '<div class="req-sk" id="req-sk">'+reqSkHtml()+'</div>'+
     '<div class="req-form">'+
     '<span class="req-lb">어느 화면인가요?</span>'+
     '<select id="req-screen">'+ REQ_SCREENS.map(function(s){ return '<option>'+s+'</option>'; }).join('') +'</select>'+
@@ -7983,6 +7997,17 @@ function openEditReq(){
   if (w) $('req-writer').value = w;
   reqLoad();
 }
+// 슈콩 조교 — 맞이 말풍선. 확인할 요청이 있으면 책상에서 일하고, 다 처리했으면 응원한다
+var REQ_SK = 'assets/';
+function reqSkHtml(){
+  var n = (reqRows || []).filter(function(r){ return r.status === '접수됨' && r.screen !== CR_SCREEN && r.screen !== '별 사유'; }).length;
+  var img = n ? 'sk-desk' : 'sk-cheer';
+  var say = reqRows === null ? '시간표에서 잘못됐거나 고치고 싶은 것을 적어 주세요. 제가 확인해서 처리하고, 결과를 아래 목록에 남겨 둘게요.'
+    : n ? '지금 요청 ' + n + '건을 확인하고 있어요. 처리하면 아래에 결과를 남겨 둘게요.'
+    : '확인할 요청을 모두 처리했어요. 고칠 곳이 생기면 언제든 적어 주세요.';
+  return '<img src="' + REQ_SK + img + '.png" alt="슈콩 조교" width="84" height="84">' +
+    '<div class="req-bub"><b>슈콩 조교</b>' + say + '</div>';
+}
 function reqLoad(){
   if (reqLoading) return;
   reqLoading = true;
@@ -7998,6 +8023,7 @@ function reqLoad(){
 function reqRenderList(){
   var box = $('req-list');
   if (!box) return;
+  if ($('req-sk')) $('req-sk').innerHTML = reqSkHtml();
   if (reqRows === null){ box.innerHTML = '<p class="mdesc">목록을 불러오지 못했어요. 인터넷을 확인해 주세요.</p>'; return; }
   var shown = reqRows.map(function(r, i){ return { r: r, i: i }; })
     .filter(function(x){ return x.r.screen !== CR_SCREEN && x.r.screen !== '별 사유'; });   // 수업 리포트 요청은 '수업 기록' 창에서 상태를 본다, 별 사유 다듬기(클로슈 전용)는 목록에 넣지 않는다
@@ -8012,7 +8038,9 @@ function reqRenderList(){
       (st === 'wait' ? '<button class="req-del" onclick="reqDelete('+i+')">지우기</button>' : '')+
       '</div>'+
       '<div class="req-text">'+esc(r.text)+'</div>'+
-      (r.note ? '<div class="req-note"><b>처리 결과'+(r.doneTs ? ' · '+esc(r.doneTs) : '')+'</b>'+esc(r.note)+'</div>' : '')+
+      (r.note ? '<div class="req-reply'+(st === 'hold' ? ' hold' : '')+'"><img src="'+REQ_SK+(st === 'hold' ? 'sk-notice' : 'sk-best')+'.png" alt="" width="40" height="40">'+
+        '<div class="req-note"><b>슈콩 조교'+(st === 'hold' ? ' · 확인이 필요해요' : '')+(r.doneTs ? ' · '+esc(r.doneTs) : '')+'</b>'+esc(r.note)+'</div></div>' :
+        st === 'wait' ? '<div class="req-wait"><img src="'+REQ_SK+'sk-desk.png" alt="" width="26" height="26">슈콩 조교가 확인할 거예요.</div>' : '')+
       '</div>';
   }).join('');
 }
@@ -8032,7 +8060,7 @@ function reqSubmit(){
       return;
     }
     if ($('req-text')) $('req-text').value = '';
-    if (msg) msg.textContent = '요청을 남겼어요. 처리되면 아래 목록에 결과가 표시돼요.';
+    if (msg) msg.textContent = '슈콩 조교가 요청을 받았어요. 처리하면 아래 목록에 결과를 남겨 둘게요.';
     setStatus('수정 요청을 남겼어요.', 'ok');
     reqLoad();
   });
