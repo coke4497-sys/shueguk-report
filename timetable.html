@@ -4701,18 +4701,6 @@ function blockEl(c, forList){
     var st = awayStateOf(c, viewYmd());   // emptyAt(전원 빠짐 판정)과 같은 규칙
     awayOf = st.awayOf; temps = st.temps;
   }
-  // 오늘 이후에 적용될 1회 이동 예약 — 마우스를 올리면 안내가 보이도록 (표시 자체는 적용일에)
-  var planOf = {};
-  if (mode === 'today'){
-    var wkTo = thisWeekRange().to;
-    onceMoves.forEach(function(o){
-      if ((o.kind && o.kind !== '1회') || o.fromId !== c.id || !o.ymd || o.ymd <= wkTo) return;
-      var tt = classes.find(function(x){ return x.id === o.toId; });
-      var md = o.ymd.slice(5).replace(/^0/, '').replace('-0', '/').replace('-', '/');
-      planOf[o.student.replace(/\(.*\)$/,'')] =
-        '1회 이동 예약: ' + md + '(' + mkDayOf(o.ymd) + ') ' + (tt ? labelOf(tt) : '') + (o.reason ? ' · ' + o.reason : '');
-    });
-  }
   var chips = '';
   var sorted = sortNames(c.students);
   if (mode === 'today'){
@@ -4730,13 +4718,12 @@ function blockEl(c, forList){
       else if (away) tp.push(awayOf[plain].kind === '주간빼기'
         ? ('이 주만 빠짐' + (awayOf[plain].reason ? ' — ' + awayOf[plain].reason : ''))
         : ('이 주 1회 이동: ' + awayOf[plain].label));
-      if (planOf[plain]) tp.push(planOf[plain]);
       var tk = viewIsToday() ? tkByName[plainName(nm)] : null;   // 이 학생에게 걸린 할 일(2026-10-08) — 오늘 화면에서만 — 붉은 점 + 설명. 앞 괄호(학교 구분)도 뗀 이름으로 저장돼 있다
       if (tk) tp.push('할 일: ' + tk.text + (tk.author ? ' (' + tk.author + ')' : ''));
       return '<button data-att-cid="'+esc(c.id)+'" data-nm="'+esc(nm)+'" class="'+cls2+(away?' away':'')+(tk?' task':'')+'"'+
              (away ? ' data-away-row="'+awayOf[plain].row+'"' : '')+
              (tp.length ? ' title="'+esc(tp.join(' · '))+'"' : '')+'>'+
-             esc(plain)+(away ? (awayOf[plain].kind === '주간빼기' ? '<em>이 주 빠짐</em>' : '<em>1회↗</em>') : '')+'</button>';   // 앞날 1회 이동 예약은 글자·밑줄 없이 마우스를 올렸을 때 안내만(2026-10-24 수정 요청 최예나)
+             esc(plain)+(away ? (awayOf[plain].kind === '주간빼기' ? '<em>이 주 빠짐</em>' : '<em>1회↗</em>') : '')+'</button>';   // 앞날 1회 이동 예약 표시는 없앴다(2026-10-24 원장님 "예약 기능 삭제" — 이동은 적용일 칸에만 보인다)
     }).join('');
     chips += temps.sort(function(a,b){ return a.student.localeCompare(b.student,'ko'); }).map(function(o){
       var a = attend[attKey(c.id, o.student)];
@@ -8382,14 +8369,13 @@ function crOffOf(x, a){
 /* 시간표 이름 → 재원 명단 한 명(숙제 검사 저장에 접근코드가 필요). 정확히 → 끝의 A 떼고 → A 붙여서, 동명이인은 앞 괄호 학교로 */
 function crStuOf(nm){
   if (!crStudents) return null;
+  if (pendingTok(nm)) return null;   // 등록 전 학생은 다른 학생 기록과 잇지 않는다(2026-10-24)
   var p = plainName(nm);
   var c = crStudents.filter(function(s){ return s.name === p; });
   if (!c.length && /A$/.test(p)) c = crStudents.filter(function(s){ return s.name === p.slice(0, -1); });
   if (!c.length) c = crStudents.filter(function(s){ return s.name === p + 'A'; });
-  if (c.length > 1){
-    var m = String(nm || '').match(/^\s*\(([^)]*)\)/);
-    if (m){ var c2 = c.filter(function(s){ return s.school.indexOf(m[1]) === 0; }); if (c2.length) c = c2; }
-  }
+  var m = String(nm || '').match(/^\s*\(([^)]*)\)/);
+  if (m) c = c.filter(function(s){ return s.school.indexOf(m[1]) === 0; });   // 앞 괄호 학교와 다르면 잇지 않는다
   return c.length === 1 ? c[0] : null;
 }
 function crStudentsEnsure(){
@@ -9715,8 +9701,16 @@ function phoneFmt(p){
   if (p.length === 10) return p.slice(0,3) + '-' + p.slice(3,6) + '-' + p.slice(6);
   return p;
 }
+/* 아직 등록 전 표기('이예준(입학예정)')인지 — 학생정보와 잇지 않는다 (어댑터 ttPendingName과 같은 규칙) */
+function pendingTok(raw){
+  var m = String(raw || '').trim().match(/\(([^()]*)\)\s*$/);
+  return !!m && /입학|예비|미정|입테|상담|체험/.test(m[1]);
+}
 function stuPhoneOf(nm){
   if (!stuPhones) return null;
+  // 학교가 다른 학생의 데이터를 잇지 않는다 — 등록 전 학생이 끝의 A 대조로 다른 학교 학생(이예준 → 화수고2 이예준A)의
+  // 연락처를 받아 오던 일(2026-10-24 원장님 "학교가 다른 데이터를 연결하지 마세요. 절대")
+  if (pendingTok(nm)) return null;
   var p = plainName(nm);
   return stuPhones[p] || (/A$/.test(p) ? stuPhones[p.slice(0, -1)] : stuPhones[p + 'A']) || null;
 }
