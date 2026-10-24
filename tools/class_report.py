@@ -90,18 +90,17 @@ def cmd_pending():
 
 def find_student(tok, studs):
     """시간표 이름 → students 한 줄. 정확히 → 끝의 A 떼고 → A 붙여서, 동명이인은 앞 괄호 학교로."""
+    if re.search(r'\(([^()]*(입학|예비|미정|입테|상담|체험)[^()]*)\)\s*$', str(tok or '')):
+        return []   # 등록 전 학생은 다른 학생과 잇지 않는다(2026-10-24 원장님 "학교가 다른 데이터를 연결하지 마세요")
     p = plain(tok)
     cands = [s for s in studs if s['name'] == p]
     if not cands and p.endswith('A'):
         cands = [s for s in studs if s['name'] == p[:-1]]
     if not cands:
         cands = [s for s in studs if s['name'] == p + 'A']
-    if len(cands) > 1:
-        sch = front_school(tok)
-        if sch:
-            c2 = [s for s in cands if str(s['school']).startswith(sch)]
-            if c2:
-                cands = c2
+    sch = front_school(tok)
+    if sch:   # 앞 괄호 학교와 다른 학생은 잇지 않는다
+        cands = [s for s in cands if str(s['school']).startswith(sch)]
     return cands
 
 

@@ -8,7 +8,9 @@
  * ③ 주차별: 같은 섞임 · 예외 없는 다음 주로 가면 중2 내신 반으로 돌아오고 · 다시 돌아오면 예외
  * ④ 전체 시간표: 순수한 내신 시간표(ov 없이 다시 받음)
  * ⑤ 캘린더: [학년 예외] 표시·설정 창·저장 본문(시트 + 수파베이스 overrides)
- * ⑥ 047 전(overrides 열 없음): 예외 없이 동작, 설정 창은 안내만 */
+ * ⑥ 047 전(overrides 열 없음): 예외 없이 동작, 설정 창은 안내만
+ * ⑦ 다른 기간 수업 당기기(2026-10-24 수정 요청 김상우): 중2 정규 예외 주에 중2 내신 반을 옮긴 복사본이 보이고
+ *    명단은 원본 내신 반을 따라간다 · [이 주만 시간 옮기기]의 옮길 주는 기간이 달라도 잠기지 않는다 */
 const { chromium } = require('playwright');
 const http = require('http'), fs = require('fs'), path = require('path');
 const ROOT = path.join(__dirname, '..');
@@ -35,6 +37,7 @@ const CLASSES = [
 ];
 const ATT = [{ date: TS, book: '정규', class_id: 'r01', student: '가나', status: '출석', memo: '' },
              { date: TS, book: '내신', class_id: 'n02', student: '마바', status: '출석', memo: '' }];
+let LOGS = [];
 let pass = 0, fail = 0;
 const ok = (n, c, x) => { if (c) pass++; else { fail++; console.log('  ✗ ' + n + (x ? ' — ' + x : '')); } };
 
@@ -73,6 +76,7 @@ const ok = (n, c, x) => { if (c) pass++; else { fail++; console.log('  ✗ ' + n
         const bk = bm ? decodeURIComponent(bm[1]) : '';
         return json(ATT.filter(a => (!g || a.date >= g[1]) && (!l || a.date <= l[1]) && (!bk || a.book === bk)));
       }
+      if (/\/tt_log/.test(u)) return json(LOGS);
       if (/\/tt_tasks/.test(u)) return r.fulfill({ status: 404, contentType: 'application/json', body: '{"code":"42P01"}' });
       return json([]);
     });
@@ -221,6 +225,28 @@ const ok = (n, c, x) => { if (c) pass++; else { fail++; console.log('  ✗ ' + n
   await page.waitForSelector('.pex-list');
   r = await page.evaluate(() => ({ err: document.querySelector('#modal .merr').textContent, dis: document.querySelector('#modal .mbtns .primary').disabled }));
   ok('⑥ 설정 창은 "마이그레이션 047" 안내 + 저장 잠김', /047/.test(r.err) && r.dis, JSON.stringify(r));
+  await page.close(); await ctx.close();
+
+  /* ⑦ 다른 기간 수업 당기기 */
+  const CP = 'w' + TS.slice(2).replace(/-/g, '') + 'a';
+  CLASSES.push(Object.assign(mk('내신', CP, '중2 서정(비상)', '6:30', '8:00', '은지', '정리정독', ''), {}));
+  LOGS = [{ id: 1, kind: '주간반이동', student: '', book: '내신', from_class_id: 'n01', from_class: '중2 서정(비상)',
+            to_class_id: CP, to_class: '중2 서정(비상)', reason: '시험 전 당겨서', apply_date: W1, at: TS + 'T01:00:00+00:00' }];
+  ctx = await ctxOf();
+  page = await open(ctx, 'today');
+  await page.waitForFunction(() => document.querySelectorAll('.blk').length >= 4, null, { timeout: 15000 });
+  await page.waitForTimeout(300);
+  r = await page.evaluate(id => { const c = classes.find(x => x.id === id); return c ? { book: c.book, st: c.students.join(' ') } : null; }, CP);
+  nm = await names(page);
+  ok('⑦ 정규 예외 주에 옮겨 온 중2 내신 복사본이 오늘 시간표에 보인다', !!r && nm.some(x => /서정\(비상\)/.test(x)), JSON.stringify([r, nm]));
+  ok('⑦ 복사본은 내신 시간표 반이고 명단은 원본(n01) 그대로', !!r && r.book === '내신' && r.st === '가나', JSON.stringify(r));
+  ok('⑦ 중2 원본 내신 반(n01)은 여전히 빠진다', await page.evaluate(() => !classes.some(c => c.id === 'n01')));
+  r = await page.evaluate(() => {
+    const c = { id: 'n01', cls: '중2 서정(비상)', book: '내신', day: '토', start: '5:00', end: '6:30', students: [] };
+    const lock = weekSelHtml('x', weekStart, c), free = weekSelHtml('x', weekStart, c, true);
+    return { lock: /disabled/.test(lock), free: /disabled/.test(free) };
+  });
+  ok('⑦ 옮길 주 선택: 반 전체 옮기기는 기간이 달라도 잠기지 않는다(학생 옮기기는 그대로 잠금)', r.lock && !r.free, JSON.stringify(r));
   await page.close(); await ctx.close();
 
   await b.close(); srv.close();

@@ -1743,25 +1743,56 @@
     return { grades: grades, other: other };
   }
   /* 예외 학년의 반을 다른 시간표에서 가져와 섞는다 — 주 시간표에서 그 학년 반은 빼고, 반마다 book을 붙인다 */
-  function mergeClasses(book, main, ex){
-    var out = main.filter(function(c){ return !ex.grades[gradeOfName(c.cls)]; });
+  /* 다른 기간 시간표의 수업을 이 주로 당기거나 미룬 '이 주만' 복사본(2026-10-24 수정 요청 김상우 —
+   * 정규 기간인 이번 주에 11/22 내신 수업을 당겨서 하기). 복사본은 원래 반의 시간표(book)에 남고
+   * 날짜는 반ID에 있으므로, 오늘·주차별에서는 다른 시간표의 '이 주만' 반도 섞어 두고 화면이 날짜로 거른다(wkVisible). */
+  function otherBookOf(b){ return b === '내신' ? '정규' : '내신'; }
+  function weekRangeOf(wedYmd){
+    if (!wedYmd) return null;
+    var d = new Date(+wedYmd.slice(0,4), +wedYmd.slice(5,7)-1, +wedYmd.slice(8,10));
+    var a = new Date(d); a.setDate(d.getDate() - 2);
+    var z = new Date(d); z.setDate(d.getDate() + 4);
+    return { from: localYmd(a), to: localYmd(z) };
+  }
+  // 주차를 넘길 때 반 목록을 다시 받지 않는 경로(moveWeek → loadWeek)가 있어 날짜로 자르지 않는다 —
+  // '이 주만' 반은 화면이 날짜로 거른다(wkVisible). r은 '섞을지'만 알린다(오늘·주차별일 때).
+  function inRange(c, r){ return !!(r && c.wk); }
+  function mergeClasses(book, main, ex, range){
+    var out = main.filter(function(c){
+      if (!ex.grades[gradeOfName(c.cls)]) return true;
+      if (inRange(c, range)){ c.xcopy = 1; return true; }   // 예외 학년이어도 이 주로 옮겨 온 복사본은 남긴다
+      return false;
+    });
     out.forEach(function(c){ c.book = book; });
-    if (!ex.other) return Promise.resolve({ classes: out, ids: {} });
-    return fetchClasses(ex.other).then(function(rows){
+    var other = ex.other || otherBookOf(book);
+    if (!ex.other && !range) return Promise.resolve({ classes: out, ids: {}, other: '', rows: main });
+    return fetchClasses(other).then(function(rows){
       var ids = {};
-      rows.forEach(function(c){ if (ex.grades[gradeOfName(c.cls)] === ex.other){ c.book = ex.other; ids[c.id] = 1; out.push(c); } });
-      return { classes: out, ids: ids };
+      rows.forEach(function(c){
+        var g = gradeOfName(c.cls);
+        var exc = ex.other === other && ex.grades[g] === other && (!c.wk || inRange(c, range));
+        if (exc || inRange(c, range)){
+          c.book = other; ids[c.id] = 1; out.push(c);
+          if (!exc) c.xcopy = 1;   // 다른 기간 시간표에서 옮겨 온 복사본 — 명단은 원본 반에서 채운다
+        }
+      });
+      return { classes: out, ids: ids, other: Object.keys(ids).length ? other : '', rows: main.concat(rows) };
     });
   }
-  function extraIdsFor(book, wedYmd){   // timetableWeek용 — 예외 학년 반ID 집합만
+  /* 옮겨 온 복사본의 명단 — 원본 반은 화면에 없으므로(다른 기간 시간표) 여기서 채운다 */
+  function fillCrossRosters(classes, rows, logs){
+    var byId = {}; (rows || []).forEach(function(c){ byId[c.id] = c; });
+    classes.forEach(function(c){
+      if (!c.xcopy) return;
+      var g = (logs || []).find(function(x){ return (x.kind === '주간반이동' || x.kind === '주간반보강') && x.to_class_id === c.id; });
+      var from = g && byId[g.from_class_id];
+      if (from) c.students = from.students.slice();
+    });
+  }
+  function extraIdsFor(book, wedYmd){   // timetableWeek용 — 예외 학년 반·옮겨 온 복사본 ID 집합만
     return fetchPeriods().then(function(ps){
-      var ex = extrasFor(book, wedYmd, ps);
-      if (!ex.other) return { other: '', ids: {} };
-      return fetchClasses(ex.other).then(function(rows){
-        var ids = {};
-        rows.forEach(function(c){ if (ex.grades[gradeOfName(c.cls)] === ex.other) ids[c.id] = 1; });
-        return { other: ex.other, ids: ids };
-      });
+      var ex = extrasFor(book, wedYmd, ps), range = weekRangeOf(wedYmd);
+      return mergeClasses(book, [], ex, range).then(function(m){ return { other: m.other, ids: m.ids }; });
     });
   }
   function logKeep(book, ids){ return function(g){ return g.book === book || !!ids[g.from_class_id] || !!ids[g.to_class_id]; }; }
@@ -1847,8 +1878,10 @@
       var wed = wfrom ? wedOfYmdStr(wfrom) : wedOfYmdStr(dateStr);
       return fetchPeriods().then(function(periods){
       var ex = (useOv && wed) ? extrasFor(book, wed, periods) : { grades: {}, other: '' };
+      var range = (useOv && wed) ? weekRangeOf(wed) : null;
+      var xb = (ex.other || range) ? (ex.other || otherBookOf(book)) : '';   // 섞일 수 있는 다른 시간표
       var jobs = [
-        fetchClasses(book).then(function(main){ return mergeClasses(book, main, ex); }),
+        fetchClasses(book).then(function(main){ return mergeClasses(book, main, ex, range); }),
         fetchOnceLogs(base, WEEK_KINDS, 120),
         dateStr ? fetchAttendRange(dateStr, dateStr, book) : Promise.resolve([]),
         mfrom ? sbGet('/tt_memo?date=gte.' + q(mfrom) + '&date=lte.' + q(mto)) : Promise.resolve([]),
@@ -1856,11 +1889,12 @@
         (wfrom && wto) ? fetchAttendRange(wfrom, wto, book) : Promise.resolve(null),
         (wfrom && wto) ? fetchTeacherOffs(wfrom, wto) : Promise.resolve(null),
         dateStr ? fetchTeacherOffs(dateStr, dateStr) : Promise.resolve([]),
-        (ex.other && dateStr) ? fetchAttendRange(dateStr, dateStr, ex.other) : Promise.resolve([]),
-        (ex.other && wfrom && wto) ? fetchAttendRange(wfrom, wto, ex.other) : Promise.resolve([])
+        (xb && dateStr) ? fetchAttendRange(dateStr, dateStr, xb) : Promise.resolve([]),
+        (xb && wfrom && wto) ? fetchAttendRange(wfrom, wto, xb) : Promise.resolve([])
       ];
       return Promise.all(jobs).then(function(rs){
         var ids = rs[0].ids, keep = logKeep(book, ids);
+        fillCrossRosters(rs[0].classes, rs[0].rows, rs[1]);
         var xa = function(rows){ return (rows || []).filter(function(r){ return !!ids[r.class_id]; }); };   // 예외 학년 반의 출석만
         // 오늘의 시간표가 지난 날짜를 볼 때(date=지난 날짜)는 그 날짜 앞뒤 8일의 기록을 담는다 (2026-10-11)
         var t = dateStr || tYmd(), span = 8 * 86400000;
@@ -2198,8 +2232,9 @@
    *  새 반에 유령처럼 되붙는다. 2026-08-26 실제 발생: 8/29 백양A 명단 9+9명 중복) */
   function freshWeekId(book, pre){
     return Promise.all([
-      sbGet('/tt_classes?book=eq.' + q(book) + '&class_id=like.' + q(pre + '*') + '&select=class_id'),
-      sbGet('/tt_log?book=eq.' + q(book) + '&or=(to_class_id.like.' + pre + '*,from_class_id.like.' + pre + '*)&select=to_class_id,from_class_id')
+      // 정규·내신 둘 다 본다 — 다른 기간 주로 옮긴 복사본이 그 주 화면에 함께 섞이므로 ID가 겹치면 안 된다 (2026-10-24)
+      sbGet('/tt_classes?class_id=like.' + q(pre + '*') + '&select=class_id'),
+      sbGet('/tt_log?or=(to_class_id.like.' + pre + '*,from_class_id.like.' + pre + '*)&select=to_class_id,from_class_id')
     ]).then(function(rs){
       var used = {};
       var mark = function(v){ v = String(v || ''); if (v.indexOf(pre) === 0) used[v.slice(pre.length)] = 1; };
@@ -4673,18 +4708,6 @@ function blockEl(c, forList){
     var st = awayStateOf(c, viewYmd());   // emptyAt(전원 빠짐 판정)과 같은 규칙
     awayOf = st.awayOf; temps = st.temps;
   }
-  // 오늘 이후에 적용될 1회 이동 예약 — 마우스를 올리면 안내가 보이도록 (표시 자체는 적용일에)
-  var planOf = {};
-  if (mode === 'today'){
-    var wkTo = thisWeekRange().to;
-    onceMoves.forEach(function(o){
-      if ((o.kind && o.kind !== '1회') || o.fromId !== c.id || !o.ymd || o.ymd <= wkTo) return;
-      var tt = classes.find(function(x){ return x.id === o.toId; });
-      var md = o.ymd.slice(5).replace(/^0/, '').replace('-0', '/').replace('-', '/');
-      planOf[o.student.replace(/\(.*\)$/,'')] =
-        '1회 이동 예약: ' + md + '(' + mkDayOf(o.ymd) + ') ' + (tt ? labelOf(tt) : '') + (o.reason ? ' · ' + o.reason : '');
-    });
-  }
   var chips = '';
   var sorted = sortNames(c.students);
   if (mode === 'today'){
@@ -4702,13 +4725,12 @@ function blockEl(c, forList){
       else if (away) tp.push(awayOf[plain].kind === '주간빼기'
         ? ('이 주만 빠짐' + (awayOf[plain].reason ? ' — ' + awayOf[plain].reason : ''))
         : ('이 주 1회 이동: ' + awayOf[plain].label));
-      if (planOf[plain]) tp.push(planOf[plain]);
       var tk = viewIsToday() ? tkByName[plainName(nm)] : null;   // 이 학생에게 걸린 할 일(2026-10-08) — 오늘 화면에서만 — 붉은 점 + 설명. 앞 괄호(학교 구분)도 뗀 이름으로 저장돼 있다
       if (tk) tp.push('할 일: ' + tk.text + (tk.author ? ' (' + tk.author + ')' : ''));
       return '<button data-att-cid="'+esc(c.id)+'" data-nm="'+esc(nm)+'" class="'+cls2+(away?' away':'')+(tk?' task':'')+'"'+
              (away ? ' data-away-row="'+awayOf[plain].row+'"' : '')+
              (tp.length ? ' title="'+esc(tp.join(' · '))+'"' : '')+'>'+
-             esc(plain)+(away ? (awayOf[plain].kind === '주간빼기' ? '<em>이 주 빠짐</em>' : '<em>1회↗</em>') : '')+'</button>';   // 앞날 1회 이동 예약은 글자·밑줄 없이 마우스를 올렸을 때 안내만(2026-10-24 수정 요청 최예나)
+             esc(plain)+(away ? (awayOf[plain].kind === '주간빼기' ? '<em>이 주 빠짐</em>' : '<em>1회↗</em>') : '')+'</button>';   // 앞날 1회 이동 예약 표시는 없앴다(2026-10-24 원장님 "예약 기능 삭제" — 이동은 적용일 칸에만 보인다)
     }).join('');
     chips += temps.sort(function(a,b){ return a.student.localeCompare(b.student,'ko'); }).map(function(o){
       var a = attend[attKey(c.id, o.student)];
@@ -8367,14 +8389,13 @@ function crOffOf(x, a){
 /* 시간표 이름 → 재원 명단 한 명(숙제 검사 저장에 접근코드가 필요). 정확히 → 끝의 A 떼고 → A 붙여서, 동명이인은 앞 괄호 학교로 */
 function crStuOf(nm){
   if (!crStudents) return null;
+  if (pendingTok(nm)) return null;   // 등록 전 학생은 다른 학생 기록과 잇지 않는다(2026-10-24)
   var p = plainName(nm);
   var c = crStudents.filter(function(s){ return s.name === p; });
   if (!c.length && /A$/.test(p)) c = crStudents.filter(function(s){ return s.name === p.slice(0, -1); });
   if (!c.length) c = crStudents.filter(function(s){ return s.name === p + 'A'; });
-  if (c.length > 1){
-    var m = String(nm || '').match(/^\s*\(([^)]*)\)/);
-    if (m){ var c2 = c.filter(function(s){ return s.school.indexOf(m[1]) === 0; }); if (c2.length) c = c2; }
-  }
+  var m = String(nm || '').match(/^\s*\(([^)]*)\)/);
+  if (m) c = c.filter(function(s){ return s.school.indexOf(m[1]) === 0; });   // 앞 괄호 학교와 다르면 잇지 않는다
   return c.length === 1 ? c[0] : null;
 }
 function crStudentsEnsure(){
@@ -9677,18 +9698,20 @@ function stuPhonesEnsure(cb, force){
   if (cb) stuPhonesCbs.push(cb);
   if (stuPhonesBusy) return;
   stuPhonesBusy = true;
-  fetch('https://bangdbhqpphqqdwcledg.supabase.co/rest/v1/students?select=name,phone_student,phone_parent1,phone_parent2,code',
+  fetch('https://bangdbhqpphqqdwcledg.supabase.co/rest/v1/students?select=name,school,phone_student,phone_parent1,phone_parent2,code',
         { headers: { apikey: 'sb_publishable_dE9d1KIbpgYaQkaS2MSrlg_-7SiRJuT' } })
     .then(function(r){ if (!r.ok) throw new Error('students ' + r.status); return r.json(); })
     .then(function(rows){
       stuPhones = {}; stuPhonesFailed = false;
       rows.forEach(function(r){
         var k = plainName(r.name);
-        if (k && stuPhones[k]) stuPhones[k].dupName = true;   // 같은 이름이 둘 — 학생 페이지 링크는 잘못 이을 수 있어 숨긴다
-        if (k) stuPhones[k] = { dupName: !!(stuPhones[k] && stuPhones[k].dupName), ps: String(r.phone_student || '').trim(),
+        if (!k) return;
+        // 같은 이름은 학생마다 따로 둔다 — 학교가 다른 학생의 연락처를 섞지 않게(2026-10-24 원장님 지침)
+        (stuPhones[k] = stuPhones[k] || []).push({ school: String(r.school || '').trim(),
+                                ps: String(r.phone_student || '').trim(),
                                 p1: String(r.phone_parent1 || '').trim(),
                                 p2: String(r.phone_parent2 || '').trim(),
-                                code: String(r.code || '').trim() };
+                                code: String(r.code || '').trim() });
       });
     })
     .catch(function(e){ console.warn('연락처 조회 실패', e); stuPhones = stuPhones || {}; stuPhonesFailed = true; })
@@ -9700,10 +9723,21 @@ function phoneFmt(p){
   if (p.length === 10) return p.slice(0,3) + '-' + p.slice(3,6) + '-' + p.slice(6);
   return p;
 }
+/* 아직 등록 전 표기('이예준(입학예정)')인지 — 학생정보와 잇지 않는다 (어댑터 ttPendingName과 같은 규칙) */
+function pendingTok(raw){
+  var m = String(raw || '').trim().match(/\(([^()]*)\)\s*$/);
+  return !!m && /입학|예비|미정|입테|상담|체험/.test(m[1]);
+}
 function stuPhoneOf(nm){
   if (!stuPhones) return null;
+  // 학교가 다른 학생의 데이터를 잇지 않는다 — 등록 전 학생이 끝의 A 대조로 다른 학교 학생(이예준 → 화수고2 이예준A)의
+  // 연락처를 받아 오던 일(2026-10-24 원장님 "학교가 다른 데이터를 연결하지 마세요. 절대")
+  if (pendingTok(nm)) return null;
   var p = plainName(nm);
-  return stuPhones[p] || (/A$/.test(p) ? stuPhones[p.slice(0, -1)] : stuPhones[p + 'A']) || null;
+  var c = stuPhones[p] || (/A$/.test(p) ? stuPhones[p.slice(0, -1)] : stuPhones[p + 'A']) || [];
+  var m = String(nm || '').match(/^\s*\(([^)]*)\)/);
+  if (m) c = c.filter(function(x){ return x.school.indexOf(m[1]) === 0; });   // 앞 괄호 학교와 맞는 학생만
+  return c.length === 1 ? c[0] : null;   // 못 가리면(같은 이름이 둘 이상) 잇지 않는다
 }
 /* 열려 있는 출석 창의 #att-tel 자리에 연락처를 채운다 (데이터가 오면) */
 function attTelFill(nm){
@@ -9719,7 +9753,7 @@ function attTelFill(nm){
                                 : '<span class="tel-none">등록된 연락처가 없어요</span>';
     // 학생 페이지 링크 (2026-10-17 원장님 "학생 이름을 누르면 뜨는 메뉴에 학생 페이지 링크") — 접근코드가 있을 때만
     var a = $('att-spage');
-    if (a && s && s.code && !s.dupName){ a.href = SPAGE_BASE + encodeURIComponent(s.code); a.hidden = false; }
+    if (a && s && s.code){ a.href = SPAGE_BASE + encodeURIComponent(s.code); a.hidden = false; }
   });
 }
 var SPAGE_BASE = 'https://coke4497-sys.github.io/shueguk-report/s.html?key=';
@@ -9970,7 +10004,7 @@ function wkDayLabel(dstr){
  * 값은 그 주 수요일(yyyy-MM-dd). 시간표 구분(정규/내신)이 지금 화면과 다른 주는
  * 그 주 화면에 이 시간표가 나타나지 않으므로 고를 수 없게 잠근다.
  * (10/5주차 수업을 8/24주차에 당겨서 하기 — 2026-08-23 사용자 요청) */
-function weekSelHtml(id, defWed, cls){   // cls가 있으면 그 반의 시간표(예외 학년 반은 자기 시간표)로 잠금 판단
+function weekSelHtml(id, defWed, cls, free){   // cls가 있으면 그 반의 시간표(예외 학년 반은 자기 시간표)로 잠금 판단, free면 잠그지 않음(반 전체 옮기기)
   var cur = weekStartOf(new Date());
   var first = (defWed < cur) ? new Date(defWed) : new Date(cur);
   var defY = ymdOf(defWed), curY = ymdOf(cur);
@@ -9980,7 +10014,7 @@ function weekSelHtml(id, defWed, cls){   // cls가 있으면 그 반의 시간�
     var label = mdOf(ds['월']) + '~' + mdOf(ds['일']) + ' 주 · ' + bk +
       (wy === defY ? ' — 지금 보는 주' : (wy === curY ? ' — 이번 주' : ''));
     opts.push('<option value="' + wy + '"' + (wy === defY ? ' selected' : '') +
-              (bk !== mine ? ' disabled' : '') + '>' + label + '</option>');
+              (bk !== mine && !free ? ' disabled' : '') + '>' + label + '</option>');
     if (i >= 15 && wy >= defY) break;
     w.setDate(w.getDate() + 7);
   }
@@ -10244,7 +10278,7 @@ function openWeekClassMove(c, dstr){
     '<p class="mdesc hint-x">한 번만 옮겨져요 — 원래 시간의 수업은 이 주에서만 사라지고, 다른 주차는 그대로예요. '+
     '옮길 주를 다른 주로 고르면 이 주 수업을 그 주로 당기거나 미룰 수 있어요 (예: 시험 주 수업을 미리 하기).</p>'+
     '<label style="font-size:.8rem;color:var(--ink-soft);">옮길 주</label>'+
-    weekSelHtml('nc-week', weekStart)+
+    weekSelHtml('nc-week', weekStart, c, true)+
     '<div style="margin-top:8px;"></div>'+
     classFormHtml('', 15)+
     kindSelHtml('')+
@@ -10274,9 +10308,7 @@ function submitWeekClassMove(cid, d){
   // 옮길 주 — 기본은 지금 보는 주. 다른 주를 고르면 그 주로 당기거나 미룬다(2026-08-23 사용자 요청).
   var tw = $('nc-week') ? wedOfYmd($('nc-week').value) : new Date(weekStart);
   var sameWeek = ymdOf(tw) === ymdOf(weekStart);
-  if (effBook(ymdOf(tw), classGradeOf(c)) !== cbook(c)){
-    $('nc-err').textContent = '그 주는 ' + effBook(ymdOf(tw), classGradeOf(c)) + ' 기간이라 이 ' + cbook(c) + ' 시간표가 나타나지 않아요. 슈국 캘린더에서 기간을 먼저 확인해 주세요.'; return;
-  }
+  // 그 주가 다른 기간(정규/내신)이어도 옮길 수 있다 — 복사본은 날짜로 그 주에 함께 보인다 (2026-10-24 수정 요청 김상우)
   var nd = ymdOf(weekDatesOf(tw)[day]);
   if (sameWeek && day === c.day && st0 === mins(c.start) && en0 === minsEnd(c) && loc === (c.loc||'') && teacher === (c.teacher||'')){
     $('nc-err').textContent = '바뀐 것이 없어요. 옮길 주나 요일·시간을 고쳐주세요.'; return;

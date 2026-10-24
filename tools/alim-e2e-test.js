@@ -43,7 +43,7 @@ const posts = [];
   await ctx.route(/supabase\.co/, r => {
     const u = r.request().url();
     if (u.includes('/teacher_accounts')) return r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([{ display_name: '김현지 선생님', login_id: 'hj' }]) });
-    if (u.includes('/students?select=name,phone_')) return phonesFail ? r.fulfill({ status: 500, contentType: 'application/json', body: '{}' }) : r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(PHONES) });
+    if (u.includes('/students?select=name,school,phone_')) return phonesFail ? r.fulfill({ status: 500, contentType: 'application/json', body: '{}' }) : r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(PHONES) });
     if (u.includes('/attendance') && r.request().method() === 'POST') return r.fulfill({ status: 201, contentType: 'application/json', body: '[]' });
     if (u.includes('/attendance') && r.request().method() === 'GET') return r.fulfill({ status: 200, contentType: 'application/json', body: '[]' });
     return r.fulfill({ status: 401, contentType: 'application/json', body: '{"message":"no"}' });
