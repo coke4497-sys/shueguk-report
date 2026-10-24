@@ -423,7 +423,6 @@
   .blk .stus button.kept{outline:1px dashed rgba(0,0,0,.28);outline-offset:-1px;opacity:.88;}
   .blk .stus button.kept em{font-style:normal;font-size:.66rem;margin-left:3px;opacity:.75;}
   .blk .stus button.away{opacity:.5;}
-  .blk .stus button.plan-once{border-bottom:2px dotted #8AA0C8;}
   .blk .stus button.away em{font-style:normal;font-size:.66rem;color:var(--accent);margin-left:3px;}
   .blk .empty-note{color:var(--ink-soft);font-size:.72rem;}
   /* 도구 버튼(전체 출석·숙제 검사 등)은 은은한 세이지 톤 + 진초록 굵은 글자 + 아래 구분선 —
@@ -4701,11 +4700,10 @@ function blockEl(c, forList){
       if (planOf[plain]) tp.push(planOf[plain]);
       var tk = viewIsToday() ? tkByName[plainName(nm)] : null;   // 이 학생에게 걸린 할 일(2026-10-08) — 오늘 화면에서만 — 붉은 점 + 설명. 앞 괄호(학교 구분)도 뗀 이름으로 저장돼 있다
       if (tk) tp.push('할 일: ' + tk.text + (tk.author ? ' (' + tk.author + ')' : ''));
-      return '<button data-att-cid="'+esc(c.id)+'" data-nm="'+esc(nm)+'" class="'+cls2+(away?' away':'')+(planOf[plain]?' plan-once':'')+(tk?' task':'')+'"'+
+      return '<button data-att-cid="'+esc(c.id)+'" data-nm="'+esc(nm)+'" class="'+cls2+(away?' away':'')+(tk?' task':'')+'"'+
              (away ? ' data-away-row="'+awayOf[plain].row+'"' : '')+
              (tp.length ? ' title="'+esc(tp.join(' · '))+'"' : '')+'>'+
-             esc(plain)+(away ? (awayOf[plain].kind === '주간빼기' ? '<em>이 주 빠짐</em>' : '<em>1회↗</em>')
-                               : (planOf[plain]?'<em style="color:#8AA0C8;">예약↗</em>':''))+'</button>';
+             esc(plain)+(away ? (awayOf[plain].kind === '주간빼기' ? '<em>이 주 빠짐</em>' : '<em>1회↗</em>') : '')+'</button>';   // 앞날 1회 이동 예약은 글자·밑줄 없이 마우스를 올렸을 때 안내만(2026-10-24 수정 요청 최예나)
     }).join('');
     chips += temps.sort(function(a,b){ return a.student.localeCompare(b.student,'ko'); }).map(function(o){
       var a = attend[attKey(c.id, o.student)];
