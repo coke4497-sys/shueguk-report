@@ -1740,7 +1740,7 @@
   /* 예외 학년의 반을 다른 시간표에서 가져와 섞는다 — 주 시간표에서 그 학년 반은 빼고, 반마다 book을 붙인다 */
   /* 다른 기간 시간표의 수업을 이 주로 당기거나 미룬 '이 주만' 복사본(2026-10-24 수정 요청 김상우 —
    * 정규 기간인 이번 주에 11/22 내신 수업을 당겨서 하기). 복사본은 원래 반의 시간표(book)에 남고
-   * 날짜는 반ID에 있으므로, 보고 있는 주(range)에 날짜가 든 복사본은 시간표·학년 예외와 상관없이 함께 보인다. */
+   * 날짜는 반ID에 있으므로, 오늘·주차별에서는 다른 시간표의 '이 주만' 반도 섞어 두고 화면이 날짜로 거른다(wkVisible). */
   function otherBookOf(b){ return b === '내신' ? '정규' : '내신'; }
   function weekRangeOf(wedYmd){
     if (!wedYmd) return null;
@@ -1749,7 +1749,9 @@
     var z = new Date(d); z.setDate(d.getDate() + 4);
     return { from: localYmd(a), to: localYmd(z) };
   }
-  function inRange(c, r){ return !!(r && c.wk && c.wk >= r.from && c.wk <= r.to); }
+  // 주차를 넘길 때 반 목록을 다시 받지 않는 경로(moveWeek → loadWeek)가 있어 날짜로 자르지 않는다 —
+  // '이 주만' 반은 화면이 날짜로 거른다(wkVisible). r은 '섞을지'만 알린다(오늘·주차별일 때).
+  function inRange(c, r){ return !!(r && c.wk); }
   function mergeClasses(book, main, ex, range){
     var out = main.filter(function(c){
       if (!ex.grades[gradeOfName(c.cls)]) return true;
@@ -9678,18 +9680,20 @@ function stuPhonesEnsure(cb, force){
   if (cb) stuPhonesCbs.push(cb);
   if (stuPhonesBusy) return;
   stuPhonesBusy = true;
-  fetch('https://bangdbhqpphqqdwcledg.supabase.co/rest/v1/students?select=name,phone_student,phone_parent1,phone_parent2,code',
+  fetch('https://bangdbhqpphqqdwcledg.supabase.co/rest/v1/students?select=name,school,phone_student,phone_parent1,phone_parent2,code',
         { headers: { apikey: 'sb_publishable_dE9d1KIbpgYaQkaS2MSrlg_-7SiRJuT' } })
     .then(function(r){ if (!r.ok) throw new Error('students ' + r.status); return r.json(); })
     .then(function(rows){
       stuPhones = {}; stuPhonesFailed = false;
       rows.forEach(function(r){
         var k = plainName(r.name);
-        if (k && stuPhones[k]) stuPhones[k].dupName = true;   // 같은 이름이 둘 — 학생 페이지 링크는 잘못 이을 수 있어 숨긴다
-        if (k) stuPhones[k] = { dupName: !!(stuPhones[k] && stuPhones[k].dupName), ps: String(r.phone_student || '').trim(),
+        if (!k) return;
+        // 같은 이름은 학생마다 따로 둔다 — 학교가 다른 학생의 연락처를 섞지 않게(2026-10-24 원장님 지침)
+        (stuPhones[k] = stuPhones[k] || []).push({ school: String(r.school || '').trim(),
+                                ps: String(r.phone_student || '').trim(),
                                 p1: String(r.phone_parent1 || '').trim(),
                                 p2: String(r.phone_parent2 || '').trim(),
-                                code: String(r.code || '').trim() };
+                                code: String(r.code || '').trim() });
       });
     })
     .catch(function(e){ console.warn('연락처 조회 실패', e); stuPhones = stuPhones || {}; stuPhonesFailed = true; })
@@ -9712,7 +9716,10 @@ function stuPhoneOf(nm){
   // 연락처를 받아 오던 일(2026-10-24 원장님 "학교가 다른 데이터를 연결하지 마세요. 절대")
   if (pendingTok(nm)) return null;
   var p = plainName(nm);
-  return stuPhones[p] || (/A$/.test(p) ? stuPhones[p.slice(0, -1)] : stuPhones[p + 'A']) || null;
+  var c = stuPhones[p] || (/A$/.test(p) ? stuPhones[p.slice(0, -1)] : stuPhones[p + 'A']) || [];
+  var m = String(nm || '').match(/^\s*\(([^)]*)\)/);
+  if (m) c = c.filter(function(x){ return x.school.indexOf(m[1]) === 0; });   // 앞 괄호 학교와 맞는 학생만
+  return c.length === 1 ? c[0] : null;   // 못 가리면(같은 이름이 둘 이상) 잇지 않는다
 }
 /* 열려 있는 출석 창의 #att-tel 자리에 연락처를 채운다 (데이터가 오면) */
 function attTelFill(nm){
@@ -9728,7 +9735,7 @@ function attTelFill(nm){
                                 : '<span class="tel-none">등록된 연락처가 없어요</span>';
     // 학생 페이지 링크 (2026-10-17 원장님 "학생 이름을 누르면 뜨는 메뉴에 학생 페이지 링크") — 접근코드가 있을 때만
     var a = $('att-spage');
-    if (a && s && s.code && !s.dupName){ a.href = SPAGE_BASE + encodeURIComponent(s.code); a.hidden = false; }
+    if (a && s && s.code){ a.href = SPAGE_BASE + encodeURIComponent(s.code); a.hidden = false; }
   });
 }
 var SPAGE_BASE = 'https://coke4497-sys.github.io/shueguk-report/s.html?key=';
