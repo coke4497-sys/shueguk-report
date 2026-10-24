@@ -914,6 +914,11 @@
   .al-line button{font:inherit;font-size:.78rem;background:#fff;border:1px solid var(--line-soft);border-radius:8px;padding:3px 9px;cursor:pointer;color:var(--ink);}
   /* ── 수정 요청함 (2026-08-28) — 조교가 남긴 요청을 클로드 코드가 읽어 처리 ── */
   .req-lb{font-size:.78rem;color:var(--ink-soft);font-weight:700;margin-top:10px;display:block;}
+  .req-who{margin-top:6px;font-size:.9rem;background:#EDE4F4;color:#5A4A6A;border-radius:10px;padding:8px 11px;}
+  .req-who b{font-weight:700;}
+  .req-who small{font-size:.74rem;opacity:.85;margin-left:4px;}
+  .req-who.none{background:#F7E2DE;color:#7E2B3D;}
+  .req-who.none a{color:inherit;font-weight:700;}
   .req-form select{width:100%;font:inherit;font-size:.92rem;border:1.5px solid var(--line);border-radius:10px;padding:8px 10px;margin-top:6px;background:#fff;}
   .req-item{border:1px solid var(--line-soft);border-radius:10px;padding:9px 11px;font-size:.86rem;margin-top:8px;}
   .req-top{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap;}
@@ -7982,8 +7987,8 @@ function openEditReq(){
     '<select id="req-screen">'+ REQ_SCREENS.map(function(s){ return '<option>'+s+'</option>'; }).join('') +'</select>'+
     '<span class="req-lb">무엇을 고칠까요?</span>'+
     '<textarea id="req-text" style="min-height:72px;" placeholder="반·학생 이름과 함께 적어 주세요 — 예: 고1 백양B 명단에 김○○이 두 번 들어가 있어요"></textarea>'+
-    '<span class="req-lb">작성자 (선택)</span>'+
-    '<input type="text" id="req-writer" placeholder="이름">'+
+    '<span class="req-lb">작성자</span>'+
+    '<div class="req-who" id="req-who">'+reqWhoHtml()+'</div>'+
     '<p class="merr" id="req-err"></p>'+
     '<p class="req-msg" id="req-msg"></p>'+
     '<div class="mbtns"><button onclick="closeModal()">닫기</button>'+
@@ -7992,10 +7997,23 @@ function openEditReq(){
     '<p class="mk-sec">요청 목록</p>'+
     '<div id="req-list"><p class="mdesc">불러오는 중…</p></div>'
   );
-  var w = '';
-  try { w = localStorage.getItem('tt_req_writer') || ''; } catch(e){}
-  if (w) $('req-writer').value = w;
+  // 작성자는 허브에 로그인한 계정 이름 그대로 — 고르거나 고칠 수 없다(2026-10-24 원장님)
+  if (window.shuegukTeacherName) shuegukTeacherName().then(function(n){
+    if (n) alimBy = n;
+    reqWhoChecked = true;
+    if ($('req-who')) $('req-who').innerHTML = reqWhoHtml();
+    if ($('req-who')) $('req-who').className = 'req-who' + (alimBy ? '' : ' none');
+  });
+  else reqWhoChecked = true;
+  if (!alimBy && reqWhoChecked && $('req-who')) $('req-who').className = 'req-who none';
   reqLoad();
+}
+var reqWhoChecked = false;
+function reqWhoHtml(){
+  if (alimBy) return '<b>' + esc(alimBy) + '</b><small>로그인한 계정으로 기록됩니다</small>';
+  if (!reqWhoChecked) return '로그인한 계정을 확인하는 중…';
+  var next = encodeURIComponent(location.href.split('#')[0]);
+  return '로그인한 계정을 찾지 못했습니다. <a href="https://coke4497-sys.github.io/shueguk-hub/login.html?next=' + next + '&reason=login_required">허브에 로그인</a>한 뒤 요청을 남겨 주세요.';
 }
 // 슈국 조교 슈콩이 — 맞이 말풍선. 확인할 요청이 있으면 책상에서 일하고, 다 처리했으면 응원한다
 var REQ_SK = 'assets/';
@@ -8047,9 +8065,9 @@ function reqRenderList(){
 function reqSubmit(){
   var text = ($('req-text') ? $('req-text').value : '').trim();
   if (!text){ $('req-err').textContent = '내용을 적어 주세요.'; return; }
-  var writer = ($('req-writer') ? $('req-writer').value : '').trim();
+  var writer = (alimBy || '').trim();   // 로그인한 계정 이름만 — 직접 적는 칸은 없앴다
+  if (!writer){ $('req-err').textContent = reqWhoChecked ? '로그인한 계정을 찾지 못했습니다. 허브에 로그인한 뒤 다시 남겨 주세요.' : '로그인한 계정을 확인하는 중입니다. 잠시 뒤 다시 눌러 주세요.'; return; }
   var screen = $('req-screen') ? $('req-screen').value : '';
-  try { localStorage.setItem('tt_req_writer', writer); } catch(e){}
   $('req-err').textContent = '';
   $('req-msg').textContent = '요청을 남기는 중…';
   post({ action:'editReqAdd', writer:writer, screen:screen, text:text }, '수정 요청을 남기는 중…', function(res){
