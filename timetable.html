@@ -183,6 +183,23 @@
   .cs-memo{background:#FAF5DF;color:#8A7B3A;}
   .exs-first{font-size:.72rem;font-weight:700;color:#B4574E;flex:none;}
   .exs-season{display:flex;gap:8px;margin:4px 0 8px;flex-wrap:wrap;}
+  /* 시험 범위 메뉴(2026-10-26) */
+  .sc-wrap{display:flex;flex-direction:column;gap:12px;}
+  .sc-bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-size:.84rem;color:var(--ink-soft);} .sc-bar .cr-per{margin-bottom:0;}
+  .sc-msg{color:#3F6159;}
+  .sc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:12px;align-items:start;}
+  .sc-card{background:#fff;border-radius:14px;padding:12px 14px;display:flex;flex-direction:column;gap:7px;box-shadow:0 1px 4px rgba(0,0,0,.05);}
+  .sc-card.on{outline:2px solid #D6C9E4;grid-column:1 / -1;}
+  .sc-card h4{margin:0;font-size:.98rem;display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-family:"Gowun Batang",serif;}
+  .sc-card h4 small{font-weight:400;color:var(--ink-soft);font-size:.74rem;font-family:"Gowun Dodum",sans-serif;}
+  .sc-st{font-size:.7rem;border-radius:999px;padding:2px 9px;font-family:"Gowun Dodum",sans-serif;font-weight:400;} .sc-st.ok{background:#DCE8E5;color:#3F6159;} .sc-st.no{background:#F9EFD0;color:#7A6230;}
+  .sc-cls{font-size:.74rem;color:var(--ink-soft);}
+  .sc-card .cr-scope-view{margin-bottom:0;background:#F6F8F7;}
+  .sc-card .cr-f{margin:0;} .sc-card .cr-f label{font-size:.8rem;display:block;margin-bottom:4px;} .sc-card .cr-f label small{color:var(--ink-soft);font-weight:400;}
+  .sc-btns{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+  .sc-btn{font:inherit;font-size:.84rem;border:0;border-radius:999px;padding:7px 14px;background:#EDE4F4;color:#5A4A6A;cursor:pointer;}
+  .sc-mini{font:inherit;font-size:.76rem;border:0;border-radius:999px;padding:5px 11px;background:#F2F5F3;color:#65726B;cursor:pointer;}
+  @media (max-width:560px){ .sc-grid{grid-template-columns:1fr;} }
   .exs-season button{font:inherit;font-size:.85rem;font-weight:700;border:1.5px solid var(--line);background:#fff;
     color:var(--ink-soft);border-radius:11px;padding:7px 15px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:1px;}
   .exs-season button small{font-size:.68rem;font-weight:400;}
@@ -1335,6 +1352,7 @@
       <button id="v-att" onclick="setMode('att')">출석 현황</button>
       <button id="v-cal" onclick="setMode('cal')">캘린더</button>
       <button id="v-exs" onclick="setMode('exs')">지필고사</button>
+      <button id="v-scope" onclick="setMode('scope')">시험 범위</button>
     </div>
     <div class="ab-tools">
       <span class="cluster">
@@ -3750,6 +3768,7 @@ function setMode(m){
   abHeight();
   if (m === 'cal'){ calLoadAndRender(); return; }
   if (m === 'exs'){ exsLoadAndRender(); return; }
+  if (m === 'scope'){ scopeLoadAndRender(); return; }
   if (m === 'att'){ asLoad(); return; }
   if ((m === 'today' || m === 'week') && applyAutoBook()) return;   // 기간에 맞는 시간표로 다시 불러오는 중
   if (m === 'today' && attendYmd !== todayStr()){ load(false); return; }   // 지난 날짜 기록이 남아 있으면 오늘 것으로 다시
@@ -3785,6 +3804,7 @@ function renderTabs(){
   $('v-week').classList.toggle('on', mode==='week');
   $('v-cal').classList.toggle('on', mode==='cal');
   $('v-exs').classList.toggle('on', mode==='exs');
+  $('v-scope').classList.toggle('on', mode==='scope');
   $('v-att').classList.toggle('on', mode==='att');
   document.querySelector('.hint').innerHTML =
     (mode === 'today') ? '<b>여기서는 출석 체크만 합니다.</b> 학생 이름을 누르면 출석·지각·결석 창이 떠요. '
@@ -3795,6 +3815,7 @@ function renderTabs(){
         + '<span class="hint-x">출석 체크는 오늘의 시간표에서 합니다.</span>'
     : (mode === 'cal') ? '주마다 [정규]/[내신]을 골라 그 주에 쓸 시간표를 정하세요. 오늘의 시간표·주차별이 자동으로 따라갑니다. 날짜 칸을 누르면 메모를 적을 수 있어요.'
     : (mode === 'exs') ? '학교별 시험 기간을 등록하고, 시험 시간표가 나오면 막대 아래 날짜 칸을 눌러 학년·과목을 넣으세요. 넣은 과목은 슈국 캘린더 날짜 칸에도 표시돼요.'
+    : (mode === 'scope') ? '<b>시험 기간을 고르고 학년·학교마다 시험범위를 적습니다.</b> 교과서 내 범위는 교과서 목차에서 골라 더하고, 교과서 외 범위는 영역을 고르고 제목을 적어요. 저장하면 수업 기록 창·내신대비 피드백에 바로 보입니다.'
     : '<b>여기서는 영구 이동만 합니다.</b> 요일 머리글이나 반 카드를 누르면 그 요일이 크게 열려요. 학생 이름을 누르면 이동 모드가 켜지고, 옮길 반(다른 요일 포함)을 누르면 영구 이동됩니다. '
         + '<span class="hint-x">출석 체크는 오늘의 시간표에서, 1회 이동은 주차별 시간표에서 하세요.</span>';
   chSync();
@@ -3804,7 +3825,7 @@ function renderTabs(){
   $('eset-week').style.display = (mode === 'week') ? '' : 'none';
   $('attbar').classList.toggle('show', mode === 'today');
   vmSyncPanel();   // 오늘의 시간표면 '오늘 보충 방문' 사이드 패널을 조회·표시 (chSync 뒤에 호출할 것 — ch-on 정리 순서)
-  var bare = (mode === 'cal' || mode === 'exs' || mode === 'att');
+  var bare = (mode === 'cal' || mode === 'exs' || mode === 'att' || mode === 'scope');
   document.querySelector('.searchbar').style.display = bare ? 'none' : '';
   document.querySelector('.legend').style.display = bare ? 'none' : '';
 }
@@ -3927,6 +3948,11 @@ function renderView(){
   if (mode === 'exs'){   // 지필고사 일정 — 별도 메뉴 (2026-08-21 사용자 확정)
     if (!bootKicked.exs) exsLoadAndRender();   // 새로고침으로 이 탭에서 바로 켜진 경우 — 일정 로딩
     host.appendChild(examSchedView());
+    return;
+  }
+  if (mode === 'scope'){   // 시험 범위 입력 — 지필고사 옆 메뉴(2026-10-26 원장님)
+    if (!bootKicked.scope) scopeLoadAndRender();   // 새로고침으로 이 탭에서 바로 켜진 경우
+    host.appendChild(scopeView());
     return;
   }
   // 주차별 — 표시 범위는 월(수요일-2)~일(수요일+4)
@@ -4162,6 +4188,110 @@ function exsDayDiff(a, b){
                      new Date(+a.slice(0,4), +a.slice(5,7)-1, +a.slice(8,10))) / 864e5);
 }
 /* 지필고사 일정 메뉴 본문 — 시즌 버튼(2학기 중간/기말 등)으로 골라 보고, 기본은 진행 중이거나 다가오는 시즌 */
+/* ── 시험 범위 메뉴 (2026-10-26 원장님 "슈국 스케쥴 지필고사 메뉴 옆에 시험 범위 입력 메뉴") ──
+ * 내신 시간표의 진도반(확인·중3·고3·'이 주만' 제외)을 공유 키(학년|학교 — 수업 기록 창·내신대비 피드백·수정 요청함과 같은 crScopeKey, 학교가 없는 반은 반ID)로 묶어
+ * 기간마다 교과서 목차 고르기(교과서 내) + 영역·제목(교과서 외)으로 범위를 적고 naeshin_records '범위'에 저장한다(같은 표·같은 형식 — 저장하면 세 화면에 바로 보인다). */
+var SC = { period: '', targets: null, rows: null, edit: '', grade: '', loading: false, fail: false, toc: null, outp: null, msg: '' };
+function scopeLoadAndRender(){
+  bootKicked.scope = true;
+  if (!SC.period) SC.period = reqNsDefaultPeriod(todayStr());   // 다가오는 시험(10월 = 26-2-기말)
+  SC.loading = true; SC.fail = false; render();
+  var per = SC.period;
+  Promise.all([
+    SC.targets ? Promise.resolve(SC.targets) : crGet('/tt_classes?book=' + encodeURIComponent('eq.내신') + '&class_id=not.like.w*&select=class_id,name,teacher&order=class_id').then(function(rows){ SC.targets = scopeTargetsOf(rows); return SC.targets; }),
+    crGet('/naeshin_records?period=eq.' + encodeURIComponent(per) + '&kind=' + encodeURIComponent('eq.범위') + '&student=eq.&select=class_key,text1,text2,at')
+  ]).then(function(r){
+    if (SC.period !== per) return;
+    SC.rows = {}; (r[1] || []).forEach(function(x){ SC.rows[x.class_key] = x; });
+    SC.loading = false; render();
+  }).catch(function(e){ console.warn('시험 범위 조회 실패', e); SC.loading = false; SC.fail = true; render(); });
+}
+function scopeTargetsOf(rows){
+  var by = {}, order = ['중1','중2','중3','고1','고2','고3'];
+  (rows || []).forEach(function(r){
+    var cls = String(r.name || r.cls || ''), id = r.class_id || r.id;
+    if (!cls || !id || /^w/.test(id) || CR_ALWAYS_REG.test(cls) || /확인/.test(cls)) return;
+    var key = crScopeKey(cls, id), m = cls.match(/^([중고][1-3])\s+([가-힣]+)/);
+    var grade = m ? m[1] : ((cls.match(/(중[1-3]|고[1-3])/) || [])[1] || '');
+    if (!by[key]) by[key] = { key: key, grade: grade, school: m ? m[2] : '', label: m ? m[1] + ' ' + m[2] : cls.replace(/\(.*\)\s*$/, '').trim(), book: '', cls: [], shared: /^공유:/.test(key) };
+    if (!by[key].book) by[key].book = crDefaultBook(cls);
+    by[key].cls.push(cls + (r.teacher ? ' · ' + r.teacher + 'T' : ''));
+  });
+  return Object.keys(by).map(function(k){ return by[k]; }).sort(function(a, b){
+    var d = order.indexOf(a.grade) - order.indexOf(b.grade); return d || a.label.localeCompare(b.label, 'ko');
+  });
+}
+function scopeView(){
+  var host = document.createElement('div'); host.className = 'sc-wrap';
+  var pers = crNsPeriods(todayStr());
+  var grades = []; (SC.targets || []).forEach(function(t){ if (t.grade && grades.indexOf(t.grade) < 0) grades.push(t.grade); });
+  var list = (SC.targets || []).filter(function(t){ return !SC.grade || t.grade === SC.grade; });
+  var done = (SC.targets || []).filter(function(t){ return SC.rows && SC.rows[t.key]; }).length;
+  var h = '<div class="sc-bar"><span class="cr-per" id="sc-per">' + pers.map(function(p){ return '<button type="button" class="' + (p === SC.period ? 'on' : '') + '" data-scper="' + esc(p) + '">' + esc(p) + '</button>'; }).join('') + '</span>' +
+    (grades.length > 1 ? '<span class="cr-per" id="sc-grade"><button type="button" class="' + (!SC.grade ? 'on' : '') + '" data-scgr="">전체</button>' + grades.map(function(g){ return '<button type="button" class="' + (g === SC.grade ? 'on' : '') + '" data-scgr="' + g + '">' + g + '</button>'; }).join('') + '</span>' : '') +
+    (SC.targets && SC.rows ? '<span id="sc-sum">' + esc(SC.period) + ' · 입력 ' + done + ' / ' + SC.targets.length + '</span>' : '') +
+    '<button type="button" class="sc-mini" id="sc-reload">다시 불러오기</button>' + (SC.msg ? '<span class="sc-msg" id="sc-msg">' + esc(SC.msg) + '</span>' : '') + '</div>';
+  if (SC.loading && !SC.rows) h += '<p class="mdesc">불러오는 중…</p>';
+  else if (SC.fail) h += '<p class="mdesc">시험 범위를 불러오지 못했어요. [다시 불러오기]를 눌러 주세요.</p>';
+  else if (!list.length) h += '<p class="mdesc">내신 시간표에 진도반이 없어요.</p>';
+  else h += '<div class="sc-grid">' + list.map(scopeCardHtml).join('') + '</div>';
+  host.innerHTML = h;
+  if (SC.edit) scopeMountEdit(host);
+  return host;
+}
+function scopeCardHtml(t){
+  var r = SC.rows && SC.rows[t.key], sp = crNsParseScope(r), n = sp ? crNsItems({ scope: sp }).length : 0, on = SC.edit === t.key;
+  var head = '<h4>' + esc(t.label) + (t.shared ? '<small>같은 학교·학년 반 공유</small>' : '') + '<span class="sc-st ' + (sp ? 'ok' : 'no') + '">' + (sp ? '항목 ' + n + '개' : '아직 없어요') + '</span></h4>' +
+    '<div class="sc-cls">' + esc(t.cls.join(' · ')) + '</div>';
+  if (on) return '<div class="sc-card on" data-key="' + esc(t.key) + '">' + head +
+    '<div class="cr-f"><label>교과서 · 교과서 내 범위 <small>(목차에서 골라 더해요 — 고른 단원이 수업 기록 창의 진도 고르기 목록이 돼요)</small></label><div class="sc-toc"></div></div>' +
+    '<div class="cr-f"><label>교과서 외 범위 <small>(영역을 고르고 제목을 적어 [+])</small></label><div class="sc-outp"></div></div>' +
+    '<div class="sc-btns"><button type="button" class="sc-btn" data-scsave="' + esc(t.key) + '">시험범위 저장</button><button type="button" class="sc-mini" data-sccancel="1">취소</button>' +
+    (sp ? '<button type="button" class="sc-mini" data-scclear="' + esc(t.key) + '">범위 비우기</button>' : '') + '</div></div>';
+  return '<div class="sc-card" data-key="' + esc(t.key) + '">' + head + (sp ? crNsScopeView(sp) : '') +
+    '<div class="sc-btns"><button type="button" class="sc-btn" data-scedit="' + esc(t.key) + '">' + (sp ? '고치기' : '입력') + '</button>' + (r && r.at ? '<span class="sc-cls">저장 ' + crHm(r.at) + '</span>' : '') + '</div></div>';
+}
+function scopeMountEdit(host){
+  var card = host.querySelector('.sc-card.on'); if (!card) return;
+  var t = SC.targets.filter(function(x){ return x.key === SC.edit; })[0], sp = crNsParseScope(SC.rows[t.key]) || {};
+  if (typeof TextbookToc === 'undefined'){ card.querySelector('.sc-toc').innerHTML = '<span class="cr-dim">교과서 목차 부품을 불러오지 못했어요. 새로고침해 주세요.</span>'; return; }
+  var prev = SC.toc ? SC.toc.get() : null, prevOut = SC.outp ? SC.outp.get() : null;   // 다시 그려도 고르던 것 유지
+  SC.toc = TextbookToc.mount(card.querySelector('.sc-toc'), { grade: t.grade, school: t.school, text: t.book || sp.book || '', period: SC.period, book: prev ? prev.book : (sp.book || ''), lines: prev ? prev.lines : crLines(sp.inRange) });
+  SC.outp = TextbookToc.mountOut(card.querySelector('.sc-outp'), { lines: prevOut ? prevOut.lines : crLines(sp.outRange) });
+}
+function scopeSave(key, clear){
+  var t = (SC.targets || []).filter(function(x){ return x.key === key; })[0]; if (!t) return;
+  var prev = crNsParseScope(SC.rows[key]) || {}, sp = null;
+  if (clear){ if (!confirm(t.label + ' ' + SC.period + ' 시험범위를 비울까요?\n수업 기록 창·내신대비 피드백에서도 사라져요(진도 단원 기록은 남습니다).')) return; }
+  else {
+    var g = SC.toc ? SC.toc.get() : { book: prev.book || '', lines: crLines(prev.inRange) }, o = SC.outp ? SC.outp.get().lines : crLines(prev.outRange);
+    sp = { book: g.book, inRange: g.lines.join('\n'), extra: String(prev.extra || '').trim(), outRange: o.join('\n') };
+  }
+  var readable = sp ? [['교과서', sp.book], ['교과서 내 범위', sp.inRange], ['교과서 외 범위', sp.outRange], ['추가 자료', sp.extra]].filter(function(x){ return x[1]; }).map(function(x){ return x[0] + ': ' + x[1]; }).join('\n') : '';
+  if (sp && !readable){ SC.msg = '교과서와 범위가 비어 있어요. 지우려면 [범위 비우기]를 눌러 주세요.'; render(); return; }
+  var per = SC.period, path = 'period=eq.' + encodeURIComponent(per) + '&class_key=eq.' + encodeURIComponent(key) + '&kind=' + encodeURIComponent('eq.범위') + '&week=eq.&student=eq.';
+  SC.msg = '저장하는 중…'; render();
+  var job = !readable ? crSend('DELETE', '/naeshin_records?' + path)
+    : crSend('POST', '/naeshin_records?on_conflict=period,class_key,kind,week,student', [{ period: per, class_key: key, kind: '범위', week: '', student: '', text1: JSON.stringify(sp), text2: readable, at: new Date().toISOString() }], 'resolution=merge-duplicates,return=minimal');
+  job.then(function(){
+    crLegacy({ action: 'naeshinSet', period: per, classId: key, scopeKey: key, kind: '범위', week: '', text1: readable ? JSON.stringify(sp) : '', text2: readable });   // 시트 사본은 뒤에서
+    if (SC.period === per && SC.rows){ if (readable) SC.rows[key] = { class_key: key, text1: JSON.stringify(sp), text2: readable, at: new Date().toISOString() }; else delete SC.rows[key]; }
+    SC.edit = ''; SC.toc = SC.outp = null;
+    SC.msg = t.label + ' ' + per + ' 시험범위를 ' + (readable ? '저장했어요.' : '비웠어요.') + (readable && t.shared ? ' 같은 학교·학년 반의 수업 기록 창·내신대비 피드백에 함께 보여요.' : '');
+    render(); setStatus(SC.msg, 'ok');
+  }).catch(function(e){ SC.msg = '저장하지 못했어요. 다시 눌러 주세요. (' + e.message + ')'; render(); });
+}
+document.addEventListener('click', function(e){
+  if (mode !== 'scope') return;
+  var b = e.target.closest('button'); if (!b || b.closest('.toc')) return;   // 목차 부품 안 단추는 부품이 처리
+  if (b.hasAttribute('data-scper')){ var p = b.getAttribute('data-scper'); if (p === SC.period) return; SC.period = p; SC.edit = ''; SC.toc = SC.outp = null; SC.msg = ''; scopeLoadAndRender(); return; }
+  if (b.hasAttribute('data-scgr')){ SC.grade = b.getAttribute('data-scgr'); render(); return; }
+  if (b.id === 'sc-reload'){ SC.msg = ''; SC.targets = null; scopeLoadAndRender(); return; }
+  if (b.hasAttribute('data-scedit')){ SC.edit = b.getAttribute('data-scedit'); SC.toc = SC.outp = null; SC.msg = ''; render(); var c = document.querySelector('.sc-card.on'); if (c) c.scrollIntoView({ block: 'nearest' }); return; }
+  if (b.hasAttribute('data-sccancel')){ SC.edit = ''; SC.toc = SC.outp = null; render(); return; }
+  if (b.hasAttribute('data-scsave')){ scopeSave(b.getAttribute('data-scsave'), false); return; }
+  if (b.hasAttribute('data-scclear')){ scopeSave(b.getAttribute('data-scclear'), true); return; }
+});
 function examSchedView(){
   var box = document.createElement('div');
   box.className = 'memobox';
@@ -9076,7 +9206,7 @@ function crNsScopeView(sp){
   sp = sp || {};
   var rows = [['교과서', sp.book, false], ['교과서 안 범위', sp.inRange, true], ['교과서 밖 범위', sp.outRange, true], ['추가 자료', sp.extra, true]]
     .filter(function(x){ return String(x[1] || '').trim(); })
-    .map(function(x){ return '<div class="cr-sv"><b>' + x[0] + '</b>' + (x[2] ? '<ul>' + crLines(x[1]).map(function(l){ return '<li>' + esc(l) + '</li>'; }).join('') + '</ul>' : '<span>' + esc(x[1]) + '</span>') + '</div>'; });
+    .map(function(x){ return '<div class="cr-sv"><b>' + x[0] + '</b>' + (x[2] ? '<ul>' + crLines(x[1]).map(function(l){ return '<li>' + crNsItemHtml(l) + '</li>'; }).join('') + '</ul>' : '<span>' + esc(x[1]) + '</span>') + '</div>'; });
   return '<div class="cr-scope-view">' + (rows.join('') || '<span class="cr-dim">내용이 비어 있어요</span>') + '</div>';
 }
 function crNsPerHtml(ns){

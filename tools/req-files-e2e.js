@@ -52,6 +52,7 @@ const NS_SCOPE = { period: PERS.fin, class_key: '공유:고1|화정', kind: '범
         return json(200, { Key: 'x' });
       }
       let body = null; try { body = JSON.parse(req.postData() || 'null'); } catch (e) {}
+      if (m !== 'GET') (st.writes = st.writes || []).push({ m, u, body });   // 수파베이스 쓰기 기록(⑥ 시험 범위 저장)
       if (/\/edit_req_files/.test(u)){
         if (m === 'POST'){ st.files.push({ body, auth: h['authorization'] || '' }); return r.fulfill({ status: 201, body: '' }); }
         st.gets.push(u);
@@ -63,7 +64,7 @@ const NS_SCOPE = { period: PERS.fin, class_key: '공유:고1|화정', kind: '범
         st.gets.push(u);
         if (m !== 'GET') return r.fulfill({ status: 201, body: '' });
         const per = (u.match(/period=(?:eq\.|in\.\()([^&)]*)/) || [])[1] || '';
-        const hit = per.split(',').map(x => x.replace(/"/g, '')).includes(NS_SCOPE.period) && /공유:고1\|화정/.test(u);
+        const hit = per.split(',').map(x => x.replace(/"/g, '')).includes(NS_SCOPE.period) && (!/class_key=eq/.test(u) || /공유:고1\|화정/.test(u));   // 목록 조회(class_key 조건 없음)도 범위를 돌려준다
         return json(200, hit ? [NS_SCOPE] : []);
       }
       if (/\/tt_classes\?/.test(u) && opt.rows) return json(200, u.indexOf('book=eq.내신') >= 0 ? opt.rows : []);
@@ -73,6 +74,7 @@ const NS_SCOPE = { period: PERS.fin, class_key: '공유:고1|화정', kind: '범
     });
     await ctx.route(/script\.google\.com|googleusercontent/, async r => {
       const u = r.request().url(), body = r.request().postData() || '';
+      if (body){ try { (st.gas = st.gas || []).push(JSON.parse(body)); } catch (e) {} }   // 옛 백엔드 POST 기록(시트 사본)
       if (u.includes('editReqList')) return r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ result: 'success', reqs: REQS }) });
       if (body.includes('editReqAdd')){ const s = JSON.parse(body); SENT.push(s); REQS.unshift({ row: 9, ts: '2026-10-26 16:00', writer: s.writer, screen: s.screen, text: s.text, status: '접수됨', note: '', doneTs: '' }); return r.fulfill({ status: 200, contentType: 'application/json', body: '{"result":"success"}' }); }
       return r.fulfill({ status: 200, contentType: 'application/json', body: '{"result":"success"}' });
@@ -209,6 +211,45 @@ const NS_SCOPE = { period: PERS.fin, class_key: '공유:고1|화정', kind: '범
   await page.waitForFunction(() => document.getElementById('req-ns-key') && document.getElementById('req-ns-key').value === '공유:고2|서정', null, { timeout: 8000 });
   r = await page.evaluate(() => ({ scr: document.getElementById('req-screen').value, per: [...document.querySelectorAll('#req-ns-per button.on')].map(x => x.textContent), key: document.getElementById('req-ns-key').value }));
   ok('수정 요청 창이 내신 시험 범위 · 그 반 기간·학교로 열린다', r.scr === '내신 시험 범위' && r.per.join() === PERS.upcoming && r.key === '공유:고2|서정', JSON.stringify(r));
+
+  // ⑥ 슈국 스케쥴 [시험 범위] 탭 — 기간 × 학년·학교(공유 키) 카드, 목차 고르기 + 영역·제목으로 적고 naeshin_records '범위'에 저장(2026-10-26 원장님)
+  await ctx.close();
+  st.gets.length = 0; st.writes = []; st.gas = [];
+  ({ ctx, page } = await open({ rows: [
+    { class_id: 'n001', day: TODAY, start_time: '5:30', end_time: '7:00', location: '화정센터', teacher: '현지', name: '고1 화정A(천재수 공통국어2)', roster: '박보검', kind: '' },
+    { class_id: 'n002', day: TODAY, start_time: '7:30', end_time: '9:00', location: '화정센터', teacher: '연주', name: '고1 확인', roster: '(화정)박보검', kind: '' },
+    { class_id: 'n015', day: TODAY, start_time: '7:30', end_time: '9:00', location: '본원', teacher: '슈', name: '고3파이널A', roster: '김하늘', kind: '' }] }));
+  await page.evaluate(() => setMode('scope'));
+  await page.waitForSelector('.sc-card', { timeout: 10000 });
+  r = await page.evaluate(() => ({ on: document.getElementById('v-scope').classList.contains('on'), hint: document.querySelector('.hint').textContent,
+    per: [...document.querySelectorAll('#sc-per button')].map(x => x.textContent + (x.classList.contains('on') ? '*' : '')),
+    cards: [...document.querySelectorAll('.sc-card')].map(c => c.querySelector('h4').textContent + '|' + c.querySelector('.sc-cls').textContent + '|' + c.querySelector('[data-scedit]').textContent),
+    sum: (document.getElementById('sc-sum') || {}).textContent || '', body: document.querySelector('.sc-card[data-key="공유:고1|화정"]').textContent }));
+  ok('[시험 범위] 탭: 기본 기간 = 다가오는 시험(26-2-기말) · 내신 진도반을 학년·학교로 묶은 카드(확인·고3 제외) · 입력/고치기', r.on && /학년·학교마다 시험범위/.test(r.hint) && r.per.includes(PERS.fin + '*') &&
+     r.cards.length === 1 && /고1 화정/.test(r.cards[0]) && /항목 3개/.test(r.cards[0]) && /고1 화정A\(천재수 공통국어2\) · 현지T/.test(r.cards[0]) && /고치기$/.test(r.cards[0]) && /입력 1 \/ 1/.test(r.sum) && /청산별곡/.test(r.body) && /학습지 1~3/.test(r.body), JSON.stringify(r));
+  if (process.env.SHOT) await page.screenshot({ path: process.env.SHOT + '/6-시험범위탭-카드.png', clip: { x: 0, y: 0, width: 1300, height: 560 } });
+  await page.click('.sc-card [data-scedit]');
+  await page.waitForSelector('.sc-card.on .sc-toc select.toc-unit', { timeout: 8000 });
+  r = await page.evaluate(() => ({ book: document.querySelector('.sc-card.on .toc-book').value, chips: [...document.querySelectorAll('.sc-card.on .sc-toc .toc-chip')].map(x => x.className + ':' + x.firstChild.textContent),
+    outs: [...document.querySelectorAll('.sc-card.on .sc-outp .toc-chip')].map(x => x.textContent.replace(/×$/, '')) }));
+  ok('[고치기] → 교과서 목차(천재 공통국어2) · 옛 자유 글 줄은 "목록 밖" 칩으로 보존 · 교과서 외 범위 칩', r.book === 'T2' && r.chips.length === 2 && r.chips.every(c => /free/.test(c)) && r.outs.join() === '학습지 1~3', JSON.stringify(r));
+  await page.selectOption('.sc-card.on .toc-unit', '1(1) 주체적으로 감상하기 · 뉴욕제과점(김연수)');
+  await page.selectOption('.sc-card.on .toc-area', '문학');
+  await page.fill('.sc-card.on .toc-title', '학습지 4');
+  await page.press('.sc-card.on .toc-title', 'Enter');
+  if (process.env.SHOT) await page.screenshot({ path: process.env.SHOT + '/7-시험범위탭-입력중.png', clip: { x: 0, y: 0, width: 1300, height: 720 } });
+  await page.click('.sc-card.on [data-scsave]');
+  await page.waitForFunction(() => /저장했어요/.test((document.getElementById('sc-msg') || {}).textContent || ''), null, { timeout: 8000 });
+  const sw = st.writes.filter(w => /naeshin_records/.test(w.u)).pop();
+  const t1 = sw && JSON.parse(sw.body[0].text1);
+  ok('저장 → naeshin_records(범위 · 공유:고1|화정 · 그 기간) — 교과서 내 = 옛 줄 + 고른 목차 줄, 교과서 외 = 옛 줄 + [문학] 학습지 4', sw && sw.body[0].period === PERS.fin && sw.body[0].class_key === '공유:고1|화정' && sw.body[0].kind === '범위' && t1 && t1.book === '천재 공통국어2' &&
+     t1.inRange === '2(1) 청산별곡\n2(2) 속미인곡\n1(1) 주체적으로 감상하기 · 뉴욕제과점(김연수)' && t1.outRange === '학습지 1~3\n[문학] 학습지 4', JSON.stringify(sw && sw.body));
+  ok('시트 사본 naeshinSet(범위 · scopeKey)', st.gas.some(g => g.action === 'naeshinSet' && g.kind === '범위' && g.scopeKey === '공유:고1|화정' && g.period === PERS.fin));
+  r = await page.evaluate(() => ({ on: !!document.querySelector('.sc-card.on'), head: document.querySelector('.sc-card h4').textContent, body: document.querySelector('.sc-card').textContent, msg: document.getElementById('sc-msg').textContent }));
+  ok('저장 뒤 카드 = 항목 5개 · 영역 태그 · 안내', !r.on && /항목 5개/.test(r.head) && /뉴욕제과점/.test(r.body) && /문학학습지 4/.test(r.body) && /같은 학교·학년 반/.test(r.msg), JSON.stringify(r));
+  await page.click('#sc-per button:not(.on)');
+  await page.waitForFunction(() => /아직 없어요/.test(document.querySelector('.sc-card h4').textContent), null, { timeout: 8000 });
+  ok('다른 기간으로 바꾸면 그 기간 범위(없음 → "아직 없어요" · [입력])', (await page.$eval('.sc-card [data-scedit]', e => e.textContent)) === '입력' && st.gets.some(u => /naeshin_records\?period=eq\./.test(u) && !/class_key=eq/.test(u)));
   await ctx.close();
 
   await b.close(); srv.close();
