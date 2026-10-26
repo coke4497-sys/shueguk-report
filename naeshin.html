@@ -421,7 +421,7 @@ var WEEKS_READY = false;
 
 var classes = [];          // 내신 시간표 반 목록
 var period = PERIODS[0];
-var NS_TOC = null;   // 시험범위 교과서 목차 고르기 handle(renderPanel 이 만든다)
+var NS_TOC = null, NS_OUT = null;   // 시험범위 교과서 목차 고르기 · 교과서 외 범위 고르기 handle(renderPanel 이 만든다)
 var curClass = null;
 var rec = { scope:'', weeks:{}, notes:{} };   // 현재 반·기간의 기록
 var week = '';
@@ -694,8 +694,10 @@ function renderPanel(){
           '<input id="ns-book" placeholder="예) 창비 공통국어2" value="'+esc(sp.book||defaultBookOf(curClass.cls))+'">'+
           '<label>2. 교과서 내 범위 <span class="dot">한 줄에 한 항목 — 줄마다 클리어 버튼이 됩니다</span></label>'+
           '<textarea id="ns-in" rows="4" placeholder="예) 2(1) 청산별곡">'+esc(sp.inRange||'')+'</textarea>')+
-      '<label>'+(typeof TextbookToc!=='undefined'?'2':'3')+'. 교과서 외 범위 <span class="dot">직접 적기 · 한 줄에 한 항목(학습지·프린트·외부 지문)</span></label>'+
-      '<textarea id="ns-out" placeholder="예) 2503 고1 독서(사회) 형사법과 민사법&#10;학습지 프린트">'+esc(sp.outRange||'')+'</textarea>'+
+      (typeof TextbookToc!=='undefined'
+        ? '<label>2. 교과서 외 범위 <span class="dot">문법·문학·독서·화법·작문·기타를 고르고 제목을 적어 [더하기](학습지·프린트·외부 지문)</span></label><div id="ns-outp"></div>'
+        : '<label>3. 교과서 외 범위 <span class="dot">직접 적기 · 한 줄에 한 항목(학습지·프린트·외부 지문)</span></label>')+
+      (typeof TextbookToc!=='undefined' ? '' : '<textarea id="ns-out" placeholder="예) [독서] 2503 고1 독서(사회) 형사법과 민사법&#10;[기타] 학습지 프린트">'+esc(sp.outRange||'')+'</textarea>')+
       '<div class="savebar" style="align-items:center;">'+
         '<span class="dot" style="margin:0 auto 0 0;">저장하면 아래 주차별 <b>시험범위 클리어</b> 목록에 바로 반영됩니다</span>'+
         '<button type="button" class="act" onclick="saveScope()">시험범위 저장</button></div>'+
@@ -711,6 +713,7 @@ function renderPanel(){
     var grade = (String(c.cls||'').match(/(중[1-3]|고[1-3])/)||[])[1] || '', sk = scopeKeyOf(c.cls, c.id), school = (/^공유:[^|]+\|(.+)$/.exec(sk)||[])[1] || '';
     NS_TOC = TextbookToc.mount($('ns-toc'), { grade: grade, school: school, text: defaultBookOf(c.cls)||sp.book||'', period: period, book: sp.book||'', lines: lines(sp.inRange) });
   }
+  NS_OUT = ($('ns-outp') && typeof TextbookToc!=='undefined') ? TextbookToc.mountOut($('ns-outp'), { lines: lines(sp.outRange) }) : null;
   renderWeek();
 }
 function renderWeek(){
@@ -932,7 +935,7 @@ function saveScope(){
   var g = NS_TOC ? NS_TOC.get() : null;
   var sp={ book: g ? g.book : $('ns-book').value.trim(), inRange: g ? g.lines.join('\n') : $('ns-in').value.trim(),
            extra:String(prev.extra||'').trim(),   // 칸은 없앴지만 옛 기록은 그대로 보존
-           outRange:$('ns-out').value.trim() };
+           outRange: NS_OUT ? NS_OUT.get().lines.join('\n') : $('ns-out').value.trim() };
   var readable=scopeLabelPairs(sp).map(function(x){ return x[0]+': '+x[1]; }).join('\n');
   var empty=!readable;
   post({ action:'naeshinSet', period:period, classId:curClass.id, kind:'범위',

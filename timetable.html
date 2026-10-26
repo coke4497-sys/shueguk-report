@@ -574,6 +574,7 @@
   .pst.done{background:#DCE8E5;color:#3F6159;} .pst.now{background:#EDE4F4;color:#5A4A6A;} .pst.todo{background:#F2F5F3;color:#65726B;} .pst.later{background:#F9EFD0;color:#7A6230;}
   .cr-ptab button{font:inherit;font-size:.7rem;border:0;border-radius:999px;padding:2px 9px;background:#EDE4F4;color:#5A4A6A;cursor:pointer;white-space:nowrap;}
   .cr-ptab button.rm{background:#F2F5F3;color:#65726B;}
+  .cr-area{font-style:normal;font-size:.66rem;background:#F9EFD0;color:#5F4E14;border-radius:6px;padding:0 5px;margin-right:5px;vertical-align:1px;}
   .cr-pbar{display:flex;align-items:center;gap:8px;font-size:.74rem;color:var(--ink-soft);}
   .cr-pbar i{flex:1;height:6px;border-radius:3px;background:#E6ECE9;overflow:hidden;display:block;} .cr-pbar i b{display:block;height:100%;background:#8FB3A9;}
   .cr-pbox,.cr-hbox{background:#fff;border-radius:9px;padding:7px 10px;font-size:.78rem;display:flex;flex-direction:column;gap:6px;}
@@ -7593,7 +7594,7 @@ var REQ_STORE = 'https://bangdbhqpphqqdwcledg.supabase.co/storage/v1', REQ_BUCKE
 var REQ_MAX_FILES = 6, REQ_MAX_SIZE = 20 * 1024 * 1024;
 var REQ_MARK_RE = /\n?\[첨부 \d+\][^\n]*#(rq_[a-z0-9]{8,})\s*$/;
 var reqPend = [], reqPendUrls = [], reqFiles = {}, reqFilesBusy = {};
-var reqNs = { targets: null, key: '', period: '', now: null, seq: 0, toc: null };
+var reqNs = { targets: null, key: '', period: '', now: null, seq: 0, toc: null, outp: null };
 function openEditReq(){
   reqPend = []; reqRevoke();
   reqNs.key = ''; reqNs.period = ''; reqNs.now = null;
@@ -7835,8 +7836,8 @@ function reqScreenChanged(){
   if (!sel || !ns) return;
   var on = sel.value === REQ_NS_SCREEN;
   ns.hidden = !on;
-  if (lb) lb.textContent = on ? '교과서 외 범위 · 메모' : '무엇을 고칠까요?';
-  if (ta) ta.placeholder = on ? '교과서 외 범위(학습지·프린트·외부 지문)를 한 줄에 하나 적어 주세요. 교과서 내 범위는 위 목차에서 고르고, 학교 안내문 사진만 붙여도 됩니다.'
+  if (lb) lb.textContent = on ? '메모 (선택)' : '무엇을 고칠까요?';
+  if (ta) ta.placeholder = on ? '덧붙일 말이 있으면 적어 주세요. 교과서 내 범위는 위 목차에서, 교과서 외 범위는 영역을 고르고 제목을 적어 더하면 됩니다. 학교 안내문 사진만 붙여도 돼요.'
                              : '반·학생 이름과 함께 적어 주세요 — 예: 고1 백양B 명단에 김○○이 두 번 들어가 있어요';
   if (on) reqNsRender();
 }
@@ -7876,6 +7877,7 @@ function reqNsRender(){
       (reqNs.targets || []).map(function(t){ return '<option value="' + esc(t.key) + '"' + (t.key === reqNs.key ? ' selected' : '') + '>' + esc(t.label) + (t.book ? ' · ' + esc(t.book) : '') + '</option>'; }).join('') +
       '<option value="__none"' + (reqNs.key === '__none' ? ' selected' : '') + '>목록에 없음 — 글에 학년·학교를 적어 주세요</option></select>' +
     '<small class="lb">교과서 · 교과서 내 범위</small><div id="req-ns-toc"></div>' +
+    '<small class="lb">교과서 외 범위 <span class="cr-dim">(문법·문학·독서·화법·작문·기타 + 제목)</span></small><div id="req-ns-outp"></div>' +
     '<small class="lb">지금 저장된 범위</small><div class="req-ns-now" id="req-ns-now"></div>' +
     '<span class="cr-dim">보내 주시면 슈국 조교 슈콩이가 내신대비 피드백·수업 기록의 시험범위에 넣어 둡니다. 이미 있는 범위는 새 내용으로 바뀌어요.</span>';
   reqNsNowRender(); reqNsTocMount();
@@ -7894,8 +7896,11 @@ function reqNsPick(k){ reqNs.key = k; reqNsNow(); reqNsTocMount(); }
 /* 학년·학교를 고르면 그 학교 교과서 목차 고르기(textbook-toc.js) — 고른 단원은 보내는 글에 '교과서 내 범위:' 줄로 */
 function reqNsTocMount(){
   var el = $('req-ns-toc'); if (!el) return;
-  var prev = reqNs.toc ? reqNs.toc.get() : null;
+  var prev = reqNs.toc ? reqNs.toc.get() : null, prevOut = reqNs.outp ? reqNs.outp.get() : null;
   if (reqNs.toc){ reqNs.toc.destroy(); reqNs.toc = null; }
+  if (reqNs.outp){ reqNs.outp.destroy(); reqNs.outp = null; }
+  var eo = $('req-ns-outp');
+  if (eo && typeof TextbookToc !== 'undefined') reqNs.outp = TextbookToc.mountOut(eo, { lines: prevOut ? prevOut.lines : [] });
   var t = reqNsTarget();
   el.className = '';
   if (!t || typeof TextbookToc === 'undefined'){ el.innerHTML = '<span class="cr-dim">' + (reqNs.key === '__none' ? '목록에 없는 학교는 아래 글에 교과서와 범위를 적어 주세요.' : '학년·학교를 고르면 그 학교 교과서 목차가 나와요.') + '</span>'; return; }
@@ -7932,12 +7937,13 @@ function reqNsNowRender(){
 /* 보낼 글 머리 — '[내신 시험 범위] 26-2-기말 · 고1 화정 (공유:고1|화정) · 교과서: 천재수 공통국어2' */
 function reqNsCompose(body, hasFiles){
   if (!reqNs.key) return { err: '학년·학교를 골라 주세요.' };
-  var g = reqNs.toc ? reqNs.toc.get() : null, lines = g ? g.lines : [];
-  if (!body && !hasFiles && !lines.length) return { err: '교과서 내 범위를 고르거나, 교과서 외 범위를 적거나, 안내문 사진을 붙여 주세요.' };
+  var g = reqNs.toc ? reqNs.toc.get() : null, lines = g ? g.lines : [], outs = reqNs.outp ? reqNs.outp.get().lines : [];
+  if (!body && !hasFiles && !lines.length && !outs.length) return { err: '교과서 내 범위를 고르거나, 교과서 외 범위를 더하거나, 안내문 사진을 붙여 주세요.' };
   var t = reqNsTarget(), head = '[' + REQ_NS_SCREEN + '] ' + reqNs.period + ' · ', book = (g && g.book) || (t && t.book) || '';
   head += t ? t.label + ' (' + t.key + ')' + (book ? ' · 교과서: ' + book : '') : '학년·학교는 글 참고';
-  var text = head + (lines.length ? '\n교과서 내 범위:\n' + lines.map(function(l){ return '- ' + l; }).join('\n') : '') + (body ? '\n교과서 외 범위·메모:\n' + body : '');
-  if (!lines.length && !body) text += '\n(첨부한 안내문 사진 참고)';
+  var text = head + (lines.length ? '\n교과서 내 범위:\n' + lines.map(function(l){ return '- ' + l; }).join('\n') : '') +
+             (outs.length ? '\n교과서 외 범위:\n' + outs.map(function(l){ return '- ' + l; }).join('\n') : '') + (body ? '\n메모:\n' + body : '');
+  if (!lines.length && !outs.length && !body) text += '\n(첨부한 안내문 사진 참고)';
   return { text: text };
 }
 function reqSubmit(){
@@ -7968,6 +7974,8 @@ function reqSubmit(){
       if ($('req-text')) $('req-text').value = '';
       reqPend = []; reqDrawPend();
       if (msg) msg.textContent = '슈국 조교 슈콩이가 요청을 받았어요. 처리하면 아래 목록에 결과를 남겨 둘게요.';
+      if (reqNs.toc) reqNs.toc.set('', []);   // 보낸 범위는 비운다(다음 요청에 섞이지 않게)
+      if (reqNs.outp) reqNs.outp.set([]);
       setStatus('수정 요청을 남겼어요.', 'ok');
       reqLoad();
     });
@@ -8541,11 +8549,16 @@ function crNsProgHtml(sp, cleared, week, editable){
     items.forEach(function(it){
       var c = cleared[it], st = crNsProgStat(c, week);
       var btn = !editable ? '' : st === 'now' ? '<button type="button" class="rm" data-unrm="' + esc(it) + '">빼기</button>' : '<button type="button" data-unadd="' + esc(it) + '">이번 주 나감</button>';
-      rows += '<tr class="' + st + '"><td>' + esc(it) + '</td><td><span class="pst ' + st + '">' + crNsProgLabel(c, week) + '</span></td>' + (editable ? '<td>' + btn + '</td>' : '') + '</tr>';
+      rows += '<tr class="' + st + '"><td>' + crNsItemHtml(it) + '</td><td><span class="pst ' + st + '">' + crNsProgLabel(c, week) + '</span></td>' + (editable ? '<td>' + btn + '</td>' : '') + '</tr>';
     });
   });
   if (!rows) return '<span class="cr-dim">범위 항목이 없어요</span>';
   return '<table class="cr-ptab"><thead><tr><th>단원</th><th>진행</th>' + (editable ? '<th></th>' : '') + '</tr></thead><tbody>' + rows + '</tbody></table>';
+}
+/* 교과서 외 범위 줄 '[문학] 제목'은 영역 태그 + 제목으로(textbook-toc.js parseOut) */
+function crNsItemHtml(it){
+  var p = typeof TextbookToc !== 'undefined' ? TextbookToc.parseOut(it) : null;
+  return p && p.area ? '<i class="cr-area">' + esc(p.area) + '</i>' + esc(p.title) : esc(it);
 }
 /* 범위 + 진행 표 한 덩어리(교과서 · 진행 막대 · 표 · 최근 진도 메모) */
 function crNsProgBlock(sp, cleared, week, editable, last){
@@ -9010,10 +9023,11 @@ function crRender(){
 /* 시험범위 직접 입력의 교과서 목차 고르기 — 다시 그려도(별 누름 등) 고른 것이 남게 앞 handle 의 값을 이어 받는다 */
 function crNsMountToc(){
   var el = $('cr-ns-toc'); if (!el || typeof TextbookToc === 'undefined') return;
-  var ns = CR.ns, sp = ns.scope || {}, prev = ns.toc ? ns.toc.get() : null;
+  var ns = CR.ns, sp = ns.scope || {}, prev = ns.toc ? ns.toc.get() : null, prevOut = ns.outp ? ns.outp.get() : null;
   var school = (/^공유:[^|]+\|(.+)$/.exec(ns.key) || [])[1] || '';
   ns.toc = TextbookToc.mount(el, { grade: classGradeOf(CR.c), school: school, text: crDefaultBook(CR.c.cls) || sp.book || '', period: ns.period,
     book: prev ? prev.book : (sp.book || ''), lines: prev ? prev.lines : crLines(sp.inRange) });
+  var eo = $('cr-ns-outp'); if (eo) ns.outp = TextbookToc.mountOut(eo, { lines: prevOut ? prevOut.lines : (ns.outDraft != null ? crLines(ns.outDraft) : crLines(sp.outRange)) });
 }
 /* 리포트 상태 띠 — 이미 생성·공개된 수업인지 창 맨 위에서 바로 보이게(2026-10-03 원장님 "이미 생성했고 공개했다는 것을 알 수 있으면") */
 function crStateHtml(n){
@@ -9079,7 +9093,8 @@ function crNsHtml(n){
     body = (tocOk ? '<div class="cr-f"><label>교과서 · 교과서 내 범위 <small>(목차에서 골라 더해요 — 고른 단원이 진도 고르기 목록이 돼요)</small></label><div id="cr-ns-toc"></div></div>'
       : '<div class="cr-f"><label for="cr-ns-book">교과서</label><input id="cr-ns-book" value="' + esc(sp.book || crDefaultBook(CR.c.cls)) + '" placeholder="예) 창비 공통국어2"></div>' +
         '<div class="cr-f"><label for="cr-ns-in">교과서 내 범위 <small>(한 줄에 한 단원 — 진도 고르기 목록이 돼요)</small></label><textarea id="cr-ns-in" rows="4" placeholder="예) 2(1) 청산별곡">' + esc(sp.inRange || '') + '</textarea></div>') +
-      '<div class="cr-f"><label for="cr-ns-out">교과서 외 범위 <small>(한 줄에 하나 — 학습지·프린트·외부 지문)</small></label><textarea id="cr-ns-out" rows="2" placeholder="예) 학습지 프린트 1~3">' + esc(ns.outDraft != null ? ns.outDraft : (sp.outRange || '')) + '</textarea></div>' +
+      (tocOk ? '<div class="cr-f"><label>교과서 외 범위 <small>(문법·문학·독서·화법·작문·기타를 고르고 제목을 적어 [더하기] — 학습지·프린트·외부 지문)</small></label><div id="cr-ns-outp"></div></div>'
+             : '<div class="cr-f"><label for="cr-ns-out">교과서 외 범위 <small>(한 줄에 하나 — 학습지·프린트·외부 지문)</small></label><textarea id="cr-ns-out" rows="2" placeholder="예) [문학] 학습지 프린트 1~3">' + esc(ns.outDraft != null ? ns.outDraft : (sp.outRange || '')) + '</textarea></div>') +
       '<div class="cr-inline"><button type="button" class="cr-btn" id="cr-ns-save">시험범위 저장</button><button type="button" class="cr-mini" id="cr-ns-edit">취소</button><span class="cr-dim">같은 학교·학년 반과 함께 쓰는 기록이에요</span></div>';
   } else if (ns.scope){
     body = crNsProgBlock(sp, ns.cleared, ns.week, true, null) +
@@ -9220,7 +9235,7 @@ document.addEventListener('click', function(e){
   if (b.hasAttribute('data-pshow')){ var pi = +b.getAttribute('data-pshow'); crKeepInputs(); CR.pshow[pi] = !CR.pshow[pi]; crRender(); return; }
   if (b.hasAttribute('data-hist')){ crHistToggle(+b.getAttribute('data-hist')); return; }
   if (b.id === 'cr-ns-save'){ crNsSaveScope(); return; }
-  if (b.id === 'cr-ns-edit'){ crKeepInputs(); CR.ns.edit = !CR.ns.edit; CR.ns.open = true; CR.ns.toc = null; CR.ns.outDraft = null; crRender(); return; }
+  if (b.id === 'cr-ns-edit'){ crKeepInputs(); CR.ns.edit = !CR.ns.edit; CR.ns.open = true; CR.ns.toc = null; CR.ns.outp = null; CR.ns.outDraft = null; crRender(); return; }
   if (b.id === 'cr-ns-req'){ crNsReq(); return; }
   if (b.id === 'cr-sib-go'){ crSibImport(); return; }
   if (b.id === 'cr-only-todo'){ crKeepInputs(); CR.onlyTodo = !CR.onlyTodo; crRender(); return; }
@@ -9255,6 +9270,7 @@ function crKeepInputs(){
   if ($('cr-task')) n.homework = $('cr-task').value;
   if ($('cr-xt')) CR.xtDraft = $('cr-xt').value;
   if (CR.ns && $('cr-ns-out')) CR.ns.outDraft = $('cr-ns-out').value;
+  if (CR.ns && CR.ns.outp && $('cr-ns-outp')) CR.ns.outDraft = CR.ns.outp.get().lines.join('\n');
   var cm = n.comments = Object.assign({}, n.comments || {});
   CR.names.forEach(function(x, i){ var el = $('cr-c-' + i); if (el) cm[x.p] = el.value; });
   var ih = Object.assign({}, (cm[CR_IH_KEY] && typeof cm[CR_IH_KEY] === 'object') ? cm[CR_IH_KEY] : {});
@@ -9401,13 +9417,14 @@ function crNsWrite(kind, key, week, t1, t2){
 }
 function crNsSaveScope(){
   var ns = CR.ns, prev = ns.scope || {}, g = ns.toc ? ns.toc.get() : null;
-  var sp = { book: g ? g.book : $('cr-ns-book').value.trim(), inRange: g ? g.lines.join('\n') : $('cr-ns-in').value.trim(), extra: String(prev.extra || '').trim(), outRange: $('cr-ns-out').value.trim() };
+  var sp = { book: g ? g.book : $('cr-ns-book').value.trim(), inRange: g ? g.lines.join('\n') : $('cr-ns-in').value.trim(), extra: String(prev.extra || '').trim(),
+             outRange: ns.outp ? ns.outp.get().lines.join('\n') : $('cr-ns-out').value.trim() };
   var readable = [['교과서', sp.book], ['교과서 내 범위', sp.inRange], ['교과서 외 범위', sp.outRange], ['추가 자료', sp.extra]]
     .filter(function(x){ return x[1]; }).map(function(x){ return x[0] + ': ' + x[1]; }).join('\n');
   crKeepInputs();
   crMsg('시험범위를 저장하는 중…');
   crNsWrite('범위', ns.key, '', readable ? JSON.stringify(sp) : '', readable).then(function(){
-    ns.scope = readable ? sp : null; ns.open = true; ns.edit = false; ns.toc = null; ns.outDraft = null;   // 저장한 범위·진행 표가 바로 보이게 펼친 채로
+    ns.scope = readable ? sp : null; ns.open = true; ns.edit = false; ns.toc = null; ns.outp = null; ns.outDraft = null;   // 저장한 범위·진행 표가 바로 보이게 펼친 채로
     crRender(); crMsg('시험범위를 저장했어요.' + (ns.key !== CR.c.id ? ' 같은 학교·학년 반에도 함께 보여요.' : ''));
   }).catch(function(e){ crMsg('시험범위를 저장하지 못했어요. 다시 눌러 주세요. (' + e.message + ')', true); });
 }
