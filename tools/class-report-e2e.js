@@ -98,7 +98,7 @@ const STUDENTS = [
     page.on('dialog', d => d.accept());
     await page.addInitScript(o => { sessionStorage.setItem('tt_mode', o.mode || 'today'); sessionStorage.setItem('tt_book', o.bk); localStorage.clear(); }, { bk: opt.book, mode: opt.mode });
     await page.goto('http://127.0.0.1:' + port + '/timetable.html' + (opt.qs || ''));
-    // 고1·고2 예외 기간(CR_NS_SPLIT — 2026-10-12~11-01, 내신 시간표로 정규 수업)은 날짜에 묶여 있어 검사에서는 기본으로 끈다(②-2b 가 따로 켠다)
+    // 고1·고2 예외 기간(CR_NS_SPLIT — 2026-10-12~11-03, 내신 시간표로 정규 수업)은 날짜에 묶여 있어 검사에서는 기본으로 끈다(②-2b 가 따로 켠다)
     await page.evaluate(() => { if (typeof CR_NS_SPLIT_FROM !== 'undefined'){ CR_NS_SPLIT_FROM = '2000-01-01'; CR_NS_SPLIT_TO = '2000-01-02'; } });
     return { ctx, page, st };
   }
@@ -362,7 +362,7 @@ const STUDENTS = [
       tasks: [...c.querySelectorAll('.cr-tname')].map(x => x.textContent) })));
     const sy = r.find(x => x.nm === '박보검') || {};
     const r2 = await page.evaluate(() => ({ scope: !!document.getElementById('cr-scope'), lab: document.querySelector('label[for=cr-prog]').textContent, ns: !!(typeof CR !== 'undefined' && CR.ns), nsGets: (window.__nsGets || 0) }));
-    ok('예외 기간(정규 수업 중) 고1 진도 수업: 시험범위·진행 상황 칸 없이 오늘 진도·과제 칸만(11/2부터 적용 — 2026-10-26 원장님)', !r2.scope && /오늘 진도/.test(r2.lab) && !r2.ns && !(st.nsGets || []).length, JSON.stringify([r2, st.nsGets]));
+    ok('예외 기간(정규 수업 중) 고1 진도 수업: 시험범위·진행 상황 칸 없이 오늘 진도·과제 칸만(11/4(수)부터 적용 — 2026-10-26 원장님)', !r2.scope && /오늘 진도/.test(r2.lab) && !r2.ns && !(st.nsGets || []).length, JSON.stringify([r2, st.nsGets]));
     ok('고1 진도 수업 조회 = 진도 반만(확인 반 n002 제외)', (st.srcGets || []).some(u => /"n001"/.test(u)) && !(st.srcGets || []).some(u => /"n002"/.test(u)), JSON.stringify(st.srcGets));
     ok('고1 진도 수업: 확인(문학) 과제가 아니라 지난 진도(독서) 과제', sy.tasks && sy.tasks.join('|') === '독서 지문 3개', JSON.stringify(r));
     await ctx.close();
