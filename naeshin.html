@@ -695,7 +695,7 @@ function renderPanel(){
           '<label>2. 교과서 내 범위 <span class="dot">한 줄에 한 항목 — 줄마다 클리어 버튼이 됩니다</span></label>'+
           '<textarea id="ns-in" rows="4" placeholder="예) 2(1) 청산별곡">'+esc(sp.inRange||'')+'</textarea>')+
       (typeof TextbookToc!=='undefined'
-        ? '<label>2. 교과서 외 범위 <span class="dot">문법·문학·독서·화법·작문·기타를 고르고 제목을 적어 [더하기](학습지·프린트·외부 지문)</span></label><div id="ns-outp"></div>'
+        ? '<label>2. 교과서 외 범위 <span class="dot">문법·문학·독서·화법·작문·기타를 고르고 제목을 적어 [+](학습지·프린트·외부 지문)</span></label><div id="ns-outp"></div>'
         : '<label>3. 교과서 외 범위 <span class="dot">직접 적기 · 한 줄에 한 항목(학습지·프린트·외부 지문)</span></label>')+
       (typeof TextbookToc!=='undefined' ? '' : '<textarea id="ns-out" placeholder="예) [독서] 2503 고1 독서(사회) 형사법과 민사법&#10;[기타] 학습지 프린트">'+esc(sp.outRange||'')+'</textarea>')+
       '<div class="savebar" style="align-items:center;">'+

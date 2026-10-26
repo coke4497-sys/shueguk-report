@@ -11,7 +11,7 @@
  * 고른 줄의 글자(label)가 그대로 naeshin_records '범위'의 교과서 내 범위 한 줄 = 진도 단원 하나가 된다. 목록에 없는 옛 줄은 지우지 않고 '목록 밖' 칩으로 둔다.
  * 교과서가 목록에 없으면(중3·고3 등) 옛날처럼 교과서 이름 칸 + 한 줄에 하나 적는 칸.
  *   TextbookToc.mountOut(el, {lines, onChange})   → 교과서 외 범위 고르기(2026-10-26 원장님 "교과서 외의 경우에도 문법, 문학, 독서, 화법, 작문, 기타를
- *     드롭다운으로 고르고 제목을 적는 방식"): 영역 드롭다운 + 제목 칸 + [더하기] → 줄 '[문학] 청산별곡'(OUT_RE). 영역 없는 옛 줄은 '구분 없음' 칩으로 보존.
+ *     드롭다운으로 고르고 제목을 적는 방식"): 영역 드롭다운 + 제목 칸 + [+](2026-10-26 원장님 "더하기 -> +") → 줄 '[문학] 청산별곡'(OUT_RE). 영역 없는 옛 줄은 '구분 없음' 칩으로 보존.
  *     get() = { lines: ['[문학] 청산별곡', …] }. 표시가 필요한 곳은 TextbookToc.parseOut(line) → {area, title}. */
 (function (w, d) {
   var here = (d.currentScript && d.currentScript.src) ? d.currentScript.src.replace(/[^/]*$/, '') : '';
@@ -62,7 +62,7 @@
     '.toc .toc-chip{font-size:.78rem;background:#EDE4F4;color:#5A4A6A;border-radius:8px;padding:2px 4px 2px 9px;display:inline-flex;align-items:center;gap:2px;line-height:1.45;}' +
     '.toc .toc-chip.free{background:#F2F5F3;color:#65726B;} .toc .toc-chip.free::before{content:"목록 밖";font-size:.66rem;margin-right:4px;opacity:.8;}' +
     '.toc .toc-chip button{border:0;background:none;color:inherit;cursor:pointer;font-size:.9rem;padding:0 4px;line-height:1;}' +
-    '.toc .toc-out input.toc-title{flex:1;min-width:160px;} .toc .toc-add{font:inherit;font-size:.78rem;border:0;border-radius:999px;padding:6px 12px;background:#EDE4F4;color:#5A4A6A;cursor:pointer;white-space:nowrap;}' +
+    '.toc .toc-out input.toc-title{flex:1;min-width:160px;} .toc .toc-add{font:inherit;font-size:1rem;line-height:1;border:0;border-radius:999px;width:34px;height:34px;padding:0;background:#EDE4F4;color:#5A4A6A;cursor:pointer;white-space:nowrap;}' +
     '.toc .toc-chip.out{background:#F9EFD0;color:#5F4E14;} .toc .toc-chip .toc-tag{font-style:normal;font-size:.66rem;background:rgba(255,255,255,.7);border-radius:6px;padding:0 5px;margin-right:5px;}' +
     '.toc .toc-chip.out.noarea{background:#F2F5F3;color:#65726B;} .toc .toc-chip.out.noarea::before{content:"구분 없음";font-size:.66rem;margin-right:4px;opacity:.8;}' +
     '.toc .toc-dim{font-size:.74rem;color:#65726B;} .toc textarea{font:inherit;font-size:.84rem;border:1px solid #D7E0DB;border-radius:9px;padding:6px 8px;min-height:72px;width:100%;box-sizing:border-box;}';
@@ -153,7 +153,7 @@
       if (st.dead) return;
       var title = keepTitle ? ((el.querySelector('.toc-title') || {}).value || '') : '';
       el.innerHTML = '<div class="toc-row toc-out"><select class="toc-area" aria-label="영역">' + AREAS.map(function (a) { return '<option value="' + a + '"' + (a === st.area ? ' selected' : '') + '>' + a + '</option>'; }).join('') + '</select>' +
-        '<input class="toc-title" maxlength="80" placeholder="제목 — 예) 청산별곡 · 2503 고1 독서(사회) 형사법과 민사법 · 학습지 3회" value="' + esc(title) + '"><button type="button" class="toc-add">더하기</button></div>' +
+        '<input class="toc-title" maxlength="80" placeholder="제목 — 예) 청산별곡 · 2503 고1 독서(사회) 형사법과 민사법 · 학습지 3회" value="' + esc(title) + '"><button type="button" class="toc-add" aria-label="더하기" title="더하기">+</button></div>' +
         '<div class="toc-chips">' + (st.lines.length ? st.lines.map(function (l) { var p = parseOut(l); return '<span class="toc-chip out' + (p.area ? '' : ' noarea') + '">' + (p.area ? '<i class="toc-tag">' + p.area + '</i>' : '') + esc(p.title) + '<button type="button" data-rm="' + esc(l) + '" aria-label="' + esc(p.title) + ' 빼기">×</button></span>'; }).join('') : '<span class="toc-dim">아직 더한 것이 없어요</span>') + '</div>';
     }
     function add(){
