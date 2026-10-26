@@ -30,7 +30,7 @@ const PERIODS = ['2026-10-07', '2026-10-14', '2026-10-21', '2026-10-28', '2026-1
   await page.selectOption('#f-class', 'n001');
   await page.waitForSelector('#ns-toc select.toc-unit', { timeout: 10000 });
   let pass = 0, fail = 0; const ok = (n, c, x) => { if (c) pass++; else { fail++; console.log('  ✗ ' + n + (x ? ' — ' + x : '')); } };
-  let r = await page.evaluate(() => ({ book: document.querySelector('#ns-toc .toc-book').value, txt: document.querySelector('#ns-toc .toc-book option:checked').textContent, oldIn: !!document.getElementById('ns-in'), out: !!document.getElementById('ns-out'), lab: [...document.querySelectorAll('#panel label')].slice(1, 3).map(x => x.textContent) }));
+  let r = await page.evaluate(() => ({ book: document.querySelector('#ns-toc .toc-book').value, txt: document.querySelector('#ns-toc .toc-book option:checked').textContent, oldIn: !!document.getElementById('ns-in'), out: !!document.querySelector('#ns-outp .toc-area') && !document.getElementById('ns-out'), lab: [...document.querySelectorAll('#panel label')].slice(1, 3).map(x => x.textContent) }));
   ok('내신대비 피드백: 교과서 목차 고르기(천재수 공통국어2 → T2) · 옛 입력칸 없음 · 교과서 외 범위 칸', r.book === 'T2' && /천재\(김수학\) 공통국어2/.test(r.txt) && !r.oldIn && r.out && /교과서 내 범위/.test(r.lab[0]) && /교과서 외 범위/.test(r.lab[1]), JSON.stringify(r));
   await page.selectOption('#ns-toc .toc-unit', '__u|1|주체적으로 감상하기, 비판적으로 읽기'.replace(/\|.*$/, '') ).catch(() => {});
   const grp = await page.evaluate(() => [...document.querySelectorAll('#ns-toc .toc-unit option')].map(o => o.value).find(v => /^__u\|/.test(v)));
@@ -40,12 +40,14 @@ const PERIODS = ['2026-10-07', '2026-10-14', '2026-10-21', '2026-10-28', '2026-1
   await page.click('#ns-toc .toc-chip button');
   const n1 = r.length; r = await page.evaluate(() => [...document.querySelectorAll('#ns-toc .toc-chip')].map(x => x.firstChild.textContent));
   ok('칩 ×로 하나 빼기', r.length === n1 - 1);
-  await page.fill('#ns-out', '학습지 4~6');
+  await page.selectOption('#ns-outp .toc-area', '문법');
+  await page.fill('#ns-outp .toc-title', '학습지 4~6');
+  await page.press('#ns-outp .toc-title', 'Enter');
   await page.evaluate(() => saveScope());
   await page.waitForFunction(() => /시험범위 저장 완료/.test(document.getElementById('status').textContent), null, { timeout: 8000 }).catch(() => {});
   const p = posts.find(x => x.action === 'naeshinSet' && x.kind === '범위');
   const t1 = p && JSON.parse(p.text1);
-  ok('저장 = naeshinSet(범위, 공유 키) · 교과서 천재 공통국어2 · 교과서 내 범위 = 고른 줄 · 외 범위', p && p.scopeKey === '공유:고1|화정' && t1 && t1.book === '천재 공통국어2' && t1.inRange.split('\n').length === r.length && t1.outRange === '학습지 4~6', JSON.stringify(p));
+  ok('저장 = naeshinSet(범위, 공유 키) · 교과서 천재 공통국어2 · 교과서 내 범위 = 고른 줄 · 외 범위 = [영역] 제목', p && p.scopeKey === '공유:고1|화정' && t1 && t1.book === '천재 공통국어2' && t1.inRange.split('\n').length === r.length && t1.outRange === '[문법] 학습지 4~6', JSON.stringify(p));
   await page.evaluate(() => window.scrollTo(0, 0));
   if (SHOT){ const card = await page.$('#panel .card'); await card.screenshot({ path: path.join(SHOT, '5-내신대비피드백-시험범위-목차고르기.png') }); }
   // 목록에 없는 교과서 → 직접 적기

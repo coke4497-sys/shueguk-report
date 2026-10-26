@@ -159,7 +159,7 @@ const NS_SCOPE = { period: PERS.fin, class_key: '공유:고1|화정', kind: '범
   let r = await page.evaluate(() => ({ hid: document.getElementById('req-ns').hidden, lb: document.getElementById('req-text-lb').textContent, ph: document.getElementById('req-text').placeholder,
     per: [...document.querySelectorAll('#req-ns-per button')].map(x => x.textContent + (x.classList.contains('on') ? '*' : '')),
     opts: [...document.querySelectorAll('#req-ns-key option')].map(x => x.value + '=' + x.textContent), now: document.getElementById('req-ns-now').textContent }));
-  ok('양식 보임 · 글 칸 이름 "교과서 외 범위 · 메모" · 교과서 내 범위는 위 목차에서 안내', !r.hid && r.lb === '교과서 외 범위 · 메모' && /교과서 내 범위는 위 목차에서/.test(r.ph) && /학년·학교를 고르면 그 학교 교과서 목차/.test(await page.textContent('#req-ns-toc')), JSON.stringify(r));
+  ok('양식 보임 · 글 칸은 "메모 (선택)" · 교과서 내 범위는 목차에서, 교과서 외 범위는 영역+제목 안내', !r.hid && r.lb === '메모 (선택)' && /교과서 내 범위는 위 목차에서/.test(r.ph) && /학년·학교를 고르면 그 학교 교과서 목차/.test(await page.textContent('#req-ns-toc')) && !!(await page.$('#req-ns-outp .toc-area')), JSON.stringify(r));
   ok('기간 알약 둘 · 다가오는 시험이 기본', r.per.length === 2 && r.per.includes(PERS.upcoming + '*'), JSON.stringify(r.per));
   ok('학년·학교 = 내신 반이름의 공유 키(확인·고3파이널 제외, 교과서 붙임, 목록에 없음)', r.opts.join('|') === '=학년·학교를 고르세요|공유:중2|화정=중2 화정 · 비상(영)|공유:고1|화정=고1 화정 · 천재수 공통국어2|공유:고2|서정=고2 서정 · 천재 독서와 작문|__none=목록에 없음 — 글에 학년·학교를 적어 주세요', r.opts.join('|'));
   ok('고르기 전 안내', /학년·학교를 고르면/.test(r.now));
@@ -177,13 +177,16 @@ const NS_SCOPE = { period: PERS.fin, class_key: '공유:고1|화정', kind: '범
   await page.waitForSelector('#req-ns-toc select.toc-unit', { timeout: 8000 });
   r = await page.evaluate(() => ({ book: document.querySelector('#req-ns-toc .toc-book').value, txt: document.querySelector('#req-ns-toc .toc-book option:checked').textContent }));
   ok('학년·학교를 고르면 그 학교 교과서 목차 — 고1 화정 + 천재수 공통국어2 → 천재(김수학) 공통국어2', r.book === 'T2' && /천재\(김수학\) 공통국어2/.test(r.txt), JSON.stringify(r));
-  ok('단원도 글도 파일도 없으면 거절', await page.evaluate(() => { reqSubmit(); return document.getElementById('req-err').textContent; }) === '교과서 내 범위를 고르거나, 교과서 외 범위를 적거나, 안내문 사진을 붙여 주세요.');
+  ok('단원도 글도 파일도 없으면 거절', await page.evaluate(() => { reqSubmit(); return document.getElementById('req-err').textContent; }) === '교과서 내 범위를 고르거나, 교과서 외 범위를 더하거나, 안내문 사진을 붙여 주세요.');
   await page.selectOption('#req-ns-toc .toc-unit', '1(1) 주체적으로 감상하기 · 뉴욕제과점(김연수)');
-  await page.fill('#req-text', '학습지 4~6');
+  await page.selectOption('#req-ns-outp .toc-area', '기타');
+  await page.fill('#req-ns-outp .toc-title', '학습지 4~6');
+  await page.click('#req-ns-outp .toc-add');
+  await page.fill('#req-text', '범위 확정본이에요');
   await page.click('#req-submit');
   await page.waitForFunction(() => (document.getElementById('req-msg') || {}).textContent.includes('요청을 받았어요'), null, { timeout: 8000 });
-  ok('보낸 글 = [내신 시험 범위] 기간 · 고1 화정 (공유 키) · 교과서(목록 이름) + 교과서 내 범위(고른 줄) + 교과서 외 범위·메모', SENT.length === 1 && SENT[0].screen === '내신 시험 범위' &&
-     SENT[0].text === '[내신 시험 범위] ' + PERS.fin + ' · 고1 화정 (공유:고1|화정) · 교과서: 천재 공통국어2\n교과서 내 범위:\n- 1(1) 주체적으로 감상하기 · 뉴욕제과점(김연수)\n교과서 외 범위·메모:\n학습지 4~6', JSON.stringify(SENT));
+  ok('보낸 글 = 머리 + 교과서 내 범위(고른 줄) + 교과서 외 범위([영역] 제목) + 메모', SENT.length === 1 && SENT[0].screen === '내신 시험 범위' &&
+     SENT[0].text === '[내신 시험 범위] ' + PERS.fin + ' · 고1 화정 (공유:고1|화정) · 교과서: 천재 공통국어2\n교과서 내 범위:\n- 1(1) 주체적으로 감상하기 · 뉴욕제과점(김연수)\n교과서 외 범위:\n- [기타] 학습지 4~6\n메모:\n범위 확정본이에요', JSON.stringify(SENT));
   await page.selectOption('#req-ns-key', '__none');
   ok('목록에 없음 → 안내', /글 맨 앞에 학년·학교/.test(await page.textContent('#req-ns-now')));
   await page.setInputFiles('#req-file', [{ name: 'notice.jpg', mimeType: 'image/jpeg', buffer: Buffer.from('jpg') }]);

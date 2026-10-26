@@ -261,30 +261,39 @@ const STUDENTS = [
   await page.waitForSelector('#cr-ns-toc select.toc-unit', { timeout: 8000 });   // 교과서 목차(textbook-toc.json)를 받아 그린다
   r = await page.evaluate(() => ({ book: document.querySelector('#cr-ns-toc .toc-book').value, bookTxt: document.querySelector('#cr-ns-toc .toc-book option:checked').textContent,
     books: [...document.querySelectorAll('#cr-ns-toc .toc-book option')].map(o => o.textContent), groups: document.querySelectorAll('#cr-ns-toc .toc-unit optgroup').length,
-    all: [...document.querySelectorAll('#cr-ns-toc .toc-unit option')].filter(o => /^__u\|/.test(o.value)).length, inTa: !!document.getElementById('cr-ns-in'), out: !!document.getElementById('cr-ns-out') }));
+    all: [...document.querySelectorAll('#cr-ns-toc .toc-unit option')].filter(o => /^__u\|/.test(o.value)).length, inTa: !!document.getElementById('cr-ns-in'), out: !!document.querySelector('#cr-ns-outp .toc-area') && !document.getElementById('cr-ns-out'),
+    areas: [...document.querySelectorAll('#cr-ns-outp .toc-area option')].map(o => o.value) }));
   ok('[직접 입력] → 교과서 목차 고르기: 반이름 괄호(비상 문학)·고2·화정고로 비상 문학이 기본, 고2 책만, 대단원 묶음·"모두 더하기", 교과서 외 범위는 직접 적는 칸',
-     r.book === 'VL' && /비상\(강호영\) 문학/.test(r.bookTxt) && r.books.every(b => !/공통국어|국어[12]-/.test(b)) && r.books.some(b => /목록에 없는 교과서/.test(b)) && r.groups >= 4 && r.all >= 4 && !r.inTa && r.out, JSON.stringify(r));
+     r.book === 'VL' && /비상\(강호영\) 문학/.test(r.bookTxt) && r.books.every(b => !/공통국어|국어[12]-/.test(b)) && r.books.some(b => /목록에 없는 교과서/.test(b)) && r.groups >= 4 && r.all >= 4 && !r.inTa && r.out && r.areas.join() === '문법,문학,독서,화법,작문,기타', JSON.stringify(r));
   await page.selectOption('#cr-ns-toc .toc-unit', L1);
   await page.selectOption('#cr-ns-toc .toc-unit', L2);
   r = await page.evaluate(() => ({ chips: [...document.querySelectorAll('#cr-ns-toc .toc-chip')].map(x => x.firstChild.textContent), dis: [...document.querySelectorAll('#cr-ns-toc .toc-unit option:disabled')].map(o => o.value) }));
   ok('고른 단원은 칩으로 · 드롭다운에서는 잠김', r.chips.join('|') === L1 + '|' + L2 && r.dis.join('|') === L1 + '|' + L2, JSON.stringify(r));
-  await page.fill('#cr-ns-out', '학습지 1');
+  await page.selectOption('#cr-ns-outp .toc-area', '기타');
+  await page.fill('#cr-ns-outp .toc-title', '학습지 1');
+  await page.press('#cr-ns-outp .toc-title', 'Enter');
+  await page.selectOption('#cr-ns-outp .toc-area', '독서');
+  await page.fill('#cr-ns-outp .toc-title', '2503 고1 독서(사회) 형사법과 민사법');
+  await page.click('#cr-ns-outp .toc-add');
+  r = await page.evaluate(() => ({ chips: [...document.querySelectorAll('#cr-ns-outp .toc-chip')].map(x => x.textContent.replace(/×$/, '')), title: document.querySelector('#cr-ns-outp .toc-title').value }));
+  ok('교과서 외 범위 = 영역 드롭다운 + 제목 → [더하기]/Enter 로 칩("[영역] 제목")', r.chips.join('|') === '기타학습지 1|독서2503 고1 독서(사회) 형사법과 민사법' && r.title === '', JSON.stringify(r));
+  await page.click('#cr-ns-outp .toc-chip:last-child button');
   await shot(page, '0-진도수업-시험범위-직접입력(목차 고르기)', '#cr-scope');
   await page.click('#cr-ns-save');
   await page.waitForFunction(() => /시험범위를 저장했어요/.test(document.getElementById('cr-msg').textContent), null, { timeout: 8000 });
   let sw = st.writes.filter(w => /naeshin_records/.test(w.u)).pop();
-  ok('시험범위 → naeshin_records(공유:고2|화정·범위·다가오는 기간)', sw && sw.body[0].class_key === '공유:고2|화정' && sw.body[0].kind === '범위' && sw.body[0].period === UPCOMING && JSON.parse(sw.body[0].text1).inRange === L1 + '\n' + L2 && JSON.parse(sw.body[0].text1).book === '비상 문학' && JSON.parse(sw.body[0].text1).outRange === '학습지 1' && /교과서 외 범위: 학습지 1/.test(sw.body[0].text2), JSON.stringify(sw && sw.body));
+  ok('시험범위 → naeshin_records(공유:고2|화정·범위·다가오는 기간)', sw && sw.body[0].class_key === '공유:고2|화정' && sw.body[0].kind === '범위' && sw.body[0].period === UPCOMING && JSON.parse(sw.body[0].text1).inRange === L1 + '\n' + L2 && JSON.parse(sw.body[0].text1).book === '비상 문학' && JSON.parse(sw.body[0].text1).outRange === '[기타] 학습지 1' && /교과서 외 범위: \[기타\] 학습지 1/.test(sw.body[0].text2), JSON.stringify(sw && sw.body));
   ok('시트 사본 naeshinSet(scopeKey)', st.gas.some(g => g.action === 'naeshinSet' && g.kind === '범위' && g.scopeKey === '공유:고2|화정'));
   r = await page.evaluate(() => ({ edit: !!document.getElementById('cr-ns-in'), view: (document.querySelector('.cr-scope-view') || {}).textContent || '', sum: document.querySelector('#cr-scope summary').textContent, unit: !!document.querySelector('.cr-ptab'),
     open: document.getElementById('cr-scope').open, rows: [...document.querySelectorAll('.cr-ptab tbody tr:not(:has(.sec))')].map(t => t.children[0].textContent + '=' + t.querySelector('.pst').textContent), adds: document.querySelectorAll('[data-unadd]').length, bar: document.querySelector('.cr-pbar').textContent }));
-  ok('저장 뒤 = 시험범위·진행 상황 표(교과서·단원마다 아직·[이번 주 나감])가 펼쳐져 한눈에', !r.edit && r.open && /비상 문학/.test(r.view) && r.unit && r.rows.join('|') === L1 + '=아직|' + L2 + '=아직|학습지 1=아직' && r.adds === 3 &&
+  ok('저장 뒤 = 시험범위·진행 상황 표(교과서·단원마다 아직·[이번 주 나감])가 펼쳐져 한눈에', !r.edit && r.open && /비상 문학/.test(r.view) && r.unit && r.rows.join('|') === L1 + '=아직|' + L2 + '=아직|기타학습지 1=아직' && r.adds === 3 &&
      /3개 항목/.test(r.sum) && /완료 0/.test(r.sum) && /공유/.test(r.sum) && /완료 0 · 이번 주 0 · 남은 3 \/ 전체 3/.test(r.bar), JSON.stringify(r));
   await shot(page, '1-진도수업-시험범위-진행상황', '#crpanel');
   await page.click('[data-unadd="' + L1 + '"]');
   await page.waitForFunction(() => document.querySelectorAll('.cr-unit').length === 1, null, { timeout: 5000 });
   await shot(page, '2-진도수업-이번주나감', '#crpanel');
   r = await page.evaluate(() => ({ rows: [...document.querySelectorAll('.cr-ptab tbody tr:not(:has(.sec))')].map(t => t.children[0].textContent + '=' + t.querySelector('.pst').textContent), rm: document.querySelectorAll('.cr-ptab [data-unrm]').length, sum: document.querySelector('#cr-scope summary').textContent, chips: [...document.querySelectorAll('.cr-units .cr-unit')].map(x => x.firstChild.textContent) }));
-  ok('[이번 주 나감] → 표에 "이번 주" + [빼기] · 요약 "이번 주 1" · 오늘 나간 단원 칩', r.rows.join('|') === L1 + '=이번 주|' + L2 + '=아직|학습지 1=아직' && r.rm === 1 && /이번 주 1/.test(r.sum) && r.chips.join() === L1, JSON.stringify(r));
+  ok('[이번 주 나감] → 표에 "이번 주" + [빼기] · 요약 "이번 주 1" · 오늘 나간 단원 칩', r.rows.join('|') === L1 + '=이번 주|' + L2 + '=아직|기타학습지 1=아직' && r.rm === 1 && /이번 주 1/.test(r.sum) && r.chips.join() === L1, JSON.stringify(r));
   sw = st.writes.filter(w => /naeshin_records/.test(w.u)).pop();
   ok('단원 고르기 → 클리어 기록(반ID·이번 주)', sw && sw.body[0].kind === '클리어' && sw.body[0].class_key === 'n001' && JSON.parse(sw.body[0].text1)[L1].s === PREVWED, JSON.stringify(sw && sw.body));
   r = await page.evaluate(() => ({ hint: document.querySelector('.cr-hint').textContent, ph: document.querySelector('.cr-card input[id^="cr-c-"]').placeholder, pbtn: document.querySelectorAll('[data-pshow]').length, hbtn: document.querySelectorAll('[data-hist]').length }));
