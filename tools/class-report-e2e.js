@@ -26,6 +26,9 @@ const pad = n => String(n).padStart(2, '0');
 const ymd = d => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
 const P = TODAYSTR.split('-'), T0 = new Date(+P[0], +P[1] - 1, +P[2]);
 const PREVWED = (() => { const d = new Date(T0); d.setDate(d.getDate() - ((d.getDay() + 4) % 7)); return ymd(d); })();   // 숙제 검사 주차
+// 내신 시험범위 기간 — 창이 범위가 없을 때 기본으로 고르는 '다가오는 시험'(timetable reqNsDefaultPeriod 와 같은 규칙)
+const UPCOMING = (() => { const m = +P[1], sy = m >= 3 ? +P[0] : +P[0] - 1, sem = (m >= 3 && m <= 7) ? 1 : 2, yy = String(sy).slice(2);
+  return yy + '-' + sem + '-' + (((m >= 8 && m <= 9) || (m >= 3 && m <= 4)) ? '중간' : '기말'); })();
 const WEDS = []; for (let k = -21; k <= 21; k += 7){ const d = new Date(T0); d.setDate(d.getDate() - ((d.getDay() + 6) % 7) + 2 + k); WEDS.push(ymd(d)); }
 const row = (id, name, t, roster) => ({ class_id: id, day: TODAY, start_time: '5:30', end_time: '7:00', location: '민초센터', teacher: t, name, roster, kind: '' });
 const STUDENTS = [
@@ -67,7 +70,7 @@ const STUDENTS = [
         return json(200, Object.values(st.notes).filter(n => !cid || n.class_id === cid));
       }
       if (/\/class_reports\?/.test(u) && m === 'GET') return json(200, opt.reports || []);
-      if (/\/naeshin_records/.test(u)){ if (m === 'GET') return json(200, st.ns); return r.fulfill({ status: 201, body: '' }); }
+      if (/\/naeshin_records/.test(u)){ if (m === 'GET'){ (st.nsGets = st.nsGets || []).push(u); return json(200, st.ns); } return r.fulfill({ status: 201, body: '' }); }
       if (/\/hwcheck_records/.test(u) && m === 'POST' && opt.noMissCol && body && body[0] && 'missing_items' in body[0])
         return json(400, { code: 'PGRST204', message: "Could not find the 'missing_items' column of 'hwcheck_records' in the schema cache" });
       if (/\/hwcheck_records/.test(u)){ if (m === 'GET'){ (st.hwGets = st.hwGets || []).push(decodeURIComponent(u)); return json(200, opt.hw || []); } return r.fulfill({ status: 201, body: '' }); }
@@ -229,25 +232,30 @@ const STUDENTS = [
   ok('수정 요청 목록에서 수업 리포트 요청은 뺀다', /명단 확인/.test(r) && !/수업 리포트/.test(r), r);
   await ctx.close();
 
-  // ② 내신 진도 수업 + ③ 확인 수업
+  // ② 내신 진도 수업 + ③ 확인 수업 (2026-10-26 — 시험범위는 저장된 것을 보여 주고, 없으면 수정 요청함 안내 + [직접 입력])
   ({ ctx, page, st } = await ctxOf({ book: '내신',
     rows: [row('n001', '고2 화정A(비상 문학)', '주혜', '박보검 김하늘'), Object.assign(row('n002', '고2 확인', '연주', '(화정)박보검 (화정)김하늘'), { start_time: '7:30', end_time: '9:00' })],
     att: [{ class_id: 'n001', student: '박보검', status: '출석' }, { class_id: 'n001', student: '김하늘', status: '출석' }], hw: [] }));
-  await page.waitForFunction(() => typeof CR_NS_SCOPE !== 'undefined', null, { timeout: 15000 });
-  await page.evaluate(() => { CR_NS_SCOPE = true; });   // 시험범위 연동은 2026-10-14부터 꺼 둠 — 켰을 때의 동작을 그대로 검사
   await openCard(page, '화정A');
   r = await page.evaluate(() => ({ kind: document.getElementById('cr-kind').textContent, open: document.getElementById('cr-scope').open,
-    sum: document.querySelector('#cr-scope summary').textContent, hint: document.querySelector('.cr-hint').textContent,
-    book: document.getElementById('cr-ns-book').value, per: [...document.querySelectorAll('.cr-per button')].map(x => x.textContent) }));
-  ok('내신 진도: "진도 수업"·시험범위 비어 있어 펼침', r.kind === '진도 수업' && r.open && /아직 없어요/.test(r.sum), JSON.stringify(r));
+    sum: document.querySelector('#cr-scope summary').textContent, hint: document.querySelector('.cr-hint').textContent, body: document.getElementById('cr-scope').textContent,
+    req: !!document.getElementById('cr-ns-req'), edit: !!document.getElementById('cr-ns-edit'), unit: !!document.getElementById('cr-ns-unit'), lab: document.querySelector('label[for=cr-prog]').textContent,
+    per: [...document.querySelectorAll('.cr-per button')].map(x => x.textContent + (x.classList.contains('on') ? '*' : '')) }));
+  ok('내신 진도: "진도 수업"·시험범위 없어 펼침 + 수정 요청함 안내·[직접 입력]·단원 칸 없음·오늘 진도 칸', r.kind === '진도 수업' && r.open && /아직 없어요/.test(r.sum) && /수정 요청/.test(r.body) && r.req && r.edit && !r.unit && /오늘 진도/.test(r.lab), JSON.stringify(r));
   ok('진도 수업 숙제 검사 안내 문구', /비워 두셔도 됩니다/.test(r.hint), r.hint);
-  ok('교과서 기본값·기간 두 개', r.book === '비상 문학' && r.per.length === 2 && /^\d\d-[12]-(중간|기말)$/.test(r.per[0]), JSON.stringify(r));
+  ok('기간 알약 둘 · 다가오는 시험이 기본', r.per.length === 2 && r.per.includes(UPCOMING + '*'), JSON.stringify(r.per));
+  ok('범위 조회 = 두 기간 한 번에 · 반ID + 공유 키', (st.nsGets || []).some(u => /period=in\.\(/.test(u) && /중간/.test(u) && /기말/.test(u) && /"n001"/.test(u) && /공유:고2\|화정/.test(u)), JSON.stringify(st.nsGets));
+  await page.click('#cr-ns-edit');
+  await page.waitForSelector('#cr-ns-in');
+  ok('[직접 입력] → 교과서 기본값', (await page.$eval('#cr-ns-book', e => e.value)) === '비상 문학');
   await page.fill('#cr-ns-in', '사미인곡\n속미인곡');
   await page.click('#cr-ns-save');
   await page.waitForFunction(() => /시험범위를 저장했어요/.test(document.getElementById('cr-msg').textContent), null, { timeout: 8000 });
   let sw = st.writes.filter(w => /naeshin_records/.test(w.u)).pop();
-  ok('시험범위 → naeshin_records(공유:고2|화정·범위)', sw && sw.body[0].class_key === '공유:고2|화정' && sw.body[0].kind === '범위' && JSON.parse(sw.body[0].text1).inRange === '사미인곡\n속미인곡', JSON.stringify(sw && sw.body));
+  ok('시험범위 → naeshin_records(공유:고2|화정·범위·다가오는 기간)', sw && sw.body[0].class_key === '공유:고2|화정' && sw.body[0].kind === '범위' && sw.body[0].period === UPCOMING && JSON.parse(sw.body[0].text1).inRange === '사미인곡\n속미인곡', JSON.stringify(sw && sw.body));
   ok('시트 사본 naeshinSet(scopeKey)', st.gas.some(g => g.action === 'naeshinSet' && g.kind === '범위' && g.scopeKey === '공유:고2|화정'));
+  r = await page.evaluate(() => ({ edit: !!document.getElementById('cr-ns-in'), view: (document.querySelector('.cr-scope-view') || {}).textContent || '', sum: document.querySelector('#cr-scope summary').textContent, unit: !!document.getElementById('cr-ns-unit') }));
+  ok('저장 뒤 = 읽기용 범위(교과서·안 범위) + 단원 고르기 칸', !r.edit && /비상 문학/.test(r.view) && /사미인곡/.test(r.view) && /2개 항목/.test(r.sum) && /공유/.test(r.sum) && r.unit, JSON.stringify(r));
   await page.selectOption('#cr-ns-unit', '사미인곡');
   await page.waitForFunction(() => document.querySelectorAll('.cr-unit').length === 1, null, { timeout: 5000 });
   sw = st.writes.filter(w => /naeshin_records/.test(w.u)).pop();
@@ -261,10 +269,23 @@ const STUDENTS = [
   sw = st.writes.filter(w => /naeshin_records/.test(w.u) && w.body && w.body[0].kind === '주차').pop();
   ok('저장 → 내신 주차 기록(메모·과제)', sw && sw.body[0].week === PREVWED && sw.body[0].text1 === '표현 방식 비교' && sw.body[0].text2 === '교과서 1~6번', JSON.stringify(sw && sw.body));
   await page.click('.cr-x');
+  // ③ 확인 수업 — 범위가 없으면 참고 블록 없음, 있으면 명단 학교별 참고
   await openCard(page, '고2 확인');
   r = await page.evaluate(() => ({ kind: document.getElementById('cr-kind').textContent, head: document.querySelector('.cr-sh').textContent,
     names: [...document.querySelectorAll('.cr-top b')].map(x => x.textContent), chk: document.querySelector('.cr-check').textContent, scope: !!document.getElementById('cr-scope') }));
-  ok('확인 수업: 표시·숙제 검사·앞 괄호 뗀 이름·시험범위 칸 없음', r.kind === '확인 수업' && /과제 검사/.test(r.head) && !/숙제/.test(r.head) && r.names.join() === '김하늘,박보검' && !r.scope && !/진도/.test(r.chk), JSON.stringify(r));
+  ok('확인 수업: 표시·숙제 검사·앞 괄호 뗀 이름·(범위 없음) 시험범위 칸 없음', r.kind === '확인 수업' && /과제 검사/.test(r.head) && !/숙제/.test(r.head) && r.names.join() === '김하늘,박보검' && !r.scope && !/진도/.test(r.chk), JSON.stringify(r));
+  await page.click('.cr-x');
+  st.ns.push({ period: UPCOMING, class_key: '공유:고2|화정', kind: '범위', week: '', student: '', text1: JSON.stringify({ book: '비상 문학', inRange: '사미인곡\n속미인곡', extra: '', outRange: '학습지 1' }), text2: '' });
+  const nsW0 = st.writes.filter(w => /naeshin_records/.test(w.u)).length;
+  await openCard(page, '고2 확인');
+  r = await page.evaluate(() => ({ sum: (document.querySelector('#cr-scope summary') || {}).textContent || '', body: (document.getElementById('cr-scope') || {}).textContent || '',
+    unit: !!document.getElementById('cr-ns-unit'), open: (document.getElementById('cr-scope') || {}).open, lab: document.querySelector('label[for=cr-prog]').textContent }));
+  ok('확인 수업: 명단 학교(앞 괄호 화정 2명)의 범위를 참고로 — 단원 고르기 없음·접힘·확인 수업 내용 칸', /시험범위 참고/.test(r.sum) && /화정 2명/.test(r.sum) && /사미인곡/.test(r.body) && /학습지 1/.test(r.body) && !r.unit && !r.open && /확인 수업 내용/.test(r.lab), JSON.stringify(r));
+  ok('확인 수업 참고 조회 = 반ID + 명단 학교 공유 키', (st.nsGets || []).some(u => /"n002"/.test(u) && /공유:고2\|화정/.test(u)), JSON.stringify(st.nsGets));
+  await page.fill('#cr-task', '서술형 오답 다시 쓰기');
+  await page.click('#cr-save');
+  await page.waitForFunction(() => /저장했어요/.test(document.getElementById('cr-msg').textContent), null, { timeout: 8000 });
+  ok('확인 수업 저장은 내신 주차 기록을 안 쓴다(units 빈 목록)', st.writes.filter(w => /naeshin_records/.test(w.u)).length === nsW0 && JSON.stringify(st.writes.filter(w => /class_notes/.test(w.u)).pop().body[0].units) === '[]');
   ok('확인 수업에도 다음 수업까지 숙제 칸', !!(await page.$('#cr-task')) && /다음 수업까지 과제/.test(await page.$eval('label[for=cr-task]', e => e.textContent)));
   await page.fill('#cr-task', '서술형 오답 다시 쓰기');
   await page.click('#cr-gen');
@@ -449,7 +470,7 @@ const STUDENTS = [
   r = await page.evaluate(() => ({ kind: document.getElementById('cr-kind').textContent, scope: !!document.getElementById('cr-scope'), unit: !!document.getElementById('cr-ns-unit'),
     p: (document.getElementById('cr-prog') || {}).value || '', t: (document.getElementById('cr-task') || {}).value || '',
     lab: (document.querySelector('label[for=cr-prog]') || {}).textContent || '', bar: (document.querySelector('.cr-sib') || {}).textContent || '', opts: document.querySelectorAll('#cr-sib-sel option').length }));
-  ok('내신 진도: 시험범위·단원 칸 없이 오늘 진도·과제 칸', r.kind === '진도 수업' && !r.scope && !r.unit && /오늘 진도/.test(r.lab) && !st.ns.length, JSON.stringify(r));
+  ok('내신 진도: 범위가 없으면 안내만(단원 칸 없음) + 오늘 진도·과제 칸', r.kind === '진도 수업' && r.scope && !r.unit && /오늘 진도/.test(r.lab) && !st.ns.length, JSON.stringify(r));
   ok('고2 진도: 다른 학교 진도 반(화정B) 기록을 미리 채운다', r.p === '고2 공통 진도 — 관동별곡' && r.t === '관동별곡 학습지' && /불러왔습니다/.test(r.bar) && /고2 화정B/.test(r.bar), JSON.stringify(r));
   ok('고2 진도: 확인 반·고1 반은 목록에 없다', r.opts === 1 && !/확인 수업 내용|고1 진도/.test(r.bar), JSON.stringify(r));
   ok('조회 = 같은 학년 진도 반 ID만', (st.sibGets || []).some(u => /class_id=in\.\("n002"\)/.test(u)), JSON.stringify(st.sibGets));
@@ -457,8 +478,10 @@ const STUDENTS = [
   await page.click('#cr-save');
   await page.waitForFunction(() => /저장했어요/.test(document.getElementById('cr-msg').textContent), null, { timeout: 8000 });
   const nsW = st.writes.filter(w => /class_notes/.test(w.u)).pop();
-  ok('[저장] → 이 반에만(part 진도) · 내신대비 피드백 기록은 안 건드림', nsW && nsW.body[0].class_id === 'n001' && nsW.body[0].part === '진도' && nsW.body[0].progress === '고친 진도' &&
-     !st.writes.some(w => /naeshin_records/.test(w.u)) && st.notes['내신|n002'].progress === '고2 공통 진도 — 관동별곡', JSON.stringify(nsW && nsW.body));
+  const nsWk = st.writes.filter(w => /naeshin_records/.test(w.u) && w.body && w.body[0].kind === '주차').pop();   // 2026-10-26부터 진도 수업 저장은 내신대비 피드백 주차 기록도 함께(같은 페이지에서 보이게)
+  ok('[저장] → 이 반에만(part 진도) · 내신 주차 기록은 이 반(n001)에만', nsW && nsW.body[0].class_id === 'n001' && nsW.body[0].part === '진도' && nsW.body[0].progress === '고친 진도' &&
+     nsWk && nsWk.body[0].class_key === 'n001' && nsWk.body[0].text1 === '고친 진도' && !st.writes.some(w => /naeshin_records/.test(w.u) && w.body && w.body[0].class_key === 'n002') &&
+     st.notes['내신|n002'].progress === '고2 공통 진도 — 관동별곡', JSON.stringify(nsW && nsW.body));
   await page.click('.cr-x');
   st.sibGets = [];
   await page.evaluate(() => document.querySelector('.blk[data-cid="n005"] .crbtn').click());

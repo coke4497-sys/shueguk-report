@@ -61,7 +61,7 @@ const BASE = [
   await page.waitForTimeout(300);
   ok('그림을 모두 불러옴', await page.$$eval('#modal-box img', es => es.length >= 4 && es.every(e => e.complete && e.naturalWidth > 0)));
   if (process.env.SHOT) await page.screenshot({ path: path.join(process.env.SHOT, 'req-shukong.png'), clip: await page.$eval('#modal-box', e => { const r = e.getBoundingClientRect(); return { x: r.x, y: r.y, width: r.width, height: Math.min(r.height, 900) }; }) });
-  ok('작성자 입력칸 없음', await page.$('#req-writer') === null && await page.$('#modal-box .req-form input') === null);
+  ok('작성자 입력칸 없음', await page.$('#req-writer') === null && await page.$('#modal-box .req-form input:not([type=file])') === null);   // 파일 고르기 칸(숨김)은 작성자 칸이 아니다(2026-10-26 첨부)
   await page.waitForFunction(() => document.getElementById('req-who').textContent.includes('김현지'));
   ok('작성자 = 로그인한 계정 이름', (await page.textContent('#req-who')).includes('로그인한 계정으로 기록됩니다'));
   await page.fill('#req-text', '새 요청');
