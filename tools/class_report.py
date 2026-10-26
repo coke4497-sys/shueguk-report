@@ -211,6 +211,20 @@ def checks_of(h):
 
 
 BODY_KEYS = ('attend', 'attend_note', 'attitude', 'summary', 'units', 'homework', 'hw', 'comment')
+COMMENT_END = re.compile(r'(다|요|죠|까|네)[.!?]+\s*$')
+COMMENT_RAW = re.compile(r'(ㅋ|ㅎ|ㅠ|ㅜ|굿\b|\bok\b|\bgood\b|~~|\.\.\.)', re.I)
+
+
+def comment_problem(c):
+    """학생 페이지에 올라갈 코멘트가 완결 문장이 아니면 이유를 돌려준다(빈 값은 통과). 전체 미제출 지정 문구('…않았습니다!!!!')는 끝이 '다!'라 통과."""
+    c = c.strip()
+    if not c:
+        return ''
+    if not COMMENT_END.search(c):
+        return '완결 문장이 아니에요(끝맺음 없음 — 키워드·메모 그대로)'
+    if COMMENT_RAW.search(c):
+        return '메모 말투예요(ㅋ·ㅎ·굿·… 같은 표기)'
+    return ''
 ATTITUDES = ('', '매우 좋음', '좋음', '노력 필요')
 
 
@@ -241,6 +255,9 @@ def cmd_publish(path):
                 sys.exit('%s 는 목록이어야 해요: %s' % (k, studs[code]['name']))
         if body.get('attitude', '') not in ATTITUDES:
             sys.exit('수업 태도는 매우 좋음/좋음/노력 필요 중 하나여야 해요: %s' % studs[code]['name'])
+        bad = comment_problem(str(body.get('comment') or ''))
+        if bad:   # 선생님이 키워드로 적어도 학생 페이지에는 단정하고 예의 바른 문장으로(2026-10-26 원장님)
+            sys.exit('코멘트가 %s — 뜻을 살린 존댓말 완결 문장으로 다듬어 주세요: %s 「%s」' % (bad, studs[code]['name'], body.get('comment')))
         rows.append({'week': str(wed), 'book': book, 'class_id': cid, 'ymd': ymd, 'code': code,
                      'student_id': studs[code]['student_id'], 'name': studs[code]['name'],
                      'part': note.get('part', ''), 'class_name': note.get('class_name', ''),
