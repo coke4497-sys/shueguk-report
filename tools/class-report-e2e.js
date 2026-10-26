@@ -23,6 +23,8 @@ const port = srv.address().port;
 const TODAY = new Intl.DateTimeFormat('ko-KR', { weekday: 'narrow', timeZone: 'Asia/Seoul' }).format(new Date());
 const TODAYSTR = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Seoul' }).format(new Date());
 const pad = n => String(n).padStart(2, '0');
+const SHOT = process.env.SHOT || '';   // SHOT=폴더 면 수업 기록 창을 캡처한다
+const shot = async (page, name, sel) => { if (!SHOT) return; const el = sel ? await page.$(sel) : null; await (el || page).screenshot({ path: path.join(SHOT, name + '.png') }); };
 const ymd = d => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
 const P = TODAYSTR.split('-'), T0 = new Date(+P[0], +P[1] - 1, +P[2]);
 const PREVWED = (() => { const d = new Date(T0); d.setDate(d.getDate() - ((d.getDay() + 4) % 7)); return ymd(d); })();   // 숙제 검사 주차
@@ -96,6 +98,8 @@ const STUDENTS = [
     page.on('dialog', d => d.accept());
     await page.addInitScript(o => { sessionStorage.setItem('tt_mode', o.mode || 'today'); sessionStorage.setItem('tt_book', o.bk); localStorage.clear(); }, { bk: opt.book, mode: opt.mode });
     await page.goto('http://127.0.0.1:' + port + '/timetable.html' + (opt.qs || ''));
+    // 고1·고2 예외 기간(CR_NS_SPLIT — 2026-10-12~11-01, 내신 시간표로 정규 수업)은 날짜에 묶여 있어 검사에서는 기본으로 끈다(②-2b 가 따로 켠다)
+    await page.evaluate(() => { if (typeof CR_NS_SPLIT_FROM !== 'undefined'){ CR_NS_SPLIT_FROM = '2000-01-01'; CR_NS_SPLIT_TO = '2000-01-02'; } });
     return { ctx, page, st };
   }
   const openCard = async (page, name) => {
@@ -265,8 +269,10 @@ const STUDENTS = [
     open: document.getElementById('cr-scope').open, rows: [...document.querySelectorAll('.cr-ptab tbody tr:not(:has(.sec))')].map(t => t.children[0].textContent + '=' + t.querySelector('.pst').textContent), adds: document.querySelectorAll('[data-unadd]').length, bar: document.querySelector('.cr-pbar').textContent }));
   ok('저장 뒤 = 시험범위·진행 상황 표(교과서·단원마다 아직·[이번 주 나감])가 펼쳐져 한눈에', !r.edit && r.open && /비상 문학/.test(r.view) && r.unit && r.rows.join('|') === '사미인곡=아직|속미인곡=아직' && r.adds === 2 &&
      /2개 항목/.test(r.sum) && /완료 0/.test(r.sum) && /공유/.test(r.sum) && /완료 0 · 이번 주 0 · 남은 2 \/ 전체 2/.test(r.bar), JSON.stringify(r));
+  await shot(page, '1-진도수업-시험범위-진행상황', '#crpanel');
   await page.click('[data-unadd="사미인곡"]');
   await page.waitForFunction(() => document.querySelectorAll('.cr-unit').length === 1, null, { timeout: 5000 });
+  await shot(page, '2-진도수업-이번주나감', '#crpanel');
   r = await page.evaluate(() => ({ rows: [...document.querySelectorAll('.cr-ptab tbody tr:not(:has(.sec))')].map(t => t.children[0].textContent + '=' + t.querySelector('.pst').textContent), rm: document.querySelectorAll('.cr-ptab [data-unrm]').length, sum: document.querySelector('#cr-scope summary').textContent, chips: [...document.querySelectorAll('.cr-units .cr-unit')].map(x => x.firstChild.textContent) }));
   ok('[이번 주 나감] → 표에 "이번 주" + [빼기] · 요약 "이번 주 1" · 오늘 나간 단원 칩', r.rows.join('|') === '사미인곡=이번 주|속미인곡=아직' && r.rm === 1 && /이번 주 1/.test(r.sum) && r.chips.join() === '사미인곡', JSON.stringify(r));
   sw = st.writes.filter(w => /naeshin_records/.test(w.u)).pop();
@@ -300,10 +306,12 @@ const STUDENTS = [
   await page.click('.cr-card[data-i="0"] [data-pshow]');
   await page.waitForSelector('.cr-card[data-i="0"] .cr-pbox');
   r = await page.evaluate(() => ({ box: document.querySelector('.cr-card[data-i="0"] .cr-pbox').textContent, others: document.querySelectorAll('.cr-pbox').length, btn: document.querySelector('.cr-card[data-i="0"] [data-pshow]').textContent }));
+  if (SHOT){ await page.evaluate(() => { document.getElementById('cr-scope').open = true; }); await shot(page, '3-확인수업-진도반진행상황(상단)', '#cr-scope'); await shot(page, '3b-확인수업-학생카드-진도반범위진행', '.cr-card[data-i="0"]'); }
   ok('[진도반 범위·진행] → 그 학생 카드에 진도반 이름·교과서·진행 표', /고2 화정A/.test(r.box) && /주혜T/.test(r.box) && /비상 문학/.test(r.box) && /속미인곡/.test(r.box) && r.others === 1 && /접기/.test(r.btn), JSON.stringify(r));
   await page.click('.cr-card[data-i="0"] [data-hist]');
   await page.waitForFunction(() => /코멘트|메모가 없어요/.test((document.querySelector('.cr-card[data-i="0"] .cr-hbox') || {}).textContent || ''), null, { timeout: 8000 });
   r = await page.evaluate(() => ({ box: document.querySelector('.cr-card[data-i="0"] .cr-hbox').textContent, items: document.querySelectorAll('.cr-card[data-i="0"] .cr-hitem').length, nm: document.querySelector('.cr-card[data-i="0"] .cr-top b').textContent }));
+  if (SHOT){ await page.evaluate(() => { document.getElementById('cr-scope').open = false; CR.pshow[0] = false; crRender(); }); await page.waitForSelector('.cr-card[data-i="0"] .cr-hbox'); await shot(page, '4-확인수업-학생카드-지난메모', '.cr-card[data-i="0"]'); }
   ok('[지난 메모] → 최근 8주 그 학생의 코멘트·태도·베낌 의심(비공개)·과제 검사(%·미제출·대책·비공개 메모) 날짜순', r.nm === '김하늘' && r.items === 2 && /서술형 꼼꼼/.test(r.box) && /73%/.test(r.box) && /미제출 학습지 1/.test(r.box) && /집중 부족/.test(r.box) && /10\/20 재검사/.test(r.box) && !/표현 방식 이해 굿/.test(r.box), JSON.stringify(r));
   ok('지난 메모 조회 = 이 반 + 그 학생이 든 반 · 오늘 전 8주 · 과제 검사는 접근코드로', (st.histGets || []).some(u => /"n002"/.test(u) && /"n001"/.test(u) && /ymd=lt\./.test(u) && /ymd=gte\./.test(u)) && (st.hwHistGets || []).some(u => /token=eq\.k-kim/.test(u)), JSON.stringify([st.histGets, st.hwHistGets]));
   await page.click('.cr-card[data-i="1"] [data-hist]');
@@ -353,6 +361,8 @@ const STUDENTS = [
     r = await page.evaluate(() => [...document.querySelectorAll('.cr-card')].map(c => ({ nm: c.querySelector('.cr-top b').textContent,
       tasks: [...c.querySelectorAll('.cr-tname')].map(x => x.textContent) })));
     const sy = r.find(x => x.nm === '박보검') || {};
+    const r2 = await page.evaluate(() => ({ scope: !!document.getElementById('cr-scope'), lab: document.querySelector('label[for=cr-prog]').textContent, ns: !!(typeof CR !== 'undefined' && CR.ns), nsGets: (window.__nsGets || 0) }));
+    ok('예외 기간(정규 수업 중) 고1 진도 수업: 시험범위·진행 상황 칸 없이 오늘 진도·과제 칸만(11/2부터 적용 — 2026-10-26 원장님)', !r2.scope && /오늘 진도/.test(r2.lab) && !r2.ns && !(st.nsGets || []).length, JSON.stringify([r2, st.nsGets]));
     ok('고1 진도 수업 조회 = 진도 반만(확인 반 n002 제외)', (st.srcGets || []).some(u => /"n001"/.test(u)) && !(st.srcGets || []).some(u => /"n002"/.test(u)), JSON.stringify(st.srcGets));
     ok('고1 진도 수업: 확인(문학) 과제가 아니라 지난 진도(독서) 과제', sy.tasks && sy.tasks.join('|') === '독서 지문 3개', JSON.stringify(r));
     await ctx.close();
@@ -365,6 +375,7 @@ const STUDENTS = [
     r = await page.evaluate(() => [...document.querySelectorAll('.cr-card')].map(c => ({ nm: c.querySelector('.cr-top b').textContent,
       tasks: [...c.querySelectorAll('.cr-tname')].map(x => x.textContent) })));
     const sy2 = r.find(x => x.nm === '박보검') || {};
+    ok('예외 기간 고1 확인 수업: 진도반 범위·진행 단추 없음', !(await page.$('[data-pshow]')) && !(await page.$('#cr-scope')));
     ok('고1 확인 수업: 진도(독서) 과제가 아니라 지난 확인(문학) 과제', sy2.tasks && sy2.tasks.join('|') === '과제집 w14', JSON.stringify(r));
     await ctx.close();
     // 예외 기간에는 정규처럼 주차 단위 — 이번 주(수요일부터)에 받은 과제는 다음 주 몫(2026-10-16 원장님 · 현지T)
