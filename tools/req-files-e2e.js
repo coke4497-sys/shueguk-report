@@ -159,7 +159,7 @@ const NS_SCOPE = { period: PERS.fin, class_key: '공유:고1|화정', kind: '범
   let r = await page.evaluate(() => ({ hid: document.getElementById('req-ns').hidden, lb: document.getElementById('req-text-lb').textContent, ph: document.getElementById('req-text').placeholder,
     per: [...document.querySelectorAll('#req-ns-per button')].map(x => x.textContent + (x.classList.contains('on') ? '*' : '')),
     opts: [...document.querySelectorAll('#req-ns-key option')].map(x => x.value + '=' + x.textContent), now: document.getElementById('req-ns-now').textContent }));
-  ok('양식 보임 · 글 칸 이름 "시험 범위" · 한 줄에 한 단원 안내', !r.hid && r.lb === '시험 범위' && /한 줄에 한 단원/.test(r.ph), JSON.stringify(r));
+  ok('양식 보임 · 글 칸 이름 "교과서 외 범위 · 메모" · 교과서 내 범위는 위 목차에서 안내', !r.hid && r.lb === '교과서 외 범위 · 메모' && /교과서 내 범위는 위 목차에서/.test(r.ph) && /학년·학교를 고르면 그 학교 교과서 목차/.test(await page.textContent('#req-ns-toc')), JSON.stringify(r));
   ok('기간 알약 둘 · 다가오는 시험이 기본', r.per.length === 2 && r.per.includes(PERS.upcoming + '*'), JSON.stringify(r.per));
   ok('학년·학교 = 내신 반이름의 공유 키(확인·고3파이널 제외, 교과서 붙임, 목록에 없음)', r.opts.join('|') === '=학년·학교를 고르세요|공유:중2|화정=중2 화정 · 비상(영)|공유:고1|화정=고1 화정 · 천재수 공통국어2|공유:고2|서정=고2 서정 · 천재 독서와 작문|__none=목록에 없음 — 글에 학년·학교를 적어 주세요', r.opts.join('|'));
   ok('고르기 전 안내', /학년·학교를 고르면/.test(r.now));
@@ -174,12 +174,16 @@ const NS_SCOPE = { period: PERS.fin, class_key: '공유:고1|화정', kind: '범
   await page.click('#req-ns-per button:not(.on)');   // 기말로
   await page.waitForFunction(() => /청산별곡/.test(document.getElementById('req-ns-now').textContent), null, { timeout: 8000 });
   await page.waitForFunction(() => document.getElementById('req-who').textContent.includes('김현지'));
-  ok('글도 파일도 없으면 거절', await page.evaluate(() => { reqSubmit(); return document.getElementById('req-err').textContent; }) === '시험 범위를 적거나 안내문 사진을 붙여 주세요.');
-  await page.fill('#req-text', '2(3) 춘향전\n3(1) 제망매가\n교과서 밖: 학습지 4~6');
+  await page.waitForSelector('#req-ns-toc select.toc-unit', { timeout: 8000 });
+  r = await page.evaluate(() => ({ book: document.querySelector('#req-ns-toc .toc-book').value, txt: document.querySelector('#req-ns-toc .toc-book option:checked').textContent }));
+  ok('학년·학교를 고르면 그 학교 교과서 목차 — 고1 화정 + 천재수 공통국어2 → 천재(김수학) 공통국어2', r.book === 'T2' && /천재\(김수학\) 공통국어2/.test(r.txt), JSON.stringify(r));
+  ok('단원도 글도 파일도 없으면 거절', await page.evaluate(() => { reqSubmit(); return document.getElementById('req-err').textContent; }) === '교과서 내 범위를 고르거나, 교과서 외 범위를 적거나, 안내문 사진을 붙여 주세요.');
+  await page.selectOption('#req-ns-toc .toc-unit', '1(1) 주체적으로 감상하기 · 뉴욕제과점(김연수)');
+  await page.fill('#req-text', '학습지 4~6');
   await page.click('#req-submit');
   await page.waitForFunction(() => (document.getElementById('req-msg') || {}).textContent.includes('요청을 받았어요'), null, { timeout: 8000 });
-  ok('보낸 글 = [내신 시험 범위] 기간 · 고1 화정 (공유 키) · 교과서 + 본문', SENT.length === 1 && SENT[0].screen === '내신 시험 범위' &&
-     SENT[0].text === '[내신 시험 범위] ' + PERS.fin + ' · 고1 화정 (공유:고1|화정) · 교과서: 천재수 공통국어2\n2(3) 춘향전\n3(1) 제망매가\n교과서 밖: 학습지 4~6', JSON.stringify(SENT));
+  ok('보낸 글 = [내신 시험 범위] 기간 · 고1 화정 (공유 키) · 교과서(목록 이름) + 교과서 내 범위(고른 줄) + 교과서 외 범위·메모', SENT.length === 1 && SENT[0].screen === '내신 시험 범위' &&
+     SENT[0].text === '[내신 시험 범위] ' + PERS.fin + ' · 고1 화정 (공유:고1|화정) · 교과서: 천재 공통국어2\n교과서 내 범위:\n- 1(1) 주체적으로 감상하기 · 뉴욕제과점(김연수)\n교과서 외 범위·메모:\n학습지 4~6', JSON.stringify(SENT));
   await page.selectOption('#req-ns-key', '__none');
   ok('목록에 없음 → 안내', /글 맨 앞에 학년·학교/.test(await page.textContent('#req-ns-now')));
   await page.setInputFiles('#req-file', [{ name: 'notice.jpg', mimeType: 'image/jpeg', buffer: Buffer.from('jpg') }]);
@@ -194,6 +198,7 @@ const NS_SCOPE = { period: PERS.fin, class_key: '공유:고1|화정', kind: '범
   REQS = BASE.map(x => ({ ...x })); SENT = []; st.gets.length = 0;
   ({ ctx, page } = await open({ rows: [{ class_id: 'n001', day: TODAY, start_time: '5:30', end_time: '7:00', location: '본원', teacher: '현지', name: '고2 서정A(천재 독작)', roster: '박보검', kind: '' }] }));
   await page.waitForFunction(() => [...document.querySelectorAll('.blk')].some(x => x.querySelector('.crbtn')), null, { timeout: 15000 });
+  await page.evaluate(() => { CR_NS_SPLIT_FROM = '2000-01-01'; CR_NS_SPLIT_TO = '2000-01-02'; });   // 고1·고2 예외 기간(내신 시간표로 정규 수업, ~11/3)은 날짜에 묶여 있어 검사에서는 끈다
   await page.evaluate(() => document.querySelector('.blk .crbtn').click());
   await page.waitForSelector('#cr-ns-req', { timeout: 8000 });
   ok('범위 없는 진도 수업 = 안내 + [수정 요청함으로 보내기]', /아직 없습니다/.test(await page.textContent('#cr-scope')));

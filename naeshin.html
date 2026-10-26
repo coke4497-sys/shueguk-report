@@ -121,6 +121,7 @@
   .rpt .wk .note b{font-size:12px; color:var(--accent); display:block; margin-bottom:2px;}
   .rpt .foot{text-align:center; font-family:'Gowun Batang',serif; font-size:12px; color:var(--ink-soft); margin-top:16px; padding-top:12px; border-top:1.5px solid var(--line-soft);}
 </style>
+<script src="textbook-toc.js"></script><!-- 교과서 목차 고르기(시험범위 교과서 내 범위) — 2026-10-26 -->
 </head>
 <body>
 <div class="wrap">
@@ -420,6 +421,7 @@ var WEEKS_READY = false;
 
 var classes = [];          // 내신 시간표 반 목록
 var period = PERIODS[0];
+var NS_TOC = null;   // 시험범위 교과서 목차 고르기 handle(renderPanel 이 만든다)
 var curClass = null;
 var rec = { scope:'', weeks:{}, notes:{} };   // 현재 반·기간의 기록
 var week = '';
@@ -686,11 +688,13 @@ function renderPanel(){
       '</div>'+
       '<label style="margin-bottom:0;">시험범위 <span class="dot">지필고사 리포트 제작 시 자동으로 가져다 써요'+
       (scopeKeyOf(c.cls,c.id)!==c.id ? ' · 같은 학교·학년의 다른 반과 자동 공유됩니다' : '')+'</span></label>'+
-      '<label>1. 교과서</label>'+
-      '<input id="ns-book" placeholder="예) 창비 공통국어2" value="'+esc(sp.book||defaultBookOf(curClass.cls))+'">'+
-      '<label>2. 교과서 내 범위 <span class="dot">한 줄에 한 항목 — 줄마다 클리어 버튼이 됩니다</span></label>'+
-      '<textarea id="ns-in" rows="4" placeholder="예) 현대시: 나는 오늘&#10;화법: 대화의 원리&#10;독서: 인간과 동물의 공존&#10;문법: 국어사">'+esc(sp.inRange||'')+'</textarea>'+
-      '<label>3. 교과서 외 범위 <span class="dot">한 줄에 한 항목</span></label>'+
+      (typeof TextbookToc!=='undefined'
+        ? '<label>1. 교과서 · 교과서 내 범위 <span class="dot">목차에서 골라 더해요 — 고른 단원마다 클리어 버튼이 됩니다</span></label><div id="ns-toc"></div>'
+        : '<label>1. 교과서</label>'+
+          '<input id="ns-book" placeholder="예) 창비 공통국어2" value="'+esc(sp.book||defaultBookOf(curClass.cls))+'">'+
+          '<label>2. 교과서 내 범위 <span class="dot">한 줄에 한 항목 — 줄마다 클리어 버튼이 됩니다</span></label>'+
+          '<textarea id="ns-in" rows="4" placeholder="예) 2(1) 청산별곡">'+esc(sp.inRange||'')+'</textarea>')+
+      '<label>'+(typeof TextbookToc!=='undefined'?'2':'3')+'. 교과서 외 범위 <span class="dot">직접 적기 · 한 줄에 한 항목(학습지·프린트·외부 지문)</span></label>'+
       '<textarea id="ns-out" placeholder="예) 2503 고1 독서(사회) 형사법과 민사법&#10;학습지 프린트">'+esc(sp.outRange||'')+'</textarea>'+
       '<div class="savebar" style="align-items:center;">'+
         '<span class="dot" style="margin:0 auto 0 0;">저장하면 아래 주차별 <b>시험범위 클리어</b> 목록에 바로 반영됩니다</span>'+
@@ -701,6 +705,12 @@ function renderPanel(){
       '<div id="wbody"></div>'+
     '</div>';
   $('panel').innerHTML = html;
+  // 교과서 내 범위 = 목차 고르기(2026-10-26 원장님 — 교과서 내는 드롭다운 선택 추가, 교과서 외는 직접 기록)
+  NS_TOC = null;
+  if ($('ns-toc') && typeof TextbookToc!=='undefined'){
+    var grade = (String(c.cls||'').match(/(중[1-3]|고[1-3])/)||[])[1] || '', sk = scopeKeyOf(c.cls, c.id), school = (/^공유:[^|]+\|(.+)$/.exec(sk)||[])[1] || '';
+    NS_TOC = TextbookToc.mount($('ns-toc'), { grade: grade, school: school, text: defaultBookOf(c.cls)||sp.book||'', period: period, book: sp.book||'', lines: lines(sp.inRange) });
+  }
   renderWeek();
 }
 function renderWeek(){
@@ -919,7 +929,8 @@ function scopeLabelPairs(sp){
 }
 function saveScope(){
   var prev=rec.scopeParts||{};
-  var sp={ book:$('ns-book').value.trim(), inRange:$('ns-in').value.trim(),
+  var g = NS_TOC ? NS_TOC.get() : null;
+  var sp={ book: g ? g.book : $('ns-book').value.trim(), inRange: g ? g.lines.join('\n') : $('ns-in').value.trim(),
            extra:String(prev.extra||'').trim(),   // 칸은 없앴지만 옛 기록은 그대로 보존
            outRange:$('ns-out').value.trim() };
   var readable=scopeLabelPairs(sp).map(function(x){ return x[0]+': '+x[1]; }).join('\n');
