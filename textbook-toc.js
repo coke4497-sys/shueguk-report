@@ -62,7 +62,7 @@
     '.toc .toc-chip{font-size:.78rem;background:#EDE4F4;color:#5A4A6A;border-radius:8px;padding:2px 4px 2px 9px;display:inline-flex;align-items:center;gap:2px;line-height:1.45;}' +
     '.toc .toc-chip.free{background:#F2F5F3;color:#65726B;} .toc .toc-chip.free::before{content:"목록 밖";font-size:.66rem;margin-right:4px;opacity:.8;}' +
     '.toc .toc-chip button{border:0;background:none;color:inherit;cursor:pointer;font-size:.9rem;padding:0 4px;line-height:1;}' +
-    '.toc .toc-out input.toc-title{flex:1;min-width:160px;} .toc .toc-add{font:inherit;font-size:1rem;line-height:1;border:0;border-radius:999px;width:34px;height:34px;padding:0;background:#EDE4F4;color:#5A4A6A;cursor:pointer;white-space:nowrap;}' +
+    '.toc .toc-out select.toc-area{width:auto;flex:0 0 auto;} .toc .toc-out input.toc-title{flex:1;min-width:160px;width:auto;} .toc .toc-add{font:inherit;font-size:1rem;line-height:1;border:0;border-radius:999px;width:34px;height:34px;padding:0;background:#EDE4F4;color:#5A4A6A;cursor:pointer;white-space:nowrap;}' +
     '.toc .toc-chip.out{background:#F9EFD0;color:#5F4E14;} .toc .toc-chip .toc-tag{font-style:normal;font-size:.66rem;background:rgba(255,255,255,.7);border-radius:6px;padding:0 5px;margin-right:5px;}' +
     '.toc .toc-chip.out.noarea{background:#F2F5F3;color:#65726B;} .toc .toc-chip.out.noarea::before{content:"구분 없음";font-size:.66rem;margin-right:4px;opacity:.8;}' +
     '.toc .toc-dim{font-size:.74rem;color:#65726B;} .toc textarea{font:inherit;font-size:.84rem;border:1px solid #D7E0DB;border-radius:9px;padding:6px 8px;min-height:72px;width:100%;box-sizing:border-box;}';
