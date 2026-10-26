@@ -10,7 +10,8 @@
      tt_log '반이동' 한 줄씩(2026-09-07 담당T 변경 기록과 같은 형식) + 시트 사본(백엔드 timetableMoveClass).
   ② tt_classes — 반이름에 '고3파이널'이 든 정규·내신 반(슈T, 11/6 종강) 삭제. 명단은 tt_log '반삭제' 사유에 남긴다.
      시트 사본은 학생이 남은 반을 지우지 못해(백엔드 규칙) 그대로 둔다 — 일일 점검이 '시트에만 있는 행'으로 보고만 한다.
-  ③ students — 담당 '정연주' → '이수경'(수파베이스 먼저 + 시트 '학생정보' 사본 backend updateStudent).
+  ③ students — 담당 '정연주' → '이수경'(수파베이스 먼저 + 시트 '학생정보' 사본 backend updateStudent)
+     + 연주T 내신 반에 있지만 담당이 다른 4명(EXTRA_STUDENTS — 2026-10-26 원장님 "그 4명도 슈T로").
   '이 주만' 반(w…)은 지난 날짜라 손대지 않는다. 출석·수업 기록·학생정보 시간 칸은 건드리지 않는다.
 
 쓰는 법:
@@ -27,6 +28,8 @@ APPLY_FROM = datetime.date(2026, 11, 7)
 OLD_T, NEW_T = '연주', '슈'
 OLD_NAME, NEW_NAME = '정연주', '이수경'
 NEW_LOC = '본원'
+# 연주T 내신 반 학생인데 학생정보 담당이 '정연주'가 아닌 학생 — (students.id, 이름, 지금 담당). id로 집고 담당 값이 그대로일 때만 바꾼다.
+EXTRA_STUDENTS = [(227, '윤진우', '우현정'), (192, '박서준', '우현정'), (231, '이서윤A', '우현정'), (524, '이지헌', '')]
 G3_RE = re.compile(r'고3파이널')
 FIXED_RE = re.compile(r'^[rn]\d{3,4}$')
 ENDPOINT = 'https://script.google.com/macros/s/AKfycbzhCncBwn-JlqXARC3wfrWUCuNHzlNK2df0bdhx-w78Xr8mzYUcIYZOJdRi9N4bHtsb/exec'
@@ -95,7 +98,11 @@ def targets():
     cs = classes()
     yj = [c for c in cs if FIXED_RE.match(c['class_id']) and (c['teacher'] or '').strip() == OLD_T]
     g3 = [c for c in cs if FIXED_RE.match(c['class_id']) and G3_RE.search(c['name'] or '')]
-    st = rest('GET', '/students?select=id,code,name,school,grade,teacher,memo,class_a,class_b,naeshin_a,naeshin_b,enrolled&teacher=eq.' + q(OLD_NAME) + '&order=name')
+    sel = 'select=id,code,name,school,grade,teacher,memo,class_a,class_b,naeshin_a,naeshin_b,enrolled'
+    st = rest('GET', '/students?' + sel + '&teacher=eq.' + q(OLD_NAME) + '&order=name')
+    for sid, nm, cur in EXTRA_STUDENTS:
+        for s in rest('GET', '/students?' + sel + '&id=eq.%d&name=eq.%s&teacher=eq.%s' % (sid, q(nm), q(cur))):
+            st.append(s)
     return yj, g3, st
 
 
@@ -115,8 +122,8 @@ def show(yj, g3, st):
     print('② 고3파이널 삭제: %d개 반' % len(g3))
     for c in g3:
         print('   %s %s %s %s~%s %s %s (%d명)' % (c['book'], c['class_id'], c['day'], c['start_time'], c['end_time'], c['teacher'], c['name'], n_roster(c)))
-    print('③ 학생정보 담당 정연주 → 이수경: %d명' % len(st))
-    print('   ' + ', '.join('%s(%s)' % (s['name'], s['school']) for s in st))
+    print('③ 학생정보 담당 → 이수경: %d명 (정연주 %d · 그 밖 %d)' % (len(st), sum(1 for s in st if s['teacher'] == OLD_NAME), sum(1 for s in st if s['teacher'] != OLD_NAME)))
+    print('   ' + ', '.join('%s(%s%s)' % (s['name'], s['school'], '' if s['teacher'] == OLD_NAME else ' · 담당 ' + (s['teacher'] or '없음')) for s in st))
 
 
 def apply(force=False):
@@ -164,7 +171,7 @@ def apply(force=False):
 
     # ③ 학생정보 담당
     for s in st:
-        res = rest('PATCH', '/students?id=eq.%s&teacher=eq.%s' % (s['id'], q(OLD_NAME)), {'teacher': NEW_NAME}, prefer='return=representation')
+        res = rest('PATCH', '/students?id=eq.%s&teacher=eq.%s' % (s['id'], q(s['teacher'] or '')), {'teacher': NEW_NAME}, prefer='return=representation')
         if not res:
             print('   ! %s 담당 바뀌지 않음' % s['name']); continue
         lg = {'result': 'skip(접근코드 없음)'}
