@@ -176,6 +176,9 @@ def cmd_put(period, key, path, merge=False):
     except Exception as e:  # noqa: BLE001 — 목차 파일이 없어도 저장은 한다
         print('(목차 대조 생략: %s)' % e, file=sys.stderr)
     sp = {'book': sp['book'], 'inRange': '\n'.join(sp['inRange']), 'extra': '\n'.join(sp['extra']), 'outRange': '\n'.join(sp['outRange'])}
+    old_sp = old if merge else (parse(fetch(period, key)) or {})
+    if isinstance(old_sp, dict) and old_sp.get('done'):
+        sp['done'] = True   # 슈국 스케쥴 [시험 범위] 탭의 입력 상태('입력 완료')는 그대로 둔다
     text2 = readable(sp)
     if not text2:
         sys.exit('범위가 비어 있습니다(교과서·안 범위·밖 범위 모두 빈 값).')

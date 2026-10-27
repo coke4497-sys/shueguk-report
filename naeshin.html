@@ -936,6 +936,7 @@ function saveScope(){
   var sp={ book: g ? g.book : $('ns-book').value.trim(), inRange: g ? g.lines.join('\n') : $('ns-in').value.trim(),
            extra:String(prev.extra||'').trim(),   // 칸은 없앴지만 옛 기록은 그대로 보존
            outRange: NS_OUT ? NS_OUT.get().lines.join('\n') : $('ns-out').value.trim() };
+  if(prev.done) sp.done=true;   // 슈국 스케쥴 [시험 범위] 탭의 입력 상태(입력 완료)는 그대로
   var readable=scopeLabelPairs(sp).map(function(x){ return x[0]+': '+x[1]; }).join('\n');
   var empty=!readable;
   post({ action:'naeshinSet', period:period, classId:curClass.id, kind:'범위',

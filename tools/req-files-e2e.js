@@ -33,6 +33,7 @@ const FILES = [
   { id: 12, req_key: 'rq_abc123def456', path: 'r/rq_abc123def456/bbbb.pdf', name: '시험 범위 안내.pdf', size: 4096, mime: 'application/pdf' },
 ];
 const NS_CLASSES = [{ name: '고1 화정A(천재수 공통국어2)' }, { name: '고1 화정B(천재수 공통국어2)' }, { name: '고2 서정A(천재 독작)' }, { name: '고1 확인' }, { name: '고3파이널A' }, { name: '중2 화정A(비상(영))' }];
+const NS_SCOPE_T2 = '교과서: 천재수 공통국어2\n교과서 내 범위: 2(1) 청산별곡\n2(2) 속미인곡\n교과서 외 범위: 학습지 1~3';
 const NS_SCOPE = { period: PERS.fin, class_key: '공유:고1|화정', kind: '범위', week: '', student: '', text1: JSON.stringify({ book: '천재수 공통국어2', inRange: '2(1) 청산별곡\n2(2) 속미인곡', extra: '', outRange: '학습지 1~3' }), text2: '교과서: 천재수 공통국어2\n교과서 내 범위: 2(1) 청산별곡\n2(2) 속미인곡\n교과서 외 범위: 학습지 1~3' };
 (async () => {
   const b = await chromium.launch();
@@ -227,7 +228,7 @@ const NS_SCOPE = { period: PERS.fin, class_key: '공유:고1|화정', kind: '범
     cards: [...document.querySelectorAll('.sc-card')].map(c => c.querySelector('h4').textContent + '|' + c.querySelector('.sc-cls').textContent + '|' + c.querySelector('[data-scedit]').textContent),
     sum: (document.getElementById('sc-sum') || {}).textContent || '', body: document.querySelector('.sc-card[data-key="공유:고1|화정"]').textContent }));
   ok('[시험 범위] 탭: 기본 기간 = 다가오는 시험(26-2-기말) · 내신 진도반을 학년·학교로 묶은 카드(확인·고3 제외) · 입력/고치기', r.on && /학년·학교마다 시험범위/.test(r.hint) && r.per.includes(PERS.fin + '*') &&
-     r.cards.length === 1 && /고1 화정/.test(r.cards[0]) && /항목 3개/.test(r.cards[0]) && /고1 화정A\(천재수 공통국어2\) · 현지T/.test(r.cards[0]) && /고치기$/.test(r.cards[0]) && /입력 1 \/ 1/.test(r.sum) && /청산별곡/.test(r.body) && /학습지 1~3/.test(r.body), JSON.stringify(r));
+     r.cards.length === 1 && /고1 화정/.test(r.cards[0]) && /항목 3개/.test(r.cards[0]) && /고1 화정A\(천재수 공통국어2\) · 현지T/.test(r.cards[0]) && /고치기$/.test(r.cards[0]) && /입력 완료 0 \/ 1 · 일부 기록 1/.test(r.sum) && /일부 기록 · 항목 3개/.test(r.cards[0]) && /청산별곡/.test(r.body) && /학습지 1~3/.test(r.body), JSON.stringify(r));
   if (process.env.SHOT) await page.screenshot({ path: process.env.SHOT + '/6-시험범위탭-카드.png', clip: { x: 0, y: 0, width: 1300, height: 560 } });
   // ⑥-1 학년별 구역(2026-10-27 원장님 "학년별로 표시되도록" + "전체 화면에서도 학년별 그룹이 가시화되도록") — '전체'에서도 중2·고1·고2 머리 띠 + 그 학년 입력 수, 학년을 고르면 그 구역만
   r = await page.evaluate(() => {
@@ -240,19 +241,39 @@ const NS_SCOPE = { period: PERS.fin, class_key: '공유:고1|화정', kind: '범
     const secs = [...document.querySelectorAll('.sc-sec')].map(s => s.getAttribute('data-grade') + '|' + s.querySelector('.sc-sec-h .sc-cnt').textContent + '|' + [...s.querySelectorAll('.sc-card h4')].map(h => h.firstChild.textContent).join(','));
     return { secs, sum: document.getElementById('sc-sum').textContent, grades: [...document.querySelectorAll('#sc-grade button')].map(b => b.textContent) };
   });
-  ok('[전체] = 학년 구역 중2 → 고1 → 고2, 띠마다 그 학년 입력 수, 카드는 학교 가나다', r.secs.join(';') === '중2|입력 0 / 2|중2 백양,중2 화정;고1|입력 1 / 2|고1 능곡,고1 화정;고2|입력 0 / 1|고2 서정' && r.sum === PERS.fin + ' · 입력 1 / 5' && r.grades.join(',') === '전체,중2,고1,고2', JSON.stringify(r));
+  ok('[전체] = 학년 구역 중2 → 고1 → 고2, 띠마다 그 학년 입력 수, 카드는 학교 가나다', r.secs.join(';') === '중2|입력 완료 0 / 2|중2 백양,중2 화정;고1|입력 완료 0 / 2 · 일부 기록 1|고1 능곡,고1 화정;고2|입력 완료 0 / 1|고2 서정' && r.sum === PERS.fin + ' · 입력 완료 0 / 5 · 일부 기록 1' && r.grades.join(',') === '전체,중2,고1,고2', JSON.stringify(r));
   if (process.env.SHOT) await page.screenshot({ path: process.env.SHOT + '/6b-시험범위탭-학년별.png', clip: { x: 0, y: 0, width: 1300, height: 900 } });
   await page.click('#sc-grade [data-scgr="고1"]');
   r = await page.evaluate(() => ({ secs: [...document.querySelectorAll('.sc-sec')].map(s => s.getAttribute('data-grade')), n: document.querySelectorAll('.sc-card').length, all: document.querySelector('.sc-sec-h .sc-cnt').className }));
   ok('학년을 고르면 그 학년 구역만(머리 띠는 남음)', r.secs.join() === '고1' && r.n === 2 && !/all/.test(r.all), JSON.stringify(r));
   await page.evaluate(() => { SC.targets = window.__scOrig; SC.grade = ''; render(); });
   r = await page.evaluate(() => ({ secs: [...document.querySelectorAll('.sc-sec .sc-cnt')].map(e => e.className + ':' + e.textContent) }));
-  ok('한 학년이 다 입력되면 띠에 "모두 입력함"', r.secs.join() === 'sc-cnt all:입력 1 / 1 · 모두 입력함', JSON.stringify(r));
+  ok('일부 기록만 있으면 띠는 "입력 완료 0 / 1 · 일부 기록 1"', r.secs.join() === 'sc-cnt:입력 완료 0 / 1 · 일부 기록 1', JSON.stringify(r));
+  // ⑥-2 입력 상태(2026-10-27 원장님 "그 버튼을 일부 기록, 입력 완료로 바뀌도록 … 상태가 바뀌도록 표시하는 버튼") — 카드 [입력 완료로 표시] → done 만 바꿔 저장, 알약·띠·합계가 바뀜, [일부 기록으로] 되돌림
+  st.writes = [];
+  await page.click('.sc-card [data-scdone][data-to="1"]');
+  await page.waitForFunction(() => /입력 완료/.test((document.getElementById('sc-msg') || {}).textContent || ''), null, { timeout: 8000 });
+  const dw = st.writes.filter(w => /naeshin_records/.test(w.u)).pop(), dt = dw && JSON.parse(dw.body[0].text1);
+  r = await page.evaluate(() => ({ st: document.querySelector('.sc-card .sc-st').className + ':' + document.querySelector('.sc-card .sc-st').textContent, cnt: document.querySelector('.sc-sec .sc-cnt').className + ':' + document.querySelector('.sc-sec .sc-cnt').textContent,
+    sum: document.getElementById('sc-sum').textContent, btn: document.querySelector('.sc-card [data-scdone]').textContent, body: document.querySelector('.sc-card').textContent }));
+  ok('[입력 완료로 표시] → 범위는 그대로(청산별곡·학습지) + done:true 저장, 알약 "입력 완료 · 항목 3개"(세이지), 띠 "모두 완료", 단추는 [일부 기록으로]',
+     dt && dt.done === true && dt.inRange === '2(1) 청산별곡\n2(2) 속미인곡' && dt.outRange === '학습지 1~3' && dw.body[0].text2 === NS_SCOPE_T2 &&
+     r.st === 'sc-st ok:입력 완료 · 항목 3개' && r.cnt === 'sc-cnt all:입력 완료 1 / 1 · 모두 완료' && /입력 완료 1 \/ 1 · 모두 완료/.test(r.sum) && r.btn === '일부 기록으로' && /청산별곡/.test(r.body), JSON.stringify({ dt, r }));
+  if (process.env.SHOT) await page.screenshot({ path: process.env.SHOT + '/6c-시험범위탭-입력완료.png', clip: { x: 0, y: 0, width: 1300, height: 560 } });
+  await page.click('.sc-card [data-scdone][data-to="0"]');
+  await page.waitForFunction(() => /일부 기록/.test((document.getElementById('sc-msg') || {}).textContent || ''), null, { timeout: 8000 });
+  const pw = st.writes.filter(w => /naeshin_records/.test(w.u)).pop(), pt = pw && JSON.parse(pw.body[0].text1);
+  r = await page.evaluate(() => document.querySelector('.sc-card .sc-st').className + ':' + document.querySelector('.sc-card .sc-st').textContent);
+  ok('[일부 기록으로] → done 없이 저장, 알약 "일부 기록"(연노랑)', pt && !('done' in pt) && r === 'sc-st part:일부 기록 · 항목 3개', JSON.stringify({ pt, r }));
   await page.click('.sc-card [data-scedit]');
   await page.waitForSelector('.sc-card.on .sc-toc select.toc-unit', { timeout: 8000 });
   r = await page.evaluate(() => ({ book: document.querySelector('.sc-card.on .toc-book').value, chips: [...document.querySelectorAll('.sc-card.on .sc-toc .toc-chip')].map(x => x.className + ':' + x.firstChild.textContent),
     outs: [...document.querySelectorAll('.sc-card.on .sc-outp .toc-chip')].map(x => x.textContent.replace(/×$/, '')) }));
   ok('[고치기] → 교과서 목차(천재 공통국어2) · 옛 자유 글 줄은 "목록 밖" 칩으로 보존 · 교과서 외 범위 칩', r.book === 'T2' && r.chips.length === 2 && r.chips.every(c => /free/.test(c)) && r.outs.join() === '학습지 1~3', JSON.stringify(r));
+  r = await page.evaluate(() => [...document.querySelectorAll('.sc-card.on .sc-stsel button')].map(b => b.className + ':' + b.textContent));
+  ok('입력 중 상태 알약 [일부 기록][입력 완료] — 지금 상태(일부 기록)가 켜져 있음', r.join() === 'on part:일부 기록,:입력 완료', JSON.stringify(r));
+  await page.click('.sc-card.on [data-scsel="1"]');
+  await page.waitForSelector('.sc-card.on .sc-stsel button.on[data-scsel="1"]');
   await page.selectOption('.sc-card.on .toc-unit', '1(1) 주체적으로 감상하기 · 뉴욕제과점(김연수)');
   await page.selectOption('.sc-card.on .toc-area', '문학');
   await page.fill('.sc-card.on .toc-title', '학습지 4');
@@ -264,9 +285,10 @@ const NS_SCOPE = { period: PERS.fin, class_key: '공유:고1|화정', kind: '범
   const t1 = sw && JSON.parse(sw.body[0].text1);
   ok('저장 → naeshin_records(범위 · 공유:고1|화정 · 그 기간) — 교과서 내 = 옛 줄 + 고른 목차 줄, 교과서 외 = 옛 줄 + [문학] 학습지 4', sw && sw.body[0].period === PERS.fin && sw.body[0].class_key === '공유:고1|화정' && sw.body[0].kind === '범위' && t1 && t1.book === '천재 공통국어2' &&
      t1.inRange === '2(1) 청산별곡\n2(2) 속미인곡\n1(1) 주체적으로 감상하기 · 뉴욕제과점(김연수)' && t1.outRange === '학습지 1~3\n[문학] 학습지 4', JSON.stringify(sw && sw.body));
+  ok('입력 중 [입력 완료]를 골라 저장하면 done:true 가 함께', t1 && t1.done === true, JSON.stringify(t1));
   ok('시트 사본 naeshinSet(범위 · scopeKey)', st.gas.some(g => g.action === 'naeshinSet' && g.kind === '범위' && g.scopeKey === '공유:고1|화정' && g.period === PERS.fin));
   r = await page.evaluate(() => ({ on: !!document.querySelector('.sc-card.on'), head: document.querySelector('.sc-card h4').textContent, body: document.querySelector('.sc-card').textContent, msg: document.getElementById('sc-msg').textContent }));
-  ok('저장 뒤 카드 = 항목 5개 · 영역 태그 · 안내', !r.on && /항목 5개/.test(r.head) && /뉴욕제과점/.test(r.body) && /문학학습지 4/.test(r.body) && /같은 학교·학년 반/.test(r.msg), JSON.stringify(r));
+  ok('저장 뒤 카드 = 입력 완료 · 항목 5개 · 영역 태그 · 안내', !r.on && /입력 완료 · 항목 5개/.test(r.head) && /뉴욕제과점/.test(r.body) && /문학학습지 4/.test(r.body) && /같은 학교·학년 반/.test(r.msg), JSON.stringify(r));
   await page.click('#sc-per button:not(.on)');
   await page.waitForFunction(() => /아직 없어요/.test(document.querySelector('.sc-card h4').textContent), null, { timeout: 8000 });
   ok('다른 기간으로 바꾸면 그 기간 범위(없음 → "아직 없어요" · [입력])', (await page.$eval('.sc-card [data-scedit]', e => e.textContent)) === '입력' && st.gets.some(u => /naeshin_records\?period=eq\./.test(u) && !/class_key=eq/.test(u)));
