@@ -188,6 +188,12 @@
   .sc-bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-size:.84rem;color:var(--ink-soft);} .sc-bar .cr-per{margin-bottom:0;}
   .sc-msg{color:#3F6159;}
   .sc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:12px;align-items:start;}
+  .sc-sec{display:flex;flex-direction:column;gap:10px;}
+  .sc-sec-h{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:2px 2px 0;}
+  .sc-sec-h b{font-family:"Do Hyeon",sans-serif;font-weight:400;font-size:1.3rem;color:#2A332F;letter-spacing:.01em;}
+  .sc-sec-h .sc-cnt{font-size:.78rem;color:var(--ink-soft);}
+  .sc-sec-h .sc-cnt.all{color:#3F6159;font-weight:700;}
+  .sc-sec-h .sc-line{flex:1;height:1px;background:#DCE4DF;min-width:24px;}
   .sc-card{background:#fff;border-radius:14px;padding:12px 14px;display:flex;flex-direction:column;gap:7px;box-shadow:0 1px 4px rgba(0,0,0,.05);}
   .sc-card.on{outline:2px solid #D6C9E4;grid-column:1 / -1;}
   .sc-card h4{margin:0;font-size:.98rem;display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-family:"Gowun Batang",serif;}
@@ -4234,10 +4240,28 @@ function scopeView(){
   if (SC.loading && !SC.rows) h += '<p class="mdesc">불러오는 중…</p>';
   else if (SC.fail) h += '<p class="mdesc">시험 범위를 불러오지 못했어요. [다시 불러오기]를 눌러 주세요.</p>';
   else if (!list.length) h += '<p class="mdesc">내신 시간표에 진도반이 없어요.</p>';
-  else h += '<div class="sc-grid">' + list.map(scopeCardHtml).join('') + '</div>';
+  else h += scopeSections(list);
   host.innerHTML = h;
   if (SC.edit) scopeMountEdit(host);
   return host;
+}
+/* 학년별 구역(2026-10-27 원장님 "학년별로 표시되도록" + "전체 화면에서도 학년별 그룹이 가시화되도록") — '전체'에서도 중2·고1·고2 머리 띠 아래 그 학년 카드만, 띠에 그 학년의 입력 수 */
+function scopeSections(list){
+  var order = ['중1','중2','중3','고1','고2','고3'], secs = [], by = {};
+  list.forEach(function(t){
+    var g = t.grade || '';
+    if (!by[g]){ by[g] = { grade: g, items: [] }; secs.push(by[g]); }
+    by[g].items.push(t);
+  });
+  secs.sort(function(a, b){
+    var ia = a.grade ? order.indexOf(a.grade) : 99, ib = b.grade ? order.indexOf(b.grade) : 99; return ia - ib;
+  });
+  return secs.map(function(s){
+    var done = s.items.filter(function(t){ return SC.rows && SC.rows[t.key]; }).length, all = done === s.items.length;
+    return '<section class="sc-sec" data-grade="' + esc(s.grade) + '"><div class="sc-sec-h"><b>' + esc(s.grade || '학년 미상') + '</b>' +
+      '<span class="sc-cnt' + (all ? ' all' : '') + '">' + (SC.rows ? '입력 ' + done + ' / ' + s.items.length + (all ? ' · 모두 입력함' : '') : s.items.length + '곳') + '</span><span class="sc-line"></span></div>' +
+      '<div class="sc-grid">' + s.items.map(scopeCardHtml).join('') + '</div></section>';
+  }).join('');
 }
 function scopeCardHtml(t){
   var r = SC.rows && SC.rows[t.key], sp = crNsParseScope(r), n = sp ? crNsItems({ scope: sp }).length : 0, on = SC.edit === t.key;
