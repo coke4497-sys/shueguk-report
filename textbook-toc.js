@@ -91,9 +91,10 @@
       if (st.dead) return;
       var b = book(), list = match({ grade: opt.grade, text: opt.text || st.bookName, school: opt.school, period: opt.period });
       var h = '<div class="toc-row"><select class="toc-book" aria-label="교과서">' +
-        list.map(function (x) { return '<option value="' + esc(x.b.id) + '"' + (b && b.id === x.b.id ? ' selected' : '') + '>' + esc(x.b.label) + (x.b.schools.length ? ' · ' + esc(x.b.schools.join('·')) : '') + '</option>'; }).join('') +
+        // 글 순서 = 교과서 · n개 항목 · 쓰는 학교(2026-10-27 원장님 "같은 교과서를 사용하는 학교 이름이 이렇게 들어가 있으니 헷갈려요. 31개 항목 뒤에 넣어줘")
+        list.map(function (x) { return '<option value="' + esc(x.b.id) + '"' + (b && b.id === x.b.id ? ' selected' : '') + '>' + esc(x.b.label) + ' · ' + x.b.items.length + '개 항목' + (x.b.schools.length ? ' · ' + esc(x.b.schools.join('·')) : '') + '</option>'; }).join('') +
         '<option value=""' + (!b ? ' selected' : '') + '>목록에 없는 교과서 — 직접 적기</option></select>' +
-        (b ? '<small>' + b.items.length + '개 항목' + (opt.grade ? '' : ' · ' + esc(b.grade)) + '</small>' : '') + '</div>';
+        (b && !opt.grade ? '<small>' + esc(b.grade) + '</small>' : '') + '</div>';
       if (b){
         var inSet = {}; st.lines.forEach(function (l) { inSet[l] = 1; });
         var groups = [], gi = {};

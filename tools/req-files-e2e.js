@@ -179,6 +179,7 @@ const NS_SCOPE = { period: PERS.fin, class_key: '공유:고1|화정', kind: '범
   await page.waitForSelector('#req-ns-toc select.toc-unit', { timeout: 8000 });
   r = await page.evaluate(() => ({ book: document.querySelector('#req-ns-toc .toc-book').value, txt: document.querySelector('#req-ns-toc .toc-book option:checked').textContent }));
   ok('학년·학교를 고르면 그 학교 교과서 목차 — 고1 화정 + 천재수 공통국어2 → 천재(김수학) 공통국어2', r.book === 'T2' && /천재\(김수학\) 공통국어2/.test(r.txt), JSON.stringify(r));
+  ok('교과서 글 순서 = 교과서 · n개 항목 · 쓰는 학교(학교가 맨 뒤)', /^천재\(김수학\) 공통국어2 · \d+개 항목 · [가-힣·]+고$/.test(r.txt.trim()), r.txt);
   ok('단원도 글도 파일도 없으면 거절', await page.evaluate(() => { reqSubmit(); return document.getElementById('req-err').textContent; }) === '교과서 내 범위를 고르거나, 교과서 외 범위를 더하거나, 안내문 사진을 붙여 주세요.');
   await page.selectOption('#req-ns-toc .toc-unit', '1(1) 주체적으로 감상하기 · 뉴욕제과점(김연수)');
   await page.selectOption('#req-ns-outp .toc-area', '기타');
