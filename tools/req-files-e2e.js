@@ -228,6 +228,25 @@ const NS_SCOPE = { period: PERS.fin, class_key: '공유:고1|화정', kind: '범
   ok('[시험 범위] 탭: 기본 기간 = 다가오는 시험(26-2-기말) · 내신 진도반을 학년·학교로 묶은 카드(확인·고3 제외) · 입력/고치기', r.on && /학년·학교마다 시험범위/.test(r.hint) && r.per.includes(PERS.fin + '*') &&
      r.cards.length === 1 && /고1 화정/.test(r.cards[0]) && /항목 3개/.test(r.cards[0]) && /고1 화정A\(천재수 공통국어2\) · 현지T/.test(r.cards[0]) && /고치기$/.test(r.cards[0]) && /입력 1 \/ 1/.test(r.sum) && /청산별곡/.test(r.body) && /학습지 1~3/.test(r.body), JSON.stringify(r));
   if (process.env.SHOT) await page.screenshot({ path: process.env.SHOT + '/6-시험범위탭-카드.png', clip: { x: 0, y: 0, width: 1300, height: 560 } });
+  // ⑥-1 학년별 구역(2026-10-27 원장님 "학년별로 표시되도록" + "전체 화면에서도 학년별 그룹이 가시화되도록") — '전체'에서도 중2·고1·고2 머리 띠 + 그 학년 입력 수, 학년을 고르면 그 구역만
+  r = await page.evaluate(() => {
+    window.__scOrig = SC.targets;
+    SC.targets = scopeTargetsOf([
+      { class_id: 'n101', name: '고2 서정A(천재 독작)', teacher: '주혜' }, { class_id: 'n102', name: '중2 화정A(비상(영))', teacher: '은지' },
+      { class_id: 'n103', name: '중2 백양(비상(현))', teacher: '은지' }, { class_id: 'n001', name: '고1 화정A(천재수 공통국어2)', teacher: '현지' },
+      { class_id: 'n104', name: '고1 능곡(해냄 공통국어2)', teacher: '현지' }]);
+    SC.grade = ''; render();
+    const secs = [...document.querySelectorAll('.sc-sec')].map(s => s.getAttribute('data-grade') + '|' + s.querySelector('.sc-sec-h .sc-cnt').textContent + '|' + [...s.querySelectorAll('.sc-card h4')].map(h => h.firstChild.textContent).join(','));
+    return { secs, sum: document.getElementById('sc-sum').textContent, grades: [...document.querySelectorAll('#sc-grade button')].map(b => b.textContent) };
+  });
+  ok('[전체] = 학년 구역 중2 → 고1 → 고2, 띠마다 그 학년 입력 수, 카드는 학교 가나다', r.secs.join(';') === '중2|입력 0 / 2|중2 백양,중2 화정;고1|입력 1 / 2|고1 능곡,고1 화정;고2|입력 0 / 1|고2 서정' && r.sum === PERS.fin + ' · 입력 1 / 5' && r.grades.join(',') === '전체,중2,고1,고2', JSON.stringify(r));
+  if (process.env.SHOT) await page.screenshot({ path: process.env.SHOT + '/6b-시험범위탭-학년별.png', clip: { x: 0, y: 0, width: 1300, height: 900 } });
+  await page.click('#sc-grade [data-scgr="고1"]');
+  r = await page.evaluate(() => ({ secs: [...document.querySelectorAll('.sc-sec')].map(s => s.getAttribute('data-grade')), n: document.querySelectorAll('.sc-card').length, all: document.querySelector('.sc-sec-h .sc-cnt').className }));
+  ok('학년을 고르면 그 학년 구역만(머리 띠는 남음)', r.secs.join() === '고1' && r.n === 2 && !/all/.test(r.all), JSON.stringify(r));
+  await page.evaluate(() => { SC.targets = window.__scOrig; SC.grade = ''; render(); });
+  r = await page.evaluate(() => ({ secs: [...document.querySelectorAll('.sc-sec .sc-cnt')].map(e => e.className + ':' + e.textContent) }));
+  ok('한 학년이 다 입력되면 띠에 "모두 입력함"', r.secs.join() === 'sc-cnt all:입력 1 / 1 · 모두 입력함', JSON.stringify(r));
   await page.click('.sc-card [data-scedit]');
   await page.waitForSelector('.sc-card.on .sc-toc select.toc-unit', { timeout: 8000 });
   r = await page.evaluate(() => ({ book: document.querySelector('.sc-card.on .toc-book').value, chips: [...document.querySelectorAll('.sc-card.on .sc-toc .toc-chip')].map(x => x.className + ':' + x.firstChild.textContent),
