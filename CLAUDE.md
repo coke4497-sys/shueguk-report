@@ -1051,3 +1051,8 @@ clasp update-deployment -d "설명" <DEPLOYMENT_ID>   # 기존 배포 새 버전
 - **원장님 설정(ChatGPT 유료 계정)**: chatgpt.com/codex → 설정 → GitHub 앱 설치 → 저장소 8개 접근 허용 → 저장소마다 Code review 켜기(+ Automatic reviews 켜면 모든 PR 자동 검토, 끄면 PR 댓글 `@codex review`로 호출). 비용은 구독에 포함.
 - 수정 요청함 알림용 초안 PR #329는 초안 상태라 Codex가 검토하지 않는다(그대로 둘 것).
 - 클로드 세션은 PR을 연 뒤 `subscribe_pr_activity`로 구독해 두면 Codex 댓글 이벤트로 깨어나 처리한다.
+
+## 학생 페이지 샘플 — sample.html (2026-10-27 원장님 "슈퍼스타 페이지 샘플, 가상 데이터로 — 블로그 포스팅용")
+- `sample.html` = `s.html`을 그대로 복사하고 맨 끝 `boot()` 자리에서 서버·수파베이스 호출(api·jsonp·qqRpc·sbTop30·fetchMockData·fetchMockStats·loadGradeGates·checkNoticeBtn)을 **가짜 응답으로 바꾼 것**. 개인 링크 없이 열리고 아무것도 저장하지 않는다. 학생 '김하늘'(화정고 2학년)·TOP 30 이름·점수·공지는 전부 지어낸 것이며 머리에 '샘플 · 가상 데이터' 배지가 보인다.
+- 보기: 허브·별 카드·수업 리포트 6장·출석 기록·알려드립니다(TOP 30 시상대·공지 3·분석지)·지필고사 리포트 2건(잠금 없이 바로)·주말 모의고사 성적표 3회(추이·평균선)·교육청 모의고사 리포트·클리닉·H WORK. 블로그 캡처용 주소 해시: `#report #attend #notice #top30 #exam #examcard #mock #mockscore #smock #clinic #hwork`(해시를 바꾸면 새로고침해야 그 화면으로 연다).
+- **s.html을 고치면 이 파일은 자동으로 따라오지 않는다** — 다시 만들려면 s.html 사본을 만든 뒤 맨 끝 `boot();`를 이 파일의 `/* 샘플 페이지 — 가상 데이터 */` 아래 블록으로 바꾼다(그 블록만 다른 내용). 가짜 데이터 모양은 각 함수가 읽는 필드 그대로(class_history body·attendance_history·exams·mock reports·smock_mine·star_top30).
