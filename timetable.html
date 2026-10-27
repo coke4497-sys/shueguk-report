@@ -198,7 +198,8 @@
   .sc-card.on{outline:2px solid #D6C9E4;grid-column:1 / -1;}
   .sc-card h4{margin:0;font-size:.98rem;display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-family:"Gowun Batang",serif;}
   .sc-card h4 small{font-weight:400;color:var(--ink-soft);font-size:.74rem;font-family:"Gowun Dodum",sans-serif;}
-  .sc-st{font-size:.7rem;border-radius:999px;padding:2px 9px;font-family:"Gowun Dodum",sans-serif;font-weight:400;} .sc-st.ok{background:#DCE8E5;color:#3F6159;} .sc-st.no{background:#EEF1EF;color:#5C6A64;}   /* 연한 회색(2026-10-27 원장님 "아직없어요 버튼 연한 그레이 컬러로" — 처음은 연노랑) */
+  .sc-st{font-size:.7rem;border-radius:999px;padding:2px 9px;font-family:"Gowun Dodum",sans-serif;font-weight:400;} .sc-st.ok{background:#DCE8E5;color:#3F6159;} .sc-st.no{background:#EEF1EF;color:#5C6A64;} .sc-st.part{background:#F9EFD0;color:#7A6230;}   /* 아직 없어요 연한 회색(2026-10-27 원장님) · 일부 기록 연노랑 · 입력 완료 세이지 */
+  .sc-stsel{display:flex;gap:6px;align-items:center;flex-wrap:wrap;font-size:.8rem;color:var(--ink-soft);} .sc-stsel button{font:inherit;font-size:.78rem;border:0;border-radius:999px;padding:4px 11px;background:#EEF1EF;color:#5C6A64;cursor:pointer;} .sc-stsel button.on{background:#DCE8E5;color:#3F6159;font-weight:700;} .sc-stsel button.on.part{background:#F9EFD0;color:#7A6230;}
   .sc-cls{font-size:.74rem;color:var(--ink-soft);}
   .sc-card .cr-scope-view{margin-bottom:0;background:#F6F8F7;}
   .sc-card .cr-f{margin:0;} .sc-card .cr-f label{font-size:.8rem;display:block;margin-bottom:4px;} .sc-card .cr-f label small{color:var(--ink-soft);font-weight:400;}
@@ -4197,7 +4198,10 @@ function exsDayDiff(a, b){
 /* ── 시험 범위 메뉴 (2026-10-26 원장님 "슈국 스케쥴 지필고사 메뉴 옆에 시험 범위 입력 메뉴") ──
  * 내신 시간표의 진도반(확인·중3·고3·'이 주만' 제외)을 공유 키(학년|학교 — 수업 기록 창·내신대비 피드백·수정 요청함과 같은 crScopeKey, 학교가 없는 반은 반ID)로 묶어
  * 기간마다 교과서 목차 고르기(교과서 내) + 영역·제목(교과서 외)으로 범위를 적고 naeshin_records '범위'에 저장한다(같은 표·같은 형식 — 저장하면 세 화면에 바로 보인다). */
-var SC = { period: '', targets: null, rows: null, edit: '', grade: '', loading: false, fail: false, toc: null, outp: null, msg: '' };
+var SC = { period: '', targets: null, rows: null, edit: '', grade: '', loading: false, fail: false, toc: null, outp: null, msg: '', doneSel: null };
+/* 입력 상태(2026-10-27 원장님 "그 버튼을 일부 기록, 입력 완료로 바뀌도록") = 범위 JSON(text1)의 `done` 칸 — 줄이 없으면 '아직 없어요', 있고 done이 아니면 '일부 기록', done이면 '입력 완료'. 새 열 없음. */
+function scopeStat(sp){ return !sp ? 'no' : (sp.done ? 'ok' : 'part'); }
+var SC_ST_LBL = { no: '아직 없어요', part: '일부 기록', ok: '입력 완료' };
 function scopeLoadAndRender(){
   bootKicked.scope = true;
   if (!SC.period) SC.period = reqNsDefaultPeriod(todayStr());   // 다가오는 시험(10월 = 26-2-기말)
@@ -4232,10 +4236,10 @@ function scopeView(){
   var pers = crNsPeriods(todayStr());
   var grades = []; (SC.targets || []).forEach(function(t){ if (t.grade && grades.indexOf(t.grade) < 0) grades.push(t.grade); });
   var list = (SC.targets || []).filter(function(t){ return !SC.grade || t.grade === SC.grade; });
-  var done = (SC.targets || []).filter(function(t){ return SC.rows && SC.rows[t.key]; }).length;
+  var cnt = scopeCount(SC.targets || []);
   var h = '<div class="sc-bar"><span class="cr-per" id="sc-per">' + pers.map(function(p){ return '<button type="button" class="' + (p === SC.period ? 'on' : '') + '" data-scper="' + esc(p) + '">' + esc(p) + '</button>'; }).join('') + '</span>' +
     (grades.length > 1 ? '<span class="cr-per" id="sc-grade"><button type="button" class="' + (!SC.grade ? 'on' : '') + '" data-scgr="">전체</button>' + grades.map(function(g){ return '<button type="button" class="' + (g === SC.grade ? 'on' : '') + '" data-scgr="' + g + '">' + g + '</button>'; }).join('') + '</span>' : '') +
-    (SC.targets && SC.rows ? '<span id="sc-sum">' + esc(SC.period) + ' · 입력 ' + done + ' / ' + SC.targets.length + '</span>' : '') +
+    (SC.targets && SC.rows ? '<span id="sc-sum">' + esc(SC.period) + ' · ' + scopeCountLabel(cnt, SC.targets.length) + '</span>' : '') +
     '<button type="button" class="sc-mini" id="sc-reload">다시 불러오기</button>' + (SC.msg ? '<span class="sc-msg" id="sc-msg">' + esc(SC.msg) + '</span>' : '') + '</div>';
   if (SC.loading && !SC.rows) h += '<p class="mdesc">불러오는 중…</p>';
   else if (SC.fail) h += '<p class="mdesc">시험 범위를 불러오지 못했어요. [다시 불러오기]를 눌러 주세요.</p>';
@@ -4257,23 +4261,35 @@ function scopeSections(list){
     var ia = a.grade ? order.indexOf(a.grade) : 99, ib = b.grade ? order.indexOf(b.grade) : 99; return ia - ib;
   });
   return secs.map(function(s){
-    var done = s.items.filter(function(t){ return SC.rows && SC.rows[t.key]; }).length, all = done === s.items.length;
+    var c = scopeCount(s.items), all = c.ok === s.items.length;
     return '<section class="sc-sec" data-grade="' + esc(s.grade) + '"><div class="sc-sec-h"><b>' + esc(s.grade || '학년 미상') + '</b>' +
-      '<span class="sc-cnt' + (all ? ' all' : '') + '">' + (SC.rows ? '입력 ' + done + ' / ' + s.items.length + (all ? ' · 모두 입력함' : '') : s.items.length + '곳') + '</span><span class="sc-line"></span></div>' +
+      '<span class="sc-cnt' + (all ? ' all' : '') + '">' + (SC.rows ? scopeCountLabel(c, s.items.length) : s.items.length + '곳') + '</span><span class="sc-line"></span></div>' +
       '<div class="sc-grid">' + s.items.map(scopeCardHtml).join('') + '</div></section>';
   }).join('');
 }
+function scopeCount(items){
+  var c = { ok: 0, part: 0 };
+  items.forEach(function(t){ var st = scopeStat(crNsParseScope(SC.rows && SC.rows[t.key])); if (st !== 'no') c[st]++; });
+  return c;
+}
+function scopeCountLabel(c, total){ return '입력 완료 ' + c.ok + ' / ' + total + (c.ok === total ? ' · 모두 완료' : (c.part ? ' · 일부 기록 ' + c.part : '')); }
 function scopeCardHtml(t){
-  var r = SC.rows && SC.rows[t.key], sp = crNsParseScope(r), n = sp ? crNsItems({ scope: sp }).length : 0, on = SC.edit === t.key;
-  var head = '<h4>' + esc(t.label) + (t.shared ? '<small>같은 학교·학년 반 공유</small>' : '') + '<span class="sc-st ' + (sp ? 'ok' : 'no') + '">' + (sp ? '항목 ' + n + '개' : '아직 없어요') + '</span></h4>' +
+  var r = SC.rows && SC.rows[t.key], sp = crNsParseScope(r), n = sp ? crNsItems({ scope: sp }).length : 0, on = SC.edit === t.key, st = scopeStat(sp);
+  var head = '<h4>' + esc(t.label) + (t.shared ? '<small>같은 학교·학년 반 공유</small>' : '') + '<span class="sc-st ' + st + '">' + SC_ST_LBL[st] + (sp ? ' · 항목 ' + n + '개' : '') + '</span></h4>' +
     '<div class="sc-cls">' + esc(t.cls.join(' · ')) + '</div>';
-  if (on) return '<div class="sc-card on" data-key="' + esc(t.key) + '">' + head +
+  if (on){
+    var sel = SC.doneSel === null ? !!(sp && sp.done) : !!SC.doneSel;   // 입력 중 고른 상태(없으면 지금 상태)
+    return '<div class="sc-card on" data-key="' + esc(t.key) + '">' + head +
     '<div class="cr-f"><label>교과서 · 교과서 내 범위 <small>(목차에서 골라 더해요 — 고른 단원이 수업 기록 창의 진도 고르기 목록이 돼요)</small></label><div class="sc-toc"></div></div>' +
     '<div class="cr-f"><label>교과서 외 범위 <small>(영역을 고르고 제목을 적어 [+])</small></label><div class="sc-outp"></div></div>' +
+    '<div class="sc-stsel">입력 상태 <button type="button" class="' + (!sel ? 'on part' : '') + '" data-scsel="0">일부 기록</button><button type="button" class="' + (sel ? 'on' : '') + '" data-scsel="1">입력 완료</button><small>(범위를 다 넣었으면 입력 완료로 — 저장할 때 함께 적혀요)</small></div>' +
     '<div class="sc-btns"><button type="button" class="sc-btn" data-scsave="' + esc(t.key) + '">시험범위 저장</button><button type="button" class="sc-mini" data-sccancel="1">취소</button>' +
     (sp ? '<button type="button" class="sc-mini" data-scclear="' + esc(t.key) + '">범위 비우기</button>' : '') + '</div></div>';
+  }
   return '<div class="sc-card" data-key="' + esc(t.key) + '">' + head + (sp ? crNsScopeView(sp) : '') +
-    '<div class="sc-btns"><button type="button" class="sc-btn" data-scedit="' + esc(t.key) + '">' + (sp ? '고치기' : '입력') + '</button>' + (r && r.at ? '<span class="sc-cls">저장 ' + crHm(r.at) + '</span>' : '') + '</div></div>';
+    '<div class="sc-btns"><button type="button" class="sc-btn" data-scedit="' + esc(t.key) + '">' + (sp ? '고치기' : '입력') + '</button>' +
+    (sp ? '<button type="button" class="sc-mini" data-scdone="' + esc(t.key) + '" data-to="' + (sp.done ? '0' : '1') + '">' + (sp.done ? '일부 기록으로' : '입력 완료로 표시') + '</button>' : '') +
+    (r && r.at ? '<span class="sc-cls">저장 ' + crHm(r.at) + '</span>' : '') + '</div></div>';
 }
 function scopeMountEdit(host){
   var card = host.querySelector('.sc-card.on'); if (!card) return;
@@ -4283,13 +4299,20 @@ function scopeMountEdit(host){
   SC.toc = TextbookToc.mount(card.querySelector('.sc-toc'), { grade: t.grade, school: t.school, text: t.book || sp.book || '', period: SC.period, book: prev ? prev.book : (sp.book || ''), lines: prev ? prev.lines : crLines(sp.inRange) });
   SC.outp = TextbookToc.mountOut(card.querySelector('.sc-outp'), { lines: prevOut ? prevOut.lines : crLines(sp.outRange) });
 }
-function scopeSave(key, clear){
+/* clear = 범위 비우기 · doneOnly = true/false 면 내용은 그대로 두고 입력 상태만 바꿈(카드의 [입력 완료로 표시]/[일부 기록으로]) · 그 밖은 입력 중 내용 + 고른 상태 저장 */
+function scopeSave(key, clear, doneOnly){
   var t = (SC.targets || []).filter(function(x){ return x.key === key; })[0]; if (!t) return;
   var prev = crNsParseScope(SC.rows[key]) || {}, sp = null;
   if (clear){ if (!confirm(t.label + ' ' + SC.period + ' 시험범위를 비울까요?\n수업 기록 창·내신대비 피드백에서도 사라져요(진도 단원 기록은 남습니다).')) return; }
+  else if (doneOnly !== undefined){
+    if (!SC.rows[key]) return;
+    sp = { book: String(prev.book || ''), inRange: String(prev.inRange || ''), extra: String(prev.extra || '').trim(), outRange: String(prev.outRange || '') };
+    if (doneOnly) sp.done = true;
+  }
   else {
     var g = SC.toc ? SC.toc.get() : { book: prev.book || '', lines: crLines(prev.inRange) }, o = SC.outp ? SC.outp.get().lines : crLines(prev.outRange);
     sp = { book: g.book, inRange: g.lines.join('\n'), extra: String(prev.extra || '').trim(), outRange: o.join('\n') };
+    if (SC.doneSel === null ? !!prev.done : !!SC.doneSel) sp.done = true;
   }
   var readable = sp ? [['교과서', sp.book], ['교과서 내 범위', sp.inRange], ['교과서 외 범위', sp.outRange], ['추가 자료', sp.extra]].filter(function(x){ return x[1]; }).map(function(x){ return x[0] + ': ' + x[1]; }).join('\n') : '';
   if (sp && !readable){ SC.msg = '교과서와 범위가 비어 있어요. 지우려면 [범위 비우기]를 눌러 주세요.'; render(); return; }
@@ -4300,19 +4323,22 @@ function scopeSave(key, clear){
   job.then(function(){
     crLegacy({ action: 'naeshinSet', period: per, classId: key, scopeKey: key, kind: '범위', week: '', text1: readable ? JSON.stringify(sp) : '', text2: readable });   // 시트 사본은 뒤에서
     if (SC.period === per && SC.rows){ if (readable) SC.rows[key] = { class_key: key, text1: JSON.stringify(sp), text2: readable, at: new Date().toISOString() }; else delete SC.rows[key]; }
-    SC.edit = ''; SC.toc = SC.outp = null;
-    SC.msg = t.label + ' ' + per + ' 시험범위를 ' + (readable ? '저장했어요.' : '비웠어요.') + (readable && t.shared ? ' 같은 학교·학년 반의 수업 기록 창·내신대비 피드백에 함께 보여요.' : '');
+    SC.edit = ''; SC.toc = SC.outp = null; SC.doneSel = null;
+    SC.msg = doneOnly !== undefined ? t.label + ' ' + per + ' 시험범위를 ' + (doneOnly ? "'입력 완료'로 표시했어요." : "'일부 기록'으로 되돌렸어요.")
+      : t.label + ' ' + per + ' 시험범위를 ' + (readable ? '저장했어요' + (sp.done ? " (입력 완료)." : " (일부 기록 — 다 넣었으면 [입력 완료로 표시]).") : '비웠어요.') + (readable && t.shared ? ' 같은 학교·학년 반의 수업 기록 창·내신대비 피드백에 함께 보여요.' : '');
     render(); setStatus(SC.msg, 'ok');
   }).catch(function(e){ SC.msg = '저장하지 못했어요. 다시 눌러 주세요. (' + e.message + ')'; render(); });
 }
 document.addEventListener('click', function(e){
   if (mode !== 'scope') return;
   var b = e.target.closest('button'); if (!b || b.closest('.toc')) return;   // 목차 부품 안 단추는 부품이 처리
-  if (b.hasAttribute('data-scper')){ var p = b.getAttribute('data-scper'); if (p === SC.period) return; SC.period = p; SC.edit = ''; SC.toc = SC.outp = null; SC.msg = ''; scopeLoadAndRender(); return; }
+  if (b.hasAttribute('data-scper')){ var p = b.getAttribute('data-scper'); if (p === SC.period) return; SC.period = p; SC.edit = ''; SC.toc = SC.outp = null; SC.doneSel = null; SC.msg = ''; scopeLoadAndRender(); return; }
   if (b.hasAttribute('data-scgr')){ SC.grade = b.getAttribute('data-scgr'); render(); return; }
   if (b.id === 'sc-reload'){ SC.msg = ''; SC.targets = null; scopeLoadAndRender(); return; }
-  if (b.hasAttribute('data-scedit')){ SC.edit = b.getAttribute('data-scedit'); SC.toc = SC.outp = null; SC.msg = ''; render(); var c = document.querySelector('.sc-card.on'); if (c) c.scrollIntoView({ block: 'nearest' }); return; }
-  if (b.hasAttribute('data-sccancel')){ SC.edit = ''; SC.toc = SC.outp = null; render(); return; }
+  if (b.hasAttribute('data-scedit')){ SC.edit = b.getAttribute('data-scedit'); SC.toc = SC.outp = null; SC.doneSel = null; SC.msg = ''; render(); var c = document.querySelector('.sc-card.on'); if (c) c.scrollIntoView({ block: 'nearest' }); return; }
+  if (b.hasAttribute('data-sccancel')){ SC.edit = ''; SC.toc = SC.outp = null; SC.doneSel = null; render(); return; }
+  if (b.hasAttribute('data-scsel')){ SC.doneSel = b.getAttribute('data-scsel') === '1'; render(); return; }
+  if (b.hasAttribute('data-scdone')){ scopeSave(b.getAttribute('data-scdone'), false, b.getAttribute('data-to') === '1'); return; }
   if (b.hasAttribute('data-scsave')){ scopeSave(b.getAttribute('data-scsave'), false); return; }
   if (b.hasAttribute('data-scclear')){ scopeSave(b.getAttribute('data-scclear'), true); return; }
 });
@@ -9573,6 +9599,7 @@ function crNsSaveScope(){
   var ns = CR.ns, prev = ns.scope || {}, g = ns.toc ? ns.toc.get() : null;
   var sp = { book: g ? g.book : $('cr-ns-book').value.trim(), inRange: g ? g.lines.join('\n') : $('cr-ns-in').value.trim(), extra: String(prev.extra || '').trim(),
              outRange: ns.outp ? ns.outp.get().lines.join('\n') : $('cr-ns-out').value.trim() };
+  if (prev.done) sp.done = true;   // 시험 범위 탭의 입력 상태는 그대로
   var readable = [['교과서', sp.book], ['교과서 내 범위', sp.inRange], ['교과서 외 범위', sp.outRange], ['추가 자료', sp.extra]]
     .filter(function(x){ return x[1]; }).map(function(x){ return x[0] + ': ' + x[1]; }).join('\n');
   crKeepInputs();
