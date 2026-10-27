@@ -579,7 +579,7 @@
   .cr-dim{font-size:.76rem;color:var(--ink-soft);}
   .cr-scope{background:#F6F8F7;border-radius:12px;padding:9px 12px;}
   .cr-scope summary{cursor:pointer;font-size:.86rem;font-weight:700;}
-  .cr-scope summary small{font-weight:400;color:var(--ink-soft);margin-left:6px;} .cr-scope summary small.warn{color:#7A6230;}
+  .cr-scope summary .sc-st,.cr-ref b .sc-st,.cr-pbox b .sc-st{margin-left:4px;vertical-align:1px;} .cr-scope summary small{font-weight:400;color:var(--ink-soft);margin-left:6px;} .cr-scope summary small.warn{color:#7A6230;}
   .cr-scope[open] summary{margin-bottom:8px;}
   .cr-scope .cr-f{margin-bottom:8px;}
   .cr-scope-view{background:#fff;border-radius:9px;padding:7px 10px;font-size:.8rem;display:flex;flex-direction:column;gap:5px;margin-bottom:8px;}
@@ -9252,6 +9252,8 @@ function crWatchState(){
     }).catch(function(){});
 }
 /* 시험범위 읽기용 — 교과서 · 교과서 안 범위(줄마다) · 교과서 밖 범위 · 추가 자료 */
+/* 입력 상태 알약(2026-10-27 원장님 "수업 기록 창에서도 입력 상태가 보이게") — 슈국 스케쥴 [시험 범위] 탭과 같은 세 단계·같은 .sc-st 색 */
+function crNsStPill(sp){ var st = scopeStat(sp); return '<span class="sc-st ' + st + '">' + SC_ST_LBL[st] + '</span>'; }
 function crNsScopeView(sp){
   sp = sp || {};
   var rows = [['교과서', sp.book, false], ['교과서 안 범위', sp.inRange, true], ['교과서 밖 범위', sp.outRange, true], ['추가 자료', sp.extra, true]]
@@ -9284,7 +9286,7 @@ function crNsHtml(n){
       '<div class="cr-inline"><button type="button" class="cr-btn" id="cr-ns-req">수정 요청함으로 보내기</button><button type="button" class="cr-mini" id="cr-ns-edit">직접 입력</button></div>';
   }
   var sm = ns.scope ? crNsProgSum(sp, ns.cleared, ns.week) : null;
-  var scope = '<details class="cr-scope"' + (ns.open ? ' open' : '') + ' id="cr-scope"><summary>' + (ns.scope ? '시험범위 · 진행 상황 ' : '시험범위 ') +
+  var scope = '<details class="cr-scope"' + (ns.open ? ' open' : '') + ' id="cr-scope"><summary>' + (ns.scope ? '시험범위 · 진행 상황 ' : '시험범위 ') + crNsStPill(ns.scope) +
     (ns.scope ? '<small>' + esc(ns.period) + ' · ' + items.length + '개 항목 · 완료 ' + sm.done + ' · 이번 주 ' + sm.now + (shared ? ' · 같은 학교·학년 반과 공유' : '') + '</small>' : '<small class="warn">' + esc(ns.period) + ' · 아직 없어요</small>') +
     '</summary>' + crNsPerHtml(ns) + body + '</details>';
   var unit = !items.length ? '' : '<div class="cr-f"><label>오늘 나간 단원 <small>(위 표에서 [이번 주 나감] — 리포트 \'수업 진도\'에 들어가요)</small></label>' +
@@ -9300,10 +9302,10 @@ function crNsRefHtml(){
   var noP = CR.names.filter(function(x){ return !((ns.stuP || {})[x.p] || []).length; }).length;   // 진도반을 못 찾은 학생 수 — 그때만 학교 범위를 참고로
   var any = pcs.some(function(p){ return p.scope || Object.keys(p.cleared).length; }) || (noP && refs.some(function(r){ return r.scope; }));
   if (!any) return '';
-  var sum = pcs.map(function(p){ var sm = crNsProgSum(p.scope, p.cleared, ns.week); return esc(p.cls) + ' ' + p.n + '명' + (p.scope ? ' · 완료 ' + sm.done + '/' + sm.total : '(범위 없음)'); });
+  var sum = pcs.map(function(p){ var sm = crNsProgSum(p.scope, p.cleared, ns.week); return esc(p.cls) + ' ' + p.n + '명' + (p.scope ? ' · ' + SC_ST_LBL[scopeStat(p.scope)] + ' · 완료 ' + sm.done + '/' + sm.total : '(범위 없음)'); });
   if (noP) refs.forEach(function(r){ sum.push(esc(r.school) + ' ' + r.n + '명(학교 참고)'); });
   return '<details class="cr-scope"' + (ns.open ? ' open' : '') + ' id="cr-scope"><summary>시험범위 · 진도반 진행 상황 <small>' + esc(ns.period) + ' · ' + sum.join(' · ') + '</small></summary>' + crNsPerHtml(ns) +
-    pcs.map(function(p){ return '<div class="cr-ref"><b>' + esc(p.cls) + ' <small>' + (p.teacher ? esc(p.teacher) + 'T · ' : '') + '이 수업 학생 ' + p.n + '명</small></b>' + crNsPclsHtml(p) + '</div>'; }).join('') +
+    pcs.map(function(p){ return '<div class="cr-ref"><b>' + esc(p.cls) + ' <small>' + (p.teacher ? esc(p.teacher) + 'T · ' : '') + '이 수업 학생 ' + p.n + '명</small> ' + crNsStPill(p.scope) + '</b>' + crNsPclsHtml(p) + '</div>'; }).join('') +
     (noP ? refs.map(function(r){ return '<div class="cr-ref"><b>' + esc(r.school) + ' <small>학교 범위 참고 · ' + r.n + '명</small></b>' + (r.scope ? crNsScopeView(r.scope) : '<span class="cr-dim">아직 없어요</span>') + '</div>'; }).join('') : '') +
     '<span class="cr-dim">학생이 속한 내신 진도반의 시험범위와 진도반 선생님이 기록한 진행입니다. 학생 카드의 [진도반 범위·진행]으로 한 명씩 볼 수 있어요. 범위를 고치거나 더하려면 상단 [수정 요청] → \'내신 시험 범위\'.</span></details>';
 }
@@ -9319,7 +9321,7 @@ function crPStuHtml(x){
     var m = String(x.nm || '').match(/^\s*\(([가-힣]+)\)/), st = crStuOf(x.nm), school = m ? m[1] : (st && st.school ? st.school.replace(/(등학교|학교)$/, '').replace(/[고중]$/, '') : '');
     var ref = (ns.refs || []).filter(function(r){ return r.school === school; })[0];
     h += '<span class="cr-dim">내신 진도반 명단에서 이 학생을 찾지 못했어요.' + (ref && ref.scope ? ' ' + esc(ref.school) + ' 학교 범위만 참고로 보여 드려요.' : '') + '</span>' + (ref && ref.scope ? crNsScopeView(ref.scope) : '');
-  } else ids.forEach(function(id){ var p = ns.pcls[id]; h += '<b><small>' + esc(p.cls) + (p.teacher ? ' · ' + esc(p.teacher) + 'T' : '') + '</small></b>' + crNsPclsHtml(p); });
+  } else ids.forEach(function(id){ var p = ns.pcls[id]; h += '<b><small>' + esc(p.cls) + (p.teacher ? ' · ' + esc(p.teacher) + 'T' : '') + '</small> ' + crNsStPill(p.scope) + '</b>' + crNsPclsHtml(p); });
   return h + '</div>';
 }
 /* 학생 카드 [지난 메모](2026-10-26 원장님 "지난 메모를 확인하는 버튼") — 최근 8주 그 학생이 든 반(이 반 + 명단에 있는 다른 반)의
