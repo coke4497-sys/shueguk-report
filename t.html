@@ -306,6 +306,7 @@ body{font-family:'Noto Sans KR',sans-serif; background:var(--sage-fog); color:va
 </div>
 
 <script src="teacher-name.js"></script>
+<script src="activity.js"></script><!-- 티쳐스 활동 → 원장님 슈톡 알림(2026-10-27) -->
 <script>
 /* ══ 교사 페이지 조용한 인증 (2026-08-25, 3단계) ═══════════════════════
  * 이 아래 연결부들이 수파베이스에 보내는 요청에 '교사 신분'을 붙인다.
@@ -1270,6 +1271,7 @@ function sendReport(send){
   .then(function(res){
     btn.textContent = label;
     if(res.result==='success'){
+      try { if (window.shuegukActivity) shuegukActivity('지필 리포트', send ? '학생에게 보내기' : '보내기 취소', (document.getElementById('reportSel') && document.getElementById('reportSel').selectedOptions[0] ? document.getElementById('reportSel').selectedOptions[0].textContent + ' · ' : '') + s.name, '', false); } catch (e) {}
       s.sentAt = res.sentAt || ''; if(send){ s.teacherNote = note; s.teacherName = res.teacherName || ''; }
       if(send && res.teacherSaved === false) setStatus('리포트는 보냈지만 담당 선생님 이름은 저장되지 않았어요(데이터베이스 준비 048 전). 학생 페이지에는 이름 없이 보입니다.');
       var opt = document.querySelector('#studentSel option[value="'+idx+'"]'); if(opt) opt.innerHTML = studentOptLabel(s);
