@@ -628,6 +628,12 @@
 - **적용 상태: 049는 2026-10-13 실제 수파베이스에 적용 완료**(관리 API, 토큰 저장 안 함). 수파베이스 기본 권한이 새 표에 교사 UPDATE·DELETE까지 열어 두어 같은 날 거뒀다(넣기·읽기만 — 049 파일에도 반영). **새 기록 표를 만들 땐 authenticated 기본 권한을 먼저 거둘 것.**
 - 검증: `NODE_PATH=$(npm root -g) node tools/tt-calendar-log-test.js`(12건 — 기간·학년 예외·지움·메모 전후·같은 값 무기록·지필 새로/고침/지움·표 없음 폴백) + tt-period-ex·tt-author·tt-daynav 회귀.
 
+## 티쳐스 활동 알림 — 원장님 슈톡 (2026-10-27 원장님 "모든 작업을 할 때 나에게 알람" → 섞기 + 이름)
+- 자세한 구조는 허브 CLAUDE.md '티쳐스 활동 알림' 절(마이그레이션 202610270001·엣지 함수 `activity`·슈톡 글). 이 저장소에는 **공용 조각 `activity.js`**(`shuegukActivity(what, action, target, detail, urgent)` / `.many(rows)` — 허브 개인 로그인 신분증(localStorage `shueguk_teacher_session_v2`) → 공용 교사 계정이 받아 둔 신분증(`sb_teacher_tok_v1`) 순으로 보내고, 둘 다 없으면 보내지 않는다. 0.5초 모아서 keepalive, 절대 던지지 않는다)과 화면 호출이 있다.
+- **넣은 곳**: timetable.html(`actLog` — `insertLog` 종류별 즉시/묶음 `ACT_URGENT_KINDS`, `upsertAttend` 출석 묶음, `calLog` 캘린더(메모만 묶음), 교사 휴무, 시험 범위 탭 `scopeSave`, 수업 기록 창 `crNsSaveScope`·`crUpsert`(저장·리포트 생성 묶음), 결석 알림톡 `alimPostItems`) · naeshin.html(시험범위 즉시·단원 저장 묶음) · m.html(리포트 등록·수정 즉시) · analyses.html(배정 해제·삭제 즉시) · t.html(학생에게 보내기·취소 묶음) · notice.html(공지 등록 즉시) · superstar.html(신입 등록·아웃 즉시) · 허브 alimtalk.html(발송·예약 즉시). 각 페이지 `<script src="activity.js">`(허브는 절대 주소). **새 저장 기능을 만들면 성공 뒤 한 줄 넣을 것** — 잦은 것은 urgent 거짓.
+- 작성자 이름은 서버가 허브 로그인에서 정하므로 화면은 이름을 몰라도 된다(공용 계정으로만 열린 화면은 teacher-name.js 이름 → `tt_task_who`).
+- 검증: `tools/req-files-e2e.js`(시험 범위 즉시·내용 줄), `tools/tt-author-test.js`(출석·1회 이동 묶음), `tools/class-report-e2e.js`(리포트 생성 묶음) — 가짜 수파베이스가 `/functions/v1/activity` POST 본문을 `writes`에 담는다.
+
 ## 학생 연락처 — 전체 번호 저장 (2026-08-26)
 - students에 `phone_student`·`phone_parent1`·`phone_parent2`(전체 번호, 수파베이스 전용 — 시트에는 없음, `018_student_contacts.sql`). 초기 적재 완료(2026-08-26, 재원 493명 전원 학생·학부모1 + 학부모2 44명 — CRM xlsx 대조 검증). **출석 창에 연락처 표시**(timetable.html — 사용자 요청 "출석 체크 이름을 누르면 연락처"): 출석/1회 이동/주간추가 창(`attTelHtml`/`attTelFill`)에 학생·학부모1·학부모2를 tel: 링크로, 전 학생 연락처는 첫 클릭에 한 번 받아 캐시(`stuPhonesEnsure`), 이름 대조는 plainName+끝 A 양방향(`stuPhoneOf`). **같은 창 오른쪽 위에 [학생 페이지] 연보라 알약**(2026-10-17 원장님 "학생 이름을 누르면 뜨는 메뉴에 학생 페이지 링크" — `#att-spage`, `s.html?key=접근코드`를 새 탭으로. 같은 조회에 `code`를 함께 받고, 접근코드가 없거나 같은 이름이 둘 이상이면(`dupName`) 잘못 이을 수 있어 숨긴다). 검증: `tools/alim-e2e-test.js`. **신입 등록 폼이 전체 번호 입력**(학생·학부모1 필수, 학부모2 선택)으로 바뀌고 비밀번호(학생ID)는 학부모1 뒤 8자리를 자동 도출(종전 규칙 유지). 슈스 링크 [수정]에도 연락처 3칸. 초기 적재는 `supabase/tools/import_contacts.py`(CRM xlsx). 자세한 것은 `supabase/README.md` '학생 연락처' 절.
 

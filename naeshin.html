@@ -122,6 +122,7 @@
   .rpt .foot{text-align:center; font-family:'Gowun Batang',serif; font-size:12px; color:var(--ink-soft); margin-top:16px; padding-top:12px; border-top:1.5px solid var(--line-soft);}
 </style>
 <script src="textbook-toc.js"></script><!-- 교과서 목차 고르기(시험범위 교과서 내 범위) — 2026-10-26 -->
+<script src="teacher-name.js"></script><script src="activity.js"></script><!-- 티쳐스 활동 → 원장님 슈톡 알림(2026-10-27) -->
 </head>
 <body>
 <div class="wrap">
@@ -831,7 +832,7 @@ function saveUnits(){
   var has=Object.keys(rec.cleared).length;
   post({ action:'naeshinSet', period:period, classId:curClass.id, kind:'클리어',
          text1: has?JSON.stringify(rec.cleared):'' }, function(res){
-    if(res && res.result==='success') setStatus('진도 저장');
+    if(res && res.result==='success'){ setStatus('진도 저장'); try { if (window.shuegukActivity) shuegukActivity('내신 진도', '단원 저장', curClass.cls + ' · ' + period, '', false); } catch (e) {} }
     else setStatus('진도 저장 실패 — 다시 시도해 주세요');
   });
 }
@@ -943,6 +944,7 @@ function saveScope(){
          scopeKey: scopeKeyOf(curClass.cls, curClass.id),
          text1: empty?'':JSON.stringify(sp), text2: readable }, function(res){
     if(res && res.result==='success'){
+      try { if (window.shuegukActivity) shuegukActivity('시험 범위', empty ? '비움 (내신대비 피드백)' : '저장 (내신대비 피드백)', scopeKeyOf(curClass.cls, curClass.id).replace(/^공유:/, '').replace('|', ' ') + ' · ' + period, readable.replace(/\n/g, ' / ').slice(0, 300), true); } catch (e) {}
       rec.scopeParts=empty?null:sp; rec.scope=readable;
       renderWeek();   // 주차 화면의 '시험범위 클리어' 버튼을 새 범위로 즉시 갱신
       setStatus('시험범위 저장 완료 — 주차별 클리어 목록에 반영했어요');

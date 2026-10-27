@@ -226,6 +226,8 @@ const STUDENTS = [
   ok('생성 성공 → 창의 [리포트 생성] 버튼에서 하트 14개', await page.evaluate(() => { const l = document.querySelector('.cr-hb'); return !!l && l.querySelectorAll('.heart svg').length === 14; }));
   ok('창 안내 = 수업 기록을 마쳤습니다', /수업 기록을 마쳤습니다/.test(await page.$eval('#crpanel', e => e.textContent)));
   await page.waitForTimeout(1900);
+  { const acts = st.writes.filter(w => /\/functions\/v1\/activity/.test(w.u)).flatMap(w => (w.body && w.body.rows) || []);
+    ok('활동 알림 — 수업 기록 저장·리포트 생성은 묶음(urgent false)으로 보냄', acts.some(a => a.what === '수업 기록' && a.action === '리포트 생성' && a.urgent === false && / 가 · /.test(a.target)), JSON.stringify(acts)); }
   ok('하트는 잠시 뒤 사라진다', !(await page.$('.cr-hb')));
   await page.evaluate(() => crClose());
   r = await page.evaluate(() => { const b = document.querySelector('.blk .crbtn'); const l = document.querySelector('.cr-hb');

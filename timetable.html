@@ -1326,6 +1326,7 @@
 </style>
 <!-- 알림톡 기록의 보낸 사람 — 아래 교사 인증 조각이 fetch 를 바꾸기 전에 실행돼야 한다 -->
 <script src="teacher-name.js"></script>
+<script src="activity.js"></script><!-- 티쳐스 활동 → 원장님 슈톡 알림(2026-10-27) -->
 <script src="textbook-toc.js"></script><!-- 교과서 목차 고르기(시험범위 교과서 내 범위) — 2026-10-26 -->
 </head>
 <body>
@@ -2143,6 +2144,11 @@
     if (!nm){ try { nm = localStorage.getItem('tt_task_who') || ''; } catch (e) {} }
     return String(nm).trim().slice(0, 40);
   }
+  /* 티쳐스 활동 알림(2026-10-27 원장님 "모든 작업을 할 때 나에게 알람" → 섞기) — activity.js 가 허브 함수 activity 로 보낸다.
+   * urgent 참 = 바로 슈톡 알림, 거짓 = 2시간마다 묶음. 절대 던지지 않는다. */
+  function actLog(what, action, target, detail, urgent){ try { if (window.shuegukActivity) window.shuegukActivity(what, action, target, detail, urgent); } catch (e) {} }
+  window.actLog = actLog;   // 어댑터 밖(시험 범위 탭·수업 기록 창·알림톡)에서도 같은 도우미
+  var ACT_URGENT_KINDS = /^(영구|추가|빼기|반추가|반삭제|반이동|표기수정)$/;   // 명단·반 구조를 바꾸는 기록은 즉시, 1회·이 주만 기록은 묶음
   function noAuthorCol(e){ return /'author' column|PGRST204/.test(String(e && e.message || '')); }
   function withAuthor(body){
     var nm = editorName();
@@ -2166,6 +2172,7 @@
     var rec = { at: nowIso(), what: what, target: String(target || ''), action: action || '저장',
                 before: String(before == null ? '' : before).slice(0, 500),
                 after: String(after == null ? '' : after).slice(0, 500), author: editorName() };
+    actLog('캘린더', rec.what + ' ' + rec.action, rec.target, (rec.before ? '전: ' + rec.before + ' → ' : '') + '후: ' + rec.after, rec.what !== '메모');   // 메모만 묶음
     return sbWrite('POST', '/tt_calendar_log', rec).catch(function(e){
       if (/sb 404|tt_calendar_log/.test(String(e && e.message))) calLogOn = false;
       console.warn('캘린더 기록 실패', e);
@@ -2187,7 +2194,10 @@
   }
   function upsertAttend(rows){
     return sbWriteAuthor('POST', '/attendance?on_conflict=date,book,class_id,student_plain', rows,
-                   { 'Prefer': 'resolution=merge-duplicates,return=minimal' });
+                   { 'Prefer': 'resolution=merge-duplicates,return=minimal' }).then(function(r){
+      (rows || []).forEach(function(a){ actLog('출석', a.status, classLabel(classRow(a.book, a.class_id)) + ' · ' + a.date + ' · ' + a.student, a.memo || '', false); });
+      return r;
+    });
   }
   function classRow(book, id){
     var list = (typeof classes !== 'undefined' && classes) || [];
@@ -2199,7 +2209,12 @@
     rec.at = rec.at || nowIso();
     ['from_class_id','from_class','to_class_id','to_class','reason'].forEach(function(k){ if (rec[k] == null) rec[k] = ''; });
     if (!('apply_date' in rec)) rec.apply_date = null;
-    return sbWriteAuthor('POST', '/tt_log', rec);
+    return sbWriteAuthor('POST', '/tt_log', rec).then(function(r){
+      var k = String(rec.kind || '');
+      actLog('시간표', k, (rec.student ? rec.student + ' · ' : '') + (rec.from_class || '') + (rec.from_class && rec.to_class ? ' → ' : '') + (rec.to_class || ''),
+             [rec.book, rec.reason, rec.apply_date ? '적용 ' + rec.apply_date : ''].filter(Boolean).join(' · '), ACT_URGENT_KINDS.test(k));
+      return r;
+    });
   }
   /* 반 전체를 그 주에만 한 번 더 여는 반(보강) 또는 옮긴 반을 만든다.
    * 명단은 넣지 않는다 — 화면이 원본 반의 지금 명단을 그대로 따라간다
@@ -2707,14 +2722,14 @@
       return sbWrite('POST', '/tt_teacher_days_off?on_conflict=off_date,teacher',
         [{ off_date:d, teacher:teacher, reason:reason }],
         { 'Prefer':'resolution=merge-duplicates,return=minimal' })
-        .then(function(){ return ok({ date:d, teacher:teacher, reason:reason }); });
+        .then(function(){ actLog('교사 휴무', '설정', d + ' · ' + teacher, reason, true); return ok({ date:d, teacher:teacher, reason:reason }); });
     },
     ttTeacherOffDelete: function(b){
       var d = String(b.date || '').trim(), teacher = String(b.teacher || '').trim();
       if (!/^\d{4}-\d{2}-\d{2}$/.test(d) || !teacher)
         return Promise.resolve({ result:'error', message:'날짜와 선생님을 확인해 주세요.' });
       return sbWrite('DELETE', '/tt_teacher_days_off?off_date=eq.' + q(d) + '&teacher=eq.' + q(teacher))
-        .then(function(){ return ok({}); });
+        .then(function(){ actLog('교사 휴무', '해제', d + ' · ' + teacher, '', true); return ok({}); });
     },
     /* 오늘 할 일 · 전달 사항 (045) */
     ttTaskAdd: function(b){
@@ -4323,6 +4338,8 @@ function scopeSave(key, clear, doneOnly){
   job.then(function(){
     crLegacy({ action: 'naeshinSet', period: per, classId: key, scopeKey: key, kind: '범위', week: '', text1: readable ? JSON.stringify(sp) : '', text2: readable });   // 시트 사본은 뒤에서
     if (SC.period === per && SC.rows){ if (readable) SC.rows[key] = { class_key: key, text1: JSON.stringify(sp), text2: readable, at: new Date().toISOString() }; else delete SC.rows[key]; }
+    actLog('시험 범위', !readable ? '비움' : doneOnly !== undefined ? (doneOnly ? '입력 완료로 표시' : '일부 기록으로') : '저장' + (sp.done ? ' (입력 완료)' : ' (일부 기록)'),
+           t.label + ' · ' + per, readable.replace(/\n/g, ' / ').slice(0, 300), true);
     SC.edit = ''; SC.toc = SC.outp = null; SC.doneSel = null;
     SC.msg = doneOnly !== undefined ? t.label + ' ' + per + ' 시험범위를 ' + (doneOnly ? "'입력 완료'로 표시했어요." : "'일부 기록'으로 되돌렸어요.")
       : t.label + ' ' + per + ' 시험범위를 ' + (readable ? '저장했어요' + (sp.done ? " (입력 완료)." : " (일부 기록 — 다 넣었으면 [입력 완료로 표시]).") : '비웠어요.') + (readable && t.shared ? ' 같은 학교·학년 반의 수업 기록 창·내신대비 피드백에 함께 보여요.' : '');
@@ -7646,7 +7663,10 @@ function alimPostItems(items, ymd, force, done, kind){
   var chunks = []; for (var i = 0; i < items.length; i += ALIM_BATCH) chunks.push(items.slice(i, i + ALIM_BATCH));
   var out = { okCount: 0, dup: [], bad: [], err: '', sentN: 0, total: items.length };
   var run = function(k){
-    if (k >= chunks.length || out.err){ done(out); return; }
+    if (k >= chunks.length || out.err){
+      if (out.okCount) actLog('알림톡', (ALIM_UI[kind || 'absent'] || ALIM_UI.absent).short, ymd || '', out.okCount + '건 · ' + items.slice(0, 5).map(function(it){ return it.student; }).join(', ') + (items.length > 5 ? ' 외' : ''), true);
+      done(out); return;
+    }
     setStatus('알림톡 보내는 중…' + (chunks.length > 1 ? ' (' + (k + 1) + '/' + chunks.length + ')' : ''));
     var body = { action:'alimSend', kind: kind || 'absent', items: chunks[k], pw: pw, by: alimBy };   // by = 보낸 사람(허브 로그인 선생님, #493)
     if (force) body.force = '1';
@@ -9607,6 +9627,7 @@ function crNsSaveScope(){
   crKeepInputs();
   crMsg('시험범위를 저장하는 중…');
   crNsWrite('범위', ns.key, '', readable ? JSON.stringify(sp) : '', readable).then(function(){
+    actLog('시험 범위', readable ? '저장 (수업 기록 창)' : '비움 (수업 기록 창)', ns.key.replace(/^공유:/, '').replace('|', ' ') + ' · ' + ns.period, readable.replace(/\n/g, ' / ').slice(0, 300), true);
     ns.scope = readable ? sp : null; ns.open = true; ns.edit = false; ns.toc = null; ns.outp = null; ns.outDraft = null;   // 저장한 범위·진행 표가 바로 보이게 펼친 채로
     crRender(); crMsg('시험범위를 저장했어요.' + (ns.key !== CR.c.id ? ' 같은 학교·학년 반에도 함께 보여요.' : ''));
   }).catch(function(e){ crMsg('시험범위를 저장하지 못했어요. 다시 눌러 주세요. (' + e.message + ')', true); });
@@ -9668,6 +9689,7 @@ function crUpsert(extra){
   var cr = CR, key = CR.bk + '|' + CR.c.id;   // 창을 닫은 뒤 응답이 와도(CR 이 바뀌어도) 그 수업 것으로 처리
   var pend = cr.xtPending; cr.xtPending = false;
   return Promise.all(jobs).then(function(r){
+    actLog('수업 기록', extra && extra.report_status === '요청' ? '리포트 생성' : '저장', cr.c.cls + ' · ' + cr.ymd + (cr.part ? ' · ' + cr.part : ''), '', false);
     cr.note = (r[0] && r[0][0]) || cr.note;
     var st0 = { st: cr.note.report_status || '', has: crHasNote(cr.note), at: cr.note.reported_at || '' };
     if (crToday.map && cr.ymd === crToday.ymd) crToday.map[key] = st0;

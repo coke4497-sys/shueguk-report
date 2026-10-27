@@ -265,6 +265,10 @@ const NS_SCOPE = { period: PERS.fin, class_key: '공유:고1|화정', kind: '범
   const pw = st.writes.filter(w => /naeshin_records/.test(w.u)).pop(), pt = pw && JSON.parse(pw.body[0].text1);
   r = await page.evaluate(() => document.querySelector('.sc-card .sc-st').className + ':' + document.querySelector('.sc-card .sc-st').textContent);
   ok('[일부 기록으로] → done 없이 저장, 알약 "일부 기록"(연노랑)', pt && !('done' in pt) && r === 'sc-st part:일부 기록 · 항목 3개', JSON.stringify({ pt, r }));
+  await page.waitForTimeout(900);
+  { const acts = st.writes.filter(w => /\/functions\/v1\/activity/.test(w.u)).flatMap(w => (w.body && w.body.rows) || []);
+    ok('활동 알림(2026-10-27) — 입력 상태 바꾸기는 즉시(urgent) · 대상 "고1 화정 · 기간"', acts.some(a => a.what === '시험 범위' && a.action === '입력 완료로 표시' && a.urgent === true && a.target === '고1 화정 · ' + PERS.fin) &&
+       acts.some(a => a.what === '시험 범위' && a.action === '일부 기록으로' && a.urgent === true), JSON.stringify(acts)); }
   await page.click('.sc-card [data-scedit]');
   await page.waitForSelector('.sc-card.on .sc-toc select.toc-unit', { timeout: 8000 });
   r = await page.evaluate(() => ({ book: document.querySelector('.sc-card.on .toc-book').value, chips: [...document.querySelectorAll('.sc-card.on .sc-toc .toc-chip')].map(x => x.className + ':' + x.firstChild.textContent),
@@ -288,6 +292,9 @@ const NS_SCOPE = { period: PERS.fin, class_key: '공유:고1|화정', kind: '범
   ok('입력 중 [입력 완료]를 골라 저장하면 done:true 가 함께', t1 && t1.done === true, JSON.stringify(t1));
   ok('시트 사본 naeshinSet(범위 · scopeKey)', st.gas.some(g => g.action === 'naeshinSet' && g.kind === '범위' && g.scopeKey === '공유:고1|화정' && g.period === PERS.fin));
   r = await page.evaluate(() => ({ on: !!document.querySelector('.sc-card.on'), head: document.querySelector('.sc-card h4').textContent, body: document.querySelector('.sc-card').textContent, msg: document.getElementById('sc-msg').textContent }));
+  await page.waitForTimeout(900);
+  { const acts = st.writes.filter(w => /\/functions\/v1\/activity/.test(w.u)).flatMap(w => (w.body && w.body.rows) || []);
+    ok('활동 알림 — 시험범위 저장(입력 완료)은 즉시, 내용 줄에 교과서·범위', acts.some(a => a.what === '시험 범위' && a.action === '저장 (입력 완료)' && a.urgent && /천재 공통국어2/.test(a.detail) && /학습지 4/.test(a.detail)), JSON.stringify(acts)); }
   ok('저장 뒤 카드 = 입력 완료 · 항목 5개 · 영역 태그 · 안내', !r.on && /입력 완료 · 항목 5개/.test(r.head) && /뉴욕제과점/.test(r.body) && /문학학습지 4/.test(r.body) && /같은 학교·학년 반/.test(r.msg), JSON.stringify(r));
   await page.click('#sc-per button:not(.on)');
   await page.waitForFunction(() => /아직 없어요/.test(document.querySelector('.sc-card h4').textContent), null, { timeout: 8000 });

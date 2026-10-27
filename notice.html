@@ -271,6 +271,7 @@
 </script>
 <script src="student-picker.js"></script>
 <script src="teacher-name.js"></script>   <!-- 알림톡 기록의 보낸 사람 -->
+<script src="activity.js"></script><!-- 티쳐스 활동 → 원장님 슈톡 알림(2026-10-27) -->
 <script>
 /* ══ 수파베이스 미러 연결부 (2026-08-22 DB 이전 4단계a — 공지·별·학생정보) ═══
  * 이 페이지의 화면·저장은 전부 기존 백엔드 그대로다(시트가 원본).
@@ -671,6 +672,7 @@
     .then(function(res){
       btn.disabled=false; btn.textContent=label;
       if(res.result==='success'){
+        try { if (window.shuegukActivity) shuegukActivity('공지', hidden ? '등록 (숨김)' : '등록', title, sel.summary || '', true); } catch (e) {}
         var doneMsg = '✓ 등록됐어요 — '+sel.summary+(hidden?' · (숨김으로 저장)':'');
         setStatus(doneMsg, 'ok');
         var alimOn = document.getElementById('alimOn').checked, alimK = alimKind(), wantAlim = alimOn && alimReady(alimK) && !hidden;   // 숨김 공지는 알리지 않는다

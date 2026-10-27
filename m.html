@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <script src="https://coke4497-sys.github.io/shueguk-hub/assets/teacher-gate.js"></script><!-- 교사 로그인 게이트 (허브 로그인 필요, 2026-10-12) -->
+<script src="activity.js"></script><!-- 티쳐스 활동 → 원장님 슈톡 알림(2026-10-27) -->
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>SHUEGUK 시험 등록</title>
 <link rel="manifest" href="manifest.json">
@@ -1464,6 +1465,7 @@ function saveReport(){
     if(!ok){ btn.disabled=false; setStatus('등록에 실패했습니다. '+msg, 'err'); return; }
     setStatus('✓ 등록되었습니다. 배정된 학생의 개별 페이지에 표시됩니다.', 'ok');
     drMarkReport(data.id);
+    try { if (window.shuegukActivity) shuegukActivity('지필 리포트', EDIT_MODE ? '수정' : '등록', data.title || data.id, (data.questions ? '문항 ' + data.questions.length + '개' : ''), true); } catch (e) {}
     showLinks(data.id);
     // 이어서 또 고칠 수 있도록 버튼을 다시 활성화 (수정 모드 연속 저장 대비)
     var doneLabel = EDIT_MODE ? '✓ 저장됨 — 다시 저장 가능' : '✓ 등록됨';
