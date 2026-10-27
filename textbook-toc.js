@@ -91,10 +91,10 @@
       if (st.dead) return;
       var b = book(), list = match({ grade: opt.grade, text: opt.text || st.bookName, school: opt.school, period: opt.period });
       var h = '<div class="toc-row"><select class="toc-book" aria-label="교과서">' +
-        // 글 순서 = 교과서 · n개 항목 · 쓰는 학교(2026-10-27 원장님 "같은 교과서를 사용하는 학교 이름이 이렇게 들어가 있으니 헷갈려요. 31개 항목 뒤에 넣어줘")
-        list.map(function (x) { return '<option value="' + esc(x.b.id) + '"' + (b && b.id === x.b.id ? ' selected' : '') + '>' + esc(x.b.label) + ' · ' + x.b.items.length + '개 항목' + (x.b.schools.length ? ' · ' + esc(x.b.schools.join('·')) : '') + '</option>'; }).join('') +
+        // 드롭다운에는 교과서 이름만, 옆 작은 글씨에 'n개 항목 · 쓰는 학교'(2026-10-27 원장님 "같은 교과서를 쓰는 학교 이름을 넣되 몇개 항목처럼 작은 글씨로 가장 마지막에")
+        list.map(function (x) { return '<option value="' + esc(x.b.id) + '"' + (b && b.id === x.b.id ? ' selected' : '') + '>' + esc(x.b.label) + '</option>'; }).join('') +
         '<option value=""' + (!b ? ' selected' : '') + '>목록에 없는 교과서 — 직접 적기</option></select>' +
-        (b && !opt.grade ? '<small>' + esc(b.grade) + '</small>' : '') + '</div>';
+        (b ? '<small class="toc-meta">' + b.items.length + '개 항목' + (opt.grade ? '' : ' · ' + esc(b.grade)) + (b.schools.length ? ' · ' + esc(b.schools.join('·')) : '') + '</small>' : '') + '</div>';
       if (b){
         var inSet = {}; st.lines.forEach(function (l) { inSet[l] = 1; });
         var groups = [], gi = {};
