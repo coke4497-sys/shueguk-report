@@ -2502,7 +2502,12 @@ function closeLearnHist(){ $('lhView').style.display = 'none'; show('hubView'); 
 var RC_DOW = '일월화수목금토', RC_DIMS = ['채점', '학습 분석', '오답 분석'], RC_LV = ['안함', '일부함', '완벽'];
 // 내신대비 기간 진도 수업은 과제 검사를 하지 않는다(확인 수업에서) — 기록이 없는 진도 수업 카드에는 이 안내(2026-10-28 원장님 문장 그대로, 학부모님 오해 방지)
 var RC_NS_HW_NOTE = '내신대비 기간에는 확인 수업에서 과제 검사를 진행합니다. 이번 정규 수업에서는 과제 기록이 없습니다.';
-function rcNsNone(it, hw){ return !!(hw && hw.none && /^진도/.test(String(it.part || ''))); }
+// 진도 수업은 기록이 없을 때뿐 아니라 미제출·0점(점수를 하나도 안 매김)으로 찍혀 있어도 같은 안내 — 2026-10-28 원장님 "진도 수업에 과제 검사 안내가 나가기로 했는데 미리보기에서 안 보여요"(0% 미제출로 보였다)
+function rcNsNone(it, hw){
+  if (!hw || !/^진도/.test(String(it.part || ''))) return false;
+  if (hw.none || hw.missing) return true;
+  return !(hw.items || []).some(function(x){ return x && +x.score > 0; });
+}
 var RC_DIM_RE = / \((학습량|깊이|채점|학습 분석|오답 분석)\)$/;
 function rcHwTasks(hw){   // 과제마다 {t, dim, vol, depth, lv{채점…}, legacy, miss}
   var out = [], by = {}, mi = hw.missing_items || [];
@@ -2548,13 +2553,14 @@ function rcCardHtml(it, opt){
     '<span class="rc-chips">' + (opt.star || '') + (part ? '<span class="rc-chip part">' + esc(part) + '</span>' : '') +
     (it.attend ? '<span class="rc-chip ' + ac + '">' + esc(it.attend) + '</span>' : '') + '</span></div>';
   if (it.attend_note) h += '<p class="rc-note">' + esc(it.attend_note) + '</p>';
-  var hw = it.hw, tasks = hw && !hw.none ? rcHwTasks(hw) : [], units = (it.units || []).filter(Boolean), tiles = '';
+  var hw = it.hw, nsn = rcNsNone(it, hw), tasks = hw && !hw.none && !nsn ? rcHwTasks(hw) : [], units = (it.units || []).filter(Boolean), tiles = '';
   if (it.attitude) tiles += '<div class="rc-tile"><span class="k">수업 태도</span><span class="v">' + esc(it.attitude) + '</span></div>';
   if (units.length) tiles += '<div class="rc-tile' + (units.join(' · ').length > 7 ? ' wide' : '') + '"><span class="k">수업 진도</span><span class="v">' +
     units.map(function(u){ return '<span class="u">' + esc(u) + '</span>'; }).join(' · ') + '</span></div>';
   if (hw){
     var hv;
-    if (hw.none) hv = rcNsNone(it, hw) ? '확인 수업에서' : '확인할 것 없음';
+    if (nsn) hv = '확인 수업에서';
+    else if (hw.none) hv = '확인할 것 없음';
     else if (hw.missing) hv = '미제출';
     else {
       var nm = tasks.filter(function(g){ return g.miss; }).length, pct = Math.max(0, Math.min(100, +hw.pct || 0));
@@ -2567,7 +2573,8 @@ function rcCardHtml(it, opt){
   if (sum) body += '<div class="rc-sec"><h5>수업 내용</h5><p>' + esc(sum) + '</p></div>';
   if (hw){
     body += (body ? '<hr class="rc-hr">' : '') + '<div class="rc-sec"><h5>이번주 과제 검사</h5>' +
-      (hw.none ? '<p class="rc-empty">' + esc(rcNsNone(it, hw) ? RC_NS_HW_NOTE : (hw.text || '확인할 것이 없습니다.')) + '</p>'
+      (nsn ? '<p class="rc-empty">' + esc(RC_NS_HW_NOTE) + '</p>'
+        : hw.none ? '<p class="rc-empty">' + esc(hw.text || '확인할 것이 없습니다.') + '</p>'
         : rcHwTable(hw, tasks) + (hw.text ? '<p class="rc-hwtxt">' + esc(hw.text) + '</p>' : '') +
           (!hw.missing && (+hw.pct || 0) >= 100 ? '<span class="rc-star1">★ 슈퍼스타 별 +1 · 모든 과제를 완벽하게 했어요</span>' : '')) + '</div>';
   }
@@ -2590,7 +2597,7 @@ function lhRender(){
   if (items === null){ $('lhSum').innerHTML = ''; box.innerHTML = '<div class="rv-empty">수업 리포트를 불러오지 못했어요. 잠시 뒤 다시 열어 주세요.</div>'; return; }
   if (!items.length){ $('lhSum').innerHTML = ''; box.innerHTML = '<div class="rv-empty">아직 수업 리포트가 없어요. 선생님이 수업을 기록하면 수업마다 한 장씩 여기에 쌓여요.</div>'; return; }
   var att = items.filter(function(x){ return x.attend === '출석' || x.attend === '지각'; }).length;
-  var hws = items.filter(function(x){ return x.hw && !x.hw.none; });
+  var hws = items.filter(function(x){ return x.hw && !x.hw.none && !rcNsNone(x, x.hw); });   // 진도 수업의 미제출·0점은 검사한 것이 아니라 평균에서 뺀다
   var avg = hws.length ? Math.round(hws.reduce(function(a, x){ return a + (x.hw.missing ? 0 : Math.max(0, Math.min(100, +x.hw.pct || 0))); }, 0) / hws.length) : null;
   var good = items.filter(function(x){ return x.attitude === '매우 좋음'; }).length;
   $('lhSum').innerHTML = '<div class="lh-sum">' +
