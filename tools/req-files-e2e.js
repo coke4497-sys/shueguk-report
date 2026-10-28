@@ -205,7 +205,7 @@ const NS_SCOPE = { period: PERS.fin, class_key: '공유:고1|화정', kind: '범
   REQS = BASE.map(x => ({ ...x })); SENT = []; st.gets.length = 0;
   ({ ctx, page } = await open({ rows: [{ class_id: 'n001', day: TODAY, start_time: '5:30', end_time: '7:00', location: '본원', teacher: '현지', name: '고2 서정A(천재 독작)', roster: '박보검', kind: '' }] }));
   await page.waitForFunction(() => [...document.querySelectorAll('.blk')].some(x => x.querySelector('.crbtn')), null, { timeout: 15000 });
-  await page.evaluate(() => { CR_NS_SPLIT_FROM = '2000-01-01'; CR_NS_SPLIT_TO = '2000-01-02'; });   // 고1·고2 예외 기간(내신 시간표로 정규 수업, ~11/3)은 날짜에 묶여 있어 검사에서는 끈다
+  await page.evaluate(() => { CR_NS_SPLIT_FROM = '2000-01-01'; CR_NS_SPLIT_TO = '2000-01-02'; CR_NS_HW_SPLIT_TO = '2000-01-02'; });   // 고1·고2 예외 기간(내신 시간표로 정규 수업, ~11/3)은 날짜에 묶여 있어 검사에서는 끈다
   await page.evaluate(() => document.querySelector('.blk .crbtn').click());
   await page.waitForSelector('#cr-ns-req', { timeout: 8000 });
   ok('범위 없는 진도 수업 = 안내 + [수정 요청함으로 보내기]', /아직 없습니다/.test(await page.textContent('#cr-scope')));
