@@ -8558,7 +8558,8 @@ var CR_NS_SHARE = /^고[12]$/;
  *     2026-10-28 원장님 "시험범위 오늘부터 보이게"로 10/28부터 적용.
  * 기간을 바꾸면 이 값들만 고칠 것. */
 var CR_NS_SPLIT = /^고[12]$/, CR_NS_SPLIT_FROM = '2026-10-12', CR_NS_SPLIT_TO = '2026-10-27';   // ② 10/28(수)부터 범위·진행 적용(2026-10-28 원장님 "시험범위 오늘부터 보이게")
-var CR_NS_HW_SPLIT_TO = '2026-10-27';   // ① 과제 검사만 따로 잇는 마지막 날 — 10/28 주부터 진도·확인 과제를 모두 잇는다(2026-10-28 원장님)
+var CR_NS_HW_SPLIT_TO = '2026-10-27';
+var CR_NS_SUBJ = { '진도': '독서', '확인': '문학' };   // 내신 기간 수업 구분의 과목(2026-10-28 원장님 "가 독서, 나 문학") — 진도·확인에서 이름이 같은 과제를 가르는 접두   // ① 과제 검사만 따로 잇는 마지막 날 — 10/28 주부터 진도·확인 과제를 모두 잇는다(2026-10-28 원장님)
 function crNsSplitAt(c, ymd){ return CR_NS_SPLIT.test(classGradeOf(c)) && ymd >= CR_NS_SPLIT_FROM && ymd <= CR_NS_SPLIT_TO; }
 function crNsHwSplitAt(c, ymd){ return CR_NS_SPLIT.test(classGradeOf(c)) && ymd >= CR_NS_SPLIT_FROM && ymd <= CR_NS_HW_SPLIT_TO; }
 function crSameNsLesson(c, x, bk){
@@ -8959,12 +8960,13 @@ function crHwSrcLoad2(c, bk, ymd, twinId, othSib){
           var lastWed = crPrevWedShift(weekWed, -7);
           var all = ord.filter(function(r){ return mine[x.p].indexOf(r.class_id) >= 0 && r.ymd >= lastWed && crRowTasks(r, x.p).length; });
           if (all.length > 1){
-            // 진도·확인에서 이름이 같은 과제('과제집 w15' — 독서 과제집과 문학 과제집)는 다른 책이라 둘 다 두고 '진도 수업 · '/'확인 수업 · '을 붙여 가른다
-            // (2026-10-28 원장님 "지난주 고1 과제는 총 4권이에요. 지금은 세권만" — 이름만 보고 하나로 합쳐 한 권이 빠졌다). 같은 구분 안의 같은 이름은 한 번만.
+            // 진도·확인에서 이름이 같은 과제('과제집 w15' — 독서 과제집과 문학 과제집)는 다른 책이라 둘 다 두고 '독서 · '/'문학 · '을 붙여 가른다
+            // (2026-10-28 원장님 "지난주 고1 과제는 총 4권이에요. 지금은 세권만" — 이름만 보고 하나로 합쳐 한 권이 빠졌다 → "가 독서, 나 문학": 진도(가) = 독서, 확인(나) = 문학, CR_NS_SUBJ).
+            // 같은 구분 안의 같은 이름은 한 번만.
             var tasks = [], labs = [], partsOf = {};
             var packed = all.slice().reverse().map(function(r){ return pack(r, x.p); });
             packed.forEach(function(pk){ labs.push(pk.label); pk.tasks.forEach(function(t){ var ps = partsOf[t] = partsOf[t] || []; if (ps.indexOf(pk.part) < 0) ps.push(pk.part); }); });
-            packed.forEach(function(pk){ pk.tasks.forEach(function(t){ var nm = partsOf[t].length > 1 ? crPartLabel(pk.part) + ' · ' + t : t; if (tasks.indexOf(nm) < 0) tasks.push(nm); }); });
+            packed.forEach(function(pk){ pk.tasks.forEach(function(t){ var nm = partsOf[t].length > 1 ? (CR_NS_SUBJ[pk.part] || crPartLabel(pk.part)) + ' · ' + t : t; if (tasks.indexOf(nm) < 0) tasks.push(nm); }); });
             var top = pack(own, x.p);
             by[x.p] = { tasks: tasks, ymd: top.ymd, cls: top.cls, part: top.part, label: labs.join(' · ') };
             return;
