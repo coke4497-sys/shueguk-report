@@ -428,13 +428,14 @@ const STUDENTS = [
     // 시험범위·진행 상황 칸은 아직 없다(11/4부터) — 두 기간이 따로다(crNsHwSplitAt ≠ crNsSplitAt)
     ({ ctx, page, st } = await ctxOf({ book: '내신',
       rows: [row('n001', '고1 화정B(천재수 공통국어2)', '현지', '박보검'), Object.assign(row('n002', '고1 확인', '연주', '(화정)박보검'), { start_time: '7:30', end_time: '9:00' })],
-      att: [], hw: [], prev: [{ class_id: 'n001', ymd: PREVWED, homework: '이번 주 진도 과제' }, { class_id: 'n002', ymd: D1, homework: '과제집 w14' }, { class_id: 'n001', ymd: D6, homework: '독서 지문 3개' }, { class_id: 'n002', ymd: D10, homework: '옛 과제' }] }));
+      att: [], hw: [], prev: [{ class_id: 'n001', ymd: PREVWED, homework: '이번 주 진도 과제' }, { class_id: 'n002', ymd: D1, homework: '100인의 지혜 11·12\n과제집 w15' }, { class_id: 'n001', ymd: D6, homework: '독서 지문 3개\n과제집 w15' }, { class_id: 'n002', ymd: D10, homework: '옛 과제' }] }));
     await page.evaluate(t => { CR_NS_SPLIT_FROM = '2000-01-01'; CR_NS_SPLIT_TO = t; CR_NS_HW_SPLIT_TO = '2000-01-02'; }, TODAYSTR);   // 범위·진행 칸은 아직 끔, 과제 잇기는 보통 내신
     await openCard(page, '고1 확인');
     await page.waitForFunction(() => document.querySelector('.cr-tname'), null, { timeout: 8000 }).catch(() => {});
     r = await page.evaluate(() => ({ tasks: [...document.querySelectorAll('.cr-tname')].map(x => x.textContent), src: (document.querySelector('.cr-src') || {}).textContent || '',
       scope: !!document.getElementById('cr-scope'), pshow: !!document.querySelector('[data-pshow]'), ns: !!(typeof CR !== 'undefined' && CR.ns) }));
-    ok('10/28 주 고1 확인 수업: 지난주 진도·확인 과제 + 이번 주 진도 과제를 모두(앞 주 과제는 빼고)', r.tasks.join('|') === '독서 지문 3개|과제집 w14|이번 주 진도 과제', JSON.stringify(r));
+    ok('10/28 주 고1 확인 수업: 지난주 진도·확인 과제 + 이번 주 진도 과제를 모두(앞 주 과제는 빼고) — 진도·확인에서 이름이 같은 과제는 둘 다(구분 접두, 2026-10-28 "4권 중 3권만")',
+       r.tasks.join('|') === '독서 지문 3개|진도 수업 · 과제집 w15|100인의 지혜 11·12|확인 수업 · 과제집 w15|이번 주 진도 과제', JSON.stringify(r));
     ok('10/28 주 고1 확인 수업: 출처에 진도·확인 수업이 함께', /진도/.test(r.src) && /확인/.test(r.src), r.src);
     ok('10/28 주 고1 확인 수업: 시험범위·진행 상황 칸은 아직 없음(11/4부터)', !r.scope && !r.pshow && !r.ns, JSON.stringify(r));
     ok('10/28 주 고1 과제 조회 = 진도·확인 반 모두', (st.srcGets || []).some(u => /"n001"/.test(u) && /"n002"/.test(u)), JSON.stringify(st.srcGets));
