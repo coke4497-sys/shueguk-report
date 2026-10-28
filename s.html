@@ -2500,6 +2500,9 @@ function closeLearnHist(){ $('lhView').style.display = 'none'; show('hubView'); 
  * s.html(학생 수업 리포트)·timetable.html(학생별 미리보기)에 같은 함수가 있다 — 고치면 둘 다.
  * it = {ymd, part, cls, teacher, attend, attend_note, attitude, units[], summary, homework[], hw, comment}, opt = {star: 별 칩 HTML, empty} */
 var RC_DOW = '일월화수목금토', RC_DIMS = ['채점', '학습 분석', '오답 분석'], RC_LV = ['안함', '일부함', '완벽'];
+// 내신대비 기간 진도 수업은 과제 검사를 하지 않는다(확인 수업에서) — 기록이 없는 진도 수업 카드에는 이 안내(2026-10-28 원장님 문장 그대로, 학부모님 오해 방지)
+var RC_NS_HW_NOTE = '내신대비 기간에는 확인 수업에서 과제 검사를 진행합니다. 이번 정규 수업에서는 과제 기록이 없습니다.';
+function rcNsNone(it, hw){ return !!(hw && hw.none && /^진도/.test(String(it.part || ''))); }
 var RC_DIM_RE = / \((학습량|깊이|채점|학습 분석|오답 분석)\)$/;
 function rcHwTasks(hw){   // 과제마다 {t, dim, vol, depth, lv{채점…}, legacy, miss}
   var out = [], by = {}, mi = hw.missing_items || [];
@@ -2551,7 +2554,7 @@ function rcCardHtml(it, opt){
     units.map(function(u){ return '<span class="u">' + esc(u) + '</span>'; }).join(' · ') + '</span></div>';
   if (hw){
     var hv;
-    if (hw.none) hv = '확인할 것 없음';
+    if (hw.none) hv = rcNsNone(it, hw) ? '확인 수업에서' : '확인할 것 없음';
     else if (hw.missing) hv = '미제출';
     else {
       var nm = tasks.filter(function(g){ return g.miss; }).length, pct = Math.max(0, Math.min(100, +hw.pct || 0));
@@ -2564,7 +2567,7 @@ function rcCardHtml(it, opt){
   if (sum) body += '<div class="rc-sec"><h5>수업 내용</h5><p>' + esc(sum) + '</p></div>';
   if (hw){
     body += (body ? '<hr class="rc-hr">' : '') + '<div class="rc-sec"><h5>이번주 과제 검사</h5>' +
-      (hw.none ? '<p class="rc-empty">' + esc(hw.text || '확인할 것이 없습니다.') + '</p>'
+      (hw.none ? '<p class="rc-empty">' + esc(rcNsNone(it, hw) ? RC_NS_HW_NOTE : (hw.text || '확인할 것이 없습니다.')) + '</p>'
         : rcHwTable(hw, tasks) + (hw.text ? '<p class="rc-hwtxt">' + esc(hw.text) + '</p>' : '') +
           (!hw.missing && (+hw.pct || 0) >= 100 ? '<span class="rc-star1">★ 슈퍼스타 별 +1 · 모든 과제를 완벽하게 했어요</span>' : '')) + '</div>';
   }

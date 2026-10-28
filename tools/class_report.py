@@ -226,6 +226,7 @@ def comment_problem(c):
         return '메모 말투예요(ㅋ·ㅎ·굿·… 같은 표기)'
     return ''
 ATTITUDES = ('', '매우 좋음', '좋음', '노력 필요')
+NS_HW_NOTE = '내신대비 기간에는 확인 수업에서 과제 검사를 진행합니다. 이번 정규 수업에서는 과제 기록이 없습니다.'
 
 
 def cmd_publish(path):
@@ -255,6 +256,9 @@ def cmd_publish(path):
                 sys.exit('%s 는 목록이어야 해요: %s' % (k, studs[code]['name']))
         if body.get('attitude', '') not in ATTITUDES:
             sys.exit('수업 태도는 매우 좋음/좋음/노력 필요 중 하나여야 해요: %s' % studs[code]['name'])
+        hw = body.get('hw')
+        if isinstance(hw, dict) and hw.get('none') and str(note.get('part') or '') == '진도':
+            hw['text'] = NS_HW_NOTE   # 내신대비 기간 진도 수업은 과제 검사를 하지 않는다 — 학부모님 오해 방지 안내(2026-10-28 원장님 문장)
         bad = comment_problem(str(body.get('comment') or ''))
         if bad:   # 선생님이 키워드로 적어도 학생 페이지에는 단정하고 예의 바른 문장으로(2026-10-26 원장님)
             sys.exit('코멘트가 %s — 뜻을 살린 존댓말 완결 문장으로 다듬어 주세요: %s 「%s」' % (bad, studs[code]['name'], body.get('comment')))

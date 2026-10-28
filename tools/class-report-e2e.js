@@ -428,13 +428,14 @@ const STUDENTS = [
     // 시험범위·진행 상황 칸은 아직 없다(11/4부터) — 두 기간이 따로다(crNsHwSplitAt ≠ crNsSplitAt)
     ({ ctx, page, st } = await ctxOf({ book: '내신',
       rows: [row('n001', '고1 화정B(천재수 공통국어2)', '현지', '박보검'), Object.assign(row('n002', '고1 확인', '연주', '(화정)박보검'), { start_time: '7:30', end_time: '9:00' })],
-      att: [], hw: [], prev: [{ class_id: 'n001', ymd: PREVWED, homework: '이번 주 진도 과제' }, { class_id: 'n002', ymd: D1, homework: '과제집 w14' }, { class_id: 'n001', ymd: D6, homework: '독서 지문 3개' }, { class_id: 'n002', ymd: D10, homework: '옛 과제' }] }));
+      att: [], hw: [], prev: [{ class_id: 'n001', ymd: PREVWED, homework: '이번 주 진도 과제' }, { class_id: 'n002', ymd: D1, homework: '100인의 지혜 11·12\n과제집 w15' }, { class_id: 'n001', ymd: D6, homework: '독서 지문 3개\n과제집 w15' }, { class_id: 'n002', ymd: D10, homework: '옛 과제' }] }));
     await page.evaluate(t => { CR_NS_SPLIT_FROM = '2000-01-01'; CR_NS_SPLIT_TO = t; CR_NS_HW_SPLIT_TO = '2000-01-02'; }, TODAYSTR);   // 범위·진행 칸은 아직 끔, 과제 잇기는 보통 내신
     await openCard(page, '고1 확인');
     await page.waitForFunction(() => document.querySelector('.cr-tname'), null, { timeout: 8000 }).catch(() => {});
     r = await page.evaluate(() => ({ tasks: [...document.querySelectorAll('.cr-tname')].map(x => x.textContent), src: (document.querySelector('.cr-src') || {}).textContent || '',
       scope: !!document.getElementById('cr-scope'), pshow: !!document.querySelector('[data-pshow]'), ns: !!(typeof CR !== 'undefined' && CR.ns) }));
-    ok('10/28 주 고1 확인 수업: 지난주 진도·확인 과제 + 이번 주 진도 과제를 모두(앞 주 과제는 빼고)', r.tasks.join('|') === '독서 지문 3개|과제집 w14|이번 주 진도 과제', JSON.stringify(r));
+    ok('10/28 주 고1 확인 수업: 지난주 진도·확인 과제 + 이번 주 진도 과제를 모두(앞 주 과제는 빼고) — 진도·확인에서 이름이 같은 과제는 둘 다(독서·문학 접두, 2026-10-28 "4권 중 3권만" · "가 독서, 나 문학")',
+       r.tasks.join('|') === '독서 지문 3개|독서 · 과제집 w15|100인의 지혜 11·12|문학 · 과제집 w15|이번 주 진도 과제', JSON.stringify(r));
     ok('10/28 주 고1 확인 수업: 출처에 진도·확인 수업이 함께', /진도/.test(r.src) && /확인/.test(r.src), r.src);
     ok('10/28 주 고1 확인 수업: 시험범위·진행 상황 칸은 아직 없음(11/4부터)', !r.scope && !r.pshow && !r.ns, JSON.stringify(r));
     ok('10/28 주 고1 과제 조회 = 진도·확인 반 모두', (st.srcGets || []).some(u => /"n001"/.test(u) && /"n002"/.test(u)), JSON.stringify(st.srcGets));
@@ -857,7 +858,8 @@ const STUDENTS = [
   ok('수업 태도 타일 — 매우 좋음 · 노력 필요', /수업 태도매우 좋음/.test(r.items[0]) && r.items.some(t => /수업 태도노력 필요/.test(t)), JSON.stringify(r.items.map(t => t.slice(0, 60))));
   ok('9/28 — 결석·결석 안내·전체 미제출·정해 둔 코멘트, 태도 없으면 줄도 없음', /결석/.test(r.items[1]) && /가족 행사로/.test(r.items[1]) && /미제출/.test(r.items[1]) && !/수업 태도/.test(r.items[1]) &&
      /박보검 친구는 과제 제출을 하지 않았습니다!!!!/.test(r.items[1]), r.items[1]);
-  ok('8/29 내신 진도 — 수업 진도 타일·"확인할 것이 없습니다."', /진도 수업/.test(r.items[2]) && /수업 진도사미인곡/.test(r.items[2]) && /확인할 것이 없습니다\./.test(r.items[2]) && !/%/.test(r.items[2]), r.items[2]);
+  ok('8/29 내신 진도 — 수업 진도 타일·과제 검사 없음은 "내신대비 기간에는 확인 수업에서 과제 검사를 진행합니다…"(2026-10-28 원장님 문장, 학부모님 오해 방지)',
+     /진도 수업/.test(r.items[2]) && /수업 진도사미인곡/.test(r.items[2]) && /내신대비 기간에는 확인 수업에서 과제 검사를 진행합니다\. 이번 정규 수업에서는 과제 기록이 없습니다\./.test(r.items[2]) && !/확인할 것이 없습니다/.test(r.items[2]) && /확인 수업에서/.test(r.items[2]) && !/%/.test(r.items[2]), r.items[2]);
   ok('"숙제"라는 말이 없다', !r.items.some(t => /숙제/.test(t)));
   ok('100% 아닌 수업에는 별 +1 표시·효과가 없다', await hp.evaluate(() => !document.querySelector('.lh-star1') && !document.querySelector('.rc-star1') && !document.querySelector('.lh-sb')));
   await hp.click('#lhMoreBtn');

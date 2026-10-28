@@ -8558,7 +8558,8 @@ var CR_NS_SHARE = /^고[12]$/;
  *     2026-10-28 원장님 "시험범위 오늘부터 보이게"로 10/28부터 적용.
  * 기간을 바꾸면 이 값들만 고칠 것. */
 var CR_NS_SPLIT = /^고[12]$/, CR_NS_SPLIT_FROM = '2026-10-12', CR_NS_SPLIT_TO = '2026-10-27';   // ② 10/28(수)부터 범위·진행 적용(2026-10-28 원장님 "시험범위 오늘부터 보이게")
-var CR_NS_HW_SPLIT_TO = '2026-10-27';   // ① 과제 검사만 따로 잇는 마지막 날 — 10/28 주부터 진도·확인 과제를 모두 잇는다(2026-10-28 원장님)
+var CR_NS_HW_SPLIT_TO = '2026-10-27';
+var CR_NS_SUBJ = { '진도': '독서', '확인': '문학' };   // 내신 기간 수업 구분의 과목(2026-10-28 원장님 "가 독서, 나 문학") — 진도·확인에서 이름이 같은 과제를 가르는 접두   // ① 과제 검사만 따로 잇는 마지막 날 — 10/28 주부터 진도·확인 과제를 모두 잇는다(2026-10-28 원장님)
 function crNsSplitAt(c, ymd){ return CR_NS_SPLIT.test(classGradeOf(c)) && ymd >= CR_NS_SPLIT_FROM && ymd <= CR_NS_SPLIT_TO; }
 function crNsHwSplitAt(c, ymd){ return CR_NS_SPLIT.test(classGradeOf(c)) && ymd >= CR_NS_SPLIT_FROM && ymd <= CR_NS_HW_SPLIT_TO; }
 function crSameNsLesson(c, x, bk){
@@ -8959,8 +8960,13 @@ function crHwSrcLoad2(c, bk, ymd, twinId, othSib){
           var lastWed = crPrevWedShift(weekWed, -7);
           var all = ord.filter(function(r){ return mine[x.p].indexOf(r.class_id) >= 0 && r.ymd >= lastWed && crRowTasks(r, x.p).length; });
           if (all.length > 1){
-            var tasks = [], labs = [];
-            all.slice().reverse().forEach(function(r){ var pk = pack(r, x.p); labs.push(pk.label); pk.tasks.forEach(function(t){ if (tasks.indexOf(t) < 0) tasks.push(t); }); });
+            // 진도·확인에서 이름이 같은 과제('과제집 w15' — 독서 과제집과 문학 과제집)는 다른 책이라 둘 다 두고 '독서 · '/'문학 · '을 붙여 가른다
+            // (2026-10-28 원장님 "지난주 고1 과제는 총 4권이에요. 지금은 세권만" — 이름만 보고 하나로 합쳐 한 권이 빠졌다 → "가 독서, 나 문학": 진도(가) = 독서, 확인(나) = 문학, CR_NS_SUBJ).
+            // 같은 구분 안의 같은 이름은 한 번만.
+            var tasks = [], labs = [], partsOf = {};
+            var packed = all.slice().reverse().map(function(r){ return pack(r, x.p); });
+            packed.forEach(function(pk){ labs.push(pk.label); pk.tasks.forEach(function(t){ var ps = partsOf[t] = partsOf[t] || []; if (ps.indexOf(pk.part) < 0) ps.push(pk.part); }); });
+            packed.forEach(function(pk){ pk.tasks.forEach(function(t){ var nm = partsOf[t].length > 1 ? (CR_NS_SUBJ[pk.part] || crPartLabel(pk.part)) + ' · ' + t : t; if (tasks.indexOf(nm) < 0) tasks.push(nm); }); });
             var top = pack(own, x.p);
             by[x.p] = { tasks: tasks, ymd: top.ymd, cls: top.cls, part: top.part, label: labs.join(' · ') };
             return;
@@ -9103,7 +9109,8 @@ function crHwLabel(code){
 }
 function crStarsHtml(i, code){
   var h = code ? CR.hw[code] : null, x = CR.names[i], src = crSrcOf(x);
-  if (!src) return '<div class="cr-note">지난 수업에 적힌 과제가 없습니다. 리포트에는 \'확인할 것이 없습니다\'로 들어갑니다.</div>';
+  if (!src) return '<div class="cr-note">' + (CR.part === '진도' ? '내신대비 기간 진도 수업은 과제 검사를 하지 않습니다(확인 수업에서). 리포트에는 \'' + RC_NS_HW_NOTE + '\'로 들어갑니다.'
+    : '지난 수업에 적힌 과제가 없습니다. 리포트에는 \'확인할 것이 없습니다\'로 들어갑니다.') + '</div>';
   var ii = 0;
   return '<div class="cr-src">' + esc(src.head) + '</div>' + src.tasks.map(function(t, ti){
     var tm = crTaskMissed(h, t);
@@ -9765,6 +9772,7 @@ function crPvItem(i){
     hw = { items: its.filter(function(it){ return sc.hasOwnProperty(it); }).map(function(it){ return { name: it, score: sc[it], max: hwItemMax(it) }; }), missing: all, miss: missed,
            pct: all ? 0 : crHwPct({ scores: sc }, its), text: h.pub || '' };
   }
+  if (!hw && CR.part === '진도') hw = { none: true };   // 내신 진도 수업은 과제 검사를 하지 않는다 — 리포트의 안내(RC_NS_HW_NOTE)를 미리보기에도
   return { nm: x.p, stu: x.stu, part: CR.part, cls: CR.c.cls, teacher: CR.c.teacher, ymd: CR.ymd,
            attend: a ? a.status : '', progress: String(n.progress || '').trim(),
            units: CR.ns ? crNsUnitsOfWeek(CR.ns) : [], homework: crRowTasks(n, x.p),
@@ -9775,6 +9783,9 @@ function crPvItem(i){
  * s.html(학생 수업 리포트)·timetable.html(학생별 미리보기)에 같은 함수가 있다 — 고치면 둘 다.
  * it = {ymd, part, cls, teacher, attend, attend_note, attitude, units[], summary, homework[], hw, comment}, opt = {star: 별 칩 HTML, empty} */
 var RC_DOW = '일월화수목금토', RC_DIMS = ['채점', '학습 분석', '오답 분석'], RC_LV = ['안함', '일부함', '완벽'];
+// 내신대비 기간 진도 수업은 과제 검사를 하지 않는다(확인 수업에서) — 기록이 없는 진도 수업 카드에는 이 안내(2026-10-28 원장님 문장 그대로, 학부모님 오해 방지)
+var RC_NS_HW_NOTE = '내신대비 기간에는 확인 수업에서 과제 검사를 진행합니다. 이번 정규 수업에서는 과제 기록이 없습니다.';
+function rcNsNone(it, hw){ return !!(hw && hw.none && /^진도/.test(String(it.part || ''))); }
 var RC_DIM_RE = / \((학습량|깊이|채점|학습 분석|오답 분석)\)$/;
 function rcHwTasks(hw){   // 과제마다 {t, dim, vol, depth, lv{채점…}, legacy, miss}
   var out = [], by = {}, mi = hw.missing_items || [];
@@ -9826,7 +9837,7 @@ function rcCardHtml(it, opt){
     units.map(function(u){ return '<span class="u">' + esc(u) + '</span>'; }).join(' · ') + '</span></div>';
   if (hw){
     var hv;
-    if (hw.none) hv = '확인할 것 없음';
+    if (hw.none) hv = rcNsNone(it, hw) ? '확인 수업에서' : '확인할 것 없음';
     else if (hw.missing) hv = '미제출';
     else {
       var nm = tasks.filter(function(g){ return g.miss; }).length, pct = Math.max(0, Math.min(100, +hw.pct || 0));
@@ -9839,7 +9850,7 @@ function rcCardHtml(it, opt){
   if (sum) body += '<div class="rc-sec"><h5>수업 내용</h5><p>' + esc(sum) + '</p></div>';
   if (hw){
     body += (body ? '<hr class="rc-hr">' : '') + '<div class="rc-sec"><h5>이번주 과제 검사</h5>' +
-      (hw.none ? '<p class="rc-empty">' + esc(hw.text || '확인할 것이 없습니다.') + '</p>'
+      (hw.none ? '<p class="rc-empty">' + esc(rcNsNone(it, hw) ? RC_NS_HW_NOTE : (hw.text || '확인할 것이 없습니다.')) + '</p>'
         : rcHwTable(hw, tasks) + (hw.text ? '<p class="rc-hwtxt">' + esc(hw.text) + '</p>' : '') +
           (!hw.missing && (+hw.pct || 0) >= 100 ? '<span class="rc-star1">★ 슈퍼스타 별 +1 · 모든 과제를 완벽하게 했어요</span>' : '')) + '</div>';
   }
