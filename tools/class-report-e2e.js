@@ -858,7 +858,8 @@ const STUDENTS = [
   ok('수업 태도 타일 — 매우 좋음 · 노력 필요', /수업 태도매우 좋음/.test(r.items[0]) && r.items.some(t => /수업 태도노력 필요/.test(t)), JSON.stringify(r.items.map(t => t.slice(0, 60))));
   ok('9/28 — 결석·결석 안내·전체 미제출·정해 둔 코멘트, 태도 없으면 줄도 없음', /결석/.test(r.items[1]) && /가족 행사로/.test(r.items[1]) && /미제출/.test(r.items[1]) && !/수업 태도/.test(r.items[1]) &&
      /박보검 친구는 과제 제출을 하지 않았습니다!!!!/.test(r.items[1]), r.items[1]);
-  ok('8/29 내신 진도 — 수업 진도 타일·"확인할 것이 없습니다."', /진도 수업/.test(r.items[2]) && /수업 진도사미인곡/.test(r.items[2]) && /확인할 것이 없습니다\./.test(r.items[2]) && !/%/.test(r.items[2]), r.items[2]);
+  ok('8/29 내신 진도 — 수업 진도 타일·과제 검사 없음은 "내신대비 기간에는 확인 수업에서 과제 검사를 진행합니다…"(2026-10-28 원장님 문장, 학부모님 오해 방지)',
+     /진도 수업/.test(r.items[2]) && /수업 진도사미인곡/.test(r.items[2]) && /내신대비 기간에는 확인 수업에서 과제 검사를 진행합니다\. 이번 정규 수업에서는 과제 기록이 없습니다\./.test(r.items[2]) && !/확인할 것이 없습니다/.test(r.items[2]) && /확인 수업에서/.test(r.items[2]) && !/%/.test(r.items[2]), r.items[2]);
   ok('"숙제"라는 말이 없다', !r.items.some(t => /숙제/.test(t)));
   ok('100% 아닌 수업에는 별 +1 표시·효과가 없다', await hp.evaluate(() => !document.querySelector('.lh-star1') && !document.querySelector('.rc-star1') && !document.querySelector('.lh-sb')));
   await hp.click('#lhMoreBtn');
