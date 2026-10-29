@@ -560,7 +560,7 @@
       </div>
       <div class="row2">
         <div><label>연도</label><input type="number" id="wt-year" min="2020" max="2099" /></div>
-        <div><label>학년</label><select id="wt-grade"><option value="">미정</option><option>중1</option><option>중2</option><option>중3</option><option>고1</option><option>고2</option><option>고3</option></select></div>
+        <div><label>학년</label><select id="wt-grade"><option value="">미정</option><option>초5</option><option>초6</option><option>중1</option><option>중2</option><option>중3</option><option>고1</option><option>고2</option><option>고3</option></select></div>
       </div>
       <div class="row2">
         <div><label>학교</label><input type="text" id="wt-school" list="schoolList" placeholder="예) 화정고" autocomplete="off" /></div>
@@ -1467,7 +1467,7 @@
     return (lv && m) ? lv + m[1] : (g || '기타');
   }
   function gradeOrder(k){
-    var i = ['중1','중2','중3','고1','고2','고3'].indexOf(k);
+    var i = ['초5','초6','중1','중2','중3','고1','고2','고3'].indexOf(k);
     return i >= 0 ? i : 99;
   }
   var STAT = { gmap:{}, gsmap:{}, gkeys:[], sel:null };
@@ -2916,7 +2916,7 @@
     box.innerHTML = h;
   }
   // 학년별·학교별 거르기(2026-10-29 원장님 "학년별 학교별로 볼 수 있어야") — 대기 중인 줄에 있는 학년·학교만 알약으로, 둘을 함께 걸 수 있다. 슈톡 명단 보기와 같은 규칙.
-  var WT_GRADES = ['중1', '중2', '중3', '고1', '고2', '고3'];
+  var WT_GRADES = ['초5', '초6', '중1', '중2', '중3', '고1', '고2', '고3'];   // 초5·초6 = 2027 초6처럼 이른 대기(2026-10-29 원장님)
   function wtGradeOf(r){ return String(r.grade || '').trim() || '미정'; }
   function wtSchoolOf(r){ return String(r.school || '').trim() || '학교 미상'; }
   function wtFiltHtml(wait){
