@@ -334,7 +334,7 @@ const STUDENTS = [
   r = await page.evaluate(() => ({ sum: document.querySelector('#cr-scope summary').textContent, ref: [...document.querySelectorAll('.cr-ref b .sc-st')].map(x => x.className + ':' + x.textContent), box: [...document.querySelectorAll('.cr-card[data-i="0"] .cr-pbox b .sc-st')].map(x => x.className + ':' + x.textContent) }));
   ok('확인 수업 — 진도반 요약·진도반 머리·학생 카드 [진도반 범위·진행]에 입력 상태(일부 기록 — done 없는 범위)', /화정A\(비상 문학\) 2명 · 일부 기록 · 완료 0\/3/.test(r.sum) && r.ref.join() === 'sc-st part:일부 기록' && r.box.join() === 'sc-st part:일부 기록', JSON.stringify(r));
   await page.click('.cr-card[data-i="0"] [data-hist]');
-  await page.waitForFunction(() => /코멘트|메모가 없어요/.test((document.querySelector('.cr-card[data-i="0"] .cr-hbox') || {}).textContent || ''), null, { timeout: 8000 });
+  await page.waitForFunction(() => { const t = (document.querySelector('.cr-card[data-i="0"] .cr-hbox') || {}).textContent || ''; return !!t && !/불러오는 중/.test(t); }, null, { timeout: 8000 });   // 머리글에도 '코멘트'가 있어 조회가 끝났는지로 본다
   r = await page.evaluate(() => ({ box: document.querySelector('.cr-card[data-i="0"] .cr-hbox').textContent, items: document.querySelectorAll('.cr-card[data-i="0"] .cr-hitem').length, nm: document.querySelector('.cr-card[data-i="0"] .cr-top b').textContent }));
   if (SHOT){ await page.evaluate(() => { document.getElementById('cr-scope').open = false; CR.pshow[0] = false; crRender(); }); await page.waitForSelector('.cr-card[data-i="0"] .cr-hbox'); await shot(page, '4-확인수업-학생카드-지난메모', '.cr-card[data-i="0"]'); }
   ok('[지난 메모] → 최근 8주 그 학생의 코멘트·태도·베낌 의심(비공개)·과제 검사(%·미제출·대책·비공개 메모) 날짜순', r.nm === '김하늘' && r.items === 2 && /서술형 꼼꼼/.test(r.box) && /73%/.test(r.box) && /미제출 학습지 1/.test(r.box) && /집중 부족/.test(r.box) && /10\/20 재검사/.test(r.box) && !/표현 방식 이해 굿/.test(r.box), JSON.stringify(r));
@@ -489,6 +489,50 @@ const STUDENTS = [
     await ctx.close();
   }
 
+
+  // ②-5 배부된 과제 하나씩 빼기(2026-10-29 원장님 "수업 기록의 배부된 과제를 하나하나 삭제가능하게") — [빼기] → 학생 모두에게서 빠지고 '__검사제외'에 저장, 매긴 별은 % 다시 저장, [되살리기]
+  {
+    ({ ctx, page, st } = await ctxOf({ book: '정규',
+      rows: [row('r001', '고2 가', '지원', '박보검 김하늘')],
+      att: [{ class_id: 'r001', student: '박보검', status: '출석' }],
+      prev: [{ class_id: 'r001', ymd: LASTWK, homework: '관동별곡 학습지\n오답 노트' }],
+      hw: [{ token: 'k-kim', scores: { '관동별곡 학습지 (학습량)': 5, '오답 노트 (학습량)': 3 }, pct: 36, pub: '', priv: '', missing: false, plan: '' }] }));
+    await openCard(page, '고2 가');
+    const iP = await page.evaluate(() => CR.names.map(x => x.p).indexOf('박보검'));
+    const snap = () => page.evaluate(() => ({ rm: document.querySelectorAll('[data-trm]').length, tasks: [...document.querySelectorAll('.cr-card')].map(c => [...c.querySelectorAll('.cr-tname')].map(x => x.textContent).join('|')),
+      head: (document.querySelector('.cr-src') || {}).textContent || '', chips: [...document.querySelectorAll('.cr-xt-rm .cr-unit')].map(x => x.firstChild.textContent),
+      note: [...document.querySelectorAll('.cr-card .cr-note')].map(x => x.textContent).join(' ') }));
+    r = await snap();
+    ok('과제마다 [빼기] 버튼(학생 2명 × 과제 2개)', r.rm === 4 && r.tasks.join() === '관동별곡 학습지|오답 노트,관동별곡 학습지|오답 노트' && r.chips.length === 0, JSON.stringify(r));
+    await page.click(`[data-trm="${iP}|1"]`);
+    await page.waitForFunction(() => /뺐습니다/.test(document.getElementById('cr-msg').textContent), null, { timeout: 8000 });
+    let nw5 = st.writes.filter(w => /class_notes/.test(w.u)).pop();
+    r = await snap();
+    ok('[빼기] → 학생 모두에게서 빠짐 · 머리에 (1개 뺌) · 뺀 과제 칩', r.tasks.join() === '관동별곡 학습지,관동별곡 학습지' && /1개 뺌/.test(r.head) && r.chips.join() === '오답 노트', JSON.stringify(r));
+    await shot(page, '2-5-배부된과제-빼기', '#crpanel');
+    ok("뺀 과제는 class_notes.comments['__검사제외']에 저장", nw5 && nw5.body[0].comments['__검사제외'] === '오답 노트' && !('__검사과제' in nw5.body[0].comments), JSON.stringify(nw5 && nw5.body[0].comments));
+    await page.waitForTimeout(1500);
+    const hw5 = st.writes.filter(w => /hwcheck_records/.test(w.u) && w.body && w.body[0].token === 'k-kim').pop();
+    ok('이미 별을 매긴 학생은 %를 다시 저장 — 뺀 과제 점수 없음·만점 11·45%', hw5 && hw5.body[0].max === 11 && !('오답 노트 (학습량)' in hw5.body[0].scores) && hw5.body[0].scores['관동별곡 학습지 (학습량)'] === 5 && hw5.body[0].pct === 45, JSON.stringify(hw5 && hw5.body));
+    await page.click('[data-xrs="오답 노트"]');
+    await page.waitForFunction(() => /되살렸습니다/.test(document.getElementById('cr-msg').textContent), null, { timeout: 8000 });
+    nw5 = st.writes.filter(w => /class_notes/.test(w.u)).pop();
+    r = await snap();
+    ok('[되살리기] → 과제 2개로 · 예약 키 없음', r.tasks.join() === '관동별곡 학습지|오답 노트,관동별곡 학습지|오답 노트' && r.chips.length === 0 && !('__검사제외' in nw5.body[0].comments), JSON.stringify([r, nw5.body[0].comments]));
+    await page.click(`[data-trm="${iP}|0"]`);
+    await page.waitForFunction(() => /뺐습니다/.test(document.getElementById('cr-msg').textContent), null, { timeout: 8000 });
+    await page.click(`[data-trm="${iP}|0"]`);
+    await page.waitForFunction(() => document.querySelectorAll('.cr-xt-rm .cr-unit').length === 2, null, { timeout: 8000 });
+    r = await snap();
+    ok('모두 빼면 안내 + 뺀 과제 칩 2개', r.rm === 0 && /모두 뺐습니다/.test(r.note) && r.chips.join() === '관동별곡 학습지,오답 노트', JSON.stringify(r));
+    await page.fill('#cr-xt', '오답 노트');
+    await page.click('#cr-xt-add');
+    await page.waitForFunction(() => /추가했습니다/.test(document.getElementById('cr-msg').textContent), null, { timeout: 8000 });
+    nw5 = st.writes.filter(w => /class_notes/.test(w.u)).pop();
+    r = await snap();
+    ok('뺀 과제를 반 전체 추가로 다시 적으면 되살아난다', r.tasks.join() === '오답 노트,오답 노트' && nw5.body[0].comments['__검사제외'] === '관동별곡 학습지' && nw5.body[0].comments['__검사과제'] === '오답 노트', JSON.stringify([r, nw5.body[0].comments]));
+    await ctx.close();
+  }
 
   // ⑥ 같은 이름 반 기록 가져오기 (2026-09-29)
   ({ ctx, page, st } = await ctxOf({ book: '정규',
