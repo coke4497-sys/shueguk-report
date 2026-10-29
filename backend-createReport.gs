@@ -2599,6 +2599,7 @@ function doPost(e) {
     if (data && data.action === 'updateStudent')   { return updateStudent(data); }
     if (data && data.action === 'studentRename')   { return studentRename(data); }
     if (data && data.action === 'studentEnrolledSet') { return studentEnrolledSet(data); }
+    if (data && data.action === 'submissionBlankDelete') { return submissionBlankDelete(data); }
 
     // (12-1) 정규 시간표 (timetable.html) — 학생 반 이동/추가/빼기, 전체 교체(가져오기·재동기화)
     if (data && data.action === 'timetableMove')    { return timetableMove(data); }
@@ -2821,6 +2822,28 @@ function studentEnrolledSet(data) {
     });
     if (done.length) dropTab_(TAB_STUDENTS);
     return json({ result: 'success', done: done, missing: missing });
+  } finally {
+    try { lock.releaseLock(); } catch (e) {}
+  }
+}
+
+/* '제출결과' 탭의 빈 줄(시험·이름이 모두 빈 줄)만 지운다 — 2026-10-29: 배포 직후 옛 버전이 받은 studentEnrolledSet 호출이 복기 제출 기본 분기로
+ * 떨어져 생긴 줄을 치우려고. 실제 제출(시험이나 이름이 있는 줄)은 절대 건드리지 않는다. POST { pw } → { result, deleted:[{row, ts}] } */
+function submissionBlankDelete(data) {
+  if (String(data.pw || '') !== TEACHER_PW) return json({ result: 'error', message: 'unauthorized' });
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ss.getSheetByName(TAB_RESULT);
+  if (!sh) return json({ result: 'error', message: "'" + TAB_RESULT + "' 탭이 없습니다." });
+  var lock = LockService.getScriptLock();
+  try { lock.waitLock(10000); } catch (e) { return json({ result: 'error', message: '잠시 후 다시 시도해 주세요.' }); }
+  try {
+    var v = sh.getDataRange().getValues(), deleted = [];
+    for (var i = v.length - 1; i >= 1; i--) {   // 아래부터 지워야 행 번호가 안 밀린다
+      var title = String(v[i][1] || '').trim(), name = String(v[i][4] || '').trim();
+      if (!title && !name) { sh.deleteRow(i + 1); deleted.push({ row: i + 1, ts: String(v[i][0] || '') }); }
+    }
+    if (deleted.length) dropExamIdx_();
+    return json({ result: 'success', deleted: deleted });
   } finally {
     try { lock.releaseLock(); } catch (e) {}
   }
