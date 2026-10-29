@@ -2805,7 +2805,7 @@ function studentEnrolledSet(data) {
   try {
     var v = sh.getDataRange().getValues();
     var codeCol = findHeaderCol_(v[0], '접근코드', STU_CODE_COL);
-    var enrCol = findHeaderCol_(v[0], '재원여부', 10);
+    var enrCol = findHeaderCol_(v[0], '재원 여부', findHeaderCol_(v[0], '재원여부', 10));   // 실제 머리글은 '재원 여부'(띄어쓰기) — 둘 다 보고 없으면 K열
     var rowOf = {};
     for (var i = 1; i < v.length; i++) { var c = String(v[i][codeCol] || '').trim(); if (c && rowOf[c] === undefined) rowOf[c] = i + 1; }
     var done = [], missing = [];
