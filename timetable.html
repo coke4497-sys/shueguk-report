@@ -571,6 +571,7 @@
   .cr-trm{color:#9A5A52;}
   .cr-xt-rm{display:flex;flex-direction:column;gap:3px;font-size:.74rem;color:var(--ink-soft);}
   .cr-xt-rm .cr-unit{background:#F0F2F1;color:#65726B;text-decoration:line-through;} .cr-xt-rm .cr-unit button{text-decoration:none;font-size:.72rem;padding:0 6px;color:#5A4A6A;}
+  .cr-xrm-me{margin:2px 0 6px;}
   .cr-task.miss .cr-item,.cr-task.miss .cr-cp{opacity:.4;}
   /* 채점·학습 분석·오답 분석 3단계(2026-10-01) — 연보라 알약, 고른 단계만 채움 */
   .cr-lv{display:flex;gap:4px;flex-wrap:wrap;}
@@ -8530,6 +8531,7 @@ function openClassNote(c, ctx){
     CR.note = r[0][0] || null;
     CR.xt = crTasksOf(((CR.note || {}).comments || {})[CR_XT_KEY]);
     CR.xrm = crTasksOf(((CR.note || {}).comments || {})[CR_XRM_KEY]);   // 이 수업 검사 목록에서 뺀 과제
+    CR.xrmBy = crXrmByOf(((CR.note || {}).comments || {})[CR_XRMBY_KEY]);   // 학생마다 뺀 과제 {이름: [과제…]}
     CR.xtLast = (r[2] && r[2].xtLast) || [];
     if (r[1]){ CR.hwOk = !!r[3]; r[1].forEach(function(x){ CR.hw[x.token] = { scores: x.scores || {}, pub: x.pub || '', priv: x.priv || '', missing: !!x.missing, miss: Array.isArray(x.missing_items) ? x.missing_items.slice() : [], plan: x.plan || '', saved: true }; }); }
     CR.src = r[2];
@@ -8996,14 +8998,41 @@ function crRowTasks(r, nm){
 /* 이 학생이 오늘 검사할 과제 목록과 저장 키 */
 function crSrcOf(x){
   var s = CR.src, base = !s ? null : s.common !== undefined ? s.common : (s.by && s.by[x.p]) || null;   // common = 옛 모양(테스트 호환)
-  var xt = CR.xt || [], xrm = CR.xrm || [];
+  var xt = CR.xt || [], xrm = CR.xrm || [], mine = crXrmMine(x.p);
   // 검사 목록에서 뺀 과제(2026-10-29 원장님 "배부된 과제를 하나하나 삭제" — class_notes.comments['__검사제외'])는 지난 과제에서 뺀다. 반 전체 추가 과제는 칩 ×로 뺀다.
+  // 학생 한 명만 뺀 과제(같은 날 원장님 "학생 한 명만 빼는 것도 가능하게" — '__검사제외학생' {이름: 목록})는 그 학생의 최종 목록에서 뺀다.
   var baseTasks = base ? base.tasks.filter(function(t){ return xrm.indexOf(t) < 0; }) : [];
-  if (!xt.length) return base && baseTasks.length ? { tasks: baseTasks, head: base.label + ' 과제' + (baseTasks.length < base.tasks.length ? ' (' + (base.tasks.length - baseTasks.length) + '개 뺌)' : '') } : null;
-  // 반 전체에 더한 과제(2026-09-29 원장님 "반 전체에 과제를 추가하는 기능" — 교재의 데일리 과제 등) — 지난 과제 뒤에 붙인다
-  var tasks = baseTasks.slice();
+  var tasks = baseTasks.slice(), head;
   xt.forEach(function(t){ if (tasks.indexOf(t) < 0) tasks.push(t); });
-  return { tasks: tasks, head: baseTasks.length ? base.label + ' 과제 + 반 전체 추가 과제' : '반 전체에 추가한 과제' };
+  if (!xt.length) head = base ? base.label + ' 과제' + (baseTasks.length < base.tasks.length ? ' (' + (base.tasks.length - baseTasks.length) + '개 뺌)' : '') : '';
+  else head = baseTasks.length ? base.label + ' 과제 + 반 전체 추가 과제' : '반 전체에 추가한 과제';
+  var all = tasks.length;
+  tasks = tasks.filter(function(t){ return mine.indexOf(t) < 0; });
+  if (!tasks.length) return null;
+  if (tasks.length < all) head += ' (이 학생 ' + (all - tasks.length) + '개 뺌)';
+  return { tasks: tasks, head: head };
+}
+var CR_XRMBY_KEY = '__검사제외학생';
+function crXrmByOf(m){ var out = {}; if (m && typeof m === 'object') Object.keys(m).forEach(function(k){ var v = crTasksOf(m[k]); if (v.length) out[k] = v; }); return out; }
+function crXrmMine(p){ return (CR.xrmBy && CR.xrmBy[p]) || []; }
+function crXrmMeHtml(i, x){   // 학생 카드 — 이 학생만 뺀 과제 칩 + [되살리기]
+  var mine = crXrmMine(x.p); if (!mine.length) return '';
+  return '<div class="cr-xt-rm cr-xrm-me"><span>이 학생만 검사 목록에서 뺀 과제</span><div class="cr-units">' + mine.map(function(t){
+    return '<span class="cr-unit">' + esc(t) + '<button type="button" data-xrsme="' + i + '|' + esc(t) + '" aria-label="' + esc(t) + ' 되살리기">되살리기</button></span>'; }).join('') + '</div></div>';
+}
+function crTaskRemoveMine(i, ti){
+  var x = CR.names[i], src = x && crSrcOf(x), t = src && src.tasks[ti]; if (!t) return;
+  if (!confirm("'" + t + "' 과제를 " + x.p + " 학생의 검사 목록에서만 뺄까요? 다른 학생은 그대로예요. 이미 매긴 별은 %에서 빠져요.")) return;
+  var by = Object.assign({}, CR.xrmBy || {}), cur = (by[x.p] || []).slice();
+  if (cur.indexOf(t) < 0) cur.push(t);
+  by[x.p] = cur;
+  crXtSet((CR.xt || []).slice(), "'" + t + "' 과제를 " + x.p + " 학생에게서 뺐습니다.", null, by, i);
+}
+function crTaskRestoreMine(i, t){
+  var x = CR.names[i]; if (!x) return;
+  var by = Object.assign({}, CR.xrmBy || {}), cur = (by[x.p] || []).filter(function(v){ return v !== t; });
+  if (cur.length) by[x.p] = cur; else delete by[x.p];
+  crXtSet((CR.xt || []).slice(), "'" + t + "' 과제를 " + x.p + " 학생에게 되살렸습니다.", null, by, i);
 }
 /* 배부된(지난 수업) 과제를 이 수업 검사 목록에서 하나씩 뺀다(2026-10-29 원장님) — 학생 모두에게서 빠지고, 이미 매긴 별은 %에서 빠진다.
  * 새 열 없이 class_notes.comments 의 예약 키 '__검사제외'(한 줄에 하나). 되살리기는 [반 전체 검사 과제 추가] 칸의 '뺀 과제' 칩. */
@@ -9040,18 +9069,18 @@ function crXtHtml(){
     '<div class="cr-xt-in"><textarea id="cr-xt" rows="2" maxlength="300" placeholder="예) 슈주간지 260930">' + esc(CR.xtDraft || '') + '</textarea>' +
     '<button type="button" class="cr-btn" id="cr-xt-add">반 전체에 추가</button></div></div>';
 }
-function crXtSet(next, msg, xrm){   // xrm 을 주면 뺀 과제 목록도 함께 바꾼다
+function crXtSet(next, msg, xrm, xrmBy, onlyIdx){   // xrm·xrmBy 를 주면 뺀 과제 목록도 함께 바꾼다, onlyIdx 가 있으면 그 학생만 % 다시 저장
   crKeepInputs();
-  var prev = CR.xt || [], prevRm = CR.xrm || [], draft = CR.xtDraft || '';
-  CR.xt = next; if (xrm) CR.xrm = xrm; CR.xtDraft = '';
+  var prev = CR.xt || [], prevRm = CR.xrm || [], prevBy = CR.xrmBy || {}, draft = CR.xtDraft || '';
+  CR.xt = next; if (xrm) CR.xrm = xrm; if (xrmBy) CR.xrmBy = xrmBy; CR.xtDraft = '';
   crRender();
   crMsg('저장하는 중…');
   return crUpsert().then(function(){
     // 이미 별을 매긴 학생은 과제 수가 바뀌었으니 %를 다시 저장한다
-    CR.names.forEach(function(x, i){ if (x.stu && CR.hw[x.stu.code] && CR.hw[x.stu.code].saved) crHwQueue(i); });
+    CR.names.forEach(function(x, i){ if ((onlyIdx === undefined || onlyIdx === i) && x.stu && CR.hw[x.stu.code] && CR.hw[x.stu.code].saved) crHwQueue(i); });
     crRender(); crMsg(msg);
   }).catch(function(e){
-    CR.xt = prev; CR.xrm = prevRm; CR.xtDraft = draft; crRender();   // 저장이 안 됐으면 화면도 되돌린다
+    CR.xt = prev; CR.xrm = prevRm; CR.xrmBy = prevBy; CR.xtDraft = draft; crRender();   // 저장이 안 됐으면 화면도 되돌린다
     crMsg('과제를 저장하지 못했어요. 다시 눌러 주세요. (' + e.message + ')', true);
   });
 }
@@ -9139,17 +9168,19 @@ function crHwLabel(code){
     (p >= 100 ? '<span class="cr-star1" id="cr-star1-' + (x ? CR.names.indexOf(x) : '') + '" title="모든 과제를 완벽하게 해서 슈퍼스타 별 1개">★ 별 +1</span>' : '');
 }
 function crStarsHtml(i, code){
-  var h = code ? CR.hw[code] : null, x = CR.names[i], src = crSrcOf(x);
-  if (!src) return '<div class="cr-note">' + (CR.part === '진도' ? '내신대비 기간 진도 수업은 과제 검사를 하지 않습니다(확인 수업에서). 리포트에는 \'' + RC_NS_HW_NOTE + '\'로 들어갑니다.'
+  var h = code ? CR.hw[code] : null, x = CR.names[i], src = crSrcOf(x), me = crXrmMeHtml(i, x);
+  if (!src) return '<div class="cr-note">' + (CR.part === '진도' && !me ? '내신대비 기간 진도 수업은 과제 검사를 하지 않습니다(확인 수업에서). 리포트에는 \'' + RC_NS_HW_NOTE + '\'로 들어갑니다.'
+    : me ? '이 학생의 검사할 과제를 모두 뺐습니다. 리포트에는 \'확인할 것이 없습니다\'로 들어갑니다.'
     : (CR.xrm || []).length ? '검사할 과제를 모두 뺐습니다. 아래 [반 전체 검사 과제 추가] 칸에서 되살릴 수 있어요. 리포트에는 \'확인할 것이 없습니다\'로 들어갑니다.'
-    : '지난 수업에 적힌 과제가 없습니다. 리포트에는 \'확인할 것이 없습니다\'로 들어갑니다.') + '</div>';
+    : '지난 수업에 적힌 과제가 없습니다. 리포트에는 \'확인할 것이 없습니다\'로 들어갑니다.') + '</div>' + me;
   var ii = 0;
   return (CR.part === '진도' ? '<div class="cr-note">내신 진도 수업은 과제 검사를 하지 않습니다(확인 수업에서). 비워 두거나 미제출로 두면 리포트에는 \'' + RC_NS_HW_NOTE + '\'로 들어가요.</div>' : '') +
-    '<div class="cr-src">' + esc(src.head) + '</div>' + src.tasks.map(function(t, ti){
+    '<div class="cr-src">' + esc(src.head) + '</div>' + me + src.tasks.map(function(t, ti){
     var tm = crTaskMissed(h, t);
     return '<div class="cr-task' + (tm ? ' miss' : '') + '"><div class="cr-thead"><div class="cr-tname">' + esc(t) + '</div>' +
       '<div class="cr-tacts"><button type="button" class="cr-mini cr-tmiss' + (tm ? ' on' : '') + '" data-tmiss="' + i + '|' + ti + '" aria-pressed="' + tm + '" aria-label="' + esc(t) + ' 미제출">미제출</button>' +
-      '<button type="button" class="cr-mini cr-trm" data-trm="' + i + '|' + ti + '" title="이 수업 검사 목록에서 빼기 (학생 모두)" aria-label="' + esc(t) + ' 검사 목록에서 빼기">빼기</button></div></div>' + CR_HW_DIMS.map(function(d){
+      '<button type="button" class="cr-mini cr-trm" data-trmme="' + i + '|' + ti + '" title="이 학생의 검사 목록에서만 빼기" aria-label="' + esc(t) + ' 이 학생만 빼기">이 학생만 빼기</button>' +
+      '<button type="button" class="cr-mini cr-trm" data-trm="' + i + '|' + ti + '" title="이 수업 검사 목록에서 빼기 (학생 모두)" aria-label="' + esc(t) + ' 모두 빼기">모두 빼기</button></div></div>' + CR_HW_DIMS.map(function(d){
       var it = t + ' (' + d + ')', idx = ii++, sc = h ? (parseInt(h.scores[it], 10) || 0) : 0, b = '';
       if (crIsLv(it)){
         var has = !!h && Object.prototype.hasOwnProperty.call(h.scores, it);
@@ -9496,6 +9527,8 @@ document.addEventListener('click', function(e){
   if (b.hasAttribute('data-xtrm')){ crXtRemove(b.getAttribute('data-xtrm')); return; }
   if (b.hasAttribute('data-xrs')){ crTaskRestore(b.getAttribute('data-xrs')); return; }
   if (b.hasAttribute('data-trm')){ var tr = b.getAttribute('data-trm').split('|'); crTaskRemove(+tr[0], +tr[1]); return; }
+  if (b.hasAttribute('data-trmme')){ var tm2 = b.getAttribute('data-trmme').split('|'); crTaskRemoveMine(+tm2[0], +tm2[1]); return; }
+  if (b.hasAttribute('data-xrsme')){ var xs = b.getAttribute('data-xrsme'), at = xs.indexOf('|'); crTaskRestoreMine(+xs.slice(0, at), xs.slice(at + 1)); return; }
 });
 document.addEventListener('toggle', function(e){   // 시험범위 접기·펼치기를 다시 그려도 기억
   if (CR.c && CR.ns && e.target && e.target.id === 'cr-scope') CR.ns.open = e.target.open;
@@ -9714,6 +9747,9 @@ function crCollect(){
   CR.names.forEach(function(x){ var v = String((n.comments || {})[x.p] || '').trim(); if (v) cm[x.p] = v; });
   if (CR.xt && CR.xt.length) cm[CR_XT_KEY] = CR.xt.join('\n');
   if (CR.xrm && CR.xrm.length) cm[CR_XRM_KEY] = CR.xrm.join('\n');
+  var xb0 = CR.xrmBy || {}, xb = {};
+  CR.names.forEach(function(x){ var v = (xb0[x.p] || []).filter(Boolean); if (v.length) xb[x.p] = v.join('\n'); });
+  if (Object.keys(xb).length) cm[CR_XRMBY_KEY] = xb;
   var ih0 = (n.comments || {})[CR_IH_KEY] || {}, ih = {};
   CR.names.forEach(function(x){ var v = crTasksOf(ih0[x.p]).join('\n'); if (v) ih[x.p] = v; });
   if (Object.keys(ih).length) cm[CR_IH_KEY] = ih;

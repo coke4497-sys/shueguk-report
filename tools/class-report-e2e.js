@@ -515,7 +515,7 @@ const STUDENTS = [
       head: (document.querySelector('.cr-src') || {}).textContent || '', chips: [...document.querySelectorAll('.cr-xt-rm .cr-unit')].map(x => x.firstChild.textContent),
       note: [...document.querySelectorAll('.cr-card .cr-note')].map(x => x.textContent).join(' ') }));
     r = await snap();
-    ok('과제마다 [빼기] 버튼(학생 2명 × 과제 2개)', r.rm === 4 && r.tasks.join() === '관동별곡 학습지|오답 노트,관동별곡 학습지|오답 노트' && r.chips.length === 0, JSON.stringify(r));
+    ok('과제마다 [모두 빼기] 버튼(학생 2명 × 과제 2개) + [이 학생만 빼기]', r.rm === 4 && r.tasks.join() === '관동별곡 학습지|오답 노트,관동별곡 학습지|오답 노트' && r.chips.length === 0, JSON.stringify(r));
     await page.click(`[data-trm="${iP}|1"]`);
     await page.waitForFunction(() => /뺐습니다/.test(document.getElementById('cr-msg').textContent), null, { timeout: 8000 });
     let nw5 = st.writes.filter(w => /class_notes/.test(w.u)).pop();
@@ -543,6 +543,50 @@ const STUDENTS = [
     nw5 = st.writes.filter(w => /class_notes/.test(w.u)).pop();
     r = await snap();
     ok('뺀 과제를 반 전체 추가로 다시 적으면 되살아난다', r.tasks.join() === '오답 노트,오답 노트' && nw5.body[0].comments['__검사제외'] === '관동별곡 학습지' && nw5.body[0].comments['__검사과제'] === '오답 노트', JSON.stringify([r, nw5.body[0].comments]));
+    await ctx.close();
+  }
+
+  // ②-6 학생 한 명만 빼기(2026-10-29 원장님 "학생 한 명만 빼는 것도 가능하게") — [이 학생만 빼기] → 그 학생 카드에서만 빠지고 '__검사제외학생'에 저장, 그 학생만 % 다시 저장, [되살리기]
+  {
+    ({ ctx, page, st } = await ctxOf({ book: '정규',
+      rows: [row('r001', '고2 가', '지원', '박보검 김하늘')],
+      att: [{ class_id: 'r001', student: '박보검', status: '출석' }],
+      prev: [{ class_id: 'r001', ymd: LASTWK, homework: '관동별곡 학습지\n오답 노트' }],
+      hw: [{ token: 'k-kim', scores: { '관동별곡 학습지 (학습량)': 5, '오답 노트 (학습량)': 3 }, pct: 36, pub: '', priv: '', missing: false, plan: '' },
+           { token: 'k-park', scores: { '관동별곡 학습지 (학습량)': 4, '오답 노트 (학습량)': 4 }, pct: 36, pub: '', priv: '', missing: false, plan: '' }] }));
+    await openCard(page, '고2 가');
+    const iK = await page.evaluate(() => CR.names.map(x => x.p).indexOf('김하늘'));
+    const snap6 = () => page.evaluate(() => ({ me: document.querySelectorAll('[data-trmme]').length, cards: [...document.querySelectorAll('.cr-card')].map(c => ({ nm: c.querySelector('.cr-top b').textContent,
+      tasks: [...c.querySelectorAll('.cr-tname')].map(x => x.textContent).join('|'), head: (c.querySelector('.cr-src') || {}).textContent || '', chips: [...c.querySelectorAll('.cr-xrm-me .cr-unit')].map(x => x.firstChild.textContent), note: (c.querySelector('.cr-note') || {}).textContent || '' })),
+      cls: document.querySelectorAll('.cr-xt-rm:not(.cr-xrm-me) .cr-unit').length }));
+    r = await snap6();
+    ok('과제마다 [이 학생만 빼기] 버튼', r.me === 4, JSON.stringify(r));
+    const n0 = st.writes.filter(w => /hwcheck_records/.test(w.u)).length;
+    await page.click(`[data-trmme="${iK}|1"]`);
+    await page.waitForFunction(() => /학생에게서 뺐습니다/.test(document.getElementById('cr-msg').textContent), null, { timeout: 8000 });
+    let nw6 = st.writes.filter(w => /class_notes/.test(w.u)).pop();
+    r = await snap6();
+    const kim = r.cards.find(c => c.nm === '김하늘'), park = r.cards.find(c => c.nm === '박보검');
+    ok('[이 학생만 빼기] → 김하늘만 과제 1개 · 머리 (이 학생 1개 뺌) · 카드 안 되살리기 칩, 박보검은 2개 그대로, 반 전체 칩 없음',
+       kim.tasks === '관동별곡 학습지' && /이 학생 1개 뺌/.test(kim.head) && kim.chips.join() === '오답 노트' && park.tasks === '관동별곡 학습지|오답 노트' && park.chips.length === 0 && r.cls === 0, JSON.stringify(r));
+    await shot(page, '2-6-학생한명만빼기', '#crpanel');
+    ok("학생별로 뺀 과제는 comments['__검사제외학생']에 {이름: 목록} · '__검사제외' 없음", nw6 && nw6.body[0].comments['__검사제외학생'] && nw6.body[0].comments['__검사제외학생']['김하늘'] === '오답 노트' && !('__검사제외' in nw6.body[0].comments), JSON.stringify(nw6 && nw6.body[0].comments));
+    await page.waitForTimeout(1500);
+    const hwK = st.writes.filter(w => /hwcheck_records/.test(w.u)).slice(n0);
+    ok('그 학생만 % 다시 저장(김하늘 만점 11 · 박보검은 다시 저장 안 함)', hwK.length === 1 && hwK[0].body[0].token === 'k-kim' && hwK[0].body[0].max === 11 && !('오답 노트 (학습량)' in hwK[0].body[0].scores), JSON.stringify(hwK.map(w => w.body[0])));
+    await page.click(`[data-trmme="${iK}|0"]`);
+    await page.waitForFunction(() => /학생에게서 뺐습니다/.test(document.getElementById('cr-msg').textContent) && document.querySelectorAll('.cr-xrm-me .cr-unit').length === 2, null, { timeout: 8000 });
+    r = await snap6();
+    ok('다 빼면 그 학생 카드에 안내 + 되살리기 칩 2개', /이 학생의 검사할 과제를 모두 뺐습니다/.test(r.cards.find(c => c.nm === '김하늘').note) && r.cards.find(c => c.nm === '김하늘').chips.length === 2, JSON.stringify(r));
+    await page.click(`[data-xrsme="${iK}|오답 노트"]`);
+    await page.waitForFunction(() => /학생에게 되살렸습니다/.test(document.getElementById('cr-msg').textContent), null, { timeout: 8000 });
+    nw6 = st.writes.filter(w => /class_notes/.test(w.u)).pop();
+    r = await snap6();
+    ok('[되살리기] → 그 학생 목록에 돌아오고 저장 목록도 줄어든다', r.cards.find(c => c.nm === '김하늘').tasks === '오답 노트' && nw6.body[0].comments['__검사제외학생']['김하늘'] === '관동별곡 학습지', JSON.stringify([r, nw6.body[0].comments]));
+    await page.click(`[data-xrsme="${iK}|관동별곡 학습지"]`);
+    await page.waitForFunction(() => document.querySelectorAll('.cr-xrm-me .cr-unit').length === 0, null, { timeout: 8000 });
+    nw6 = st.writes.filter(w => /class_notes/.test(w.u)).pop();
+    ok('모두 되살리면 예약 키 없음', !('__검사제외학생' in nw6.body[0].comments) && (await snap6()).cards.every(c => c.tasks === '관동별곡 학습지|오답 노트'), JSON.stringify(nw6.body[0].comments));
     await ctx.close();
   }
 
