@@ -120,6 +120,23 @@ def part_of(name, book):
     return m.group(1) if m else ''
 
 
+NS_HW_NOTE = '내신대비 기간에는 확인 수업에서 과제 검사를 진행합니다. 이번 정규 수업에서는 과제 기록이 없습니다.'
+
+
+def ns_hw_skip(part, h):
+    """내신 진도 수업은 과제 검사를 하지 않는다(확인 수업에서 — 2026-10-28 원장님). 기록이 없거나 미제출·0점(점수를 하나도 안 매김)이면
+    리포트에는 NS_HW_NOTE 로 — 0% 미제출로 나가면 학부모님이 과제를 하나도 안 한 것으로 오해한다(같은 날 원장님 "미리보기에서 안 보여요").
+    timetable.html·s.html 의 rcNsNone 과 같은 규칙(고치면 셋 다). 점수를 실제로 매긴 기록은 선생님이 검사한 것이라 그대로."""
+    if str(part or '') != '진도':
+        return False
+    if not h or h.get('none') or h.get('missing'):
+        return True
+    sc = h.get('scores') if isinstance(h.get('scores'), dict) else None
+    if sc is not None:
+        return not any(int(v or 0) > 0 for v in sc.values())
+    return not any(int((x or {}).get('score') or 0) > 0 for x in (h.get('items') or []))
+
+
 def roster_has(roster, p):
     for t in str(roster or '').split():
         q_ = plain(t)
@@ -156,6 +173,8 @@ def cmd_data(book, cid, ymd):
         h = hw_by.get(s['code']) if s else None
         comment = str(cm.get(p) or '').strip()
         auto = False
+        if h and ns_hw_skip(note.get('part'), h):
+            h = None   # 진도 수업의 미제출·0점 기록은 검사한 것이 아니다 — hw 없음으로(정해 둔 미제출 코멘트도 안 붙음)
         if not comment and h and h.get('missing'):
             # 전체 미제출인데 코멘트가 비면 정해 둔 문장(원장님 지정 — timetable crMissComment 와 같은 문장, 다듬지 말 것)
             comment, auto = re.sub(r'[A-Z]$', '', p) + ' 친구는 과제 제출을 하지 않았습니다!!!!', True
@@ -226,7 +245,6 @@ def comment_problem(c):
         return '메모 말투예요(ㅋ·ㅎ·굿·… 같은 표기)'
     return ''
 ATTITUDES = ('', '매우 좋음', '좋음', '노력 필요')
-NS_HW_NOTE = '내신대비 기간에는 확인 수업에서 과제 검사를 진행합니다. 이번 정규 수업에서는 과제 기록이 없습니다.'
 
 
 def cmd_publish(path):
@@ -257,8 +275,10 @@ def cmd_publish(path):
         if body.get('attitude', '') not in ATTITUDES:
             sys.exit('수업 태도는 매우 좋음/좋음/노력 필요 중 하나여야 해요: %s' % studs[code]['name'])
         hw = body.get('hw')
-        if isinstance(hw, dict) and hw.get('none') and str(note.get('part') or '') == '진도':
-            hw['text'] = NS_HW_NOTE   # 내신대비 기간 진도 수업은 과제 검사를 하지 않는다 — 학부모님 오해 방지 안내(2026-10-28 원장님 문장)
+        if isinstance(hw, dict) and ns_hw_skip(note.get('part'), hw):
+            body['hw'] = {'none': True, 'text': NS_HW_NOTE}   # 내신대비 기간 진도 수업은 과제 검사를 하지 않는다 — 기록 없음·미제출·0점 모두 이 안내(2026-10-28 원장님 문장)
+            if '하지 않았습니다!!!!' in str(body.get('comment') or ''):
+                sys.exit('진도 수업에는 미제출 코멘트를 넣지 않아요(과제 검사는 확인 수업에서) — 코멘트를 비우거나 다른 내용으로: %s' % studs[code]['name'])
         bad = comment_problem(str(body.get('comment') or ''))
         if bad:   # 선생님이 키워드로 적어도 학생 페이지에는 단정하고 예의 바른 문장으로(2026-10-26 원장님)
             sys.exit('코멘트가 %s — 뜻을 살린 존댓말 완결 문장으로 다듬어 주세요: %s 「%s」' % (bad, studs[code]['name'], body.get('comment')))
