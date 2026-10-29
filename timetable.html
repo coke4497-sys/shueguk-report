@@ -8960,12 +8960,13 @@ function crHwSrcLoad2(c, bk, ymd, twinId, othSib){
         // 1회 이동해 온 학생: 원래 반의 '이번 주' 수업은 빠진 수업이라 그때 낸 과제는 다음 주 몫이다 — 지난주까지만 본다
         // (2026-10-02 원장님 "다음 주차 과제가 여기에 들어있어요" — 민서연 목5:30 → 금5:30, 10/1 고3파이널A 과제가 10/2 B 검사 목록에)
         // 내신 예외 기간(split — 내신 시간표로 정규 수업): 진도·확인을 따로, 정규처럼 주차 단위 — 이번 주에 받은 과제는 다음 주 몫(2026-10-16 원장님)
-        var weekly = moved || (nsRule && split);
+        // 내신 기간도 주차 단위 — 이번 주(수요일부터)에 받은 과제는 다음 주 확인 수업 몫이라 뺀다(2026-10-29 원장님 "다음 주 확인 수업 과제는 이번 주 목록에서 빼주세요" — 남주혜T: 수 진도 과제가 목 확인 수업 검사 목록에 올라옴)
+        var weekly = moved || nsRule;
         var own = ord.filter(function(r){ return mine[x.p].indexOf(r.class_id) >= 0 && (!weekly || r.ymd < weekWed) && crRowTasks(r, x.p).length; })[0];
-        // 보통 내신 기간: 진도·확인·지난 주차가 모두 이어진다 — 지난주 수요일부터 지금 수업 전까지 받은 과제를 모두 합친다(2026-10-16 원장님)
+        // 보통 내신 기간: 진도·확인이 이어진다 — 지난주(수요일부터 이번 주 수요일 전까지) 받은 과제를 모두 합친다(2026-10-16 원장님, 10/29 이번 주 과제 제외)
         if (nsRule && !split && own){
           var lastWed = crPrevWedShift(weekWed, -7);
-          var all = ord.filter(function(r){ return mine[x.p].indexOf(r.class_id) >= 0 && r.ymd >= lastWed && crRowTasks(r, x.p).length; });
+          var all = ord.filter(function(r){ return mine[x.p].indexOf(r.class_id) >= 0 && r.ymd >= lastWed && r.ymd < weekWed && crRowTasks(r, x.p).length; });
           if (all.length > 1){
             // 진도·확인에서 이름이 같은 과제('과제집 w15' — 독서 과제집과 문학 과제집)는 다른 책이라 둘 다 두고 '독서 · '/'문학 · '을 붙여 가른다
             // (2026-10-28 원장님 "지난주 고1 과제는 총 4권이에요. 지금은 세권만" — 이름만 보고 하나로 합쳐 한 권이 빠졌다 → "가 독서, 나 문학": 진도(가) = 독서, 확인(나) = 문학, CR_NS_SUBJ).

@@ -446,8 +446,8 @@ const STUDENTS = [
     await page.waitForFunction(() => document.querySelector('.cr-tname'), null, { timeout: 8000 }).catch(() => {});
     r = await page.evaluate(() => ({ tasks: [...document.querySelectorAll('.cr-tname')].map(x => x.textContent), src: (document.querySelector('.cr-src') || {}).textContent || '',
       scope: !!document.getElementById('cr-scope'), pshow: !!document.querySelector('[data-pshow]'), ns: !!(typeof CR !== 'undefined' && CR.ns) }));
-    ok('10/28 주 고1 확인 수업: 지난주 진도·확인 과제 + 이번 주 진도 과제를 모두(앞 주 과제는 빼고) — 진도·확인에서 이름이 같은 과제는 둘 다(독서·문학 접두, 2026-10-28 "4권 중 3권만" · "가 독서, 나 문학")',
-       r.tasks.join('|') === '독서 지문 3개|독서 · 과제집 w15|100인의 지혜 11·12|문학 · 과제집 w15|이번 주 진도 과제', JSON.stringify(r));
+    ok('10/28 주 고1 확인 수업: 지난주 진도·확인 과제를 모두(앞 주 과제·이번 주 진도 과제는 빼고 — 2026-10-29 "다음 주 확인 수업 과제는 이번 주 목록에서 빼주세요") — 진도·확인에서 이름이 같은 과제는 둘 다(독서·문학 접두, 2026-10-28 "4권 중 3권만" · "가 독서, 나 문학")',
+       r.tasks.join('|') === '독서 지문 3개|독서 · 과제집 w15|100인의 지혜 11·12|문학 · 과제집 w15', JSON.stringify(r));
     ok('10/28 주 고1 확인 수업: 출처에 진도·확인 수업이 함께', /진도/.test(r.src) && /확인/.test(r.src), r.src);
     ok('10/28 주 고1 확인 수업: 시험범위·진행 상황 칸은 아직 없음(11/4부터)', !r.scope && !r.pshow && !r.ns, JSON.stringify(r));
     ok('10/28 주 고1 과제 조회 = 진도·확인 반 모두', (st.srcGets || []).some(u => /"n001"/.test(u) && /"n002"/.test(u)), JSON.stringify(st.srcGets));
