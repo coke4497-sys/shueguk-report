@@ -21,4 +21,13 @@ ok('빈 재원 칸 → 재원 · 없는 접근코드는 missing', r.result === '
 ok('다른 열(이름·학교·시간표·접근코드)은 그대로', rows[1][1] === '심은빈' && rows[1][2] === '도래울중' && rows[1][6] === '토4:30' && rows[1][11] === 'k-sim' && rows[2][10] === '재원' && rows[3][10] === '퇴원', JSON.stringify(rows[1]));
 r = call({ items: [{ code: 'k-out', enrolled: '' }] });
 ok('빈 값으로도 쓸 수 있다(퇴원 → 빈)', r.result === 'success' && SHEETS[F.TAB_STUDENTS][3][10] === '', JSON.stringify(SHEETS[F.TAB_STUDENTS][3]));   // getDataRange 가 표를 새 배열로 바꾸므로 다시 읽는다
+// 제출결과 빈 줄 지우기(submissionBlankDelete)
+mkSheet(F.TAB_RESULT, [['제출일시','시험','학교','학년','이름','틀린문항수','틀린문항 · 반성','다음 시험 다짐','선생님의 한 마디','예상 점수','부모님 연락처'],
+  ['2026-10-25 11:04:48','26-2-중간-화정중3-국어','화정중','3학년','허담',0,'','','','0','12345678'],
+  ['2026-10-29 22:38:36','','','','',0,'','','','0',''],
+  ['2026-10-29 23:00:00','','','','나이름',0,'','','','0','']]);
+r = J(F.submissionBlankDelete({ pw: 'x' }));
+ok('빈 줄 지우기 — 비밀번호 틀리면 거절', r.result === 'error' && SHEETS[F.TAB_RESULT].length === 4);
+r = J(F.submissionBlankDelete({ pw: F.TEACHER_PW }));
+ok('시험·이름이 모두 빈 줄만 지운다(1줄) — 이름만 있는 줄·정상 제출은 그대로', r.result === 'success' && r.deleted.length === 1 && r.deleted[0].ts === '2026-10-29 22:38:36' && SHEETS[F.TAB_RESULT].length === 3 && SHEETS[F.TAB_RESULT][1][4] === '허담' && SHEETS[F.TAB_RESULT][2][4] === '나이름', JSON.stringify(r));
 console.log(`\n${pass} passed, ${fail} failed`); process.exit(fail ? 1 : 0);
