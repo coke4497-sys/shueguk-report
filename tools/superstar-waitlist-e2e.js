@@ -89,8 +89,29 @@ function serve(){
   ok('예비 대기 2명 — 대기 시작일 빠른 순(이른대기 → 늦은대기), 완료 줄은 안 보임', r.names.join(',') === '이른대기,늦은대기' && r.no.join(',') === '1,2', r.names.join(','));
   ok('이른대기(정원 13 > 12명)는 초록 줄, 늦은대기(정원 12)는 아님', r.can.join(',') === 'true,false', r.can.join(','));
   ok('머리 "대기 2명 · 이동 가능 1명 · 지난 기록 1건"', /대기 2명 · 이동 가능 1명 · 지난 기록 1건/.test(r.cnt), r.cnt);
-  ok('적는 사람 = 허브 로그인 이름 · 연도 올해 · 대기 시작일 오늘', r.who === '김현지' && +r.year === new Date().getFullYear() && r.start === today, JSON.stringify([r.who, r.year, r.start]));
+  const kstNow = new Date(Date.now() + 9 * 3600e3), nextYr = kstNow.getUTCMonth() + 1 >= 3 ? kstNow.getUTCFullYear() + 1 : kstNow.getUTCFullYear();
+  ok('적는 사람 = 허브 로그인 이름 · 연도 = 다음 학년도(3월부터 내년) · 대기 시작일 오늘', r.who === '김현지' && +r.year === nextYr && r.start === today, JSON.stringify([r.who, r.year, r.start]));
   ok('[지난 기록 보기 (1)]', r.past === '지난 기록 보기 (1)', r.past);
+  // 대기 현황 그래프 + 학년·학교 거르기(2026-10-29 원장님 "학년별 학교별로 볼 수 있어야" · "대기생도 이런 그래프를")
+  r = await pg.evaluate(() => ({ shown: document.getElementById('wtStatCard').style.display, title: document.getElementById('wtStatTitle').textContent, total: document.getElementById('wtStatTotal').textContent,
+    bars: [...document.querySelectorAll('#wtGradeBars .vcol')].map(e => e.querySelector('.vgl').textContent + ':' + e.querySelector('.vc').textContent + (e.classList.contains('on') ? '*' : '')),
+    sl: document.getElementById('wtSlTitle').textContent, rows: [...document.querySelectorAll('#wtSchList .srow')].map(e => e.querySelector('.sn').textContent + ':' + e.querySelector('.sc2').textContent),
+    filt: [...document.querySelectorAll('#wtFilt .wt-filt')].map(d => [...d.querySelectorAll('button')].map(b => b.textContent.replace(/\s+/g, ' ').trim()).join('|')) }));
+  ok('대기 현황 그래프 — 제목·대기 2명·학년 막대 고1 2명(선택)', r.shown === 'block' && r.title === '예비 슈스 대기 현황' && r.total === '2' && r.bars.join(',') === '고1:2명*', JSON.stringify(r));
+  ok('고른 학년의 학교별 대기 인원(많은 순·가나다) 백양고 1 · 화수고 1', /^고1 학교별 대기 인원/.test(r.sl) && r.rows.join(',') === '백양고:1명,화수고:1명', JSON.stringify(r.rows));
+  ok('학년·학교 거르기 알약 = 전체 + 대기 줄의 학년·학교(인원)', r.filt.join(' / ') === '전체|고1 2 / 전체|백양고 1|화수고 1', r.filt.join(' / '));
+  await pg.click('#wtSchList .srow[data-s="백양고"]');
+  r = await pg.evaluate(() => ({ names: [...document.querySelectorAll('#wtList .wt-row .wt-l1 b')].map(e => e.textContent), cnt: document.getElementById('wtCount').textContent, on: document.querySelector('#wtSchList .srow.on .sn').textContent, pill: document.querySelector('#wtFilt button[data-f="fs"].on').textContent.trim() }));
+  ok('학교 줄을 누르면 그 학교만 — 늦은대기(백양고) · "보는 중 1명 · 대기 2명" · 줄·알약 선택 표시', r.names.join(',') === '늦은대기' && /보는 중 1명 · 대기 2명/.test(r.cnt) && r.on === '백양고' && /백양고/.test(r.pill), JSON.stringify(r));
+  await pg.click('#wtSchList .srow[data-s="백양고"]');
+  r = await pg.evaluate(() => [...document.querySelectorAll('#wtList .wt-row .wt-l1 b')].map(e => e.textContent));
+  ok('같은 학교 줄을 다시 누르면 전체(학년 고1 거르기는 남음)', r.join(',') === '이른대기,늦은대기', r.join(','));
+  await pg.click('#wtFilt button[data-f="fg"][data-v="고1"]');
+  r = await pg.evaluate(() => ({ n: document.querySelectorAll('#wtList .wt-row').length, bar: document.querySelector('#wtGradeBars .vcol.on .vgl').textContent, fgOn: document.querySelector('#wtFilt button[data-f="fg"].on').textContent.trim() }));
+  ok('학년 알약 고1 → 고1만(2명) · 막대 선택 유지', r.n === 2 && r.bar === '고1' && /고1/.test(r.fgOn), JSON.stringify(r));
+  await pg.click('#wtGradeBars .vcol[data-g="고1"]');
+  r = await pg.evaluate(() => document.querySelector('#wtFilt button[data-f="fg"].on').textContent.trim());
+  ok('선택된 학년 막대를 다시 누르면 학년 거르기 해제(전체)', r === '전체', r);
   r = await pg.evaluate(() => document.querySelector('#wtList .wt-row[data-id="12"] .wt-l2').textContent);
   ok('희망 반 줄 — 반 이름·시간·담당T·12명 / 정원 13 · 자리 있음', /정규 고1 가 · 금 5:30 · 지원T/.test(r) && /12명 \/ 정원 13 · 자리 있음/.test(r), r);
 
