@@ -85,7 +85,7 @@ function serve(){
     names: [...document.querySelectorAll('#wtList .wt-row .wt-l1 b')].map(e => e.textContent), no: [...document.querySelectorAll('#wtList .wt-row .wt-no')].map(e => e.textContent),
     can: [...document.querySelectorAll('#wtList .wt-row')].map(e => e.classList.contains('can')), cnt: document.getElementById('wtCount').textContent,
     who: document.getElementById('wt-who').value, year: document.getElementById('wt-year').value, start: document.getElementById('wt-start').value, past: document.getElementById('wtPast').textContent }));
-  ok('주소 #wait · 예비 슈스가 기본 · 탭 켜짐', r.hash === '#wait' && /^예비 슈스 대기 명단/.test(r.on) && r.title === '예비 슈스 대기 명단' && r.tab, JSON.stringify(r));
+  ok('주소 #wait · 예비 슈스가 기본 · 탭 켜짐', r.hash === '#wait' && /^예비 슈스 대기 명단/.test(r.on) && r.title === '2027 예비 슈스 대기 명단' && r.tab, JSON.stringify(r));
   ok('예비 대기 2명 — 대기 시작일 빠른 순(이른대기 → 늦은대기), 완료 줄은 안 보임', r.names.join(',') === '이른대기,늦은대기' && r.no.join(',') === '1,2', r.names.join(','));
   ok('이른대기(정원 13 > 12명)는 초록 줄, 늦은대기(정원 12)는 아님', r.can.join(',') === 'true,false', r.can.join(','));
   ok('머리 "대기 2명 · 이동 가능 1명 · 지난 기록 1건"', /대기 2명 · 이동 가능 1명 · 지난 기록 1건/.test(r.cnt), r.cnt);
@@ -97,8 +97,8 @@ function serve(){
     bars: [...document.querySelectorAll('#wtGradeBars .vcol')].map(e => e.querySelector('.vgl').textContent + ':' + e.querySelector('.vc').textContent + (e.classList.contains('on') ? '*' : '')),
     sl: document.getElementById('wtSlTitle').textContent, rows: [...document.querySelectorAll('#wtSchList .srow')].map(e => e.querySelector('.sn').textContent + ':' + e.querySelector('.sc2').textContent),
     filt: [...document.querySelectorAll('#wtFilt .wt-filt')].map(d => [...d.querySelectorAll('button')].map(b => b.textContent.replace(/\s+/g, ' ').trim()).join('|')) }));
-  ok('대기 현황 그래프 — 제목·대기 2명·학년 막대 고1 2명(선택)', r.shown === 'block' && r.title === '예비 슈스 대기 현황' && r.total === '2' && r.bars.join(',') === '고1:2명*', JSON.stringify(r));
-  ok('고른 학년의 학교별 대기 인원(많은 순·가나다) 백양고 1 · 화수고 1', /^고1 학교별 대기 인원/.test(r.sl) && r.rows.join(',') === '백양고:1명,화수고:1명', JSON.stringify(r.rows));
+  ok('대기 현황 그래프 — 제목에 연도(2027 예비 슈스)·대기 2명·학년 막대 고1 2명(선택)', r.shown === 'block' && r.title === '2027 예비 슈스 대기 현황' && r.total === '2' && r.bars.join(',') === '고1:2명*', JSON.stringify(r));
+  ok('고른 학년의 학교별 대기 인원(많은 순·가나다) 백양고 1 · 화수고 1', /^2027 고1 학교별 대기 인원/.test(r.sl) && r.rows.join(',') === '백양고:1명,화수고:1명', JSON.stringify(r.rows));
   ok('학년·학교 거르기 알약 = 전체 + 대기 줄의 학년·학교(인원)', r.filt.join(' / ') === '전체|고1 2 / 전체|백양고 1|화수고 1', r.filt.join(' / '));
   await pg.click('#wtSchList .srow[data-s="백양고"]');
   r = await pg.evaluate(() => ({ names: [...document.querySelectorAll('#wtList .wt-row .wt-l1 b')].map(e => e.textContent), cnt: document.getElementById('wtCount').textContent, on: document.querySelector('#wtSchList .srow.on .sn').textContent, pill: document.querySelector('#wtFilt button[data-f="fs"].on').textContent.trim() }));
