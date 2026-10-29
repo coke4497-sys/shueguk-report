@@ -2904,6 +2904,7 @@
     var wait = mine.filter(function(r){ return r.status === '대기'; }).sort(function(a, b){ return String(a.started_on).localeCompare(String(b.started_on)) || (a.id - b.id); });
     var past = mine.filter(function(r){ return r.status !== '대기'; }).sort(function(a, b){ return String(b.done_at || '').localeCompare(String(a.done_at || '')) || (b.id - a.id); });
     var can = wait.filter(wtCan).length;
+    $('wtListTitle').textContent = WT.kind === '예비' ? wtYearLabel(wait) + '예비 슈스 대기 명단' : '재원 슈스 반 이동 대기 명단';
     wtDrawStat(wait);
     $('wtFilt').innerHTML = wtFiltHtml(wait);
     var keep = function(r){ return (!WT.fg || wtGradeOf(r) === WT.fg) && (!WT.fs || wtSchoolOf(r) === WT.fs); };
@@ -2930,6 +2931,8 @@
   }
   // 대기 현황 그래프(2026-10-29 원장님 "대기생도 이런 그래프를") — renderStats 와 같은 모양(.vchart·.srow 재사용), 대기 중인 줄만 센다.
   // 막대를 누르면 그 학년으로 명단을 거르고(같은 막대를 다시 누르면 전체), 학교 줄을 누르면 그 학교로(다시 누르면 전체).
+  // '2027 예비 슈스'처럼 연도를 앞에(2026-10-29 원장님 "2027 예비 슈스라고 명시") — 대기 줄의 연도에서, 여럿이면 '2027·2028'
+  function wtYearLabel(rows){ var ys = {}; rows.forEach(function(r){ if (r.year) ys[r.year] = 1; }); var k = Object.keys(ys).sort(); return k.length ? k.join('·') + ' ' : ''; }
   function wtDrawStat(wait){
     var card = $('wtStatCard'); if (!card) return;
     if (!wait.length){ card.style.display = 'none'; return; }
@@ -2938,7 +2941,7 @@
     var gkeys = Object.keys(gmap).sort(function(a, b){ return gradeOrder(a) - gradeOrder(b) || a.localeCompare(b, 'ko'); });
     if (WT.fg && gmap[WT.fg]) WT.sg = WT.fg;
     if (!WT.sg || !gmap[WT.sg]) WT.sg = gkeys.slice().sort(function(a, b){ return gmap[b] - gmap[a]; })[0];
-    $('wtStatTitle').textContent = (WT.kind === '예비' ? '예비 슈스' : '재원 슈스 반 이동') + ' 대기 현황';
+    $('wtStatTitle').textContent = (WT.kind === '예비' ? wtYearLabel(wait) + '예비 슈스' : '재원 슈스 반 이동') + ' 대기 현황';
     $('wtStatTotal').textContent = wait.length;
     var gmax = Math.max.apply(null, gkeys.map(function(k){ return gmap[k]; }));
     $('wtGradeBars').innerHTML = gkeys.map(function(k){
@@ -2946,7 +2949,7 @@
       return '<div class="vcol' + (k === WT.sg ? ' on' : '') + '" data-g="' + esc(k) + '"><span class="vc">' + gmap[k] + '명</span><span class="vbar" style="height:' + h + '%;background:' + (GRADE_COLOR[k] || '#F3EAE4') + '"></span><span class="vgl">' + esc(k) + '</span></div>';
     }).join('');
     var smap = gsmap[WT.sg] || {}, skeys = Object.keys(smap).sort(function(a, b){ return smap[b] - smap[a] || a.localeCompare(b, 'ko'); }), smax = skeys.length ? smap[skeys[0]] : 1;
-    $('wtSlTitle').innerHTML = '<b>' + esc(WT.sg) + '</b> 학교별 대기 인원 <span style="font-weight:400;color:#9aa6a0">(막대를 눌러 학년 변경 · 학교 줄을 누르면 그 학교만 — 다시 누르면 전체' + (WT.fg ? ' · 지금 ' + esc(WT.fg) + (WT.fs ? ' ' + esc(WT.fs) : '') + '만 보는 중' : '') + ')</span>';
+    $('wtSlTitle').innerHTML = '<b>' + esc((WT.kind === '예비' ? wtYearLabel(wait) : '') + WT.sg) + '</b> 학교별 대기 인원 <span style="font-weight:400;color:#9aa6a0">(막대를 눌러 학년 변경 · 학교 줄을 누르면 그 학교만 — 다시 누르면 전체' + (WT.fg ? ' · 지금 ' + esc(WT.fg) + (WT.fs ? ' ' + esc(WT.fs) : '') + '만 보는 중' : '') + ')</span>';
     $('wtSchList').innerHTML = skeys.map(function(k){
       return '<div class="srow' + (WT.fg === WT.sg && WT.fs === k ? ' on' : '') + '" data-s="' + esc(k) + '"><span class="sn">' + esc(k) + '</span><span class="sbar"><i style="width:' + Math.round(smap[k] / smax * 100) + '%"></i></span><span class="sc2">' + smap[k] + '명</span></div>';
     }).join('');
