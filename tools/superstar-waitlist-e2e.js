@@ -3,7 +3,7 @@
  *   NODE_PATH=$(npm root -g) node tools/superstar-waitlist-e2e.js
  * 가짜 수파베이스(student_waitlist·tt_classes·students)·가짜 백엔드(roster·addStudent)로 실제 superstar.html 을 띄워
  * 메뉴 카드·종류 알약·반 드롭다운 인원·정원 자동 채움·저장 본문·대기 시작일 순서·이동 가능 초록 줄·재원 학생 고르기·
- * 고치기(PATCH)·취소·지난 기록·다시 대기로·등록으로 전환(신입 폼 채움 → 등록 → 완료)·표 없음 안내까지 확인한다. */
+ * 고치기(PATCH)·상태 바꾸기(입학·입테탈락·블랙·회신없음·의사없음)·삭제·지난 기록·다시 대기로·등록으로 전환(신입 폼 채움 → 등록 → 입학)·표 없음 안내까지 확인한다. */
 const path = require('path'), fs = require('fs'), http = require('http');
 const { chromium } = require('playwright');
 const ROOT = path.resolve(__dirname, '..');
@@ -37,10 +37,10 @@ function serve(){
     { id: 13, kind: '재원', name: '김하늘', year: 2026, grade: '고1', school: '화정고', phone_parent: '01033334444', student_id: 2, want_book: '정규', want_class_id: 'r002', want_class_name: '고1 나 · 일 11:00 · 승연T', cap: 3, memo: '일요일로 옮기고 싶어요', started_on: '2026-10-15', status: '대기', done_at: null, done_by_name: '', done_note: '', author_name: '고희주', created_at: '2026-10-15T01:00:00Z', updated_at: '2026-10-15T01:00:00Z', updated_by_name: '' },
     { id: 14, kind: '예비', name: '지난완료', year: 2026, grade: '중2', school: '서정중', phone_parent: '', student_id: null, want_book: '', want_class_id: '', want_class_name: '', cap: null, memo: '', started_on: '2026-09-01', status: '완료', done_at: '2026-09-20T01:00:00Z', done_by_name: '고희주', done_note: '신입 등록 전환', author_name: '고희주', created_at: '2026-09-01T01:00:00Z', updated_at: '2026-09-20T01:00:00Z', updated_by_name: '고희주' }];
   let wlMissing = false, nextId = 100;
-  const posts = [], patches = [], regs = [], acts = []; let dialogs = [], promptAnswer = '';
+  const posts = [], patches = [], regs = [], acts = [], dels = []; let dialogs = [], promptAnswer = '', confirmNo = false;
   const pg = await (await br.newContext({ viewport: { width: 1100, height: 900 } })).newPage();
   let perr = 0; pg.on('pageerror', e => { perr++; console.log('  ✗ pageerror', e.message); });
-  pg.on('dialog', d => { dialogs.push(d.message()); d.type() === 'prompt' ? d.accept(promptAnswer) : d.accept(); });
+  pg.on('dialog', d => { dialogs.push(d.message()); d.type() === 'prompt' ? d.accept(promptAnswer) : (confirmNo && d.type() === 'confirm' ? d.dismiss() : d.accept()); });
   await pg.route('**/*', rt => {
     const u = rt.request().url(), m = rt.request().method();
     const j = (o, st) => rt.fulfill({ status: st || 200, contentType: 'application/json', body: JSON.stringify(o) });
@@ -56,6 +56,7 @@ function serve(){
       if (m === 'PATCH'){ const id = +(/id=eq\.(\d+)/.exec(u) || [])[1], b = JSON.parse(rt.request().postData()); patches.push([id, b]); const r = WL.find(x => x.id === id); if (!r) return j([]);
         if (b.status && b.status !== r.status){ if (b.status === '대기'){ b.done_at = null; b.done_by_name = ''; b.done_note = ''; } else b.done_at = new Date().toISOString(); }   // 트리거 흉내
         Object.assign(r, b, { updated_at: new Date().toISOString() }); return j([r]); }
+      if (m === 'DELETE'){ const id = +(/id=eq\.(\d+)/.exec(u) || [])[1]; dels.push(id); WL = WL.filter(x => x.id !== id); return rt.fulfill({ status: 204, body: '' }); }
       return j(WL.slice().sort((a, b) => a.started_on.localeCompare(b.started_on) || a.id - b.id));
     }
     if (/\/rest\/v1\//.test(u)) return j([]);
@@ -128,8 +129,8 @@ function serve(){
   r = await pg.evaluate(() => document.querySelector('#wtList .wt-row[data-id="12"] .wt-l2').textContent);
   ok('희망 반 줄 — 반 이름·시간·담당T·12명 / 정원 13 · 자리 있음', /정규 고1 가 · 금 5:30 · 지원T/.test(r) && /12명 \/ 정원 13 · 자리 있음/.test(r), r);
   r = await pg.evaluate(() => { const e = document.querySelector('#wtList .wt-row[data-id="12"]'); const ks = [...e.querySelectorAll('.wt-info .k')].map(x => x.textContent); const d = e.querySelector('.wt-days');
-    return { ks, days: d.textContent, long: d.classList.contains('long'), memo: (e.querySelector('.wt-memo') || {}).textContent, acts: [...e.querySelectorAll('.wt-acts button')].map(b => b.textContent.trim()), start: (() => { const ks = [...e.querySelectorAll('.wt-info .k')]; return ks[ks.findIndex(x => x.textContent === '대기 시작')].nextElementSibling.textContent; })() }; });
-  ok('카드(디자인 1d) — 정보 표 희망 반·학부모님·대기 시작·작성자 · 대기 일수 배지 · 메모 띠 · 액션 [대기 취소][고치기][등록으로 전환]', r.ks.join(',') === '희망 반,대기 시작,작성자' && /일째/.test(r.days) && !r.long && r.memo === '슈톡에서 올림' && r.acts.join(',') === '대기 취소,고치기,등록으로 전환' && r.start === '2026.10.1', JSON.stringify(r));
+    return { ks, days: d.textContent, long: d.classList.contains('long'), memo: (e.querySelector('.wt-memo') || {}).textContent, acts: [...e.querySelectorAll('.wt-acts button,.wt-acts select')].map(b => b.tagName === 'SELECT' ? '[' + [...b.options].map(o => o.textContent).join('/') + ']' : b.textContent.trim()), start: (() => { const ks = [...e.querySelectorAll('.wt-info .k')]; return ks[ks.findIndex(x => x.textContent === '대기 시작')].nextElementSibling.textContent; })() }; });
+  ok('카드(디자인 1d) — 정보 표 희망 반·학부모님·대기 시작·작성자 · 대기 일수 배지 · 메모 띠 · 액션 [삭제][상태 바꾸기…: 입학·입테탈락·블랙·회신없음·의사없음][고치기][등록으로 전환]', r.ks.join(',') === '희망 반,대기 시작,작성자' && /일째/.test(r.days) && !r.long && r.memo === '슈톡에서 올림' && r.acts.join(',') === '삭제,[상태 바꾸기…/입학/입테탈락/블랙/회신없음/의사없음],고치기,등록으로 전환' && r.start === '2026.10.1', JSON.stringify(r));
 
   // ② 반 드롭다운(인원) · 정원 자동
   r = await pg.evaluate(() => [...document.querySelectorAll('#wt-class option')].map(o => o.textContent));
@@ -173,18 +174,38 @@ function serve(){
   let p = patches[patches.length - 1];
   ok('PATCH 정원 14·메모 → 늦은대기도 초록 줄', p[0] === 11 && p[1].cap === 14 && p[1].memo === '정원 늘려 주심' && p[1].want_class_id === 'r001' && p[1].updated_by_name === '김현지', JSON.stringify(p));
 
-  // ⑤ 대기 취소(사유) → 지난 기록 → 다시 대기로
+  // ⑤ 상태 바꾸기(회신없음 · 메모) → 지난 기록 → 다시 바꾸기 → 다시 대기로 → 삭제 (2026-10-30 원장님)
   promptAnswer = '다른 학원 등록'; dialogs = [];
-  await pg.click('#wtList .wt-row[data-id="11"] button[data-act="cancel"]');
+  await pg.selectOption('#wtList .wt-row[data-id="11"] select[data-act="status"]', '회신없음');
   await pg.waitForFunction(() => !document.querySelector('#wtList .wt-row[data-id="11"]'), null, { timeout: 5000 });
   p = patches[patches.length - 1];
-  ok('취소 → 사유 묻고 PATCH status 취소·사유·누가', /사유/.test(dialogs[0] || '') && p[0] === 11 && p[1].status === '취소' && p[1].done_note === '다른 학원 등록' && p[1].done_by_name === '김현지', JSON.stringify(p));
+  ok('상태 드롭다운 회신없음 → 메모 묻고 PATCH status 회신없음·메모·누가', /「회신없음」/.test(dialogs[0] || '') && /비워도/.test(dialogs[0] || '') && p[0] === 11 && p[1].status === '회신없음' && p[1].done_note === '다른 학원 등록' && p[1].done_by_name === '김현지', JSON.stringify(p));
   await pg.click('#wtPast');
-  r = await pg.evaluate(() => [...document.querySelectorAll('#wtList .wt-row.done')].map(e => e.getAttribute('data-id') + ':' + e.querySelector('.wt-st').textContent));
-  ok('지난 기록 — 취소(최근 먼저)·완료 줄에 상태 알약', r.length === 2 && /^11:취소 · 다른 학원 등록 \(김현지\)/.test(r[0]) && /^14:완료 · 신입 등록 전환/.test(r[1]), r.join('|'));
+  r = await pg.evaluate(() => ({ rows: [...document.querySelectorAll('#wtList .wt-row.done')].map(e => e.getAttribute('data-id') + ':' + e.querySelector('.wt-st').textContent + ':' + e.querySelector('.wt-st').className),
+    head: [...document.querySelectorAll('#wtList .wt-note')].map(e => e.textContent).join('|'), acts: [...document.querySelectorAll('#wtList .wt-row[data-id="11"] .wt-acts button,#wtList .wt-row[data-id="11"] .wt-acts select')].map(b => b.tagName === 'SELECT' ? '[' + [...b.options].map(o => o.textContent).join('/') + ']' : b.textContent.trim()) }));
+  ok('지난 기록 — 회신없음(최근 먼저, 회색 알약)·옛 완료 줄(초록) + 머리 "지난 기록 — 회신없음 1 · 완료 1" + 지난 줄 액션 [삭제][상태(다시 대기로·입학…)][다시 대기로]', r.rows.length === 2 && /^11:회신없음 · 다른 학원 등록 \(김현지\):wt-st mute$/.test(r.rows[0]) && /^14:완료 · 신입 등록 전환.*:wt-st done$/.test(r.rows[1]) && r.head === '지난 기록 — 회신없음 1 · 완료 1' && r.acts.join(',') === '삭제,[상태 바꾸기…/다시 대기로/입학/입테탈락/블랙/의사없음],다시 대기로', JSON.stringify(r));
+  promptAnswer = ''; dialogs = [];
+  await pg.selectOption('#wtList .wt-row[data-id="11"] select[data-act="status"]', '블랙');
+  await pg.waitForFunction(() => /블랙/.test((document.querySelector('#wtList .wt-row[data-id="11"] .wt-st') || {}).textContent || ''), null, { timeout: 5000 });
+  p = patches[patches.length - 1];
+  r = await pg.evaluate(() => document.querySelector('#wtList .wt-row[data-id="11"] .wt-st').className);
+  ok('지난 줄에서 블랙으로 다시 바꾸기(메모 비움) → PATCH 블랙 · 검은 알약', p[0] === 11 && p[1].status === '블랙' && p[1].done_note === '' && r === 'wt-st blk', JSON.stringify(p) + ' ' + r);
+  const actBefore = acts.length;
   await pg.click('#wtList .wt-row[data-id="11"] button[data-act="restore"]');
   await pg.waitForFunction(() => { const e = document.querySelector('#wtList .wt-row[data-id="11"]'); return e && !e.classList.contains('done'); }, null, { timeout: 5000 });
   ok('[다시 대기로] → status 대기', patches[patches.length - 1][1].status === '대기');
+  dialogs = []; confirmNo = true;
+  await pg.click('#wtList .wt-row[data-id="14"] button[data-act="del"]');
+  await pg.waitForTimeout(300);
+  r = await pg.evaluate(() => !!document.querySelector('#wtList .wt-row[data-id="14"]'));
+  ok('[삭제] 확인 창에서 취소하면 그대로', /지울까요/.test(dialogs[0] || '') && /되돌릴 수 없|기록이 남지/.test(dialogs[0] || '') && r && dels.length === 0, JSON.stringify(dialogs));
+  confirmNo = false;
+  await pg.click('#wtList .wt-row[data-id="14"] button[data-act="del"]');
+  await pg.waitForFunction(() => !document.querySelector('#wtList .wt-row[data-id="14"]'), null, { timeout: 5000 });
+  await pg.waitForTimeout(700);
+  r = await pg.evaluate(() => ({ past: document.getElementById('wtPast').style.display, cnt: document.getElementById('wtCount').textContent }));
+  ok('[삭제] 확인 → DELETE id=14 → 줄 사라짐 · 지난 기록 버튼 숨김', dels.join(',') === '14' && r.past === 'none' && !/지난 기록/.test(r.cnt), JSON.stringify(r) + ' ' + dels.join(','));
+  ok('상태 바꾸기·삭제는 티쳐스 활동 알림 묶음으로', acts.slice(actBefore).some(a => JSON.stringify(a).includes('삭제')) && acts.some(a => /상태 블랙/.test(JSON.stringify(a))), JSON.stringify(acts.slice(-2)).slice(0, 200));
 
   // ⑥ 재원 슈스 반 이동 대기
   await pg.click('#wtKinds button[data-kind="재원"]');
@@ -215,6 +236,8 @@ function serve(){
   await pg.waitForFunction(() => document.querySelector('#wtList .wt-row[data-id="13"]') && document.querySelector('#wtList .wt-row[data-id="13"]').classList.contains('can'), null, { timeout: 5000 });
   r = await pg.evaluate(() => ({ l2: document.querySelector('#wtList .wt-row[data-id="13"] .wt-l2').textContent, btn: document.querySelector('#wtList .wt-row[data-id="13"] button[data-act="moved"]').className, cnt: document.getElementById('wtCount').textContent }));
   ok('새로고침 뒤 고1 나 2명 < 정원 3 → 초록 줄 · 자리 있음 · [이동 완료] 초록', /2명 \/ 정원 3 · 자리 있음/.test(r.l2) && /ok/.test(r.btn) && /이동 가능 2명/.test(r.cnt), JSON.stringify(r));
+  r = await pg.evaluate(() => [...document.querySelectorAll('#wtList .wt-row[data-id="13"] .wt-acts button,#wtList .wt-row[data-id="13"] .wt-acts select')].map(b => b.tagName === 'SELECT' ? 'SELECT' : b.textContent.trim()).join(','));
+  ok('재원 줄 액션은 [삭제][대기 취소][고치기][이동 완료] — 상태 드롭다운 없음(종전 그대로)', r === '삭제,대기 취소,고치기,이동 완료', r);
   dialogs = [];
   await pg.click('#wtList .wt-row[data-id="13"] button[data-act="moved"]');
   await pg.waitForFunction(() => document.querySelector('#wtList .wt-row[data-id="13"].done'), null, { timeout: 5000 });   // 지난 기록을 펼쳐 둔 상태라 완료 줄로 남는다
@@ -229,9 +252,9 @@ function serve(){
   ok('[등록으로 전환] → 신입 슈스 폼에 이름·학교·2027 고등 1학년·희망 반(정규 가 r001) 채움 + 안내', r.hash === '#new' && r.name === '이른대기' && r.school === '화수고' && r.grade === '2027 고등 1학년' && r.clsA === 'r001' && r.memo === '슈톡에서 올림' && r.open && /학생 휴대폰 번호를 넣고/.test(r.st), JSON.stringify(r));
   await pg.fill('#f-pstu', '01099990000'); await pg.fill('#f-pp1', '01012341234');
   await pg.click('#regBtn');
-  await pg.waitForFunction(() => /완료로 바꿨/.test(document.getElementById('doneWait').textContent), null, { timeout: 8000 });
+  await pg.waitForFunction(() => /입학으로 바꿨/.test(document.getElementById('doneWait').textContent), null, { timeout: 8000 });
   p = patches[patches.length - 1];
-  ok('등록 성공 → 대기 줄 12 완료(신입 등록 전환) + 등록 완료 카드 안내', regs.length === 1 && regs[0].name === '이른대기' && p[0] === 12 && p[1].status === '완료' && p[1].done_note === '신입 등록 전환', JSON.stringify(p));
+  ok('등록 성공 → 대기 줄 12 입학(신입 등록 전환) + 등록 완료 카드 안내', regs.length === 1 && regs[0].name === '이른대기' && p[0] === 12 && p[1].status === '입학' && p[1].done_note === '신입 등록 전환', JSON.stringify(p));
   await pg.click('#tabWaitBtn');
   await pg.waitForFunction(() => document.querySelectorAll('#wtList .wt-row').length >= 2, null, { timeout: 5000 });   // 탭을 다시 열면 새로 받는다
   r = await pg.evaluate(() => [...document.querySelectorAll('#wtList .wt-row:not(.done) .wt-l1 b')].map(e => e.textContent));
