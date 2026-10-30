@@ -3439,7 +3439,9 @@ function loadWeek(){
     setStatus('주차 기록을 불러오는 중…');
   }
   var pWeek = fetch(ENDPOINT + '?action=timetableWeek&pw=' + encodeURIComponent(pw) + '&book=' + encodeURIComponent(book) +
-        '&from=' + ymdOf(from) + '&to=' + ymdOf(to) + '&t=' + Date.now())
+        '&from=' + ymdOf(from) + '&to=' + ymdOf(to) +
+        (useOvNow() ? '&ov=1' : '') +   // 학년 예외 반(내신 주의 중2 정규 등)의 출석도 함께 — 빠지면 지난주로 넘겼을 때 칩이 비었다
+        '&t=' + Date.now())
     .then(function(r){ return r.json(); }).catch(function(){ return null; });
   var pMemo = new Promise(function(res){ loadMemos(ymdOf(from), ymdOf(to), res); });
   Promise.all([pWeek, pMemo]).then(function(rs){
