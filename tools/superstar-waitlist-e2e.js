@@ -98,9 +98,15 @@ function serve(){
     sl: document.getElementById('wtSlTitle').textContent, rows: [...document.querySelectorAll('#wtSchList .srow')].map(e => e.querySelector('.sn').textContent + ':' + e.querySelector('.sc2').textContent),
     one: document.querySelector('#wtSchList .wt-one .t') ? document.querySelector('#wtSchList .wt-one .t').textContent : '', chips: [...document.querySelectorAll('#wtSchList .wt-one .chip')].map(e => e.textContent),
     filt: [...document.querySelectorAll('#wtFilt .wt-filt button')].map(b => b.textContent.replace(/\s+/g, ' ').trim()).join('|'), sel: [...document.querySelectorAll('#wtFilt select[data-f="fs"] option')].map(o => o.textContent).join('|') }));
-  ok('대기 현황 그래프 — 제목에 연도(2027 예비 슈스)·대기 2명·학년 막대 고1 2명(선택)', r.shown === 'block' && r.title === '2027 예비 슈스 대기 현황' && r.total === '2' && r.bars.join(',') === '고1:2명*', JSON.stringify(r));
+  ok('대기 현황 그래프 — 제목에 연도(2027 예비 슈스)·대기 2명·학년 막대는 초5~고3 전부(고2·고3도 0으로 자리) · 고1 2명(선택)', r.shown === 'block' && r.title === '2027 예비 슈스 대기 현황' && r.total === '2' && r.bars.join(',') === '초5:0,초6:0,중1:0,중2:0,중3:0,고1:2명*,고2:0,고3:0', JSON.stringify(r));
   ok('고른 학년의 학교별 — 2명 이상은 막대 줄(없음), 1명인 학교는 상자에 칩으로(백양고·화수고, 가나다)', /^2027 고1 학교별 대기 인원/.test(r.sl) && r.rows.length === 0 && /1명인 학교 2곳/.test(r.one) && r.chips.join(',') === '백양고,화수고', JSON.stringify([r.rows, r.one, r.chips]));
   ok('학년 거르기 = 칩(전체 + 대기 줄의 학년·인원) · 학교 = 드롭다운(전체 학교 n곳 + 학교 · n명)', r.filt === '전체|고12' && r.sel === '전체 학교 (2곳)|백양고 · 1명|화수고 · 1명', r.filt + ' / ' + r.sel);
+  let g = await pg.evaluate(() => ({ opts: [...document.querySelectorAll('#wt-grade option')].map(o => o.value + '=' + o.textContent), hint: document.getElementById('wtYearHint').textContent, year: document.getElementById('wt-year').value }));
+  ok('학년 선택지 = 연도(2027) 기준 + 지금 학년(고2 · 지금 고1, 고3 · 지금 고2, 중1 · 지금 초6) · 묶음 제목 안내', g.year === '2027' && g.opts.join('|') === '=미정|초5=초5 · 지금 초4|초6=초6 · 지금 초5|중1=중1 · 지금 초6|중2=중2 · 지금 중1|중3=중3 · 지금 중2|고1=고1 · 지금 중3|고2=고2 · 지금 고1|고3=고3 · 지금 고2' && /2027 학년도 기준 — 예\) 2027 고2 = 지금 고1, 2027 고3 = 지금 고2/.test(g.hint), JSON.stringify(g));
+  await pg.fill('#wt-year', '2026');
+  g = await pg.evaluate(() => ({ opts: [...document.querySelectorAll('#wt-grade option')].map(o => o.textContent).slice(6, 9).join('|'), hint: document.getElementById('wtYearHint').textContent }));
+  ok('연도를 2026(지금 학년도)으로 바꾸면 지금 학년 표기 없이 고1|고2|고3 · 안내 "지금 학년 그대로"', g.opts === '고1|고2|고3' && /2026 학년도 기준 — 지금 학년 그대로/.test(g.hint), JSON.stringify(g));
+  await pg.fill('#wt-year', '2027');
   await pg.click('#wtSchList [data-s="백양고"]');
   r = await pg.evaluate(() => ({ names: [...document.querySelectorAll('#wtList .wt-row .wt-l1 b')].map(e => e.textContent), cnt: document.getElementById('wtCount').textContent, on: document.querySelector('#wtSchList [data-s].on').textContent, sel: document.querySelector('#wtFilt select[data-f="fs"]').value, clr: !!document.querySelector('#wtFilt .clr') }));
   ok('학교 칩을 누르면 그 학교만 — 늦은대기(백양고) · "보는 중 1명 · 대기 2명" · 칩 선택 표시 · 드롭다운도 백양고 + [전체로]', r.names.join(',') === '늦은대기' && /보는 중 1명 · 대기 2명/.test(r.cnt) && r.on === '백양고' && r.sel === '백양고' && r.clr, JSON.stringify(r));
@@ -182,6 +188,8 @@ function serve(){
 
   // ⑥ 재원 슈스 반 이동 대기
   await pg.click('#wtKinds button[data-kind="재원"]');
+  r = await pg.evaluate(() => ({ year: document.getElementById('wt-year').value, g: [...document.querySelectorAll('#wt-grade option')].map(o => o.textContent).slice(6, 9).join('|') }));
+  ok('재원 종류로 바꾸면 연도 = 지금 학년도(2026) · 학년 표기 그대로', r.year === '2026' && r.g === '고1|고2|고3', JSON.stringify(r));
   r = await pg.evaluate(() => ({ title: document.getElementById('wtListTitle').textContent, stu: document.getElementById('wtStuRow').style.display, names: [...document.querySelectorAll('#wtList .wt-row .wt-l1 b')].map(e => e.textContent),
     l2: document.querySelector('#wtList .wt-row[data-id="13"] .wt-info').textContent, can: document.querySelector('#wtList .wt-row[data-id="13"]').classList.contains('can'), opts: [...document.querySelectorAll('#wtStuList option')].map(o => o.value) }));
   ok('재원 명단 — 김하늘 1명 · 이동 희망 반 + 지금 반 · 정원 3 = 3명이라 아직 아님', r.title === '재원 슈스 반 이동 대기 명단' && r.names.join(',') === '김하늘' && /이동 희망정규 고1 나 · 일 11:00 · 승연T 3명 \/ 정원 3/.test(r.l2) && /지금 반가 금5:30/.test(r.l2) && !r.can, JSON.stringify(r));
@@ -215,6 +223,7 @@ function serve(){
 
   // ⑦ 등록으로 전환 → 신입 폼 → 등록 → 완료
   await pg.click('#wtKinds button[data-kind="예비"]');
+  ok('예비로 돌아오면 연도 = 다음 학년도(2027)', await pg.$eval('#wt-year', e => e.value) === '2027');
   await pg.click('#wtList .wt-row[data-id="12"] button[data-act="conv"]');
   r = await pg.evaluate(() => ({ hash: location.hash, name: document.getElementById('f-name').value, school: document.getElementById('f-school').value, grade: document.getElementById('f-grade').value, pp1: document.getElementById('f-pp1').value, clsA: document.getElementById('f-classA').value, memo: document.getElementById('f-memo').value, st: document.getElementById('regStatus').textContent, open: document.querySelector('#formCard details.extra').open }));
   ok('[등록으로 전환] → 신입 슈스 폼에 이름·학교·2027 고등 1학년·희망 반(정규 가 r001) 채움 + 안내', r.hash === '#new' && r.name === '이른대기' && r.school === '화수고' && r.grade === '2027 고등 1학년' && r.clsA === 'r001' && r.memo === '슈톡에서 올림' && r.open && /학생 휴대폰 번호를 넣고/.test(r.st), JSON.stringify(r));

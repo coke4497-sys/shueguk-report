@@ -339,6 +339,8 @@
   .wt-bars .vcol .vbar{width:100%;max-width:56px;border-radius:10px 10px 3px 3px;background:#dfe8e2;}
   .wt-bars .vcol .vgl{width:100%;text-align:center;font-size:14px;color:#54655c;border-top:1px solid #e3e8e4;padding-top:8px;margin-top:0;}
   .wt-bars .vcol.on .vc,.wt-bars .vcol.on .vgl{color:#2b3a33;font-weight:700;}
+  .wt-bars .vcol.zero .vc,.wt-bars .vcol.zero .vgl{color:#b3bdb7;}
+  .wt-gt .hint#wtYearHint{display:block;margin-top:2px;}
   .wt-bars .vcol.on .vbar{background:#7f9e8e;}
   .wt-sl{display:flex;flex-direction:column;gap:10px;border-top:1px solid #eef1ee;padding-top:16px;}
   .wt-sl .sl-t{margin:0;font-size:15px;font-weight:700;color:#2b3a33;} .wt-sl .sl-t b{color:#2b3a33;}
@@ -615,11 +617,11 @@
     <section class="wt-card wt-form" id="wtFormCard">
       <div class="wt-ft"><h2 id="wtFormTitle">예비 슈스 대기 등록</h2><p id="wtFormSub">연도·학년·학교·이름·학부모님 연락처를 적고 희망 반을 고르십시오. 반은 미정으로 두어도 돼요. 슈톡의 [대기생 등록]으로 올린 명단도 여기에 함께 보입니다.</p></div>
       <div class="wt-grp">
-        <div class="wt-gt"><span class="gt">학생</span></div>
+        <div class="wt-gt"><span class="gt">학생</span><span class="hint" id="wtYearHint"></span></div>
         <div class="wt-g2">
           <label class="wt-f full" id="wtStuRow" style="display:none;">재원 학생 찾기<input type="text" id="wt-stu" list="wtStuList" placeholder="이름을 적으면 재원 명단에서 골라요" autocomplete="off" /><datalist id="wtStuList"></datalist><span class="wt-stuinfo" id="wtStuInfo"></span></label>
           <label class="wt-f">연도<input type="number" id="wt-year" min="2020" max="2099" /></label>
-          <label class="wt-f">학년<select id="wt-grade"><option value="">미정</option><option>초5</option><option>초6</option><option>중1</option><option>중2</option><option>중3</option><option>고1</option><option>고2</option><option>고3</option></select></label>
+          <label class="wt-f">학년<select id="wt-grade"><option value="">미정</option></select></label>
           <label class="wt-f">학교<input type="text" id="wt-school" list="schoolList" placeholder="예) 화정고" autocomplete="off" /></label>
           <label class="wt-f">이름<input type="text" id="wt-name" placeholder="예) 김하늘" autocomplete="off" /></label>
           <label class="wt-f full">학부모님 연락처<input type="text" id="wt-phone" inputmode="tel" placeholder="01012345678" autocomplete="off" /></label>
@@ -2803,10 +2805,27 @@
   function wtTr(v){ return String(v == null ? '' : v).trim(); }
   // 대기 연도 기본값 = 다음 학년도(2026-10-29 원장님 "2027로" — 대기는 다음 해 등록을 기다리는 것). 3월부터는 내년, 1·2월은 올해(한국 날짜). 슈톡 wtmDefaultYear 와 같은 규칙.
   function wtDefaultYear(){ var y = todayYmdKST(); var yr = +y.slice(0, 4), m = +y.slice(5, 7); return m >= 3 ? yr + 1 : yr; }
+  // 지금 학년도(3월 시작) — 학년 칸은 적은 연도의 학년이라 '2027 고2 = 지금 고1'을 함께 보여 준다(2026-10-30 원장님 "2027 고3·고2 대기생도 입력 가능하게").
+  function wtNowYear(){ var y = todayYmdKST(); var yr = +y.slice(0, 4), m = +y.slice(5, 7); return m >= 3 ? yr : yr - 1; }
+  var WT_LADDER = ['초1', '초2', '초3', '초4', '초5', '초6', '중1', '중2', '중3', '고1', '고2', '고3'];
+  function wtNowGrade(g, year){   // 연도 year 의 학년 g 가 지금(올해 학년도)은 몇 학년인지 — 사다리 밖이면 ''
+    var i = WT_LADDER.indexOf(g), d = (parseInt(year, 10) || wtNowYear()) - wtNowYear();
+    if (i < 0) return ''; var j = i - d; return j >= 0 && j < WT_LADDER.length ? WT_LADDER[j] : (j < 0 ? '아직 취학 전' : '졸업');
+  }
+  function wtGradeOpts(){
+    var sel = $('wt-grade'), cur = sel.value, year = parseInt($('wt-year').value, 10) || wtNowYear(), same = year === wtNowYear();
+    sel.innerHTML = '<option value="">미정</option>' + WT_GRADES.map(function(g){
+      var now = same ? '' : wtNowGrade(g, year);
+      return '<option value="' + g + '">' + g + (now ? ' · 지금 ' + now : '') + '</option>';
+    }).join('');
+    sel.value = WT_GRADES.indexOf(cur) >= 0 ? cur : '';
+    var h = $('wtYearHint'); if (h) h.textContent = same ? year + ' 학년도 기준 — 지금 학년 그대로' : year + ' 학년도 기준 — 예) ' + year + ' 고2 = 지금 ' + wtNowGrade('고2', year) + ', 2027 고3 = 지금 ' + wtNowGrade('고3', year);
+  }
   function wtInit(){
     if (WT.inited){ wtRender(); wtLoad(); return; }   // 다시 열 때마다 인원·명단을 새로 받는다(그 사이 반 인원이 바뀌었을 수 있어서)
     WT.inited = true;
-    $('wt-year').value = wtDefaultYear();
+    $('wt-year').value = wtDefaultYear(); wtGradeOpts();
+    $('wt-year').addEventListener('input', wtGradeOpts); $('wt-year').addEventListener('change', wtGradeOpts);
     $('wt-start').value = todayYmdKST();
     giverName().then(function(n){ if (n && !$('wt-who').value) $('wt-who').value = n; });
     $('wtKinds').addEventListener('click', function(e){ var b = e.target.closest('button[data-kind]'); if (!b) return; wtSetKind(b.getAttribute('data-kind')); });
@@ -2838,6 +2857,7 @@
     $('wtClassLabel').firstChild.textContent = pre ? '희망 반 ' : '이동 희망 반 ';
     $('wtListTitle').textContent = pre ? '예비 슈스 대기 명단' : '재원 슈스 반 이동 대기 명단';
     $('wtLegend').style.display = '';
+    if (WT.inited){ $('wt-year').value = pre ? wtDefaultYear() : wtNowYear(); wtGradeOpts(); }
     wtRender();
   }
   function wtCount(c){ return String(c && c.roster || '').split(/\s+/).filter(String).length; }
@@ -3008,7 +3028,9 @@
     if (!wait.length){ card.style.display = 'none'; return; }
     var gmap = {}, gsmap = {};
     wait.forEach(function(r){ var g = wtGradeOf(r), sc = wtSchoolOf(r); gmap[g] = (gmap[g] || 0) + 1; (gsmap[g] = gsmap[g] || {})[sc] = (gsmap[g][sc] || 0) + 1; });
-    var gkeys = Object.keys(gmap).sort(function(a, b){ return gradeOrder(a) - gradeOrder(b) || a.localeCompare(b, 'ko'); });
+    // 막대는 초5~고3 전부 두고(0명도 자리 — 2026-10-30 원장님 "2027 고3·고2 대기생도": 고2·고3 자리가 없어 못 넣는 것처럼 보였다) 목록 밖 학년('미정')은 뒤에
+    var gkeys = WT_GRADES.concat(Object.keys(gmap).filter(function(k){ return WT_GRADES.indexOf(k) < 0; }).sort(function(a, b){ return a.localeCompare(b, 'ko'); }));
+    gkeys.forEach(function(k){ gmap[k] = gmap[k] || 0; });
     if (WT.fg && gmap[WT.fg]) WT.sg = WT.fg;
     if (!WT.sg || !gmap[WT.sg]) WT.sg = gkeys.slice().sort(function(a, b){ return gmap[b] - gmap[a]; })[0];
     $('wtStatTitle').textContent = (WT.kind === '예비' ? wtYearLabel(wait) + '예비 슈스' : '재원 슈스 반 이동') + ' 대기 현황';
@@ -3017,8 +3039,8 @@
     var gmax = Math.max.apply(null, gkeys.map(function(k){ return gmap[k]; }));
     var bars = $('wtGradeBars'); bars.style.gridTemplateColumns = 'repeat(' + gkeys.length + ',1fr)';
     bars.innerHTML = gkeys.map(function(k){
-      var h = Math.max(6, Math.round(gmap[k] / gmax * 120));
-      return '<div class="vcol' + (k === WT.sg ? ' on' : '') + '" data-g="' + esc(k) + '"><span class="vc">' + gmap[k] + '명</span><span class="vbar" style="height:' + h + 'px"></span><span class="vgl">' + esc(k) + '</span></div>';
+      var h = Math.max(6, Math.round(gmap[k] / (gmax || 1) * 120));
+      return '<div class="vcol' + (k === WT.sg ? ' on' : '') + (gmap[k] ? '' : ' zero') + '" data-g="' + esc(k) + '"><span class="vc">' + (gmap[k] ? gmap[k] + '명' : '0') + '</span><span class="vbar" style="height:' + h + 'px"></span><span class="vgl">' + esc(k) + '</span></div>';
     }).join('');
     var smap = gsmap[WT.sg] || {}, skeys = Object.keys(smap).sort(function(a, b){ return smap[b] - smap[a] || a.localeCompare(b, 'ko'); });
     var many = skeys.filter(function(k){ return smap[k] >= 2; }), one = skeys.filter(function(k){ return smap[k] < 2; }), smax = many.length ? smap[many[0]] : 1;
