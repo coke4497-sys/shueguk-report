@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <script src="https://coke4497-sys.github.io/shueguk-hub/assets/teacher-gate.js"></script><!-- 교사 로그인 게이트 (허브 로그인 필요, 2026-10-12) -->
+<script src="activity.js"></script><!-- 티쳐스 활동 → 원장님 슈톡 알림(2026-10-27) -->
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
 <title>리포트 수정 및 학생 배정 · 슈국 티쳐스</title>
 <meta name="description" content="지필고사 리포트를 수정하고 학생에게 배정합니다 (교사용)" />
@@ -743,7 +744,7 @@
       body: JSON.stringify({ action:'deleteAnalysisAssign', pw:SERVER_PW, id:id })
     })
     .then(function(r){ return r.json(); })
-    .then(function(res){ if(res.result==='success'){ loadAll(); } else { btn.disabled=false; alert('해제 실패: '+(res.message||'오류')); } })
+    .then(function(res){ if(res.result==='success'){ try { if (window.shuegukActivity) shuegukActivity('지필 리포트', '배정 해제', id, '', true); } catch (e) {} loadAll(); } else { btn.disabled=false; alert('해제 실패: '+(res.message||'오류')); } })
     .catch(function(){ btn.disabled=false; alert('해제 실패 — 인터넷을 확인해 주세요.'); });
   }
 
@@ -758,7 +759,7 @@
       body: JSON.stringify({ action:'deleteReport', pw:SERVER_PW, id:id })
     })
     .then(function(r){ return r.json(); })
-    .then(function(res){ if(res.result==='success'){ loadAll(); } else { btn.disabled=false; btn.textContent='리포트 삭제'; alert('삭제 실패: '+(res.message==='unauthorized'?'권한이 없습니다.':(res.message||'오류'))); } })
+    .then(function(res){ if(res.result==='success'){ try { if (window.shuegukActivity) shuegukActivity('지필 리포트', '삭제', title || id, '', true); } catch (e) {} loadAll(); } else { btn.disabled=false; btn.textContent='리포트 삭제'; alert('삭제 실패: '+(res.message==='unauthorized'?'권한이 없습니다.':(res.message||'오류'))); } })
     .catch(function(){ btn.disabled=false; btn.textContent='리포트 삭제'; alert('삭제 실패 — 인터넷을 확인해 주세요.'); });
   }
 </script>

@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "width": 450,
+  "height": 670,
+  "anchor": {
+    "x": 225,
+    "y": 650
+  },
+  "characters": [
+    {
+      "id": "student-01",
+      "file": "student-01-v01.png",
+      "label": "짧은 머리 · 가디건"
+    },
+    {
+      "id": "student-02",
+      "file": "student-02-v01.png",
+      "label": "안경 · 가디건"
+    },
+    {
+      "id": "student-03",
+      "file": "student-03-v01.png",
+      "label": "가르마 머리 · 조끼"
+    },
+    {
+      "id": "student-04",
+      "file": "student-04-v01.png",
+      "label": "단발 · 가디건"
+    },
+    {
+      "id": "student-05",
+      "file": "student-05-v01.png",
+      "label": "중간 길이 머리 · 가디건"
+    },
+    {
+      "id": "student-06",
+      "file": "student-06-v01.png",
+      "label": "묶은 머리 · 조끼"
+    }
+  ]
+}

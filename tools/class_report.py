@@ -90,18 +90,17 @@ def cmd_pending():
 
 def find_student(tok, studs):
     """시간표 이름 → students 한 줄. 정확히 → 끝의 A 떼고 → A 붙여서, 동명이인은 앞 괄호 학교로."""
+    if re.search(r'\(([^()]*(입학|예비|미정|입테|상담|체험)[^()]*)\)\s*$', str(tok or '')):
+        return []   # 등록 전 학생은 다른 학생과 잇지 않는다(2026-10-24 원장님 "학교가 다른 데이터를 연결하지 마세요")
     p = plain(tok)
     cands = [s for s in studs if s['name'] == p]
     if not cands and p.endswith('A'):
         cands = [s for s in studs if s['name'] == p[:-1]]
     if not cands:
         cands = [s for s in studs if s['name'] == p + 'A']
-    if len(cands) > 1:
-        sch = front_school(tok)
-        if sch:
-            c2 = [s for s in cands if str(s['school']).startswith(sch)]
-            if c2:
-                cands = c2
+    sch = front_school(tok)
+    if sch:   # 앞 괄호 학교와 다른 학생은 잇지 않는다
+        cands = [s for s in cands if str(s['school']).startswith(sch)]
     return cands
 
 
@@ -119,6 +118,23 @@ def part_of(name, book):
         return '확인' if '확인' in n else '진도'
     m = re.search(r'(가|나)$', re.sub(r'\(.*\)\s*$', '', n).strip())
     return m.group(1) if m else ''
+
+
+NS_HW_NOTE = '내신대비 기간에는 확인 수업에서 과제 검사를 진행합니다. 이번 정규 수업에서는 과제 기록이 없습니다.'
+
+
+def ns_hw_skip(part, h):
+    """내신 진도 수업은 과제 검사를 하지 않는다(확인 수업에서 — 2026-10-28 원장님). 기록이 없거나 미제출·0점(점수를 하나도 안 매김)이면
+    리포트에는 NS_HW_NOTE 로 — 0% 미제출로 나가면 학부모님이 과제를 하나도 안 한 것으로 오해한다(같은 날 원장님 "미리보기에서 안 보여요").
+    timetable.html·s.html 의 rcNsNone 과 같은 규칙(고치면 셋 다). 점수를 실제로 매긴 기록은 선생님이 검사한 것이라 그대로."""
+    if str(part or '') != '진도':
+        return False
+    if not h or h.get('none') or h.get('missing'):
+        return True
+    sc = h.get('scores') if isinstance(h.get('scores'), dict) else None
+    if sc is not None:
+        return not any(int(v or 0) > 0 for v in sc.values())
+    return not any(int((x or {}).get('score') or 0) > 0 for x in (h.get('items') or []))
 
 
 def roster_has(roster, p):
@@ -157,6 +173,8 @@ def cmd_data(book, cid, ymd):
         h = hw_by.get(s['code']) if s else None
         comment = str(cm.get(p) or '').strip()
         auto = False
+        if h and ns_hw_skip(note.get('part'), h):
+            h = None   # 진도 수업의 미제출·0점 기록은 검사한 것이 아니다 — hw 없음으로(정해 둔 미제출 코멘트도 안 붙음)
         if not comment and h and h.get('missing'):
             # 전체 미제출인데 코멘트가 비면 정해 둔 문장(원장님 지정 — timetable crMissComment 와 같은 문장, 다듬지 말 것)
             comment, auto = re.sub(r'[A-Z]$', '', p) + ' 친구는 과제 제출을 하지 않았습니다!!!!', True
@@ -212,6 +230,20 @@ def checks_of(h):
 
 
 BODY_KEYS = ('attend', 'attend_note', 'attitude', 'summary', 'units', 'homework', 'hw', 'comment')
+COMMENT_END = re.compile(r'(다|요|죠|까|네)[.!?]+\s*$')
+COMMENT_RAW = re.compile(r'(ㅋ|ㅎ|ㅠ|ㅜ|굿\b|\bok\b|\bgood\b|~~|\.\.\.)', re.I)
+
+
+def comment_problem(c):
+    """학생 페이지에 올라갈 코멘트가 완결 문장이 아니면 이유를 돌려준다(빈 값은 통과). 전체 미제출 지정 문구('…않았습니다!!!!')는 끝이 '다!'라 통과."""
+    c = c.strip()
+    if not c:
+        return ''
+    if not COMMENT_END.search(c):
+        return '완결 문장이 아니에요(끝맺음 없음 — 키워드·메모 그대로)'
+    if COMMENT_RAW.search(c):
+        return '메모 말투예요(ㅋ·ㅎ·굿·… 같은 표기)'
+    return ''
 ATTITUDES = ('', '매우 좋음', '좋음', '노력 필요')
 
 
@@ -242,6 +274,14 @@ def cmd_publish(path):
                 sys.exit('%s 는 목록이어야 해요: %s' % (k, studs[code]['name']))
         if body.get('attitude', '') not in ATTITUDES:
             sys.exit('수업 태도는 매우 좋음/좋음/노력 필요 중 하나여야 해요: %s' % studs[code]['name'])
+        hw = body.get('hw')
+        if isinstance(hw, dict) and ns_hw_skip(note.get('part'), hw):
+            body['hw'] = {'none': True, 'text': NS_HW_NOTE}   # 내신대비 기간 진도 수업은 과제 검사를 하지 않는다 — 기록 없음·미제출·0점 모두 이 안내(2026-10-28 원장님 문장)
+            if '하지 않았습니다!!!!' in str(body.get('comment') or ''):
+                sys.exit('진도 수업에는 미제출 코멘트를 넣지 않아요(과제 검사는 확인 수업에서) — 코멘트를 비우거나 다른 내용으로: %s' % studs[code]['name'])
+        bad = comment_problem(str(body.get('comment') or ''))
+        if bad:   # 선생님이 키워드로 적어도 학생 페이지에는 단정하고 예의 바른 문장으로(2026-10-26 원장님)
+            sys.exit('코멘트가 %s — 뜻을 살린 존댓말 완결 문장으로 다듬어 주세요: %s 「%s」' % (bad, studs[code]['name'], body.get('comment')))
         rows.append({'week': str(wed), 'book': book, 'class_id': cid, 'ymd': ymd, 'code': code,
                      'student_id': studs[code]['student_id'], 'name': studs[code]['name'],
                      'part': note.get('part', ''), 'class_name': note.get('class_name', ''),

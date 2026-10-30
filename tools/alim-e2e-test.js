@@ -43,7 +43,7 @@ const posts = [];
   await ctx.route(/supabase\.co/, r => {
     const u = r.request().url();
     if (u.includes('/teacher_accounts')) return r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([{ display_name: '김현지 선생님', login_id: 'hj' }]) });
-    if (u.includes('/students?select=name,phone_')) return phonesFail ? r.fulfill({ status: 500, contentType: 'application/json', body: '{}' }) : r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(PHONES) });
+    if (u.includes('/students?select=name,school,phone_')) return phonesFail ? r.fulfill({ status: 500, contentType: 'application/json', body: '{}' }) : r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(PHONES) });
     if (u.includes('/attendance') && r.request().method() === 'POST') return r.fulfill({ status: 201, contentType: 'application/json', body: '[]' });
     if (u.includes('/attendance') && r.request().method() === 'GET') return r.fulfill({ status: 200, contentType: 'application/json', body: '[]' });
     return r.fulfill({ status: 401, contentType: 'application/json', body: '{"message":"no"}' });
@@ -320,6 +320,82 @@ const posts = [];
   ok('결석 안내 창 — 예고 보냄 표시·체크 없음', (await modalText()).includes('결석 예고') && (await whoBoxes(0)).every(x => x.endsWith('-')), (await whoBoxes(0)).join());
   ok('결석 안내 창 — [닫기]로 닫을 수 있다', !!(await page.$('#modal-box .mbtns button:not(#al-go)')));
   await page.evaluate(() => { closeModal(); todayStr = window.__realToday; });
+
+  // 14) 미등원 안내 · 등원 안내(2026-10-29 원장님 "수업이 시작했는데 등원하지 않았고 전화를 받지 않았고 … 알림톡" +
+  //     "뒤늦게 등원했을 경우 지금 등원했습니다 알림톡도") — 출석 창 버튼으로만, 자동 발송 없음, 닫을 수 있다
+  const NTPL = '[이수경국어학원] 미등원 안내\n#{학생명} 학생이 #{수업일} #{반이름} 수업 시간에 아직 등원하지 않았습니다.\n학생과 학부모님께 연락을 드렸으나 연결되지 않았습니다.\n확인 후 학원(#{학원번호})으로 연락 부탁드립니다.';
+  const ATPL = '[이수경국어학원] 지각 등원 안내\n#{학생명} 학생이 #{수업일} #{반이름} 수업에 지금 등원했습니다. (#{등원시각} 도착)\n앞서 보내 드린 미등원 안내는 확인하지 않으셔도 됩니다.';
+  cfg = { result:'success', ready:true, has:{ key:true, secret:true, from:true, pfId:true }, smsFallback:true,
+          templates:{ absent:{ label:'결석 안내', text: TPL, vars:['학생명','수업일','반이름'], ready:true },
+                      noshow:{ label:'미등원 안내', text: NTPL, vars:['학생명','수업일','반이름','학원번호'], ready:false },
+                      arrived:{ label:'지각 등원 안내', text: ATPL, vars:['학생명','수업일','반이름','등원시각'], ready:true } } };
+  logRows = logRows.filter(x => x.student !== '박지우');
+  // 수업 시작 판정은 시계에 달려 있어 검사에서는 스위치로 — 실제 함수는 오늘 + 시작 시각 지남
+  await page.evaluate(() => { closeModal(); alimCfg = null; alimLogByDate = {}; attend = {}; window.__st = true; window.__realStarted = alimClassStarted; alimClassStarted = function(c, y){ return y === todayStr() && !!window.__st; }; });
+  ok('실제 판정 — 오늘이 아니면 거짓', await page.evaluate(() => window.__realStarted(classes[0], '2026-01-01') === false));
+  ok('실제 판정 — 오늘 자정 뒤 시작 수업은 참', await page.evaluate(() => window.__realStarted({ start: '오전0:00' }, todayStr()) === true));
+  // 14-0) 템플릿 준비 전 — 기록 없는 학생 출석 창에 줄이 비어 있다
+  await page.evaluate(() => openAttend(classes[0], '박지우'));
+  await page.waitForTimeout(600);
+  ok('기록 없는 학생 출석 창에 알림톡 줄 자리가 있다', !!(await page.$('#att-alim')));
+  ok('미등원 템플릿 준비 전이면 줄이 비어 있다', (await page.textContent('#att-alim')).trim() === '', await page.textContent('#att-alim'));
+  // 14-1) 준비된 뒤 — 수업 시작 전에는 버튼 없음, 시작 뒤 [미등원 알림톡 보내기]
+  cfg.templates.noshow.ready = true;
+  await page.evaluate(() => { closeModal(); alimCfg = null; window.__st = false; openAttend(classes[0], '박지우'); });
+  await page.waitForTimeout(600);
+  ok('수업 시작 전에는 미등원 버튼 없음', (await page.textContent('#att-alim')).trim() === '', await page.textContent('#att-alim'));
+  await page.evaluate(() => { closeModal(); window.__st = true; openAttend(classes[0], '박지우'); });
+  await page.waitForFunction(() => (document.getElementById('att-alim') || {}).textContent.includes('미등원 알림톡 보내기'), null, { timeout: 8000 });
+  ok('수업 시작 뒤 기록 없음 — [미등원 알림톡 보내기] + 전화 안내', (await page.textContent('#att-alim')).includes('전화가 연결되지 않으면'), await page.textContent('#att-alim'));
+  await page.click('#att-alim button');
+  await page.waitForSelector('#al-rows', { timeout: 8000 });
+  const nt = await modalText();
+  ok('미등원 창 제목·안내', nt.includes('미등원 알림톡') && nt.includes('연결되지 않았을 때만'), nt);
+  ok('받는 분 모두 기본 체크', (await whoBoxes(0)).join() === '학부모1+,학부모2+,학생+', (await whoBoxes(0)).join());
+  ok('미리보기 — 아직 등원하지 않았습니다', (await page.textContent('.al-prev')).includes('박지우 학생이') && (await page.textContent('.al-prev')).includes('아직 등원하지 않았습니다'), await page.textContent('.al-prev'));
+  ok('[닫기]가 있고 바깥을 눌러도 닫힌다(결석 알림톡과 다름)', !!(await page.$('#modal-box .mbtns button:not(#al-go)')) && (await page.evaluate(() => modalLock)) === false);
+  nSend = await page.evaluate(() => posts_len());
+  await page.click('#al-go');
+  await page.waitForFunction(() => document.getElementById('status').textContent.includes('미등원 알림톡'), null, { timeout: 8000 });
+  const np = posts.filter(p => p.action === 'alimSend').pop();
+  ok('POST kind noshow·오늘 날짜·변수 넷(학원번호 = 화정센터)', np && np.kind === 'noshow' && np.items.length === 3 && np.items.every(x => x.date === ymd && x.vars['학생명'] === '박지우' && x.vars['반이름'] === '고1 가' && x.vars['학원번호'] === '031-979-4497' && Object.keys(x.vars).length === 4), JSON.stringify(np));
+  ok('센터 번호 — 위치로·학년으로·모르면 본원', await page.evaluate(() => [alimCenterTel({loc:'민트초코'}), alimCenterTel({loc:'민초센터'}), alimCenterTel({loc:'정리정독'}), alimCenterTel({loc:'도래울센터'}), alimCenterTel({loc:'', cls:'고3파이널A'}), alimCenterTel({loc:'', cls:'고2 확인'}), alimCenterTel({loc:'', cls:'정리정독 중3'}), alimCenterTel({loc:'', cls:'논술B 국어'})].join()) === '031-969-4497,031-969-4497,031-994-0624,031-969-4497,031-973-4497,031-969-4497,031-994-0624,031-973-4497');
+  ok('상태 줄 — 미등원 알림톡 3건', (await page.textContent('#status')).includes('미등원 알림톡 3건 보냈어요'));
+  ok('출석 기록은 그대로 없음', await page.evaluate(() => !attend[attKey('r010', '박지우')]));
+  await page.evaluate(() => openAttend(classes[0], '박지우'));
+  await page.waitForFunction(() => (document.getElementById('att-alim') || {}).textContent.includes('미등원 알림톡 보냄'), null, { timeout: 8000 });
+  ok('출석 창 줄 — 미등원 알림톡 보냄 + [다시 보내기]', (await page.textContent('#att-alim button')) === '다시 보내기', await page.textContent('#att-alim'));
+  // 14-2) 뒤늦게 등원 → 지각 기록 → 등원 알림톡 창
+  await page.fill('#att-memo', '20분 지각');
+  await page.click('.att-btns .pick-late');
+  await page.waitForSelector('#al-rows', { timeout: 8000 });
+  const at = await modalText();
+  ok('지각을 찍으면 등원 알림톡 창', at.includes('등원 알림톡') && at.includes('미등원 안내를 보낸 학생이 등원'), at);
+  pv = await page.textContent('.al-prev');
+  ok('미리보기 — 등원시각(오전/오후 h:mm) 채움', /박지우 학생이 .* 수업에 지금 등원했습니다\. \((오전|오후) \d{1,2}:\d{2} 도착\)/.test(pv), pv);
+  ok('등원 창도 [닫기]', !!(await page.$('#modal-box .mbtns button:not(#al-go)')) && (await page.evaluate(() => modalLock)) === false);
+  await page.click('#al-go');
+  await page.waitForFunction(() => document.getElementById('status').textContent.includes('등원 알림톡'), null, { timeout: 8000 });
+  const ap = posts.filter(p => p.action === 'alimSend').pop();
+  ok('POST kind arrived·등원시각 변수', ap && ap.kind === 'arrived' && ap.items.length === 3 && ap.items.every(x => x.date === ymd && /^(오전|오후) \d{1,2}:\d{2}$/.test(x.vars['등원시각'])), JSON.stringify(ap));
+  await page.evaluate(() => openAttend(classes[0], '박지우'));
+  await page.waitForFunction(() => (document.getElementById('att-alim') || {}).textContent.includes('등원 알림톡 보냄'), null, { timeout: 8000 });
+  ok('지각 출석 창 줄 — 미등원 보냄 + 등원 알림톡 보냄', (await page.textContent('#att-alim')).includes('미등원 알림톡 보냄') && (await page.textContent('#att-alim button')) === '다시 보내기', await page.textContent('#att-alim'));
+  // 14-3) 미등원 안내를 보내지 않은 학생의 출석은 창이 뜨지 않는다
+  await page.evaluate(() => { closeModal(); openAttend(classes[0], '최민하(9/20부터)'); });
+  nSend = await page.evaluate(() => posts_len());
+  await page.click('.att-btns .pick-ok');
+  await page.waitForTimeout(900);
+  ok('미등원 안내가 없던 학생 출석 — 등원 창 없음', !(await page.$('#al-rows')) && (await page.evaluate(() => posts_len())) === nSend);
+  await page.evaluate(() => openAttend(classes[0], '최민하(9/20부터)'));
+  await page.waitForTimeout(600);
+  ok('그 학생 출석 창 줄은 비어 있다', (await page.textContent('#att-alim')).trim() === '', await page.textContent('#att-alim'));
+  // 14-4) 미등원 안내 뒤 결석으로 확정 — 결석 안내 창에 '미등원 안내 보냄' 표시(체크는 그대로)
+  await page.evaluate(() => { closeModal(); attend = {}; openAttend(classes[0], '박지우'); });
+  await page.click('.att-btns .pick-abs');
+  await page.waitForSelector('#al-rows', { timeout: 8000 });
+  ok('결석 안내 창 — 미등원 안내 보냄 표시 + 체크 유지', (await modalText()).includes('미등원 안내') && (await whoBoxes(0)).every(x => x.endsWith('+')), (await modalText()).slice(0, 200));
+  await page.evaluate(() => { closeModal(); alimClassStarted = window.__realStarted; attend = {}; });
 
   console.log(fail ? ('✗ ' + fail + '건 실패 / ' + pass + '건 통과') : ('✓ ' + pass + '건 통과'));
   await b.close(); srv.close(); process.exit(fail ? 1 : 0);

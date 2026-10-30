@@ -89,6 +89,11 @@ const NOCOL = t => JSON.stringify({ code: 'PGRST204', details: null, hint: null,
   res = await run(page, mk);
   w = writes.find(x => /\/attendance/.test(x.u) && x.m === 'PATCH');
   ok('① 보충 처리 PATCH에도 author', w && w.body.author === '김지원' && w.body.makeup_plan === '영상보충', JSON.stringify(w && w.body));
+  // 티쳐스 활동 알림(2026-10-27) — 출석·1회 이동은 묶음(urgent false)으로 허브 함수 activity 에 보낸다(activity.js, 0.5초 모아서)
+  await page.waitForTimeout(900);
+  const acts = writes.filter(x => /\/functions\/v1\/activity/.test(x.u)).flatMap(x => (x.body && x.body.rows) || []);
+  ok('활동 알림 — 출석(묶음)·1회 이동(묶음)·보충은 보내지 않음', acts.some(a => a.what === '출석' && a.action === '출석' && a.urgent === false && /가나/.test(a.target)) &&
+     acts.some(a => a.what === '시간표' && a.action === '1회' && a.urgent === false && /가나/.test(a.target)) && !acts.some(a => /보충/.test(a.what)), JSON.stringify(acts));
   await ctx.close();
 
   /* ② 로그인 없음 → 이 기기 이름 → 빈 값 */

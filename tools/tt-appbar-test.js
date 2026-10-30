@@ -2,7 +2,7 @@
 /* 앱 바 검증 (timetable.html, 2026-09-21 사용자 요청 "화면 위아래의 너저분한 것 없이 앱처럼").
  *   NODE_PATH=$(npm root -g) node tools/tt-appbar-test.js
  * 확인 대상 — ① 백링크 줄·설명 문단·푸터·팁이 사라졌고 ② 앱 바가 화면 위에 붙어 스크롤해도 남으며
- * ③ 기간은 작은 칩(자세한 문장은 title) ④ 보기 탭 6개가 한 줄 ⑤ 창으로 여는 기능 세 개는 상시 버튼(⋯ 안에 숨기지 않음)
+ * ③ 기간은 작은 칩(자세한 문장은 title) ④ 보기 탭 7개가 한 줄 ⑤ 창으로 여는 기능 세 개는 상시 버튼(⋯ 안에 숨기지 않음)
  * ⑥ 상태 문구는 화면 아래 알림(비면 안 보임) ⑦ 안내문은 한 줄 + ⓘ로 펼침(세션 기억)
  * ⑧ 휴대폰: 탭 한 줄 가로 스크롤 · 오늘 보충 패널 기본 접힘 · 칩에서 날짜 숨김 ⑨ 옆 패널은 바 아래에서 시작. */
 const { chromium } = require('playwright');
@@ -66,10 +66,10 @@ const ok = (n, c, x) => { if (c) pass++; else { fail++; console.log('  ✗ ' + n
   ok('칩 title = 원래 안내 문장', pb[1].includes('시간표로 운영합니다'), pb[1]);
   ok('칩은 낮다(30px 이하)·둥근 알약', pb[2] <= 30 && pb[3].indexOf('999') === 0, JSON.stringify([pb[2], pb[3]]));
 
-  /* ④ 보기 탭 6개 한 줄 */
+  /* ④ 보기 탭 7개 한 줄 */
   const tabs = await page.$$eval('#bar .viewtabs button:not([hidden])', bs => bs.map(x => [x.id, x.textContent.trim(), x.offsetTop]));
-  ok('탭 6개 · 순서', JSON.stringify(tabs.map(t => t[0])) === JSON.stringify(['v-today','v-week','v-all','v-att','v-cal','v-exs']), JSON.stringify(tabs));
-  ok('짧은 이름', JSON.stringify(tabs.map(t => t[1])) === JSON.stringify(['오늘','주차별','전체','출석 현황','캘린더','지필고사']), JSON.stringify(tabs.map(t => t[1])));
+  ok('탭 7개 · 순서', JSON.stringify(tabs.map(t => t[0])) === JSON.stringify(['v-today','v-week','v-all','v-att','v-cal','v-exs','v-scope']), JSON.stringify(tabs));
+  ok('짧은 이름', JSON.stringify(tabs.map(t => t[1])) === JSON.stringify(['오늘','주차별','전체','출석 현황','캘린더','지필고사','시험 범위']), JSON.stringify(tabs.map(t => t[1])));
   ok('한 줄(줄바꿈 없음)', tabs.every(t => t[2] === tabs[0][2]), JSON.stringify(tabs.map(t => t[2])));
   ok('지금 보기 표시', await page.$eval('#v-today', e => e.classList.contains('on')));
   await page.click('#v-att');

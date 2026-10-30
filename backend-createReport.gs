@@ -2598,6 +2598,8 @@ function doPost(e) {
     if (data && data.action === 'addStudent')      { return addStudent(data); }
     if (data && data.action === 'updateStudent')   { return updateStudent(data); }
     if (data && data.action === 'studentRename')   { return studentRename(data); }
+    if (data && data.action === 'studentEnrolledSet') { return studentEnrolledSet(data); }
+    if (data && data.action === 'submissionBlankDelete') { return submissionBlankDelete(data); }
 
     // (12-1) 정규 시간표 (timetable.html) — 학생 반 이동/추가/빼기, 전체 교체(가져오기·재동기화)
     if (data && data.action === 'timetableMove')    { return timetableMove(data); }
@@ -2790,6 +2792,63 @@ function getStudentLinks() {
 /** 학생 이름 표기 변경 (동명이인 A/B 구분 등). { pw, code(접근코드), to(새 이름) }
  *  '학생정보' 탭 B열만 바꾼다 — 접근코드·8자리·시간표 열은 그대로라 학생 개인 페이지 링크는 유지된다.
  *  시간표의 이름은 timetableRenameStudent로 따로 바꿔야 한다(명단과 맞춰둘 것). */
+/* 재원여부(K열)만 고친다 — 2026-10-29 원장님 "시트 학생정보 재원 칸도 채워주세요"(수파베이스의 빈 값 23명을 '재원'으로 채운 뒤 시트 사본도 맞춤).
+ * POST { pw, items:[{code, enrolled}] } — 접근코드로 찾고, enrolled 는 '재원'/'퇴원'/'' 같은 글 그대로. 다른 열은 건드리지 않는다. */
+function studentEnrolledSet(data) {
+  if (String(data.pw || '') !== TEACHER_PW) return json({ result: 'error', message: 'unauthorized' });
+  var items = Array.isArray(data.items) ? data.items : [];
+  if (!items.length || items.length > 200) return json({ result: 'error', message: '고칠 학생이 없거나 너무 많아요(200명까지).' });
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ss.getSheetByName(TAB_STUDENTS);
+  if (!sh) return json({ result: 'error', message: "'" + TAB_STUDENTS + "' 탭이 없습니다." });
+  var lock = LockService.getScriptLock();
+  try { lock.waitLock(10000); } catch (e) { return json({ result: 'error', message: '잠시 후 다시 시도해 주세요.' }); }
+  try {
+    var v = sh.getDataRange().getValues();
+    var codeCol = findHeaderCol_(v[0], '접근코드', STU_CODE_COL);
+    var enrCol = findHeaderCol_(v[0], '재원 여부', findHeaderCol_(v[0], '재원여부', 10));   // 실제 머리글은 '재원 여부'(띄어쓰기) — 둘 다 보고 없으면 K열
+    var rowOf = {};
+    for (var i = 1; i < v.length; i++) { var c = String(v[i][codeCol] || '').trim(); if (c && rowOf[c] === undefined) rowOf[c] = i + 1; }
+    var done = [], missing = [];
+    items.forEach(function (it) {
+      var code = String(it && it.code || '').trim(), val = String(it && it.enrolled || '').trim();
+      if (!code) return;
+      var row = rowOf[code];
+      if (!row) { missing.push(code); return; }
+      var rg = sh.getRange(row, enrCol + 1);
+      rg.setNumberFormat('@');
+      rg.setValue(val);
+      done.push({ code: code, name: String(v[row - 1][1] || '').trim(), enrolled: val });
+    });
+    if (done.length) dropTab_(TAB_STUDENTS);
+    return json({ result: 'success', done: done, missing: missing });
+  } finally {
+    try { lock.releaseLock(); } catch (e) {}
+  }
+}
+
+/* '제출결과' 탭의 빈 줄(시험·이름이 모두 빈 줄)만 지운다 — 2026-10-29: 배포 직후 옛 버전이 받은 studentEnrolledSet 호출이 복기 제출 기본 분기로
+ * 떨어져 생긴 줄을 치우려고. 실제 제출(시험이나 이름이 있는 줄)은 절대 건드리지 않는다. POST { pw } → { result, deleted:[{row, ts}] } */
+function submissionBlankDelete(data) {
+  if (String(data.pw || '') !== TEACHER_PW) return json({ result: 'error', message: 'unauthorized' });
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ss.getSheetByName(TAB_RESULT);
+  if (!sh) return json({ result: 'error', message: "'" + TAB_RESULT + "' 탭이 없습니다." });
+  var lock = LockService.getScriptLock();
+  try { lock.waitLock(10000); } catch (e) { return json({ result: 'error', message: '잠시 후 다시 시도해 주세요.' }); }
+  try {
+    var v = sh.getDataRange().getValues(), deleted = [];
+    for (var i = v.length - 1; i >= 1; i--) {   // 아래부터 지워야 행 번호가 안 밀린다
+      var title = String(v[i][1] || '').trim(), name = String(v[i][4] || '').trim();
+      if (!title && !name) { sh.deleteRow(i + 1); deleted.push({ row: i + 1, ts: String(v[i][0] || '') }); }
+    }
+    if (deleted.length) dropExamIdx_();
+    return json({ result: 'success', deleted: deleted });
+  } finally {
+    try { lock.releaseLock(); } catch (e) {}
+  }
+}
+
 function studentRename(data) {
   if (String(data.pw || '') !== TEACHER_PW) return json({ result: 'error', message: 'unauthorized' });
   var code = String(data.code || '').trim();
@@ -4117,10 +4176,11 @@ function alimNoticeTpl_(name, prop, tail, btnName, body, extra) {
     text: '[이수경국어학원] ' + name + '\n' +
           '#{학생명} 학생에게 ' + name + '가 도착했어요.\n' +
           '\n' +
-          '▶ #{제목}\n' +
-          '\n' +
-          (body ? body + '\n\n' : '') +
-          (tail || '학생 페이지에서 내용을 확인해 주세요.'),   // 마지막 줄만 종류별로 다르게 둘 수 있다(사용자 지정 문구)
+          '▶ #{제목}' +
+          (body ? '\n\n' + body : '') +
+          // 마지막 줄만 종류별로 다르게 둘 수 있다(사용자 지정 문구). tail 이 null 이면 마지막 줄 없이 ▶ 제목 줄로 끝난다
+          // (2026-10-29 원장님 '수업 일정 안내(학생페이지 안내 없음)' — 뒤 줄이 없으니 ▶ 줄 뒤 빈 줄도 없다).
+          (tail === null ? '' : '\n\n' + (tail || '학생 페이지에서 내용을 확인해 주세요.')),
     buttons: [{ name: btnName || '학생 페이지 링크', type: 'WL', linkMo: ALIM_STU_LINK_, linkPc: ALIM_STU_LINK_ }]
   };
 }
@@ -4150,6 +4210,29 @@ var ALIM_TPL_ = {
     options: { '알린분': ['학부모님께', '학생에게'],
                '보충안내': ['보충 일정은 별도 안내드립니다.', '당일 결석이므로 보충을 진행하지 않습니다.'] }
   },
+  /* 미등원 안내(2026-10-29 원장님 "수업이 시작했는데 친구가 등원하지 않았고 전화를 받지 않았고 학부모님께도 전화드렸으나
+   * 부재중인 경우 … 알림톡을 보내고 싶어요" — 문구는 원장님 승인 그대로). 슈국 스케쥴 출석 창의 [미등원 알림톡]으로만 보낸다
+   * (자동 발송 없음, 출석 기록은 바꾸지 않음). 중복 키는 다른 종류와 같이 학생·수업일·받는 분. */
+  /* #{학원번호} = 그 수업 센터의 전화번호(2026-10-30 원장님 — 화면 ALIM_CENTER_TEL: 본원·화정센터·민트초코·정리정독·도래울) */
+  noshow: {
+    label: '미등원 안내',
+    prop: 'ALIM_TPL_NOSHOW',
+    vars: ['학생명', '수업일', '반이름', '학원번호'],
+    text: '[이수경국어학원] 미등원 안내\n' +
+          '#{학생명} 학생이 #{수업일} #{반이름} 수업 시간에 아직 등원하지 않았습니다.\n' +
+          '학생과 학부모님께 연락을 드렸으나 연결되지 않았습니다.\n' +
+          '확인 후 학원(#{학원번호})으로 연락 부탁드립니다.'
+  },
+  /* 지각 등원 안내(같은 날 원장님 "미등원 친구가 뒤늦게 등원했을 경우" — 이름은 2026-10-30 원장님 "지각 등원 안내로"; 처음 '등원 안내'. 원장님 "미등원 친구가 뒤늦게 등원했을 경우 지금 등원했습니다 알림톡도") — 미등원 안내를 보낸 학생이
+   * 뒤늦게 와서 출석·지각을 찍으면 출석 창·확인 창이 이 종류를 연다. #{등원시각} = 화면이 보내는 그 순간의 시각('오후 5:52'). */
+  arrived: {
+    label: '지각 등원 안내',
+    prop: 'ALIM_TPL_ARRIVED',
+    vars: ['학생명', '수업일', '반이름', '등원시각'],
+    text: '[이수경국어학원] 지각 등원 안내\n' +
+          '#{학생명} 학생이 #{수업일} #{반이름} 수업에 지금 등원했습니다. (#{등원시각} 도착)\n' +
+          '앞서 보내 드린 미등원 안내는 확인하지 않으셔도 됩니다.'
+  },
   /* 공지 알림(2026-09-15 사용자 "공지사항을 올릴 때 푸시 팝업" → 알림톡 + 학생 페이지 팝업으로 결정).
    * 공지 등록 화면(notice.html)이 대상 학생(또는 학부모1)에게 보낸다. 중복 키(수업일 칸)는
    * 'N:날짜|제목' — 같은 공지를 두 번 보내지 않되, 같은 날 다른 공지는 따로 간다.
@@ -4163,6 +4246,11 @@ var ALIM_TPL_ = {
    * 확인해 주세요.', 버튼 이름 '학생 페이지 링크'). 다시 심사받지 않으려고 코드 쪽을 등록본에 맞췄다 — 바꾸지 말 것. */
   notice_sched:    alimNoticeTpl_('수업 일정 안내',              'ALIM_TPL_NOTICE_SCHED',
                      '학생 페이지에서 내용을 확인해 주세요.', '학생 페이지 링크'),
+  /* 같은 문구에서 마지막 줄 '학생 페이지에서 내용을 확인해 주세요.'만 뺀 종류(2026-10-29 원장님 "그 표현이 들어가지 않아도
+   * 될 것 같아요" → 기존 템플릿은 그대로 두고 솔라피에 '수업 일정 안내(학생페이지 안내 없음)'으로 따로 등록해 심사 중).
+   * 제목 줄·둘째 줄은 '수업 일정 안내' 그대로라 화면 이름만 다르다. 자동 가져오기는 문구 대조라 두 템플릿이 섞이지 않는다. */
+  notice_sched2:   Object.assign(alimNoticeTpl_('수업 일정 안내',              'ALIM_TPL_NOTICE_SCHED2', null, '학생 페이지 링크'),
+                     { label: '수업 일정 안내 (학생 페이지 안내 없음)' }),
   /* 주말 실전 모의고사는 안내 네 줄을 문구에 넣는다(2026-09-29 원장님 "이 내용이 추가되어야 해요" — 원장님 안내문 그대로).
    * ▶ 제목 = '2027학년도 수능대비 실전 모의고사'처럼 회차 이름, #{신청일} = '3/14(토), 3/15(일)'처럼 매번 바뀌는 신청 요일,
    * #{장소} = '대감빌딩 5층 이수경 국어 본원'(같은 날 원장님 "장소를 변수로" — 화면이 이 값을 기본으로 채운다),
@@ -4293,7 +4381,7 @@ function alimSend(data) {
   if (!tplId) return json({ result:'error', message:"'" + tpl.label + "' 템플릿 ID가 아직 없어요. 솔라피 심사가 끝나면 [알림톡] 설정에 넣어 주세요." });
   var sched = alimSchedule_(data.schedule);
   if (sched && sched.error) return json({ result:'error', message: sched.error });
-  if (sched && kind === 'absent') return json({ result:'error', message:'결석 안내는 예약하지 않고 바로 보냅니다.' });
+  if (sched && ['absent', 'noshow', 'arrived'].indexOf(kind) >= 0) return json({ result:'error', message: tpl.label + '는 예약하지 않고 바로 보냅니다.' });
   data._sched = sched;
   // 중복 확인 → 발송 → 기록을 한 잠금 안에서 — 조교 둘이 같은 결석을 거의 동시에 보내면 둘 다 중복 확인을 통과해 두 번 갔다(2026-10-03)
   var lock = LockService.getScriptLock();

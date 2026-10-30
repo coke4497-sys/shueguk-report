@@ -868,6 +868,10 @@ default privileges 까지 되돌렸다. `tools/check_lock.py` 통과(표 15/15 �
 ## 055 — 공지 첨부 파일 `notice_files`·버킷 `notice-files` (2026-10-18)
 - 공지에 붙인 파일(비공개 버킷, 파일당 20MB)과 목록 표. 공지와는 공지 키 '작성일|제목'으로 잇는다. 교사(authenticated)는 표·저장소 전부, 공개 키는 함수 `notice_files_mine`·`notice_file_url`(그 공지가 보이는 학생만, 10분 창)과 창이 열린 경로 읽기(`notice_file_ok`)만. 022·031 뒤에 실행. 검증 `tools/notice-files-sql-test.sh`.
 
+## 060 — 수정 요청함 첨부 파일 `edit_req_files`·버킷 `edit-req-files` (2026-10-26)
+- 수정 요청에 붙인 캡처·사진·PDF(비공개 버킷, 파일당 20MB)와 목록 표. 요청 글은 시트가 원본이라 번호가 없어 화면이 만든 열쇠 `rq_…`로 잇고 글 끝에 `[첨부 n] … #rq_…` 줄을 둔다. 교사(authenticated)는 표·저장소 전부, 공개 키는 접근 없음. 036(exam-drafts)과 같은 구조. 검증 `tools/editreq-files-sql-test.sh`.
+- **적용 상태: 2026-10-26 실제 수파베이스에 적용 완료**(관리 API `database/query`, 원장님이 준 sbp_ 토큰 — 저장하지 않음, 두 번 실행해 재실행 안전 확인). 확인: 표·비공개 버킷(20MB)·정책 각 1개, anon 권한 없음, 공개 키 `/edit_req_files` 401, 교사 계정 200, 교사 신분으로 저장소 올리기 200 → 공개 키 받기 400 → 교사 받기 200 → 지우기 200(시험 파일은 지움, 남은 객체 0).
+
 ## 056 — 별 선물 사유 다듬은 문장 `star_bonus.reason_nice` (2026-10-19)
 - 선생님 원문(reason)은 그대로, 클로슈가 다듬은 문장을 `reason_nice`에(빈 값 = 다듬기 전 — 학생 화면에 사유를 안 보임). 처음 적용할 때 옛 기록은 원문으로 채운다(열이 이미 있으면 다시 채우지 않음 — 재실행 안전). `student_bundle`은 050 본문 + reason_nice.
 - 다듬기·처리 절차는 저장소 CLAUDE.md '별 선물 사유 다듬기' 절, 도구 `tools/star_reason.py`. 검증 `tools/star-reason-sql-test.sh`.
