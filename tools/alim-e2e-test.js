@@ -323,11 +323,11 @@ const posts = [];
 
   // 14) 미등원 안내 · 등원 안내(2026-10-29 원장님 "수업이 시작했는데 등원하지 않았고 전화를 받지 않았고 … 알림톡" +
   //     "뒤늦게 등원했을 경우 지금 등원했습니다 알림톡도") — 출석 창 버튼으로만, 자동 발송 없음, 닫을 수 있다
-  const NTPL = '[이수경국어학원] 미등원 안내\n#{학생명} 학생이 #{수업일} #{반이름} 수업 시간에 아직 등원하지 않았습니다.\n학생과 학부모님께 연락을 드렸으나 연결되지 않았습니다.\n확인 후 학원으로 연락 부탁드립니다.';
+  const NTPL = '[이수경국어학원] 미등원 안내\n#{학생명} 학생이 #{수업일} #{반이름} 수업 시간에 아직 등원하지 않았습니다.\n학생과 학부모님께 연락을 드렸으나 연결되지 않았습니다.\n확인 후 학원(#{학원번호})으로 연락 부탁드립니다.';
   const ATPL = '[이수경국어학원] 등원 안내\n#{학생명} 학생이 #{수업일} #{반이름} 수업에 #{등원시각} 등원했습니다.\n앞서 보내 드린 미등원 안내는 확인하지 않으셔도 됩니다.';
   cfg = { result:'success', ready:true, has:{ key:true, secret:true, from:true, pfId:true }, smsFallback:true,
           templates:{ absent:{ label:'결석 안내', text: TPL, vars:['학생명','수업일','반이름'], ready:true },
-                      noshow:{ label:'미등원 안내', text: NTPL, vars:['학생명','수업일','반이름'], ready:false },
+                      noshow:{ label:'미등원 안내', text: NTPL, vars:['학생명','수업일','반이름','학원번호'], ready:false },
                       arrived:{ label:'등원 안내', text: ATPL, vars:['학생명','수업일','반이름','등원시각'], ready:true } } };
   logRows = logRows.filter(x => x.student !== '박지우');
   // 수업 시작 판정은 시계에 달려 있어 검사에서는 스위치로 — 실제 함수는 오늘 + 시작 시각 지남
@@ -358,7 +358,8 @@ const posts = [];
   await page.click('#al-go');
   await page.waitForFunction(() => document.getElementById('status').textContent.includes('미등원 알림톡'), null, { timeout: 8000 });
   const np = posts.filter(p => p.action === 'alimSend').pop();
-  ok('POST kind noshow·오늘 날짜·변수 셋', np && np.kind === 'noshow' && np.items.length === 3 && np.items.every(x => x.date === ymd && x.vars['학생명'] === '박지우' && x.vars['반이름'] === '고1 가' && Object.keys(x.vars).length === 3), JSON.stringify(np));
+  ok('POST kind noshow·오늘 날짜·변수 넷(학원번호 = 화정센터)', np && np.kind === 'noshow' && np.items.length === 3 && np.items.every(x => x.date === ymd && x.vars['학생명'] === '박지우' && x.vars['반이름'] === '고1 가' && x.vars['학원번호'] === '031-979-4497' && Object.keys(x.vars).length === 4), JSON.stringify(np));
+  ok('센터 번호 — 위치로·학년으로·모르면 본원', await page.evaluate(() => [alimCenterTel({loc:'민트초코'}), alimCenterTel({loc:'민초센터'}), alimCenterTel({loc:'정리정독'}), alimCenterTel({loc:'도래울센터'}), alimCenterTel({loc:'', cls:'고3파이널A'}), alimCenterTel({loc:'', cls:'고2 확인'}), alimCenterTel({loc:'', cls:'정리정독 중3'}), alimCenterTel({loc:'', cls:'논술B 국어'})].join()) === '031-969-4497,031-969-4497,031-994-0624,031-969-4497,031-973-4497,031-969-4497,031-994-0624,031-973-4497');
   ok('상태 줄 — 미등원 알림톡 3건', (await page.textContent('#status')).includes('미등원 알림톡 3건 보냈어요'));
   ok('출석 기록은 그대로 없음', await page.evaluate(() => !attend[attKey('r010', '박지우')]));
   await page.evaluate(() => openAttend(classes[0], '박지우'));
