@@ -154,6 +154,11 @@ const ok = (n, c, x) => { if (c) pass++; else { fail++; console.log('  ✗ ' + n
   await page.waitForTimeout(900);   // 캐시 그림 뒤 최신 조회까지
   mn = await minis();
   ok('③ 돌아오면 다시 예외 적용', mn.some(x => /정리정독 중2/.test(x)) && !mn.some(x => /서정\(비상\)/.test(x)), JSON.stringify(mn));
+  // 2026-10-30 수정 요청함 김상우 — 다른 주로 넘겼다 오면 예외 반(중2 정규) 출석이 비었다(loadWeek가 ov=1을 안 보냄)
+  await page.evaluate(() => loadWeek());
+  await page.waitForTimeout(900);
+  r = await page.evaluate(() => Object.keys(weekAttend));
+  ok('③ 주차를 다시 불러와도 예외 반(중2 정규) 출석이 남는다', r.some(k => /\|r01\|/.test(k)), JSON.stringify(r));
 
   /* ④ 전체 시간표 — 순수 */
   reqs.length = 0;
