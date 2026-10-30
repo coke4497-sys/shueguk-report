@@ -384,8 +384,8 @@ fns.alimConfigSet({ pw: 'sh', apiKey: 'KEY1', apiSecret: 'SEC1', pfId: 'PF1', tp
   let r = J(fns.alimConfigGet()), ns = r.templates.noshow, ar = r.templates.arrived;
   eq('미등원 안내 — 이름·변수·공지 아님·준비 전', [ns.label, ns.vars, !!ns.notice, ns.ready, ns.buttons], ['미등원 안내', ['학생명', '수업일', '반이름', '학원번호'], false, false, []]);
   eq('미등원 문구 = 원장님 승인 그대로', ns.text, '[이수경국어학원] 미등원 안내\n#{학생명} 학생이 #{수업일} #{반이름} 수업 시간에 아직 등원하지 않았습니다.\n학생과 학부모님께 연락을 드렸으나 연결되지 않았습니다.\n확인 후 학원(#{학원번호})으로 연락 부탁드립니다.');
-  eq('등원 안내 — 이름·변수(등원시각)·준비 전', [ar.label, ar.vars, !!ar.notice, ar.ready], ['등원 안내', ['학생명', '수업일', '반이름', '등원시각'], false, false]);
-  eq('등원 문구', ar.text, '[이수경국어학원] 등원 안내\n#{학생명} 학생이 #{수업일} #{반이름} 수업에 #{등원시각} 등원했습니다.\n앞서 보내 드린 미등원 안내는 확인하지 않으셔도 됩니다.');
+  eq('등원 안내 — 이름·변수(등원시각)·준비 전', [ar.label, ar.vars, !!ar.notice, ar.ready], ['지각 등원 안내', ['학생명', '수업일', '반이름', '등원시각'], false, false]);
+  eq('등원 문구', ar.text, '[이수경국어학원] 지각 등원 안내\n#{학생명} 학생이 #{수업일} #{반이름} 수업에 지금 등원했습니다. (#{등원시각} 도착)\n앞서 보내 드린 미등원 안내는 확인하지 않으셔도 됩니다.');
   const ni = (nm, to, who) => ({ student: nm, to, who, cls: '고1 가', date: '2026-10-29', vars: { 학생명: nm, 수업일: '10/29(목) 5:30', 반이름: '고1 가', 학원번호: '031-979-4497' } });
   r = J(fns.alimSend({ pw: 'sh', kind: 'noshow', items: [ni('김미등', '01012345678', '학부모1')] }));
   eq('템플릿 ID 없으면 거절', [r.result, /미등원 안내/.test(r.message)], ['error', true]);

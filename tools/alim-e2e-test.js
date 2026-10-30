@@ -324,11 +324,11 @@ const posts = [];
   // 14) 미등원 안내 · 등원 안내(2026-10-29 원장님 "수업이 시작했는데 등원하지 않았고 전화를 받지 않았고 … 알림톡" +
   //     "뒤늦게 등원했을 경우 지금 등원했습니다 알림톡도") — 출석 창 버튼으로만, 자동 발송 없음, 닫을 수 있다
   const NTPL = '[이수경국어학원] 미등원 안내\n#{학생명} 학생이 #{수업일} #{반이름} 수업 시간에 아직 등원하지 않았습니다.\n학생과 학부모님께 연락을 드렸으나 연결되지 않았습니다.\n확인 후 학원(#{학원번호})으로 연락 부탁드립니다.';
-  const ATPL = '[이수경국어학원] 등원 안내\n#{학생명} 학생이 #{수업일} #{반이름} 수업에 #{등원시각} 등원했습니다.\n앞서 보내 드린 미등원 안내는 확인하지 않으셔도 됩니다.';
+  const ATPL = '[이수경국어학원] 지각 등원 안내\n#{학생명} 학생이 #{수업일} #{반이름} 수업에 지금 등원했습니다. (#{등원시각} 도착)\n앞서 보내 드린 미등원 안내는 확인하지 않으셔도 됩니다.';
   cfg = { result:'success', ready:true, has:{ key:true, secret:true, from:true, pfId:true }, smsFallback:true,
           templates:{ absent:{ label:'결석 안내', text: TPL, vars:['학생명','수업일','반이름'], ready:true },
                       noshow:{ label:'미등원 안내', text: NTPL, vars:['학생명','수업일','반이름','학원번호'], ready:false },
-                      arrived:{ label:'등원 안내', text: ATPL, vars:['학생명','수업일','반이름','등원시각'], ready:true } } };
+                      arrived:{ label:'지각 등원 안내', text: ATPL, vars:['학생명','수업일','반이름','등원시각'], ready:true } } };
   logRows = logRows.filter(x => x.student !== '박지우');
   // 수업 시작 판정은 시계에 달려 있어 검사에서는 스위치로 — 실제 함수는 오늘 + 시작 시각 지남
   await page.evaluate(() => { closeModal(); alimCfg = null; alimLogByDate = {}; attend = {}; window.__st = true; window.__realStarted = alimClassStarted; alimClassStarted = function(c, y){ return y === todayStr() && !!window.__st; }; });
@@ -372,7 +372,7 @@ const posts = [];
   const at = await modalText();
   ok('지각을 찍으면 등원 알림톡 창', at.includes('등원 알림톡') && at.includes('미등원 안내를 보낸 학생이 등원'), at);
   pv = await page.textContent('.al-prev');
-  ok('미리보기 — 등원시각(오전/오후 h:mm) 채움', /박지우 학생이 .* 수업에 (오전|오후) \d{1,2}:\d{2} 등원했습니다/.test(pv), pv);
+  ok('미리보기 — 등원시각(오전/오후 h:mm) 채움', /박지우 학생이 .* 수업에 지금 등원했습니다\. \((오전|오후) \d{1,2}:\d{2} 도착\)/.test(pv), pv);
   ok('등원 창도 [닫기]', !!(await page.$('#modal-box .mbtns button:not(#al-go)')) && (await page.evaluate(() => modalLock)) === false);
   await page.click('#al-go');
   await page.waitForFunction(() => document.getElementById('status').textContent.includes('등원 알림톡'), null, { timeout: 8000 });
