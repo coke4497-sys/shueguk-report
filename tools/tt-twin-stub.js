@@ -51,4 +51,5 @@ module.exports={ SHEETS, mkSheet, J, get fns(){ return { timetableMove, timetabl
     editReqAdd, grammaReport, getEditReqList, editReqSet,
     hwcheckSave, hwcheckData_, collectHwchecks_, countHwcheckPerfect_, getHwcheckPlans, hwcheckPlanDone, TAB_HWCHECK,
     addStarBonus, starKey_, TAB_STARS, starLogData_, sumBonus_,
-    ttPeriodSet, ttPeriodData_, ttPeriodSheet_, TAB_TT_PERIOD }; } };
+    ttPeriodSet, ttPeriodData_, ttPeriodSheet_, TAB_TT_PERIOD,
+    studentEnrolledSet, TAB_STUDENTS, submissionBlankDelete, TAB_RESULT }; } };
