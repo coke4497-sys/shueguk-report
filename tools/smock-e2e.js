@@ -179,17 +179,30 @@ let submit = function(p){
   ok('번호에 영역·출제 의도', (await pg.getAttribute('[data-sm-q="14"]', 'title')) === '14번 · 독서(과학) · 세부 내용 적용하기');
   for (const n of [14, 21, 45, 33, 32, 7, 13, 5]) await pg.click('[data-sm-q="' + n + '"]');
   let live = (await pg.textContent('#smLive')).replace(/\s+/g, '');
-  ok('자동 점수 100−(3+2+3+3+2+2+2+2)=81 · 2등급 · 표준점수 135', /^81점2등급·표준점수135·백분위약9[0-9]/.test(live), live);
+  ok('자동 점수 100−(3+2+3+3+2+2+2+2)=81 · 2등급 · 표준점수 135', /^81점2등급\(예상\)·표준점수135·백분위약9[0-9]/.test(live), live);
   await pg.click('[data-sm-q="7"]');
   live = (await pg.textContent('#smLive')).replace(/\s+/g, '');
-  ok('다시 누르면 83점 · 1등급(컷 83)', /^83점1등급·표준점수137·백분위약96/.test(live), live);
+  ok('다시 누르면 83점 · 1등급(컷 83)', /^83점1등급\(예상\)·표준점수137·백분위약96/.test(live), live);
   await pg.click('#smSave'); await pg.waitForTimeout(400);
   ok('자동 계산 회차는 점수를 보내지 않음', CALLS[0] && CALLS[0].score === '', JSON.stringify(CALLS[0]));
   t = (await pg.textContent('#smBody')).replace(/\s+/g, ' ');
-  ok('기록에 등급 줄', /1등급 · 표준점수 137 · 백분위 약 96/.test(t), t.slice(0, 300));
+  ok('기록에 등급 줄 + 예상 표시', /1등급\(예상\) · 표준점수 137 · 백분위 약 96 · EBSi 분석 예상 등급컷 기준/.test(t), t.slice(0, 300));
+  ok('기록에 등급컷 보기(예상)', /등급컷 보기 \(예상\)/.test(t) && /1등급83점 이상/.test(t) && /9등급16점 미만/.test(t) && /EBSi 분석 중 예상 등급컷\(교육청 확정 원점수가 아닙니다\) · 2026-10-23 확인/.test(t), t.slice(0, 600));
+  ok('EBSi 오답률 TOP15: 순위 그대로·내가 틀린 문항', /EBSi 오답률 TOP15 · 내가 틀린 문항 7개/.test(t) && /7\s*13번\s*56\.0%[^]*8\s*7번\s*56\.0%/.test(t) && /15\s*36번\s*46\.0%/.test(t) && /EBSi 채점 참여자 기준 오답률입니다\(전체 응시자 기준이 아닙니다\)/.test(t) && await pg.$$eval('.sm-top li.me', l => l.length) === 7, t.slice(0, 900));
   await pg.click('.sm-det summary');
   const det = (await pg.textContent('.sm-det')).replace(/\s+/g, ' ');
-  ok('틀린 문항 살펴보기: 영역·의도·배점·정답·전국 오답률', /틀린 문항 살펴보기 7개/.test(det) && /14번독서\(과학\) · 세부 내용 적용하기3점 · 정답 ③ · 전국 오답률 69.9%/.test(det), det.slice(0, 260));
+  ok('틀린 문항 살펴보기: 영역·의도·배점·정답·EBSi 오답률', /틀린 문항 살펴보기 7개/.test(det) && /14번독서\(과학\) · 세부 내용 적용하기3점 · 정답 ③ · EBSi 오답률 69.9%/.test(det), det.slice(0, 260));
+
+  // ⑦-3 등급컷만 있는 지난 회차(EBSi 역대 등급컷 — 2026-10-23)
+  const SEP = JSON.parse(require('child_process').execFileSync('python3', [path.join(ROOT, 'tools/smock_ebsi.py'), 'info', '2026-09-고1'], { encoding: 'utf8' }));
+  EXAMS['2026-09-고1'].info = SEP;
+  ENTRIES = [{ exam: '2026-09-고1', score: 78, score_text: '78', feel: '중', wrong: { '독서': [16, 27] }, review: '', src: '설문' }];
+  await pg.evaluate(() => smRefresh()); await pg.waitForTimeout(400);
+  t = (await pg.textContent('#smBody')).replace(/\s+/g, ' ');
+  ok('9월 기록: 78점 → 2등급(컷 77) · EBSi 분석 등급컷 기준(예상 아님)', /78점.*2등급 · EBSi 분석 등급컷 기준/.test(t) && !/백분위/.test(t.split('2026년 9월')[1]) && !/2등급\(예상\)/.test(t), t.slice(0, 400));
+  ok('9월 등급컷 보기: 87·77·…·17, 9등급 17점 미만, 예상 아님', /등급컷 보기 ?1등급87점 이상 ?2등급77점 이상/.test(t) && /8등급17점 이상 ?9등급17점 미만/.test(t) && /EBSi 자체 분석 등급컷\(교육청 확정 원점수가 아닙니다\)/.test(t), t.slice(0, 600));
+  await pg.$$eval('#smBody details', d => d.forEach(x => { x.open = true; })); await shot(pg, '9-9월기록-등급컷', '#smBody .sm-ent');
+  ok('9월 TOP15: 1위 34번 65.6% · 내가 틀린 16·27번', /1\s*34번\s*65\.6%/.test(t) && /내가 틀린 문항 2개/.test(t) && await pg.$$eval('.sm-top li.me b', l => l.map(x => x.textContent).join()) === '16번,27번' && /16번\s*62\.2%\s*틀림/.test(t), t.slice(0, 900));
 
   // ⑧ 별 내역 목록
   const src = await pg.evaluate(() => { STATE.stars = { total: 2, breakdown: { smock: 2 } }; renderStars(); return (document.querySelector('#starSec .st-src') || {}).textContent || ''; });
