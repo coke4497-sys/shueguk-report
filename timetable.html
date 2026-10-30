@@ -7476,8 +7476,20 @@ function alimCfgEnsure(cb, force){
  * 결석 통보를 해서 기록하면 바로 보낼 수 있도록") — 앞날 결석을 기록하면 결석 안내('결석했습니다') 대신 이 창이 뜬다. */
 var ALIM_UI = {
   absent:    { title:'결석 알림톡', short:'결석 알림톡', must:'<b>결석 알림톡은 반드시 보냅니다.</b> 받는 분을 확인하고 [알림톡 보내기]를 눌러 주세요.' },
-  preabsent: { title:'결석 예고 알림톡', short:'결석 예고 알림톡', must:'<b>앞날 결석을 기록했습니다. 결석 예고 알림톡을 보냅니다.</b> 누가 알렸는지 고르고, 사유와 보충 안내를 확인해 주세요.' }
+  preabsent: { title:'결석 예고 알림톡', short:'결석 예고 알림톡', must:'<b>앞날 결석을 기록했습니다. 결석 예고 알림톡을 보냅니다.</b> 누가 알렸는지 고르고, 사유와 보충 안내를 확인해 주세요.' },
+  /* 미등원·등원 안내(2026-10-29 원장님) — 출석 창에서만 열고, 결석 알림톡과 달리 닫을 수 있다(보내지 않아도 되는 안내) */
+  noshow:    { title:'미등원 알림톡', short:'미등원 알림톡', must:'<b>수업이 시작됐는데 아직 등원하지 않은 학생입니다.</b> 학생과 학부모님께 전화해 연결되지 않았을 때만 보내 주세요. 출석 기록은 바뀌지 않아요.' },
+  arrived:   { title:'지각 등원 알림톡', short:'지각 등원 알림톡', must:'<b>미등원 안내를 보낸 학생이 등원했습니다.</b> 등원 알림톡을 보내면 학부모님이 안심하실 수 있어요.' }
 };
+/* 꼭 보내야 하는 종류(창을 닫을 수 없음) — 결석 안내·결석 예고. 미등원·등원 안내는 조교 판단이라 닫을 수 있다 */
+function alimMust(kind){ return kind === 'absent' || kind === 'preabsent'; }
+/* 지금 시각(이 기기 시계 = 학원 한국 시각) '오후 5:52' — 등원 안내의 #{등원시각} */
+function alimNowHM(){ var d = new Date(), h = d.getHours(), m = d.getMinutes(); return (h < 12 ? '오전 ' : '오후 ') + (h % 12 === 0 ? 12 : h % 12) + ':' + (m < 10 ? '0' : '') + m; }
+/* 그 수업이 오늘이고 시작 시각이 지났나 — 미등원 알림톡 버튼은 이때만 */
+function alimClassStarted(c, ymd){
+  if (!c || ymd !== todayStr()) return false;
+  var d = new Date(); return d.getHours() * 60 + d.getMinutes() >= mins(c.start);
+}
 /* 보충 안내 선택지 — 백엔드 ALIM_TPL_.preabsent.options 와 같은 문구(응답 options 가 있으면 그것을 쓴다) */
 var ALIM_MK_OPTS = ['보충 일정은 별도 안내드립니다.', '당일 결석이므로 보충을 진행하지 않습니다.'];
 function alimMkOpts(cfg){ var o = cfg && cfg.templates && cfg.templates.preabsent && cfg.templates.preabsent.options; return (o && o['보충안내'] && o['보충안내'].length) ? o['보충안내'] : ALIM_MK_OPTS; }
@@ -7558,9 +7570,16 @@ function alimOfferAbsent(cid, names, ymd, memo){
 /* 결석 안내 창은 그 날짜에 결석 예고를 이미 보낸 학생을 함께 알린다 — 학부모님께 같은 결석이 두 번 가지 않게 */
 function alimOpenWith(kind, items, ymd, log, cfg, opt){
   opt.kind = kind;
-  if (kind === 'absent' && alimReady(cfg, 'preabsent'))
-    alimLogEnsure(ymd, function(pre){ opt.pre = pre; alimOpenConfirm(items, ymd, log, cfg, opt); }, false, 'preabsent');
-  else alimOpenConfirm(items, ymd, log, cfg, opt);
+  // 결석 안내 창은 그 날 결석 예고·미등원 안내를 보냈는지도 함께 보여 준다(2026-10-29 — 미등원 안내 뒤 결석으로 확정되는 흐름)
+  var steps = [];
+  if (kind === 'absent' && alimReady(cfg, 'preabsent')) steps.push(['preabsent', 'pre']);
+  if (kind === 'absent' && alimReady(cfg, 'noshow')) steps.push(['noshow', 'noshow']);
+  var next = function(){
+    var st = steps.shift();
+    if (!st){ alimOpenConfirm(items, ymd, log, cfg, opt); return; }
+    alimLogEnsure(ymd, function(l){ opt[st[1]] = l; next(); }, false, st[0]);
+  };
+  next();
 }
 /* opt.all = 이미 받은 분도 체크해 둔다(모두 받은 뒤 한 번 더 보내기) · opt.force = 백엔드 중복 방지를 건너뛴다.
  * force는 이 창에만 붙는다(alimConfirm.force) — 전역 플래그로 두면 '보내지 않기'로 닫은 뒤 다음 결석 알림까지 force로 나갔다(2026-10-03 고침). */
@@ -7574,6 +7593,7 @@ function alimOpenConfirm(items, ymd, log, cfg, opt){
     var c = classes.find(function(x){ return x.id === it.cid; });
     var tg = alimTargets(it.nm), sent = log[plainName(it.nm)], byWho = (sent && sent.byWho) || {};
     var pre = !isPre && opt.pre && opt.pre[plainName(it.nm)];
+    var ns = kind === 'absent' && opt.noshow && opt.noshow[plainName(it.nm)];   // 그 날 미등원 안내를 먼저 보냈다
     var preOk = !!(pre && pre.ok && !(sent && sent.ok));   // 결석 예고를 이미 보냈다 — 결석 안내는 체크 없이
     if (preOk) preN++;
     var whos = tg.map(function(t, j){
@@ -7589,6 +7609,7 @@ function alimOpenConfirm(items, ymd, log, cfg, opt){
       (isPre ? '<input type="text" class="al-rs" id="al-rs'+i+'" maxlength="60" autocomplete="off" placeholder="학생·학부모님이 말한 사유 (예: 학교 행사, 병원 진료)" value="'+esc(memo)+'" oninput="alimPreviewRefresh()">'
              : (memo ? '<span class="al-memo">사유 · '+esc(memo)+'</span>' : ''))+
       (preOk ? '<span class="al-sent">결석 예고 '+esc(String(pre.ts).slice(5))+' 보냄 — 결석 안내는 안 보내도 됩니다</span>' : '')+
+      (ns && ns.ok ? '<span class="al-sent">미등원 안내 '+esc(String(ns.ts).slice(5))+' 보냄</span>' : '')+
       (tg.length ? '<div class="al-whos">'+whos+'</div>'
         : '<span class="al-none">'+(stuPhonesFailed ? '연락처를 불러오지 못했습니다' : '등록된 연락처가 없습니다')+'</span>')+
       '</div>';
@@ -7612,20 +7633,35 @@ function alimOpenConfirm(items, ymd, log, cfg, opt){
     '<p class="mk-sec">보낼 내용'+(items.length > 1 ? ' (첫 학생 기준 — 학생마다 이름·반·시간이 바뀌어요)' : '')+'</p>'+
     '<div class="al-prev"></div>'+
     (cfg.smsFallback ? '' : '<p class="subnote">카카오톡을 받을 수 없는 번호는 문자로 대체되지 않아요 (발신번호 미설정).</p>')+
-    (anyTg ? '' : '<p class="al-warn">보낼 연락처가 없어 알림톡을 보낼 수 없습니다. 슈스 링크에서 번호를 넣은 뒤 출석 창의 [알림톡 보내기]로 보내 주세요.</p>')+
+    (anyTg ? '' : '<p class="al-warn">보낼 연락처가 없어 알림톡을 보낼 수 없습니다. 슈스 링크에서 번호를 넣은 뒤 출석 창의 '+(alimMust(kind) ? '[알림톡 보내기]' : '['+esc(ui.short)+' 보내기]')+'로 보내 주세요.</p>')+
     '<p class="merr" id="al-err"></p>'+
     // [보내지 않기]는 없다(2026-10-03 원장님 "보내지 않기는 없애주세요" — 결석 알림톡은 반드시 보낸다). 닫는 길은
     // 보낼 곳이 아예 없을 때와, 모두 받은 뒤 한 번 더 보내려고 연 창(opt.all)에만 둔다.
-    '<div class="mbtns">'+((!anyTg || opt.all || allPre) ? '<button onclick="closeModal()">닫기</button>' : '')+
+    '<div class="mbtns">'+((!anyTg || opt.all || allPre || !alimMust(kind)) ? '<button onclick="closeModal()">닫기</button>' : '')+
     (anyTg ? '<button class="primary" id="al-go" onclick="alimSendConfirm()">알림톡 보내기</button>' : '')+'</div>'
   );
-  modalLock = anyTg && !opt.all && !allPre;   // 바깥을 눌러도 안 닫힘 — 보내기만
-  alimConfirm = { items: items, ymd: ymd, force: !!opt.force, kind: kind };
+  modalLock = alimMust(kind) && anyTg && !opt.all && !allPre;   // 바깥을 눌러도 안 닫힘 — 보내기만(결석 안내·결석 예고)
+  alimConfirm = { items: items, ymd: ymd, force: !!opt.force, kind: kind, at: kind === 'arrived' ? alimNowHM() : '' };
   alimPreviewRefresh();
 }
 /* 결석 예고 창의 사유·보충 안내 — 학생마다 사유가 다를 수 있어 줄마다 칸, 보충 안내는 창 하나에 하나 */
+/* 센터 전화번호(2026-10-30 원장님 "각 센터의 전화번호") — 미등원 안내 #{학원번호}. 수업의 위치(c.loc)로 고르고,
+ * 위치가 없으면 학년으로(고3 본원 · 고2 민초센터 · 고1 화정센터 · 중등 정리정독), 그래도 모르면 본원. */
+var ALIM_CENTER_TEL = { '본원': '031-973-4497', '화정센터': '031-979-4497', '민트초코': '031-969-4497', '정리정독': '031-994-0624', '도래울': '031-969-4497' };
+function alimCenterTel(c){
+  var loc = String((c && c.loc) || '').trim();
+  var key = Object.keys(ALIM_CENTER_TEL).find(function(k){ return loc && (loc === k || loc.indexOf(k) === 0 || (k === '민트초코' && /민초/.test(loc))); });
+  if (!key){
+    var g = c ? classGradeOf(c) : '';
+    key = g === '고3' ? '본원' : g === '고2' ? '민트초코' : g === '고1' ? '화정센터' : /^중/.test(g) ? '정리정독' : '본원';
+  }
+  return ALIM_CENTER_TEL[key];
+}
 function alimExtraVars(i){
-  var cf = alimConfirm; if (!cf || cf.kind !== 'preabsent') return {};
+  var cf = alimConfirm; if (!cf) return {};
+  if (cf.kind === 'noshow'){ var it = cf.items[i] || cf.items[0], cc = it ? classes.find(function(x){ return x.id === it.cid; }) : null; return { '학원번호': alimCenterTel(cc) }; }
+  if (cf.kind === 'arrived') return { '등원시각': cf.at || alimNowHM() };   // 창을 연 순간의 시각
+  if (cf.kind !== 'preabsent') return {};
   var r = $('al-rs' + i), mk = document.querySelector('input[name="al-mk"]:checked'), fr = document.querySelector('input[name="al-from"]:checked');
   return { '알린분': fr ? fr.value : '', '사유': r ? r.value.trim() : '', '보충안내': mk ? mk.value : '' };
 }
@@ -7724,8 +7760,52 @@ function alimRetryFailed(){
   var btn = $('al-retry'); if (btn){ btn.disabled = true; btn.textContent = '보내는 중…'; }
   alimPostItems(lb.items, lb.ymd, false, function(out){ closeModal(); alimReport(out, lb.ymd, lb.kind); }, lb.kind);
 }
-/* 출석 창의 '결석 알림' 줄 — 보냈으면 시각, 아니면 [알림톡 보내기] */
-function alimAttLine(cid, nm, ymd){
+/* 출석 창의 알림톡 줄 — status = 그 날짜의 출석 상태('결석'·'출석'·'지각'·'' 기록 없음).
+ * 결석: 보냈으면 시각, 아니면 [알림톡 보내기] (결석 예고를 받은 결석이면 '결석 안내도 보내기').
+ * 기록 없음 + 오늘 + 수업 시작 뒤: [미등원 알림톡 보내기] — 전화가 연결되지 않을 때 조교가 누른다(2026-10-29 원장님).
+ * 출석·지각: 그 날 미등원 안내를 보냈으면 그 표시 + 오늘이면 [등원 알림톡 보내기]. 아무것도 아니면 줄은 비어 있다. */
+function alimAttLine(cid, nm, ymd, status){
+  status = status || '';
+  if (status === '결석') return alimAttLineAbsent(cid, nm, ymd);
+  if (status && status !== '출석' && status !== '지각') return;
+  alimCfgEnsure(function(cfg){
+    var el = $('att-alim'); if (!el) return;
+    var c = classes.find(function(x){ return x.id === cid; });
+    var cidE = esc(cid), nmE = esc(nm), ymdE = esc(ymd);
+    if (!status){   // 아직 기록 없음 — 미등원 알림톡
+      if (!alimReady(cfg, 'noshow') || !alimClassStarted(c, ymd)){ el.innerHTML = ''; return; }
+      alimLogEnsure(ymd, function(log){
+        var el2 = $('att-alim'); if (!el2) return;
+        var sv = log[plainName(nm)];
+        if (sv && sv.ok) el2.innerHTML = '<span class="al-sent">'+esc(whoLbl(sv.who))+'께 미등원 알림톡 보냄 '+esc(sv.ts.slice(5))+'</span>'+
+          '<button onclick="alimResend(\''+cidE+'\',\''+nmE+'\',\''+ymdE+'\',\'noshow\')">다시 보내기</button>';
+        else el2.innerHTML = '<span class="al-note">수업 시작 뒤 등원 전 · 전화가 연결되지 않으면</span>'+
+          (sv ? '<span class="al-sent bad">미등원 알림톡 실패 · '+esc(sv.message || '')+'</span>' : '')+
+          '<button onclick="alimResend(\''+cidE+'\',\''+nmE+'\',\''+ymdE+'\',\'noshow\')">미등원 알림톡 보내기</button>';
+      }, false, 'noshow');
+      return;
+    }
+    // 출석·지각 — 그 날 미등원 안내를 보냈던 학생이면 등원 안내
+    if (!alimReady(cfg, 'noshow')){ el.innerHTML = ''; return; }
+    alimLogEnsure(ymd, function(ns){
+      var el2 = $('att-alim'); if (!el2) return;
+      var n = ns[plainName(nm)];
+      if (!(n && n.ok)){ el2.innerHTML = ''; return; }
+      var head = '<span class="al-sent">'+esc(whoLbl(n.who))+'께 미등원 알림톡 보냄 '+esc(n.ts.slice(5))+'</span>';
+      if (!alimReady(cfg, 'arrived')){ el2.innerHTML = head + '<span class="al-note">등원 알림톡은 준비 전이에요</span>'; return; }
+      alimLogEnsure(ymd, function(ar){
+        var el3 = $('att-alim'); if (!el3) return;
+        var a = ar[plainName(nm)];
+        if (a && a.ok) el3.innerHTML = head + '<span class="al-sent">등원 알림톡 보냄 '+esc(a.ts.slice(5))+'</span>'+
+          (ymd === todayStr() ? '<button onclick="alimResend(\''+cidE+'\',\''+nmE+'\',\''+ymdE+'\',\'arrived\')">다시 보내기</button>' : '');
+        else el3.innerHTML = head + (a ? '<span class="al-sent bad">등원 알림톡 실패 · '+esc(a.message || '')+'</span>' : '<span class="al-sent no">등원 알림톡 아직 안 보냄</span>')+
+          (ymd === todayStr() ? '<button onclick="alimResend(\''+cidE+'\',\''+nmE+'\',\''+ymdE+'\',\'arrived\')">등원 알림톡 보내기</button>' : '');
+      }, false, 'arrived');
+    }, false, 'noshow');
+  });
+}
+/* 결석 줄(옛 alimAttLine 그대로) */
+function alimAttLineAbsent(cid, nm, ymd){
   var kind = alimKindOf(ymd), ui = ALIM_UI[kind];
   alimCfgEnsure(function(cfg){
     var el = $('att-alim'); if (!el) return;
@@ -7755,13 +7835,28 @@ function alimAttLine(cid, nm, ymd){
     }, false, kind);
   });
 }
+/* 미등원 안내를 보낸 학생이 뒤늦게 와서 출석·지각을 찍으면 등원 알림톡 확인 창(2026-10-29 원장님 "지금 등원했습니다 알림톡도").
+ * 오늘 수업만(등원시각 = 지금). 미등원 안내를 보내지 않았거나 등원 안내를 이미 보냈으면 열지 않는다. */
+function alimOfferArrived(cid, nm, ymd){
+  if (ymd !== todayStr()) return;
+  alimCfgEnsure(function(cfg){
+    if (!alimReady(cfg, 'noshow') || !alimReady(cfg, 'arrived')) return;
+    alimLogEnsure(ymd, function(ns){
+      var n = ns[plainName(nm)]; if (!(n && n.ok)) return;
+      alimLogEnsure(ymd, function(ar){
+        var a = ar[plainName(nm)]; if (a && a.ok) return;
+        stuPhonesEnsure(function(){ alimOpenWith('arrived', [{ cid: cid, nm: nm }], ymd, ar, cfg, {}); });
+      }, false, 'arrived');
+    }, false, 'noshow');
+  });
+}
 /* 받는 분 표시 — 저장 값('학부모1')은 그대로 두고 화면에만 '학부모님1'(2026-09-29 사용자 "학부모라는 표현을 모두 학부모님으로") */
 function whoLbl(w){ return String(w || '').replace(/학부모(?!님)/g, '학부모님'); }
 /* 출석 창 [다시 보내기] — 못 받은 분이 있으면 그분만 체크(force 없음), 모두 받았으면 확인 뒤 모두 체크 + force.
  * 발송 기록 캐시(alimLogByDate)는 건드리지 않는다 — 전에는 창을 열려고 그 학생 기록을 캐시에서 지워, '보내지 않기'로 닫으면
  * 출석 창에 '아직 안 보냄'이 잘못 남았다(2026-10-03 고침). */
-function alimResend(cid, nm, ymd){
-  var kind = alimKindOf(ymd);
+function alimResend(cid, nm, ymd, kind){
+  kind = kind || alimKindOf(ymd);   // 넷째 인자 = 미등원·등원 안내(2026-10-29), 없으면 결석 안내·결석 예고
   stuPhonesEnsure(function(){
     alimCfgEnsure(function(cfg){
       if (!alimReady(cfg, kind)) return;
@@ -10223,7 +10318,8 @@ function openAttend(c, nm, dateStr){
     '<h3>출석 체크</h3>'+
     '<p class="mdesc"><b>'+esc(plainName(nm))+'</b> — '+esc(labelOf(c))+'<br>'+esc(attDate)+'</p>'+
     attTelHtml()+
-    (cur && cur.status === '결석' ? '<div class="al-line" id="att-alim"></div>' : '')+
+    // 알림톡 줄 — 결석은 결석 알림톡, 오늘 기록 없음은 미등원 알림톡, 오늘 출석·지각은 (미등원 안내를 보냈다면) 등원 알림톡 (2026-10-29)
+    ((cur && cur.status === '결석') || (attDate === todayStr() && (!cur || cur.status === '출석' || cur.status === '지각')) ? '<div class="al-line" id="att-alim"></div>' : '')+
     (fut ? '<p class="mdesc" style="color:#5B76A8;background:#F0F4FA;border-radius:9px;padding:8px 10px;">1회 이동 예약 — '+esc(fut)+'</p>' : '')+
     '<div class="att-btns">'+
     '<button class="pick-ok'+(cur&&cur.status==='출석'?' on':'')+'" onclick="submitAttend(\''+esc(c.id)+'\',\''+esc(nm)+'\',\'출석\')">출석</button>'+
@@ -10246,7 +10342,7 @@ function openAttend(c, nm, dateStr){
     '<button onclick="closeModal()">닫기</button></div>'
   );
   attTelFill(nm);
-  if (cur && cur.status === '결석') alimAttLine(c.id, nm, attDate);
+  if ($('att-alim')) alimAttLine(c.id, nm, attDate, cur ? cur.status : '');
 }
 function submitAttend(cid, nm, status){
   var memo = ($('att-memo') ? $('att-memo').value : '').trim();
@@ -10267,6 +10363,7 @@ function submitAttend(cid, nm, status){
         render();
         setStatus(plainName(nm) + (status ? ' — ' + status + ' 기록 완료.' : ' 기록을 지웠어요.') + (d !== todayStr() ? ' (' + d + ')' : ''), 'ok');
         if (status === '결석') alimOfferAbsent(cid, [nm], d, memo);   // 학부모 결석 알림톡 — 확인 창 (2026-09-11), 앞날이면 결석 예고 (2026-10-16)
+        else if (status === '출석' || status === '지각') alimOfferArrived(cid, nm, d);   // 미등원 안내를 보낸 학생이 뒤늦게 등원 (2026-10-29)
       } else setStatus('기록 실패: ' + ((res && res.message) || '오류'), 'err');
     });
 }
@@ -11256,7 +11353,7 @@ function openOnceManage(c, nm, row, dir, dateStr){
     '<button onclick="closeModal()">닫기</button></div>'
   );
   attTelFill(nm);
-  if (dir === 'out' && cur && cur.status === '결석') alimAttLine(c.id, nm, attDate);
+  if (dir === 'out' && cur && cur.status === '결석') alimAttLine(c.id, nm, attDate, '결석');
 }
 /* 그 주만 추가·빼기 기록 관리 — 출석 체크(추가된 학생)와 되돌리기 */
 function openWeekManage(c, nm, o, dir){
