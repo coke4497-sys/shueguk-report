@@ -103,6 +103,7 @@ function makeStore(){
              chipTask: !!(chip && chip.classList.contains('task')), chipTitle: chip ? chip.title : '',
              other: [...document.querySelectorAll('.blk .stus button.task')].map(e => e.textContent.trim()),
              pills: [...document.querySelectorAll('#tk-pills button')].map(e => e.textContent + (e.classList.contains('on') ? '*' : '')),
+             flows: [...document.querySelectorAll('#tk-list .tk-item .tk-flow')].map(e => e.textContent),
              who: document.querySelector('.tk-who').textContent, open: !document.getElementById('vmpanel').classList.contains('closed') };
   });
   ok('① 할 일 상자가 오늘 보충 위에', r.order.indexOf('tk-list') >= 0 && r.order.indexOf('tk-list') < r.order.indexOf('vm-side'), JSON.stringify(r.order));
@@ -111,6 +112,7 @@ function makeStore(){
   ok('① 대기 2건 + 완료 1건(처리한 조교 이름·시각)', r.items.length === 3 && r.items.filter(x => x.done).length === 1 && /완료 · 박언호 14:02/.test(r.items[2].txt), JSON.stringify(r.items.map(x => x.txt.slice(0, 40))));
   ok('① 어제 요청은 "지난 요청" + 못 함 이력', r.carried && /김상우.*못 함: 학생이 전화를 안 받아서/.test(r.hist), r.hist);
   ok('① 허민 칩에 붉은 점 + 설명', r.chipTask && /할 일: 허민 병결 반영/.test(r.chipTitle) && r.other.join() === '이채민,허민', JSON.stringify([r.chipTask, r.chipTitle, r.other]));
+  ok('① 줄마다 누가 → 누구(센터 조교님)', r.flows.length === 3 && r.flows.every(f => /^.+→.+ 조교님$/.test(f)), JSON.stringify(r.flows));
   ok('① 쓰기 줄: 센터 알약(본원 기본)·작성자 이름', r.pills.join() === '본원*,화정센터,민초센터,정리정독,전체' && /작성자 박언호/.test(r.who), JSON.stringify([r.pills, r.who]));
 
   /* ② 남기기 */
