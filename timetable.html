@@ -913,6 +913,7 @@
   .tk-row input{flex:1;min-width:0;font:inherit;font-size:.84rem;border:1.5px solid var(--line);border-radius:8px;padding:6px 9px;}
   .tk-row input:focus{outline:none;border-color:var(--accent);}
   .tk-row button{font:inherit;font-size:.8rem;border:0;border-radius:8px;padding:6px 12px;background:#EDE4F4;color:#5A4A6A;cursor:pointer;white-space:nowrap;}
+  .tk-flow b{color:var(--ink);} .tk-flow i{font-style:normal;color:#8D83A8;margin:0 4px;font-weight:700;}
   .tk-who{font-size:.72rem;color:var(--ink-soft);}
   .tk-who b{color:var(--ink);}
   .tk-note{font-size:.78rem;color:#B0736A;background:#FBF0EE;border-radius:8px;padding:6px 9px;margin-top:6px;}
@@ -11842,6 +11843,8 @@ function vmDone(i){
 var tkList = null, tkFail = false, tkMissing = false, tkLog = null, tkLogOn = false, tkBusy = false, tkByName = {};
 var TK_LOCS = ['본원', '화정센터', '민트초코', '정리정독', '전체'];
 function tkLocLabel(l){ return l === '전체' ? '전체' : wkLocLabel(l); }
+// 받는 쪽 표기 — 요청은 센터 단위라 '화정센터 조교님', 전체는 '모든 센터 조교님'
+function tkToLabel(l){ return (l === '전체' || !l ? '모든 센터' : wkLocLabel(l)) + ' 조교님'; }
 function tkTomorrow(d){ var p = String(d || todayStr()).split('-'); var t = new Date(+p[0], +p[1]-1, +p[2] + 1); return ymdOf(t); }
 function tkMd(ymd){ var p = String(ymd || '').split('-'); return p.length === 3 ? (+p[1]) + '/' + (+p[2]) : ymd; }
 function tkHm(iso){ var d = new Date(iso); return isNaN(d) ? '' : d.getHours() + ':' + String(d.getMinutes()).padStart(2, '0'); }
@@ -11908,7 +11911,7 @@ function tkItemHtml(t, done){
     '<span class="tk-loc l-' + esc(t.loc) + '">' + esc(tkLocLabel(t.loc)) + '</span>' +
     '<div class="tk-txt"><div class="t">' + (carried ? '<span class="carried">지난 요청</span>' : '') + esc(t.text) +
     (t.student ? '<span class="stu">' + esc(t.student) + '</span>' : '') + '</div>' +
-    '<div class="meta"><b>' + esc(t.author || '이름 없음') + '</b> · ' + esc(tkMd(t.ymd)) + ' (' + mkDayOf(t.ymd) + ')' +
+    '<div class="meta"><span class="tk-flow"><b>' + esc(t.author || '이름 없음') + '</b><i>→</i><b>' + esc(tkToLabel(t.loc)) + '</b></span> · ' + esc(tkMd(t.ymd)) + ' (' + mkDayOf(t.ymd) + ')' +
     (t.createdAt ? ' ' + esc(tkHm(t.createdAt)) : '') + ' 작성' +
     (done ? ' · <span class="ok">완료 · ' + esc(t.doneBy || '이름 없음') + ' ' + esc(tkHm(t.doneAt)) + '</span>' : '') + '</div>' +
     (hist ? '<div class="tk-hist">' + hist + '</div>' : '') + '</div>' +
