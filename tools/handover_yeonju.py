@@ -12,6 +12,8 @@
      시트 사본은 학생이 남은 반을 지우지 못해(백엔드 규칙) 그대로 둔다 — 일일 점검이 '시트에만 있는 행'으로 보고만 한다.
   ③ students — 담당 '정연주' → '이수경'(수파베이스 먼저 + 시트 '학생정보' 사본 backend updateStudent)
      + 연주T 내신 반에 있지만 담당이 다른 4명(EXTRA_STUDENTS — 2026-10-26 원장님 "그 4명도 슈T로").
+  ※ 2026-11-01 원장님 "11/1(11/6)까지의 시간표는 그대로" — ①②의 반마다 tt_log '적용일변경'(apply_date 11/7)을 미리 넣어 두었다.
+    timetable.html 오늘·주차별은 그 기록으로 11/6까지는 연주T·고3파이널, 11/7부터는 슈T·없음으로 그린다(지운 고3 반은 snap).
   '이 주만' 반(w…)은 지난 날짜라 손대지 않는다. 출석·수업 기록·학생정보 시간 칸은 건드리지 않는다.
 
 쓰는 법:
@@ -158,6 +160,16 @@ def apply(force=False):
 
     # ② 고3파이널 삭제
     for c in g3:
+        # 적용일 변경 기록(2026-11-01)의 snap 명단을 지우기 직전 값으로 — 11/6 전 날짜 화면은 이 snap으로 그린다
+        for g in rest('GET', '/tt_log?kind=eq.%s&book=eq.%s&from_class_id=eq.%s&select=id,reason' % (q('적용일변경'), q(c['book']), q(c['class_id']))):
+            head, _, js = (g.get('reason') or '').partition('\n#spec ')
+            try:
+                sp = json.loads(js)
+            except Exception:
+                continue
+            if sp.get('snap') is not None:
+                sp['snap']['roster'] = c.get('roster') or ''
+                rest('PATCH', '/tt_log?id=eq.%s' % g['id'], {'reason': head + '\n#spec ' + json.dumps(sp, ensure_ascii=False)}, prefer='return=minimal')
         path = '/tt_classes?book=eq.%s&class_id=eq.%s&name=like.%s' % (q(c['book']), q(c['class_id']), q('*고3파이널*'))
         res = rest('DELETE', path, prefer='return=representation')
         if not res:
