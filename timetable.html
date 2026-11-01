@@ -1782,7 +1782,32 @@
   }
   function logKeep(book, ids){ return function(g){ return g.book === book || !!ids[g.from_class_id] || !!ids[g.to_class_id]; }; }
   var CLS_COLS = 'class_id,day,start_time,end_time,location,teacher,name,roster';
+  /* 적용일 변경(2026-11-01 원장님 — 정연주T 반을 11/7부터 슈T로, 고3파이널은 11/7부터 없음. 그 전 날짜의
+   * 시간표는 그대로 보여야 한다). tt_log kind '적용일변경' — from_class_id = 반ID, apply_date = 새 상태가
+   * 시작하는 날, reason 끝 '\n#spec {json}' = { before:{teacher,location}, after:{teacher,location} | end:true,
+   * snap:{day,start,end,location,teacher,name,roster} }. 반 행(tt_classes)은 언제나 '지금' 값이고, 날짜를 보는
+   * 화면(오늘·주차별)만 그 날짜의 값으로 바꿔 그린다(classesOn). 반 행을 지운 뒤에도 그 전 날짜는 snap으로 그린다. */
+  window.__ttSpans = window.__ttSpans || {};
+  function specOf(reason){
+    var i = String(reason || '').indexOf('\n#spec ');
+    if (i < 0) return null;
+    try { return JSON.parse(String(reason).slice(i + 7)); } catch (e){ return null; }
+  }
+  function fetchSpans(book){
+    return sbGet('/tt_log?kind=eq.' + q('적용일변경') + '&book=eq.' + q(book) + '&order=apply_date,id&select=id,book,from_class_id,apply_date,reason')
+      .then(function(rows){
+        var byId = {};
+        rows.forEach(function(g){
+          var sp = specOf(g.reason), d = String(g.apply_date || '');
+          if (!sp || !/^\d{4}-\d{2}-\d{2}$/.test(d)) return;
+          (byId[g.from_class_id] = byId[g.from_class_id] || []).push({ d: d, before: sp.before || null, after: sp.after || null, end: !!sp.end, snap: sp.snap || null });
+        });
+        window.__ttSpans[book] = byId;
+        return byId;
+      }, function(){ return {}; });
+  }
   function fetchClasses(book){
+    var spP = fetchSpans(book);
     var usedKind = kindCol;   // 이 요청이 kind를 넣었는지 — 정규·내신을 나란히 읽을 때 둘 다 각자 다시 읽게
     var sel = CLS_COLS + (usedKind ? ',kind' : '');
     return sbGet('/tt_classes?book=eq.' + q(book) + '&order=id&select=' + sel)
@@ -1798,7 +1823,8 @@
                    kind: String(r.kind || '').trim(),
                    students: String(r.roster || '').trim().split(/\s+/).filter(String) };
         });
-      });
+      })
+      .then(function(rows){ return spP.then(function(){ return rows; }); });
   }
   /* 새 반 행에 kind를 붙인다 — 열이 없는 DB면 붙이지 않는다(그때는 표시 없이 저장) */
   function withKind(row, kind){
@@ -2078,7 +2104,7 @@
         var logs = (rs[0] || []).map(function(g){
           return { row: g.id, at: String(g.at || ''), date: atYmd(g.at), kind: g.kind, student: g.student,
                    fromCls: g.from_class, toCls: g.to_class, fromId: g.from_class_id, toId: g.to_class_id,
-                   reason: g.reason, book: g.book, who: String(g.author || '').trim(),
+                   reason: String(g.reason || '').split('\n#spec ')[0], book: g.book, who: String(g.author || '').trim(),
                    apply: (g.apply_date && /^\d{4}-\d{2}-\d{2}$/.test(g.apply_date)) ? g.apply_date : '' };
         });
         var abs = (rs[1] || []).map(function(a){
@@ -3900,7 +3926,7 @@ function renderView(){
   if (mode === 'today'){
     crEnsureToday();   // 수업 기록 상태(기록됨·공개됨)를 한 번 받아 카드 버튼에 표시
     var td = viewDay(), vy = viewYmd(), isT = viewIsToday();
-    var list = classes.filter(function(c){ return c.day===td && wkVisible(c, vy) && viewOn(c); });
+    var list = classesOn(vy).filter(function(c){ return c.day===td && wkVisible(c, vy) && viewOn(c); });
     var head = document.createElement('p');
     head.className = 'today-head' + (isT ? '' : ' past');
     head.textContent = (isT ? '오늘의 시간표 — ' : '지난 시간표 — ') + dayLabelOf(vy) + ' · ' + book;
@@ -5043,7 +5069,7 @@ function spreadOverlaps(items){
 function buildDayGrid(list){
   var dname = list.length ? list[0].day : todayDay();
   var cols = [], seen = {};
-  classes.forEach(function(c){
+  classesOn(viewYmd()).forEach(function(c){
     if (!viewOn(c)) return;                      // 센터별·강사별 보기 — 열도 함께 줄인다
     // 다른 날짜의 '이 주만' 반(직보 복사본 등)은 열을 만들지 않는다 — 9/29 직보로 만든
     // '본원·은지' 반이 10/8 화면에 '은지 본원' 열을 세웠다 (2026-10-08 원장님 "은지쌤은 본원에서 수업하지 않아요")
@@ -5257,7 +5283,7 @@ function buildWeekList(){
                          (teacherOffsAt(ymdOf(days[dy])).length ? '<small class="toff-tab">휴무</small>' : ''); },
     function(dy){ weekListDay = dy; keepScroll = false; render(); }));
   var dstr = ymdOf(days[weekListDay]);
-  var list = classes.filter(function(c){ return c.day === weekListDay && wkVisible(c, dstr) && viewOn(c); });
+  var list = classesOn(dstr).filter(function(c){ return c.day === weekListDay && wkVisible(c, dstr) && viewOn(c); });
   if (!list.length){
     var em = document.createElement('p');
     em.className = 'day-empty';
@@ -6059,6 +6085,68 @@ function wkOffAt(cid, dstr){
   }
   return null;
 }
+/* ── 적용일 변경 (2026-11-01) — 날짜를 보는 화면(오늘·주차별)의 반 목록을 그 날짜 값으로 ──
+ * 어댑터가 받아 둔 window.__ttSpans[시간표][반ID] = [{d, before, after, end, snap}].
+ * d 전 날짜는 before(반 행을 지웠으면 snap으로 되살림), d부터는 after(end면 그 날부터 없음). */
+var spanClone = {};
+function spansOf(bk, id){ var m = (window.__ttSpans || {})[bk]; return (m && m[id]) || null; }
+function spanAt(list, dstr){
+  // dstr에 해당하는 상태 — { fields, hide }. 여러 번 바뀌었으면 dstr 이하 마지막 변경의 after, 없으면 첫 변경의 before
+  var cur = null;
+  list.forEach(function(sp){ if (sp.d <= dstr) cur = sp; });
+  if (cur) return cur.end ? { hide: true } : { fields: cur.after || {}, d: cur.d };
+  return { fields: list[0].before || {}, d: list[0].d, before: true };
+}
+function spanApply(c, st, key){
+  if (!st.fields) return c;
+  var t = st.fields.teacher != null ? st.fields.teacher : c.teacher;
+  var l = st.fields.location != null ? st.fields.location : c.loc;
+  if (t === c.teacher && l === c.loc) return c;
+  var k = key + '|' + t + '|' + l;
+  if (!spanClone[k]){
+    var o = {}; Object.keys(c).forEach(function(x){ o[x] = c[x]; });
+    o.teacher = t; o.loc = l; o.spanOf = c;
+    spanClone[k] = o;
+  }
+  var o2 = spanClone[k]; o2.students = c.students;   // 명단은 원래 반을 그대로 따른다
+  return o2;
+}
+function spanSnapClass(bk, id, snap){
+  var k = 'snap|' + bk + '|' + id;
+  if (!spanClone[k]){
+    spanClone[k] = { id: id, day: snap.day, start: snap.start, end: snap.end, loc: snap.location, teacher: snap.teacher,
+                     cls: snap.name, wk: null, kind: '', book: bk, spanGone: true,
+                     students: String(snap.roster || '').trim().split(/\s+/).filter(String) };
+  }
+  return spanClone[k];
+}
+/* 그 날짜의 반 목록 — classes에 적용일 변경을 입힌다. dstr이 없으면 classes 그대로 */
+function classesOn(dstr){
+  var all = window.__ttSpans || {};
+  if (!dstr || !Object.keys(all).some(function(b){ return Object.keys(all[b] || {}).length; })) return classes;
+  var out = [], seen = {};
+  classes.forEach(function(c){
+    var bk = c.book || book; seen[bk + '|' + c.id] = 1;
+    var ls = spansOf(bk, c.id);
+    if (!ls){ out.push(c); return; }
+    var st = spanAt(ls, dstr);
+    if (st.hide) return;
+    out.push(spanApply(c, st, bk + '|' + c.id));
+  });
+  // 반 행을 이미 지운 반 — 변경일 전 날짜에만 snap으로 그린다(지금 화면의 시간표만)
+  var books = {}; classes.forEach(function(c){ books[c.book || book] = 1; }); books[book] = 1;
+  Object.keys(books).forEach(function(bk){
+    var m = all[bk] || {};
+    Object.keys(m).forEach(function(id){
+      if (seen[bk + '|' + id]) return;
+      var ls = m[id], st = spanAt(ls, dstr);
+      if (st.hide || !st.before) return;
+      var sp = ls[0]; if (!sp.snap) return;
+      out.push(spanApply(spanSnapClass(bk, id, sp.snap), st, bk + '|' + id));
+    });
+  });
+  return out;
+}
 function wkVisible(c, dstr){
   if (c.wk) return !!dstr && c.wk === dstr;
   // 휴강·이 주만 이동 모두 감추지 않는다 — 휴강은 '이 주 휴강', 이동은 '어디로 이동' 흐린 카드로
@@ -6102,12 +6190,12 @@ function wkGotoMoved(ymd){
   loadWeek();
 }
 function wkZoomSorted(dname, dstr){
-  return classes.filter(function(c){ return c.day === dname && wkVisible(c, dstr); })
+  return classesOn(dstr).filter(function(c){ return c.day === dname && wkVisible(c, dstr); })
     .sort(function(a,b){ return (wkLocRank(a.loc)-wkLocRank(b.loc)) || (wkTeacherRank(a.teacher)-wkTeacherRank(b.teacher)) ||
                                 (mins(a.start)-mins(b.start)) || a.cls.localeCompare(b.cls,'ko'); });
 }
 function wkDayClasses(dname, dstr){
-  return classes.filter(function(c){ return c.day === dname && wkVisible(c, dstr); })
+  return classesOn(dstr).filter(function(c){ return c.day === dname && wkVisible(c, dstr); })
     .sort(function(a,b){ return (wkLocRank(a.loc)-wkLocRank(b.loc)) || (mins(a.start)-mins(b.start)) || a.cls.localeCompare(b.cls,'ko'); });
 }
 /* 그 날짜·반의 출석 요약 (보존 기록 포함 — weekAttend 키 순회) */
@@ -12325,7 +12413,7 @@ function chGroupOf(g){
  * 전체 시간표 = 영구적인 변경만(신입·퇴원·영구 이동·반 전체 이동·표기수정·반 만들기/삭제),
  * 주차별 = 보고 있는 주에 해당하는 것만(1회 이동·이 주만 변경·결석은 적용일/수업일 기준,
  *          신입·퇴원·추가·빼기는 그 주에 기록된 것). */
-var CH_PERMA = { '영구':1, '반이동':1, '추가':1, '빼기':1, '표기수정':1, '반추가':1, '반삭제':1 };
+var CH_PERMA = { '영구':1, '반이동':1, '추가':1, '빼기':1, '표기수정':1, '반추가':1, '반삭제':1, '적용일변경':1 };
 function chScopeFilter(g){
   if (mode === 'all') return !!CH_PERMA[g.kind];
   if (mode !== 'week') return true;
@@ -12349,7 +12437,7 @@ function chScopeNote(){
 var CH_KIND_NAMES = { '영구':'반 이동', '반이동':'반 전체 이동', '1회':'1회 이동',
   '주간추가':'이 주만 추가', '주간빼기':'이 주만 빼기', '주간반이동':'이 주만 시간 이동',
   '주간반보강':'이 주만 보충', '주간반휴강':'이 주만 휴강', '주간반추가':'이 주만 반 추가',
-  '주간반삭제':'이 주만 반 삭제', '반추가':'반 만들기', '반삭제':'반 삭제' };
+  '주간반삭제':'이 주만 반 삭제', '반추가':'반 만들기', '반삭제':'반 삭제', '적용일변경':'적용일 변경' };
 function chKindLabel(g){
   if (g.kind === '추가') return /신입/.test(g.reason || '') ? '신입' : '추가';
   if (g.kind === '빼기') return /아웃/.test(g.reason || '') ? '퇴원' : '빼기';
