@@ -55,6 +55,7 @@ const ATT = [
   { date: '2026-10-03', book: '정규', class_id: 'r004', student: '박보검', status: '지각', memo: '5분' }
 ];
 const LOGS = [];
+let SPANS = [];   // 적용일 변경(tt_log '적용일변경') — 마지막 절에서만 채운다
 (async () => {
   const srv = await serve(), port = srv.address().port;
   const br = await chromium.launch();
@@ -80,7 +81,7 @@ const LOGS = [];
     }
     if (/script\.google/.test(u)){ legacy.push(JSON.parse(rt.request().postData() || '{}')); return j({ result: 'success' }); }
     if (/\/rest\/v1\/attendance/.test(u)) return j(ATT);
-    if (/\/rest\/v1\/tt_log/.test(u)) return j(LOGS);
+    if (/\/rest\/v1\/tt_log/.test(u)) return j(/적용일변경/.test(decodeURIComponent(u)) ? SPANS : LOGS);
     if (/\/rest\/v1\/teacher_accounts/.test(u)) return j([]);
     return rt.fulfill({ status: 204, body: '' });
   });
@@ -248,6 +249,27 @@ const LOGS = [];
   r = await p.evaluate(() => ({ w: document.documentElement.scrollWidth <= 390, t: [...document.querySelectorAll('#tiles .tile')].every(e => e.getBoundingClientRect().right <= 390), n: document.getElementById('tfNote').getBoundingClientRect().right <= 390 }));
   ok('휴대폰 — 카드를 눌러 거른 상태에서도 화면 안', r.w && r.t && r.n, JSON.stringify(r));
   if (process.env.SHOT) await p.screenshot({ path: process.env.SHOT, fullPage: false });
+
+  // ⑨ 적용일 변경 (2026-11-01) — 종강 뒤는 기록 없는 수업 아님 · 지운 반은 그 전 날짜에 snap · 그 날짜 담당
+  const SPEC = o => '사유\n#spec ' + JSON.stringify(o);
+  SPANS = [
+    { book: '정규', from_class_id: 'r006', apply_date: '2026-10-02', reason: SPEC({ end: true }) },
+    { book: '정규', from_class_id: 'r099', apply_date: '2026-10-04', reason: SPEC({ end: true, snap: { day: '목', start: '7:30', end: '9:00', location: '민트초코', teacher: '연주', name: '고2 지운반', roster: '김하늘' } }) },
+    { book: '정규', from_class_id: 'r003', apply_date: '2026-10-02', reason: SPEC({ before: { teacher: '승연' }, after: { teacher: '은지' } }) },
+  ];
+  await p.setViewportSize({ width: 900, height: 1600 });
+  await p.goto('http://127.0.0.1:' + port + '/classlog.html');
+  await p.evaluate(() => { localStorage.removeItem('cl_view'); });
+  await p.goto('http://127.0.0.1:' + port + '/classlog.html');
+  await p.waitForFunction(() => /수업 \d+개/.test(document.getElementById('status').textContent), null, { timeout: 8000 });
+  await p.click('[data-per="this"]').catch(() => {});
+  await p.waitForTimeout(400);
+  r = await p.evaluate(() => D.sessions.map(s => s.id + '|' + s.ymd + '|' + s.teacher + '|' + (s.none ? 'none' : '')));
+  ok('적용일: 종강한 r006(금 10/2)은 기록 없는 수업 아님', !r.some(t => /^r006\|2026-10-02/.test(t)), JSON.stringify(r));
+  ok('적용일: 지운 반 r099(목 10/1)은 snap으로 기록 없는 수업 · 연주', r.some(t => t === 'r099|2026-10-01|연주|none'), JSON.stringify(r));
+  ok('적용일: r003(금 10/2)은 변경일부터 은지', r.some(t => /^r003\|2026-10-02\|은지\|/.test(t)), JSON.stringify(r));
+  r = await p.evaluate(() => { var d = document.querySelector('[data-view="teacher"]'); if (d) d.click(); return [...document.querySelectorAll('#viewSub option')].map(o => o.value); });
+  ok('적용일: 담당 선생님 목록에 지난 담당(연주)도', r.indexOf('연주') >= 0, JSON.stringify(r));
 
   ok('페이지 오류 없음', perr === 0);
   await br.close(); srv.close();

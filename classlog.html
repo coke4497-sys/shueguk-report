@@ -346,10 +346,26 @@ function loadBase(){
     sbAll('/tt_classes?select=book,class_id,name,day,start_time,end_time,teacher,location,roster&order=class_id'),
     sbAll('/tt_period?select=week_wednesday,book,overrides')
       .catch(function(e){ if (!/sb 400/.test(String(e && e.message))) throw e; return sbAll('/tt_period?select=week_wednesday,book'); }),   // overrides 열 없는 DB(047 전)
-    sbAll('/students?select=name,school,grade,code,teacher,enrolled&order=seq,id')
+    sbAll('/students?select=name,school,grade,code,teacher,enrolled&order=seq,id'),
+    // 적용일 변경(2026-11-01 — timetable.html classesOn과 같은 규칙): 날짜마다 그 날의 담당·종강을 따른다
+    sbAll('/tt_log?select=book,from_class_id,apply_date,reason&kind=eq.' + encodeURIComponent('적용일변경') + '&order=apply_date,id').catch(function(){ return []; })
   ]).then(function(a){
-    var cls = {}, period = {}, periodOv = {}, byName = {}, byCode = {};
+    var cls = {}, period = {}, periodOv = {}, byName = {}, byCode = {}, spans = {};
+    a[3].forEach(function(g){
+      var i = String(g.reason || '').indexOf('\n#spec '), sp = null;
+      if (i >= 0){ try { sp = JSON.parse(String(g.reason).slice(i + 7)); } catch (e){ sp = null; } }
+      if (!sp || !/^\d{4}-\d{2}-\d{2}$/.test(String(g.apply_date || ''))) return;
+      var k = g.book + '|' + g.from_class_id;
+      (spans[k] = spans[k] || []).push({ d: String(g.apply_date), before: sp.before || null, after: sp.after || null, end: !!sp.end, snap: sp.snap || null });
+    });
     a[0].forEach(function(c){ cls[c.book + '|' + c.class_id] = c; cls['*' + c.class_id] = c; });
+    // 반 행을 지운 반 — 변경일 전 날짜에는 snap으로 이름·담당·명단을 되살린다
+    Object.keys(spans).forEach(function(k){
+      var sn = spans[k][0].snap; if (cls[k] || !sn) return;
+      var bk = k.split('|')[0], id = k.slice(bk.length + 1);
+      var g = { book: bk, class_id: id, name: sn.name, day: sn.day, start_time: sn.start, end_time: sn.end, teacher: sn.teacher, location: sn.location, roster: sn.roster || '', ghost: true };
+      a[0].push(g); cls[k] = g; if (!cls['*' + id]) cls['*' + id] = g;
+    });
     a[1].forEach(function(p){
       var w = String(p.week_wednesday).slice(0, 10);
       period[w] = p.book;
@@ -360,7 +376,7 @@ function loadBase(){
       var k = plain(s.name); (byName[k] = byName[k] || []).push(s);
       if (s.code) byCode[s.code] = s;
     });
-    BASE = { classes: a[0], cls: cls, period: period, periodOv: periodOv, byName: byName, byCode: byCode };
+    BASE = { classes: a[0], cls: cls, period: period, periodOv: periodOv, byName: byName, byCode: byCode, spans: spans };
     return BASE;
   });
 }
@@ -392,6 +408,13 @@ function lookName(map, name){
   return undefined;
 }
 
+/* 그 날짜의 반 상태 — { hide, teacher } (적용일 변경이 없으면 null) */
+function spanAt(book, id, ymd){
+  var ls = BASE.spans && BASE.spans[book + '|' + id]; if (!ls) return null;
+  var cur = null; ls.forEach(function(sp){ if (sp.d <= ymd) cur = sp; });
+  if (cur) return cur.end ? { hide: true } : { teacher: (cur.after || {}).teacher };
+  return { teacher: (ls[0].before || {}).teacher, before: true };
+}
 /* ── 수업(세션) 만들기 ─────────────────────────────────── */
 function buildSessions(R){
   var S = {}, list = [];
@@ -402,6 +425,8 @@ function buildSessions(R){
       var c = clsInfo(book, id);
       S[k] = { key: k, book: book, id: id, ymd: ymd, c: c, note: null, att: {}, hw: [], rows: null,
                cls: c ? c.name : '', teacher: c ? c.teacher : '', start: c ? c.start_time : '', end: c ? c.end_time : '' };
+      var sa = spanAt(book, id, ymd);
+      if (sa && sa.teacher != null) S[k].teacher = sa.teacher;
       list.push(S[k]);
     }
     return S[k];
@@ -446,6 +471,8 @@ function buildSessions(R){
       else if (c.book !== book || c.day !== dn) return;
       if (!tr(c.roster) && !isW) return;
       if (off[c.class_id + '|' + d]) return;
+      var sa = spanAt(c.book, c.class_id, d);
+      if (sa ? (sa.hide || (c.ghost && !sa.before)) : c.ghost) return;   // 종강 뒤·지운 반의 변경일 뒤는 기록 없는 수업이 아니다
       if (S[c.book + '|' + c.class_id + '|' + d]) return;
       if (d === today){ var e = mins(c.end_time || c.start_time); if (e <= mins(c.start_time)) e += 720; if (nowM < e) return; }
       var s = get(c.book, c.class_id, d); s.none = true; s.part = partOf(s.cls, s.book); s.grade = gradeOfName(s.cls);
@@ -644,6 +671,7 @@ function subControl(){
     if (v === 'teacher'){
       var seen = {};
       BASE.classes.forEach(function(c){ var t = tr(c.teacher); if (t) seen[t] = 1; });
+      Object.keys(BASE.spans || {}).forEach(function(k){ BASE.spans[k].forEach(function(sp){ [sp.before, sp.after].forEach(function(o){ var t = o && tr(o.teacher); if (t) seen[t] = 1; }); }); });   // 적용일 전 담당도 고를 수 있게
       opts = Object.keys(seen).sort(function(a, b){ var i = TEACHER_ORDER.indexOf(a), j = TEACHER_ORDER.indexOf(b); return (i < 0 ? 99 : i) - (j < 0 ? 99 : j) || a.localeCompare(b, 'ko'); })
         .map(function(t){ return [t, t + 'T']; });
     } else if (v === 'grade'){
