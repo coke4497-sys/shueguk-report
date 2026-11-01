@@ -56,6 +56,22 @@ const ok = (n, c, x) => { if (c) pass++; else { fail++; console.log('  ✗ ' + n
   ok('오늘: 강사 열 = 연주·슈·지원', JSON.stringify(ths) === JSON.stringify(['슈','연주','지원']), JSON.stringify(ths));
   ok('오늘: r01은 연주 열', await page.evaluate(() => classesOn(viewYmd()).find(c => c.id === 'r01').teacher === '연주'));
   ok('오늘: snap 반 명단', await page.evaluate(() => classesOn(viewYmd()).find(c => c.id === 'r09').students.join() === '자차,카타'));
+  /* ①-2 다른 시간표의 변경 기록은 지운 반으로 보지 않는다 (2026-11-01 칸이 나뉜 일) */
+  const twin = await page.evaluate(() => {
+    window.__ttSpans['내신'] = { n09: [{ d: '2999-01-01', end: true, snap: { day: classes[0].day, start: '7:00', end: '9:00', location: '본원', teacher: '슈', name: '고3파이널Y', roster: '' } }] };
+    classes[0].book = '정규';
+    var ids = classesOn(viewYmd()).map(c => c.id);
+    delete window.__ttSpans['내신']; delete classes[0].book;
+    return ids;
+  });
+  ok('다른 시간표 기록은 snap으로 그리지 않음', twin.indexOf('n09') < 0, JSON.stringify(twin));
+  const dup = await page.evaluate(() => {
+    window.__ttSpans['정규'].r08 = [{ d: '2999-01-01', end: true, snap: { day: classes[0].day, start: '5:30', end: '7:00', location: '본원', teacher: '슈', name: '고2 가', roster: '' } }];
+    var ids = classesOn(viewYmd()).map(c => c.id);
+    delete window.__ttSpans['정규'].r08;
+    return ids;
+  });
+  ok('같은 수업이 이미 있으면 snap을 겹쳐 그리지 않음', dup.indexOf('r08') < 0, JSON.stringify(dup));
   /* ② 변경일(내일) 기준 */
   const after = await page.evaluate(t => classesOn(t).map(c => c.id + ':' + c.teacher + ':' + c.loc).sort(), TOM);
   ok('내일: r01 슈·본원, r02·r09 없음', JSON.stringify(after) === JSON.stringify(['r01:슈:본원', 'r03:지원:화정센터']), JSON.stringify(after));

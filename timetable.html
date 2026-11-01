@@ -6133,17 +6133,19 @@ function classesOn(dstr){
     if (st.hide) return;
     out.push(spanApply(c, st, bk + '|' + c.id));
   });
-  // 반 행을 이미 지운 반 — 변경일 전 날짜에만 snap으로 그린다(지금 화면의 시간표만)
-  var books = {}; classes.forEach(function(c){ books[c.book || book] = 1; }); books[book] = 1;
-  Object.keys(books).forEach(function(bk){
-    var m = all[bk] || {};
-    Object.keys(m).forEach(function(id){
-      if (seen[bk + '|' + id]) return;
-      var ls = m[id], st = spanAt(ls, dstr);
-      if (st.hide || !st.before) return;
-      var sp = ls[0]; if (!sp.snap) return;
-      out.push(spanApply(spanSnapClass(bk, id, sp.snap), st, bk + '|' + id));
-    });
+  // 반 행을 이미 지운 반 — 변경일 전 날짜에만 snap으로 그린다. 지금 화면의 주 시간표(book)만 본다 —
+  // 다른 시간표는 '이 주만' 복사본·예외 학년 반만 섞여 오므로, 그 시간표의 반 행이 없다고 지운 반으로 보면
+  // 짝 반(정규 r### ↔ 내신 n###)이 한 번 더 그려져 칸이 나뉜다(2026-11-01 원장님 "오늘 제 칸이 나뉘어 있어요").
+  var have = {};
+  out.forEach(function(c){ have[c.cls + '|' + c.day + '|' + c.start] = 1; });
+  var m = all[book] || {};
+  Object.keys(m).forEach(function(id){
+    if (seen[book + '|' + id]) return;
+    var ls = m[id], st = spanAt(ls, dstr);
+    if (st.hide || !st.before) return;
+    var sp = ls[0]; if (!sp.snap) return;
+    if (have[sp.snap.name + '|' + sp.snap.day + '|' + sp.snap.start]) return;   // 같은 수업이 이미 있으면 겹쳐 그리지 않는다
+    out.push(spanApply(spanSnapClass(book, id, sp.snap), st, book + '|' + id));
   });
   return out;
 }
