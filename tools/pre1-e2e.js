@@ -33,7 +33,12 @@ function fake(school, short, n, lv, extra){
   }, extra || {});
 }
 let ITEMS = [
-  { key: 'b-26-1m', school: '나고', exam: '2026학년도 1학기 중간고사', data: fake('나고', '나', 4, ['중', '상', '상', '최상'], { composition: { mc: '3문항', essay: '1문항', book: '나출판' }, scopeItems: [{ kind: '교과서', name: '〈ㄱ〉' }, { kind: '프린트', name: '〈ㄴ〉' }, { kind: '프린트', name: '〈ㄷ〉' }, { kind: '모의고사', name: '지문' }, { kind: '외부', name: '〈ㅁ〉 외 2편', n: 3 }], hard: [{ no: '3·4', lv: '', title: '묶은 칸', key: 'k', structure: '구조 글' }] }) },
+  { key: 'b-26-1m', school: '나고', exam: '2026학년도 1학기 중간고사', data: fake('나고', '나', 4, ['중', '상', '상', '최상'], { composition: { mc: '3문항', essay: '1문항', book: '나출판' }, scopeItems: [{ kind: '교과서', name: '〈ㄱ〉' }, { kind: '프린트', name: '〈ㄴ〉' }, { kind: '프린트', name: '〈ㄷ〉' }, { kind: '모의고사', name: '지문' }, { kind: '외부', name: '〈ㅁ〉 외 2편', n: 3 }],
+    paper: { pages: 2, passages: [{ title: 'ㄱ', author: '갑', kind: '교과서', qnos: [1], chars: 600 }, { title: 'ㅁ', author: '을', kind: '외부', qnos: [4], chars: 400 }] },
+    qtypes: { multi: [], combo: [3], bogi: [3] },
+    samples: [{ no: 3, type: 'ㄱ~ㅁ 조합형', stem: '〈보기〉에서 적절한 것만을 고른 것은?', bogi: 'ㄱ. 첫 줄\nㄴ. 둘째 줄', options: ['① ㄱ', '② ㄴ', '③ ㄱ, ㄴ', '④ ㄱ, ㄷ', '⑤ ㄴ, ㄷ'], answer: '③', multi: false, context: '〈ㄱ〉' },
+              { no: 2, type: '복수 선택', stem: '적절한 것 두 개는?', bogi: '', options: ['① 가', '② 나', '③ 다', '④ 라', '⑤ 마'], answer: '②④', multi: true, context: '' },
+              { no: 1, type: '문법 탐구', stem: '문법 발문', bogi: '', options: ['① 가', '② 나', '③ 다', '④ 라', '⑤ 마'], answer: '③', context: '' }], hard: [{ no: '3·4', lv: '', title: '묶은 칸', key: 'k', structure: '구조 글' }] }) },
   { key: 'a-26-1m', school: '가고', exam: '2026학년도 1학기 중간고사', data: fake('가고', '가', 6, ['중', '중상', '중상', '상', '최상', '최상']) }
 ];
 if (process.env.PRE1_JSON){
@@ -77,8 +82,14 @@ let MODE = 'ok', CALLS = [];
     ok('범위 많은 순(나 4 → 가 2)', rn[0].startsWith('나') && rn[1].startsWith('가'), rn.join('|'));
     ok('범위 최다 표시', rn[0].includes('범위 최다') && !rn[1].includes('범위 최다'));
     ok('가장 많은 학교 칸', (await pg.locator('.tops').textContent()).includes('나') && (await pg.locator('.tops .u').first().textContent()) === '4개');
-    ok('범위 막대 세 칸·외부 3', await pg.locator('.rrow').first().locator('.rbar').first().locator('i').count() === 3 && (await pg.locator('.rrow').first().locator('.big.e').textContent()) === '3');
+    ok('범위 막대 세 칸', await pg.locator('.rrow').first().locator('.rbar').first().locator('i').count() === 3);
+    ok('자료 없는 학교는 처음 보는 작품 막대', (await pg.locator('.rrow').nth(1).locator('.big.e').textContent()) === '0');
     ok('범위 종류별 숫자', (await pg.locator('.rrow .rk').first().textContent()) === '교과서 1 · 프린트 2 · 모의고사 1');
+    ok('외부 지문 분량 줄(400자·40%)', (await pg.locator('.rrow').first().locator('.rk .xe').textContent()) === '외부 1개 · 약 400자 (40%)');
+    ok('맨 위 외부 지문 가장 긴 학교', (await pg.locator('.tops .top').nth(1).textContent()).includes('외부 지문이 가장 긴 학교') && (await pg.locator('.tops .top').nth(1).textContent()).includes('약 400자'));
+    ok('비교표 외부 지문·복수 선택 칸', (await pg.locator('table.cmp tbody tr').first().textContent()).includes('400자') && (await pg.locator('table.cmp tbody tr').first().textContent()).includes('복수 선택 1문항'));
+    ok('자료 없는 학교는 처음 보는 작품 수로', (await pg.locator('table.cmp tbody tr').nth(1).textContent()).includes('처음 보는 작품 0편'));
+    ok('특징 칩 복수 선택', (await pg.locator('.rrow').first().locator('.ft').allTextContents()).includes('복수 선택(ㄱ~ㅁ 고르기) 1문항'));
     ok('특징 칩', (await pg.locator('.rrow').nth(1).locator('.ft').allTextContents()).some(t => t.startsWith('상·최상 50%')));
     await pg.click('[data-sort="name"]');
     const rows = await pg.locator('table.cmp tbody tr').allTextContents();
@@ -90,9 +101,9 @@ let MODE = 'ok', CALLS = [];
     ok('난도 막대 칸 수', await pg.locator('table.cmp tbody tr:first-child .lvbar i').count() === 3);
     ok('학교 카드 두 장', await pg.locator('.sbox').count() === 2);
     ok('요약 맨 위 서술형 한 줄', (await pg.locator('.essum').textContent()).includes('서술형 있는 학교 1곳') && (await pg.locator('.essum').textContent()).includes('서술형 없음 1곳'));
-    const es = await pg.locator('table.cmp tbody tr .es').allTextContents();
+    const es = await pg.locator('table.cmp tbody tr td:nth-child(2) .es').allTextContents();
     ok('표의 서술형 칸(나 있음 · 가 없음)', es.join('|') === '서술형 있음 · 1문항|서술형 없음', es.join('|'));
-    ok('있음 배지는 붉은 채움', await pg.locator('table.cmp .es.yes').evaluate(e => getComputedStyle(e).backgroundColor) === 'rgb(200, 70, 63)');
+    ok('있음 배지는 붉은 채움', await pg.locator('table.cmp td:nth-child(2) .es.yes').evaluate(e => getComputedStyle(e).backgroundColor) === 'rgb(200, 70, 63)');
     ok('학교 카드에도 배지', await pg.locator('.sbox .es').count() === 2);
   }
   if (SHOT) await pg.screenshot({ path: path.join(SHOT, 'pre1-summary.png'), fullPage: true });
@@ -105,10 +116,18 @@ let MODE = 'ok', CALLS = [];
   if (!real){
     ok('첫 카드 = 나고(정렬 유지)', (await pg.locator('.shead .nm').textContent()) === '나고');
     ok('상세 머리 서술형 띠', (await pg.locator('.esband').textContent()).includes('서술형 있음 · 1문항') && (await pg.locator('.esband').textContent()).includes('함께 나온'));
-    ok('섹션 1~8', (await pg.locator('.sec-t .n').allTextContents()).join() === '1,2,3,4,5,6,7,8');
+    ok('섹션 1~8 + 미리보기', (await pg.locator('.sec-t .n').allTextContents()).join() === '1,2,★,3,4,5,6,7,8');
     ok('범위 줄', (await pg.locator('.srow').textContent()).includes('〈둘째 작품〉'));
     ok('범위 칸 네 개·외부 칩', await pg.locator('.sk').count() === 4 && (await pg.locator('.sgrid').textContent()).includes('〈ㅁ〉 외 2편'));
     ok('범위 절 제목 숫자', (await pg.locator('.sec-t').nth(1).textContent()).includes('공부할 범위 4개 · 처음 보는 작품 3편'));
+    ok('대표 유형 카드 셋', await pg.locator('.sq').count() === 3);
+    ok('조합형 = 복수 선택 표시', (await pg.locator('.sq .sty.multi').first().textContent()) === '복수 선택 · 〈보기〉 ㄱ~ㅁ 고르기');
+    ok('정답 둘 문항 = 정답 2개', (await pg.locator('.sq .sty.multi').nth(1).textContent()) === '복수 선택 · 정답 2개');
+    ok('〈보기〉 줄바꿈', (await pg.locator('.sq .sbg').innerHTML()).includes('<br>'));
+    ok('정답은 처음엔 숨김', await pg.locator('.sq').first().locator('.sans').isHidden());
+    await pg.locator('.sq').first().locator('.sbtn').click();
+    ok('정답 보기 → ③ 하나 강조', await pg.locator('.sq.show .sop li.ans').count() === 1 && await pg.locator('.sq').first().locator('.sans').isVisible());
+    ok('시험지 지문 분량 칸', (await pg.locator('.ppr').textContent()).includes('외부 지문 1개 · 약 400자 (40%)') && await pg.locator('.ppr .xtag').count() === 1);
     ok('문항 4개', await pg.locator('.q').count() === 4);
     await pg.click('[data-qf="hard"]');
     ok('상·최상만 → 3개', await pg.locator('.q').count() === 3);
@@ -116,7 +135,7 @@ let MODE = 'ok', CALLS = [];
     ok('독서만 → 2개', await pg.locator('.q').count() === 2);
     ok('묶은 고난도 칸·문항 구조', (await pg.locator('.hard').textContent()).includes('3·4번') && (await pg.locator('.hard').textContent()).includes('문항 구조'));
     ok('★ 단계 표시', await pg.locator('.step .sl.star').count() === 1);
-    ok('학습 포인트 제목', (await pg.locator('.sec-t').nth(7).textContent()).includes('학습 포인트'));
+    ok('학습 포인트 제목', (await pg.locator('.sec-t').nth(8).textContent()).includes('학습 포인트'));
     await pg.click('.nav2 [data-go]');
     await pg.waitForFunction(() => document.querySelector('.shead .nm').textContent === '가고').catch(() => {});
     ok('다음 학교 가고 + 거르기 풀림', (await pg.locator('.shead .nm').textContent()) === '가고' && await pg.locator('.q').count() === 6);

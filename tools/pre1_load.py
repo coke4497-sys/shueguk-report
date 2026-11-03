@@ -93,6 +93,15 @@ def problems(d):
             out.append(f"scopeItems 항목이 이상합니다: {it}")
     if not d.get('scopeItems'):
         out.append('scopeItems 없음 — 범위의 양을 셀 수 없습니다')
+    blob = json.dumps(d, ensure_ascii=False)   # 시험지 기출 서비스 표시('[천재수 국어]화정고1-26-1-중간: ③1)')가 남으면 안 된다
+    if re.search(r'국어\][가-힣]+\d-\d\d-\d', blob) or re.search(r'고\d-\d\d-\d-(중간|기말)', blob):
+        out.append('기출 서비스 표시가 남아 있습니다')
+    for q in d.get('samples') or []:
+        if not q.get('stem') or len(q.get('options') or []) < 2 or not re.fullmatch(r'[①②③④⑤]+', str(q.get('answer', ''))):
+            out.append(f"대표 문항 {q.get('no')}번의 발문·선지·정답을 확인하세요")
+    for p in (d.get('paper') or {}).get('passages') or []:
+        if p.get('kind') not in ('교과서', '프린트', '모의고사', '외부') or not isinstance(p.get('chars'), int):
+            out.append(f"시험지 지문이 이상합니다: {p.get('title')}")
     for p in d['points']:
         if not str(p.get('title', '')).strip():
             out.append('학습 포인트 제목이 비었습니다')
