@@ -33,7 +33,7 @@ function fake(school, short, n, lv, extra){
   }, extra || {});
 }
 let ITEMS = [
-  { key: 'b-26-1m', school: '나고', exam: '2026학년도 1학기 중간고사', data: fake('나고', '나', 4, ['중', '상', '상', '최상'], { composition: { mc: '3문항', essay: '1문항', book: '나출판' }, hard: [{ no: '3·4', lv: '', title: '묶은 칸', key: 'k', structure: '구조 글' }] }) },
+  { key: 'b-26-1m', school: '나고', exam: '2026학년도 1학기 중간고사', data: fake('나고', '나', 4, ['중', '상', '상', '최상'], { composition: { mc: '3문항', essay: '1문항', book: '나출판' }, scopeItems: [{ kind: '교과서', name: '〈ㄱ〉' }, { kind: '프린트', name: '〈ㄴ〉' }, { kind: '프린트', name: '〈ㄷ〉' }, { kind: '모의고사', name: '지문' }, { kind: '외부', name: '〈ㅁ〉 외 2편', n: 3 }], hard: [{ no: '3·4', lv: '', title: '묶은 칸', key: 'k', structure: '구조 글' }] }) },
   { key: 'a-26-1m', school: '가고', exam: '2026학년도 1학기 중간고사', data: fake('가고', '가', 6, ['중', '중상', '중상', '상', '최상', '최상']) }
 ];
 if (process.env.PRE1_JSON){
@@ -73,6 +73,14 @@ let MODE = 'ok', CALLS = [];
   ok('접근코드로 pre1_list 를 부름', CALLS[0] && CALLS[0].key === 'ABC');
   ok('[전체 요약] 탭이 켜짐', await pg.locator('#seg button.on').textContent() === '전체 요약');
   if (!real){
+    const rn = await pg.locator('.rrow .rn').allTextContents();
+    ok('범위 많은 순(나 4 → 가 2)', rn[0].startsWith('나') && rn[1].startsWith('가'), rn.join('|'));
+    ok('범위 최다 표시', rn[0].includes('범위 최다') && !rn[1].includes('범위 최다'));
+    ok('가장 많은 학교 칸', (await pg.locator('.tops').textContent()).includes('나') && (await pg.locator('.tops .u').first().textContent()) === '4개');
+    ok('범위 막대 세 칸·외부 3', await pg.locator('.rrow').first().locator('.rbar').first().locator('i').count() === 3 && (await pg.locator('.rrow').first().locator('.big.e').textContent()) === '3');
+    ok('범위 종류별 숫자', (await pg.locator('.rrow .rk').first().textContent()) === '교과서 1 · 프린트 2 · 모의고사 1');
+    ok('특징 칩', (await pg.locator('.rrow').nth(1).locator('.ft').allTextContents()).some(t => t.startsWith('상·최상 50%')));
+    await pg.click('[data-sort="name"]');
     const rows = await pg.locator('table.cmp tbody tr').allTextContents();
     ok('학교 이름순(가 → 나)', rows.length === 2 && rows[0].startsWith('가') && rows[1].startsWith('나'), JSON.stringify(rows));
     ok('문항 수·상·최상 비율', /6/.test(rows[0]) && /3/.test(rows[0]) && /50%/.test(rows[0]), rows[0]);
@@ -99,6 +107,8 @@ let MODE = 'ok', CALLS = [];
     ok('상세 머리 서술형 띠', (await pg.locator('.esband').textContent()).includes('서술형 있음 · 1문항') && (await pg.locator('.esband').textContent()).includes('함께 나온'));
     ok('섹션 1~8', (await pg.locator('.sec-t .n').allTextContents()).join() === '1,2,3,4,5,6,7,8');
     ok('범위 줄', (await pg.locator('.srow').textContent()).includes('〈둘째 작품〉'));
+    ok('범위 칸 네 개·외부 칩', await pg.locator('.sk').count() === 4 && (await pg.locator('.sgrid').textContent()).includes('〈ㅁ〉 외 2편'));
+    ok('범위 절 제목 숫자', (await pg.locator('.sec-t').nth(1).textContent()).includes('공부할 범위 4개 · 처음 보는 작품 3편'));
     ok('문항 4개', await pg.locator('.q').count() === 4);
     await pg.click('[data-qf="hard"]');
     ok('상·최상만 → 3개', await pg.locator('.q').count() === 3);

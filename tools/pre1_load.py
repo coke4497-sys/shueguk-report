@@ -88,6 +88,11 @@ def problems(d):
                 out.append(f"고난도 {n}번이 문항 표에 없습니다")
             elif h.get('lv') and q.get('lv') != h.get('lv'):
                 out.append(f"고난도 {n}번 난도 {h.get('lv')} ≠ 문항 표 {q.get('lv')}")
+    for it in d.get('scopeItems') or []:   # 범위의 양(작품·지문·단원 개수) — 종류는 넷만
+        if it.get('kind') not in ('교과서', '프린트', '모의고사', '외부') or not str(it.get('name', '')).strip():
+            out.append(f"scopeItems 항목이 이상합니다: {it}")
+    if not d.get('scopeItems'):
+        out.append('scopeItems 없음 — 범위의 양을 셀 수 없습니다')
     for p in d['points']:
         if not str(p.get('title', '')).strip():
             out.append('학습 포인트 제목이 비었습니다')

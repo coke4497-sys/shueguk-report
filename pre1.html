@@ -80,6 +80,38 @@
   .es.big{font-family:var(--disp);font-weight:400;font-size:1.02rem;padding:5px 14px;}
   .essum{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--soft);border-radius:14px;padding:10px 12px;margin:0 0 12px;font-size:.88rem;}
   .esband{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:12px;}
+  /* 시험 범위의 양 */
+  :root{--k-t:#8FB3A3;--k-p:#B9A5CC;--k-m:#E3C97E;--k-e:#EAB6C2;}
+  .tops{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:0 0 12px;}
+  .top{background:var(--soft);border-radius:14px;padding:12px 14px;display:flex;flex-direction:column;}
+  .top .k{font-size:.78rem;color:var(--ink-soft);}
+  .top .v{font-family:var(--disp);font-size:1.5rem;line-height:1.25;}
+  .top .u{font-size:.84rem;color:var(--accent);}
+  .rhead{display:grid;grid-template-columns:96px 1.3fr 1fr;gap:12px;font-size:.76rem;color:var(--ink-soft);padding:6px 4px;border-bottom:1px solid var(--line);}
+  .rrow{display:grid;grid-template-columns:96px 1.3fr 1fr;gap:6px 12px;align-items:center;padding:12px 4px;border-bottom:1px solid var(--line-soft);cursor:pointer;}
+  .rrow:hover{background:#F7FAF8;}
+  .rn{font-family:var(--disp);font-size:1.15rem;line-height:1.2;}
+  .most{display:block;font-family:var(--sans);font-size:.7rem;color:#fff;background:var(--lav-ink);border-radius:999px;padding:1px 8px;width:fit-content;margin-top:3px;}
+  .rc{display:grid;grid-template-columns:34px 1fr;gap:6px 8px;align-items:center;}
+  .rc .big{font-family:var(--disp);font-size:1.45rem;line-height:1;text-align:right;}
+  .rc .big.e{color:#A4475C;}
+  .rbar{display:flex;height:16px;border-radius:6px;background:var(--soft);overflow:hidden;}
+  .rbar i{display:block;height:100%;}
+  .rbar i.k-t{background:var(--k-t);} .rbar i.k-p{background:var(--k-p);} .rbar i.k-m{background:var(--k-m);} .rbar i.k-e{background:var(--k-e);}
+  .rk{grid-column:2;font-size:.74rem;color:var(--ink-soft);}
+  .rf{grid-column:2 / 4;display:flex;flex-wrap:wrap;gap:5px;align-items:center;}
+  .feats{display:flex;flex-wrap:wrap;gap:5px;}
+  .sbox .feats{margin-top:10px;}
+  .ft{font-size:.76rem;border-radius:999px;padding:2px 9px;background:var(--soft);color:var(--ink-soft);}
+  .ft.on{background:var(--lav);color:var(--lav-ink);font-weight:700;}
+  .sgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:0 0 12px;}
+  .sk{background:var(--soft);border-radius:14px;padding:10px 12px;}
+  .sk .sh{display:flex;align-items:center;gap:6px;font-size:.84rem;color:var(--ink-soft);margin-bottom:6px;}
+  .sk .sh b{margin-left:auto;font-family:var(--disp);font-weight:400;font-size:1.2rem;color:var(--ink);}
+  .sk .dot{display:inline-block;width:10px;height:10px;border-radius:3px;}
+  .sit{display:inline-block;background:#fff;border-radius:8px;padding:2px 8px;margin:0 4px 4px 0;font-size:.82rem;}
+  details.orig{margin-top:12px;}
+  details.orig summary{cursor:pointer;font-size:.84rem;color:var(--accent);margin-bottom:6px;}
   /* 학교 상세 */
   .spills{display:flex;gap:6px;overflow-x:auto;padding:4px 0 8px;scrollbar-width:none;}
   .spills::-webkit-scrollbar{display:none;}
@@ -168,6 +200,12 @@
     h1{font-size:1.4rem;}
     .card{padding:18px 16px;}
     .grid{grid-template-columns:1fr;}
+    .tops{grid-template-columns:1fr;}
+    .rhead{display:none;}
+    .rrow{grid-template-columns:1fr 1fr;}
+    .rn{grid-column:1 / 3;}
+    .rf{grid-column:1 / 3;}
+    .sgrid{grid-template-columns:1fr;}
     .bars{grid-template-columns:1fr;}
     .tiles{grid-template-columns:1fr 1fr 1fr;gap:6px;}
     .tile{padding:8px 9px;} .tile .v{font-size:1rem;}
@@ -200,7 +238,7 @@ var SB_URL = 'https://bangdbhqpphqqdwcledg.supabase.co';
 var SB_KEY = 'sb_publishable_dE9d1KIbpgYaQkaS2MSrlg_-7SiRJuT';
 var QS = new URLSearchParams(location.search);
 var KEY = (QS.get('key') || '').trim(), SID = (QS.get('id') || QS.get('student') || '').trim();
-var ITEMS = null, LOAD_ERR = '', SORT = 'name', QF = 'all';
+var ITEMS = null, LOAD_ERR = '', SORT = 'scope', QF = 'all';
 var LV = ['중', '중상', '상', '최상'];
 
 function $(id){ return document.getElementById(id); }
@@ -294,20 +332,90 @@ function msgHtml(){
   return '<div class="msg"><b>아직 올라온 분석이 없습니다</b>분석이 준비되면 여기에 보여요.</div>';
 }
 
+/* ── 시험 범위의 양·학교별 특징 (2026-11-03 원장님 "시험범위의 양이 한눈에 · 양이 많은 학교 · 학교별 특징") ──
+ * 범위 = scopeItems(작품·지문·단원 하나가 한 항목, n이 있으면 그만큼 — '외 4편') 를 교과서·프린트·모의고사로 센다.
+ * 외부(시험장에서 처음 보는 작품)는 공부할 범위가 아니라 따로 센다. scopeItems 가 없으면 범위표 줄을 ' · ' 로 나눠 어림한다.
+ * 특징 칩은 문항 표의 출처(scope 글)·영역 그래프에서 센 값만 쓴다 — 지어낸 평가는 넣지 않는다. */
+var KINDS = [['교과서', 'k-t'], ['프린트', 'k-p'], ['모의고사', 'k-m']];
+function kindOfLabel(l){ l = String(l || ''); return /외부/.test(l) ? '외부' : /모의/.test(l) ? '모의고사' : /프린트/.test(l) ? '프린트' : /교과서/.test(l) ? '교과서' : ''; }
+function scopeItems(s){
+  if (arr(s.scopeItems).length) return s.scopeItems;
+  var out = [];
+  arr(s.scope && s.scope.rows).forEach(function(r){
+    var k = kindOfLabel(r.label); if (!k) return;
+    arr(r.lines).forEach(function(line){ String(line).split(' · ').forEach(function(x){ if (x.trim()) out.push({ kind: k, name: x.trim() }); }); });
+  });
+  return out;
+}
+function scopeCount(s){
+  var c = { '교과서': 0, '프린트': 0, '모의고사': 0, '외부': 0 };
+  scopeItems(s).forEach(function(i){ if (c[i.kind] != null) c[i.kind] += (+i.n || 1); });
+  c.range = c['교과서'] + c['프린트'] + c['모의고사'];
+  return c;
+}
+function qSrc(s, word){ return arr(s.questions).filter(function(q){ return String(q.scope || '').indexOf(word) >= 0; }).length; }
+function areaN(s, re){ return arr(s.areaDist).filter(function(a){ return re.test(a.name); }).reduce(function(t, a){ return t + (+a.n || 0); }, 0); }
+function features(s){
+  var n = qCount(s) || 1, f = [];
+  var pr = qSrc(s, '프린트'), mo = qSrc(s, '모의고사'), ex = qSrc(s, '외부');
+  if (pr) f.push({ t: '프린트에서 ' + pr + '/' + n + '문항', on: pr * 2 >= n });
+  if (mo) f.push({ t: '3월 모의고사 지문 ' + mo + '문항', on: true });
+  if (ex) f.push({ t: '처음 보는 작품이 섞인 문항 ' + ex, on: ex * 3 >= n });
+  var gr = areaN(s, /문법/); if (gr) f.push({ t: '문법 ' + gr + '문항', on: gr * 4 >= n });
+  var sp = areaN(s, /화법|토론|작문/); if (sp) f.push({ t: '화법·작문 ' + sp + '문항', on: sp * 4 >= n });
+  var vo = areaN(s, /어휘/); if (vo) f.push({ t: '어휘 ' + vo + '문항', on: false });
+  var hp = pct(hardN(s), n); f.push({ t: '상·최상 ' + hp + '%', on: hp >= 75 });
+  return f;
+}
+function featHtml(s){ return '<div class="feats">' + features(s).map(function(x){ return '<span class="ft' + (x.on ? ' on' : '') + '">' + esc(x.t) + '</span>'; }).join('') + '</div>'; }
+function rangeBar(c, max){
+  return '<div class="rbar">' + KINDS.map(function(k){ var v = c[k[0]]; return v ? '<i class="' + k[1] + '" style="width:' + (v * 100 / max) + '%" title="' + k[0] + ' ' + v + '"></i>' : ''; }).join('') + '</div>';
+}
+function extBar(v, max){ return '<div class="rbar">' + (v ? '<i class="k-e" style="width:' + (v * 100 / max) + '%"></i>' : '') + '</div>'; }
+function kindLegend(withExt){
+  return '<div class="legend">' + KINDS.map(function(k){ return '<span style="--c:var(--' + k[1] + ')">' + k[0] + '</span>'; }).join('') +
+    (withExt ? '<span style="--c:var(--k-e)">처음 보는 작품(외부)</span>' : '') + '</div>';
+}
+
 function sorted(){
-  var a = ITEMS.slice();
-  if (SORT === 'hard') a.sort(function(x, y){ return pct(hardN(y), qCount(y)) - pct(hardN(x), qCount(x)) || x.school.localeCompare(y.school, 'ko'); });
-  else if (SORT === 'name') a.sort(function(x, y){ return x.school.localeCompare(y.school, 'ko'); });
+  var a = ITEMS.slice(), nm = function(x, y){ return x.school.localeCompare(y.school, 'ko'); };
+  if (SORT === 'scope') a.sort(function(x, y){ return scopeCount(y).range - scopeCount(x).range || scopeCount(y)['외부'] - scopeCount(x)['외부'] || nm(x, y); });
+  else if (SORT === 'ext') a.sort(function(x, y){ return scopeCount(y)['외부'] - scopeCount(x)['외부'] || nm(x, y); });
+  else if (SORT === 'print') a.sort(function(x, y){ return pct(qSrc(y, '프린트'), qCount(y)) - pct(qSrc(x, '프린트'), qCount(x)) || nm(x, y); });
+  else if (SORT === 'hard') a.sort(function(x, y){ return pct(hardN(y), qCount(y)) - pct(hardN(x), qCount(x)) || nm(x, y); });
+  else a.sort(nm);
   return a;
+}
+function sortPills(){
+  return '<div class="sort">' + [['scope', '범위 많은 순'], ['ext', '처음 보는 작품 많은 순'], ['print', '프린트 출제 많은 순'], ['hard', '상·최상 비율 높은 순'], ['name', '학교 이름순']]
+    .map(function(o){ return '<button class="pill' + (SORT === o[0] ? ' on' : '') + '" data-sort="' + o[0] + '">' + o[1] + '</button>'; }).join('') + '</div>';
 }
 function renderSummary(){
   var exams = {};
   ITEMS.forEach(function(s){ exams[s.exam] = 1; });
   var a = sorted();
-  var h = '<div class="card"><div class="sec-t"><span class="n">1</span>한눈에 비교<span class="sub">' + esc(Object.keys(exams).join(' · ')) + ' · ' + ITEMS.length + '개 학교</span></div>' +
-    '<div class="sort"><button class="pill' + (SORT === 'name' ? ' on' : '') + '" data-sort="name">학교 이름순</button>' +
-    '<button class="pill' + (SORT === 'hard' ? ' on' : '') + '" data-sort="hard">상·최상 비율 높은 순</button></div>' +
-    essaySummary() + '<table class="cmp"><thead><tr><th>학교</th><th>서술형</th><th>문항</th><th class="hide-m">주교재</th><th>상·최상</th><th>난도 분포</th><th></th></tr></thead><tbody>' +
+  var cs = {}; ITEMS.forEach(function(s){ cs[s._key] = scopeCount(s); });
+  var anyEssay = ITEMS.some(function(s){ return essayInfo(s).has; });   // 모두 없으면 맨 위 한 줄로 충분 — 줄마다 배지는 뺀다
+  var maxR = Math.max.apply(null, ITEMS.map(function(s){ return cs[s._key].range; }).concat([1]));
+  var maxE = Math.max.apply(null, ITEMS.map(function(s){ return cs[s._key]['외부']; }).concat([1]));
+  var topR = ITEMS.filter(function(s){ return cs[s._key].range === maxR; }).map(function(s){ return s.short || s.school; });
+  var topE = ITEMS.filter(function(s){ return cs[s._key]['외부'] === maxE; }).map(function(s){ return s.short || s.school; });
+  var h = '<div class="card"><div class="sec-t"><span class="n">1</span>시험 범위의 양 · 학교별 특징<span class="sub">' + esc(Object.keys(exams).join(' · ')) + ' · ' + ITEMS.length + '개 학교</span></div>' +
+    '<div class="tops"><div class="top"><span class="k">공부할 범위가 가장 많은 학교</span><span class="v">' + esc(topR.join(' · ')) + '</span><span class="u">' + maxR + '개</span></div>' +
+    '<div class="top"><span class="k">처음 보는 작품이 가장 많은 학교</span><span class="v">' + esc(topE.join(' · ')) + '</span><span class="u">' + maxE + '편</span></div></div>' +
+    sortPills() + essaySummary() +
+    '<div class="rhead"><span>학교</span><span>공부할 범위 (작품·지문·단원)</span><span>처음 보는 작품</span></div>' +
+    a.map(function(s){
+      var c = cs[s._key];
+      return '<div class="rrow" data-go="' + esc(s._key) + '"><div class="rn">' + esc(s.short || s.school) + (c.range === maxR ? '<span class="most">범위 최다</span>' : '') + '</div>' +
+        '<div class="rc"><span class="big">' + c.range + '</span>' + rangeBar(c, maxR) +
+          '<div class="rk">' + KINDS.map(function(k){ return k[0] + ' ' + c[k[0]]; }).join(' · ') + '</div></div>' +
+        '<div class="rc"><span class="big e">' + c['외부'] + '</span>' + extBar(c['외부'], maxE) + '</div>' +
+        '<div class="rf">' + (anyEssay ? essayBadge(s) : '') + featHtml(s) + '</div></div>';
+    }).join('') + kindLegend(true) +
+    '<p class="muted" style="margin:10px 0 0">작품·지문·문법 단원 하나를 1개로 셌습니다(쪽수가 아니라 개수예요). 처음 보는 작품은 시험 범위 밖에서 〈보기〉나 지문으로 나온 작품입니다. 연보라 칩은 그 학교에서 특히 두드러지는 점입니다.</p></div>';
+  h += '<div class="card"><div class="sec-t"><span class="n">2</span>문항·난도 비교</div>' +
+    '<table class="cmp"><thead><tr><th>학교</th><th>서술형</th><th>문항</th><th class="hide-m">주교재</th><th>상·최상</th><th>난도 분포</th><th></th></tr></thead><tbody>' +
     a.map(function(s){
       var es = essayCount(s), n = qCount(s), hn = hardN(s);
       return '<tr class="go" data-go="' + esc(s._key) + '"><td class="sc">' + esc(s.short || s.school) + '</td>' +
@@ -317,18 +425,17 @@ function renderSummary(){
         '<td><span class="num">' + hn + '</span><div class="muted">' + pct(hn, n) + '%</div></td>' +
         '<td style="width:30%">' + lvBar(s) + '</td><td class="arrow">›</td></tr>';
     }).join('') + '</tbody></table>' + lvLegend() + '</div>';
-  h += '<div class="card"><div class="sec-t"><span class="n">2</span>학교별 요약<span class="sub">학교를 누르면 자세한 분석이 열립니다</span></div><div class="grid">' +
+  h += '<div class="card"><div class="sec-t"><span class="n">3</span>학교별 요약<span class="sub">학교를 누르면 자세한 분석이 열립니다</span></div><div class="grid">' +
     a.map(function(s){
-      var notes = arr(s.distNote);
+      var c = cs[s._key];
       return '<button class="sbox" data-go="' + esc(s._key) + '"><div class="nm">' + esc(s.school) + '</div>' +
         '<div class="ex">' + esc(s.exam) + ' · ' + esc(s.subject || '') + '</div>' +
         '<div style="margin:0 0 10px">' + essayBadge(s) + '</div>' +
+        '<div class="row"><b>공부할 범위</b><span>' + c.range + '개 (' + KINDS.map(function(k){ return k[0] + ' ' + c[k[0]]; }).join(' · ') + ')</span></div>' +
+        '<div class="row"><b>처음 보는 작품</b><span>' + c['외부'] + '편</span></div>' +
         '<div class="row"><b>문항</b><span>' + esc((s.cover && s.cover.items) || qCount(s) + '문항') + '</span></div>' +
-        '<div class="row"><b>상·최상</b><span>' + esc((s.cover && s.cover.hard) || hardN(s) + '문항') + '</span></div>' +
         '<div class="row"><b>주교재</b><span>' + esc((s.composition && s.composition.book) || '') + '</span></div>' +
-        '<div style="margin-top:8px">' + lvBar(s) + '</div>' +
-        '<div class="areas">' + esc(areaText(s)) + (notes.length ? '<br>' + notes.map(esc).join('<br>') : '') + '</div>' +
-        '<span class="more">자세히 보기 ›</span></button>';
+        featHtml(s) + '<span class="more">자세히 보기 ›</span></button>';
     }).join('') + '</div></div>';
   $('view').innerHTML = h;
 }
@@ -350,8 +457,15 @@ function renderSchool(key){
     '<div class="tile"><div class="k">주교재</div><div class="v">' + esc(cp.book || '') + '</div></div></div>');
   // 2 시험 범위
   var sc = s.scope || {};
-  h += sec(2, '시험 범위', '', (sc.main ? '<p class="scope-main"><b>주교재</b>' + esc(sc.main) + '</p>' : '') +
-    arr(sc.rows).map(function(r){ return '<div class="srow"><div class="lb">' + esc(r.label) + '</div><div>' + arr(r.lines).map(esc).join('<br>') + '</div></div>'; }).join(''));
+  var c2 = scopeCount(s), its = scopeItems(s);
+  h += sec(2, '시험 범위', '공부할 범위 ' + c2.range + '개 · 처음 보는 작품 ' + c2['외부'] + '편', (sc.main ? '<p class="scope-main"><b>주교재</b>' + esc(sc.main) + '</p>' : '') +
+    '<div class="sgrid">' + KINDS.concat([['외부', 'k-e']]).map(function(k){
+      var li = its.filter(function(i){ return i.kind === k[0]; });
+      return '<div class="sk"><div class="sh"><i class="dot" style="background:var(--' + k[1] + ')"></i>' + (k[0] === '외부' ? '처음 보는 작품' : k[0]) + '<b>' + c2[k[0]] + '</b></div>' +
+        (li.length ? li.map(function(i){ return '<span class="sit">' + esc(i.name) + '</span>'; }).join('') : '<span class="muted">없음</span>') + '</div>';
+    }).join('') + '</div>' + featHtml(s) +
+    '<details class="orig"><summary>원래 범위표 보기</summary>' +
+    arr(sc.rows).map(function(r){ return '<div class="srow"><div class="lb">' + esc(r.label) + '</div><div>' + arr(r.lines).map(esc).join('<br>') + '</div></div>'; }).join('') + '</details>');
   // 3 출제 분류 및 난도
   h += sec(3, '출제 분류 및 난도', '', '<div class="bars"><div><h4>영역별 출제 분포 (총 ' + qCount(s) + '문항)</h4>' + hbars(arr(s.areaDist)) + '</div>' +
     '<div><h4>난도별 출제 분포</h4>' + hbars(LV.map(function(n, i){ return { name: n, n: lvCounts(s)[i] }; })) + '</div></div>' +
