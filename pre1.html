@@ -1,0 +1,758 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>예비 고1 학교 분석</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=Gowun+Dodum&family=Do+Hyeon&family=Sacramento&display=swap" rel="stylesheet" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='48' fill='%23DCE9E4'/%3E%3C/svg%3E" />
+<meta name="theme-color" content="#E4EFEA" />
+<link rel="manifest" href="manifest-student.json" />
+<!--
+  예비 고1 학교 분석 (2026-11-03 원장님, 061)
+  · 학생 페이지(s.html) [예비 고1 학교 분석] 카드가 ?key=(접근코드) 또는 ?id=(학생ID)를 실어 연다.
+  · 분석 글은 공개 저장소에 두지 않는다 — 수파베이스 pre1_schools 를 함수 pre1_list 로 받는다(재원생만).
+  · 화면 셋: 전체 요약(#summary) · 학교별 분석(#school=<key>) · 나의 점검표(#check — 이 기기에만 저장).
+-->
+<style>
+  :root{
+    --bg:#E4EFEA; --surface:#FFFFFF; --ink:#2A332F; --ink-soft:#5C6A64; --accent:#3A6B5E;
+    --line:#D7E3DD; --line-soft:#E5EDE8; --soft:#F3F7F5;
+    --lav:#EDE4F4; --lav-ink:#5A4A6A;
+    --lv0:#E3ECE7; --lv1:#BFD5CA; --lv2:#8FB3A3; --lv3:#4F7A6A;
+    --sans:"Gowun Dodum","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;
+    --serif:"Gowun Batang",serif; --disp:"Do Hyeon",var(--sans);
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;padding:0;}
+  body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:16px;line-height:1.75;-webkit-font-smoothing:antialiased;padding-bottom:48px;}
+  .wrap{max-width:760px;margin:0 auto;padding:0 16px;}
+  header{padding:34px 4px 18px;}
+  .eyebrow{font-size:.74rem;letter-spacing:.22em;color:var(--accent);margin:0;}
+  h1{font-family:var(--serif);font-weight:700;font-size:1.6rem;margin:6px 0 4px;line-height:1.35;}
+  .lead{font-family:var(--serif);color:var(--ink-soft);font-size:.95rem;margin:0;}
+  .seg{display:flex;gap:4px;background:#fff;border-radius:999px;padding:4px;margin:18px 0 6px;}
+  .seg button{flex:1;border:0;background:transparent;border-radius:999px;padding:9px 6px;font-family:var(--sans);font-size:.92rem;color:var(--ink-soft);cursor:pointer;}
+  .seg button.on{background:var(--lav);color:var(--lav-ink);font-weight:700;}
+  .card{background:var(--surface);border-radius:18px;padding:20px 20px;margin:14px 0;box-shadow:0 1px 3px rgba(40,60,50,.05);}
+  .sec-t{font-family:var(--serif);font-weight:700;font-size:1.08rem;margin:0 0 12px;display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;}
+  .sec-t .n{font-family:var(--disp);font-weight:400;color:var(--accent);font-size:1.15rem;}
+  .sec-t .sub{font-family:var(--sans);font-weight:400;font-size:.8rem;color:var(--ink-soft);}
+  .muted{color:var(--ink-soft);font-size:.86rem;}
+  .msg{text-align:center;padding:60px 20px;font-family:var(--serif);color:var(--ink-soft);}
+  .msg b{display:block;color:var(--ink);font-size:1.1rem;margin-bottom:8px;}
+  p.para{margin:0 0 12px;font-size:.95rem;}
+  p.para:last-child{margin-bottom:0;}
+
+  /* 전체 요약 */
+  .sort{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 10px;}
+  .pill{border:0;background:var(--soft);color:var(--ink-soft);border-radius:999px;padding:5px 12px;font-family:var(--sans);font-size:.82rem;cursor:pointer;}
+  .pill.on{background:var(--lav);color:var(--lav-ink);font-weight:700;}
+  table.cmp{width:100%;border-collapse:collapse;font-size:.86rem;}
+  table.cmp th{font-weight:400;color:var(--ink-soft);font-size:.76rem;text-align:left;padding:6px 6px;border-bottom:1px solid var(--line);}
+  table.cmp td{padding:10px 6px;border-bottom:1px solid var(--line-soft);vertical-align:top;}
+  table.cmp tr.go{cursor:pointer;}
+  table.cmp tr.go:hover td{background:#F7FAF8;}
+  table.cmp .sc{font-family:var(--disp);font-size:1.08rem;white-space:nowrap;}
+  table.cmp .num{font-family:var(--disp);font-size:1.05rem;white-space:nowrap;}
+  table.cmp .arrow{color:var(--accent);white-space:nowrap;}
+  .lvbar{display:flex;height:12px;border-radius:999px;overflow:hidden;background:var(--lv0);min-width:90px;}
+  .lvbar i{display:block;height:100%;}
+  .lvbar i.l0{background:var(--lv0);} .lvbar i.l1{background:var(--lv1);} .lvbar i.l2{background:var(--lv2);} .lvbar i.l3{background:var(--lv3);}
+  .legend{display:flex;gap:12px;flex-wrap:wrap;font-size:.78rem;color:var(--ink-soft);margin:10px 0 0;}
+  .legend span::before{content:"";display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px;background:var(--c);}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+  .sbox{background:var(--surface);border:0;border-radius:16px;padding:16px;text-align:left;cursor:pointer;font-family:var(--sans);color:var(--ink);box-shadow:0 1px 3px rgba(40,60,50,.05);}
+  .sbox:hover{background:#FAFCFB;}
+  .sbox .nm{font-family:var(--disp);font-size:1.35rem;line-height:1.2;}
+  .sbox .ex{font-size:.78rem;color:var(--ink-soft);margin:2px 0 10px;}
+  .sbox .row{display:flex;justify-content:space-between;gap:8px;font-size:.84rem;margin:3px 0;}
+  .sbox .row b{font-weight:400;color:var(--ink-soft);}
+  .sbox .areas{font-size:.8rem;color:var(--ink-soft);margin-top:8px;line-height:1.55;}
+  .sbox .more{display:block;margin-top:10px;color:var(--accent);font-size:.84rem;}
+
+  /* 서술형 있음/없음 — 한눈에 */
+  .es{display:inline-block;border-radius:999px;padding:3px 11px;font-size:.8rem;font-weight:700;white-space:nowrap;}
+  .es.no{background:#E7F1EC;color:#2F5D4F;}
+  .es.yes{background:#C8463F;color:#fff;}
+  .es.big{font-family:var(--disp);font-weight:400;font-size:1.02rem;padding:5px 14px;}
+  .essum{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--soft);border-radius:14px;padding:10px 12px;margin:0 0 12px;font-size:.88rem;}
+  .esband{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:12px;}
+  /* 시험 범위의 양 */
+  :root{--k-t:#8FB3A3;--k-p:#B9A5CC;--k-m:#E3C97E;--k-e:#EAB6C2;}
+  .tops{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:0 0 12px;}
+  .top{background:var(--soft);border-radius:14px;padding:12px 14px;display:flex;flex-direction:column;}
+  .top .k{font-size:.78rem;color:var(--ink-soft);}
+  .top .v{font-family:var(--disp);font-size:1.5rem;line-height:1.25;}
+  .top .u{font-size:.84rem;color:var(--accent);}
+  .rhead{display:grid;grid-template-columns:96px 1.3fr 1fr;gap:12px;font-size:.76rem;color:var(--ink-soft);padding:6px 4px;border-bottom:1px solid var(--line);}
+  .rrow{display:grid;grid-template-columns:96px 1.3fr 1fr;gap:6px 12px;align-items:center;padding:12px 4px;border-bottom:1px solid var(--line-soft);cursor:pointer;}
+  .rrow:hover{background:#F7FAF8;}
+  .rn{font-family:var(--disp);font-size:1.15rem;line-height:1.2;}
+  .most{display:block;font-family:var(--sans);font-size:.7rem;color:#fff;background:var(--lav-ink);border-radius:999px;padding:1px 8px;width:fit-content;margin-top:3px;}
+  .rc{display:grid;grid-template-columns:34px 1fr;gap:6px 8px;align-items:center;}
+  .rc .big{font-family:var(--disp);font-size:1.45rem;line-height:1;text-align:right;}
+  .rc .big.e{color:#A4475C;}
+  .rbar{display:flex;height:16px;border-radius:6px;background:var(--soft);overflow:hidden;}
+  .rbar i{display:block;height:100%;}
+  .rbar i.k-t{background:var(--k-t);} .rbar i.k-p{background:var(--k-p);} .rbar i.k-m{background:var(--k-m);} .rbar i.k-e{background:var(--k-e);}
+  .rk{grid-column:2;font-size:.74rem;color:var(--ink-soft);}
+  .rf{grid-column:2 / 4;display:flex;flex-wrap:wrap;gap:5px;align-items:center;}
+  .feats{display:flex;flex-wrap:wrap;gap:5px;}
+  .sbox .feats{margin-top:10px;}
+  .ft{font-size:.76rem;border-radius:999px;padding:2px 9px;background:var(--soft);color:var(--ink-soft);}
+  .ft.on{background:var(--lav);color:var(--lav-ink);font-weight:700;}
+  .sgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:0 0 12px;}
+  .sk{background:var(--soft);border-radius:14px;padding:10px 12px;}
+  .sk .sh{display:flex;align-items:center;gap:6px;font-size:.84rem;color:var(--ink-soft);margin-bottom:6px;}
+  .sk .sh b{margin-left:auto;font-family:var(--disp);font-weight:400;font-size:1.2rem;color:var(--ink);}
+  .sk .dot{display:inline-block;width:10px;height:10px;border-radius:3px;}
+  .sit{display:inline-block;background:#fff;border-radius:8px;padding:2px 8px;margin:0 4px 4px 0;font-size:.82rem;}
+  details.orig{margin-top:12px;}
+  details.orig summary{cursor:pointer;font-size:.84rem;color:var(--accent);margin-bottom:6px;}
+  .rbar i.k-in{background:var(--k-t);}
+  .xe{color:#A4475C;font-weight:700;}
+  .rc.pc{grid-template-columns:62px 1fr;}
+  .rc.pc .big{white-space:nowrap;}
+  .rc.pc .big small{font-family:var(--sans);font-size:.62rem;color:var(--ink-soft);margin-left:1px;}
+  .rc.pc .rk{font-size:.78rem;}
+  .tscroll{overflow-x:auto;}
+  /* 시험지 지문 분량 */
+  .ppr{background:var(--soft);border-radius:14px;padding:12px 14px;margin:0 0 12px;}
+  .pph{display:flex;flex-wrap:wrap;gap:4px 12px;align-items:baseline;font-size:.84rem;margin-bottom:8px;}
+  .pph b{font-family:var(--serif);font-size:.95rem;}
+  .pp{display:grid;grid-template-columns:minmax(0,1.4fr) 1fr 64px;gap:8px;align-items:center;font-size:.84rem;margin:5px 0;}
+  .pp .pt2{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .pp .pt2 small{color:var(--ink-soft);}
+  .pp .dot{display:inline-block;width:9px;height:9px;border-radius:3px;margin-right:5px;}
+  .pp .rbar{height:10px;background:#fff;}
+  .pp .pc2{font-family:var(--disp);text-align:right;}
+  .xtag{font-size:.68rem;background:#A4475C;color:#fff;border-radius:999px;padding:0 6px;font-weight:400;}
+  /* 대표 유형 미리보기 */
+  .smp{display:grid;gap:12px;}
+  .sq{border:1px solid var(--line);border-radius:16px;padding:16px 18px;background:#FFFEFB;}
+  .sqh{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin-bottom:8px;}
+  .sty{font-size:.8rem;font-weight:700;border-radius:999px;padding:3px 11px;background:var(--lav);color:var(--lav-ink);}
+  .sty.multi{background:#C8463F;color:#fff;}
+  .sno{font-family:var(--disp);font-size:1.15rem;}
+  .sctx{font-size:.78rem;color:var(--ink-soft);}
+  .sst{font-family:var(--serif);font-weight:700;font-size:1rem;line-height:1.65;margin:0 0 10px;}
+  .sbg{border:1px solid #CFD9D4;border-radius:10px;padding:18px 14px 12px;margin:14px 0 10px;position:relative;font-size:.88rem;line-height:1.7;background:#fff;}
+  .sbl{position:absolute;top:-11px;left:50%;transform:translateX(-50%);background:#FFFEFB;padding:0 8px;font-size:.84rem;color:var(--ink-soft);}
+  .sop{list-style:none;margin:0;padding:0;}
+  .sop li{font-size:.92rem;line-height:1.6;padding:6px 10px;border-radius:10px;margin:2px 0;}
+  .sq.show .sop li.ans{background:#E3F0E8;color:#1F4A3A;font-weight:700;}
+  .sq.show .sop li.ans::after{content:"정답";font-size:.7rem;background:var(--accent);color:#fff;border-radius:999px;padding:0 7px;margin-left:8px;font-weight:400;}
+  .sbtn{margin-top:8px;border:0;background:var(--lav);color:var(--lav-ink);border-radius:999px;padding:6px 14px;font-family:var(--sans);font-size:.84rem;cursor:pointer;}
+  .sans{display:none;margin-left:8px;font-family:var(--disp);color:var(--accent);}
+  .sq.show .sans{display:inline;}
+  /* 학교 상세 */
+  .spills{display:flex;gap:6px;overflow-x:auto;padding:4px 0 8px;scrollbar-width:none;}
+  .spills::-webkit-scrollbar{display:none;}
+  .spills .pill{white-space:nowrap;background:#fff;font-size:.88rem;padding:7px 14px;}
+  .spills .pill.on{background:var(--lav);}
+  .shead .nm{font-family:var(--disp);font-size:2rem;line-height:1.15;}
+  .shead .ex{font-family:var(--serif);color:var(--ink-soft);font-size:.95rem;margin-top:4px;}
+  .tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:14px;}
+  .tile{background:var(--soft);border-radius:14px;padding:10px 12px;}
+  .tile .k{font-size:.74rem;color:var(--ink-soft);}
+  .tile .v{font-family:var(--disp);font-size:1.12rem;line-height:1.3;word-break:keep-all;}
+  .scope-main{font-size:.9rem;margin:0 0 10px;}
+  .scope-main b{font-weight:400;color:var(--ink-soft);margin-right:6px;}
+  .srow{display:grid;grid-template-columns:120px 1fr;gap:10px;padding:9px 0;border-top:1px solid var(--line-soft);font-size:.9rem;}
+  .srow:first-of-type{border-top:0;}
+  .srow .lb{color:var(--accent);font-size:.84rem;}
+  .bars{display:grid;grid-template-columns:1fr 1fr;gap:18px;}
+  .bars h4{margin:0 0 8px;font-weight:400;font-size:.82rem;color:var(--ink-soft);}
+  .hb{display:grid;grid-template-columns:76px 1fr 30px;gap:8px;align-items:center;font-size:.86rem;margin:5px 0;}
+  .hb .tr{height:12px;border-radius:999px;background:var(--soft);overflow:hidden;}
+  .hb .tr i{display:block;height:100%;background:var(--lv2);border-radius:999px;}
+  .hb .c{font-family:var(--disp);text-align:right;}
+  .notes{display:flex;flex-wrap:wrap;gap:6px;margin-top:14px;}
+  .chip{background:var(--soft);border-radius:999px;padding:4px 11px;font-size:.8rem;color:var(--ink);}
+  .qf{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 8px;}
+  .q{display:grid;grid-template-columns:34px 1fr;gap:10px;padding:11px 0;border-top:1px solid var(--line-soft);}
+  .q:first-child{border-top:0;}
+  .q .no{width:30px;height:30px;border-radius:50%;background:var(--soft);display:flex;align-items:center;justify-content:center;font-family:var(--disp);font-size:.98rem;}
+  .q .tags{display:flex;gap:5px;flex-wrap:wrap;align-items:center;margin-bottom:2px;}
+  .q .tg{font-size:.72rem;border-radius:999px;padding:1px 8px;background:var(--soft);color:var(--ink-soft);}
+  .q .tg.lv{background:var(--lv0);color:#2F4C40;}
+  .q .tg.lv.l2{background:var(--lv1);} .q .tg.lv.l3{background:var(--lv3);color:#fff;}
+  .q .sc2{font-size:.78rem;color:var(--ink-soft);}
+  .q .tx{font-size:.92rem;line-height:1.6;}
+  .trend{margin:0 0 16px;}
+  .trend:last-child{margin-bottom:0;}
+  .trend h4{margin:0 0 6px;font-family:var(--serif);font-size:.98rem;}
+  .hard{background:var(--soft);border-radius:14px;padding:14px 16px;margin:10px 0;}
+  .hard .top{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px;}
+  .hard .bn{font-family:var(--disp);font-size:1.4rem;line-height:1;}
+  .hard .tg{font-size:.74rem;border-radius:999px;padding:2px 9px;background:#fff;color:var(--ink-soft);}
+  .hard .tg.l3{background:var(--lv3);color:#fff;}
+  .hard .ttl{font-family:var(--serif);font-weight:700;font-size:.95rem;margin:0 0 8px;}
+  .hard .kv{margin:6px 0 0;font-size:.9rem;}
+  .hard .kv b{display:inline-block;font-weight:400;font-size:.74rem;background:#fff;border-radius:999px;padding:1px 9px;margin-right:6px;color:var(--accent);}
+  .pt{margin:0 0 18px;}
+  .pt:last-child{margin-bottom:0;}
+  .pt h4{margin:0 0 4px;font-family:var(--serif);font-size:1rem;display:flex;gap:8px;align-items:baseline;}
+  .pt h4 .i{font-family:var(--disp);font-weight:400;color:var(--accent);font-size:1.1rem;}
+  .pt .body{font-size:.92rem;margin:0 0 8px;}
+  .step{display:grid;grid-template-columns:auto 1fr;gap:8px;font-size:.88rem;margin:5px 0;line-height:1.6;}
+  .step .sl{font-family:var(--disp);font-size:.8rem;background:var(--soft);border-radius:999px;padding:1px 9px;white-space:nowrap;height:fit-content;}
+  .step .sl.star{background:var(--lav);color:var(--lav-ink);}
+  .nav2{display:flex;justify-content:space-between;gap:10px;margin:18px 0 0;}
+  .nav2 button{border:0;background:#fff;border-radius:999px;padding:9px 16px;font-family:var(--sans);font-size:.88rem;color:var(--accent);cursor:pointer;}
+
+  /* 점검표 */
+  .marks{display:flex;gap:14px;flex-wrap:wrap;font-size:.84rem;color:var(--ink-soft);margin:8px 0 0;}
+  .marks b{font-family:var(--disp);font-weight:400;font-size:1.05rem;color:var(--ink);margin-right:3px;}
+  .floor{margin:18px 0 6px;font-family:var(--serif);font-weight:700;font-size:1rem;}
+  .floor span{font-family:var(--sans);font-weight:400;font-size:.82rem;color:var(--ink-soft);margin-left:6px;}
+  .grp{font-size:.8rem;color:var(--accent);margin:12px 0 2px;}
+  .ci{display:grid;grid-template-columns:28px 1fr auto;gap:10px;align-items:center;padding:9px 0;border-top:1px solid var(--line-soft);}
+  .ci .no{font-family:var(--disp);color:var(--ink-soft);font-size:.92rem;}
+  .ci .tx{font-size:.92rem;line-height:1.5;}
+  .ci .mk{display:flex;gap:4px;}
+  .ci .mk button{width:34px;height:34px;border-radius:50%;border:0;background:var(--soft);font-size:1rem;color:var(--ink-soft);cursor:pointer;font-family:var(--sans);}
+  .ci .mk button.on{background:var(--lav-ink);color:#fff;}
+  .ci .mk button.on.o{background:var(--accent);}
+  .rf{margin:16px 0 0;}
+  .rf h4{margin:0 0 2px;font-family:var(--serif);font-size:.98rem;display:flex;gap:8px;align-items:baseline;}
+  .rf h4 .i{font-family:var(--disp);font-weight:400;color:var(--accent);}
+  .rf .hint{font-size:.8rem;color:var(--ink-soft);margin:0 0 8px;}
+  .fld{display:grid;grid-template-columns:110px 1fr;gap:8px;align-items:center;margin:6px 0;font-size:.86rem;}
+  .fld label{color:var(--ink-soft);}
+  .fld input,.fld select,.fld textarea{width:100%;font-family:var(--sans);font-size:.92rem;border:1px solid var(--line);border-radius:10px;padding:8px 10px;background:#FAFBF9;color:var(--ink);}
+  .fld textarea{min-height:54px;resize:vertical;}
+  .with{margin:0;padding:0;list-style:none;}
+  .with li{font-size:.9rem;margin:5px 0;display:grid;grid-template-columns:22px 1fr;}
+  .with li b{font-family:var(--disp);font-weight:400;color:var(--accent);}
+  .closing{text-align:center;font-family:var(--serif);font-size:.95rem;color:var(--ink-soft);margin:16px 0 0;line-height:1.8;}
+  .saved{font-size:.8rem;color:var(--ink-soft);text-align:right;margin-top:10px;}
+  .rst{border:0;background:transparent;color:var(--ink-soft);font-family:var(--sans);font-size:.82rem;text-decoration:underline;cursor:pointer;}
+
+  @media (max-width:640px){
+    h1{font-size:1.4rem;}
+    .card{padding:18px 16px;}
+    .grid{grid-template-columns:1fr;}
+    .tops{grid-template-columns:1fr;}
+    .rhead{display:none;}
+    .rrow{grid-template-columns:1fr 1fr;}
+    .rn{grid-column:1 / 3;}
+    .rf{grid-column:1 / 3;}
+    .sgrid{grid-template-columns:1fr;}
+    .pp{grid-template-columns:minmax(0,1fr) 70px 54px;}
+    .sq{padding:14px 14px;}
+    .bars{grid-template-columns:1fr;}
+    .tiles{grid-template-columns:1fr 1fr 1fr;gap:6px;}
+    .tile{padding:8px 9px;} .tile .v{font-size:1rem;}
+    .srow{grid-template-columns:1fr;gap:2px;}
+    table.cmp .hide-m{display:none;}
+    .ci{grid-template-columns:24px 1fr;}
+    .ci .mk{grid-column:2;}
+    .fld{grid-template-columns:1fr;gap:3px;}
+  }
+  @media print{ .seg,.spills,.nav2,.rst,#back-top,.me-back{display:none !important;} body{background:#fff;} .card{box-shadow:none;} }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <p class="eyebrow">SHUEGUK · 예비 고1</p>
+    <h1>예비 고1 학교 분석</h1>
+    <p class="lead">고등학교 1학년 국어 시험을 학교별로 정리했습니다. 내가 갈 학교를 미리 살펴보세요.</p>
+    <div class="seg" id="seg">
+      <button data-v="summary">전체 요약</button>
+      <button data-v="school">학교별 분석</button>
+      <button data-v="check">나의 점검표</button>
+    </div>
+  </header>
+  <div id="view"></div>
+</div>
+
+<script>
+var SB_URL = 'https://bangdbhqpphqqdwcledg.supabase.co';
+var SB_KEY = 'sb_publishable_dE9d1KIbpgYaQkaS2MSrlg_-7SiRJuT';
+var QS = new URLSearchParams(location.search);
+var KEY = (QS.get('key') || '').trim(), SID = (QS.get('id') || QS.get('student') || '').trim();
+var ITEMS = null, LOAD_ERR = '', SORT = 'scope', QF = 'all';
+var LV = ['중', '중상', '상', '최상'];
+
+function $(id){ return document.getElementById(id); }
+function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+function arr(x){ return Array.isArray(x) ? x : (x == null || x === '' ? [] : [x]); }
+function paras(x){ return arr(x).map(function(t){ return '<p class="para">' + esc(t) + '</p>'; }).join(''); }
+function lvIdx(name){ return LV.indexOf(name); }
+
+/* ── 데이터 ── */
+function load(){
+  if (!KEY && !SID){ LOAD_ERR = 'nokey'; render(); return; }
+  var p = KEY ? { key: KEY } : { student: SID };
+  fetch(SB_URL + '/rest/v1/rpc/pre1_list', {
+    method: 'POST', headers: { apikey: SB_KEY, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ p: p })
+  }).then(function(r){
+    if (r.status === 404) throw { code: 'missing' };
+    if (!r.ok) throw { code: 'net' };
+    return r.json();
+  }).then(function(d){
+    if (!d || !d.ok){ LOAD_ERR = (d && d.error) || 'net'; ITEMS = []; }
+    else ITEMS = (d.items || []).map(function(x){ var o = x.data || {}; o._key = x.key; o.school = o.school || x.school; o.exam = o.exam || x.exam; return o; });
+    render();
+  }).catch(function(e){ LOAD_ERR = (e && e.code) || 'net'; ITEMS = []; render(); });
+}
+
+/* 문항 표에서 센 값 — 그래프 값이 있으면 그것을 쓴다 */
+function lvCounts(s){
+  var c = [0, 0, 0, 0];
+  if (s.levelDist && s.levelDist.length){ s.levelDist.forEach(function(x){ var i = lvIdx(x.name); if (i >= 0) c[i] = +x.n || 0; }); }
+  else arr(s.questions).forEach(function(q){ var i = lvIdx(q.lv); if (i >= 0) c[i]++; });
+  return c;
+}
+function qCount(s){ return arr(s.questions).length; }
+function hardN(s){ var c = lvCounts(s); return c[2] + c[3]; }
+function essayCount(s){ return arr(s.questions).filter(function(q){ return q.type && q.type !== '객관식'; }).length; }
+/* 서술형 있음/없음 (2026-11-03 원장님 "서술형이 있다, 없다가 매우 확실하게") — 문항 표에 서술형(서답형)이 있거나
+ * 시험 구성의 서답형 칸이 '없음'이 아니면 있음. 숫자를 못 셌으면 있음으로만 적는다. */
+function essayInfo(s){
+  var n = essayCount(s), t = String((s.composition && s.composition.essay) || '').trim();
+  var has = n > 0 || (t !== '' && !/^없음/.test(t) && !/^0\s*문항/.test(t));
+  var m = /(\d+)\s*문항/.exec(t);
+  return { has: has, n: n || (m ? +m[1] : 0) };
+}
+function essayBadge(s, big){
+  var e = essayInfo(s);
+  return e.has ? '<span class="es yes' + (big ? ' big' : '') + '">서술형 있음' + (e.n ? ' · ' + e.n + '문항' : '') + '</span>'
+               : '<span class="es no' + (big ? ' big' : '') + '">서술형 없음</span>';
+}
+function pct(a, b){ return b ? Math.round(a * 100 / b) : 0; }
+function lvBar(s){
+  var c = lvCounts(s), t = c[0] + c[1] + c[2] + c[3] || 1;
+  return '<div class="lvbar" title="' + LV.map(function(n, i){ return n + ' ' + c[i]; }).join(' · ') + '">' +
+    c.map(function(n, i){ return n ? '<i class="l' + i + '" style="width:' + (n * 100 / t) + '%"></i>' : ''; }).join('') + '</div>';
+}
+function lvLegend(){
+  var col = ['var(--lv0)', 'var(--lv1)', 'var(--lv2)', 'var(--lv3)'];
+  return '<div class="legend">' + LV.map(function(n, i){ return '<span style="--c:' + col[i] + '">' + n + '</span>'; }).join('') + '</div>';
+}
+function areaText(s){ return arr(s.areaDist).map(function(a){ return a.name + ' ' + a.n; }).join(' · '); }
+
+/* ── 화면 ── */
+function route(){
+  var h = location.hash.replace(/^#/, '');
+  if (h.indexOf('school=') === 0) return { v: 'school', key: decodeURIComponent(h.slice(7)) };
+  if (h === 'school' || h === 'check') return { v: h };
+  return { v: 'summary' };
+}
+function go(hash){ if (location.hash !== '#' + hash) location.hash = hash; else render(); }
+window.addEventListener('hashchange', function(){ render(); window.scrollTo(0, 0); });
+$('seg').addEventListener('click', function(e){
+  var b = e.target.closest('button'); if (!b) return;
+  var v = b.getAttribute('data-v');
+  if (v === 'school'){ var r = route(); go(r.key ? 'school=' + encodeURIComponent(r.key) : 'school'); }
+  else go(v);
+});
+
+function render(){
+  var r = route();
+  Array.prototype.forEach.call($('seg').children, function(b){ b.classList.toggle('on', b.getAttribute('data-v') === r.v); });
+  if (r.v === 'check'){ renderCheck(); return; }
+  if (ITEMS === null && !LOAD_ERR){ $('view').innerHTML = '<div class="msg">불러오는 중입니다…</div>'; return; }
+  if (LOAD_ERR || !ITEMS.length){ $('view').innerHTML = msgHtml(); return; }
+  if (r.v === 'school') renderSchool(r.key); else renderSummary();
+}
+function msgHtml(){
+  if (LOAD_ERR === 'nokey') return '<div class="msg"><b>학생 페이지에서 열어 주세요</b>학생 페이지의 [예비 고1 학교 분석] 카드를 누르면 바로 열립니다.</div>';
+  if (LOAD_ERR === 'no_student') return '<div class="msg"><b>학생 정보를 찾지 못했습니다</b>학생 페이지 주소가 맞는지 확인해 주세요.</div>';
+  if (LOAD_ERR === 'missing') return '<div class="msg"><b>준비 중입니다</b>곧 학교별 분석을 열어 드릴게요.</div>';
+  if (LOAD_ERR) return '<div class="msg"><b>불러오지 못했습니다</b>인터넷 연결을 확인한 뒤 새로고침해 주세요.</div>';
+  return '<div class="msg"><b>아직 올라온 분석이 없습니다</b>분석이 준비되면 여기에 보여요.</div>';
+}
+
+/* ── 시험 범위의 양·학교별 특징 (2026-11-03 원장님 "시험범위의 양이 한눈에 · 양이 많은 학교 · 학교별 특징") ──
+ * 범위 = scopeItems(작품·지문·단원 하나가 한 항목, n이 있으면 그만큼 — '외 4편') 를 교과서·프린트·모의고사로 센다.
+ * 외부(시험장에서 처음 보는 작품)는 공부할 범위가 아니라 따로 센다. scopeItems 가 없으면 범위표 줄을 ' · ' 로 나눠 어림한다.
+ * 특징 칩은 문항 표의 출처(scope 글)·영역 그래프에서 센 값만 쓴다 — 지어낸 평가는 넣지 않는다. */
+var KINDS = [['교과서', 'k-t'], ['프린트', 'k-p'], ['모의고사', 'k-m']];
+function kindOfLabel(l){ l = String(l || ''); return /외부/.test(l) ? '외부' : /모의/.test(l) ? '모의고사' : /프린트/.test(l) ? '프린트' : /교과서/.test(l) ? '교과서' : ''; }
+function scopeItems(s){
+  if (arr(s.scopeItems).length) return s.scopeItems;
+  var out = [];
+  arr(s.scope && s.scope.rows).forEach(function(r){
+    var k = kindOfLabel(r.label); if (!k) return;
+    arr(r.lines).forEach(function(line){ String(line).split(' · ').forEach(function(x){ if (x.trim()) out.push({ kind: k, name: x.trim() }); }); });
+  });
+  return out;
+}
+function scopeCount(s){
+  var c = { '교과서': 0, '프린트': 0, '모의고사': 0, '외부': 0 };
+  scopeItems(s).forEach(function(i){ if (c[i.kind] != null) c[i.kind] += (+i.n || 1); });
+  c.range = c['교과서'] + c['프린트'] + c['모의고사'];
+  return c;
+}
+/* 시험지 지문 분량 (2026-11-03 원장님 "비교표에 외부지문 분량 표시 명시화") — paper.passages(시험지 원본에서
+ * 지문마다 공백 뺀 글자 수, 종류는 scopeItems 기준)로 센다. paper 가 없으면 null. */
+function paperOf(s){
+  var ps = arr(s.paper && s.paper.passages); if (!ps.length) return null;
+  var o = { total: 0, ext: 0, extN: 0, inr: 0, n: ps.length, pages: (s.paper && s.paper.pages) || 0 };
+  ps.forEach(function(p){ var c = +p.chars || 0; o.total += c; if (p.kind === '외부'){ o.ext += c; o.extN++; } else o.inr += c; });
+  o.extPct = pct(o.ext, o.total);
+  return o;
+}
+function fmtK(n){ return n >= 1000 ? (Math.round(n / 100) / 10).toLocaleString('ko-KR') + '천' : String(n); }
+function qtype(s, k){ return arr(s.qtypes && s.qtypes[k]).length; }
+/* 복수 선택 = 〈보기〉의 ㄱ~ㅁ 중 맞는 것을 여러 개 골라 조합한 선지를 찾는 문항(combo) + 정답이 둘 이상인 문항(multi).
+ * 원장님 분석 PDF가 ㄱ~ㅁ 고르기 문항을 '(복수 선택)'으로 부른다(화수 3번). 2026 1학기 중간 8곳에 정답이 둘인 문항은 없다. */
+function multiN(s){ return qtype(s, 'multi') + qtype(s, 'combo'); }
+function multiBadge(s){
+  var n = multiN(s);
+  if (!s.qtypes) return '<span class="es no">—</span>';
+  return n ? '<span class="es yes">복수 선택 ' + n + '문항</span>' : '<span class="es no">복수 선택 없음</span>';
+}
+function extText(s){
+  var pp = paperOf(s);
+  if (!pp) return '처음 보는 작품 ' + scopeCount(s)['외부'] + '편';
+  return '외부 지문 ' + pp.extN + '개 · 약 ' + pp.ext.toLocaleString('ko-KR') + '자 · 시험지 지문의 ' + pp.extPct + '%';
+}
+function qSrc(s, word){ return arr(s.questions).filter(function(q){ return String(q.scope || '').indexOf(word) >= 0; }).length; }
+function areaN(s, re){ return arr(s.areaDist).filter(function(a){ return re.test(a.name); }).reduce(function(t, a){ return t + (+a.n || 0); }, 0); }
+function features(s){
+  var n = qCount(s) || 1, f = [];
+  var pr = qSrc(s, '프린트'), mo = qSrc(s, '모의고사'), ex = qSrc(s, '외부');
+  if (pr) f.push({ t: '프린트에서 ' + pr + '/' + n + '문항', on: pr * 2 >= n });
+  if (mo) f.push({ t: '3월 모의고사 지문 ' + mo + '문항', on: true });
+  if (ex) f.push({ t: '처음 보는 작품이 섞인 문항 ' + ex, on: ex * 3 >= n });
+  var gr = areaN(s, /문법/); if (gr) f.push({ t: '문법 ' + gr + '문항', on: gr * 4 >= n });
+  var sp = areaN(s, /화법|토론|작문/); if (sp) f.push({ t: '화법·작문 ' + sp + '문항', on: sp * 4 >= n });
+  var vo = areaN(s, /어휘/); if (vo) f.push({ t: '어휘 ' + vo + '문항', on: false });
+  if (multiN(s)) f.push({ t: '복수 선택(ㄱ~ㅁ 고르기) ' + multiN(s) + '문항', on: multiN(s) >= 3 });
+  var hp = pct(hardN(s), n); f.push({ t: '상·최상 ' + hp + '%', on: hp >= 75 });
+  return f;
+}
+function featHtml(s){ return '<div class="feats">' + features(s).map(function(x){ return '<span class="ft' + (x.on ? ' on' : '') + '">' + esc(x.t) + '</span>'; }).join('') + '</div>'; }
+function rangeBar(c, max){
+  return '<div class="rbar">' + KINDS.map(function(k){ var v = c[k[0]]; return v ? '<i class="' + k[1] + '" style="width:' + (v * 100 / max) + '%" title="' + k[0] + ' ' + v + '"></i>' : ''; }).join('') + '</div>';
+}
+function extBar(v, max){ return '<div class="rbar">' + (v ? '<i class="k-e" style="width:' + (v * 100 / max) + '%"></i>' : '') + '</div>'; }
+function kindLegend(withExt){
+  return '<div class="legend">' + KINDS.map(function(k){ return '<span style="--c:var(--' + k[1] + ')">' + k[0] + '</span>'; }).join('') +
+    (withExt ? '<span style="--c:var(--k-e)">처음 보는 작품(외부)</span>' : '') + '</div>';
+}
+
+function sorted(){
+  var a = ITEMS.slice(), nm = function(x, y){ return x.school.localeCompare(y.school, 'ko'); };
+  if (SORT === 'scope') a.sort(function(x, y){ return scopeCount(y).range - scopeCount(x).range || scopeCount(y)['외부'] - scopeCount(x)['외부'] || nm(x, y); });
+  else if (SORT === 'ext') a.sort(function(x, y){ var px = paperOf(x), py = paperOf(y);
+    return (py ? py.ext : scopeCount(y)['외부']) - (px ? px.ext : scopeCount(x)['외부']) || nm(x, y); });
+  else if (SORT === 'paper') a.sort(function(x, y){ return ((paperOf(y) || {}).total || 0) - ((paperOf(x) || {}).total || 0) || nm(x, y); });
+  else if (SORT === 'print') a.sort(function(x, y){ return pct(qSrc(y, '프린트'), qCount(y)) - pct(qSrc(x, '프린트'), qCount(x)) || nm(x, y); });
+  else if (SORT === 'hard') a.sort(function(x, y){ return pct(hardN(y), qCount(y)) - pct(hardN(x), qCount(x)) || nm(x, y); });
+  else a.sort(nm);
+  return a;
+}
+function sortPills(){
+  return '<div class="sort">' + [['scope', '범위 많은 순'], ['paper', '시험지 지문 긴 순'], ['ext', '외부 지문 많은 순'], ['print', '프린트 출제 많은 순'], ['hard', '상·최상 비율 높은 순'], ['name', '학교 이름순']]
+    .map(function(o){ return '<button class="pill' + (SORT === o[0] ? ' on' : '') + '" data-sort="' + o[0] + '">' + o[1] + '</button>'; }).join('') + '</div>';
+}
+function renderSummary(){
+  var exams = {};
+  ITEMS.forEach(function(s){ exams[s.exam] = 1; });
+  var a = sorted();
+  var cs = {}; ITEMS.forEach(function(s){ cs[s._key] = scopeCount(s); });
+  var anyEssay = ITEMS.some(function(s){ return essayInfo(s).has; });   // 모두 없으면 맨 위 한 줄로 충분 — 줄마다 배지는 뺀다
+  var maxR = Math.max.apply(null, ITEMS.map(function(s){ return cs[s._key].range; }).concat([1]));
+  var maxE = Math.max.apply(null, ITEMS.map(function(s){ return cs[s._key]['외부']; }).concat([1]));
+  var pps = {}; ITEMS.forEach(function(s){ pps[s._key] = paperOf(s); });
+  var hasPaper = ITEMS.some(function(s){ return pps[s._key]; });
+  var maxP = Math.max.apply(null, ITEMS.map(function(s){ return pps[s._key] ? pps[s._key].total : 0; }).concat([1]));
+  var maxX = Math.max.apply(null, ITEMS.map(function(s){ return pps[s._key] ? pps[s._key].ext : 0; }).concat([1]));
+  var topX = ITEMS.filter(function(s){ return pps[s._key] && pps[s._key].ext === maxX; }).map(function(s){ return s.short || s.school; });
+  var topR = ITEMS.filter(function(s){ return cs[s._key].range === maxR; }).map(function(s){ return s.short || s.school; });
+  var topE = ITEMS.filter(function(s){ return cs[s._key]['외부'] === maxE; }).map(function(s){ return s.short || s.school; });
+  var h = '<div class="card"><div class="sec-t"><span class="n">1</span>시험 범위의 양 · 학교별 특징<span class="sub">' + esc(Object.keys(exams).join(' · ')) + ' · ' + ITEMS.length + '개 학교</span></div>' +
+    '<div class="tops"><div class="top"><span class="k">공부할 범위가 가장 많은 학교</span><span class="v">' + esc(topR.join(' · ')) + '</span><span class="u">' + maxR + '개</span></div>' +
+    (hasPaper ? '<div class="top"><span class="k">외부 지문이 가장 긴 학교</span><span class="v">' + esc(topX.join(' · ')) + '</span><span class="u">약 ' + maxX.toLocaleString('ko-KR') + '자</span></div>'
+              : '<div class="top"><span class="k">처음 보는 작품이 가장 많은 학교</span><span class="v">' + esc(topE.join(' · ')) + '</span><span class="u">' + maxE + '편</span></div>') + '</div>' +
+    sortPills() + essaySummary() +
+    '<div class="rhead"><span>학교</span><span>공부할 범위 (작품·지문·단원)</span><span>' + (hasPaper ? '시험지 지문 분량 (범위 안 + <b class="xe">외부</b>)' : '처음 보는 작품') + '</span></div>' +
+    a.map(function(s){
+      var c = cs[s._key];
+      return '<div class="rrow" data-go="' + esc(s._key) + '"><div class="rn">' + esc(s.short || s.school) + (c.range === maxR ? '<span class="most">범위 최다</span>' : '') + '</div>' +
+        '<div class="rc"><span class="big">' + c.range + '</span>' + rangeBar(c, maxR) +
+          '<div class="rk">' + KINDS.map(function(k){ return k[0] + ' ' + c[k[0]]; }).join(' · ') + '</div></div>' +
+        (pps[s._key] ? '<div class="rc pc"><span class="big">' + (Math.round(pps[s._key].total / 100) / 10) + '<small>천자</small></span>' +
+            '<div class="rbar"><i class="k-in" style="width:' + (pps[s._key].inr * 100 / maxP) + '%"></i><i class="k-e" style="width:' + (pps[s._key].ext * 100 / maxP) + '%"></i></div>' +
+            '<div class="rk"><b class="xe">외부 ' + pps[s._key].extN + '개 · 약 ' + pps[s._key].ext.toLocaleString('ko-KR') + '자 (' + pps[s._key].extPct + '%)</b></div></div>'
+          : '<div class="rc"><span class="big e">' + c['외부'] + '</span>' + extBar(c['외부'], maxE) + '</div>') +
+        '<div class="rf">' + (anyEssay ? essayBadge(s) : '') + featHtml(s) + '</div></div>';
+    }).join('') + kindLegend(true) +
+    '<p class="muted" style="margin:10px 0 0">공부할 범위는 작품·지문·문법 단원 하나를 1개로 셌습니다(쪽수가 아니라 개수예요). ' +
+    (hasPaper ? '시험지 지문 분량은 실제 시험지에 실린 지문의 글자 수(공백 제외)이고, 분홍은 시험 범위 밖에서 나온 외부 지문입니다. ' : '처음 보는 작품은 시험 범위 밖에서 〈보기〉나 지문으로 나온 작품입니다. ') +
+    '연보라 칩은 그 학교에서 특히 두드러지는 점입니다.</p></div>';
+  h += '<div class="card"><div class="sec-t"><span class="n">2</span>비교표<span class="sub">서술형 · 복수 선택 · 외부 지문 분량 · 난도</span></div><div class="tscroll">' +
+    '<table class="cmp"><thead><tr><th>학교</th><th>서술형</th><th>복수 선택<br><small>(ㄱ~ㅁ 고르기)</small></th><th>외부 지문 분량</th><th>문항</th><th class="hide-m">주교재</th><th>상·최상</th><th class="hide-m">난도 분포</th><th></th></tr></thead><tbody>' +
+    a.map(function(s){
+      var es = essayCount(s), n = qCount(s), hn = hardN(s);
+      return '<tr class="go" data-go="' + esc(s._key) + '"><td class="sc">' + esc(s.short || s.school) + '</td>' +
+        '<td>' + essayBadge(s) + '</td>' +
+        '<td>' + multiBadge(s) + '</td>' +
+        '<td>' + (pps[s._key] ? '<span class="num xe">' + pps[s._key].ext.toLocaleString('ko-KR') + '자</span><div class="muted">' + pps[s._key].extN + '개 · 시험지 지문의 ' + pps[s._key].extPct + '%</div>'
+                             : '<span class="muted">처음 보는 작품 ' + cs[s._key]['외부'] + '편</span>') + '</td>' +
+        '<td><span class="num">' + n + '</span><div class="muted">' + (es ? '객관식 ' + (n - es) + ' · 서술형 ' + es : '전부 객관식') + '</div></td>' +
+        '<td class="hide-m">' + esc((s.composition && s.composition.book) || '') + '</td>' +
+        '<td><span class="num">' + hn + '</span><div class="muted">' + pct(hn, n) + '%</div></td>' +
+        '<td class="hide-m" style="width:22%">' + lvBar(s) + '</td><td class="arrow">›</td></tr>';
+    }).join('') + '</tbody></table></div>' + lvLegend() + '</div>';
+  h += '<div class="card"><div class="sec-t"><span class="n">3</span>학교별 요약<span class="sub">학교를 누르면 자세한 분석이 열립니다</span></div><div class="grid">' +
+    a.map(function(s){
+      var c = cs[s._key];
+      return '<button class="sbox" data-go="' + esc(s._key) + '"><div class="nm">' + esc(s.school) + '</div>' +
+        '<div class="ex">' + esc(s.exam) + ' · ' + esc(s.subject || '') + '</div>' +
+        '<div style="margin:0 0 10px">' + essayBadge(s) + '</div>' +
+        '<div class="row"><b>공부할 범위</b><span>' + c.range + '개 (' + KINDS.map(function(k){ return k[0] + ' ' + c[k[0]]; }).join(' · ') + ')</span></div>' +
+        '<div class="row"><b>외부 지문</b><span>' + esc(extText(s).replace(/^외부 지문 /, '')) + '</span></div>' +
+        '<div class="row"><b>문항</b><span>' + esc((s.cover && s.cover.items) || qCount(s) + '문항') + '</span></div>' +
+        '<div class="row"><b>주교재</b><span>' + esc((s.composition && s.composition.book) || '') + '</span></div>' +
+        featHtml(s) + '<span class="more">자세히 보기 ›</span></button>';
+    }).join('') + '</div></div>';
+  $('view').innerHTML = h;
+}
+
+function renderSchool(key){
+  var a = sorted(), s = null;
+  a.forEach(function(x){ if (x._key === key) s = x; });
+  if (!s){ s = a[0]; }
+  var h = '<div class="spills">' + a.map(function(x){ return '<button class="pill' + (x === s ? ' on' : '') + '" data-go="' + esc(x._key) + '">' + esc(x.short || x.school) + '</button>'; }).join('') + '</div>';
+  var cv = s.cover || {}, cp = s.composition || {};
+  h += '<div class="card shead"><div class="nm">' + esc(s.school) + '</div><div class="ex">' + esc(s.exam) + ' · ' + esc(s.subject || '') + '</div>' +
+    '<div class="esband">' + essayBadge(s, true) + '<span class="muted">' + (essayInfo(s).has ? '객관식과 서술형이 함께 나온 시험입니다.' : '전 문항 객관식으로 나온 시험입니다.') + '</span></div>' +
+    '<div class="tiles"><div class="tile"><div class="k">문항</div><div class="v">' + esc(cv.items || '') + '</div></div>' +
+    '<div class="tile"><div class="k">영역</div><div class="v">' + esc(cv.areas || '') + '</div></div>' +
+    '<div class="tile"><div class="k">상·최상</div><div class="v">' + esc(cv.hard || '') + '</div></div></div></div>';
+  // 1 시험 구성
+  h += sec(1, '시험 구성', '', '<div class="tiles" style="margin-top:0"><div class="tile"><div class="k">객관식 문항</div><div class="v">' + esc(cp.mc || '') + '</div></div>' +
+    '<div class="tile"><div class="k">서술형 문항</div><div class="v">' + esc(cp.essay || (essayInfo(s).has ? '있음' : '없음')) + '</div></div>' +
+    '<div class="tile"><div class="k">주교재</div><div class="v">' + esc(cp.book || '') + '</div></div></div>');
+  // 2 시험 범위
+  var sc = s.scope || {};
+  var c2 = scopeCount(s), its = scopeItems(s);
+  h += sec(2, '시험 범위', '공부할 범위 ' + c2.range + '개 · 처음 보는 작품 ' + c2['외부'] + '편', (sc.main ? '<p class="scope-main"><b>주교재</b>' + esc(sc.main) + '</p>' : '') +
+    '<div class="sgrid">' + KINDS.concat([['외부', 'k-e']]).map(function(k){
+      var li = its.filter(function(i){ return i.kind === k[0]; });
+      return '<div class="sk"><div class="sh"><i class="dot" style="background:var(--' + k[1] + ')"></i>' + (k[0] === '외부' ? '처음 보는 작품' : k[0]) + '<b>' + c2[k[0]] + '</b></div>' +
+        (li.length ? li.map(function(i){ return '<span class="sit">' + esc(i.name) + '</span>'; }).join('') : '<span class="muted">없음</span>') + '</div>';
+    }).join('') + '</div>' + featHtml(s) +
+    paperHtml(s) +
+    '<details class="orig"><summary>원래 범위표 보기</summary>' +
+    arr(sc.rows).map(function(r){ return '<div class="srow"><div class="lb">' + esc(r.label) + '</div><div>' + arr(r.lines).map(esc).join('<br>') + '</div></div>'; }).join('') + '</details>');
+  // 대표 유형 미리보기 (2026-11-03 원장님 "대표 유형 미리보기(가시성) · 복수선택 유형 등")
+  if (arr(s.samples).length) h += sec('★', '대표 유형 미리보기', '시험지 원문 · 정답은 [정답 보기]', samplesHtml(s));
+  // 3 출제 분류 및 난도
+  h += sec(3, '출제 분류 및 난도', '', '<div class="bars"><div><h4>영역별 출제 분포 (총 ' + qCount(s) + '문항)</h4>' + hbars(arr(s.areaDist)) + '</div>' +
+    '<div><h4>난도별 출제 분포</h4>' + hbars(LV.map(function(n, i){ return { name: n, n: lvCounts(s)[i] }; })) + '</div></div>' +
+    (arr(s.distNote).length ? '<div class="notes">' + arr(s.distNote).map(function(t){ return '<span class="chip">' + esc(t) + '</span>'; }).join('') + '</div>' : ''));
+  // 4 문항 분석
+  var qs = arr(s.questions).filter(function(q){ return QF === 'all' || (QF === 'hard' ? lvIdx(q.lv) >= 2 : q.area === QF); });
+  var areas = [];   // 문항 표의 영역 이름으로(그래프와 묶는 단위가 다른 학교가 있다 — 무원 '3모 시가' ↔ '현대시·고전')
+  arr(s.questions).forEach(function(q){ if (q.area && areas.indexOf(q.area) < 0) areas.push(q.area); });
+  h += sec(4, '문항 분석', s.questionsNote || '', '<div class="qf"><button class="pill' + (QF === 'all' ? ' on' : '') + '" data-qf="all">전체</button>' +
+    '<button class="pill' + (QF === 'hard' ? ' on' : '') + '" data-qf="hard">상·최상만</button>' +
+    areas.map(function(a){ return '<button class="pill' + (QF === a ? ' on' : '') + '" data-qf="' + esc(a) + '">' + esc(a) + '</button>'; }).join('') + '</div>' +
+    (qs.length ? qs.map(function(q){
+      var li = lvIdx(q.lv);
+      return '<div class="q"><div class="no">' + esc(q.no) + '</div><div><div class="tags"><span class="tg lv l' + li + '">' + esc(q.lv) + '</span>' +
+        '<span class="tg">' + esc(q.area) + '</span>' + (q.type && q.type !== '객관식' ? '<span class="tg">' + esc(q.type) + '</span>' : '') +
+        '<span class="sc2">' + esc(q.scope) + '</span></div><div class="tx">' + esc(q.text) + '</div></div></div>';
+    }).join('') : '<p class="muted">해당하는 문항이 없습니다.</p>'));
+  // 5 총평
+  h += sec(5, '시험 총평', '', paras(s.review));
+  // 6 영역별 경향
+  h += sec(6, '영역별 출제 경향', '', arr(s.trends).map(function(t){ return '<div class="trend"><h4>' + esc(t.title) + '</h4>' + paras(t.body) + '</div>'; }).join(''));
+  // 7 고난도
+  if (arr(s.hard).length) h += sec(7, '고난도 문항 분석', s.hardTitle || '', arr(s.hard).map(function(x){
+    var tg = [x.lv ? '<span class="tg' + (x.lv === '최상' ? ' l3' : '') + '">' + esc(x.lv) + '</span>' : '',
+              x.area ? '<span class="tg">' + esc(x.area) + '</span>' : '',
+              x.answer ? '<span class="tg">정답 ' + esc(x.answer) + '</span>' : '',
+              x.pts ? '<span class="tg">' + esc(x.pts) + '</span>' : ''].join('');
+    return '<div class="hard"><div class="top"><span class="bn">' + esc(x.no) + '번</span>' + tg + '</div>' +
+      '<p class="ttl">' + esc(x.title) + '</p>' +
+      (x.structure ? '<p class="kv"><b>문항 구조</b>' + esc(x.structure) + '</p>' : '') +
+      (x.key ? '<p class="kv"><b>핵심 판단</b>' + esc(x.key) + '</p>' : '') +
+      (x.trap ? '<p class="kv"><b>함정</b>' + esc(x.trap) + '</p>' : '') + '</div>';
+  }).join(''));
+  // 8 학습 포인트
+  if (arr(s.points).length) h += sec(8, s.pointsTitle || '학습 포인트', '', arr(s.points).map(function(p, i){
+    return '<div class="pt"><h4><span class="i">' + (i + 1) + '</span>' + esc(p.title) + '</h4>' + (p.body ? '<p class="body">' + esc(p.body) + '</p>' : '') +
+      arr(p.steps).map(function(st){ return '<div class="step"><span class="sl' + (st.star ? ' star' : '') + '">' + (st.star ? '★ ' : '') + esc(st.label || '') + '</span><span>' + esc(st.text) + '</span></div>'; }).join('') + '</div>';
+  }).join(''));
+  arr(s.extra).forEach(function(x, i){ h += sec(9 + i, x.title, '', paras(x.body)); });
+  var idx = a.indexOf(s), pv = a[idx - 1], nx = a[idx + 1];
+  h += '<div class="nav2"><span>' + (pv ? '<button data-go="' + esc(pv._key) + '">‹ ' + esc(pv.short || pv.school) + '</button>' : '') + '</span>' +
+    '<button data-sum="1">전체 요약으로</button><span>' + (nx ? '<button data-go="' + esc(nx._key) + '">' + esc(nx.short || nx.school) + ' ›</button>' : '') + '</span></div>';
+  $('view').innerHTML = h;
+}
+function essaySummary(){
+  var yes = ITEMS.filter(function(s){ return essayInfo(s).has; });
+  var no = ITEMS.length - yes.length;
+  return '<div class="essum"><span class="es ' + (yes.length ? 'yes' : 'no') + ' big">' +
+    (yes.length ? '서술형 있는 학교 ' + yes.length + '곳' : ITEMS.length + '개 학교 모두 서술형 없음') + '</span><span>' +
+    (yes.length ? '서술형 있음: ' + yes.map(function(s){ return esc(s.short || s.school); }).join(' · ') + (no ? ' / 서술형 없음 ' + no + '곳' : '')
+                : '이번 시험은 ' + ITEMS.length + '개 학교 모두 서술형 없이 객관식만 나왔습니다.') + '</span></div>';
+}
+function paperHtml(s){
+  var pp = paperOf(s); if (!pp) return '';
+  var mx = Math.max.apply(null, arr(s.paper.passages).map(function(p){ return +p.chars || 0; }).concat([1]));
+  var col = { '교과서': 'k-t', '프린트': 'k-p', '모의고사': 'k-m', '외부': 'k-e' };
+  return '<div class="ppr"><div class="pph"><b>시험지 지문 분량</b><span>지문 ' + pp.n + '개 · 약 ' + pp.total.toLocaleString('ko-KR') + '자' + (pp.pages ? ' · 시험지 ' + pp.pages + '쪽' : '') + '</span>' +
+    '<span class="xe">외부 지문 ' + pp.extN + '개 · 약 ' + pp.ext.toLocaleString('ko-KR') + '자 (' + pp.extPct + '%)</span></div>' +
+    arr(s.paper.passages).map(function(p){
+      return '<div class="pp"><span class="pt2"><i class="dot" style="background:var(--' + (col[p.kind] || 'k-t') + ')"></i>' + esc(p.title) + (p.author ? ' <small>' + esc(p.author) + '</small>' : '') +
+        (p.kind === '외부' ? ' <b class="xtag">외부</b>' : '') + '</span>' +
+        '<span class="rbar"><i class="' + (col[p.kind] || 'k-t') + '" style="width:' + ((+p.chars || 0) * 100 / mx) + '%"></i></span>' +
+        '<span class="pc2">' + (+p.chars || 0).toLocaleString('ko-KR') + '자</span></div>';
+    }).join('') + '</div>';
+}
+var CIRC = '①②③④⑤';
+function samplesHtml(s){
+  return '<div class="smp">' + arr(s.samples).map(function(q, i){
+    var ans = String(q.answer || ''), multi = q.multi || /[①-⑤].*[①-⑤]/.test(ans);
+    var combo = q.type === 'ㄱ~ㅁ 조합형', tcls = (combo || q.type === '복수 선택') ? ' multi' : '';
+    var tl = combo ? '복수 선택 · 〈보기〉 ㄱ~ㅁ 고르기' : (q.type || '') + (multi ? ' · 정답 ' + (ans.match(/[①-⑤]/g) || []).length + '개' : '');
+    return '<div class="sq" data-sq="' + i + '"><div class="sqh"><span class="sty' + tcls + '">' + esc(tl) + '</span>' +
+      '<span class="sno">' + esc(q.no) + '번</span>' + (q.context ? '<span class="sctx">' + esc(q.context) + '</span>' : '') + '</div>' +
+      '<p class="sst">' + esc(q.stem) + '</p>' +
+      (q.bogi ? '<div class="sbg"><span class="sbl">〈보기〉</span>' + esc(q.bogi).replace(/\n/g, '<br>') + '</div>' : '') +
+      '<ol class="sop">' + arr(q.options).map(function(o){
+        var d = String(o).trim().charAt(0), hit = CIRC.indexOf(d) >= 0 && ans.indexOf(d) >= 0;
+        return '<li class="' + (hit ? 'ans' : '') + '">' + esc(o).replace(/\n/g, '<br>') + '</li>';
+      }).join('') + '</ol>' +
+      '<button class="sbtn" data-ans="' + i + '">정답 보기</button><span class="sans">정답 ' + esc(ans) + '</span></div>';
+  }).join('') + '</div>';
+}
+function sec(n, title, sub, body){
+  return '<div class="card"><div class="sec-t"><span class="n">' + n + '</span>' + esc(title) + (sub ? '<span class="sub">' + esc(sub) + '</span>' : '') + '</div>' + body + '</div>';
+}
+function hbars(list){
+  var mx = Math.max.apply(null, list.map(function(x){ return +x.n || 0; }).concat([1]));
+  return list.map(function(x){ return '<div class="hb"><span>' + esc(x.name) + '</span><span class="tr"><i style="width:' + ((+x.n || 0) * 100 / mx) + '%"></i></span><span class="c">' + (+x.n || 0) + '</span></div>'; }).join('');
+}
+
+$('view').addEventListener('click', function(e){
+  var t = e.target.closest('[data-go],[data-sort],[data-qf],[data-sum],[data-mk],[data-rst],[data-ans]'); if (!t) return;
+  if (t.hasAttribute('data-ans')){ var box = t.closest('.sq'); var on = box.classList.toggle('show'); t.textContent = on ? '정답 가리기' : '정답 보기'; return; }
+  if (t.hasAttribute('data-go')){ QF = 'all'; go('school=' + encodeURIComponent(t.getAttribute('data-go'))); return; }
+  if (t.hasAttribute('data-sort')){ SORT = t.getAttribute('data-sort'); render(); return; }
+  if (t.hasAttribute('data-qf')){ QF = t.getAttribute('data-qf'); render(); return; }
+  if (t.hasAttribute('data-sum')){ go('summary'); return; }
+  if (t.hasAttribute('data-mk')){ var p = t.getAttribute('data-mk').split('|'); setMark(p[0], p[1]); return; }
+  if (t.hasAttribute('data-rst')){ if (confirm('표시한 내용과 적은 글을 모두 지울까요?')){ CK = { m: {}, f: {} }; ckSave(); renderCheck(); } }
+});
+
+/* ── 나의 점검표 (원장님 '예비 고1 기본부터 살펴보기' — 이 기기에만 저장) ── */
+var CL = [
+  { t: '1층 · 기본 약속', s: '배우기 전에 지켜야 할 것들', g: [
+    ['A', '시간 지키기', [[1, '수업 시작 시간에 늦지 않는다'], [2, '늦거나 빠져야 할 일이 생기면 미리 선생님께 알린다']]],
+    ['B', '준비물과 안내 챙기기', [[3, '수업에 필요한 교재와 준비물을 챙겨 간다'], [4, '받은 프린트와 자료를 잃어버리지 않게 한곳에 모아 둔다'], [5, '선생님이 안내한 과제 범위와 일정을 그 자리에서 적어 둔다'], [6, '학교와 학원의 공지나 알림을 스스로 확인한다']]],
+    ['C', '과제와 제출 기한', [[7, '과제와 수행평가 일정을 한곳에 기록해 둔다'], [8, '과제와 수행평가를 정해진 날까지 낸다']]],
+    ['D', '못 한 일 마무리하기', [[9, '다 못 한 과제는 먼저 말하고, 정한 날까지 마무리한다'], [10, '혼자 끝내기 어려우면 마감 전에 도움을 요청한다'], [11, '답을 베끼지 않고 직접 풀어서 과제를 끝낸다']]]
+  ]},
+  { t: '2층 · 배우는 자세', s: '기본 위에서 실제로 배우는 방법', g: [
+    ['E', '수업 듣고 이해 확인하기', [[12, '수업 중 선생님이 강조한 내용을 표시하거나 적어 둔다'], [13, '이해가 안 되면 넘어가지 않고, 어디서 막혔는지 짚어서 묻는다'], [14, '설명을 들은 뒤 자기 말로 말하거나 직접 풀어 본다'], [15, '교과서와 프린트의 필기 내용을 빠른 시일 안에 복습한다']]],
+    ['F', '틀린 것 해결하기', [[16, '틀린 문제에서 정답의 근거와 내 답이 틀린 이유를 말할 수 있다'], [17, '그 문제를 풀려면 어떤 개념이 필요했는지 찾아 적는다'], [18, '해설을 덮고 틀린 문제를 다시 풀어 맞힌다'], [19, '자주 틀리는 개념이나 헷갈리는 내용은 따로 정리해 둔다']]]
+  ]},
+  { t: '3층 · 시험 준비', s: '고등학교 첫 시험을 위한 연습', g: [
+    ['G', '범위와 계획', [[20, '시험 범위를 정리하고, 중요도에 따라 계획을 세운다'], [21, '작품의 키워드, 단원의 핵심 내용을 정확히 암기한다']]],
+    ['H', '실전 연습', [[22, '예상 문제와 실전 문제를 충분히 풀어 본다'], [23, '시간을 재면서 실전처럼 문제를 풀어 본다']]]
+  ]},
+  { t: '4층 · 마음가짐', s: '지금 내 마음이 어디쯤 있는지', g: [
+    ['I', '생활 리듬', [[24, '잠드는 시간과 일어나는 시간이 대체로 일정하다'], [25, '하루 계획을 지키려고 노력한다'], [26, '공부할 때 휴대폰을 손이 닿지 않는 곳에 둔다']]],
+    ['J', '나를 위한 공부', [[27, '자신 없는 단원도 피하지 않고 더 집중해서 공부한다'], [28, '결과에 너무 연연하지 않고, 과정에 집중하려고 한다'], [29, '누가 시켜서가 아니라, 나 자신을 위해 공부한다']]]
+  ]}
+];
+var MARKS = [['o', '○', '대체로 지키고 있다'], ['t', '△', '가끔 놓친다'], ['x', '×', '자주 놓친다'], ['n', '–', '해당 상황이 없었다']];
+var CK_LS = 'pre1_check_' + (KEY || SID || 'guest');
+var CK = { m: {}, f: {} };
+try { var _c = JSON.parse(localStorage.getItem(CK_LS) || 'null'); if (_c && _c.m) CK = { m: _c.m || {}, f: _c.f || {}, at: _c.at }; } catch(e){}
+function ckSave(){ CK.at = Date.now(); try { localStorage.setItem(CK_LS, JSON.stringify(CK)); } catch(e){} }
+function allItems(){ var a = []; CL.forEach(function(f){ f.g.forEach(function(g){ g[2].forEach(function(it){ a.push(it); }); }); }); return a; }
+function setMark(no, m){
+  if (CK.m[no] === m) delete CK.m[no]; else CK.m[no] = m;
+  ckSave();
+  var row = document.querySelector('.ci[data-no="' + no + '"]');
+  if (row) Array.prototype.forEach.call(row.querySelectorAll('button'), function(b){ b.classList.toggle('on', b.getAttribute('data-mk') === no + '|' + CK.m[no]); });
+  $('ckCount').innerHTML = countHtml();
+  fillSelects();
+}
+function countHtml(){
+  var c = { o: 0, t: 0, x: 0, n: 0 }, total = allItems().length, done = 0;
+  for (var k in CK.m){ if (c[CK.m[k]] != null){ c[CK.m[k]]++; done++; } }
+  return '<span><b>' + done + '</b>/ ' + total + '개 표시</span>' + MARKS.map(function(m){ return '<span>' + m[1] + ' <b>' + c[m[0]] + '</b></span>'; }).join('');
+}
+function optList(want){
+  var items = allItems();
+  var pick = items.filter(function(it){ return want.indexOf(CK.m[it[0]]) >= 0; });
+  var rest = items.filter(function(it){ return want.indexOf(CK.m[it[0]]) < 0; });
+  function o(it){ var m = CK.m[it[0]]; var sym = m ? MARKS.filter(function(x){ return x[0] === m; })[0][1] + ' ' : ''; return '<option value="' + it[0] + '">' + sym + it[0] + '. ' + esc(it[1]) + '</option>'; }
+  return '<option value="">번호 고르기</option>' + (pick.length ? '<optgroup label="표시한 항목">' + pick.map(o).join('') + '</optgroup>' : '') + '<optgroup label="모든 항목">' + rest.map(o).join('') + '</optgroup>';
+}
+function fillSelects(){
+  [['f1n', ['o']], ['f2n', ['t', 'x']], ['f3n', ['t']]].forEach(function(p){
+    var el = $(p[0]); if (!el) return; var v = CK.f[p[0]] || ''; el.innerHTML = optList(p[1]); el.value = v;
+  });
+}
+function fld(id, label, type){
+  var v = esc(CK.f[id] || '');
+  var inp = type === 'select' ? '<select id="' + id + '" data-f="' + id + '"></select>'
+          : type === 'area' ? '<textarea id="' + id + '" data-f="' + id + '">' + v + '</textarea>'
+          : '<input id="' + id + '" data-f="' + id + '" type="' + (type || 'text') + '" value="' + v + '" />';
+  return '<div class="fld"><label for="' + id + '">' + esc(label) + '</label>' + inp + '</div>';
+}
+function renderCheck(){
+  var h = '<div class="card"><div class="sec-t">예비 고1 · 고등학교에 가기 전, 기본부터 살펴보기</div>' +
+    '<p class="para">어느 학교에 가든, 그 학교에서 공부할 습관은 내가 준비할 수 있습니다.</p>' +
+    '<p class="para muted">이 표는 시험이 아닙니다. 점수도 등급도 없고, 누가 채점하지도 않습니다. 잘 보이려고 고르지 말고, 최근 2주 동안 실제로 어땠는지 떠올리며 솔직하게 표시해 주세요.</p>' +
+    '<div class="legend" style="margin-top:4px">' + MARKS.map(function(m){ return '<span style="--c:transparent">' + m[1] + ' ' + m[2] + '</span>'; }).join('') + '</div>' +
+    '<div class="marks" id="ckCount">' + countHtml() + '</div></div>';
+  h += '<div class="card">' + CL.map(function(f){
+    return '<div class="floor">' + esc(f.t) + '<span>' + esc(f.s) + '</span></div>' + f.g.map(function(g){
+      return '<div class="grp">' + g[0] + ' · ' + esc(g[1]) + '</div>' + g[2].map(function(it){
+        return '<div class="ci" data-no="' + it[0] + '"><span class="no">' + (it[0] < 10 ? '0' : '') + it[0] + '</span><span class="tx">' + esc(it[1]) + '</span><span class="mk">' +
+          MARKS.map(function(m){ return '<button class="' + m[0] + (CK.m[it[0]] === m[0] ? ' on' : '') + '" data-mk="' + it[0] + '|' + m[0] + '" title="' + m[2] + '" aria-label="' + m[2] + '">' + m[1] + '</button>'; }).join('') + '</span></div>';
+      }).join('');
+    }).join('');
+  }).join('') + '</div>';
+  h += '<div class="card"><div class="sec-t">나를 돌아보고, 행동 하나 정하기</div>' +
+    '<div class="rf"><h4><span class="i">1</span>내가 이미 잘하고 있는 것 하나</h4><p class="hint">○를 표시한 항목 중에서 하나를 골라 주세요.</p>' + fld('f1n', '번호', 'select') + fld('f1t', '어떻게 지키고 있나요', 'area') + '</div>' +
+    '<div class="rf"><h4><span class="i">2</span>자꾸 놓치는 것 하나</h4><p class="hint">△나 ×를 표시한 항목 중 하나를 골라 주세요. "내가 게을러서"보다 "그때 무슨 일이 있었는지"를 떠올려 보세요.</p>' + fld('f2n', '번호', 'select') + fld('f2t', '주로 놓치는 상황', 'area') + '</div>' +
+    '<div class="rf"><h4><span class="i">3</span>이번 주에 연습할 행동 하나</h4><p class="hint">×보다 △에서 골라 주세요. 가끔 놓치는 것을 줄이는 일이, 처음부터 바꾸는 일보다 쉽습니다.</p>' +
+      fld('f3n', '연습할 행동 번호', 'select') + fld('f3w', '언제, 어디서') + fld('f3h', '어떻게 확인할까') + fld('f3e', '도움이 필요한 일') + '</div>' +
+    '<div class="rf"><h4><span class="i">4</span>일주일 뒤, 다시 확인하기</h4><p class="hint">해 보니 어땠는지 적고, 그 항목만 다시 표시해 주세요.</p>' +
+      fld('f4d', '날짜', 'date') + fld('f4t', '해 보니 어땠나요', 'area') + fld('f4m', '다시 표시 (○ △ ×)') + '</div>' +
+    '<p class="saved">' + (CK.at ? '이 기기에 저장됨 · ' + new Date(CK.at).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '표시하고 적은 내용은 이 기기에만 저장돼요.') +
+    ' · <button class="rst" data-rst="1">모두 지우기</button></p></div>';
+  h += '<div class="card"><div class="sec-t">이수경 국어는 이렇게 함께하고 있어요</div><ul class="with">' +
+    ['학교별 시험 범위와 학교 수업의 필기 내용을 세밀하게 반영해 맞춤형 수업을 진행합니다.',
+     '부족한 부분은 개별 질문과 보충 설명으로 끝까지 함께합니다.',
+     '시험 직전까지 실전 감각을 살릴 수 있도록 문제 풀이, 오답 정리를 반복합니다.',
+     '흔들리지 않도록, 공부 방향과 컨디션도 함께 살펴보고 있어요.',
+     '언제나 여러분을 믿고 응원합니다. 마지막까지 함께 걸어 갈게요.'].map(function(t, i){ return '<li><b>' + (i + 1) + '</b><span>' + esc(t) + '</span></li>'; }).join('') +
+    '</ul><p class="closing">한 번에 모두 바꾸지 않아도 됩니다. 하나가 자리 잡으면, 다음 하나를 고르면 됩니다.<br>오늘부터 하나씩 익히는 습관이<br>고등학생이 될 나를 만들어 줄 거예요.</p></div>';
+  $('view').innerHTML = h;
+  fillSelects();
+}
+$('view').addEventListener('input', function(e){
+  var id = e.target.getAttribute && e.target.getAttribute('data-f'); if (!id) return;
+  CK.f[id] = e.target.value; ckSave();
+});
+$('view').addEventListener('change', function(e){
+  var id = e.target.getAttribute && e.target.getAttribute('data-f'); if (!id) return;
+  CK.f[id] = e.target.value; ckSave();
+});
+
+render();
+load();
+</script>
+<script src="me-back.js"></script>
+</body>
+</html>
