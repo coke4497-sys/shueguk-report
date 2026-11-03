@@ -2285,6 +2285,10 @@ function renderHub(){
   });
   // 학력평가 성적 (2026-10-21, 057) — 고등학생에게만. 회차가 열리면 입력, 기록은 계속 쌓인다
   html += smHubCard();
+  // 예비 고1 학교 분석 (2026-11-03 원장님, 061) — 재원생 모두. 학교별 1학기 중간고사 분석 + 나의 점검표(pre1.html)
+  html += '<a class="card t-mnt" href="pre1.html?'+(IS_ID ? 'id=' : 'key=')+encodeURIComponent(KEY)+'"><span class="icon">'+svg(ICON.book)+'</span>' +
+          '<h3>예비 고1 학교 분석</h3><p class="desc">고등학교별 국어 시험 분석 · 고등학교 가기 전 점검표</p>' +
+          '<span class="go">열기 '+svg(ICON.arrow)+'</span></a>';
   // 지필고사 데이터 (잠금)
   var cntTxt = STATE.examCount>0 ? ('내신 기록 '+STATE.examCount+'건') : '내신 기록';
   if(anTodo>0) cntTxt += ' · 복기 '+anTodo+'건 입력 필요';
