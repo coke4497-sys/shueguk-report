@@ -225,9 +225,9 @@ global.UrlFetchApp = { fetch: (url, opt) => { CALLS.push({ url, opt }); const n 
   return { getResponseCode: () => n.code, getContentText: () => JSON.stringify(n.body) }; } };
 fns.alimConfigSet({ pw: 'sh', apiKey: 'KEY1', apiSecret: 'SEC1', pfId: 'PF1', tpl: { absent: 'KA01TP1' } });
 r = J(fns.alimConfigGet());
-const NK = Object.keys(r.templates).filter(k => r.templates[k].notice && k !== 'notice_mockrep');   // notice_mockrep 는 문구 모양이 달라 12-2에서 따로 본다
+const NK = Object.keys(r.templates).filter(k => r.templates[k].notice && k !== 'notice_mockrep' && k !== 'notice_pre1');   // notice_mockrep 는 문구 모양이 달라 12-2에서 따로 본다
 eq('공지 종류 여덟(notice 표시) + 결석 안내·결석 예고 — 옛 단일 notice 없음', [NK, 'notice' in r.templates, r.templates.absent.notice, Object.keys(r.templates).length],
-   [['notice_sched', 'notice_sched2', 'notice_mock', 'notice_hwork', 'notice_report', 'notice_reportup', 'notice_voca', 'notice_gramma'], false, false, 13]);
+   [['notice_sched', 'notice_sched2', 'notice_mock', 'notice_hwork', 'notice_report', 'notice_reportup', 'notice_voca', 'notice_gramma'], false, false, 14]);
 eq('종류 이름', NK.map(k => r.templates[k].label), ['수업 일정 안내', '수업 일정 안내 (학생 페이지 안내 없음)', '주말 실전 모의고사 신청 안내', 'H WORK 과제 안내', '지필고사 리포트 제작 안내', '지필고사 리포트 업데이트 안내', '어휘 테스트 참여 안내', '문법 테스트 참여 안내']);
 eq('설정 목록에 공지 템플릿(아직 ID 없음)', [typeof r.templates.notice_mock.text, r.templates.notice_mock.ready, r.templates.notice_mock.vars, r.templates.notice_voca.vars], ['string', false, ['학생명', '제목', '장소', '신청일', '정원', '접근코드'], ['학생명', '제목', '접근코드']]);
 const MOCK_BODY = '1. #{장소}에서 실시합니다.\n2. 8:30까지 등원하여 8:40-10:00까지, 모의수능시험에 응시합니다. 8:35분이 지나면 출입을 통제하고 이후 입실이 <불가>합니다.\n3. #{신청일} 중 택1하여 신청합니다. 마감되면 설문을 종료합니다.\n4. 장소가 협소하므로 각 요일 #{정원}명 선착순으로 마감합니다. 임의로 요일을 이동할 수 없습니다.\n\n';
@@ -242,6 +242,9 @@ eq('문구 = 제목 줄·둘째 줄에 종류 이름 + ▶ 제목 + 종류별 �
 eq('수업 일정 안내(학생 페이지 안내 없음) = 같은 문구에서 마지막 줄만 없음, 뒤에 빈 줄도 없음',
    [r.templates.notice_sched2.text, r.templates.notice_sched2.vars, r.templates.notice_sched2.buttons[0].name, r.templates.notice_sched2.text !== r.templates.notice_sched.text],
    ['[이수경국어학원] 수업 일정 안내\n#{학생명} 학생에게 수업 일정 안내가 도착했어요.\n\n▶ #{제목}', ['학생명', '제목', '접근코드'], '학생 페이지 링크', true]);
+eq('고1 국어 미리보기 안내 = 원장님 문장 그대로·변수 학생명·접근코드·버튼',
+   [r.templates.notice_pre1.notice, r.templates.notice_pre1.vars, r.templates.notice_pre1.text.split('\n')[0], r.templates.notice_pre1.text.split('\n')[1], r.templates.notice_pre1.buttons[0].name, /s\.html\?key=#\{접근코드\}$/.test(r.templates.notice_pre1.buttons[0].linkMo)],
+   [true, ['학생명', '접근코드'], '[이수경국어학원] 고1 국어 미리보기 안내', '#{학생명} 학생, 학부모님 안녕하세요.', '학생 페이지 링크', true]);
 eq('공지 템플릿 버튼 = 학생 페이지 열기(웹링크, 접근코드 변수) — 결석은 버튼 없음',
    [NK.map(k => r.templates[k].buttons.map(b => [b.name, b.type, b.linkMo === b.linkPc, /s\.html\?key=#\{접근코드\}$/.test(b.linkMo)])), r.templates.absent.buttons],
    [NK.map(() => [['학생 페이지 링크', 'WL', true, true]]), []]);

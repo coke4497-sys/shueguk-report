@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>예비 고1 학교 분석</title>
+<title>덕양구 8개 주요학교 고1 국어 미리보기</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=Gowun+Dodum&family=Do+Hyeon&family=Sacramento&display=swap" rel="stylesheet" />
@@ -31,7 +31,7 @@
   .wrap{max-width:760px;margin:0 auto;padding:0 16px;}
   header{padding:34px 4px 18px;}
   .eyebrow{font-size:.74rem;letter-spacing:.22em;color:var(--accent);margin:0;}
-  h1{font-family:var(--serif);font-weight:700;font-size:1.6rem;margin:6px 0 4px;line-height:1.35;}
+  h1{font-family:var(--serif);font-weight:700;font-size:1.6rem;margin:6px 0 4px;line-height:1.35;word-break:keep-all;}
   .lead{font-family:var(--serif);color:var(--ink-soft);font-size:.95rem;margin:0;}
   .seg{display:flex;gap:4px;background:#fff;border-radius:999px;padding:4px;margin:18px 0 6px;}
   .seg button{flex:1;border:0;background:transparent;border-radius:999px;padding:9px 6px;font-family:var(--sans);font-size:.92rem;color:var(--ink-soft);cursor:pointer;}
@@ -260,7 +260,7 @@
 <div class="wrap">
   <header>
     <p class="eyebrow">SHUEGUK · 예비 고1</p>
-    <h1>예비 고1 학교 분석</h1>
+    <h1>덕양구 8개 주요학교 고1 국어 미리보기</h1>
     <p class="lead">고등학교 1학년 국어 시험을 학교별로 정리했습니다. 내가 갈 학교를 미리 살펴보세요.</p>
     <div class="seg" id="seg">
       <button data-v="check">나의 점검표</button>
@@ -363,7 +363,7 @@ function render(){
   if (r.v === 'school') renderSchool(r.key); else renderSummary();
 }
 function msgHtml(){
-  if (LOAD_ERR === 'nokey') return '<div class="msg"><b>학생 페이지에서 열어 주세요</b>학생 페이지의 [예비 고1 학교 분석] 카드를 누르면 바로 열립니다.</div>';
+  if (LOAD_ERR === 'nokey') return '<div class="msg"><b>학생 페이지에서 열어 주세요</b>학생 페이지의 [덕양구 8개 주요학교 고1 국어 미리보기] 카드를 누르면 바로 열립니다.</div>';
   if (LOAD_ERR === 'no_student') return '<div class="msg"><b>학생 정보를 찾지 못했습니다</b>학생 페이지 주소가 맞는지 확인해 주세요.</div>';
   if (LOAD_ERR === 'missing') return '<div class="msg"><b>준비 중입니다</b>곧 학교별 분석을 열어 드릴게요.</div>';
   if (LOAD_ERR) return '<div class="msg"><b>불러오지 못했습니다</b>인터넷 연결을 확인한 뒤 새로고침해 주세요.</div>';

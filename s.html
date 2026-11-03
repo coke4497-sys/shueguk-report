@@ -2287,7 +2287,7 @@ function renderHub(){
   html += smHubCard();
   // 예비 고1 학교 분석 (2026-11-03 원장님, 061) — 재원생 모두. 학교별 1학기 중간고사 분석 + 나의 점검표(pre1.html)
   html += '<a class="card t-mnt" href="pre1.html?'+(IS_ID ? 'id=' : 'key=')+encodeURIComponent(KEY)+'"><span class="icon">'+svg(ICON.book)+'</span>' +
-          '<h3>예비 고1 학교 분석</h3><p class="desc">고등학교별 국어 시험 분석 · 고등학교 가기 전 점검표</p>' +
+          '<h3>덕양구 8개 주요학교 고1 국어 미리보기</h3><p class="desc">고등학교별 국어 시험 분석 · 고등학교 가기 전 점검표</p>' +
           '<span class="go">열기 '+svg(ICON.arrow)+'</span></a>';
   // 지필고사 데이터 (잠금)
   var cntTxt = STATE.examCount>0 ? ('내신 기록 '+STATE.examCount+'건') : '내신 기록';
