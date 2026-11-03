@@ -242,9 +242,9 @@ eq('문구 = 제목 줄·둘째 줄에 종류 이름 + ▶ 제목 + 종류별 �
 eq('수업 일정 안내(학생 페이지 안내 없음) = 같은 문구에서 마지막 줄만 없음, 뒤에 빈 줄도 없음',
    [r.templates.notice_sched2.text, r.templates.notice_sched2.vars, r.templates.notice_sched2.buttons[0].name, r.templates.notice_sched2.text !== r.templates.notice_sched.text],
    ['[이수경국어학원] 수업 일정 안내\n#{학생명} 학생에게 수업 일정 안내가 도착했어요.\n\n▶ #{제목}', ['학생명', '제목', '접근코드'], '학생 페이지 링크', true]);
-eq('예비 고1 학교 분석 안내 = 원장님 문장 그대로·변수 학생명·접근코드·버튼',
+eq('고1 국어 미리보기 안내 = 원장님 문장 그대로·변수 학생명·접근코드·버튼',
    [r.templates.notice_pre1.notice, r.templates.notice_pre1.vars, r.templates.notice_pre1.text.split('\n')[0], r.templates.notice_pre1.text.split('\n')[1], r.templates.notice_pre1.buttons[0].name, /s\.html\?key=#\{접근코드\}$/.test(r.templates.notice_pre1.buttons[0].linkMo)],
-   [true, ['학생명', '접근코드'], '[이수경국어학원] 예비 고1 학교 분석 안내', '#{학생명} 학생, 학부모님 안녕하세요.', '학생 페이지 링크', true]);
+   [true, ['학생명', '접근코드'], '[이수경국어학원] 고1 국어 미리보기 안내', '#{학생명} 학생, 학부모님 안녕하세요.', '학생 페이지 링크', true]);
 eq('공지 템플릿 버튼 = 학생 페이지 열기(웹링크, 접근코드 변수) — 결석은 버튼 없음',
    [NK.map(k => r.templates[k].buttons.map(b => [b.name, b.type, b.linkMo === b.linkPc, /s\.html\?key=#\{접근코드\}$/.test(b.linkMo)])), r.templates.absent.buttons],
    [NK.map(() => [['학생 페이지 링크', 'WL', true, true]]), []]);
