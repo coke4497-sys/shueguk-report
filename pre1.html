@@ -516,10 +516,13 @@ function extText(s){
   return '외부 지문 ' + pp.extN + '개 · 약 ' + pp.ext.toLocaleString('ko-KR') + '자 · 시험지 지문의 ' + pp.extPct + '%';
 }
 function qSrc(s, word){ return arr(s.questions).filter(function(q){ return String(q.scope || '').indexOf(word) >= 0; }).length; }
+/* 출처별 문항 수 — 원장님 분석지(총평)에 적힌 숫자(s.src {교과서, 프린트, 모의고사})가 먼저(2026-11-03 원장님 "분석지와 데이터가 다릅니다").
+ * 문항 표의 출처 글로 세면 '교과서 + 프린트'·'프린트 + 외부' 같은 묶음 문항이 섞여 분석지와 달라진다. src 가 없을 때만 글로 센다. */
+function srcN(s, word){ return s.src && s.src[word] != null ? +s.src[word] || 0 : qSrc(s, word); }
 function areaN(s, re){ return arr(s.areaDist).filter(function(a){ return re.test(a.name); }).reduce(function(t, a){ return t + (+a.n || 0); }, 0); }
 function features(s){
   var n = qCount(s) || 1, f = [];
-  var pr = qSrc(s, '프린트'), mo = qSrc(s, '모의고사'), ex = qSrc(s, '외부');
+  var pr = srcN(s, '프린트'), mo = srcN(s, '모의고사'), ex = qSrc(s, '외부');
   if (pr) f.push({ t: '프린트에서 ' + pr + '/' + n + '문항', on: pr * 2 >= n });
   if (mo) f.push({ t: '3월 모의고사 지문 ' + mo + '문항', on: true });
   if (ex) f.push({ t: '처음 보는 작품이 섞인 문항 ' + ex, on: ex * 3 >= n });
@@ -546,7 +549,7 @@ function sorted(){
   else if (SORT === 'ext') a.sort(function(x, y){ var px = paperOf(x), py = paperOf(y);
     return (py ? py.ext : scopeCount(y)['외부']) - (px ? px.ext : scopeCount(x)['외부']) || nm(x, y); });
   else if (SORT === 'paper') a.sort(function(x, y){ return ((paperOf(y) || {}).total || 0) - ((paperOf(x) || {}).total || 0) || nm(x, y); });
-  else if (SORT === 'print') a.sort(function(x, y){ return pct(qSrc(y, '프린트'), qCount(y)) - pct(qSrc(x, '프린트'), qCount(x)) || nm(x, y); });
+  else if (SORT === 'print') a.sort(function(x, y){ return pct(srcN(y, '프린트'), qCount(y)) - pct(srcN(x, '프린트'), qCount(x)) || nm(x, y); });
   else if (SORT === 'hard') a.sort(function(x, y){ return pct(hardN(y), qCount(y)) - pct(hardN(x), qCount(x)) || nm(x, y); });
   else a.sort(nm);
   return a;

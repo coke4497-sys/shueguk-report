@@ -36,6 +36,7 @@ let ITEMS = [
   { key: 'b-26-1m', school: '나고', exam: '2026학년도 1학기 중간고사', data: fake('나고', '나', 4, ['중', '상', '상', '최상'], { composition: { mc: '3문항', essay: '1문항', book: '나출판' }, scopeItems: [{ kind: '교과서', name: '〈ㄱ〉' }, { kind: '프린트', name: '〈ㄴ〉' }, { kind: '프린트', name: '〈ㄷ〉' }, { kind: '모의고사', name: '지문' }, { kind: '외부', name: '〈ㅁ〉 외 2편', n: 3 }],
     paper: { pages: 2, passages: [{ title: 'ㄱ', author: '갑', kind: '교과서', qnos: [1], chars: 600 }, { title: 'ㅁ', author: '을', kind: '외부', qnos: [4], chars: 400 }] },
     qtypes: { multi: [], combo: [3], bogi: [3] },
+    src: { '교과서': 1, '프린트': 2, '모의고사': 1 },
     samples: [{ no: 3, type: 'ㄱ~ㅁ 조합형', stem: '〈보기〉에서 적절한 것만을 고른 것은?', bogi: 'ㄱ. 첫 줄\nㄴ. 둘째 줄', options: ['① ㄱ', '② ㄴ', '③ ㄱ, ㄴ', '④ ㄱ, ㄷ', '⑤ ㄴ, ㄷ'], answer: '③', multi: false, context: '〈ㄱ〉' },
               { no: 2, type: '복수 선택', stem: '적절한 것 두 개는?', bogi: '', options: ['① 가', '② 나', '③ 다', '④ 라', '⑤ 마'], answer: '②④', multi: true, context: '' },
               { no: 1, type: '문법 탐구', stem: '문법 발문', bogi: '', options: ['① 가', '② 나', '③ 다', '④ 라', '⑤ 마'], answer: '③', context: '' }], hard: [{ no: '3·4', lv: '', title: '묶은 칸', key: 'k', structure: '구조 글' }] }) },
@@ -95,6 +96,8 @@ let MODE = 'ok', CALLS = [];
     ok('자료 없는 학교는 처음 보는 작품 수로', (await pg.locator('.cmr').nth(1).textContent()).includes('처음 보는 작품 0편'));
     ok('특징 칩 복수 선택', (await pg.locator('.rrow').first().locator('.ft').allTextContents()).includes('복수 선택(ㄱ~ㅁ 고르기) 1문항'));
     ok('특징 칩', (await pg.locator('.rrow').nth(1).locator('.ft').allTextContents()).some(t => t.startsWith('상·최상 50%')));
+    ok('출처 칩은 분석지 숫자(src)로', (await pg.locator('.rrow').first().locator('.ft').allTextContents()).includes('프린트에서 2/4문항') && (await pg.locator('.rrow').first().locator('.ft').allTextContents()).includes('3월 모의고사 지문 1문항'));
+    ok('src 없는 학교는 문항 표로(프린트 0 → 칩 없음)', !(await pg.locator('.rrow').nth(1).locator('.ft').allTextContents()).some(t => t.startsWith('프린트에서')));
     await pg.click('[data-sort="name"]');
     const rows = await pg.locator('.cmr').allTextContents();
     ok('학교 이름순(가 → 나)', rows.length === 2 && rows[0].startsWith('가') && rows[1].startsWith('나'), JSON.stringify(rows));

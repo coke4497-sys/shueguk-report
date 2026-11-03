@@ -102,6 +102,12 @@ def problems(d):
     for p in (d.get('paper') or {}).get('passages') or []:
         if p.get('kind') not in ('교과서', '프린트', '모의고사', '외부') or not isinstance(p.get('chars'), int):
             out.append(f"시험지 지문이 이상합니다: {p.get('title')}")
+    src = d.get('src')   # 분석지 총평의 출처별 문항 수 — 화면 '프린트에서 n문항' 칩이 이 값을 쓴다
+    if src is not None:
+        if not isinstance(src, dict) or any(not isinstance(v, int) or v < 0 for v in src.values()):
+            out.append(f'src 가 이상합니다: {src}')
+        elif sum(src.values()) > len(qs):
+            out.append(f'src 합 {sum(src.values())} > 문항 {len(qs)}')
     for p in d['points']:
         if not str(p.get('title', '')).strip():
             out.append('학습 포인트 제목이 비었습니다')
