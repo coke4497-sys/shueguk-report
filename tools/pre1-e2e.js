@@ -201,7 +201,7 @@ let MODE = 'ok', CALLS = [];
 
   console.log('⑥ s.html 카드');
   const src = fs.readFileSync(path.join(ROOT, 's.html'), 'utf8');
-  ok('허브에 [예비 고1 학교 분석] 카드', src.includes("href=\"pre1.html?'+(IS_ID ? 'id=' : 'key=')") && src.includes('<h3>예비 고1 학교 분석</h3>'));
+  ok('허브에 [덕양구 8개 주요학교 고1 국어 미리보기] 카드', src.includes("href=\"pre1.html?'+(IS_ID ? 'id=' : 'key=')") && src.includes('<h3>덕양구 8개 주요학교 고1 국어 미리보기</h3>'));
 
   ok('페이지 오류 없음', perr === 0);
   await br.close(); srv.close();
