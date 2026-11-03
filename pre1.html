@@ -14,7 +14,7 @@
   예비 고1 학교 분석 (2026-11-03 원장님, 061)
   · 학생 페이지(s.html) [예비 고1 학교 분석] 카드가 ?key=(접근코드) 또는 ?id=(학생ID)를 실어 연다.
   · 분석 글은 공개 저장소에 두지 않는다 — 수파베이스 pre1_schools 를 함수 pre1_list 로 받는다(재원생만).
-  · 화면 셋: 전체 요약(#summary) · 학교별 분석(#school=<key>) · 나의 점검표(#check — 이 기기에만 저장).
+  · 화면 셋(탭 순서): 나의 점검표(#check — 기본, 이 기기에만 저장) · 전체 요약(#summary) · 학교별 분석(#school=<key>).
 -->
 <style>
   :root{
@@ -263,9 +263,9 @@
     <h1>예비 고1 학교 분석</h1>
     <p class="lead">고등학교 1학년 국어 시험을 학교별로 정리했습니다. 내가 갈 학교를 미리 살펴보세요.</p>
     <div class="seg" id="seg">
+      <button data-v="check">나의 점검표</button>
       <button data-v="summary">전체 요약</button>
       <button data-v="school">학교별 분석</button>
-      <button data-v="check">나의 점검표</button>
     </div>
   </header>
   <div id="view"></div>
@@ -342,8 +342,8 @@ function areaText(s){ return arr(s.areaDist).map(function(a){ return a.name + ' 
 function route(){
   var h = location.hash.replace(/^#/, '');
   if (h.indexOf('school=') === 0) return { v: 'school', key: decodeURIComponent(h.slice(7)) };
-  if (h === 'school' || h === 'check') return { v: h };
-  return { v: 'summary' };
+  if (h === 'school' || h === 'summary') return { v: h };
+  return { v: 'check' };   // 2026-11-03 원장님 "나의 점검표가 맨 앞으로" — 처음 열면 점검표
 }
 function go(hash){ if (location.hash !== '#' + hash) location.hash = hash; else render(); }
 window.addEventListener('hashchange', function(){ render(); window.scrollTo(0, 0); });
