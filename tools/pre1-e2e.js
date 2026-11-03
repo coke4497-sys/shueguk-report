@@ -14,7 +14,7 @@ const ok = (m, c, x) => { c ? (pass++, console.log('  ✓ ' + m)) : (fail++, con
 
 function fake(school, short, n, lv, extra){
   const qs = [];
-  for (let i = 1; i <= n; i++) qs.push({ no: i, scope: '교과서 1(1) 〈가짜 작품〉', area: i <= n / 2 ? '문학' : '독서', lv: lv[i - 1], type: '객관식', text: short + ' ' + i + '번 내용' });
+  for (let i = 1; i <= n; i++) qs.push({ no: i, scope: '교과서 1(1) 〈가짜 작품〉', area: i <= n / 2 ? '문학' : '독서', lv: lv[i - 1], type: (short === '나' && i === n) ? '서술형' : '객관식', text: short + ' ' + i + '번 내용' });
   const cnt = k => qs.filter(q => q.lv === k).length;
   return Object.assign({
     school, short, exam: '2026학년도 1학기 중간고사', subject: '공통국어1',
@@ -33,7 +33,7 @@ function fake(school, short, n, lv, extra){
   }, extra || {});
 }
 let ITEMS = [
-  { key: 'b-26-1m', school: '나고', exam: '2026학년도 1학기 중간고사', data: fake('나고', '나', 4, ['중', '상', '상', '최상'], { hard: [{ no: '3·4', lv: '', title: '묶은 칸', key: 'k', structure: '구조 글' }] }) },
+  { key: 'b-26-1m', school: '나고', exam: '2026학년도 1학기 중간고사', data: fake('나고', '나', 4, ['중', '상', '상', '최상'], { composition: { mc: '3문항', essay: '1문항', book: '나출판' }, hard: [{ no: '3·4', lv: '', title: '묶은 칸', key: 'k', structure: '구조 글' }] }) },
   { key: 'a-26-1m', school: '가고', exam: '2026학년도 1학기 중간고사', data: fake('가고', '가', 6, ['중', '중상', '중상', '상', '최상', '최상']) }
 ];
 if (process.env.PRE1_JSON){
@@ -81,6 +81,11 @@ let MODE = 'ok', CALLS = [];
     ok('상·최상 비율 높은 순(나 75% → 가 50%)', r2.join() === '나,가', r2.join());
     ok('난도 막대 칸 수', await pg.locator('table.cmp tbody tr:first-child .lvbar i').count() === 3);
     ok('학교 카드 두 장', await pg.locator('.sbox').count() === 2);
+    ok('요약 맨 위 서술형 한 줄', (await pg.locator('.essum').textContent()).includes('서술형 있는 학교 1곳') && (await pg.locator('.essum').textContent()).includes('서술형 없음 1곳'));
+    const es = await pg.locator('table.cmp tbody tr .es').allTextContents();
+    ok('표의 서술형 칸(나 있음 · 가 없음)', es.join('|') === '서술형 있음 · 1문항|서술형 없음', es.join('|'));
+    ok('있음 배지는 붉은 채움', await pg.locator('table.cmp .es.yes').evaluate(e => getComputedStyle(e).backgroundColor) === 'rgb(200, 70, 63)');
+    ok('학교 카드에도 배지', await pg.locator('.sbox .es').count() === 2);
   }
   if (SHOT) await pg.screenshot({ path: path.join(SHOT, 'pre1-summary.png'), fullPage: true });
 
@@ -91,6 +96,7 @@ let MODE = 'ok', CALLS = [];
   ok('[학교별 분석] 탭이 켜짐', await pg.locator('#seg button.on').textContent() === '학교별 분석');
   if (!real){
     ok('첫 카드 = 나고(정렬 유지)', (await pg.locator('.shead .nm').textContent()) === '나고');
+    ok('상세 머리 서술형 띠', (await pg.locator('.esband').textContent()).includes('서술형 있음 · 1문항') && (await pg.locator('.esband').textContent()).includes('함께 나온'));
     ok('섹션 1~8', (await pg.locator('.sec-t .n').allTextContents()).join() === '1,2,3,4,5,6,7,8');
     ok('범위 줄', (await pg.locator('.srow').textContent()).includes('〈둘째 작품〉'));
     ok('문항 4개', await pg.locator('.q').count() === 4);
@@ -104,6 +110,7 @@ let MODE = 'ok', CALLS = [];
     await pg.click('.nav2 [data-go]');
     await pg.waitForFunction(() => document.querySelector('.shead .nm').textContent === '가고').catch(() => {});
     ok('다음 학교 가고 + 거르기 풀림', (await pg.locator('.shead .nm').textContent()) === '가고' && await pg.locator('.q').count() === 6);
+    ok('없는 학교 띠 = 서술형 없음', (await pg.locator('.esband').textContent()).includes('서술형 없음') && (await pg.locator('.esband').textContent()).includes('전 문항 객관식'));
     ok('고난도 정답·배점', (await pg.locator('.hard').first().textContent()).includes('정답 ④'));
     await pg.goBack();
     await pg.waitForFunction(() => document.querySelector('.shead .nm') && document.querySelector('.shead .nm').textContent === '나고');

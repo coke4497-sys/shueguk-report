@@ -73,6 +73,13 @@
   .sbox .areas{font-size:.8rem;color:var(--ink-soft);margin-top:8px;line-height:1.55;}
   .sbox .more{display:block;margin-top:10px;color:var(--accent);font-size:.84rem;}
 
+  /* 서술형 있음/없음 — 한눈에 */
+  .es{display:inline-block;border-radius:999px;padding:3px 11px;font-size:.8rem;font-weight:700;white-space:nowrap;}
+  .es.no{background:#E7F1EC;color:#2F5D4F;}
+  .es.yes{background:#C8463F;color:#fff;}
+  .es.big{font-family:var(--disp);font-weight:400;font-size:1.02rem;padding:5px 14px;}
+  .essum{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--soft);border-radius:14px;padding:10px 12px;margin:0 0 12px;font-size:.88rem;}
+  .esband{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:12px;}
   /* 학교 상세 */
   .spills{display:flex;gap:6px;overflow-x:auto;padding:4px 0 8px;scrollbar-width:none;}
   .spills::-webkit-scrollbar{display:none;}
@@ -230,6 +237,19 @@ function lvCounts(s){
 function qCount(s){ return arr(s.questions).length; }
 function hardN(s){ var c = lvCounts(s); return c[2] + c[3]; }
 function essayCount(s){ return arr(s.questions).filter(function(q){ return q.type && q.type !== '객관식'; }).length; }
+/* 서술형 있음/없음 (2026-11-03 원장님 "서술형이 있다, 없다가 매우 확실하게") — 문항 표에 서술형(서답형)이 있거나
+ * 시험 구성의 서답형 칸이 '없음'이 아니면 있음. 숫자를 못 셌으면 있음으로만 적는다. */
+function essayInfo(s){
+  var n = essayCount(s), t = String((s.composition && s.composition.essay) || '').trim();
+  var has = n > 0 || (t !== '' && !/^없음/.test(t) && !/^0\s*문항/.test(t));
+  var m = /(\d+)\s*문항/.exec(t);
+  return { has: has, n: n || (m ? +m[1] : 0) };
+}
+function essayBadge(s, big){
+  var e = essayInfo(s);
+  return e.has ? '<span class="es yes' + (big ? ' big' : '') + '">서술형 있음' + (e.n ? ' · ' + e.n + '문항' : '') + '</span>'
+               : '<span class="es no' + (big ? ' big' : '') + '">서술형 없음</span>';
+}
 function pct(a, b){ return b ? Math.round(a * 100 / b) : 0; }
 function lvBar(s){
   var c = lvCounts(s), t = c[0] + c[1] + c[2] + c[3] || 1;
@@ -287,11 +307,12 @@ function renderSummary(){
   var h = '<div class="card"><div class="sec-t"><span class="n">1</span>한눈에 비교<span class="sub">' + esc(Object.keys(exams).join(' · ')) + ' · ' + ITEMS.length + '개 학교</span></div>' +
     '<div class="sort"><button class="pill' + (SORT === 'name' ? ' on' : '') + '" data-sort="name">학교 이름순</button>' +
     '<button class="pill' + (SORT === 'hard' ? ' on' : '') + '" data-sort="hard">상·최상 비율 높은 순</button></div>' +
-    '<table class="cmp"><thead><tr><th>학교</th><th>문항</th><th class="hide-m">주교재</th><th>상·최상</th><th>난도 분포</th><th></th></tr></thead><tbody>' +
+    essaySummary() + '<table class="cmp"><thead><tr><th>학교</th><th>서술형</th><th>문항</th><th class="hide-m">주교재</th><th>상·최상</th><th>난도 분포</th><th></th></tr></thead><tbody>' +
     a.map(function(s){
       var es = essayCount(s), n = qCount(s), hn = hardN(s);
       return '<tr class="go" data-go="' + esc(s._key) + '"><td class="sc">' + esc(s.short || s.school) + '</td>' +
-        '<td><span class="num">' + n + '</span><div class="muted">' + (es ? '서답형 ' + es : '전부 객관식') + '</div></td>' +
+        '<td>' + essayBadge(s) + '</td>' +
+        '<td><span class="num">' + n + '</span><div class="muted">' + (es ? '객관식 ' + (n - es) + ' · 서술형 ' + es : '전부 객관식') + '</div></td>' +
         '<td class="hide-m">' + esc((s.composition && s.composition.book) || '') + '</td>' +
         '<td><span class="num">' + hn + '</span><div class="muted">' + pct(hn, n) + '%</div></td>' +
         '<td style="width:30%">' + lvBar(s) + '</td><td class="arrow">›</td></tr>';
@@ -301,6 +322,7 @@ function renderSummary(){
       var notes = arr(s.distNote);
       return '<button class="sbox" data-go="' + esc(s._key) + '"><div class="nm">' + esc(s.school) + '</div>' +
         '<div class="ex">' + esc(s.exam) + ' · ' + esc(s.subject || '') + '</div>' +
+        '<div style="margin:0 0 10px">' + essayBadge(s) + '</div>' +
         '<div class="row"><b>문항</b><span>' + esc((s.cover && s.cover.items) || qCount(s) + '문항') + '</span></div>' +
         '<div class="row"><b>상·최상</b><span>' + esc((s.cover && s.cover.hard) || hardN(s) + '문항') + '</span></div>' +
         '<div class="row"><b>주교재</b><span>' + esc((s.composition && s.composition.book) || '') + '</span></div>' +
@@ -318,12 +340,13 @@ function renderSchool(key){
   var h = '<div class="spills">' + a.map(function(x){ return '<button class="pill' + (x === s ? ' on' : '') + '" data-go="' + esc(x._key) + '">' + esc(x.short || x.school) + '</button>'; }).join('') + '</div>';
   var cv = s.cover || {}, cp = s.composition || {};
   h += '<div class="card shead"><div class="nm">' + esc(s.school) + '</div><div class="ex">' + esc(s.exam) + ' · ' + esc(s.subject || '') + '</div>' +
+    '<div class="esband">' + essayBadge(s, true) + '<span class="muted">' + (essayInfo(s).has ? '객관식과 서술형이 함께 나온 시험입니다.' : '전 문항 객관식으로 나온 시험입니다.') + '</span></div>' +
     '<div class="tiles"><div class="tile"><div class="k">문항</div><div class="v">' + esc(cv.items || '') + '</div></div>' +
     '<div class="tile"><div class="k">영역</div><div class="v">' + esc(cv.areas || '') + '</div></div>' +
     '<div class="tile"><div class="k">상·최상</div><div class="v">' + esc(cv.hard || '') + '</div></div></div></div>';
   // 1 시험 구성
   h += sec(1, '시험 구성', '', '<div class="tiles" style="margin-top:0"><div class="tile"><div class="k">객관식 문항</div><div class="v">' + esc(cp.mc || '') + '</div></div>' +
-    '<div class="tile"><div class="k">서답형 문항</div><div class="v">' + esc(cp.essay || '') + '</div></div>' +
+    '<div class="tile"><div class="k">서술형 문항</div><div class="v">' + esc(cp.essay || (essayInfo(s).has ? '있음' : '없음')) + '</div></div>' +
     '<div class="tile"><div class="k">주교재</div><div class="v">' + esc(cp.book || '') + '</div></div></div>');
   // 2 시험 범위
   var sc = s.scope || {};
@@ -372,6 +395,14 @@ function renderSchool(key){
   h += '<div class="nav2"><span>' + (pv ? '<button data-go="' + esc(pv._key) + '">‹ ' + esc(pv.short || pv.school) + '</button>' : '') + '</span>' +
     '<button data-sum="1">전체 요약으로</button><span>' + (nx ? '<button data-go="' + esc(nx._key) + '">' + esc(nx.short || nx.school) + ' ›</button>' : '') + '</span></div>';
   $('view').innerHTML = h;
+}
+function essaySummary(){
+  var yes = ITEMS.filter(function(s){ return essayInfo(s).has; });
+  var no = ITEMS.length - yes.length;
+  return '<div class="essum"><span class="es ' + (yes.length ? 'yes' : 'no') + ' big">' +
+    (yes.length ? '서술형 있는 학교 ' + yes.length + '곳' : ITEMS.length + '개 학교 모두 서술형 없음') + '</span><span>' +
+    (yes.length ? '서술형 있음: ' + yes.map(function(s){ return esc(s.short || s.school); }).join(' · ') + (no ? ' / 서술형 없음 ' + no + '곳' : '')
+                : '이번 시험은 ' + ITEMS.length + '개 학교 모두 서술형 없이 객관식만 나왔습니다.') + '</span></div>';
 }
 function sec(n, title, sub, body){
   return '<div class="card"><div class="sec-t"><span class="n">' + n + '</span>' + esc(title) + (sub ? '<span class="sub">' + esc(sub) + '</span>' : '') + '</div>' + body + '</div>';
