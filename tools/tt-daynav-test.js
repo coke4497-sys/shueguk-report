@@ -23,6 +23,9 @@ const DAYK = ['일','월','화','수','목','금','토'];
 const dayOf = ymd => new Intl.DateTimeFormat('ko-KR', { weekday: 'narrow', timeZone: 'Asia/Seoul' }).format(new Date(ymd + 'T12:00:00+09:00'));
 const ago = n => KST(Date.now() - n * 864e5);
 const TS = ago(0), Y1 = ago(1), Y28 = ago(28), Y29 = ago(29);
+// 앞날은 이번 주(월~일) 일요일까지 — 오늘 요일에 따라 0~6일 (2026-11-04)
+const FUT = (7 - DAYK.indexOf(dayOf(TS))) % 7;
+const T1 = ago(-1), SUN = ago(-FUT);
 const label = y => (+y.slice(5,7)) + '/' + (+y.slice(8,10)) + ' (' + dayOf(y) + ')';
 // 요일마다 반 하나(지원T 본원) — 어느 날짜를 봐도 수업 카드가 있다
 const CLASSES = DAYK.map((d, i) => ({ class_id: 'r0' + (i + 1), book: '정규', day: d, start_time: '5:30', end_time: '7:00',
@@ -88,8 +91,8 @@ const ok = (n, c, x) => { if (c) pass++; else { fail++; console.log('  ✗ ' + n
              today: !!n.querySelector('.dn-today'), note: !!document.querySelector('.day-note') };
   });
   ok('① 날짜 줄이 있다', !!nav);
-  ok('① 드롭다운 29개(오늘~4주 전) · 첫 줄 "· 오늘" · 마지막 "· 4주 전"', nav && nav.opts.length === 29 && /· 오늘$/.test(nav.opts[0]) && /· 4주 전$/.test(nav.opts[28]) && nav.vals[0] === TS && nav.vals[28] === Y28, nav && JSON.stringify([nav.opts[0], nav.opts[28], nav.vals[28]]));
-  ok('① 오늘: [다음날] 잠김 · [전날] 열림 · [오늘로] 없음 · 안내 줄 없음', nav && nav.next && !nav.prev && !nav.today && !nav.note, JSON.stringify(nav));
+  ok('① 드롭다운 = 이번 주 일요일 ~ 4주 전 · 오늘 줄 "· 오늘" · 마지막 "· 4주 전"', nav && nav.opts.length === 29 + FUT && /· 오늘$/.test(nav.opts[FUT]) && /· 4주 전$/.test(nav.opts[28 + FUT]) && nav.vals[0] === SUN && nav.vals[FUT] === TS && nav.vals[28 + FUT] === Y28 && nav.cur === TS && (FUT === 0 || /· 내일$/.test(nav.opts[FUT - 1])), nav && JSON.stringify([FUT, nav.opts[0], nav.opts[FUT], nav.opts[28 + FUT]]));
+  ok('① 오늘: [다음날]은 일요일만 잠김 · [전날] 열림 · [오늘로] 없음 · 안내 줄 없음', nav && nav.next === (FUT === 0) && !nav.prev && !nav.today && !nav.note, JSON.stringify(nav));
   ok('① 오늘: ttBoot가 오늘 출석을 받았다', attReqDates().indexOf(TS) >= 0, JSON.stringify(attReqDates()));
 
   /* ② 전날 */
@@ -169,6 +172,30 @@ const ok = (n, c, x) => { if (c) pass++; else { fail++; console.log('  ✗ ' + n
   r = await page.evaluate(() => ({ ok: document.querySelectorAll('.stus button.at-ok').length, note: !!document.querySelector('.day-note'), ay: attendYmd, dy: dayYmd }));
   ok('⑤ 지난 날짜를 보다 주차별 → 오늘 탭: 오늘로 돌아오고 출석 기록도 오늘 것(어제 칩 없음)', r.ok === 0 && !r.note && r.ay === TS && r.dy === null, JSON.stringify(r));
   await page.close();
+
+  /* ⑦ 앞날 — 이번 주 일요일까지 (오늘이 일요일이면 건너뜀) */
+  if (FUT > 0){
+    page = await open(wide);
+    reqs.length = 0;
+    await page.click('.daynav .dn-next');
+    await page.waitForFunction(() => /미리 보는 시간표/.test(document.querySelector('.today-head').textContent), null, { timeout: 15000 });
+    await page.waitForTimeout(600);
+    r = await page.evaluate(() => ({ head: document.querySelector('.today-head').textContent, fut: document.querySelector('.today-head').classList.contains('future'),
+      note: (document.querySelector('.day-note.future') || {}).textContent || '', sel: document.querySelector('#dn-sel').value,
+      today: !!document.querySelector('.dn-today'), crbtn: document.querySelectorAll('.blk .crbtn, .blk .attall').length,
+      chips: document.querySelectorAll('.blk .stus button').length }));
+    ok('⑦ 다음날: 머리 "미리 보는 시간표 — 내일" · 연보라 · 안내 줄 · [오늘로]', r.head === '미리 보는 시간표 — ' + label(T1) + ' · 정규' && r.fut && /미리 보고 있습니다/.test(r.note) && r.sel === T1 && r.today, JSON.stringify(r));
+    ok('⑦ 앞날: [수업 기록]·[전체 출석] 버튼 없음 · 학생 칩은 있음', r.crbtn === 0 && r.chips >= 2, JSON.stringify(r));
+    ok('⑦ ttBoot가 그 날짜로 출석을 받았다', attReqDates().indexOf(T1) >= 0, JSON.stringify(attReqDates()));
+    await page.selectOption('#dn-sel', SUN);
+    await page.waitForFunction(y => document.querySelector('#dn-sel').value === y, SUN, { timeout: 15000 });
+    await page.waitForTimeout(400);
+    r = await page.evaluate(() => ({ next: document.querySelector('.dn-next').disabled }));
+    ok('⑦ 이번 주 일요일: [다음날] 잠김', r.next, JSON.stringify(r));
+    r = await page.evaluate(y => { setDay(y); return { st: document.querySelector('#status').textContent, sel: document.querySelector('#dn-sel').value }; }, ago(-FUT - 1));
+    ok('⑦ 다음 주 월요일은 거절(안내) · 일요일 그대로', /이번 주 일요일까지만/.test(r.st) && r.sel === SUN, JSON.stringify(r));
+    await page.close();
+  }
 
   /* ⑥ 휴대폰 */
   const narrow = await ctxOf(390);
