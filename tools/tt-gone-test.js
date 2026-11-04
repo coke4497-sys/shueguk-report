@@ -43,6 +43,8 @@ const CLASSES = [
   mk('r12', '5:30', '7:00', '정리정독', '은지', '중2 확인', ['문준승', '양준겸']),
   // ⑥ 9일 전 날짜의 '이 주만' 반(본원·은지) — 오늘 열을 만들면 안 된다
   mk(OLD_WID + 'a', '8:00', '밤10:00', '본원', '은지', '중2 직전대비', []),
+  // ⑦ 명단이 빈 정규 반 — 카드 대신 작은 '사라진' 버튼, 누르면 그 반 (2026-11-04)
+  mk('r20', '8:30', '밤10:00', '정리정독', '은지', '정리정독 중2', []),
 ];
 const LOGS = [
   { row: 1, kind: '주간반이동', date: TS, ymd: TS, student: '', fromId: 'r03', toId: WID + 'c', reason: '9/28 직전대비' },
@@ -101,7 +103,7 @@ const ok = (n, c, x) => { if (c) pass++; else { fail++; console.log('  ✗ ' + n
   // 2026-10-02 원장님 "시간표 칸이 얇아지지 않게" — 남은 수업은 열 폭을 그대로 쓴다
   ok('오늘: 남은 수업이 열 폭을 그대로 쓴다', r.live > r.cell * 0.9, JSON.stringify([r.live, r.cell]));
   // 2026-10-02 원장님 선택: 시간 축이 아니라 '그 선생님 칸' 안에 버튼
-  ok('오늘: 칸마다 버튼 4개(승연T 5:30 · 지원T 5:30 · 지원T 7:00 · 덕기T 5:30)', r.gone.length === 4, JSON.stringify(r.gone));
+  ok('오늘: 칸마다 버튼 5개(승연T 5:30 · 지원T 5:30 · 지원T 7:00 · 덕기T 5:30 · 은지T 8:30 빈 명단)', r.gone.length === 5, JSON.stringify(r.gone));
   const b530 = r.gone.find(x => /고2 확수/.test(x.title));
   ok('오늘: 승연T 칸 5:30에 "사라진 2"', !!b530 && b530.t === '사라진 2' && /^5:30/.test(b530.title), JSON.stringify(r.gone));
   ok('오늘: 버튼이 그 수업 열(승연T)에 있다', !!b530 && b530.col === '3', b530 && b530.col);
@@ -188,7 +190,7 @@ const ok = (n, c, x) => { if (c) pass++; else { fail++; console.log('  ✗ ' + n
   });
   ok('주차별 확대: 이동·휴강 카드/띠 없음', !r.mvd && !r.off && r.band === 0, JSON.stringify(r));
   // 센터별 그리드 × 담당T 칸 (본원 승연 5:30 2건 / 화정센터 지원 5:30 1건 · 7:00 1건)
-  ok('주차별 확대: 칸마다 버튼 4개(전원 빠진 반 포함)', r.gone.length === 4 && r.gone.some(x => /고2 확인 전원 빠짐/.test(x.title)), JSON.stringify(r.gone));
+  ok('주차별 확대: 칸마다 버튼 5개(전원 빠진 반·빈 명단 반 포함)', r.gone.length === 5 && r.gone.some(x => /고2 확인 전원 빠짐/.test(x.title)), JSON.stringify(r.gone));
   ok('주차별 확대: 5:30은 2건·1건으로 나뉨',
      r.gone.filter(x => /^5:30/.test(x.title)).map(x => x.t).sort().join() === ['사라진 1','사라진 1','사라진 2'].join(),
      JSON.stringify(r.gone.map(x => x.t)));
@@ -232,7 +234,31 @@ const ok = (n, c, x) => { if (c) pass++; else { fail++; console.log('  ✗ ' + n
     moved: [...document.querySelectorAll('.daylist .blk')].filter(e => /오늘 이동/.test(e.textContent)).length,
     gone: document.querySelectorAll('.gonebtn').length }));
   ok('휴대폰 목록: 이동 카드 그대로 3개', r.moved === 3, String(r.moved));
-  ok('휴대폰 목록: 시간 축 버튼 없음(그리드 전용)', r.gone === 0, String(r.gone));
+  ok('휴대폰 목록: 휴강·이동은 버튼 없이 카드(빈 명단 반 버튼 하나만)', r.gone === 1, String(r.gone));
+  r = await page.evaluate(() => ({ card: [...document.querySelectorAll('.daylist .blk')].some(e => /정리정독 중2/.test(e.textContent)),
+    btn: [...document.querySelectorAll('.daylist .gonebtn.inlist')].map(e => e.title) }));
+  ok('⑦ 휴대폰 목록: 빈 명단 반은 카드 없이 작은 버튼', !r.card && r.btn.length === 1 && /정리정독 중2/.test(r.btn[0]), JSON.stringify(r));
+  await page.close();
+
+  /* ⑦ 오늘 그리드: 빈 명단 반 = 작은 버튼, 누르면 그 반 */
+  page = await open(wide, 'today');
+  r = await page.evaluate(() => ({ card: [...document.querySelectorAll('.blk')].some(e => /정리정독 중2/.test(e.querySelector('.nm') ? e.querySelector('.nm').textContent : '')),
+    btn: [...document.querySelectorAll('.gonebtn')].filter(e => /정리정독 중2/.test(e.title)).length }));
+  ok('⑦ 오늘 그리드: 빈 명단 반 카드 없음 · 버튼 있음', !r.card && r.btn === 1, JSON.stringify(r));
+  await page.evaluate(() => [...document.querySelectorAll('.gonebtn')].find(e => /정리정독 중2/.test(e.title)).click());
+  await page.waitForSelector('#gone-list', { timeout: 5000 });
+  r = await page.evaluate(() => document.querySelector('#gone-list').textContent);
+  ok('⑦ 목록 창: 명단 없음 · 반 보기', /명단 없음/.test(r) && /반 보기/.test(r), r);
+  await page.click('#gone-list button[data-i]');
+  await page.waitForSelector('.gone-roster', { timeout: 5000 });
+  r = await page.evaluate(() => document.querySelector('.gone-roster').textContent);
+  ok('⑦ 반 보기: 시간·담당·센터·0명', /8:30/.test(r) && /은지T/.test(r) && /정리정독/.test(r) && /0명/.test(r), r);
+  await page.close();
+
+  /* ⑦ 주차별 개요: 빈 명단 반 미니 카드 없음 */
+  page = await open(wide, 'week');
+  r = await page.evaluate(() => [...document.querySelectorAll('.wk-mini')].some(e => /정리정독 중2/.test(e.textContent)));
+  ok('⑦ 주차별 개요: 빈 명단 반 카드 없음', !r, String(r));
   await b.close(); srv.close();
   console.log(fail ? ('통과 ' + pass + ' / 실패 ' + fail) : ('✓ ' + pass + '건 통과'));
   process.exit(fail ? 1 : 0);

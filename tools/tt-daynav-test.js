@@ -182,10 +182,16 @@ const ok = (n, c, x) => { if (c) pass++; else { fail++; console.log('  ✗ ' + n
     await page.waitForTimeout(600);
     r = await page.evaluate(() => ({ head: document.querySelector('.today-head').textContent, fut: document.querySelector('.today-head').classList.contains('future'),
       note: (document.querySelector('.day-note.future') || {}).textContent || '', sel: document.querySelector('#dn-sel').value,
-      today: !!document.querySelector('.dn-today'), crbtn: document.querySelectorAll('.blk .crbtn, .blk .attall').length,
+      today: !!document.querySelector('.dn-today'), crbtn: document.querySelectorAll('.blk .crbtn').length, attall: document.querySelectorAll('.blk .attall').length,
       chips: document.querySelectorAll('.blk .stus button').length }));
     ok('⑦ 다음날: 머리 "미리 보는 시간표 — 내일" · 연보라 · 안내 줄 · [오늘로]', r.head === '미리 보는 시간표 — ' + label(T1) + ' · 정규' && r.fut && /미리 보고 있습니다/.test(r.note) && r.sel === T1 && r.today, JSON.stringify(r));
-    ok('⑦ 앞날: [수업 기록]·[전체 출석] 버튼 없음 · 학생 칩은 있음', r.crbtn === 0 && r.chips >= 2, JSON.stringify(r));
+    ok('⑦ 앞날: [수업 기록]은 있고 [전체 출석]은 없음 · 학생 칩은 있음', r.crbtn >= 1 && r.attall === 0 && r.chips >= 2, JSON.stringify(r));
+    await page.click('.blk .crbtn');
+    await page.waitForFunction(() => /앞날 수업/.test((document.querySelector('#cr-meta') || {}).textContent || ''), null, { timeout: 15000 }).catch(() => {});
+    r = await page.evaluate(() => ({ meta: (document.querySelector('#cr-meta') || {}).textContent || '', open: !document.querySelector('#crpanel').hidden }));
+    ok('⑦ 앞날 [수업 기록] → 창이 열리고 "앞날 수업" 표시', r.open && /앞날 수업/.test(r.meta), JSON.stringify(r));
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(300);
     ok('⑦ ttBoot가 그 날짜로 출석을 받았다', attReqDates().indexOf(T1) >= 0, JSON.stringify(attReqDates()));
     await page.selectOption('#dn-sel', SUN);
     await page.waitForFunction(y => document.querySelector('#dn-sel').value === y, SUN, { timeout: 15000 });
