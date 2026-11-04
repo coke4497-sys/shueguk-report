@@ -766,6 +766,8 @@
   .gone-list em.k-mv{color:#43307A;background:#EDE4F4;}
   .gone-list em.k-off{color:#6A716C;background:#EFF1EF;}
   .gone-list em.k-empty{color:#7E2B3D;background:#F7E2DE;}
+  .gonebtn.inlist{display:block;margin:2px 0 6px 2px;}
+  .gone-roster{background:var(--mid,#E9EDF8);border-radius:10px;padding:10px 12px;margin:6px 0 10px;font-size:.88rem;line-height:1.6;}
   .gone-list small{display:block;font-size:.78rem;color:var(--ink-soft);margin-top:2px;}
   .gone-list .gl-act{display:inline-block;margin-top:5px;font-size:.78rem;color:var(--accent);font-weight:700;}
   .stickhead{position:sticky;top:0;z-index:10;background:var(--surface);width:max-content;min-width:100%;
@@ -3985,7 +3987,7 @@ function renderView(){
       var dn = document.createElement('p');
       dn.className = 'day-note' + (isF ? ' future' : '');
       dn.textContent = isF
-        ? dayLabelOf(vy) + ' 시간표를 미리 보고 있습니다. 결석을 미리 알려 온 학생은 이름을 눌러 결석으로 기록할 수 있어요. 수업 기록·전체 출석은 수업 날에 합니다. [오늘로]를 누르면 오늘 시간표로 돌아갑니다.'
+        ? dayLabelOf(vy) + ' 시간표를 미리 보고 있습니다. [수업 기록]을 미리 적을 수 있고, 결석을 미리 알려 온 학생은 이름을 눌러 결석으로 기록할 수 있어요. 전체 출석은 수업 날에 합니다. [오늘로]를 누르면 오늘 시간표로 돌아갑니다.'
         : dayLabelOf(vy) + ' 시간표를 보고 있습니다. 학생 이름을 눌러 기록하면 그 날짜의 출석으로 저장돼요. [오늘로]를 누르면 오늘 시간표로 돌아갑니다.';
       host.appendChild(dn);
     }
@@ -4995,8 +4997,8 @@ function blockEl(c, forList){
     }).join('');
   }
   if (!chips) chips = '<span class="empty-note">비어 있음</span>';
-  var btnRow = (mode === 'today' && !viewIsFuture())   // 앞날은 [전체 출석]·[수업 기록] 없음 (2026-11-04)
-    ? '<div class="btns"><button class="bbtn attall" title="기록 없는 학생을 모두 출석 처리">전체 출석</button>' +
+  var btnRow = (mode === 'today')   // 앞날은 [전체 출석] 없이 [수업 기록]만 (2026-11-04 원장님 "다음날도 수업기록 가능하게")
+    ? '<div class="btns">' + (viewIsFuture() ? '' : '<button class="bbtn attall" title="기록 없는 학생을 모두 출석 처리">전체 출석</button>') +
       crBtnHtml(c) + '</div>'   // [검사 기록] 링크는 2026-10-01 원장님 "오늘의 시간표의 과제검사는 필요 없다"로 뺐다 — 검사는 [수업 기록] 창에서
     : '';   // 편집 기능은 상단 편집 도구줄에서
   var cntLabel = (mode === 'today') ? countLabel(c, awayOf, temps) : (c.students.length + '명');
@@ -5271,6 +5273,12 @@ function locGroupList(list, makeCard, offCtx){
     }
     var off = offCtx ? wkOffAt(c.id, offCtx.dstr) : null;
     if (off){ pendingOff.push({ c: c, off: off }); return; }
+    if (offCtx && noRosterAt(c, offCtx.dstr)){   // 명단이 빈 반 — 카드 대신 작은 '사라진' 버튼 (2026-11-04)
+      var gb = goneBtnEl([{ c: c, kind: '명단 없음', info: {} }], offCtx.dstr, offCtx.canManage, c.start);
+      gb.classList.add('inlist');
+      box.appendChild(gb);
+      return;
+    }
     box.appendChild(makeCard(c));
   });
   flushOff();
@@ -5366,6 +5374,7 @@ function goneInfo(c, dstr){
   if (off) return { kind: '휴강', info: off };
   var em = emptyAt(c, dstr);
   if (em) return { kind: '전원 빠짐', info: em };
+  if (noRosterAt(c, dstr)) return { kind: '명단 없음', info: {} };   // 2026-11-04 — 작은 버튼, 누르면 그 반
   return null;
 }
 /* 명단 전원이 '이 주 빠짐'·'1회 이동'으로 빠지고 들어온 학생도 없는 수업 — 학생이 한 명도 없으니
@@ -5463,18 +5472,19 @@ function goneBtnEl(items, dstr, canManage, timeText){
 /* 사라진 수업 목록 창 — 줄을 누르면 기존 안내·되돌리기 창으로 이어진다 */
 function openGoneList(items, dstr, canManage, timeText){
   var rows = items.map(function(it, i){
-    var moved = (it.kind === '이동'), empty = (it.kind === '전원 빠짐');
+    var moved = (it.kind === '이동'), empty = (it.kind === '전원 빠짐'), none = (it.kind === '명단 없음');
     var to = moved ? wkMovedToLabel(it.info) : '';
     var where = moved ? ('→ ' + to + (/이동$/.test(to) ? '' : ' 에서 해요'))
               : empty ? ('학생 ' + it.info.n + '명이 모두 빠졌어요 — ' + emptyReasonText(it.info))
+              : none ? '명단에 학생이 없는 반이에요'
                       : (canManage ? '이 주는 수업이 없어요' : '오늘은 수업이 없어요');
-    var act = (moved || empty) ? '자세히' : (canManage ? '되돌리기' : '');
+    var act = (moved || empty || none) ? (none ? '반 보기' : '자세히') : (canManage ? '되돌리기' : '');
     return '<button type="button" data-i="' + i + '"' + (act ? '' : ' class="plain"') + '>' +
-           '<span class="gl-top"><b>' + esc(it.c.cls) + '</b><em class="k-' + (moved ? 'mv' : empty ? 'empty' : 'off') + '">' +
+           '<span class="gl-top"><b>' + esc(it.c.cls) + '</b><em class="k-' + (moved ? 'mv' : (empty || none) ? 'empty' : 'off') + '">' +
            esc(it.kind) + '</em></span>' +
            '<small>' + esc(it.c.start) + '~' + esc(it.c.end) +
            (it.c.teacher ? ' · ' + esc(it.c.teacher) + 'T' : '') + (it.c.loc ? ' · ' + esc(it.c.loc) : '') + '</small>' +
-           '<small class="gl-to">' + esc(where) + (!empty && it.info.reason ? ' — ' + esc(it.info.reason) : '') + '</small>' +
+           '<small class="gl-to">' + esc(where) + (!empty && !none && it.info.reason ? ' — ' + esc(it.info.reason) : '') + '</small>' +
            (act ? '<span class="gl-act">' + act + '</span>' : '') + '</button>';
   }).join('');
   var who = items[0] && items[0].c.teacher ? ' · ' + items[0].c.teacher + 'T' : '';
@@ -5492,8 +5502,22 @@ function openGoneList(items, dstr, canManage, timeText){
     var it = items[parseInt(r.getAttribute('data-i'), 10)];
     if (it.kind === '이동') openWeekMovedInfo(it.c, dstr, it.info);
     else if (it.kind === '전원 빠짐') openGoneEmpty(it.c, dstr, it.info, canManage);
+    else if (it.kind === '명단 없음') openGoneRoster(it.c, dstr);
     else openWeekClassOffManage(it.c, dstr, it.info);
   });
+}
+/* 명단이 빈 반 — 그 반 정보를 보여 준다 (2026-11-04 원장님 "사라진반 작은 글씨로, 누르면 그반이 보이게") */
+function openGoneRoster(c, dstr){
+  openModal(
+    '<h3>' + esc(c.cls) + '</h3>' +
+    '<div class="gone-roster">' +
+      '<div><b>' + esc(wkDayLabel(dstr)) + ' ' + esc(c.start) + '~' + esc(c.end) + '</b></div>' +
+      '<div>' + (c.teacher ? esc(c.teacher) + 'T' : '담당 없음') + (c.loc ? ' · ' + esc(wkLocLabel(c.loc)) : '') +
+      ' · ' + esc(cbook(c)) + ' · 0명</div>' +
+    '</div>' +
+    '<p class="mdesc">명단에 학생이 없어 시간표에서는 작은 글씨로만 보입니다. 학생을 넣거나 반을 지우는 일은 전체 시간표에서 할 수 있어요.</p>' +
+    '<div class="mbtns"><button onclick="closeModal()">닫기</button></div>'
+  );
 }
 /* 전원 빠짐 사유 요약 — 같은 사유면 하나로, 다르면 '사유 n가지' */
 function emptyReasonText(info){
@@ -5629,8 +5653,8 @@ function weekBlockEl(c, dstr, forList){
   var meta = esc(c.start)+'~'+esc(c.end)+
              (forList ? ' · '+esc(c.teacher)+'T'+(c.loc ? ' · '+esc(c.loc) : '') : '')+
              ' · '+countLabel(c, awayOf, temps);
-  // 지난 날짜·오늘 수업은 주차별에서도 [수업 기록] (2026-10-14 원장님 "주차별 시간표에서도 수업기록") — 앞날은 기록할 수 없어 버튼 없음
-  var crRow = (dstr && dstr <= todayStr()) ? '<div class="btns">' + crWeekBtnHtml(c, dstr) + '</div>' : '';
+  // 주차별에서도 [수업 기록] (2026-10-14 원장님 "주차별 시간표에서도 수업기록") — 앞날은 이번 주 일요일까지 (2026-11-04)
+  var crRow = (dstr && dstr <= dayMaxYmd()) ? '<div class="btns">' + crWeekBtnHtml(c, dstr) + '</div>' : '';
   b.innerHTML = '<div class="bt"><span class="nm">'+esc(c.cls)+jbBadge(c)+(c.wk ? ' <em class="wkflag">이 주만</em>' : '')+'</span>'+
                 '<small>'+meta+'</small></div>'+
                 crRow + '<div class="stus">'+chips+'</div>';
@@ -6202,7 +6226,6 @@ function classesOn(dstr){
 }
 function wkVisible(c, dstr){
   if (c.wk) return !!dstr && c.wk === dstr;
-  if (dstr && noRosterAt(c, dstr)) return false;   // 명단이 빈 정규·내신 반은 날짜 화면에 그리지 않는다 (2026-11-04)
   // 휴강·이 주만 이동 모두 감추지 않는다 — 휴강은 '이 주 휴강', 이동은 '어디로 이동' 흐린 카드로
   // 원래 자리에 남긴다 (2026-08-26 사용자 요청 "이동한 자리에 연하게 어디로 이동이라는 표시").
   return true;
@@ -6259,7 +6282,7 @@ function wkZoomSorted(dname, dstr){
                                 (mins(a.start)-mins(b.start)) || a.cls.localeCompare(b.cls,'ko'); });
 }
 function wkDayClasses(dname, dstr){
-  return classesOn(dstr).filter(function(c){ return c.day === dname && wkVisible(c, dstr); })
+  return classesOn(dstr).filter(function(c){ return c.day === dname && wkVisible(c, dstr) && !(dstr && noRosterAt(c, dstr)); })
     .sort(function(a,b){ return (wkLocRank(a.loc)-wkLocRank(b.loc)) || (mins(a.start)-mins(b.start)) || a.cls.localeCompare(b.cls,'ko'); });
 }
 /* 그 날짜·반의 출석 요약 (보존 기록 포함 — weekAttend 키 순회) */
@@ -8763,7 +8786,7 @@ function openClassNote(c, ctx){
   }
   $('cr-ttl').textContent = c.cls + ' · ' + c.day + ' ' + c.start + '~' + c.end;
   $('cr-kind').textContent = crPartLabel(part);
-  $('cr-meta').textContent = c.teacher + 'T' + (c.loc ? ' · ' + c.loc : '') + ' · ' + mdOfYmdStr(ymd) + ' (' + ['일','월','화','수','목','금','토'][new Date(ymd + 'T00:00:00').getDay()] + ')' + (CRX && CRX.ymd !== todayStr() ? ' 지난 수업' : '') + ' · ' + CR.names.length + '명 · ' + bk + ' 주간';
+  $('cr-meta').textContent = c.teacher + 'T' + (c.loc ? ' · ' + c.loc : '') + ' · ' + mdOfYmdStr(ymd) + ' (' + ['일','월','화','수','목','금','토'][new Date(ymd + 'T00:00:00').getDay()] + ')' + (CRX && CRX.ymd !== todayStr() ? (CRX.ymd > todayStr() ? ' 앞날 수업' : ' 지난 수업') : '') + ' · ' + CR.names.length + '명 · ' + bk + ' 주간';
   $('cr-body').innerHTML = '<p class="mdesc">불러오는 중…</p>';
   crMsg('');
   crGenLabel();
@@ -9045,7 +9068,7 @@ function crUrlKick(){
 }
 function crOpenAt(bk, cid, ymd, fresh){   // fresh = 주차별 — 오늘이어도 그 날 기록을 따로 받는다(전역 attend 는 오늘의 시간표 것)
   if (bk !== '정규' && bk !== '내신') return;
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(ymd) || ymd > todayStr()){ setStatus('아직 오지 않은 날짜의 수업은 기록할 수 없어요.', 'err'); return; }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(ymd) || ymd > dayMaxYmd()){ setStatus('수업 기록은 이번 주 일요일 수업까지 미리 적을 수 있어요.', 'err'); return; }
   if (!fresh && bk === book && ymd === todayStr()){
     var c0 = classes.find(function(x){ return x.id === cid; });
     if (c0) return openClassNote(c0);

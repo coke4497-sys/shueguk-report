@@ -1173,7 +1173,7 @@ const STUDENTS = [
     if (TODAY !== '일'){
       await p11.evaluate(d => { weekZoomDay = d; render(); }, TMR);
       await p11.waitForFunction(() => [...document.querySelectorAll('.blk')].some(x => /고1 나/.test(x.textContent)), null, { timeout: 5000 });
-      ok('⑪ 앞날 카드에는 버튼 없음', await p11.evaluate(() => ![...document.querySelectorAll('.blk')].find(x => /고1 나/.test(x.textContent)).querySelector('.crbtn')));
+      ok('⑪ 이번 주 앞날 카드에도 [수업 기록] (2026-11-04)', await p11.evaluate(() => !![...document.querySelectorAll('.blk')].find(x => /고1 나/.test(x.textContent)).querySelector('.crbtn')));
     }
     await c11.ctx.close();
   }
