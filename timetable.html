@@ -6202,9 +6202,20 @@ function classesOn(dstr){
 }
 function wkVisible(c, dstr){
   if (c.wk) return !!dstr && c.wk === dstr;
+  if (dstr && noRosterAt(c, dstr)) return false;   // 명단이 빈 정규·내신 반은 날짜 화면에 그리지 않는다 (2026-11-04)
   // 휴강·이 주만 이동 모두 감추지 않는다 — 휴강은 '이 주 휴강', 이동은 '어디로 이동' 흐린 카드로
   // 원래 자리에 남긴다 (2026-08-26 사용자 요청 "이동한 자리에 연하게 어디로 이동이라는 표시").
   return true;
+}
+/* 명단이 빈 정규·내신 반(r###·n###) — 그 날 이 반으로 온 학생(1회·이 주만 추가)도, 찍힌 출석도 없으면
+ * 오늘·주차별 화면에서 카드를 그리지 않는다(2026-11-04 원장님 "비어있는 시간표를 이렇게 표시하면 안됩니다" —
+ * 수 8:30 정리정독 중2(r105)가 '0명 · 비어 있음' 카드로 옆 수업 폭을 나눠 가졌다).
+ * 전체 시간표(날짜 없음)에서는 그대로 보여 학생을 넣거나 반을 지울 수 있다. '이 주만' 반(w*)은 만든 직후
+ * 비어 있어도 학생을 넣어야 하므로 카드를 둔다. */
+function noRosterAt(c, dstr){
+  if (!dstr || c.wk || /^w/.test(String(c.id || '')) || (c.students && c.students.length)) return false;
+  if (awayStateOf(c, dstr).temps.length) return false;
+  return !keptAttendNames(c, [], [], dstr).length;
 }
 /* '이 주만' 반ID(w+yyMMdd+글자)에 담긴 날짜 */
 function wkIdYmd(id){
