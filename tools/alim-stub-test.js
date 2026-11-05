@@ -225,9 +225,9 @@ global.UrlFetchApp = { fetch: (url, opt) => { CALLS.push({ url, opt }); const n 
   return { getResponseCode: () => n.code, getContentText: () => JSON.stringify(n.body) }; } };
 fns.alimConfigSet({ pw: 'sh', apiKey: 'KEY1', apiSecret: 'SEC1', pfId: 'PF1', tpl: { absent: 'KA01TP1' } });
 r = J(fns.alimConfigGet());
-const NK = Object.keys(r.templates).filter(k => r.templates[k].notice && k !== 'notice_mockrep' && k !== 'notice_pre1');   // notice_mockrep 는 문구 모양이 달라 12-2에서 따로 본다
+const NK = Object.keys(r.templates).filter(k => r.templates[k].notice && k !== 'notice_mockrep' && k !== 'notice_pre1' && !/^notice_avail/.test(k));   // notice_mockrep·스케쥴 조사 안내는 문구 모양이 달라 12-2에서 따로 본다
 eq('공지 종류 여덟(notice 표시) + 결석 안내·결석 예고 — 옛 단일 notice 없음', [NK, 'notice' in r.templates, r.templates.absent.notice, Object.keys(r.templates).length],
-   [['notice_sched', 'notice_sched2', 'notice_mock', 'notice_hwork', 'notice_report', 'notice_reportup', 'notice_voca', 'notice_gramma'], false, false, 14]);
+   [['notice_sched', 'notice_sched2', 'notice_mock', 'notice_hwork', 'notice_report', 'notice_reportup', 'notice_voca', 'notice_gramma'], false, false, 16]);
 eq('종류 이름', NK.map(k => r.templates[k].label), ['수업 일정 안내', '수업 일정 안내 (학생 페이지 안내 없음)', '주말 실전 모의고사 신청 안내', 'H WORK 과제 안내', '지필고사 리포트 제작 안내', '지필고사 리포트 업데이트 안내', '어휘 테스트 참여 안내', '문법 테스트 참여 안내']);
 eq('설정 목록에 공지 템플릿(아직 ID 없음)', [typeof r.templates.notice_mock.text, r.templates.notice_mock.ready, r.templates.notice_mock.vars, r.templates.notice_voca.vars], ['string', false, ['학생명', '제목', '장소', '신청일', '정원', '접근코드'], ['학생명', '제목', '접근코드']]);
 const MOCK_BODY = '1. #{장소}에서 실시합니다.\n2. 8:30까지 등원하여 8:40-10:00까지, 모의수능시험에 응시합니다. 8:35분이 지나면 출입을 통제하고 이후 입실이 <불가>합니다.\n3. #{신청일} 중 택1하여 신청합니다. 마감되면 설문을 종료합니다.\n4. 장소가 협소하므로 각 요일 #{정원}명 선착순으로 마감합니다. 임의로 요일을 이동할 수 없습니다.\n\n';
@@ -378,6 +378,30 @@ fns.alimConfigSet({ pw: 'sh', apiKey: 'KEY1', apiSecret: 'SEC1', pfId: 'PF1' });
   r = J(fns.alimSend({ pw: 'sh', kind: 'notice_mockrep', items: [it('김하나', '10/25(일)')] }));
   const v = JSON.parse(CALLS[CALLS.length - 1].opt.payload).messages[0].kakaoOptions;
   eq('발송 — 템플릿 ID·변수', [r.okCount, v.templateId, v.variables], [1, 'KA01TPMR', { '#{학생명}': '김하나', '#{제목}': '26년 10월 학력평가', '#{마감일}': '10/25(일)', '#{접근코드}': 'k1' }]);
+}
+
+console.log('12-3) 재원생·신입생 스케쥴 조사 안내 (2026-11-05)');
+reset();
+fns.alimConfigSet({ pw: 'sh', apiKey: 'KEY1', apiSecret: 'SEC1', pfId: 'PF1' });
+{
+  const r = J(fns.alimConfigGet());
+  const body = who => '[이수경국어학원] ' + who + ' 스케쥴 조사 안내\n#{학생명} 학생, 학부모님 안녕하세요.\n효율적인 학습 시간표 구성을 위해 학생이 참여하기 어려운 시간을 조사합니다.\n\n▶ #{제목}\n▶ 마감: #{마감일}\n슈퍼스타 페이지의 시간표 조사 메뉴에서 수업에 참여할 수 없는 시간을 모두 골라 제출해 주세요. 학생과 학부모님이 같은 응답을 함께 수정할 수 있습니다.';
+  [['notice_avail', '재원생'], ['notice_avail_new', '신입생']].forEach(([k, who]) => {
+    const t = r.templates[k];
+    eq(who + ' — 이름·공지·변수·준비 전', [t.label, t.notice, t.vars, t.ready], [who + ' 스케쥴 조사 안내', true, ['학생명', '제목', '마감일', '접근코드'], false]);
+    eq(who + ' — 문구 = 원장님 문구 그대로', t.text, body(who));
+    eq(who + ' — 버튼', t.buttons.map(b => [b.name, b.type, /s\.html\?key=#\{접근코드\}$/.test(b.linkMo)]), [['학생 페이지 링크', 'WL', true]]);
+  });
+  fns.alimConfigSet({ pw: 'sh', tpl: { notice_avail: 'KA01TPAV' } });
+  const it = due => ({ student: '김조사', to: '01012340000', who: '학부모1', cls: '공지', date: 'N:2026-11-05|화정고1 새 시간표', vars: { 학생명: '김조사', 제목: '화정고1 새 시간표', 마감일: due, 접근코드: 'k1' } });
+  const nc = CALLS.length;
+  let x = J(fns.alimSend({ pw: 'sh', kind: 'notice_avail', items: [it('')] }));
+  eq('마감일이 비면 보내지 않음', [x.okCount, CALLS.length === nc], [0, true]);
+  x = J(fns.alimSend({ pw: 'sh', kind: 'notice_avail', items: [it('11/12(목)')] }));
+  const v = JSON.parse(CALLS[CALLS.length - 1].opt.payload).messages[0].kakaoOptions;
+  eq('발송 — 템플릿 ID·변수', [x.okCount, v.templateId, v.variables['#{마감일}'], v.variables['#{제목}']], [1, 'KA01TPAV', '11/12(목)', '화정고1 새 시간표']);
+  x = J(fns.alimSend({ pw: 'sh', kind: 'notice_avail_new', items: [it('11/12(목)')] }));
+  eq('신입생 종류는 ID 없으면 거절', x.result, 'error');
 }
 
 console.log('13) 미등원 안내 · 등원 안내 (2026-10-29)');
