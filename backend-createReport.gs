@@ -4187,7 +4187,7 @@ function alimNoticeTpl_(name, prop, tail, btnName, body, extra) {
 function alimAvailText_(who) {
   return '[이수경국어학원] ' + who + ' 스케쥴 조사 안내\n' +
          '#{학생명} 학생, 학부모님 안녕하세요.\n' +
-         '효율적인 학습 시간표 구성을 위해 학생이 참여하기 어려운 시간을 조사합니다.\n' +
+         '효율적인 학습 시간표 구성을 위해 학생이 수업에 참여하기 어려운 시간을 조사합니다.\n' +
          '\n' +
          '▶ #{제목}\n' +
          '▶ 마감: #{마감일}\n' +
