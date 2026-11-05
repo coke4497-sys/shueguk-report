@@ -210,17 +210,15 @@
   /* 시간표 조사(2026-11-05, 062) — 새 시간표로 바꿀 때 안 되는 시간을 골라 제출. 조사 하나 = 별 +1 */
   #avView{display:none;}
   .av-who{display:flex;gap:6px;flex-wrap:wrap;}
-  /* 시간표 틀 — 가로축 30분 눈금 고정, 세로축 요일, 칸 안에 글자 없음 (2026-11-05 원장님). 누르면 연해지며 '불가' */
-  .av-wrap{overflow-x:auto;margin:6px 0 0;padding:0 0 4px 8px;-webkit-overflow-scrolling:touch;}
-  .av-grid{--avc:32px;--avh:40px;display:inline-flex;flex-direction:column;gap:5px;}
-  .av-head,.av-row{display:grid;}
-  .av-head{height:30px;}
-  .av-tk{grid-row:1;justify-self:start;align-self:end;transform:translateX(-50%);font-size:.72rem;color:var(--ink-soft);text-align:center;line-height:1.1;white-space:nowrap;}
-  .av-tk small{display:block;font-size:.6rem;}
-  .av-row{row-gap:3px;}
-  .av-dy{grid-column:1;align-self:center;font-family:"Do Hyeon",var(--sans);font-weight:400;font-size:1.05rem;color:var(--ink);}
-  .av-bg{background:#F2F5F3;border-left:1px solid #fff;}
-  .av-s{font:inherit;border:none;padding:0;margin:2px 1px;border-radius:8px;background:#8FC7AF;cursor:pointer;z-index:1;display:flex;align-items:center;justify-content:center;transition:background .15s;}
+  /* 시간표 틀 — 위에 요일, 세로축 30분 눈금 고정(시간이 아래로 흐름), 칸 안에 글자 없음 (2026-11-05 원장님). 누르면 연해지며 '불가' */
+  .av-wrap{margin:8px 0 0;}
+  .av-grid{--avh:26px;display:grid;width:100%;}
+  .av-dy{grid-row:1;text-align:center;align-self:end;padding:0 0 6px;font-family:"Do Hyeon",var(--sans);font-weight:400;font-size:1.05rem;color:var(--ink);}
+  .av-tk{grid-column:1;align-self:start;justify-self:end;transform:translateY(-50%);padding-right:6px;font-size:.72rem;color:var(--ink-soft);line-height:1;white-space:nowrap;}
+  .av-tk small{font-size:.6rem;margin-right:2px;}
+  .av-bg{background:#F2F5F3;border-top:1px solid #fff;}
+  .av-bg.dl{border-left:3px solid #fff;}
+  .av-s{font:inherit;border:none;padding:0;margin:1px 2px;border-radius:8px;background:#8FC7AF;cursor:pointer;z-index:1;display:flex;align-items:center;justify-content:center;transition:background .15s;}
   .av-s.no{background:repeating-linear-gradient(135deg,#EEF4F1 0 5px,#E2EBE6 5px 10px);}
   .av-legend .av-lx{background:#EEF4F1;display:inline-flex;align-items:center;justify-content:center;}
   .av-legend .av-lx .av-x{width:10px;height:10px;color:#B0525D;}
@@ -4304,29 +4302,34 @@ function avLanes(list){ // 같은 요일에 겹치는 칸은 줄을 나눈다
   return { lane: out, n: Math.max(1, ends.length) };
 }
 function avGridHtml(slots, no, ro){
+  // 위 = 요일(겹치는 칸은 그 요일 안에서 열을 나눔), 왼쪽 = 30분 눈금(시각은 눈금 선 위), 칸은 실제 길이만큼 아래로
   var days = AV_DAYS.filter(function(d){ return slots.some(function(sl){ return sl.day === d; }); });
   var lo = Infinity, hi = -Infinity;
   slots.forEach(function(sl){ var st = avMins(sl.start), en = avEnd(sl); if (st < lo) lo = st; if (en > hi) hi = en; });
   var a0 = Math.floor(lo / 30) * 30, a1 = Math.ceil(hi / 30) * 30, n = Math.max(1, (a1 - a0) / 30);
-  var cols = 'grid-template-columns:34px repeat(' + n + ',var(--avc)) 18px';
-  var ticks = '', prev = '';
+  var colDefs = ['58px'], c0 = 2, info = days.map(function(d){
+    var list = slots.filter(function(x){ return x.day === d; }), L = avLanes(list), at = c0;
+    for (var k = 0; k < L.n; k++) colDefs.push('minmax(' + (40 / L.n).toFixed(2) + 'px,' + (1 / L.n).toFixed(4) + 'fr)');
+    c0 += L.n; return { d: d, list: list, L: L, at: at };
+  });
+  var h = '<div class="av-wrap"><div class="av-grid" style="grid-template-columns:' + colDefs.join(' ') + ';grid-template-rows:auto repeat(' + n + ',var(--avh)) 10px">';
+  var prev = '';
   for (var i = 0; i <= n; i++){
     var m = a0 + i * 30, ap = avApOf(m), show = ap !== prev; prev = ap;
-    ticks += '<span class="av-tk" style="grid-column:' + (i + 2) + '"><small>' + (show ? ap : '&nbsp;') + '</small>' + avHm(m) + '</span>';
+    h += '<span class="av-tk" style="grid-row:' + (i + 2) + '"><small>' + (show ? ap : '&nbsp;') + '</small>' + avHm(m) + '</span>';
   }
-  var rows = days.map(function(d){
-    var list = slots.filter(function(x){ return x.day === d; }), L = avLanes(list);
-    var h = '<div class="av-row" style="' + cols + ';grid-template-rows:repeat(' + L.n + ',var(--avh))"><b class="av-dy" style="grid-row:1 / span ' + L.n + '">' + d + '</b>';
-    for (var r = 1; r <= L.n; r++) for (var j = 0; j < n; j++) h += '<span class="av-bg" style="grid-column:' + (j + 2) + ';grid-row:' + r + '"></span>';
-    list.forEach(function(sl){
-      var st = avMins(sl.start), en = avEnd(sl), c = (st - a0) / 30 + 2, w = Math.max(1, Math.round((en - st) / 30)), nn = !!no[sl.id];
+  info.forEach(function(D){
+    h += '<b class="av-dy" style="grid-column:' + D.at + ' / span ' + D.L.n + '">' + D.d + '</b>';
+    for (var k = 0; k < D.L.n; k++) for (var r = 0; r < n; r++)
+      h += '<span class="av-bg' + (k === 0 ? ' dl' : '') + '" style="grid-column:' + (D.at + k) + ';grid-row:' + (r + 2) + '"></span>';
+    D.list.forEach(function(sl){
+      var st = avMins(sl.start), en = avEnd(sl), rr = (st - a0) / 30 + 2, w = Math.max(1, Math.round((en - st) / 30)), nn = !!no[sl.id];
       var lab = sl.day + ' ' + avApOf(st) + ' ' + avHm(st) + '~' + avApOf(en) + ' ' + avHm(en) + (nn ? ' · 불가' : ' · 가능');
       h += '<button class="av-s' + (nn ? ' no' : '') + '" data-av-s="' + esc(sl.id) + '"' + (ro ? ' disabled' : '') +
-           ' style="grid-column:' + c + ' / span ' + w + ';grid-row:' + (L.lane[sl.id] + 1) + '" title="' + esc(lab) + '" aria-label="' + esc(lab) + '" aria-pressed="' + (nn ? 'true' : 'false') + '">' + (nn ? AV_X : '') + '</button>';
+           ' style="grid-row:' + rr + ' / span ' + w + ';grid-column:' + (D.at + D.L.lane[sl.id]) + '" title="' + esc(lab) + '" aria-label="' + esc(lab) + '" aria-pressed="' + (nn ? 'true' : 'false') + '">' + (nn ? AV_X : '') + '</button>';
     });
-    return h + '</div>';
-  }).join('');
-  return '<div class="av-wrap"><div class="av-grid"><div class="av-head" style="' + cols + '">' + ticks + '</div>' + rows + '</div></div>';
+  });
+  return h + '</div></div>';
 }
 function avCntText(nNo, nAll){
   return nNo ? '안 되는 시간 <b>' + nNo + '칸</b> · 가능한 시간 ' + (nAll - nNo) + '칸' : '모든 시간이 가능해요. 안 되는 시간이 없으면 이대로 제출해 주세요.';
