@@ -210,17 +210,20 @@
   /* 시간표 조사(2026-11-05, 062) — 새 시간표로 바꿀 때 안 되는 시간을 골라 제출. 조사 하나 = 별 +1 */
   #avView{display:none;}
   .av-who{display:flex;gap:6px;flex-wrap:wrap;}
-  /* 주간 시간표 모양 — 줄 = 시작 시간, 열 = 요일 (2026-11-05 원장님 "주간 시간표 같은 칸에서 안되는 시간을 선택") */
-  .av-grid{width:100%;border-collapse:separate;border-spacing:4px;table-layout:fixed;margin:4px -4px 0;}
-  .av-grid th{font-family:"Do Hyeon",var(--sans);font-weight:400;font-size:1rem;color:var(--ink);text-align:center;padding:2px 0;}
-  .av-grid th.tm{width:46px;font-family:var(--sans);font-size:.78rem;color:var(--ink-soft);text-align:right;padding-right:2px;}
-  .av-grid td{padding:0;}
-  .av-s{font:inherit;font-size:.8rem;border:none;border-radius:10px;padding:9px 2px;width:100%;min-height:54px;background:#E2F4EC;color:#2A6555;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;line-height:1.2;}
-  .av-s span{font-size:.7rem;color:inherit;opacity:.85;}
-  .av-s small{font-size:.76rem;font-weight:700;}
-  .av-none{min-height:54px;border-radius:10px;background:#F2F5F3;}
-  .av-s.no{background:#F7E2DE;color:#8A4B42;font-weight:700;}
-  .av-s:disabled{cursor:default;opacity:.85;}
+  /* 시간표 틀 — 가로축 30분 눈금 고정, 세로축 요일, 칸 안에 글자 없음 (2026-11-05 원장님). 누르면 연해지며 '불가' */
+  .av-wrap{overflow-x:auto;margin:6px 0 0;padding:0 0 4px 8px;-webkit-overflow-scrolling:touch;}
+  .av-grid{--avc:32px;--avh:40px;display:inline-flex;flex-direction:column;gap:5px;}
+  .av-head,.av-row{display:grid;}
+  .av-head{height:30px;}
+  .av-tk{grid-row:1;justify-self:start;align-self:end;transform:translateX(-50%);font-size:.72rem;color:var(--ink-soft);text-align:center;line-height:1.1;white-space:nowrap;}
+  .av-tk small{display:block;font-size:.6rem;}
+  .av-row{row-gap:3px;}
+  .av-dy{grid-column:1;align-self:center;font-family:"Do Hyeon",var(--sans);font-weight:400;font-size:1.05rem;color:var(--ink);}
+  .av-bg{background:#F2F5F3;border-left:1px solid #fff;}
+  .av-s{font:inherit;border:none;padding:0;margin:2px 1px;border-radius:8px;background:#8FC7AF;cursor:pointer;z-index:1;display:flex;align-items:center;justify-content:center;transition:background .15s;}
+  .av-s.no{background:repeating-linear-gradient(135deg,#EEF4F1 0 5px,#E2EBE6 5px 10px);}
+  .av-s i{font-style:normal;font-size:.68rem;font-weight:700;color:#8A9690;}
+  .av-s:disabled{cursor:default;}
   .av-legend{display:flex;gap:12px;flex-wrap:wrap;font-size:.78rem;color:var(--ink-soft);margin:6px 0 0;}
   .av-legend i{display:inline-block;width:12px;height:12px;border-radius:4px;vertical-align:-1px;margin-right:4px;}
   .av-cnt{font-size:.86rem;color:var(--ink);margin:12px 0 0;}
@@ -4250,15 +4253,15 @@ function avRenderForm(){
   html += '<div class="sm-box sm-f"><h3>' + esc(x.title) + '</h3>' +
     (x.memo ? '<p class="sm-intro av-memo" style="margin:0 0 6px">' + esc(x.memo) + '</p>' : '') +
     '<p class="sm-intro" style="margin:0">' + (ro ? '마감된 조사입니다. 제출한 내용만 볼 수 있어요.'
-      : '<b>수업이 안 되는 시간을 모두</b> 눌러 주세요. 처음에는 모든 칸이 \'가능\'입니다. 학생과 학부모님이 같은 응답을 함께 고칠 수 있어요.' +
+      : '<b>수업이 안 되는 시간을 모두</b> 눌러 주세요. 처음에는 모든 칸이 가능(진한 색)이고, 누르면 연해지며 불가로 바뀝니다. 학생과 학부모님이 같은 응답을 함께 고칠 수 있어요.' +
         (x.due ? ' ' + esc(avDue(x)) + ' 고칠 수 있습니다.' : '')) + '</p>';
   if (x.response) html += '<p class="av-last">마지막 저장 · ' + esc(x.response.last_by) + ' · ' + esc(avAt(x.response.updated_at)) + '</p>';
   if (!ro){
     html += '<span class="lab">누가 적고 있나요? <small>필수</small></span><div class="av-who">' +
       ['학생', '학부모님'].map(function(v){ return '<button class="sm-pill' + (f.who === v ? ' on' : '') + '" data-av-who="' + v + '">' + v + '</button>'; }).join('') + '</div>';
   }
-  html += '<span class="lab">시간 고르기 <small>' + (ro ? '' : '안 되는 칸을 누르면 분홍색으로 바뀌어요') + '</small></span>' +
-    '<div class="av-legend"><span><i style="background:#E2F4EC"></i>가능</span><span><i style="background:#F7E2DE"></i>안 돼요</span></div>';
+  html += '<span class="lab">시간 고르기 <small>' + (ro ? '' : '수업이 안 되는 칸을 누르면 연해지며 불가로 바뀌어요') + '</small></span>' +
+    '<div class="av-legend"><span><i style="background:#8FC7AF"></i>가능</span><span><i style="background:repeating-linear-gradient(135deg,#EEF4F1 0 3px,#E2EBE6 3px 6px)"></i>불가</span></div>';
   html += avGridHtml(x.slots || [], f.no, ro);
   html += '<p class="av-cnt" id="avCnt">' + avCntText(nNo, nAll) + '</p>';
   if (ro){
@@ -4283,22 +4286,44 @@ function avMins(t){
   return h * 60 + m;
 }
 /* 주간 시간표 칸 — 줄 = 시작 시간, 열 = 요일. 후보가 아닌 칸은 회색으로 비운다 */
+// 시간표 틀 = 가로축 30분 눈금(선 위에 시각) 고정, 세로축 요일, 칸은 실제 길이만큼 — 칸 안에 글자 없음.
+// 누르면 연해지며 '불가' (2026-11-05 원장님 "시간표 틀이 정해져있고 그 칸을 누르면 색깔이 연해지면서 수업이 불가능하다는 표시로")
+function avApOf(m){ return m < 720 ? '오전' : (m >= 1320 ? '밤' : '오후'); }
+function avHm(m){ var h = Math.floor(m / 60) % 12; if (h === 0) h = 12; return h + ':' + ('0' + (m % 60)).slice(-2); }
+function avEnd(sl){ var st = avMins(sl.start), en = avMins(sl.end); if (!en) return st + 30; while (en <= st) en += 720; return en; } // '10:00'만 적힌 옛 끝 시각 = 밤 10시
+function avLanes(list){ // 같은 요일에 겹치는 칸은 줄을 나눈다
+  var ends = [], out = {};
+  list.slice().sort(function(a, b){ return avMins(a.start) - avMins(b.start); }).forEach(function(sl){
+    var st = avMins(sl.start), i = 0;
+    while (i < ends.length && ends[i] > st) i++;
+    ends[i] = avEnd(sl); out[sl.id] = i;
+  });
+  return { lane: out, n: Math.max(1, ends.length) };
+}
 function avGridHtml(slots, no, ro){
   var days = AV_DAYS.filter(function(d){ return slots.some(function(sl){ return sl.day === d; }); });
-  var times = [];
-  slots.forEach(function(sl){ var m = avMins(sl.start); if (times.indexOf(m) < 0) times.push(m); });
-  times.sort(function(a, b){ return a - b; });
-  return '<table class="av-grid"><thead><tr><th class="tm"></th>' + days.map(function(d){ return '<th>' + d + '</th>'; }).join('') + '</tr></thead><tbody>' +
-    times.map(function(tm){
-      var label = (slots.filter(function(sl){ return avMins(sl.start) === tm; })[0] || {}).start || '';
-      return '<tr><th class="tm">' + esc(label) + '</th>' + days.map(function(d){
-        var sl = slots.filter(function(x){ return x.day === d && avMins(x.start) === tm; })[0];
-        if (!sl) return '<td><div class="av-none"></div></td>';
-        var n = !!no[sl.id];
-        return '<td><button class="av-s' + (n ? ' no' : '') + '" data-av-s="' + esc(sl.id) + '"' + (ro ? ' disabled' : '') +
-               ' title="' + esc(sl.day + ' ' + sl.start + (sl.end ? '~' + sl.end : '')) + '"><span>~' + esc(sl.end || '') + '</span><small>' + (n ? '안 돼요' : '가능') + '</small></button></td>';
-      }).join('') + '</tr>';
-    }).join('') + '</tbody></table>';
+  var lo = Infinity, hi = -Infinity;
+  slots.forEach(function(sl){ var st = avMins(sl.start), en = avEnd(sl); if (st < lo) lo = st; if (en > hi) hi = en; });
+  var a0 = Math.floor(lo / 30) * 30, a1 = Math.ceil(hi / 30) * 30, n = Math.max(1, (a1 - a0) / 30);
+  var cols = 'grid-template-columns:34px repeat(' + n + ',var(--avc)) 18px';
+  var ticks = '', prev = '';
+  for (var i = 0; i <= n; i++){
+    var m = a0 + i * 30, ap = avApOf(m), show = ap !== prev; prev = ap;
+    ticks += '<span class="av-tk" style="grid-column:' + (i + 2) + '"><small>' + (show ? ap : '&nbsp;') + '</small>' + avHm(m) + '</span>';
+  }
+  var rows = days.map(function(d){
+    var list = slots.filter(function(x){ return x.day === d; }), L = avLanes(list);
+    var h = '<div class="av-row" style="' + cols + ';grid-template-rows:repeat(' + L.n + ',var(--avh))"><b class="av-dy" style="grid-row:1 / span ' + L.n + '">' + d + '</b>';
+    for (var r = 1; r <= L.n; r++) for (var j = 0; j < n; j++) h += '<span class="av-bg" style="grid-column:' + (j + 2) + ';grid-row:' + r + '"></span>';
+    list.forEach(function(sl){
+      var st = avMins(sl.start), en = avEnd(sl), c = (st - a0) / 30 + 2, w = Math.max(1, Math.round((en - st) / 30)), nn = !!no[sl.id];
+      var lab = sl.day + ' ' + avApOf(st) + ' ' + avHm(st) + '~' + avApOf(en) + ' ' + avHm(en) + (nn ? ' · 불가' : ' · 가능');
+      h += '<button class="av-s' + (nn ? ' no' : '') + '" data-av-s="' + esc(sl.id) + '"' + (ro ? ' disabled' : '') +
+           ' style="grid-column:' + c + ' / span ' + w + ';grid-row:' + (L.lane[sl.id] + 1) + '" title="' + esc(lab) + '" aria-label="' + esc(lab) + '" aria-pressed="' + (nn ? 'true' : 'false') + '">' + (nn ? '<i>불가</i>' : '') + '</button>';
+    });
+    return h + '</div>';
+  }).join('');
+  return '<div class="av-wrap"><div class="av-grid"><div class="av-head" style="' + cols + '">' + ticks + '</div>' + rows + '</div></div>';
 }
 function avCntText(nNo, nAll){
   return nNo ? '안 되는 시간 <b>' + nNo + '칸</b> · 가능한 시간 ' + (nAll - nNo) + '칸' : '모든 시간이 가능해요. 안 되는 시간이 없으면 이대로 제출해 주세요.';
@@ -4338,7 +4363,9 @@ document.addEventListener('click', function(e){
     var k = b.getAttribute('data-av-s');
     if (f.no[k]) delete f.no[k]; else f.no[k] = true;
     b.classList.toggle('no', !!f.no[k]);
-    b.querySelector('small').textContent = f.no[k] ? '안 돼요' : '가능';
+    b.innerHTML = f.no[k] ? '<i>불가</i>' : '';
+    b.setAttribute('aria-pressed', f.no[k] ? 'true' : 'false');
+    b.title = b.title.replace(/ · (가능|불가)$/, f.no[k] ? ' · 불가' : ' · 가능'); b.setAttribute('aria-label', b.title);
     $('avCnt').innerHTML = avCntText(Object.keys(f.no).length, (f.s.slots || []).length);
     return;
   }

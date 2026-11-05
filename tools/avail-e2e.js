@@ -85,15 +85,21 @@ function submit(p){
   let t = await pg.textContent('#avBody');
   ok('바로 입력 창(안내·메모)', /수업이 안 되는 시간을 모두/.test(t) && /12\/16부터 바뀌는 시간표/.test(t), t.slice(0, 120));
   ok('요일별 칸 4개 · 처음엔 모두 가능', (await pg.$$eval('.av-s', a => a.length)) === 4 && (await pg.$$eval('.av-s.no', a => a.length)) === 0);
-  ok('주간 시간표: 열 = 요일(수·토)', JSON.stringify(await pg.$$eval('.av-grid thead th', a => a.map(e => e.textContent))) === JSON.stringify(['', '수', '토']));
-  ok('줄 = 시작 시간(11:00 → 1:30 → 5:30 → 8:00)', JSON.stringify(await pg.$$eval('.av-grid tbody th', a => a.map(e => e.textContent))) === JSON.stringify(['11:00', '1:30', '5:30', '8:00']));
-  ok('후보 아닌 칸은 빈 회색 칸 4개', (await pg.$$eval('.av-none', a => a.length)) === 4);
-  ok('칸에 끝 시간·가능', /~7:30/.test(await pg.textContent('[data-av-s="수-5:30"]')) && /가능/.test(await pg.textContent('[data-av-s="수-5:30"]')));
+  ok('시간표 틀: 줄 = 요일(수·토)', JSON.stringify(await pg.$$eval('.av-grid .av-dy', a => a.map(e => e.textContent))) === JSON.stringify(['수', '토']));
+  const tks = await pg.$$eval('.av-grid .av-tk', a => a.map(e => e.textContent));
+  ok('가로축 = 30분 눈금 고정(오전 11:00 ~ 밤 10:00)', tks.length === 23 && tks[0] === '오전11:00' && tks[2] === '오후12:00' && tks[22] === '밤10:00', tks.join('|'));
+  const g = await pg.evaluate(() => { const c = s => { const b = document.querySelector(s).getBoundingClientRect(); return b.left + b.width / 2; }; const t = [...document.querySelectorAll('.av-tk')].map(e => { const b = e.getBoundingClientRect(); return b.left + b.width / 2; }); const r = document.querySelector('[data-av-s="수-5:30"]').getBoundingClientRect(); return { l: r.left, r: r.right, t13: t[13], t17: t[17] }; });
+  ok('칸이 눈금 선과 맞음(수 5:30~7:30)', Math.abs(g.l - g.t13) < 4 && Math.abs(g.r - g.t17) < 4, JSON.stringify(g));
+  ok('빈 자리는 옅은 회색 바탕(요일 2줄 × 30분 22칸)', (await pg.$$eval('.av-bg', a => a.length)) === 44);
+  ok('칸 안에 글자 없음 · 시간은 마우스를 올리면', (await pg.textContent('[data-av-s="수-5:30"]')) === '' && /수 오후 5:30~오후 7:30 · 가능/.test(await pg.getAttribute('[data-av-s="수-5:30"]', 'title')));
+  const BOX = e => [e.offsetLeft, e.offsetTop, e.offsetWidth, e.offsetHeight].join(',');
+  const box0 = await pg.$eval('[data-av-s="토-11:00"]', BOX);
   ok('모두 가능 안내', /모든 시간이 가능해요/.test(await pg.textContent('#avCnt')));
 
   // ④ 칸 누르기
   await pg.click('[data-av-s="토-11:00"]'); await pg.click('[data-av-s="수-8:00"]');
-  ok('누른 칸 안 돼요', (await pg.$$eval('.av-s.no', a => a.map(e => e.dataset.avS))).sort().join(',') === '수-8:00,토-11:00');
+  ok('누른 칸 불가', (await pg.$$eval('.av-s.no', a => a.map(e => e.dataset.avS))).sort().join(',') === '수-8:00,토-11:00' && (await pg.textContent('[data-av-s="토-11:00"]')) === '불가');
+  ok('눌러도 칸이 움직이지 않음', (await pg.$eval('[data-av-s="토-11:00"]', BOX)) === box0);
   ok('개수 안내', /안 되는 시간 2칸 · 가능한 시간 2칸/.test(await pg.textContent('#avCnt')));
   await pg.click('[data-av-s="수-8:00"]');
   ok('다시 누르면 가능', (await pg.$$eval('.av-s.no', a => a.length)) === 1);
