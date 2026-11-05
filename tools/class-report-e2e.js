@@ -355,6 +355,42 @@ const STUDENTS = [
   ok('확인 수업은 진도 없이도 생성', st.gas.some(g => g.action === 'editReqAdd' && /n002/.test(g.text) && /확인 수업/.test(g.text)));
   await ctx.close();
 
+  // ③-2 확인 수업 — 학생 카드를 진도반별로 묶고(머리 = 진도반·진행 요약, 누르면 진도표), 카드마다 진도반 한 줄 요약,
+  //      진도표에 주차별 누적 진도, 학교가 다른 같은 이름은 잇지 않는다(2026-11-05 원장님 ①+② · "주차별 누적 진도가 보여야")
+  {
+    ({ ctx, page, st } = await ctxOf({ book: '내신',
+      rows: [row('n001', '고2 화정A(비상 문학)', '주혜', '박보검 김하늘'), row('n003', '고2 능곡B(천재 문학)', '지원', '최다은 박보검'),
+             Object.assign(row('n002', '고2 확인', '연주', '(화정)박보검 (화정)김하늘 (능곡)최다은 (행신)이도윤'), { start_time: '7:30', end_time: '9:00' })],
+      att: [], hw: [] }));
+    st.ns.push({ period: UPCOMING, class_key: '공유:고2|화정', kind: '범위', week: '', student: '', text1: JSON.stringify({ book: '비상 문학', inRange: '사미인곡\n속미인곡\n관동별곡', extra: '', outRange: '' }), text2: '' },
+      { period: UPCOMING, class_key: 'n001', kind: '클리어', week: '', student: '', text1: JSON.stringify({ '사미인곡': { s: PREVWED7, d: PREVWED7 }, '속미인곡': { s: PREVWED7, d: PREVWED } }), text2: '' },
+      { period: UPCOMING, class_key: 'n001', kind: '주차', week: PREVWED7, student: '', text1: '사미인곡 표현 정리', text2: '학습지 1' },
+      { period: UPCOMING, class_key: 'n001', kind: '주차', week: PREVWED, student: '', text1: '속미인곡 마무리', text2: '' },
+      { period: UPCOMING, class_key: '공유:고2|능곡', kind: '범위', week: '', student: '', text1: JSON.stringify({ book: '천재 문학', inRange: '청산별곡', extra: '', outRange: '' }), text2: '' });
+    await openCard(page, '고2 확인');
+    r = await page.evaluate(() => [...document.querySelectorAll('.cr-pg')].map(g => ({ head: g.querySelector('.cr-pgh').textContent,
+      names: [...g.querySelectorAll('.cr-card .cr-top b')].map(x => x.textContent), none: g.classList.contains('none') })));
+    ok('진도반별 묶음 — 화정A(2명) · 능곡B(1명) · 진도반 확인 필요(이도윤) 순', r.length === 3 && /고2 화정A/.test(r[0].head) && /주혜T/.test(r[0].head) && /2명/.test(r[0].head) && r[0].names.slice().sort().join() === '김하늘,박보검' &&
+       /능곡B/.test(r[1].head) && r[1].names.join() === '최다은' && r[2].none && /진도반 확인 필요/.test(r[2].head) && r[2].names.join() === '이도윤', JSON.stringify(r));
+    ok('묶음 머리 진행 요약 — 완료 1 / 3 · 이번 주 1', /완료 1 \/ 3 · 이번 주 1/.test(r[0].head), r[0].head);
+    r = await page.evaluate(() => [...document.querySelectorAll('.cr-card')].map(c => ({ nm: c.querySelector('.cr-top b').textContent, line: (c.querySelector('.cr-pline') || {}).textContent || '', none: !!c.querySelector('.cr-pline.none') })));
+    const pk = r.find(x => x.nm === '박보검'), ld = r.find(x => x.nm === '이도윤');
+    ok('카드 한 줄 요약 — 진도반 이름·완료·이번 주 · 진도반 없는 학생은 분홍 안내', /고2 화정A.*완료 1 \/ 3 · 이번 주 1/.test(pk.line) && /진도표 보기/.test(pk.line) && ld.none && /찾지 못했어요/.test(ld.line), JSON.stringify(r));
+    ok('학교가 다른 같은 이름(능곡B 명단의 박보검)은 화정 박보검에 잇지 않는다', !/능곡/.test(pk.line), pk.line);
+    await page.click('.cr-pg .cr-pgh[data-gopen="n001"]');
+    await page.waitForSelector('.cr-pgbody .cr-wtab');
+    r = await page.evaluate(() => [...document.querySelectorAll('.cr-pgbody .cr-wtab tbody tr')].map(t => [...t.children].map(td => td.textContent)));
+    ok('진도표 펼침 — 주차별 누적 진도(지난주: 사미인곡·속미인곡 2/3 · 메모 / 이번 주: 속미인곡 이어서 2/3)', r.length === 2 &&
+       /사미인곡/.test(r[0][1]) && /속미인곡/.test(r[0][1]) && /사미인곡 표현 정리/.test(r[0][1]) && /과제: 학습지 1/.test(r[0][1]) && /^2 \/ 3/.test(r[0][2]) &&
+       /이번 주/.test(r[1][0]) && /속미인곡/.test(r[1][1]) && !/사미인곡/.test(r[1][1]) && /속미인곡 마무리/.test(r[1][1]) && /^2 \/ 3/.test(r[1][2]), JSON.stringify(r));
+    await page.click('.cr-card .cr-pline[data-pshow]');
+    await page.waitForSelector('.cr-card .cr-pbox .cr-wtab');
+    r = await page.evaluate(() => ({ box: document.querySelector('.cr-card .cr-pbox').textContent, line: document.querySelector('.cr-card .cr-pline').textContent }));
+    ok('카드 한 줄을 누르면 그 학생 진도표(주차별 누적 포함) · 줄 글씨 "진도표 접기"', /주차별 누적 진도/.test(r.box) && /관동별곡/.test(r.box) && /접기/.test(r.line), JSON.stringify(r));
+    if (SHOT){ await shot(page, '3c-확인수업-진도반별묶음', '.cr-stu'); }
+    await ctx.close();
+  }
+
   // ②-2 내신(중학교) — 확인 수업이 학생마다 지난 진도 수업 과제를 검사한다(2026-09-29 · 고1·고2는 2026-10-15부터 따로 — ②-2b)
   {
     const D3 = (() => { const d = new Date(PREVWED + 'T00:00:00'); d.setDate(d.getDate() - 1); return ymd(d); })();   // 지난주(내신은 지난주까지 낸 과제만 검사)
