@@ -87,28 +87,31 @@ function submit(p){
   ok('요일별 칸 4개 · 처음엔 모두 가능', (await pg.$$eval('.av-s', a => a.length)) === 4 && (await pg.$$eval('.av-s.no', a => a.length)) === 0);
   ok('시간표 틀: 위에 요일(수·토)', JSON.stringify(await pg.$$eval('.av-grid .av-dy', a => a.map(e => e.textContent))) === JSON.stringify(['수', '토']));
   const tks = await pg.$$eval('.av-grid .av-tk', a => a.map(e => e.textContent));
-  ok('세로축 = 30분 눈금 고정(오전 11:00 ~ 밤 10:00)', tks.length === 23 && tks[0] === '오전11:00' && tks[2] === '오후12:00' && tks[22] === '밤10:00', tks.join('|'));
-  const g = await pg.evaluate(() => { const c = s => { const b = document.querySelector(s).getBoundingClientRect(); return b.left + b.width / 2; }; const t = [...document.querySelectorAll('.av-tk')].map(e => { const b = e.getBoundingClientRect(); return b.top + b.height / 2; }); const r = document.querySelector('[data-av-s="수-5:30"]').getBoundingClientRect(); const ds = [...document.querySelectorAll('.av-dy')].map(e => e.getBoundingClientRect()); return { l: r.top, r: r.bottom, t13: t[13], t17: t[17], dx: r.left >= ds[0].left - 1 && r.right <= ds[0].right + 1, below: r.top > ds[0].bottom, wide: document.querySelector('.av-grid').scrollWidth <= document.querySelector('.av-grid').clientWidth + 1 }; });
-  ok('칸이 눈금 선과 맞음(수 5:30~7:30, 세로)', Math.abs(g.l - g.t13) < 4 && Math.abs(g.r - g.t17) < 4, JSON.stringify(g));
+  ok('세로축 = 30분 줄마다 시각(오전 11:00 ~ 오후 9:30)', tks.length === 22 && tks[0] === '오전11:00' && tks[1] === '11:30' && tks[2] === '오후12:00' && tks[14] === '밤6:00' && tks[21] === '9:30', tks.join('|'));
+  const g = await pg.evaluate(() => { const rowOf = t => [...document.querySelectorAll('.av-tk')].find(e => e.textContent.endsWith(t)).getBoundingClientRect(); const r = document.querySelector('[data-av-s="수-5:30"]').getBoundingClientRect(); const a = [...document.querySelectorAll('.av-tk')][13].getBoundingClientRect(), z = [...document.querySelectorAll('.av-tk')][16].getBoundingClientRect(); const ds = [...document.querySelectorAll('.av-dy')].map(e => e.getBoundingClientRect()); const gr = document.querySelector('.av-grid'); return { top: r.top, bot: r.bottom, a: a.top, z: z.bottom, dx: r.left >= ds[0].left - 1 && r.right <= ds[0].right + 1, below: r.top >= ds[0].bottom - 1, wide: gr.scrollWidth <= gr.clientWidth + 1 }; });
+  ok('블록이 시작~끝 줄을 덮음(수 5:30~7:30)', Math.abs(g.top - g.a) < 5 && Math.abs(g.bot - g.z) < 5, JSON.stringify(g));
   ok('칸은 수요일 열 안 · 요일 머리 아래', g.dx && g.below, JSON.stringify(g));
   ok('휴대폰 폭에서 옆으로 밀지 않아도 다 보임', g.wide);
-  ok('빈 자리는 옅은 회색 바탕(요일 2열 × 30분 22칸)', (await pg.$$eval('.av-bg', a => a.length)) === 44);
-  ok('칸 안에 글자 없음 · 시간은 마우스를 올리면', (await pg.textContent('[data-av-s="수-5:30"]')) === '' && /수 오후 5:30~오후 7:30 · 가능/.test(await pg.getAttribute('[data-av-s="수-5:30"]', 'title')));
+  ok('빈 자리는 빗금(요일 2열 × 30분 22줄)', (await pg.$$eval('.av-bg', a => a.length)) === 44 && /repeating-linear-gradient/.test(await pg.$eval('.av-bg', e => getComputedStyle(e).backgroundImage)));
+  ok('블록 = 가능 + 시간 범위 · title', (await pg.textContent('[data-av-s="수-5:30"]')) === '가능5:30–7:30' && /수 오후 5:30~밤 7:30 · 가능/.test(await pg.getAttribute('[data-av-s="수-5:30"]', 'title')), await pg.getAttribute('[data-av-s="수-5:30"]', 'title'));
+  ok('가능 색 #8fb3a0', (await pg.$eval('[data-av-s="수-5:30"]', e => getComputedStyle(e).backgroundColor)) === 'rgb(143, 179, 160)');
   const BOX = e => [e.offsetLeft, e.offsetTop, e.offsetWidth, e.offsetHeight].join(',');
   const box0 = await pg.$eval('[data-av-s="토-11:00"]', BOX);
-  ok('모두 가능 안내', /모든 시간이 가능해요/.test(await pg.textContent('#avCnt')));
+  ok('아래 바: 요약·사유·버튼 꺼짐', /안 되는 시간 0칸 · 가능 4칸/.test(await pg.textContent('#avBarSum')) && /누가 적고 있는지/.test(await pg.textContent('#avWhy')) && (await pg.$eval('#avSave', e => e.classList.contains('off'))));
+  ok('아래 바 고정', (await pg.$eval('.av-bar', e => getComputedStyle(e).position)) === 'fixed');
+  ok('요약 칸(안 됨 0 · 가능 4)', (await pg.textContent('#avCnt')).replace(/\s/g, '') === '안되는시간0칸가능한시간4칸');
 
   // ④ 칸 누르기
   await pg.click('[data-av-s="토-11:00"]'); await pg.click('[data-av-s="수-8:00"]');
-  ok('누른 칸 불가 · X 표시', (await pg.$$eval('.av-s.no', a => a.map(e => e.dataset.avS))).sort().join(',') === '수-8:00,토-11:00' && !!(await pg.$('[data-av-s="토-11:00"] svg.av-x')) && !(await pg.$('[data-av-s="수-5:30"] svg')));
+  ok('누른 칸 안 돼요 · × 표시', (await pg.$$eval('.av-s.no', a => a.map(e => e.dataset.avS))).sort().join(',') === '수-8:00,토-11:00' && (await pg.textContent('[data-av-s="토-11:00"] .st')) === '×' && (await pg.textContent('[data-av-s="수-5:30"] .st')) === '가능' && (await pg.$eval('[data-av-s="토-11:00"]', e => getComputedStyle(e).backgroundColor)) === 'rgb(246, 230, 233)');
   ok('눌러도 칸이 움직이지 않음', (await pg.$eval('[data-av-s="토-11:00"]', BOX)) === box0);
-  ok('개수 안내', /안 되는 시간 2칸 · 가능한 시간 2칸/.test(await pg.textContent('#avCnt')));
+  ok('개수 안내(요약 칸·아래 바)', (await pg.textContent('#avCnt')).replace(/\s/g, '') === '안되는시간2칸가능한시간2칸' && /안 되는 시간 2칸 · 가능 2칸/.test(await pg.textContent('#avBarSum')));
   await pg.click('[data-av-s="수-8:00"]');
   ok('다시 누르면 가능', (await pg.$$eval('.av-s.no', a => a.length)) === 1);
   await pg.fill('#avMemo', '토요일 오전 다른 학원');
 
   // ⑤ 누가 적는지 필수
-  await pg.click('#avSave'); await pg.waitForTimeout(150);
+  await pg.click('#avSave', { force: true }); await pg.waitForTimeout(150);
   ok('누가 적는지 안 고르면 막음', /누가 적고 있는지/.test(await pg.textContent('#avBody')) && CALLS.length === 0);
   ok('메모 유지', (await pg.inputValue('#avMemo')) === '토요일 오전 다른 학원');
   ok('안 고른 사이 칸 선택 유지', (await pg.$$eval('.av-s.no', a => a.length)) === 1);
@@ -119,6 +122,9 @@ function submit(p){
   const p1 = CALLS[0] || {};
   ok('저장 본문(조사·칸·메모·누가·키)', p1.survey === 7 && JSON.stringify(p1.no) === '["토-11:00"]' && p1.memo === '토요일 오전 다른 학원' && p1.who === '학생' && p1.key === 'tok-kim', JSON.stringify(p1));
   ok('제출 안내·별 +1', /별 \+1을 받았어요/.test(await pg.textContent('#avBody')));
+  ok('제출 뒤 버튼 = 제출 완료(꺼짐) · 사유', (await pg.textContent('#avSave')) === '제출 완료' && (await pg.$eval('#avSave', e => e.classList.contains('off'))) && /제출했어요 · /.test(await pg.textContent('#avWhy')));
+  await pg.click('#avSave', { force: true }); await pg.waitForTimeout(150);
+  ok('제출 완료 상태에서 눌러도 다시 안 보냄', CALLS.length === 1);
   ok('별 합계 +1', (await pg.evaluate(() => STATE.stars.total)) === 4 && (await pg.evaluate(() => STATE.stars.breakdown.avail)) === 1);
   ok('마지막 저장 표시', /마지막 저장 · 학생/.test(await pg.textContent('#avBody')));
 
