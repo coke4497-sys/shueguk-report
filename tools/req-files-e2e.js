@@ -264,6 +264,10 @@ const NS_SCOPE = { period: PERS.fin, class_key: '공유:고1|화정', kind: '범
   ok('[모든 선생님]이면 다시 전체 5곳', r.n === 5 && r.mem === '', JSON.stringify(r));
   r = await page.evaluate(() => { const keep = SC.teacher; SC.teacher = null; alimBy = '이은지'; const t = scopeTeacherNow(); alimBy = '이수경'; SC.teacher = null; const s2 = scopeLoginTeacher(['슈','은지']); SC.teacher = keep; alimBy = ''; return t + '|' + s2; });
   ok('처음이면 허브 로그인 선생님(이은지 → 은지, 이수경 → 슈)', r === '은지|슈', r);
+  r = await page.evaluate(() => scopeNextTeacher([{ class_id: 'n101', name: '고2 서정B(천재 독작)', teacher: '연주' }, { class_id: 'n102', name: '고2 화정A', teacher: '주혜' }, { class_id: 'n015', name: '고3파이널A', teacher: '슈' }],
+    [{ from_class_id: 'n101', reason: '정연주T 인계\n#spec ' + JSON.stringify({ before: { teacher: '연주', location: '민트초코' }, after: { teacher: '슈', location: '본원' } }) },
+     { from_class_id: 'n015', reason: '종강\n#spec ' + JSON.stringify({ end: true, snap: { teacher: '슈' } }) }]).map(x => x.class_id + ':' + x.teacher).join());
+  ok('적용일 변경이 잡힌 반은 새 담당(연주 → 슈)으로, 나머지·종강 기록은 그대로', r === 'n101:슈,n102:주혜,n015:슈', r);
   r = await page.evaluate(() => window.__scAuto);
   ok('실제로 탭을 처음 열 때 로그인한 김현지 선생님 → 현지T로 골라 둠', r === '현지', String(r));
   await page.evaluate(() => { SC.targets = window.__scOrig; SC.grade = ''; render(); });
