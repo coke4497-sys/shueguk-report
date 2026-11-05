@@ -232,7 +232,7 @@ const NS_SCOPE = { period: PERS.fin, class_key: '공유:고1|화정', kind: '범
   if (process.env.SHOT) await page.screenshot({ path: process.env.SHOT + '/6-시험범위탭-카드.png', clip: { x: 0, y: 0, width: 1300, height: 560 } });
   // ⑥-1 학년별 구역(2026-10-27 원장님 "학년별로 표시되도록" + "전체 화면에서도 학년별 그룹이 가시화되도록") — '전체'에서도 중2·고1·고2 머리 띠 + 그 학년 입력 수, 학년을 고르면 그 구역만
   r = await page.evaluate(() => {
-    window.__scOrig = SC.targets;
+    window.__scOrig = SC.targets; window.__scAuto = SC.teacher; SC.teacher = '';   // 로그인 선생님 자동 선택은 ⑥-1b 에서 따로 본다
     SC.targets = scopeTargetsOf([
       { class_id: 'n101', name: '고2 서정A(천재 독작)', teacher: '주혜' }, { class_id: 'n102', name: '중2 화정A(비상(영))', teacher: '은지' },
       { class_id: 'n103', name: '중2 백양(비상(현))', teacher: '은지' }, { class_id: 'n001', name: '고1 화정A(천재수 공통국어2)', teacher: '현지' },
@@ -246,6 +246,26 @@ const NS_SCOPE = { period: PERS.fin, class_key: '공유:고1|화정', kind: '범
   await page.click('#sc-grade [data-scgr="고1"]');
   r = await page.evaluate(() => ({ secs: [...document.querySelectorAll('.sc-sec')].map(s => s.getAttribute('data-grade')), n: document.querySelectorAll('.sc-card').length, all: document.querySelector('.sc-sec-h .sc-cnt').className }));
   ok('학년을 고르면 그 학년 구역만(머리 띠는 남음)', r.secs.join() === '고1' && r.n === 2 && !/all/.test(r.all), JSON.stringify(r));
+  // ⑥-1b 담당 선생님별 보기(2026-11-05 원장님 "각 강사별로 해당하는 시험범위를 선택해서 볼 수 있게") — 드롭다운 = TEACHER_ORDER 순 + 맡은 곳 수, 고르면 그 선생님 반이 묶인 카드만·합계도 그 범위, 반 이름 굵게, 탭에 기억
+  await page.evaluate(() => { SC.grade = ''; render(); });
+  r = await page.evaluate(() => ({ opts: [...document.querySelectorAll('#sc-teacher option')].map(o => o.value + ':' + o.textContent) }));
+  ok('담당 선생님 드롭다운 = 모든 선생님 + 주혜·현지·은지(TEACHER_ORDER 순, 곳 수)', r.opts.join(',') === ':모든 선생님,주혜:주혜T (1곳),현지:현지T (2곳),은지:은지T (2곳)', JSON.stringify(r));
+  await page.selectOption('#sc-teacher', '현지');
+  r = await page.evaluate(() => ({ cards: [...document.querySelectorAll('.sc-card h4')].map(h => h.firstChild.textContent), sum: document.getElementById('sc-sum').textContent,
+    grades: [...document.querySelectorAll('#sc-grade button')].map(b => b.textContent), bold: [...document.querySelectorAll('.sc-card .sc-cls b')].map(b => b.textContent),
+    on: document.getElementById('sc-teacher').className, mem: sessionStorage.getItem('tt_scteacher') }));
+  ok('현지T를 고르면 그 선생님 카드만(고1 능곡·화정) · 합계 "· 현지T · 입력 완료 0 / 2" · 반 이름 굵게 · 기억', r.cards.join() === '고1 능곡,고1 화정' && r.sum === PERS.fin + ' · 현지T · 입력 완료 0 / 2 · 일부 기록 1' && r.bold.length === 2 && /tsel on/.test(r.on) && r.mem === '현지' && r.grades.length === 0, JSON.stringify(r));
+  await page.evaluate(() => { SC.grade = '중2'; render(); });
+  r = await page.evaluate(() => document.querySelector('.sc-wrap .mdesc').textContent);
+  ok('고른 선생님 반이 없는 학년이면 안내', /현지T가 맡은 내신 진도반이 중2에 없어요/.test(r), r);
+  await page.evaluate(() => { SC.grade = ''; render(); });
+  await page.selectOption('#sc-teacher', '');
+  r = await page.evaluate(() => ({ n: document.querySelectorAll('.sc-card').length, mem: sessionStorage.getItem('tt_scteacher') }));
+  ok('[모든 선생님]이면 다시 전체 5곳', r.n === 5 && r.mem === '', JSON.stringify(r));
+  r = await page.evaluate(() => { const keep = SC.teacher; SC.teacher = null; alimBy = '이은지'; const t = scopeTeacherNow(); alimBy = '이수경'; SC.teacher = null; const s2 = scopeLoginTeacher(['슈','은지']); SC.teacher = keep; alimBy = ''; return t + '|' + s2; });
+  ok('처음이면 허브 로그인 선생님(이은지 → 은지, 이수경 → 슈)', r === '은지|슈', r);
+  r = await page.evaluate(() => window.__scAuto);
+  ok('실제로 탭을 처음 열 때 로그인한 김현지 선생님 → 현지T로 골라 둠', r === '현지', String(r));
   await page.evaluate(() => { SC.targets = window.__scOrig; SC.grade = ''; render(); });
   r = await page.evaluate(() => ({ secs: [...document.querySelectorAll('.sc-sec .sc-cnt')].map(e => e.className + ':' + e.textContent) }));
   ok('일부 기록만 있으면 띠는 "입력 완료 0 / 1 · 일부 기록 1"', r.secs.join() === 'sc-cnt:입력 완료 0 / 1 · 일부 기록 1', JSON.stringify(r));
