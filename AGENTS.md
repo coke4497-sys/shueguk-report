@@ -91,6 +91,7 @@
 - 27 예상 정규 시간표(timetable.html p27, 052): 학생 배치는 tt_plan_students에만 쓴다 — tt_classes·명단·학생정보를 바꾸는 코드가 섞이면 지적할 것. 반 고정표(P27_SLOTS)는 '선생님마다 요일마다 가·나 둘 다' 원칙을 지켜야 한다.
 - 27 예상 학생 반 신청(053): 정원(9)·가·나 같은 요일(054 — 시간과 상관없이)·신청 열림 판정은 서버 plan_pick이 잠금 안에서 한다 — 화면 판단만으로 저장하는 코드, 선생님 화면이 저장된 줄을 통째로 upsert해 학생이 바꾼 가·나를 덮는 코드가 생기면 지적할 것(저장된 줄은 바꾼 칸만 PATCH).
 - 학력평가 성적(057): 영역 → 문항 범위 표는 DB `smock_range_`·s.html `SMOCK_LAYOUT`·허브 smock.html `SMOCK_LAYOUT` 세 벌입니다 — 한 곳만 바꾸면 지적하세요. 설문 응답 옮겨 오기가 학생이 직접 입력한 줄(src '학생')을 덮어쓰는 변경도 지적할 것(ignore-duplicates 유지).
+- 시간표 조사(062): 별 규칙 `STAR_RULES.avail`은 s.html·superstar.html 두 벌(백엔드 폴백 없음)이고 student_bundle 의 `avail_responses` 항목이 s.html 집계 근거입니다. 다시 정의하는 student_bundle 이 이 항목을 빠뜨리거나, avail_submit 이 조사 대상(avail_targets)·열림·마감(한국 날짜)·후보 칸 id 확인 중 하나를 건너뛰면 지적하세요.
 - 모의고사 리포트 등급 계산 `smCut`(s.html·허브 smock.html 두 벌)·배점 점수 계산(DB smock_submit)은 같은 규칙이어야 합니다. 한쪽만 바뀌면 지적하세요.
 - 이름 대조로 **학교가 다른 학생**의 데이터(연락처·출석·과제·리포트)를 잇는 코드는 P1이다. 등록 전 표기('…(입학예정)')는 아무와도 잇지 않고, 앞 괄호 학교가 있으면 그 학교 학생만 잇는다(2026-10-24 원장님 지침).
 - 티쳐스 활동 알림(2026-10-27): 저장이 성공한 뒤 `shuegukActivity(...)`(activity.js) 한 줄로 허브 함수 `activity`에 보냅니다. 저장 전에 보내거나 실패해도 보내는 변경, 활동 알림 실패가 저장을 막게 하는 변경(동기 await·throw), 출석·수업 기록 저장처럼 잦은 일을 urgent 참으로 바꾸는 변경은 지적하세요.
