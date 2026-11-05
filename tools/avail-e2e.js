@@ -98,7 +98,7 @@ function submit(p){
 
   // ④ 칸 누르기
   await pg.click('[data-av-s="토-11:00"]'); await pg.click('[data-av-s="수-8:00"]');
-  ok('누른 칸 불가', (await pg.$$eval('.av-s.no', a => a.map(e => e.dataset.avS))).sort().join(',') === '수-8:00,토-11:00' && (await pg.textContent('[data-av-s="토-11:00"]')) === '불가');
+  ok('누른 칸 불가 · X 표시', (await pg.$$eval('.av-s.no', a => a.map(e => e.dataset.avS))).sort().join(',') === '수-8:00,토-11:00' && !!(await pg.$('[data-av-s="토-11:00"] svg.av-x')) && !(await pg.$('[data-av-s="수-5:30"] svg')));
   ok('눌러도 칸이 움직이지 않음', (await pg.$eval('[data-av-s="토-11:00"]', BOX)) === box0);
   ok('개수 안내', /안 되는 시간 2칸 · 가능한 시간 2칸/.test(await pg.textContent('#avCnt')));
   await pg.click('[data-av-s="수-8:00"]');
