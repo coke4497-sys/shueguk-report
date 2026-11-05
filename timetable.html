@@ -4355,13 +4355,26 @@ function scopeLoadAndRender(){
   SC.loading = true; SC.fail = false; render();
   var per = SC.period;
   Promise.all([
-    SC.targets ? Promise.resolve(SC.targets) : crGet('/tt_classes?book=' + encodeURIComponent('eq.내신') + '&class_id=not.like.w*&select=class_id,name,teacher&order=class_id').then(function(rows){ SC.targets = scopeTargetsOf(rows); return SC.targets; }),
+    SC.targets ? Promise.resolve(SC.targets) : Promise.all([
+      crGet('/tt_classes?book=' + encodeURIComponent('eq.내신') + '&class_id=not.like.w*&select=class_id,name,teacher&order=class_id'),
+      crGet('/tt_log?kind=' + encodeURIComponent('eq.적용일변경') + '&book=' + encodeURIComponent('eq.내신') + '&order=apply_date,id&select=from_class_id,reason').catch(function(){ return []; })
+    ]).then(function(rr){ SC.targets = scopeTargetsOf(scopeNextTeacher(rr[0], rr[1])); return SC.targets; }),
     crGet('/naeshin_records?period=eq.' + encodeURIComponent(per) + '&kind=' + encodeURIComponent('eq.범위') + '&student=eq.&select=class_key,text1,text2,at')
   ]).then(function(r){
     if (SC.period !== per) return;
     SC.rows = {}; (r[1] || []).forEach(function(x){ SC.rows[x.class_key] = x; });
     SC.loading = false; render();
   }).catch(function(e){ console.warn('시험 범위 조회 실패', e); SC.loading = false; SC.fail = true; render(); });
+}
+/* 적용일 변경(정연주T → 슈T, 11/7)이 잡힌 반은 시험 범위 탭에서 새 담당으로 본다(2026-11-05 원장님 "연주->슈 · 지금 나오도록") —
+ * 이 탭은 날짜가 없고 다가오는 시험(기말) 범위를 보는 곳이라. 반이 끝나는(end) 기록은 건드리지 않는다. 반 행·다른 화면은 그대로. */
+function scopeNextTeacher(rows, logs){
+  var nxt = {};
+  (logs || []).forEach(function(g){
+    var r = String(g.reason || ''), i = r.indexOf('\n#spec '); if (i < 0) return;
+    try { var sp = JSON.parse(r.slice(i + 7)); if (sp && sp.after && sp.after.teacher) nxt[g.from_class_id] = sp.after.teacher; } catch (e){}
+  });
+  return (rows || []).map(function(r){ return nxt[r.class_id] ? Object.assign({}, r, { teacher: nxt[r.class_id] }) : r; });
 }
 function scopeTargetsOf(rows){
   var by = {}, order = ['중1','중2','중3','고1','고2','고3'];
