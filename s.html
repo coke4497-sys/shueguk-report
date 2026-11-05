@@ -209,26 +209,69 @@
   #smView{display:none;}
   /* 시간표 조사(2026-11-05, 062) — 새 시간표로 바꿀 때 안 되는 시간을 골라 제출. 조사 하나 = 별 +1 */
   #avView{display:none;}
-  .av-who{display:flex;gap:6px;flex-wrap:wrap;}
-  /* 시간표 틀 — 위에 요일, 세로축 30분 눈금 고정(시간이 아래로 흐름), 칸 안에 글자 없음 (2026-11-05 원장님). 누르면 연해지며 '불가' */
-  .av-wrap{margin:8px 0 0;}
-  .av-grid{--avh:26px;display:grid;width:100%;}
-  .av-dy{grid-row:1;text-align:center;align-self:end;padding:0 0 6px;font-family:"Do Hyeon",var(--sans);font-weight:400;font-size:1.05rem;color:var(--ink);}
-  .av-tk{grid-column:1;align-self:start;justify-self:end;transform:translateY(-50%);padding-right:6px;font-size:.72rem;color:var(--ink-soft);line-height:1;white-space:nowrap;}
-  .av-tk small{font-size:.6rem;margin-right:2px;}
-  .av-bg{background:#F4F7F5;border-top:1px solid #D3DDD8;}
-  .av-bg.dl{border-left:4px solid #fff;}
-  .av-s{font:inherit;border:1px solid #74B096;padding:0;margin:2px 3px;border-radius:8px;background:#8FC7AF;cursor:pointer;z-index:1;display:flex;align-items:center;justify-content:center;transition:background .15s;}
-  .av-s.no{border-color:#D3DDD8;background:repeating-linear-gradient(135deg,#EEF4F1 0 5px,#E2EBE6 5px 10px);}
-  .av-legend .av-lx{background:#EEF4F1;display:inline-flex;align-items:center;justify-content:center;}
-  .av-legend .av-lx .av-x{width:10px;height:10px;color:#B0525D;}
-  .av-s .av-x{width:18px;height:18px;color:#B0525D;flex:none;}
-  .av-s:disabled{cursor:default;}
-  .av-legend{display:flex;gap:12px;flex-wrap:wrap;font-size:.78rem;color:var(--ink-soft);margin:6px 0 0;}
-  .av-legend i{display:inline-block;width:12px;height:12px;border-radius:4px;vertical-align:-1px;margin-right:4px;}
-  .av-cnt{font-size:.86rem;color:var(--ink);margin:12px 0 0;}
-  .av-last{font-size:.8rem;color:var(--ink-soft);margin:4px 0 0;}
-  .av-memo{white-space:pre-wrap;}
+  /* 시간표 조사 — 2026-11-05 원장님 디자인 묶음(design_handoff_timetable_survey) 수치 그대로 */
+  #avView .gwrap{max-width:460px;padding:0 14px;}
+  #avView.av-barpad .gwrap{padding-bottom:130px;}
+  .av-col{display:flex;flex-direction:column;gap:14px;text-align:left;}
+  .av-card{background:#fff;border-radius:24px;padding:20px;display:flex;flex-direction:column;gap:12px;}
+  .av-hd{padding:22px 20px;gap:10px;text-align:left;margin:0;}
+  .av-hd h1,.av-hd p{text-align:left;}
+  .av-hd .top{display:flex;align-items:center;justify-content:space-between;gap:8px;}
+  .av-hd .kick{font-size:12px;letter-spacing:2px;color:#4b6157;}
+  .av-due{font-size:12px;color:#4a3f63;background:#e6def0;border-radius:999px;padding:4px 10px;white-space:nowrap;}
+  .av-hd h1{margin:0;font-family:"Gowun Batang",var(--serif);font-weight:700;font-size:24px;color:#2b3a33;line-height:1.35;}
+  .av-hd .memo{margin:0;font-size:15px;color:#54655c;white-space:pre-wrap;}
+  .av-how{margin:0;padding:12px 14px;border-radius:14px;background:#f1f4f1;font-size:14px;line-height:1.65;color:#54655c;}
+  .av-how b{color:#2b3a33;}
+  .av-last{margin:0;font-size:12px;color:#8a978f;}
+  .av-h2{margin:0;display:flex;align-items:baseline;gap:8px;font-family:"Gowun Batang",var(--serif);font-weight:700;font-size:18px;color:#2b3a33;}
+  .av-h2 .no{font-family:"Do Hyeon",var(--sans);font-weight:400;color:#7f9e8e;}
+  .av-h2 small{font-family:"Gowun Dodum",var(--sans);font-weight:400;font-size:12px;color:#8a978f;}
+  .av-h2 small.req{color:#a8434f;}
+  .av-sub{font-size:13px;color:#8a978f;margin-top:-8px;}
+  .av-who{display:grid;grid-template-columns:1fr 1fr;gap:4px;background:#f1f4f1;border-radius:999px;padding:4px;}
+  .av-who button{font:inherit;font-size:15px;border:0;cursor:pointer;padding:11px 0;border-radius:999px;background:transparent;color:#54655c;}
+  .av-who button.on{background:#fff;color:#4a3f63;box-shadow:0 1px 4px rgba(58,77,69,.12);}
+  .av-legend{display:flex;gap:12px;flex-wrap:wrap;font-size:12px;color:#54655c;}
+  .av-legend span{display:flex;align-items:center;gap:5px;}
+  .av-legend i{width:12px;height:12px;border-radius:4px;box-sizing:border-box;}
+  .av-legend .l-ok{background:#8fb3a0;}
+  .av-legend .l-no{background:#f6e6e9;border:1px solid #e8b4bc;}
+  .av-legend .l-na{background:repeating-linear-gradient(135deg,#f1f4f1 0 3px,#fff 3px 6px);border:1px solid #e3e8e4;}
+  .av-wrap{border:1px solid #d5ddd8;border-radius:14px;overflow:hidden;}
+  .av-grid{display:grid;position:relative;}
+  .av-g0{display:flex;align-items:center;justify-content:center;font-size:12px;color:#54655c;background:#f1f4f1;border-right:1px solid #d5ddd8;border-bottom:1px solid #d5ddd8;}
+  .av-dy{display:flex;align-items:center;justify-content:center;font-family:"Do Hyeon",var(--sans);font-weight:400;font-size:18px;color:#2b3a33;background:#f1f4f1;border-bottom:1px solid #d5ddd8;border-left:1px solid #e3e8e4;}
+  .av-tk{grid-column:1;display:flex;align-items:center;justify-content:flex-end;gap:3px;padding-right:8px;background:#f8faf8;border-right:1px solid #d5ddd8;line-height:1;white-space:nowrap;overflow:hidden;}
+  .av-tk small{font-size:10px;color:#4b6157;}
+  .av-tk b{font-family:"Do Hyeon",var(--sans);font-weight:400;font-size:14px;color:#2b3a33;}
+  .av-tk.half b{color:#8a978f;}
+  .av-bg{background:repeating-linear-gradient(135deg,#f6f8f6 0 4px,#fff 4px 8px);border-left:1px solid #e3e8e4;}
+  .av-s{font:inherit;cursor:pointer;z-index:1;margin:3px;border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;background:#8fb3a0;border:1px solid #8fb3a0;color:#fff;box-sizing:border-box;padding:0;min-width:0;overflow:hidden;user-select:none;}
+  .av-s:hover{filter:brightness(.97);}
+  .av-s .st{font-family:"Do Hyeon",var(--sans);font-size:16px;line-height:1;}
+  .av-s .rg{font-size:12px;line-height:1.2;}
+  .av-s.no{background:#f6e6e9;border-color:#e8b4bc;color:#a8434f;}
+  .av-s.no .st{font-size:24px;}
+  .av-s:disabled{cursor:default;filter:none;}
+  .av-sum{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+  .av-sum div{border-radius:14px;padding:10px 14px;display:flex;align-items:baseline;justify-content:space-between;font-size:13px;}
+  .av-sum .s-no{background:#f6e6e9;color:#a8434f;}
+  .av-sum .s-ok{background:#dcebe3;color:#4b6157;}
+  .av-sum b{font-family:"Do Hyeon",var(--sans);font-weight:400;font-size:20px;}
+  .av-sum .s-ok b{color:#2b3a33;}
+  .av-sum b small{font-size:13px;}
+  #avMemo{font:inherit;font-size:15px;line-height:1.5;color:#2b3a33;padding:12px 14px;border:1px solid #dde5e0;border-radius:14px;background:#fafbf9;outline:none;resize:vertical;width:100%;box-sizing:border-box;}
+  .av-memo-ro{margin:0;font-size:15px;color:#2b3a33;white-space:pre-wrap;}
+  .av-foot{text-align:center;font-size:12px;color:#8a978f;padding-top:8px;}
+  .av-bar{position:fixed;left:0;right:0;bottom:0;z-index:6;padding:10px 14px calc(10px + env(safe-area-inset-bottom));background:rgba(228,239,234,.92);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);}
+  .av-bar .in{max-width:432px;margin:0 auto;display:flex;align-items:center;gap:10px;background:#fff;border-radius:999px;padding:8px 8px 8px 18px;box-shadow:0 4px 16px rgba(58,77,69,.12);}
+  .av-bar .tx{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;}
+  .av-bar .sm{font-size:13px;color:#2b3a33;}
+  .av-bar .why{font-size:12px;color:#4b6157;}
+  .av-bar .why.err{color:#a8434f;}
+  #avSave{flex:none;font:inherit;font-size:15px;border:0;padding:12px 20px;border-radius:999px;background:#4a3f63;color:#fff;cursor:pointer;}
+  #avSave.off{background:#ebe6f1;color:#a99fbb;cursor:not-allowed;}
   .sm-box{background:var(--surface);border-radius:var(--radius);padding:16px 18px;margin-bottom:12px;}
   .sm-intro{font-size:.86rem;color:var(--ink-soft);margin:0 2px 12px;line-height:1.65;}
   .sm-todo{display:flex;align-items:center;gap:12px;background:#F8F4FB;border-radius:14px;padding:13px 15px;margin-bottom:8px;}
@@ -4219,8 +4262,8 @@ function avBack(){
 }
 function avRender(){
   $('avBack').innerHTML = svg(ICON.back) + (AV.form && (STATE.avail || []).length > 1 ? ' 목록' : ' 메뉴');
-  if (AV.form){ $('avTtl').textContent = AV.form.s.title; avRenderForm(); return; }
-  $('avTtl').textContent = '시간표 조사';
+  if (AV.form){ $('avTtl').textContent = '시간표 조사'; avRenderForm(); return; }
+  $('avTtl').textContent = '시간표 조사'; $('avView').classList.remove('av-barpad');
   var items = STATE.avail, html = '';
   if (items === undefined){ $('avBody').innerHTML = '<div class="rv-empty">불러오는 중…</div>'; return; }
   if (AV.ok) html += '<div class="sm-ok">' + esc(AV.ok) + '</div>';
@@ -4245,36 +4288,57 @@ function avOpenForm(id){
 }
 function avRenderForm(){
   var f = AV.form, x = f.s, ro = !!x.closed;
-  var byDay = {};
-  (x.slots || []).forEach(function(sl){ (byDay[sl.day] = byDay[sl.day] || []).push(sl); });
   var nNo = Object.keys(f.no).length, nAll = (x.slots || []).length;
   var html = '';
   if (AV.ok) html += '<div class="sm-ok">' + esc(AV.ok) + '</div>';
-  html += '<div class="sm-box sm-f"><h3>' + esc(x.title) + '</h3>' +
-    (x.memo ? '<p class="sm-intro av-memo" style="margin:0 0 6px">' + esc(x.memo) + '</p>' : '') +
-    '<p class="sm-intro" style="margin:0">' + (ro ? '마감된 조사입니다. 제출한 내용만 볼 수 있어요.'
+  html += '<div class="av-col"><header class="av-card av-hd"><div class="top"><span class="kick">시간표 조사</span>' +
+    (x.due ? '<span class="av-due">' + esc(ro ? '마감' : avDue(x)) + '</span>' : '') + '</div>' +
+    '<h1>' + esc(x.title) + '</h1>' +
+    (x.memo ? '<p class="memo">' + esc(x.memo) + '</p>' : '') +
+    '<p class="av-how">' + (ro ? '마감된 조사입니다. 제출한 내용만 볼 수 있어요.'
       : '<b>수업이 안 되는 시간을 모두</b> 눌러 주세요. 처음에는 모든 칸이 가능(진한 색)이고, 누르면 연해지며 X 표시가 생깁니다. 학생과 학부모님이 같은 응답을 함께 고칠 수 있어요.' +
-        (x.due ? ' ' + esc(avDue(x)) + ' 고칠 수 있습니다.' : '')) + '</p>';
-  if (x.response) html += '<p class="av-last">마지막 저장 · ' + esc(x.response.last_by) + ' · ' + esc(avAt(x.response.updated_at)) + '</p>';
+        (x.due ? ' ' + esc(avDue(x)) + ' 고칠 수 있습니다.' : '')) + '</p>' +
+    (x.response ? '<p class="av-last">마지막 저장 · ' + esc(x.response.last_by) + ' · ' + esc(avAt(x.response.updated_at)) + '</p>' : '') +
+    '</header>';
+  var n = 1;
   if (!ro){
-    html += '<span class="lab">누가 적고 있나요? <small>필수</small></span><div class="av-who">' +
-      ['학생', '학부모님'].map(function(v){ return '<button class="sm-pill' + (f.who === v ? ' on' : '') + '" data-av-who="' + v + '">' + v + '</button>'; }).join('') + '</div>';
+    html += '<section class="av-card"><h2 class="av-h2"><span class="no">' + (n++) + '</span>누가 적고 있나요?<small class="req">필수</small></h2><div class="av-who">' +
+      ['학생', '학부모님'].map(function(v){ return '<button class="' + (f.who === v ? 'on' : '') + '" data-av-who="' + v + '">' + v + '</button>'; }).join('') + '</div></section>';
   }
-  html += '<span class="lab">시간 고르기 <small>' + (ro ? '' : '수업이 안 되는 칸을 누르면 연해지며 X 표시가 생겨요') + '</small></span>' +
-    '<div class="av-legend"><span><i style="background:#8FC7AF"></i>가능</span><span><i class="av-lx">' + AV_X + '</i>불가</span></div>';
+  html += '<section class="av-card"><h2 class="av-h2"><span class="no">' + (n++) + '</span>시간 고르기</h2>' +
+    (ro ? '' : '<span class="av-sub">수업이 안 되는 칸을 누르면 연해지며 X 표시가 생겨요</span>') +
+    '<div class="av-legend"><span><i class="l-ok"></i>가능</span><span><i class="l-no"></i>안 돼요</span><span><i class="l-na"></i>후보 아님</span></div>';
   html += avGridHtml(x.slots || [], f.no, ro);
-  html += '<p class="av-cnt" id="avCnt">' + avCntText(nNo, nAll) + '</p>';
+  html += '<div class="av-sum" id="avCnt">' + avCntText(nNo, nAll) + '</div></section>';
   if (ro){
-    html += f.memo ? '<span class="lab">메모</span><p class="sm-rv">' + esc(f.memo) + '</p>' : '';
+    if (f.memo) html += '<section class="av-card"><h2 class="av-h2"><span class="no">' + (n++) + '</span>메모</h2><p class="av-memo-ro">' + esc(f.memo) + '</p></section>';
   } else {
-    html += '<label class="lab" for="avMemo">메모 <small>선택 · 사정이 있으면 적어 주세요</small></label>' +
-      '<textarea id="avMemo" maxlength="500" placeholder="예) 토요일 오전은 다른 학원 수업이 있어요">' + esc(f.memo) + '</textarea>' +
-      '<p class="sm-err">' + esc(f.err || '') + '</p>' +
-      '<div class="sm-acts"><button class="sm-btn main" id="avSave"' + (AV.busy ? ' disabled' : '') + '>' +
-      (AV.busy ? '저장하는 중…' : f.had ? '고친 내용 저장하기' : '제출하기') + '</button></div>';
+    html += '<section class="av-card" style="gap:10px"><h2 class="av-h2"><span class="no">' + (n++) + '</span><label for="avMemo">메모</label><small>선택 · 사정이 있으면 적어 주세요</small></h2>' +
+      '<textarea id="avMemo" rows="3" maxlength="500" placeholder="예) 토요일 오전 다른 학원">' + esc(f.memo) + '</textarea></section>';
   }
   html += '</div>';
+  if (!ro) html += '<div class="av-bar"><div class="in"><div class="tx"><span class="sm" id="avBarSum"></span><span class="why" id="avWhy"></span></div>' +
+    '<button id="avSave"></button></div></div>';
   $('avBody').innerHTML = html;
+  $('avView').classList.toggle('av-barpad', !ro);
+  if (!ro) avBarSync();
+}
+// 아래 고정 바 — 요약·사유·버튼 (2026-11-05 디자인 묶음)
+function avBarSync(){
+  var f = AV.form; if (!f || !$('avSave')) return;
+  var nNo = Object.keys(f.no).length, nAll = (f.s.slots || []).length;
+  $('avBarSum').textContent = '안 되는 시간 ' + nNo + '칸 · 가능 ' + (nAll - nNo) + '칸';
+  var why = $('avWhy'), err = '';
+  if (AV.busy) why.textContent = '저장하는 중이에요';
+  else if (f.err) { why.textContent = f.err; err = 1; }
+  else if (f.sent) why.textContent = '제출했어요' + (f.s.due ? ' · ' + avDue(f.s) + ' 고칠 수 있어요' : '');
+  else if (!f.who) { why.textContent = '누가 적고 있는지 골라 주세요.'; err = 1; }
+  else why.textContent = f.had ? '고친 내용을 저장해 주세요' : '처음 제출하면 별 +1';
+  why.classList.toggle('err', !!err);
+  var b = $('avSave');
+  b.textContent = AV.busy ? '저장하는 중…' : f.sent ? '제출 완료' : f.had ? '고친 내용 저장' : '제출하기';
+  b.classList.toggle('off', AV.busy || f.sent || !f.who);
+  b.setAttribute('aria-disabled', (AV.busy || f.sent || !f.who) ? 'true' : 'false');
 }
 /* 시간 문자열 → 분 (슈국 스케쥴 mins 와 같은 규칙: '오전9:30' · '5:30'(10시 전은 오후) · '밤10:00') */
 function avMins(t){
@@ -4288,7 +4352,6 @@ function avMins(t){
 /* 주간 시간표 칸 — 줄 = 시작 시간, 열 = 요일. 후보가 아닌 칸은 회색으로 비운다 */
 // 시간표 틀 = 가로축 30분 눈금(선 위에 시각) 고정, 세로축 요일, 칸은 실제 길이만큼 — 칸 안에 글자 없음.
 // 누르면 연해지며 '불가' (2026-11-05 원장님 "시간표 틀이 정해져있고 그 칸을 누르면 색깔이 연해지면서 수업이 불가능하다는 표시로")
-var AV_X = '<svg class="av-x" viewBox="0 0 20 20" aria-hidden="true"><path d="M4 4L16 16M16 4L4 16" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" fill="none"/></svg>';
 function avApOf(m){ return m < 720 ? '오전' : (m >= 1320 ? '밤' : '오후'); }
 function avHm(m){ var h = Math.floor(m / 60) % 12; if (h === 0) h = 12; return h + ':' + ('0' + (m % 60)).slice(-2); }
 function avEnd(sl){ var st = avMins(sl.start), en = avMins(sl.end); if (!en) return st + 30; while (en <= st) en += 720; return en; } // '10:00'만 적힌 옛 끝 시각 = 밤 10시
@@ -4301,41 +4364,50 @@ function avLanes(list){ // 같은 요일에 겹치는 칸은 줄을 나눈다
   });
   return { lane: out, n: Math.max(1, ends.length) };
 }
+function avTimeLab(m){ var h = Math.floor(m / 60); return h < 12 ? '오전' : (h < 18 ? '오후' : '밤'); } // 화면 표시만(디자인: 12시 전 오전 · 18시 전 오후 · 그 뒤 밤)
+function avSlotHtml(sl, nn, ro, style){
+  var st = avMins(sl.start), en = avEnd(sl);
+  var lab = sl.day + ' ' + avTimeLab(st) + ' ' + avHm(st) + '~' + avTimeLab(en % 1440) + ' ' + avHm(en) + (nn ? ' · 안 돼요' : ' · 가능');
+  return '<button class="av-s' + (nn ? ' no' : '') + '" data-av-s="' + esc(sl.id) + '"' + (ro ? ' disabled' : '') + ' style="' + style + '" title="' + esc(lab) +
+    '" aria-label="' + esc(lab) + '" aria-pressed="' + (nn ? 'true' : 'false') + '"><span class="st">' + (nn ? '×' : '가능') + '</span><span class="rg">' + avHm(st) + '–' + avHm(en) + '</span></button>';
+}
 function avGridHtml(slots, no, ro){
-  // 위 = 요일(겹치는 칸은 그 요일 안에서 열을 나눔), 왼쪽 = 30분 눈금(시각은 눈금 선 위), 칸은 실제 길이만큼 아래로
+  // 위 = 요일(겹치는 칸은 그 요일 안에서 열을 나눔), 왼쪽 = 30분 줄마다 시각, 후보 칸은 시작~끝 줄을 덮는 블록, 빈 곳은 빗금(후보 아님)
   var days = AV_DAYS.filter(function(d){ return slots.some(function(sl){ return sl.day === d; }); });
   var lo = Infinity, hi = -Infinity;
   slots.forEach(function(sl){ var st = avMins(sl.start), en = avEnd(sl); if (st < lo) lo = st; if (en > hi) hi = en; });
   var a0 = Math.floor(lo / 30) * 30, a1 = Math.ceil(hi / 30) * 30, n = Math.max(1, (a1 - a0) / 30);
-  var colDefs = ['58px'], c0 = 2, info = days.map(function(d){
+  var colDefs = ['70px'], c0 = 2, info = days.map(function(d){
     var list = slots.filter(function(x){ return x.day === d; }), L = avLanes(list), at = c0;
-    for (var k = 0; k < L.n; k++) colDefs.push('minmax(' + (40 / L.n).toFixed(2) + 'px,' + (1 / L.n).toFixed(4) + 'fr)');
+    for (var k = 0; k < L.n; k++) colDefs.push('minmax(0,' + (1 / L.n).toFixed(4) + 'fr)');
     c0 += L.n; return { d: d, list: list, L: L, at: at };
   });
-  var h = '<div class="av-wrap"><div class="av-grid" style="grid-template-columns:' + colDefs.join(' ') + ';grid-template-rows:auto repeat(' + n + ',var(--avh)) 10px">';
+  var h = '<div class="av-wrap"><div class="av-grid" style="grid-template-columns:' + colDefs.join(' ') + ';grid-template-rows:40px repeat(' + n + ',28px)">';
+  h += '<span class="av-g0" style="grid-column:1;grid-row:1">시간</span>';
   var prev = '';
-  for (var i = 0; i <= n; i++){
-    var m = a0 + i * 30, ap = avApOf(m), show = ap !== prev; prev = ap;
-    h += '<span class="av-tk" style="grid-row:' + (i + 2) + '"><small>' + (show ? ap : '&nbsp;') + '</small>' + avHm(m) + '</span>';
+  for (var i = 0; i < n; i++){
+    var m = a0 + i * 30, ap = avTimeLab(m), line = (m % 60) ? '#e3e8e4' : '#eef1ee';
+    h += '<span class="av-tk' + ((m % 60) ? ' half' : '') + '" style="grid-row:' + (i + 2) + ';border-bottom:1px solid ' + line + '"><small>' + (ap !== prev ? ap : '') + '</small><b>' + avHm(m) + '</b></span>';
+    prev = ap;
   }
   info.forEach(function(D){
-    h += '<b class="av-dy" style="grid-column:' + D.at + ' / span ' + D.L.n + '">' + D.d + '</b>';
-    for (var k = 0; k < D.L.n; k++) for (var r = 0; r < n; r++)
-      h += '<span class="av-bg' + (k === 0 ? ' dl' : '') + '" style="grid-column:' + (D.at + k) + ';grid-row:' + (r + 2) + '"></span>';
+    h += '<b class="av-dy" style="grid-column:' + D.at + ' / span ' + D.L.n + ';grid-row:1">' + D.d + '</b>';
+    for (var r = 0; r < n; r++){
+      var line2 = ((a0 + r * 30) % 60) ? '#e3e8e4' : '#eef1ee';
+      h += '<span class="av-bg" style="grid-column:' + D.at + ' / span ' + D.L.n + ';grid-row:' + (r + 2) + ';border-bottom:1px solid ' + line2 + '"></span>';
+    }
     D.list.forEach(function(sl){
-      var st = avMins(sl.start), en = avEnd(sl), rr = (st - a0) / 30 + 2, w = Math.max(1, Math.round((en - st) / 30)), nn = !!no[sl.id];
-      var lab = sl.day + ' ' + avApOf(st) + ' ' + avHm(st) + '~' + avApOf(en) + ' ' + avHm(en) + (nn ? ' · 불가' : ' · 가능');
-      h += '<button class="av-s' + (nn ? ' no' : '') + '" data-av-s="' + esc(sl.id) + '"' + (ro ? ' disabled' : '') +
-           ' style="grid-row:' + rr + ' / span ' + w + ';grid-column:' + (D.at + D.L.lane[sl.id]) + '" title="' + esc(lab) + '" aria-label="' + esc(lab) + '" aria-pressed="' + (nn ? 'true' : 'false') + '">' + (nn ? AV_X : '') + '</button>';
+      var st = avMins(sl.start), en = avEnd(sl), rr = (st - a0) / 30 + 2, w = Math.max(1, Math.round((en - st) / 30));
+      h += avSlotHtml(sl, !!no[sl.id], ro, 'grid-row:' + rr + ' / span ' + w + ';grid-column:' + (D.at + D.L.lane[sl.id]));
     });
   });
   return h + '</div></div>';
 }
 function avCntText(nNo, nAll){
-  return nNo ? '안 되는 시간 <b>' + nNo + '칸</b> · 가능한 시간 ' + (nAll - nNo) + '칸' : '모든 시간이 가능해요. 안 되는 시간이 없으면 이대로 제출해 주세요.';
+  return '<div class="s-no"><span>안 되는 시간</span><b>' + nNo + '<small>칸</small></b></div><div class="s-ok"><span>가능한 시간</span><b>' + (nAll - nNo) + '<small>칸</small></b></div>';
 }
 function avSave(){
-  var f = AV.form; if (!f || AV.busy) return;
+  var f = AV.form; if (!f || AV.busy || f.sent) return;
   if ($('avMemo')) f.memo = $('avMemo').value;
   if (!f.who){ f.err = AV_ERR.no_who; avRender(); return; }
   var no = (f.s.slots || []).filter(function(sl){ return f.no[sl.id]; }).map(function(sl){ return sl.id; });
@@ -4349,7 +4421,7 @@ function avSave(){
           if (STATE.stars.breakdown) STATE.stars.breakdown.avail = (STATE.stars.breakdown.avail || 0) + 1;
         }
         f.s.response = { no: r.no || no, memo: f.memo || '', last_by: f.who, at: new Date().toISOString(), updated_at: new Date().toISOString() };
-        f.had = true;
+        f.had = true; f.sent = true;
         AV.ok = r.first ? '제출했습니다. 별 +1을 받았어요!' : '고친 내용을 저장했습니다.';
         avRender(); window.scrollTo(0, 0);
         avRefresh();
@@ -4369,19 +4441,24 @@ document.addEventListener('click', function(e){
     var k = b.getAttribute('data-av-s');
     if (f.no[k]) delete f.no[k]; else f.no[k] = true;
     b.classList.toggle('no', !!f.no[k]);
-    b.innerHTML = f.no[k] ? AV_X : '';
+    b.querySelector('.st').textContent = f.no[k] ? '×' : '가능';
     b.setAttribute('aria-pressed', f.no[k] ? 'true' : 'false');
-    b.title = b.title.replace(/ · (가능|불가)$/, f.no[k] ? ' · 불가' : ' · 가능'); b.setAttribute('aria-label', b.title);
+    b.title = b.title.replace(/ · (가능|안 돼요)$/, f.no[k] ? ' · 안 돼요' : ' · 가능'); b.setAttribute('aria-label', b.title);
     $('avCnt').innerHTML = avCntText(Object.keys(f.no).length, (f.s.slots || []).length);
+    f.sent = false; f.err = ''; avBarSync();
     return;
   }
   if ((b = e.target.closest('[data-av-who]'))){
     if ($('avMemo')) f.memo = $('avMemo').value;
     f.who = b.getAttribute('data-av-who'); f.err = '';
     Array.prototype.forEach.call(document.querySelectorAll('#avView [data-av-who]'), function(x){ x.classList.toggle('on', x.getAttribute('data-av-who') === f.who); });
+    f.sent = false; avBarSync();
     return;
   }
   if (e.target.closest('#avSave')) avSave();
+});
+document.addEventListener('input', function(e){
+  if (e.target && e.target.id === 'avMemo' && AV.form){ AV.form.memo = e.target.value; if (AV.form.sent){ AV.form.sent = false; avBarSync(); } }
 });
 
 /* ── 학력평가 성적 (2026-10-21, 057) ─────────────────────────────
