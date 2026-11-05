@@ -207,6 +207,25 @@
   #planView{display:none;}
   /* 학력평가 성적(2026-10-21, 057) — 학교 모의고사 점수·틀린 문항을 회차마다 입력·누적. 회차 하나 = 별 +1 */
   #smView{display:none;}
+  /* 시간표 조사(2026-11-05, 062) — 새 시간표로 바꿀 때 안 되는 시간을 골라 제출. 조사 하나 = 별 +1 */
+  #avView{display:none;}
+  .av-who{display:flex;gap:6px;flex-wrap:wrap;}
+  /* 주간 시간표 모양 — 줄 = 시작 시간, 열 = 요일 (2026-11-05 원장님 "주간 시간표 같은 칸에서 안되는 시간을 선택") */
+  .av-grid{width:100%;border-collapse:separate;border-spacing:4px;table-layout:fixed;margin:4px -4px 0;}
+  .av-grid th{font-family:"Do Hyeon",var(--sans);font-weight:400;font-size:1rem;color:var(--ink);text-align:center;padding:2px 0;}
+  .av-grid th.tm{width:46px;font-family:var(--sans);font-size:.78rem;color:var(--ink-soft);text-align:right;padding-right:2px;}
+  .av-grid td{padding:0;}
+  .av-s{font:inherit;font-size:.8rem;border:none;border-radius:10px;padding:9px 2px;width:100%;min-height:54px;background:#E2F4EC;color:#2A6555;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;line-height:1.2;}
+  .av-s span{font-size:.7rem;color:inherit;opacity:.85;}
+  .av-s small{font-size:.76rem;font-weight:700;}
+  .av-none{min-height:54px;border-radius:10px;background:#F2F5F3;}
+  .av-s.no{background:#F7E2DE;color:#8A4B42;font-weight:700;}
+  .av-s:disabled{cursor:default;opacity:.85;}
+  .av-legend{display:flex;gap:12px;flex-wrap:wrap;font-size:.78rem;color:var(--ink-soft);margin:6px 0 0;}
+  .av-legend i{display:inline-block;width:12px;height:12px;border-radius:4px;vertical-align:-1px;margin-right:4px;}
+  .av-cnt{font-size:.86rem;color:var(--ink);margin:12px 0 0;}
+  .av-last{font-size:.8rem;color:var(--ink-soft);margin:4px 0 0;}
+  .av-memo{white-space:pre-wrap;}
   .sm-box{background:var(--surface);border-radius:var(--radius);padding:16px 18px;margin-bottom:12px;}
   .sm-intro{font-size:.86rem;color:var(--ink-soft);margin:0 2px 12px;line-height:1.65;}
   .sm-todo{display:flex;align-items:center;gap:12px;background:#F8F4FB;border-radius:14px;padding:13px 15px;margin-bottom:8px;}
@@ -920,6 +939,16 @@
   <footer><p>이수경국어 Shueguk · 학생용</p></footer>
 </main></div>
 
+<!-- 시간표 조사 (2026-11-05, 062) — 새 시간표로 바꿀 때 학생·학부모님이 안 되는 시간을 골라 제출 -->
+<div id="avView"><main class="wrap gwrap">
+  <div class="gv-bar">
+    <button class="gv-back" onclick="avBack()" id="avBack"></button>
+    <span class="gv-ttl" id="avTtl">시간표 조사</span>
+  </div>
+  <div id="avBody"></div>
+  <footer><p>이수경국어 Shueguk · 학생용</p></footer>
+</main></div>
+
 <!-- 예비 고1 반 신청 (2026-10-17, 053) — 27 예상 정규 시간표에서 나 반 고르기·가 반 옮기기(선착순) -->
 <div id="planView"><main class="wrap gwrap">
   <div class="gv-bar">
@@ -1293,7 +1322,7 @@ var IS_ID = false;
 var STATE = { info:null, authed:false, exams:null, examCount:0, notices:null, homework:null, analyses:null, clinic:null, stars:null, vocaOpen:null, vocaWeek:null, mockGrades:null, mockOpen:null, clinicEligible:null, vocaTaken:null, mockSignups:null, mockFromServer:false, mockGatesFromServer:false, vocaFromServer:false, clinicFromServer:false, hwcheck:null, qq:null, qqLoading:false, qqTeachers:null, review:null, reviewLoading:false };
 
 function showError(title, msg){
-  hide('loadBox'); hide('hubView'); $('gradeView').style.display='none'; $('mockHubView').style.display='none'; $('mockView').style.display='none'; $('clinicView').style.display='none'; $('hwcheckView').style.display='none'; $('questionView').style.display='none'; $('reviewView').style.display='none'; $('planView').style.display='none'; $('smView').style.display='none'; $('lhView').style.display='none';
+  hide('loadBox'); hide('hubView'); $('gradeView').style.display='none'; $('mockHubView').style.display='none'; $('mockView').style.display='none'; $('clinicView').style.display='none'; $('hwcheckView').style.display='none'; $('questionView').style.display='none'; $('reviewView').style.display='none'; $('planView').style.display='none'; $('smView').style.display='none'; $('avView').style.display='none'; $('lhView').style.display='none';
   $('errTitle').textContent = title || '불러올 수 없습니다';
   $('errMsg').textContent = msg || '';
   show('errBox');
@@ -1329,7 +1358,7 @@ function api(extra){
   function p2(n){ return ('0' + n).slice(-2); }
 
   /* ── 백엔드 규칙 이식 ── */
-  var STAR_RULES = { exam: 2, clinic: 1, voca: 1, hwork: 1, notice: 1, mock: 1, hwcheck: 1, gramma: 1, smock: 1 };   // smock = 학력평가 성적 입력 회차당(057, 2026-10-21)
+  var STAR_RULES = { exam: 2, clinic: 1, voca: 1, hwork: 1, notice: 1, mock: 1, hwcheck: 1, gramma: 1, smock: 1, avail: 1 };   // smock = 학력평가 성적 입력 회차당(057, 2026-10-21) · avail = 시간표 조사 제출 조사당(062, 2026-11-05)
   // 복습 영상은 별 없음(2026-09-27 사용자 "결석자 보충이므로 포상이 되면 안됨") · gramma = 문법 세트 클리어(스테이지 5개를 모두 70% 이상 — 2026-09-16, 옛 '회차마다 90%' 규칙 대체)
   function baseName(s){ return tr(s).replace(/[A-Za-z]$/, ''); }
   function schoolMatch(a, b){
@@ -1532,7 +1561,7 @@ function api(extra){
       var notices = B.notices || [], reads = B.notice_reads || [], assigns = B.assignments || [],
           clinicRows = B.clinic_requests || [], hwsub = B.hwork_submissions || [], voca = B.voca_results || [],
           omr = B.omr_responses || [], hwc = B.hwcheck_records || [], signup = B.signup_entries || [],
-          bonusRows = B.star_bonus || [], cfg = B.report_config || [], subs = B.submissions || [], grammaSets = B.gramma_sets || [], smockRows = B.smock_entries || [],
+          bonusRows = B.star_bonus || [], cfg = B.report_config || [], subs = B.submissions || [], grammaSets = B.gramma_sets || [], smockRows = B.smock_entries || [], availRows = B.avail_responses || [],
           examList = B.exams || [], qRows = B.exam_questions || [],
           clinicSet = B.clinic_settings || [], signupSet = B.signup_settings || [];
 
@@ -1767,6 +1796,10 @@ function api(extra){
         var smockSet = {};
         smockRows.forEach(function(r){ if(tr(r.exam)) smockSet[tr(r.exam)] = true; });
         var smockN = Object.keys(smockSet).length;
+        /* 시간표 조사 제출(avail_responses — 062) — 조사 단위, 접근코드로 찾은 내 기록만 온다 */
+        var availSet = {};
+        availRows.forEach(function(r){ if(tr(r.survey)) availSet[tr(r.survey)] = true; });
+        var availN = Object.keys(availSet).length;
         var bonus = { sum: 0, latest: null };
         bonusRows.forEach(function(r){
           var rid = tr(r.student_id).replace(/^'/, ''), rnm = tr(r.name), rsc = tr(r.school);
@@ -1793,10 +1826,10 @@ function api(extra){
           total: examCountStars * STAR_RULES.exam + clinicN * STAR_RULES.clinic
                + Object.keys(vocaRounds).length * STAR_RULES.voca + Object.keys(hworkSet).length * STAR_RULES.hwork
                + Object.keys(mockSet).length * STAR_RULES.mock + hwPerfect * STAR_RULES.hwcheck
-               + noticeN * STAR_RULES.notice + grammaN * STAR_RULES.gramma + smockN * STAR_RULES.smock + bonus.sum,
+               + noticeN * STAR_RULES.notice + grammaN * STAR_RULES.gramma + smockN * STAR_RULES.smock + availN * STAR_RULES.avail + bonus.sum,
           breakdown: { exam: examCountStars, clinic: clinicN, voca: Object.keys(vocaRounds).length,
                        hwork: Object.keys(hworkSet).length, mock: Object.keys(mockSet).length,
-                       hwcheck: hwPerfect, notice: noticeN, gramma: grammaN, smock: smockN, bonus: bonus.sum },
+                       hwcheck: hwPerfect, notice: noticeN, gramma: grammaN, smock: smockN, avail: availN, bonus: bonus.sum },
           latestBonus: bonus.latest
         };
 
@@ -2008,6 +2041,7 @@ function renderStars(){
       hwcheck:'<path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>',
       gramma:'<path d="M4 7V4h16v3"/><path d="M9 20h6"/><path d="M12 4v16"/>',
       smock: '<path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/>',
+      avail: '<rect x="3" y="4.5" width="18" height="16.5" rx="2.5"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4"/><path d="M9 15l2 2 4-4"/>',
       review:'<rect x="2.5" y="4.5" width="19" height="15" rx="3"/><path d="M10 9.2v5.6l4.8-2.8z"/>',
       bonus: '<path d="M12 2l2.9 6.2 6.8.8-5 4.7 1.3 6.7L12 17.1 6 20.4l1.3-6.7-5-4.7 6.8-.8z"/>'
     };
@@ -2024,6 +2058,7 @@ function renderStars(){
       ['notice', '공지 확인',          bd.notice, '건', bd.notice],
       ['gramma', '문법 세트 클리어', bd.gramma || 0, '세트', bd.gramma || 0],
       ['smock',  '모의고사 리포트 입력', bd.smock || 0, '회', bd.smock || 0],
+      ['avail',  '시간표 조사 제출', bd.avail || 0, '회', bd.avail || 0],
       ['bonus',  '수경쌤 깜짝 보너스', bd.bonus ? 1 : 0, '', bd.bonus]
     ].filter(function(s){ return s[2] > 0; });
     if(srcs.length){
@@ -2284,6 +2319,7 @@ function renderHub(){
     }
   });
   // 학력평가 성적 (2026-10-21, 057) — 고등학생에게만. 회차가 열리면 입력, 기록은 계속 쌓인다
+  html += avHubCard();   // 시간표 조사 (2026-11-05, 062) — 나를 대상으로 열린 조사가 있을 때만
   html += smHubCard();
   // 예비 고1 학교 분석 (2026-11-03 원장님, 061) — 재원생 모두. 학교별 1학기 중간고사 분석 + 나의 점검표(pre1.html)
   html += '<a class="card t-mnt" href="pre1.html?'+(IS_ID ? 'id=' : 'key=')+encodeURIComponent(KEY)+'"><span class="icon">'+svg(ICON.book)+'</span>' +
@@ -2300,7 +2336,7 @@ function renderHub(){
 
   renderStars();   // 슈퍼스타 별 카드 (백엔드가 stars를 주면 표시)
 
-  hide('loadBox'); hide('errBox'); $('gradeView').style.display='none'; $('noticeView').style.display='none'; $('homeworkView').style.display='none'; $('mockHubView').style.display='none'; $('mockView').style.display='none'; $('clinicView').style.display='none'; $('hwcheckView').style.display='none'; $('questionView').style.display='none'; $('reviewView').style.display='none'; $('planView').style.display='none'; $('smView').style.display='none'; $('lhView').style.display='none'; show('hubView');
+  hide('loadBox'); hide('errBox'); $('gradeView').style.display='none'; $('noticeView').style.display='none'; $('homeworkView').style.display='none'; $('mockHubView').style.display='none'; $('mockView').style.display='none'; $('clinicView').style.display='none'; $('hwcheckView').style.display='none'; $('questionView').style.display='none'; $('reviewView').style.display='none'; $('planView').style.display='none'; $('smView').style.display='none'; $('avView').style.display='none'; $('lhView').style.display='none'; show('hubView');
   noticePopupMaybe();   // 미확인 공지 팝업(허브 화면일 때만, 탭당 한 번)
 }
 
@@ -4111,6 +4147,208 @@ document.addEventListener('click', function(e){
   var b = e.target.closest && e.target.closest('#planView [data-pl]');
   if (b){ plPick(b.getAttribute('data-plp'), b.getAttribute('data-pl')); return; }
   if (e.target.closest && e.target.closest('#plCancel')) plPick('나', '');
+});
+
+/* ── 시간표 조사 (2026-11-05, 062) ─────────────────────────────
+ * 원장님 "새로운 시간표로 바꾸어야 할 때 학생과 학부모님이 안되는 시간을 모두 골라 제출하고 그 중에 가능한 시간으로 배치"
+ * → 결정: 표시 2단계(가능/안 돼요) · 학생과 학부모님이 응답 하나를 같이 고친다(마지막에 고친 분 기록) · 제출하면 별 +1.
+ * 선생님이 티쳐스 [시간표 조사]에서 후보 칸·대상·마감을 정해 열면(avail_surveys.open) 대상 학생에게만 카드가 보인다.
+ * 처음에는 모든 칸이 '가능' — 안 되는 칸만 누른다. 마감(due) 전까지 다시 고칠 수 있다(별은 조사마다 한 번). */
+var AV_ERR = {
+  no_student: '학생 정보를 찾지 못했습니다. 페이지를 새로 열어 주세요.',
+  no_survey: '없는 조사입니다. 새로고침해 주세요.',
+  not_target: '이 조사의 대상이 아닙니다.',
+  closed: '이 조사는 닫혔습니다.',
+  past_due: '마감이 지나 더 고칠 수 없습니다.',
+  no_who: '누가 적고 있는지 골라 주세요.',
+  bad_slot: '시간 칸이 바뀌었어요. 새로고침해 주세요.'
+};
+var AV_DAYS = ['월', '화', '수', '목', '금', '토', '일'];
+var AV = { loading: false, form: null, busy: false, ok: '' };
+var STAR_AVAIL = 1;   // STAR_RULES.avail 과 같은 값(별 계산 블록 밖이라 따로 둔다)
+function avRefresh(quiet){
+  AV.loading = true;
+  return rvRpc('avail_mine').then(function(r){
+    AV.loading = false;
+    STATE.avail = (r && r.ok) ? (r.items || []) : [];
+    if ($('avView').style.display === 'block' && !AV.form) avRender();
+    else if (quiet && $('hubView').style.display !== 'none') renderHub();
+  }).catch(function(){
+    AV.loading = false;
+    if (STATE.avail === undefined) STATE.avail = [];
+    if ($('avView').style.display === 'block' && !AV.form) avRender();
+  });
+}
+function avDue(x){
+  if (!x.due) return '';
+  var d = new Date(x.due + 'T00:00:00');
+  return (d.getMonth() + 1) + '/' + d.getDate() + ' (' + '일월화수목금토'.charAt(d.getDay()) + ')까지';
+}
+function avAt(iso){
+  var t = Date.parse(iso); if (isNaN(t)) return '';
+  var d = new Date(t + 9 * 3600e3), p = function(n){ return ('0' + n).slice(-2); };
+  return (d.getUTCMonth() + 1) + '/' + d.getUTCDate() + ' ' + p(d.getUTCHours()) + ':' + p(d.getUTCMinutes());
+}
+function avHubCard(){
+  if (STATE.avail === undefined && !AV.loading) avRefresh(true);
+  var items = STATE.avail || [];
+  if (!items.length) return '';
+  var todo = items.filter(function(x){ return !x.response && !x.closed; });
+  var x = todo[0] || items[0];
+  var desc = todo.length ? (x.title + ' · 안 되는 시간을 골라 주세요 · 별 +1')
+           : (x.title + ' · 제출함' + (x.closed ? ' · 마감' : ' · ' + (avDue(x) || '마감 전') + ' 고칠 수 있어요'));
+  var dot = todo.length ? '<span class="new-dot">' + todo.length + '</span>' : '';
+  return '<button class="card t-mnt" onclick="openAvail()"><span class="icon">' + svg(ICON.cal) + dot + '</span>' +
+         '<h3>시간표 조사</h3><p class="desc">' + esc(desc) + '</p>' +
+         '<span class="go">' + (todo.length ? '제출 ' : '열기 ') + svg(ICON.arrow) + '</span></button>';
+}
+function openAvail(){
+  hide('hubView'); $('avView').style.display = 'block'; window.scrollTo(0, 0);
+  AV.form = null; AV.ok = '';
+  var items = STATE.avail || [];
+  if (items.length === 1) avOpenForm(items[0].id); else avRender();
+  avRefresh();
+}
+function avBack(){
+  if (AV.form && (STATE.avail || []).length > 1){ AV.form = null; avRender(); window.scrollTo(0, 0); return; }
+  AV.form = null;
+  $('avView').style.display = 'none'; show('hubView'); renderHub(); window.scrollTo(0, 0);
+}
+function avRender(){
+  $('avBack').innerHTML = svg(ICON.back) + (AV.form && (STATE.avail || []).length > 1 ? ' 목록' : ' 메뉴');
+  if (AV.form){ $('avTtl').textContent = AV.form.s.title; avRenderForm(); return; }
+  $('avTtl').textContent = '시간표 조사';
+  var items = STATE.avail, html = '';
+  if (items === undefined){ $('avBody').innerHTML = '<div class="rv-empty">불러오는 중…</div>'; return; }
+  if (AV.ok) html += '<div class="sm-ok">' + esc(AV.ok) + '</div>';
+  if (!items.length){ $('avBody').innerHTML = html + '<div class="rv-empty">지금 열린 조사가 없습니다.</div>'; return; }
+  items.forEach(function(x){
+    var r = x.response;
+    html += '<div class="sm-todo"><div class="t"><b>' + esc(x.title) + '</b><small>' +
+            (r ? '제출함 · ' + esc(r.last_by) + ' ' + esc(avAt(r.updated_at)) : '아직 제출하지 않았어요') +
+            (x.due ? ' · ' + esc(avDue(x)) : '') + (x.closed ? ' · 마감' : '') + '</small></div>' +
+            '<button class="sm-btn" data-av-open="' + x.id + '">' + (x.closed ? '보기' : r ? '고치기' : '제출하기') + '</button></div>';
+  });
+  $('avBody').innerHTML = html;
+}
+function avOpenForm(id){
+  var x = (STATE.avail || []).filter(function(o){ return String(o.id) === String(id); })[0];
+  if (!x) return;
+  var r = x.response || {};
+  var no = {}; (r.no || []).forEach(function(k){ no[k] = true; });
+  AV.form = { s: x, no: no, memo: r.memo || '', who: '', err: '', had: !!x.response };
+  AV.ok = '';
+  avRender(); window.scrollTo(0, 0);
+}
+function avRenderForm(){
+  var f = AV.form, x = f.s, ro = !!x.closed;
+  var byDay = {};
+  (x.slots || []).forEach(function(sl){ (byDay[sl.day] = byDay[sl.day] || []).push(sl); });
+  var nNo = Object.keys(f.no).length, nAll = (x.slots || []).length;
+  var html = '';
+  if (AV.ok) html += '<div class="sm-ok">' + esc(AV.ok) + '</div>';
+  html += '<div class="sm-box sm-f"><h3>' + esc(x.title) + '</h3>' +
+    (x.memo ? '<p class="sm-intro av-memo" style="margin:0 0 6px">' + esc(x.memo) + '</p>' : '') +
+    '<p class="sm-intro" style="margin:0">' + (ro ? '마감된 조사입니다. 제출한 내용만 볼 수 있어요.'
+      : '<b>수업이 안 되는 시간을 모두</b> 눌러 주세요. 처음에는 모든 칸이 \'가능\'입니다. 학생과 학부모님이 같은 응답을 함께 고칠 수 있어요.' +
+        (x.due ? ' ' + esc(avDue(x)) + ' 고칠 수 있습니다.' : '')) + '</p>';
+  if (x.response) html += '<p class="av-last">마지막 저장 · ' + esc(x.response.last_by) + ' · ' + esc(avAt(x.response.updated_at)) + '</p>';
+  if (!ro){
+    html += '<span class="lab">누가 적고 있나요? <small>필수</small></span><div class="av-who">' +
+      ['학생', '학부모님'].map(function(v){ return '<button class="sm-pill' + (f.who === v ? ' on' : '') + '" data-av-who="' + v + '">' + v + '</button>'; }).join('') + '</div>';
+  }
+  html += '<span class="lab">시간 고르기 <small>' + (ro ? '' : '안 되는 칸을 누르면 분홍색으로 바뀌어요') + '</small></span>' +
+    '<div class="av-legend"><span><i style="background:#E2F4EC"></i>가능</span><span><i style="background:#F7E2DE"></i>안 돼요</span></div>';
+  html += avGridHtml(x.slots || [], f.no, ro);
+  html += '<p class="av-cnt" id="avCnt">' + avCntText(nNo, nAll) + '</p>';
+  if (ro){
+    html += f.memo ? '<span class="lab">메모</span><p class="sm-rv">' + esc(f.memo) + '</p>' : '';
+  } else {
+    html += '<label class="lab" for="avMemo">메모 <small>선택 · 사정이 있으면 적어 주세요</small></label>' +
+      '<textarea id="avMemo" maxlength="500" placeholder="예) 토요일 오전은 다른 학원 수업이 있어요">' + esc(f.memo) + '</textarea>' +
+      '<p class="sm-err">' + esc(f.err || '') + '</p>' +
+      '<div class="sm-acts"><button class="sm-btn main" id="avSave"' + (AV.busy ? ' disabled' : '') + '>' +
+      (AV.busy ? '저장하는 중…' : f.had ? '고친 내용 저장하기' : '제출하기') + '</button></div>';
+  }
+  html += '</div>';
+  $('avBody').innerHTML = html;
+}
+/* 시간 문자열 → 분 (슈국 스케쥴 mins 와 같은 규칙: '오전9:30' · '5:30'(10시 전은 오후) · '밤10:00') */
+function avMins(t){
+  var s = String(t || '').trim(), am = s.indexOf('오전') === 0, night = s.indexOf('밤') === 0;
+  var p = s.replace(/^(오전|밤)\s*/, '').split(':'), h = parseInt(p[0], 10) || 0, m = parseInt(p[1], 10) || 0;
+  if (am) return (h === 12 ? 0 : h) * 60 + m;
+  if (night) return (h === 12 ? 24 : h + 12) * 60 + m;
+  if (h < 10) h += 12;
+  return h * 60 + m;
+}
+/* 주간 시간표 칸 — 줄 = 시작 시간, 열 = 요일. 후보가 아닌 칸은 회색으로 비운다 */
+function avGridHtml(slots, no, ro){
+  var days = AV_DAYS.filter(function(d){ return slots.some(function(sl){ return sl.day === d; }); });
+  var times = [];
+  slots.forEach(function(sl){ var m = avMins(sl.start); if (times.indexOf(m) < 0) times.push(m); });
+  times.sort(function(a, b){ return a - b; });
+  return '<table class="av-grid"><thead><tr><th class="tm"></th>' + days.map(function(d){ return '<th>' + d + '</th>'; }).join('') + '</tr></thead><tbody>' +
+    times.map(function(tm){
+      var label = (slots.filter(function(sl){ return avMins(sl.start) === tm; })[0] || {}).start || '';
+      return '<tr><th class="tm">' + esc(label) + '</th>' + days.map(function(d){
+        var sl = slots.filter(function(x){ return x.day === d && avMins(x.start) === tm; })[0];
+        if (!sl) return '<td><div class="av-none"></div></td>';
+        var n = !!no[sl.id];
+        return '<td><button class="av-s' + (n ? ' no' : '') + '" data-av-s="' + esc(sl.id) + '"' + (ro ? ' disabled' : '') +
+               ' title="' + esc(sl.day + ' ' + sl.start + (sl.end ? '~' + sl.end : '')) + '"><span>~' + esc(sl.end || '') + '</span><small>' + (n ? '안 돼요' : '가능') + '</small></button></td>';
+      }).join('') + '</tr>';
+    }).join('') + '</tbody></table>';
+}
+function avCntText(nNo, nAll){
+  return nNo ? '안 되는 시간 <b>' + nNo + '칸</b> · 가능한 시간 ' + (nAll - nNo) + '칸' : '모든 시간이 가능해요. 안 되는 시간이 없으면 이대로 제출해 주세요.';
+}
+function avSave(){
+  var f = AV.form; if (!f || AV.busy) return;
+  if ($('avMemo')) f.memo = $('avMemo').value;
+  if (!f.who){ f.err = AV_ERR.no_who; avRender(); return; }
+  var no = (f.s.slots || []).filter(function(sl){ return f.no[sl.id]; }).map(function(sl){ return sl.id; });
+  AV.busy = true; f.err = ''; avRender();
+  rvRpc('avail_submit', { survey: f.s.id, no: no, memo: f.memo || '', who: f.who })
+    .then(function(r){
+      AV.busy = false;
+      if (r && r.ok){
+        if (r.first && STATE.stars && typeof STATE.stars.total === 'number'){
+          STATE.stars.total += STAR_AVAIL;
+          if (STATE.stars.breakdown) STATE.stars.breakdown.avail = (STATE.stars.breakdown.avail || 0) + 1;
+        }
+        f.s.response = { no: r.no || no, memo: f.memo || '', last_by: f.who, at: new Date().toISOString(), updated_at: new Date().toISOString() };
+        f.had = true;
+        AV.ok = r.first ? '제출했습니다. 별 +1을 받았어요!' : '고친 내용을 저장했습니다.';
+        avRender(); window.scrollTo(0, 0);
+        avRefresh();
+        return;
+      }
+      f.err = AV_ERR[r && r.error] || '저장하지 못했어요. 다시 시도해 주세요.';
+      avRender();
+    }).catch(function(){ AV.busy = false; f.err = '인터넷 연결을 확인하고 다시 시도해 주세요.'; avRender(); });
+}
+document.addEventListener('click', function(e){
+  if (!e.target.closest || !e.target.closest('#avView')) return;
+  var b;
+  if ((b = e.target.closest('[data-av-open]'))){ avOpenForm(b.getAttribute('data-av-open')); return; }
+  var f = AV.form; if (!f) return;
+  if ((b = e.target.closest('[data-av-s]'))){
+    if (f.s.closed) return;
+    var k = b.getAttribute('data-av-s');
+    if (f.no[k]) delete f.no[k]; else f.no[k] = true;
+    b.classList.toggle('no', !!f.no[k]);
+    b.querySelector('small').textContent = f.no[k] ? '안 돼요' : '가능';
+    $('avCnt').innerHTML = avCntText(Object.keys(f.no).length, (f.s.slots || []).length);
+    return;
+  }
+  if ((b = e.target.closest('[data-av-who]'))){
+    if ($('avMemo')) f.memo = $('avMemo').value;
+    f.who = b.getAttribute('data-av-who'); f.err = '';
+    Array.prototype.forEach.call(document.querySelectorAll('#avView [data-av-who]'), function(x){ x.classList.toggle('on', x.getAttribute('data-av-who') === f.who); });
+    return;
+  }
+  if (e.target.closest('#avSave')) avSave();
 });
 
 /* ── 학력평가 성적 (2026-10-21, 057) ─────────────────────────────

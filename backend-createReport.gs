@@ -4184,6 +4184,15 @@ function alimNoticeTpl_(name, prop, tail, btnName, body, extra) {
     buttons: [{ name: btnName || '학생 페이지 링크', type: 'WL', linkMo: ALIM_STU_LINK_, linkPc: ALIM_STU_LINK_ }]
   };
 }
+function alimAvailText_(who) {
+  return '[이수경국어학원] ' + who + ' 스케쥴 조사 안내\n' +
+         '#{학생명} 학생, 학부모님 안녕하세요.\n' +
+         '효율적인 학습 시간표 구성을 위해 학생이 수업에 참여하기 어려운 시간을 조사합니다.\n' +
+         '\n' +
+         '▶ #{제목}\n' +
+         '▶ 마감: #{마감일}\n' +
+         '슈퍼스타 페이지의 시간표 조사 메뉴에서 수업에 참여할 수 없는 시간을 모두 골라 제출해 주세요. 학생과 학부모님이 같은 응답을 함께 수정할 수 있습니다.';
+}
 var ALIM_TPL_ = {
   absent: {
     label: '결석 안내',
@@ -4304,6 +4313,21 @@ var ALIM_TPL_ = {
           '\n' +
           '애타게 기다리고 있을 선생님들의 마음을 헤아려 얼른 제출해 주세요.',
     buttons: [{ name: '학생 개인 페이지', type: 'WL', linkMo: ALIM_STU_LINK_, linkPc: ALIM_STU_LINK_ }]   // 승인본 버튼 이름
+  }
+  ,
+  /* 스케쥴 조사 안내 두 종류(2026-11-05 원장님 문구 그대로 — 시간표 조사 062). 재원생용·신입생용은 제목 줄만 다르다.
+   * #{제목} = 조사 제목('화정고1 겨울방학 새 시간표 조사'), #{마감일} = '11/12(목)'. 학생 페이지 메뉴 이름은 '시간표 조사'. */
+  notice_avail: {
+    label: '재원생 스케쥴 조사 안내', prop: 'ALIM_TPL_NOTICE_AVAIL', notice: true,
+    vars: ['학생명', '제목', '마감일', '접근코드'],
+    text: alimAvailText_('재원생'),
+    buttons: [{ name: '학생 페이지 링크', type: 'WL', linkMo: ALIM_STU_LINK_, linkPc: ALIM_STU_LINK_ }]
+  },
+  notice_avail_new: {
+    label: '신입생 스케쥴 조사 안내', prop: 'ALIM_TPL_NOTICE_AVAIL_NEW', notice: true,
+    vars: ['학생명', '제목', '마감일', '접근코드'],
+    text: alimAvailText_('신입생'),
+    buttons: [{ name: '학생 페이지 링크', type: 'WL', linkMo: ALIM_STU_LINK_, linkPc: ALIM_STU_LINK_ }]
   }
   // 행사 안내(notice_event)는 2026-09-29 사용자 "행사 안내는 삭제"로 뺐다 — 공지 알림은 일곱 종류(결석까지 8종).
 };
