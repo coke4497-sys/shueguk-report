@@ -210,11 +210,15 @@
   /* 시간표 조사(2026-11-05, 062) — 새 시간표로 바꿀 때 안 되는 시간을 골라 제출. 조사 하나 = 별 +1 */
   #avView{display:none;}
   .av-who{display:flex;gap:6px;flex-wrap:wrap;}
-  .av-day{margin-top:12px;}
-  .av-day .dn{font-family:"Do Hyeon",var(--sans);font-size:1.05rem;color:var(--ink);margin:0 0 6px;}
-  .av-slots{display:grid;grid-template-columns:repeat(auto-fill,minmax(132px,1fr));gap:7px;}
-  .av-s{font:inherit;font-size:.9rem;border:none;border-radius:12px;padding:10px 8px;background:#E2F4EC;color:#2A6555;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px;}
-  .av-s small{font-size:.74rem;}
+  /* 주간 시간표 모양 — 줄 = 시작 시간, 열 = 요일 (2026-11-05 원장님 "주간 시간표 같은 칸에서 안되는 시간을 선택") */
+  .av-grid{width:100%;border-collapse:separate;border-spacing:4px;table-layout:fixed;margin:4px -4px 0;}
+  .av-grid th{font-family:"Do Hyeon",var(--sans);font-weight:400;font-size:1rem;color:var(--ink);text-align:center;padding:2px 0;}
+  .av-grid th.tm{width:46px;font-family:var(--sans);font-size:.78rem;color:var(--ink-soft);text-align:right;padding-right:2px;}
+  .av-grid td{padding:0;}
+  .av-s{font:inherit;font-size:.8rem;border:none;border-radius:10px;padding:9px 2px;width:100%;min-height:54px;background:#E2F4EC;color:#2A6555;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;line-height:1.2;}
+  .av-s span{font-size:.7rem;color:inherit;opacity:.85;}
+  .av-s small{font-size:.76rem;font-weight:700;}
+  .av-none{min-height:54px;border-radius:10px;background:#F2F5F3;}
   .av-s.no{background:#F7E2DE;color:#8A4B42;font-weight:700;}
   .av-s:disabled{cursor:default;opacity:.85;}
   .av-legend{display:flex;gap:12px;flex-wrap:wrap;font-size:.78rem;color:var(--ink-soft);margin:6px 0 0;}
@@ -4255,13 +4259,7 @@ function avRenderForm(){
   }
   html += '<span class="lab">시간 고르기 <small>' + (ro ? '' : '안 되는 칸을 누르면 분홍색으로 바뀌어요') + '</small></span>' +
     '<div class="av-legend"><span><i style="background:#E2F4EC"></i>가능</span><span><i style="background:#F7E2DE"></i>안 돼요</span></div>';
-  AV_DAYS.filter(function(d){ return byDay[d]; }).forEach(function(d){
-    html += '<div class="av-day"><p class="dn">' + d + '요일</p><div class="av-slots">' + byDay[d].map(function(sl){
-      var no = !!f.no[sl.id];
-      return '<button class="av-s' + (no ? ' no' : '') + '" data-av-s="' + esc(sl.id) + '"' + (ro ? ' disabled' : '') + '>' +
-             '<span>' + esc(sl.start + (sl.end ? '~' + sl.end : '')) + '</span><small>' + (no ? '안 돼요' : '가능') + '</small></button>';
-    }).join('') + '</div></div>';
-  });
+  html += avGridHtml(x.slots || [], f.no, ro);
   html += '<p class="av-cnt" id="avCnt">' + avCntText(nNo, nAll) + '</p>';
   if (ro){
     html += f.memo ? '<span class="lab">메모</span><p class="sm-rv">' + esc(f.memo) + '</p>' : '';
@@ -4274,6 +4272,33 @@ function avRenderForm(){
   }
   html += '</div>';
   $('avBody').innerHTML = html;
+}
+/* 시간 문자열 → 분 (슈국 스케쥴 mins 와 같은 규칙: '오전9:30' · '5:30'(10시 전은 오후) · '밤10:00') */
+function avMins(t){
+  var s = String(t || '').trim(), am = s.indexOf('오전') === 0, night = s.indexOf('밤') === 0;
+  var p = s.replace(/^(오전|밤)\s*/, '').split(':'), h = parseInt(p[0], 10) || 0, m = parseInt(p[1], 10) || 0;
+  if (am) return (h === 12 ? 0 : h) * 60 + m;
+  if (night) return (h === 12 ? 24 : h + 12) * 60 + m;
+  if (h < 10) h += 12;
+  return h * 60 + m;
+}
+/* 주간 시간표 칸 — 줄 = 시작 시간, 열 = 요일. 후보가 아닌 칸은 회색으로 비운다 */
+function avGridHtml(slots, no, ro){
+  var days = AV_DAYS.filter(function(d){ return slots.some(function(sl){ return sl.day === d; }); });
+  var times = [];
+  slots.forEach(function(sl){ var m = avMins(sl.start); if (times.indexOf(m) < 0) times.push(m); });
+  times.sort(function(a, b){ return a - b; });
+  return '<table class="av-grid"><thead><tr><th class="tm"></th>' + days.map(function(d){ return '<th>' + d + '</th>'; }).join('') + '</tr></thead><tbody>' +
+    times.map(function(tm){
+      var label = (slots.filter(function(sl){ return avMins(sl.start) === tm; })[0] || {}).start || '';
+      return '<tr><th class="tm">' + esc(label) + '</th>' + days.map(function(d){
+        var sl = slots.filter(function(x){ return x.day === d && avMins(x.start) === tm; })[0];
+        if (!sl) return '<td><div class="av-none"></div></td>';
+        var n = !!no[sl.id];
+        return '<td><button class="av-s' + (n ? ' no' : '') + '" data-av-s="' + esc(sl.id) + '"' + (ro ? ' disabled' : '') +
+               ' title="' + esc(sl.day + ' ' + sl.start + (sl.end ? '~' + sl.end : '')) + '"><span>~' + esc(sl.end || '') + '</span><small>' + (n ? '안 돼요' : '가능') + '</small></button></td>';
+      }).join('') + '</tr>';
+    }).join('') + '</tbody></table>';
 }
 function avCntText(nNo, nAll){
   return nNo ? '안 되는 시간 <b>' + nNo + '칸</b> · 가능한 시간 ' + (nAll - nNo) + '칸' : '모든 시간이 가능해요. 안 되는 시간이 없으면 이대로 제출해 주세요.';

@@ -85,12 +85,15 @@ function submit(p){
   let t = await pg.textContent('#avBody');
   ok('바로 입력 창(안내·메모)', /수업이 안 되는 시간을 모두/.test(t) && /12\/16부터 바뀌는 시간표/.test(t), t.slice(0, 120));
   ok('요일별 칸 4개 · 처음엔 모두 가능', (await pg.$$eval('.av-s', a => a.length)) === 4 && (await pg.$$eval('.av-s.no', a => a.length)) === 0);
-  ok('요일 머리 수·토', JSON.stringify(await pg.$$eval('.av-day .dn', a => a.map(e => e.textContent))) === JSON.stringify(['수요일', '토요일']));
+  ok('주간 시간표: 열 = 요일(수·토)', JSON.stringify(await pg.$$eval('.av-grid thead th', a => a.map(e => e.textContent))) === JSON.stringify(['', '수', '토']));
+  ok('줄 = 시작 시간(11:00 → 1:30 → 5:30 → 8:00)', JSON.stringify(await pg.$$eval('.av-grid tbody th', a => a.map(e => e.textContent))) === JSON.stringify(['11:00', '1:30', '5:30', '8:00']));
+  ok('후보 아닌 칸은 빈 회색 칸 4개', (await pg.$$eval('.av-none', a => a.length)) === 4);
+  ok('칸에 끝 시간·가능', /~7:30/.test(await pg.textContent('[data-av-s="수-5:30"]')) && /가능/.test(await pg.textContent('[data-av-s="수-5:30"]')));
   ok('모두 가능 안내', /모든 시간이 가능해요/.test(await pg.textContent('#avCnt')));
 
   // ④ 칸 누르기
   await pg.click('[data-av-s="토-11:00"]'); await pg.click('[data-av-s="수-8:00"]');
-  ok('누른 칸 안 돼요', (await pg.$$eval('.av-s.no', a => a.map(e => e.dataset.avS))).join(',') === '수-8:00,토-11:00');
+  ok('누른 칸 안 돼요', (await pg.$$eval('.av-s.no', a => a.map(e => e.dataset.avS))).sort().join(',') === '수-8:00,토-11:00');
   ok('개수 안내', /안 되는 시간 2칸 · 가능한 시간 2칸/.test(await pg.textContent('#avCnt')));
   await pg.click('[data-av-s="수-8:00"]');
   ok('다시 누르면 가능', (await pg.$$eval('.av-s.no', a => a.length)) === 1);
