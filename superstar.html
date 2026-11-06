@@ -2865,6 +2865,7 @@
     $('wtGradeBars').addEventListener('click', function(e){ var col = e.target.closest('.vcol'); if (!col) return; var g = col.getAttribute('data-g'); WT.sg = g; WT.fgs = (WT.fgs.length === 1 && WT.fgs[0] === g) ? [] : [g]; WT.fs = ''; wtRender(); });
     $('wtSchList').addEventListener('click', function(e){ var row = e.target.closest('[data-s]'); if (!row) return; var sc = row.getAttribute('data-s'); if (WT.fg === WT.sg && WT.fs === sc){ WT.fs = ''; } else { WT.fgs = [WT.sg]; WT.fs = sc; } wtRender(); });
     $('wtList').addEventListener('click', wtListClick);
+    $('wtList').addEventListener('input', function(e){ var y = e.target.closest('.e-year'); if (!y) return; var g = y.closest('.wt-edit').querySelector('.e-grade'); g.innerHTML = wtEdGradeOpts(parseInt(y.value, 10), g.value); });
     $('wtSelBar').addEventListener('click', function(e){ if (e.target.closest('button[data-sb="xlsx"]')) wtExport(); });
     $('wtList').addEventListener('change', function(e){ var sel = e.target.closest('select[data-act="status"]'); if (!sel) return; var row = sel.closest('.wt-row'), id = +row.getAttribute('data-id'), r = (WT.rows || []).find(function(x){ return x.id === id; }); if (r) wtSetStatus(r, sel.value); });
     wtSetKind('예비');
@@ -2998,9 +2999,21 @@
     if (WT.editing === r.id && !past) h += wtEditHtml(r);
     return h + '</div>';
   }
+  // 고치기 창의 학년 — 등록 폼(wtGradeOpts)과 같은 표기('고2 · 지금 고1'), 저장 값은 '고2' 그대로(2026-11-06 원장님 "대기 명단의 학년을 수정할 수는 없나요?")
+  function wtEdGradeOpts(year, cur){
+    year = year || wtNowYear(); var same = year === wtNowYear(), list = WT_GRADES.slice();
+    if (cur && list.indexOf(cur) < 0) list.unshift(cur);   // 목록 밖 옛 값도 그대로 보이게
+    return '<option value="">미정</option>' + list.map(function(g){
+      var now = same ? '' : wtNowGrade(g, year);
+      return '<option value="' + esc(g) + '"' + (g === cur ? ' selected' : '') + '>' + esc(g) + (now ? ' · 지금 ' + now : '') + '</option>';
+    }).join('');
+  }
   function wtEditHtml(r){
     var opts = function(book){ return (WT.ttc || []).filter(function(c){ return c.book === book; }).map(function(c){ return '<option value="' + esc(c.class_id) + '"' + (r.want_book === book && r.want_class_id === c.class_id ? ' selected' : '') + '>' + esc(wtClsLabel(c)) + ' · ' + wtCount(c) + '명</option>'; }).join(''); };
     return '<div class="wt-edit">' +
+      '<label>이름</label><input type="text" class="e-name" maxlength="30" value="' + esc(r.name || '') + '" />' +
+      '<div class="row2"><div><label>연도</label><input type="number" class="e-year" min="2020" max="2040" value="' + esc(r.year || '') + '" /></div>' +
+      '<div><label>학년</label><select class="e-grade">' + wtEdGradeOpts(parseInt(r.year, 10), r.grade || '') + '</select></div></div>' +
       '<label>' + (r.kind === '재원' ? '이동 희망 반' : '희망 반') + '</label><select class="e-cls"><option value="">미정</option><optgroup label="정규">' + opts('정규') + '</optgroup><optgroup label="내신">' + opts('내신') + '</optgroup></select>' +
       '<div class="row2"><div><label>정원</label><input type="number" class="e-cap" min="1" max="99" value="' + (r.cap == null ? '' : r.cap) + '" /></div>' +
       '<div><label>학부모님 연락처</label><input type="text" class="e-phone" inputmode="numeric" value="' + esc(r.phone_parent || '') + '" /></div></div>' +
@@ -3252,9 +3265,12 @@
       var stEl = ed.querySelector('.e-st'); stEl.textContent = '저장 중…'; stEl.className = 'status';
       if (ph && (ph.length < 8 || ph.length > 11)){ stEl.textContent = '연락처를 확인해 주세요.'; stEl.className = 'status err'; return; }
       var start = ed.querySelector('.e-start').value; if (!/^\d{4}-\d{2}-\d{2}$/.test(start)){ stEl.textContent = '대기 시작일을 확인해 주세요.'; stEl.className = 'status err'; return; }
+      var nm = ed.querySelector('.e-name').value.trim(), yr = parseInt(ed.querySelector('.e-year').value, 10);
+      if (!nm){ stEl.textContent = '이름을 적어 주세요.'; stEl.className = 'status err'; return; }
+      if (!(yr >= 2020 && yr <= 2040)){ stEl.textContent = '연도를 확인해 주세요.'; stEl.className = 'status err'; return; }
       wtPatch(id, { want_book: c ? book : '', want_class_id: c ? c.class_id : '', want_class_name: c ? wtClsLabel(c) : '',
         cap: c ? (capV ? parseInt(capV, 10) : wtCount(c)) : null, phone_parent: ph, school: ed.querySelector('.e-school').value.trim(),
-        memo: ed.querySelector('.e-memo').value.trim(), started_on: start, updated_by_name: wtWho() })
+        memo: ed.querySelector('.e-memo').value.trim(), started_on: start, name: nm, year: yr, grade: ed.querySelector('.e-grade').value, updated_by_name: wtWho() })
         .then(function(){ WT.editing = null; wtRender(); })
         .catch(function(e){ stEl.textContent = '저장하지 못했어요: ' + e.message; stEl.className = 'status err'; });
     }

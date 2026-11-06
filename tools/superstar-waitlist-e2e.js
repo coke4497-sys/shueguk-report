@@ -168,12 +168,20 @@ function serve(){
   await pg.click('#wtList .wt-row[data-id="11"] button[data-act="edit"]');
   r = await pg.evaluate(() => ({ sel: document.querySelector('#wtList .wt-row[data-id="11"] .e-cls').value, cap: document.querySelector('#wtList .wt-row[data-id="11"] .e-cap').value }));
   ok('고치기 폼에 지금 희망 반·정원이 채워짐', r.sel === 'r001' && r.cap === '12', JSON.stringify(r));
+  const E = '#wtList .wt-row[data-id="11"] ';
+  r = await pg.evaluate((E) => ({ nm: document.querySelector(E + '.e-name').value, yr: document.querySelector(E + '.e-year').value, g: document.querySelector(E + '.e-grade').value,
+    lbl: document.querySelector(E + '.e-grade option[value="고2"]').textContent }), E);
+  ok('고치기 폼에 이름·연도·학년이 채워지고 학년 표기는 \'고2 · 지금 고1\'', r.nm === '늦은대기' && r.yr === '2027' && r.g === '고1' && r.lbl === '고2 · 지금 고1', JSON.stringify(r));
+  await pg.fill(E + '.e-year', '2026');
+  r = await pg.evaluate((E) => ({ g: document.querySelector(E + '.e-grade').value, lbl: document.querySelector(E + '.e-grade option[value="고2"]').textContent }), E);
+  ok('연도를 지금 학년도로 바꾸면 \'지금\' 표기가 빠지고 고른 학년은 그대로', r.g === '고1' && r.lbl === '고2', JSON.stringify(r));
+  await pg.fill(E + '.e-year', '2027'); await pg.selectOption(E + '.e-grade', '고1');
   await pg.fill('#wtList .wt-row[data-id="11"] .e-cap', '14');
   await pg.fill('#wtList .wt-row[data-id="11"] .e-memo', '정원 늘려 주심');
   await pg.click('#wtList .wt-row[data-id="11"] button[data-act="save"]');
   await pg.waitForFunction(() => document.querySelector('#wtList .wt-row[data-id="11"]').classList.contains('can'), null, { timeout: 5000 });
   let p = patches[patches.length - 1];
-  ok('PATCH 정원 14·메모 → 늦은대기도 초록 줄', p[0] === 11 && p[1].cap === 14 && p[1].memo === '정원 늘려 주심' && p[1].want_class_id === 'r001' && p[1].updated_by_name === '김현지', JSON.stringify(p));
+  ok('PATCH 정원 14·메모 → 늦은대기도 초록 줄', p[0] === 11 && p[1].cap === 14 && p[1].memo === '정원 늘려 주심' && p[1].want_class_id === 'r001' && p[1].updated_by_name === '김현지' && p[1].name === '늦은대기' && p[1].year === 2027 && p[1].grade === '고1', JSON.stringify(p));
 
   // ⑤ 상태 바꾸기(회신없음 · 메모) → 지난 기록 → 다시 바꾸기 → 다시 대기로 → 삭제 (2026-10-30 원장님)
   promptAnswer = '다른 학원 등록'; dialogs = [];
