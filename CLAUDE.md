@@ -1080,7 +1080,7 @@ clasp update-deployment -d "설명" <DEPLOYMENT_ID>   # 기존 배포 새 버전
 > 참고: 토큰은 세션마다 새로 로그인해 얻는다(저장 안 함). refresh_token 재사용은 안전한 비밀 저장소가 생기면 그때 도입.
 
 ## GitHub Pages 배포가 queued에서 멈추면
-- 2026-10-27 #579 머지 뒤 'pages build and deployment'가 7분 넘게 queued에서 움직이지 않았다(허브 2026-10-19 #179·문법 9/13과 같은 GitHub 쪽 문제). 기다리지 말고 **새 커밋을 main에 올려 배포를 새로 시작**한다(이 절을 적은 커밋이 그것). 상태는 `actions_list`(list_workflow_runs)로 본다 — 이 환경은 github.io 접속이 막혀 화면을 직접 열어 볼 수 없다.
+- 2026-10-27 #579 머지 뒤 'pages build and deployment'가 7분 넘게 queued에서 움직이지 않았다(허브 2026-10-19 #179·문법 9/13과 같은 GitHub 쪽 문제). 기다리지 말고 **새 커밋을 main에 올려 배포를 새로 시작**한다(이 절을 적은 커밋이 그것). 2026-11-06 #632 머지 뒤에도 4분 넘게 in_progress에서 멈춰 같은 방법으로 다시 시작했다. 상태는 `actions_list`(list_workflow_runs)로 본다 — 이 환경은 github.io 접속이 막혀 화면을 직접 열어 볼 수 없다.
 
 ## GPT-6 Astra(Codex) PR 검토 참여 (2026-09-25 사용자 결정 "3번으로 진행")
 사용자가 "클로슈와 하는 작업에 지피티 아스트라를 함께" 요청 → 세 방식(답 복사 전달 / API 키로 직접 호출 / 깃허브 PR 검토자) 중 **PR 검토자 방식**을 택했다.
