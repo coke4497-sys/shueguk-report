@@ -276,6 +276,21 @@ function serve(){
   ok('엑셀 받기는 활동 기록(묶음)에 이름 없이 인원만', acts.some(b => JSON.stringify(b).includes('연락처 엑셀 받기')), JSON.stringify(acts.slice(-1)));
   await pg.click('#wtFilt button[data-f="fg"][data-v=""]');
 
+  // 학년 여러 개(같은 날 원장님 "초5, 초6, 중1, 중2, 중3 을 복수 선택해 받을 수도")
+  r = await pg.evaluate(() => [...document.querySelectorAll('#wtSelBar button[data-xg]')].map(b => b.getAttribute('data-xg') + (b.classList.contains('on') ? '*' : '')));
+  ok('엑셀 줄에 학년 칩 — [지금 보는 명단]이 기본', r[0] === '*' && r.length >= 3, r.join(','));
+  const gs = r.slice(1).map(x => x.replace('*', ''));
+  for (const g of gs) await pg.click('#wtSelBar button[data-xg="' + g + '"]');
+  r = await pg.evaluate(() => ({ bar: document.getElementById('wtSelBar').textContent, on: [...document.querySelectorAll('#wtSelBar button[data-xg].on')].map(b => b.getAttribute('data-xg')), all: document.querySelectorAll('#wtList .wt-row:not(.done)').length }));
+  ok('학년 여러 개를 켜면 그 학년 모두 — "' + gs.join('·') + ' n명"', r.on.join(',') === gs.join(',') && new RegExp(gs.join('·') + ' ' + r.all + '명').test(r.bar), JSON.stringify(r));
+  const [dl2] = await Promise.all([pg.waitForEvent('download'), pg.click('#wtSelBar [data-sb="xlsx"]')]);
+  const xf2 = path.join(process.env.WT_XLSX_DIR || require('os').tmpdir(), 'wt2-' + Date.now() + '.xlsx'); await dl2.saveAs(xf2);
+  const py2 = require('child_process').execFileSync('python3', ['-I', '-c', "import sys,zipfile,re;z=zipfile.ZipFile(sys.argv[1]);print(len(re.findall('<row ',z.read('xl/worksheets/sheet1.xml').decode())))", xf2]).toString().trim();
+  ok('파일 이름에 학년들 · 줄 수 = 머리 + 고른 학년 학생', dl2.suggestedFilename().includes('_' + gs.join('·') + '_') && +py2 === r.all + 1, dl2.suggestedFilename() + ' ' + py2);
+  await pg.click('#wtSelBar button[data-xg=""]');
+  r = await pg.evaluate(() => document.querySelectorAll('#wtSelBar button[data-xg].on').length);
+  ok('[지금 보는 명단]을 누르면 학년 고르기 풀림', r === 1);
+
   // ⑧ 표 없음(마이그레이션 전)
   wlMissing = true;
   await pg.click('#wtListCard .wt-head .bt .wt-pill:last-child');
