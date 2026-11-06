@@ -120,6 +120,7 @@ function serve(){
   await pg.click('#wtFilt .clr');
   r = await pg.evaluate(() => ({ n: document.querySelectorAll('#wtList .wt-row').length, sel: document.querySelector('#wtFilt select[data-f="fs"]').value }));
   ok('[전체로]를 누르면 학교 거르기 해제', r.n === 2 && r.sel === '', JSON.stringify(r));
+  await pg.click('#wtFilt button[data-f="fg"][data-v=""]');   // 학교 줄로 켜진 고1 을 먼저 풀고(학년 칩은 누르면 켜고 끄는 여러 개 고르기)
   await pg.click('#wtFilt button[data-f="fg"][data-v="고1"]');
   r = await pg.evaluate(() => ({ n: document.querySelectorAll('#wtList .wt-row').length, bar: document.querySelector('#wtGradeBars .vcol.on .vgl').textContent, fgOn: document.querySelector('#wtFilt button[data-f="fg"].on').textContent.trim() }));
   ok('학년 알약 고1 → 고1만(2명) · 막대 선택 유지', r.n === 2 && r.bar === '고1' && /고1/.test(r.fgOn), JSON.stringify(r));
@@ -276,20 +277,21 @@ function serve(){
   ok('엑셀 받기는 활동 기록(묶음)에 이름 없이 인원만', acts.some(b => JSON.stringify(b).includes('연락처 엑셀 받기')), JSON.stringify(acts.slice(-1)));
   await pg.click('#wtFilt button[data-f="fg"][data-v=""]');
 
-  // 학년 여러 개(같은 날 원장님 "초5, 초6, 중1, 중2, 중3 을 복수 선택해 받을 수도")
-  r = await pg.evaluate(() => [...document.querySelectorAll('#wtSelBar button[data-xg]')].map(b => b.getAttribute('data-xg') + (b.classList.contains('on') ? '*' : '')));
-  ok('엑셀 줄에 학년 칩 — [지금 보는 명단]이 기본', r[0] === '*' && r.length >= 3, r.join(','));
-  const gs = r.slice(1).map(x => x.replace('*', ''));
-  for (const g of gs) await pg.click('#wtSelBar button[data-xg="' + g + '"]');
-  r = await pg.evaluate(() => ({ bar: document.getElementById('wtSelBar').textContent, on: [...document.querySelectorAll('#wtSelBar button[data-xg].on')].map(b => b.getAttribute('data-xg')), all: document.querySelectorAll('#wtList .wt-row:not(.done)').length }));
-  ok('학년 여러 개를 켜면 그 학년 모두 — "' + gs.join('·') + ' n명"', r.on.join(',') === gs.join(',') && new RegExp(gs.join('·') + ' ' + r.all + '명').test(r.bar), JSON.stringify(r));
+  // 학년 여러 개 — 명단 위 학년 거르기에서 여러 개(같은 날 원장님 "선택창이 두 개라 혼란스러워요" → 엑셀 줄의 학년 칩은 없앰)
+  r = await pg.evaluate(() => ({ xg: document.querySelectorAll('#wtSelBar button[data-xg]').length, gs: [...document.querySelectorAll('#wtFilt button[data-f="fg"]')].map(b => b.getAttribute('data-v')).filter(Boolean) }));
+  ok('엑셀 줄에는 학년 칩이 없음(고르는 곳은 위 하나)', r.xg === 0 && r.gs.length >= 2, JSON.stringify(r));
+  const gs = r.gs;
+  for (const g of gs) await pg.click('#wtFilt button[data-f="fg"][data-v="' + g + '"]');
+  r = await pg.evaluate(() => ({ bar: document.getElementById('wtSelBar').textContent, on: [...document.querySelectorAll('#wtFilt button[data-f="fg"].on')].map(b => b.getAttribute('data-v')), n: document.querySelectorAll('#wtList .wt-row:not(.done)').length }));
+  if (process.env.SHOT) await pg.locator('#wtListCard').screenshot({ path: path.join(process.env.SHOT, 'wait-multi-grade.png') });
+  ok('학년 칩 여러 개가 함께 켜지고 명단·엑셀 줄이 그 학년 모두 — "' + gs.join('·') + ' n명"', r.on.join(',') === gs.join(',') && new RegExp(gs.join('·') + ' ' + r.n + '명').test(r.bar), JSON.stringify(r));
   const [dl2] = await Promise.all([pg.waitForEvent('download'), pg.click('#wtSelBar [data-sb="xlsx"]')]);
   const xf2 = path.join(process.env.WT_XLSX_DIR || require('os').tmpdir(), 'wt2-' + Date.now() + '.xlsx'); await dl2.saveAs(xf2);
   const py2 = require('child_process').execFileSync('python3', ['-I', '-c', "import sys,zipfile,re;z=zipfile.ZipFile(sys.argv[1]);print(len(re.findall('<row ',z.read('xl/worksheets/sheet1.xml').decode())))", xf2]).toString().trim();
-  ok('파일 이름에 학년들 · 줄 수 = 머리 + 고른 학년 학생', dl2.suggestedFilename().includes('_' + gs.join('·') + '_') && +py2 === r.all + 1, dl2.suggestedFilename() + ' ' + py2);
-  await pg.click('#wtSelBar button[data-xg=""]');
-  r = await pg.evaluate(() => document.querySelectorAll('#wtSelBar button[data-xg].on').length);
-  ok('[지금 보는 명단]을 누르면 학년 고르기 풀림', r === 1);
+  ok('파일 이름에 학년들 · 줄 수 = 머리 + 보이는 학생', dl2.suggestedFilename().includes('_' + gs.join('·') + '_') && +py2 === r.n + 1, dl2.suggestedFilename() + ' ' + py2);
+  await pg.click('#wtFilt button[data-f="fg"][data-v=""]');
+  r = await pg.evaluate(() => document.querySelectorAll('#wtFilt button[data-f="fg"].on').length === 1 && document.querySelector('#wtFilt button[data-f="fg"].on').getAttribute('data-v') === '');
+  ok('[전체]를 누르면 학년 고르기가 모두 풀림', r);
 
   // ⑧ 표 없음(마이그레이션 전)
   wlMissing = true;
