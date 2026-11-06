@@ -409,13 +409,10 @@
   .wt-row{display:flex;flex-direction:column;gap:10px;padding:14px 16px;border-radius:16px;border:1px solid #e8ece9;background:#fff;font-size:13px;margin:0;}
   .wt-row.can{background:#dcefe2;border-color:#dcefe2;}     /* 이동 가능 — 희망 반 인원이 정원 아래로 */
   .wt-row.done{background:#f6f7f4;color:#54655c;}
-  .wt-top{display:grid;grid-template-columns:22px 28px 1fr auto;gap:10px;align-items:start;}
-  .wt-ck{display:inline-flex;align-items:center;justify-content:center;width:22px;height:26px;margin:0;cursor:pointer;}
-  .wt-ck input{width:18px;height:18px;margin:0;accent-color:#4a4266;cursor:pointer;}
-  .wt-row.sel{box-shadow:inset 0 0 0 1.5px #b9b0d6;}
+  .wt-top{display:grid;grid-template-columns:28px 1fr auto;gap:10px;align-items:start;}
   .wt-selbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:10px 14px;border-radius:14px;background:#f3f1f8;font-size:13px;color:#4a4266;}
   .wt-selbar:empty{display:none;}
-  .wt-selbar .n{margin-right:auto;} .wt-selbar .n b{font-family:"Do Hyeon",var(--sans);font-weight:400;font-size:17px;}
+  .wt-selbar .n{margin-right:auto;line-height:1.4;} .wt-selbar .n small{font-size:12px;color:#6b6386;} .wt-selbar .n b{font-family:"Do Hyeon",var(--sans);font-weight:400;font-size:17px;}
   .wt-selbar button{border:1px solid #dfe5e1;background:#fff;color:#2b3a33;font:inherit;font-size:13px;padding:7px 12px;border-radius:10px;cursor:pointer;}
   .wt-selbar button.xl{background:#4a4266;border-color:#4a4266;color:#fff;font-weight:700;}
   .wt-selbar button:disabled{opacity:.45;cursor:default;}
@@ -2824,7 +2821,7 @@
    * 표 = 허브 마이그레이션 202610290001 `student_waitlist`(교사 로그인 전체 읽기쓰기, 공개 키 차단, 시트 사본 없음).
    * 슈톡 [대기생 등록](messenger.html)도 같은 표에 넣는다. 이동 가능 = 희망 반의 지금 인원(tt_classes 명단 수) < cap(정원 —
    * 반을 고를 때 그 반 인원으로 자동, 고칠 수 있음). 등록으로 전환하면 신입 슈스 폼을 채우고 등록이 끝나면 그 줄이 '완료'가 된다. */
-  var WT = { kind:'예비', book:'정규', rows:null, ttc:null, stu:null, pick:null, past:false, pend:null, missing:false, editing:null, capTouched:false, inited:false, fg:'', fs:'', sg:'', sel:{}, vis:[] };   // fg·fs = 학년·학교 거르기('' = 전체), sg = 현황 그래프에서 고른 학년
+  var WT = { kind:'예비', book:'정규', rows:null, ttc:null, stu:null, pick:null, past:false, pend:null, missing:false, editing:null, capTouched:false, inited:false, fg:'', fs:'', sg:'', vis:[] };   // fg·fs = 학년·학교 거르기('' = 전체), sg = 현황 그래프에서 고른 학년
   var WT_ERR_MISSING = /sb 404|PGRST205|42P01|does not exist/;
   var WT_LEFT = /^(퇴원|n|no|off|x|중단|비재원)$/i;   // 어댑터 스크립트의 LEFT_RE·tr_·stuActive 는 다른 script 블록이라 여기서 다시 둔다
   function wtTr(v){ return String(v == null ? '' : v).trim(); }
@@ -2866,17 +2863,14 @@
     $('wtGradeBars').addEventListener('click', function(e){ var col = e.target.closest('.vcol'); if (!col) return; var g = col.getAttribute('data-g'); WT.sg = g; WT.fg = WT.fg === g ? '' : g; WT.fs = ''; wtRender(); });
     $('wtSchList').addEventListener('click', function(e){ var row = e.target.closest('[data-s]'); if (!row) return; var sc = row.getAttribute('data-s'); if (WT.fg === WT.sg && WT.fs === sc){ WT.fs = ''; } else { WT.fg = WT.sg; WT.fs = sc; } wtRender(); });
     $('wtList').addEventListener('click', wtListClick);
-    $('wtList').addEventListener('change', function(e){ var ck = e.target.closest('input[data-ck]'); if (!ck) return; var row = ck.closest('.wt-row'), id = +row.getAttribute('data-id'); if (ck.checked) WT.sel[id] = true; else delete WT.sel[id]; row.classList.toggle('sel', ck.checked); wtSelBar(); });
-    $('wtSelBar').addEventListener('click', function(e){ var b = e.target.closest('button[data-sb]'); if (!b) return; var a = b.getAttribute('data-sb');
-      if (a === 'all') WT.vis.forEach(function(id){ WT.sel[id] = true; }); else if (a === 'none') WT.sel = {}; else if (a === 'xlsx'){ wtExport(); return; }
-      wtRender(); });
+    $('wtSelBar').addEventListener('click', function(e){ if (e.target.closest('button[data-sb="xlsx"]')) wtExport(); });
     $('wtList').addEventListener('change', function(e){ var sel = e.target.closest('select[data-act="status"]'); if (!sel) return; var row = sel.closest('.wt-row'), id = +row.getAttribute('data-id'), r = (WT.rows || []).find(function(x){ return x.id === id; }); if (r) wtSetStatus(r, sel.value); });
     wtSetKind('예비');
     wtLoad();
   }
   function wtBookPaint(){ Array.prototype.forEach.call($('wtBook').querySelectorAll('button'), function(b){ b.classList.toggle('on', b.getAttribute('data-book') === WT.book); }); }
   function wtSetKind(k){
-    WT.kind = k; WT.editing = null; WT.fg = ''; WT.fs = ''; WT.sg = ''; WT.sel = {};
+    WT.kind = k; WT.editing = null; WT.fg = ''; WT.fs = ''; WT.sg = '';
     Array.prototype.forEach.call($('wtKinds').querySelectorAll('button'), function(b){ b.classList.toggle('on', b.getAttribute('data-kind') === k); });
     var pre = k === '예비';
     $('wtFormTitle').textContent = pre ? '예비 슈스 대기 등록' : '재원 슈스 반 이동 대기 등록';
@@ -2977,9 +2971,7 @@
     var past = r.status !== '대기', can = !past && wtCan(r);
     var s = r.student_id && (WT.stu || []).find(function(x){ return x.id === r.student_id; });
     var dn = wtDayN(r.started_on);
-    var on = !!WT.sel[r.id];
-    var h = '<div class="wt-row' + (can ? ' can' : '') + (past ? ' done' : '') + (on ? ' sel' : '') + '" data-id="' + r.id + '"><div class="wt-top">';
-    h += '<label class="wt-ck" title="연락처 엑셀에 넣기"><input type="checkbox" data-ck' + (on ? ' checked' : '') + ' aria-label="' + esc(r.name) + ' 고르기" /></label>';
+    var h = '<div class="wt-row' + (can ? ' can' : '') + (past ? ' done' : '') + '" data-id="' + r.id + '"><div class="wt-top">';
     h += '<span class="wt-no">' + (past ? '·' : (i + 1)) + '</span><div class="wt-main">';
     h += '<div class="wt-l1"><b>' + esc(r.name) + '</b><span class="wt-sub">' + esc([r.year, r.grade].filter(Boolean).join(' ') + (r.school ? ' · ' + r.school : '')) + '</span>';
     if (past) h += '<span class="wt-st ' + (WT_ST_CLS[r.status] || '') + '">' + esc(wtStLabel(r, r.status)) + (r.done_note ? ' · ' + esc(r.done_note) : '') + (r.done_by_name ? ' (' + esc(r.done_by_name) + ')' : '') + '</span>';
@@ -3037,21 +3029,20 @@
       h += '<p class="wt-note" style="margin:14px 0 8px;font-weight:700;">지난 기록 — ' + esc(Object.keys(pc).map(function(k){ return k + ' ' + pc[k]; }).join(' · ')) + '</p>' + past.map(wtRowHtml).join('');
     }
     box.innerHTML = h;
-    WT.vis = wait.concat(WT.past ? past : []).map(function(r){ return r.id; });
+    WT.vis = wait.map(function(r){ return r.id; });   // 엑셀은 대기 중인 학생만(지난 기록은 넣지 않음)
     wtSelBar();
   }
   // 고른 학부모님 연락처를 엑셀로(2026-11-06 원장님 "대기 슈스 메뉴에서 선택한 학부모님의 연락처를 엑셀로 받고 싶어요").
-  // 줄 왼쪽 체크로 고르고, [엑셀로 받기]가 .xlsx 를 화면에서 만들어 내려받는다(서버·라이브러리 없음 — 연락처는 글자 칸이라 앞의 0이 지워지지 않는다).
-  function wtSelRows(){ return (WT.rows || []).filter(function(r){ return WT.sel[r.id]; }); }
+  // 같은 날 원장님 "일부를 선택하는 것이 아니라, 학년에서 선택한 친구들을 모두 내려받는 것" — 고르기 칸 없이, 지금 학년·학교로 걸러 보이는 대기 중 학생 전부를 받는다(지난 기록은 넣지 않음).
+  // .xlsx 는 화면에서 만든다(서버·라이브러리 없음 — 연락처는 글자 칸이라 앞의 0이 지워지지 않는다).
+  function wtSelRows(){ var on = {}; WT.vis.forEach(function(id){ on[id] = true; }); return (WT.rows || []).filter(function(r){ return on[r.id]; }); }
   function wtSelBar(){
     var bar = $('wtSelBar'); if (!bar) return;
     if (!WT.rows || !WT.vis.length){ bar.innerHTML = ''; return; }
     var rows = wtSelRows(), n = rows.length, noPh = rows.filter(function(r){ return !String(r.phone_parent || '').replace(/\D/g, ''); }).length;
-    var allOn = WT.vis.every(function(id){ return WT.sel[id]; });
-    bar.innerHTML = '<span class="n">' + (n ? '고른 학생 <b>' + n + '</b>명' + (noPh ? ' · 연락처 없음 ' + noPh + '명' : '') : '줄 왼쪽 칸을 눌러 학생을 고르면 학부모님 연락처를 엑셀로 받을 수 있어요.') + '</span>' +
-      (allOn ? '' : '<button type="button" data-sb="all">보이는 ' + WT.vis.length + '명 모두 고르기</button>') +
-      (n ? '<button type="button" data-sb="none">고르기 풀기</button>' : '') +
-      '<button type="button" class="xl" data-sb="xlsx"' + (n ? '' : ' disabled') + '>엑셀로 받기</button>';
+    var scope = [WT.fg, WT.fs].filter(Boolean).join(' · ') || '전체';
+    bar.innerHTML = '<span class="n">' + esc(scope) + ' <b>' + n + '</b>명' + (noPh ? ' · 연락처 없음 ' + noPh + '명' : '') + '<br><small>대기 중인 학생만 받아요. 학년·학교를 고르면 그 학생들만 들어가요.</small></span>' +
+      '<button type="button" class="xl" data-sb="xlsx"' + (n ? '' : ' disabled') + '>' + n + '명 엑셀로 받기</button>';
   }
   function wtExport(){
     var rows = wtSelRows(); if (!rows.length) return;
@@ -3066,7 +3057,7 @@
         .concat(re ? [s ? (wtCurClasses(s) || '미배정') : ''] : []).concat([r.started_on || '', wtStLabel(r, r.status), r.memo || '', r.author_name || '']);
     });
     var blob = wtXlsx([head].concat(data), re ? '반 이동 대기' : '예비 대기', [6, 10, 7, 6, 12, 16, 32].concat(re ? [24] : []).concat([12, 10, 30, 10]));
-    var name = '대기슈스_' + (re ? '재원' : '예비') + '_학부모님연락처_' + todayYmdKST() + '.xlsx';
+    var name = '대기슈스_' + (re ? '재원' : '예비') + [WT.fg, WT.fs].filter(Boolean).map(function(v){ return '_' + v.replace(/[\\/:*?"<>|\s]/g, ''); }).join('') + '_학부모님연락처_' + todayYmdKST() + '.xlsx';
     var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click();
     setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 1500);
     try { if (window.shuegukActivity) shuegukActivity('대기 슈스', '연락처 엑셀 받기', (re ? '재원' : '예비') + ' ' + rows.length + '명', '', false); } catch (e) {}
