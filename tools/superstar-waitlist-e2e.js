@@ -260,6 +260,28 @@ function serve(){
   r = await pg.evaluate(() => [...document.querySelectorAll('#wtList .wt-row:not(.done) .wt-l1 b')].map(e => e.textContent));
   ok('대기 슈스로 돌아오면 전환한 학생은 대기 명단에서 빠짐', r.join(',') === '새대기,늦은대기', r.join(','));
 
+  // ⑦-9 고른 학부모님 연락처를 엑셀로(2026-11-06 원장님)
+  r = await pg.evaluate(() => ({ bar: document.getElementById('wtSelBar').textContent, dis: document.querySelector('#wtSelBar [data-sb="xlsx"]').disabled, ck: document.querySelectorAll('#wtList .wt-row input[data-ck]').length }));
+  ok('줄마다 고르기 칸 · 안내 + [엑셀로 받기] 잠김', r.ck >= 2 && /엑셀로 받을 수 있어요/.test(r.bar) && r.dis, JSON.stringify(r));
+  await pg.click('#wtSelBar [data-sb="all"]');
+  r = await pg.evaluate(() => ({ bar: document.getElementById('wtSelBar').textContent, sel: document.querySelectorAll('#wtList .wt-row.sel').length, rows: document.querySelectorAll('#wtList .wt-row').length }));
+  ok('[보이는 n명 모두 고르기] → 모두 체크·"고른 학생 n명"', r.sel === r.rows && new RegExp('고른 학생 ' + r.rows + '명').test(r.bar), JSON.stringify(r));
+  await pg.click('#wtSelBar [data-sb="none"]');
+  await pg.locator('#wtList .wt-row input[data-ck]').first().check();
+  r = await pg.evaluate(() => document.getElementById('wtSelBar').textContent);
+  ok('하나만 고르면 "고른 학생 1명"', /고른 학생 1명/.test(r), r);
+  const [dl] = await Promise.all([pg.waitForEvent('download'), pg.click('#wtSelBar [data-sb="xlsx"]')]);
+  const xf = path.join(process.env.WT_XLSX_DIR || require('os').tmpdir(), 'wt-' + Date.now() + '.xlsx'); await dl.saveAs(xf);
+  const firstName = await pg.evaluate(() => document.querySelector('#wtList .wt-row.sel .wt-l1 b').textContent);
+  const firstPh = await pg.evaluate(() => { const r = document.querySelector('#wtList .wt-row.sel a[href^="tel:"]'); return r ? r.textContent : ''; });
+  const py = require('child_process').execFileSync('python3', ['-I', '-c', "import sys,zipfile,re;z=zipfile.ZipFile(sys.argv[1]);x=z.read('xl/worksheets/sheet1.xml').decode();print(z.testzip() is None, len(re.findall('<row ',x)));print('|'.join(re.findall(r'<t xml:space=\"preserve\">([^<]*)</t>',x)))", xf]).toString().split('\n');
+  ok('파일 이름 = 대기슈스_예비_학부모님연락처_날짜.xlsx', /^대기슈스_예비_학부모님연락처_\d{4}-\d{2}-\d{2}\.xlsx$/.test(dl.suggestedFilename()), dl.suggestedFilename());
+  ok('엑셀 = 깨지지 않은 zip · 머리 + 1줄', py[0] === 'True 2', py[0]);
+  ok('머리글·이름·연락처(하이픈 글자)·희망 반이 들어감', /^번호\|이름\|연도\|학년\|학교\|학부모님 연락처\|희망 반\|대기 시작일\|상태\|메모\|작성자\|/.test(py[1]) && py[1].includes('|' + firstName + '|') && (!firstPh || py[1].includes(firstPh)), py[1]);
+  await pg.waitForTimeout(900);
+  ok('엑셀 받기는 활동 기록(묶음)에 이름 없이 인원만', acts.some(b => JSON.stringify(b).includes('연락처 엑셀 받기')), JSON.stringify(acts.slice(-1)));
+  await pg.click('#wtSelBar [data-sb="none"]');
+
   // ⑧ 표 없음(마이그레이션 전)
   wlMissing = true;
   await pg.click('#wtListCard .wt-head .bt .wt-pill:last-child');
