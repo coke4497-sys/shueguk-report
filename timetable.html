@@ -2740,6 +2740,32 @@
       return sbWrite('PATCH', '/tt_classes?book=eq.' + q(book) + '&class_id=eq.' + q(id), { kind: k })
         .then(function(){ return ok({ id: id, kind: k }); });
     },
+    /* '이 주만' 반의 이름 바꾸기 (2026-11-07 원장님 "반 이름 수정 기능이 필요해요").
+     * w* 반만 — 정규·내신 반 이름은 시트 사본·짝 반·학생정보와 얽혀 있어 여기서 바꾸지 않는다.
+     * 그 반을 가리키는 tt_log 의 반 이름 사본도 함께 고치고, '이 주만 반 이름' 기록을 남긴다. */
+    timetableWeekClassRename: function(b){
+      var book = bookOf(b.book), id = String(b.classId || '').trim(), nm = String(b.name || '').trim();
+      if (!/^w/.test(id)) return Promise.resolve({ result:'error', message:'이 주만 있는 반만 이름을 바꿀 수 있어요.' });
+      if (!nm) return Promise.resolve({ result:'error', message:'새 반 이름을 적어 주세요.' });
+      if (nm.length > 60) return Promise.resolve({ result:'error', message:'반 이름이 너무 길어요(60자까지).' });
+      var row = classRow(book, id), old = row ? row.cls : String(b.old || '');
+      if (old === nm) return Promise.resolve(ok({ id: id, name: nm, same: true }));
+      var base = '/tt_log?book=eq.' + q(book);
+      return sbWrite('PATCH', '/tt_classes?book=eq.' + q(book) + '&class_id=eq.' + q(id), { name: nm })
+        .then(function(){
+          var fix = function(){ return null; };
+          return Promise.all([
+            sbWrite('PATCH', base + '&to_class_id=eq.' + q(id), { to_class: nm }).catch(fix),
+            sbWrite('PATCH', base + '&from_class_id=eq.' + q(id), { from_class: nm }).catch(fix)
+          ]);
+        })
+        .then(function(){
+          return insertLog({ kind:'주간반이름', student:'', book: book, from_class_id: id, from_class: old,
+                             to_class_id: id, to_class: nm, reason: '반 이름 변경: ' + old + ' → ' + nm,
+                             apply_date: wkIdYmd(id) || null }).catch(function(){ return null; });
+        })
+        .then(function(){ return ok({ id: id, name: nm, old: old }); });
+    },
     /* 반 전체 보충 — 원래 수업은 그대로 두고, 같은 반을 그 주에 한 번 더 연다.
      * (이동과 달리 원본을 숨기지 않는다 — 2026-08-23 사용자 요청 "추가 보충") */
     timetableWeekClassExtra: function(b){
@@ -6699,7 +6725,7 @@ var CH_ACTIONS = { timetableMove:1, timetableOnce:1, timetableOnceEdit:1, timeta
                    timetableWeekAdd:1, timetableWeekRemove:1, timetableWeekCancel:1, timetableWeekClass:1,
                    timetableAdd:1, timetableRemove:1, timetableClassMove:1, timetableClassAdd:1,
                    timetableClassDel:1, timetableRenameStudent:1,
-                   timetableWeekClassMove:1, timetableWeekClassExtra:1, timetableWeekClassDel:1,
+                   timetableWeekClassMove:1, timetableWeekClassExtra:1, timetableWeekClassDel:1, timetableWeekClassRename:1,
                    timetableWeekClassOff:1, timetableWeekClassOn:1 };
 function chOpenFromBar(){
   if (!chOpen) chToggle();
@@ -11228,6 +11254,7 @@ function openWeekClassManage(c, dstr){
     '<p class="mdesc hint-x">이 날 하루만 있는 반이에요. 정규 시간표와 다른 주차에는 나타나지 않아요.</p>'+
     '<div class="mbtns">'+
     '<button onclick="closeModal(); openWeekAdd(classes.find(function(x){return x.id===\''+esc(c.id)+'\';}), \''+esc(d)+'\')">학생 넣기</button>'+
+    '<button onclick="renameWeekClass(\''+esc(c.id)+'\')">반 이름 바꾸기</button>'+
     '<button onclick="setWeekClassKind(\''+esc(c.id)+'\', \''+(isJb(c) ? '' : '직보')+'\')">'+
       (isJb(c) ? '직전보강 표시 지우기' : '직전보강으로 표시')+'</button>'+
     '<button onclick="closeModal(); openWeekBulkAdd(classes.find(function(x){return x.id===\''+esc(c.id)+'\';}), \''+esc(d)+'\')">다른 반 학생 한꺼번에 넣기</button>'+
@@ -11238,6 +11265,22 @@ function openWeekClassManage(c, dstr){
   );
 }
 
+/* '이 주만' 반 이름 바꾸기 — 창에서 새 이름을 받아 tt_classes.name 만 고친다(2026-11-07) */
+function renameWeekClass(cid){
+  var c = classes.find(function(x){ return x.id === cid; }); if (!c) return;
+  var nm = prompt('새 반 이름을 적어 주세요.\n지금 이름: ' + c.cls, c.cls);
+  if (nm == null) return;
+  nm = String(nm).trim();
+  if (!nm) { setStatus('반 이름이 비어 있어 바꾸지 않았습니다.', 'err'); return; }
+  if (nm === c.cls) { setStatus('이름이 그대로라 바꾸지 않았습니다.', ''); return; }
+  closeModal();
+  post({ action:'timetableWeekClassRename', book:cbook(c), classId:cid, name:nm, old:c.cls }, '반 이름을 바꾸는 중…', function(res){
+    if (res && res.result === 'success'){
+      setStatus('반 이름을 「' + nm + '」(으)로 바꿨습니다.', 'ok');
+      load(true);
+    } else setStatus('이름 변경 실패: ' + ((res && res.message) || '오류'), 'err');
+  });
+}
 /* '이 주만' 반의 직전보강 표시 붙이기·지우기 — kind 열만 바꾼다(명단·기록 무변경) */
 function setWeekClassKind(cid, kind){
   var c = classes.find(function(x){ return x.id === cid; }); if (!c) return;
@@ -12676,7 +12719,7 @@ function chScopeNote(){
 var CH_KIND_NAMES = { '영구':'반 이동', '반이동':'반 전체 이동', '1회':'1회 이동',
   '주간추가':'이 주만 추가', '주간빼기':'이 주만 빼기', '주간반이동':'이 주만 시간 이동',
   '주간반보강':'이 주만 보충', '주간반휴강':'이 주만 휴강', '주간반추가':'이 주만 반 추가',
-  '주간반삭제':'이 주만 반 삭제', '반추가':'반 만들기', '반삭제':'반 삭제', '적용일변경':'적용일 변경' };
+  '주간반삭제':'이 주만 반 삭제', '주간반이름':'이 주만 반 이름', '반추가':'반 만들기', '반삭제':'반 삭제', '적용일변경':'적용일 변경' };
 function chKindLabel(g){
   if (g.kind === '추가') return /신입/.test(g.reason || '') ? '신입' : '추가';
   if (g.kind === '빼기') return /아웃/.test(g.reason || '') ? '퇴원' : '빼기';
