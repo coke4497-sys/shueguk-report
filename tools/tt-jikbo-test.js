@@ -184,6 +184,17 @@ const ROWS = [
   await waitSt(/표시\(직\)를 붙였어요|실패/);
   pt = posts.find(p => p.m === 'PATCH' && /\/tt_classes/.test(p.u));
   ok('관리 창: PATCH kind 직보', !!pt && pt.body.kind === '직보' && new RegExp('class_id=eq\\.' + WID + 'b').test(pt.u), JSON.stringify(pt));
+  // ⑤ 반 이름 바꾸기 (2026-11-07) — tt_classes.name PATCH + tt_log 이름 사본 + '주간반이름' 기록
+  await reset();
+  page.once('dialog', d => d.accept('목요팀 보충'));
+  await page.evaluate((id) => { openWeekClassManage(classes.find(x => x.id === id));
+    [...document.querySelectorAll('#modal button')].find(b => /반 이름 바꾸기/.test(b.textContent)).click(); }, WID + 'b');
+  await waitSt(/로 바꿨습니다|실패/);
+  pt = posts.find(p => p.m === 'PATCH' && /\/tt_classes/.test(p.u));
+  ok('이름 바꾸기: PATCH name (그 반만)', !!pt && pt.body.name === '목요팀 보충' && Object.keys(pt.body).length === 1 && new RegExp('class_id=eq\\.' + WID + 'b').test(pt.u), JSON.stringify(pt));
+  ok('이름 바꾸기: tt_log 이름 사본 두 번 PATCH', posts.filter(p => p.m === 'PATCH' && /\/tt_log/.test(p.u)).length === 2);
+  const lg = posts.find(p => p.m === 'POST' && /\/tt_log/.test(p.u));
+  ok('이름 바꾸기: 주간반이름 기록', !!lg && lg.body.kind === '주간반이름' && lg.body.to_class === '목요팀 보충', JSON.stringify(lg && lg.body));
   await page.close(); await ctx.close();
 
   // ⑥ kind 열이 없는 DB — 옛 열로 다시 읽어 시간표가 뜨고, 저장 때 kind를 빼서 보낸다
