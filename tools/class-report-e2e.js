@@ -258,7 +258,7 @@ const STUDENTS = [
   ok('내신 진도: "진도 수업"·시험범위 없어 펼침 + 수정 요청함 안내·[직접 입력]·단원 칸 없음·오늘 진도 칸', r.kind === '진도 수업' && r.open && /아직 없어요/.test(r.sum) && /수정 요청/.test(r.body) && r.req && r.edit && !r.unit && /오늘 진도/.test(r.lab), JSON.stringify(r));
   const stPill = await page.evaluate(() => (document.querySelector('#cr-scope summary .sc-st') || {}).className);
   ok('수업 기록 창 시험범위 요약 줄에 입력 상태 알약(범위 없음 = "아직 없어요" 회색)', stPill === 'sc-st no', JSON.stringify(stPill));
-  ok('진도 수업 숙제 검사 안내 문구', /비워 두셔도 됩니다/.test(r.hint), r.hint);
+  ok('진도 수업 과제 검사 안내 문구(학생 목록 위 한 번)', /과제 검사를 하지 않습니다/.test(r.hint) && /반 전체 검사 과제 추가/.test(r.hint), r.hint);
   ok('기간 알약 둘 · 다가오는 시험이 기본', r.per.length === 2 && r.per.includes(UPCOMING + '*'), JSON.stringify(r.per));
   ok('범위 조회 = 두 기간 한 번에 · 반ID + 공유 키', (st.nsGets || []).some(u => /period=in\.\(/.test(u) && /중간/.test(u) && /기말/.test(u) && /"n001"/.test(u) && /공유:고2\|화정/.test(u)), JSON.stringify(st.nsGets));
   await page.click('#cr-ns-edit');
@@ -429,7 +429,9 @@ const STUDENTS = [
     // 진도 수업에서 [미제출]을 눌러 0% 기록이 생겨도 리포트·미리보기는 안내 문장(2026-10-28 원장님 "진도 수업에 과제 검사 안내가 나가기로 했는데 미리보기에서 안 보여요")
     {
       const iP = await page.evaluate(() => CR.names.findIndex(x => x.p === '박보검'));
-      ok('진도 수업 과제 검사 위에 안내 — 비워 두거나 미제출이면 리포트에는 안내 문장', /내신 진도 수업은 과제 검사를 하지 않습니다/.test(await page.$eval(`.cr-card[data-i="${iP}"]`, e => e.textContent)));
+      const nt = await page.evaluate(() => ({ top: /내신 진도 수업은 과제 검사를 하지 않습니다/.test((document.getElementById('cr-ns-hwnote') || {}).textContent || ''),
+        cards: [...document.querySelectorAll('.cr-card')].filter(c => /과제 검사를 하지 않습니다/.test(c.textContent)).length }));
+      ok('진도 수업 과제 검사 안내는 학생 목록 위 한 번만 — 학생 카드마다 되풀이하지 않음(2026-11-07 원장님)', nt.top && nt.cards === 0, JSON.stringify(nt));
       await page.click(`[data-tmiss="${iP}|0"]`);
       await page.waitForTimeout(900);
       await page.evaluate(i => crPvOpen(i), iP);
@@ -516,7 +518,7 @@ const STUDENTS = [
     await openCard(page, '화정A');
     r = await page.evaluate(() => ({ box: !!document.querySelector('.cr-xt'), last: (document.getElementById('cr-xt-last') || {}).textContent || '',
       rows: document.querySelectorAll('.cr-item').length, note: [...document.querySelectorAll('.cr-card .cr-note')].length }));
-    ok('반 전체 과제 칸·지난번 과제 버튼·처음엔 별 칸 없음', r.box && /데일리 독해 1회/.test(r.last) && r.rows === 0 && r.note === 2, JSON.stringify(r));
+    ok('반 전체 과제 칸·지난번 과제 버튼·처음엔 별 칸 없음(진도 수업 카드엔 안내 글도 없음)', r.box && /데일리 독해 1회/.test(r.last) && r.rows === 0 && r.note === 0, JSON.stringify(r));
     await page.fill('#cr-xt', '교재 p.12~15');
     await page.click('#cr-xt-add');
     await page.waitForFunction(() => /추가했습니다/.test(document.getElementById('cr-msg').textContent), null, { timeout: 8000 });
