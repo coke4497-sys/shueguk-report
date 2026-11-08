@@ -489,6 +489,7 @@
   .rc-tr > span.n{text-align:left;word-break:keep-all;}
   .rc-tr .n small{display:block;font-size:.72rem;color:#6B7670;margin-top:2px;}
   .rc-tr.miss{background:#F6DCD5;}
+  .rc-tr.perf{grid-template-columns:minmax(0,2fr) minmax(0,1fr);}
   .rc-v{display:inline-block;font-size:.76rem;border-radius:999px;padding:3px 11px;background:#E9EEEA;color:#4C6E66;white-space:nowrap;}
   .rc-v.vol{font-family:'Do Hyeon',sans-serif;font-size:.92rem;padding:2px 12px;color:#2A332F;}
   .rc-v.l2{background:#EDE4F4;color:#5A4A6A;}
@@ -512,6 +513,9 @@
     .rc-tr{grid-template-columns:repeat(4,minmax(0,1fr));row-gap:8px;}
     .rc-tr > span.n{grid-column:1 / -1;}
     .rc-tr > span[data-l]::before{content:attr(data-l);display:block;font-size:.68rem;color:#6B7670;margin-bottom:3px;}
+    .rc-tr.perf{grid-template-columns:minmax(0,1fr) auto;}
+    .rc-tr.perf > span.n{grid-column:auto;}
+    .rc-tr.perf > span[data-l]::before{content:none;}
     .rc-tr.miss > span[data-l]::before{content:none;}
     .rc-v{padding:3px 7px;font-size:.72rem;} .rc-v.vol{padding:2px 9px;}
   }
@@ -2438,7 +2442,7 @@ function renderHwcheck(){
     var itemsHtml = Object.keys(r.scores||{}).map(function(name){
       var sc = parseInt(r.scores[name],10)||0;
       var stars = '';
-      if (hwItemMax(name) === 2) stars = HW_LV[Math.max(0, Math.min(2, sc))];   // 채점·학습 분석·오답 분석 3단계
+      if (hwItemMax(name) === 2) stars = hwLvLabel(name, Math.max(0, Math.min(2, sc)));   // 채점·학습 분석·오답 분석 3단계
       else for(var k=0;k<hwItemMax(name);k++){ stars += (k<sc ? '★' : '☆'); }
       return esc(itemLabel(name))+' <b>'+stars+'</b>';
     }).join('<br>');
@@ -2465,8 +2469,9 @@ function crpAtChip(at){
 }
 /* 숙제 검사 상자 — 2026-09-28(035)부터 수업마다(parts[].hw), 그 전 리포트는 주 단위(body.hw) */
 function itemLabel(n){ return String(n == null ? '' : n).replace(/숙제/g, '과제'); }   // 검사 항목 표시 이름 — 저장 키 '숙제 수행'은 그대로, 화면만 '과제'(2026-09-29 원장님 용어 지침)
-function hwItemMax(name){ var m = String(name || '').match(/\((학습량|깊이|채점|학습 분석|오답 분석)\)$/); return !m ? 6 : (m[1] === '학습량' || m[1] === '깊이') ? 5 : 2; }   // 과제별 검사: 학습량·옛 깊이 별 5개, 채점·학습 분석·오답 분석 3단계(0~2, 2026-10-01), 옛 항목 6개
-var HW_LV = ['안함', '일부함', '완벽'], HW_DIM_RE = / \((학습량|깊이|채점|학습 분석|오답 분석)\)$/;
+function hwItemMax(name){ var m = String(name || '').match(/\((학습량|깊이|채점|학습 분석|오답 분석|수행 평가)\)$/); return !m ? 6 : (m[1] === '학습량' || m[1] === '깊이') ? 5 : 2; }   // 과제별 검사: 학습량·옛 깊이 별 5개, 채점·학습 분석·오답 분석 3단계(0~2, 2026-10-01), 옛 항목 6개
+var HW_LV = ['안함', '일부함', '완벽'], HW_DIM_RE = / \((학습량|깊이|채점|학습 분석|오답 분석|수행 평가)\)$/;
+function hwLvLabel(name, sc){ return (/ \(수행 평가\)$/.test(String(name)) ? ['부족', '잘함', '매우 잘함'] : HW_LV)[sc]; }
 function crpHwHtml(hw, lb){
   if (hw.none) return '<p>' + esc(hw.text || '확인할 것이 없습니다.') + '</p>';   // 숙제 검사를 비워 둔 수업(2026-09-29 원장님 안내문)
   var items = (hw.items || []).filter(function(x){ return x && x.name; });
@@ -2476,7 +2481,7 @@ function crpHwHtml(hw, lb){
   items.forEach(function(x){ var m = String(x.name).match(HW_DIM_RE), t = m ? String(x.name).replace(HW_DIM_RE, '') : x.name;
     if (!by[t]){ by[t] = { t: t, dim: !!m, rows: [] }; groups.push(by[t]); } by[t].rows.push({ d: m ? m[1] : '', x: x }); });
   function row(lb, x){ var mx = +x.max || hwItemMax(x.name), sc = Math.max(0, Math.min(mx, +x.score || 0));
-    if (mx === 2) return '<div class="crp-hwrow"><span>' + esc(lb) + '</span><span class="crp-lv l' + sc + '">' + HW_LV[sc] + '</span><b></b></div>';
+    if (mx === 2) return '<div class="crp-hwrow"><span>' + esc(lb) + '</span><span class="crp-lv l' + sc + '">' + hwLvLabel(x.name, sc) + '</span><b></b></div>';
     return '<div class="crp-hwrow"><span>' + esc(lb) + '</span><span class="crp-track"><i style="width:' + Math.round(sc / mx * 100) + '%"></i></span><b>' + sc + ' / ' + mx + '</b></div>'; }
   return '<div class="crp-hwbox">' +
     (hw.missing ? '<p class="crp-miss">미제출</p>'
@@ -2605,7 +2610,8 @@ function rcNsNone(it, hw){
   if (hw.none || hw.missing) return true;
   return !(hw.items || []).some(function(x){ return x && +x.score > 0; });
 }
-var RC_DIM_RE = / \((학습량|깊이|채점|학습 분석|오답 분석)\)$/;
+var RC_DIM_RE = / \((학습량|깊이|채점|학습 분석|오답 분석|수행 평가)\)$/;
+var RC_PERF = '수행 평가', RC_PERF_LV = ['부족', '잘함', '매우 잘함'];   // 내신 기간 과제 검사(2026-11-08 원장님) — 과제마다 수행 평가 3단계
 function rcHwTasks(hw){   // 과제마다 {t, dim, vol, depth, lv{채점…}, legacy, miss}
   var out = [], by = {}, mi = hw.missing_items || [];
   (hw.items || []).forEach(function(x){
@@ -2628,6 +2634,15 @@ function rcLvCell(g, d){
   return '<span data-l="' + d + '"><span class="rc-v l' + v + '">' + RC_LV[v] + '</span></span>';
 }
 function rcHwTable(hw, tasks){
+  if (tasks.some(function(g){ return g.lv.hasOwnProperty(RC_PERF); })){   // 내신 기간: 과제 | 수행 평가
+    var ph = '<div class="rc-tr th perf"><span class="n">과제</span><span>수행 평가</span></div>';
+    return '<div class="rc-tbl perf">' + ph + tasks.map(function(g){
+      var nm = '<span class="n">' + esc(itemLabel(g.t)) + '</span>';
+      if (g.miss || hw.missing) return '<div class="rc-tr perf miss">' + nm + '<span data-l="수행 평가"><span class="rc-v miss">미제출</span></span></div>';
+      var v = g.lv.hasOwnProperty(RC_PERF) ? g.lv[RC_PERF] : null;
+      return '<div class="rc-tr perf">' + nm + '<span data-l="수행 평가">' + (v === null ? '<span class="rc-v none">—</span>' : '<span class="rc-v l' + v + '">' + RC_PERF_LV[v] + '</span>') + '</span></div>';
+    }).join('') + '</div>';
+  }
   var head = '<div class="rc-tr th"><span class="n">과제</span><span>학습량</span><span>채점</span><span>학습 분석</span><span>오답 분석</span></div>';
   var rows = tasks.map(function(g){
     var nm = '<span class="n">' + esc(itemLabel(g.t)) + (g.depth && !g.miss && !hw.missing ? '<small>깊이 ' + g.depth.sc + '/' + g.depth.mx + '</small>' : '') + '</span>';
