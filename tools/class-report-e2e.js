@@ -80,6 +80,7 @@ const STUDENTS = [
       if (/\/hwcheck_records/.test(u) && m === 'POST' && opt.noMissCol && body && body[0] && 'missing_items' in body[0])
         return json(400, { code: 'PGRST204', message: "Could not find the 'missing_items' column of 'hwcheck_records' in the schema cache" });
       if (/\/hwcheck_records/.test(u) && m === 'GET' && /token=eq\./.test(u)){ (st.hwHistGets = st.hwHistGets || []).push(u); return json(200, opt.hwHist || []); }
+      if (/\/hwcheck_records/.test(u) && m === 'GET' && /token=in\./.test(u)){ (st.hwPrevGets = st.hwPrevGets || []).push(decodeURIComponent(u)); return json(200, opt.hwPrev || []); }
       if (/\/hwcheck_records/.test(u)){ if (m === 'GET'){ (st.hwGets = st.hwGets || []).push(decodeURIComponent(u)); return json(200, opt.hw || []); } return r.fulfill({ status: 201, body: '' }); }
       if (/\/tt_log\?/.test(u) && m === 'GET') return json(200, opt.log || []);
       if (/\/report_config/.test(u)) return json(200, [{ value: '숙제 수행, 오답 처리' }]);
@@ -402,7 +403,7 @@ const STUDENTS = [
       tasks: [...c.querySelectorAll('.cr-tname')].map(x => x.textContent), rows: c.querySelectorAll('.cr-item').length,
       src: (c.querySelector('.cr-src') || {}).textContent || '', txt: c.textContent })));
     const pk = r.find(x => x.nm === '박보검') || {}, kh = r.find(x => x.nm === '김하늘') || {};
-    ok('내신 확인: 박보검은 진도 수업 과제 2개 × 4줄', pk.tasks.join('|') === '교과서 1~6번|서술형 정리' && pk.rows === 8 && /진도/.test(pk.src), JSON.stringify(pk));
+    ok('내신 확인: 박보검은 진도 수업 과제 2개 × 수행 평가 1줄(2026-11-08)', pk.tasks.join('|') === '교과서 1~6번|서술형 정리' && pk.rows === 2 && /진도/.test(pk.src), JSON.stringify(pk));
     ok('내신 확인: 진도 반이 없는 김하늘은 검사할 과제 없음 안내', kh.rows === 0 && /지난 수업에 적힌 과제가 없습니다/.test(kh.txt), JSON.stringify(kh));
     ok('내신 과제 조회 = 학생들의 내신 반 전체', (st.srcGets || []).some(u => /"n001"/.test(u) && /"n002"/.test(u)), JSON.stringify(st.srcGets));
     await ctx.close();
@@ -472,7 +473,7 @@ const STUDENTS = [
     await openCard(page, '고1 화정B(천재수 공통국어2)');
     await page.waitForFunction(() => document.querySelector('.cr-tname'), null, { timeout: 8000 }).catch(() => {});
     r = await page.evaluate(() => [...document.querySelectorAll('.cr-tname')].map(x => x.textContent));
-    ok('기간 밖 고1 진도 수업: 지난주 진도·확인 과제를 모두(그보다 앞 주 과제는 빼고)', r.join('|') === '독서 지문 3개|과제집 w14', JSON.stringify(r));
+    ok('기간 밖 고1 진도 수업: 내신 기간 시작부터 진도·확인 과제를 모두(2026-11-08 원장님 — 앞 주 과제도 누적)', r.join('|') === '옛 과제|독서 지문 3개|과제집 w14', JSON.stringify(r));
     await ctx.close();
     // ②-2c 10/28~11/3 주: 과제 검사는 보통 내신처럼 진도·확인을 모두 잇되(2026-10-28 원장님 "지난주의 모든 수업의 남은 과제를 확인 수업에서 검사"),
     // 시험범위·진행 상황 칸은 아직 없다(11/4부터) — 두 기간이 따로다(crNsHwSplitAt ≠ crNsSplitAt)
@@ -485,10 +486,44 @@ const STUDENTS = [
     r = await page.evaluate(() => ({ tasks: [...document.querySelectorAll('.cr-tname')].map(x => x.textContent), src: (document.querySelector('.cr-src') || {}).textContent || '',
       scope: !!document.getElementById('cr-scope'), pshow: !!document.querySelector('[data-pshow]'), ns: !!(typeof CR !== 'undefined' && CR.ns) }));
     ok('10/28 주 고1 확인 수업: 지난주 진도·확인 과제를 모두(앞 주 과제·이번 주 진도 과제는 빼고 — 2026-10-29 "다음 주 확인 수업 과제는 이번 주 목록에서 빼주세요") — 진도·확인에서 이름이 같은 과제는 둘 다(독서·문학 접두, 2026-10-28 "4권 중 3권만" · "가 독서, 나 문학")',
-       r.tasks.join('|') === '독서 지문 3개|독서 · 과제집 w15|100인의 지혜 11·12|문학 · 과제집 w15', JSON.stringify(r));
+       r.tasks.map(t => t.replace(/ *(완료|지난 검사 이어받음)$/, '')).join('|') === '옛 과제|독서 지문 3개|독서 · 과제집 w15|100인의 지혜 11·12|문학 · 과제집 w15', JSON.stringify(r));
     ok('10/28 주 고1 확인 수업: 출처에 진도·확인 수업이 함께', /진도/.test(r.src) && /확인/.test(r.src), r.src);
     ok('10/28 주 고1 확인 수업: 시험범위·진행 상황 칸은 아직 없음(11/4부터)', !r.scope && !r.pshow && !r.ns, JSON.stringify(r));
     ok('10/28 주 고1 과제 조회 = 진도·확인 반 모두', (st.srcGets || []).some(u => /"n001"/.test(u) && /"n002"/.test(u)), JSON.stringify(st.srcGets));
+    await ctx.close();
+    // ②-2d 내신 기간 누적(2026-11-08 원장님 "한주한주의 수행이 아니라 얼마나 완성해가는지가 중요") — 지난 검사 점수를 이어받고 [저장] 때 이 수업 기록으로 저장
+    ({ ctx, page, st } = await ctxOf({ book: '내신',
+      rows: [row('n001', '고1 화정B(천재수 공통국어2)', '현지', '박보검'), Object.assign(row('n002', '고1 확인', '연주', '(화정)박보검'), { start_time: '7:30', end_time: '9:00' })],
+      att: [{ class_id: 'n002', student: '(화정)박보검', status: '출석' }], hw: [],
+      prev: [{ class_id: 'n002', ymd: D1, homework: '과제집 w15' }, { class_id: 'n002', ymd: D10, homework: '옛 과제' }],
+      hwPrev: [{ week: PREVWED7, token: 'k-park', class_id: 'n002', missing_items: [],
+                 scores: { '옛 과제 (학습량)': 5, '옛 과제 (채점)': 2, '옛 과제 (학습 분석)': 2, '옛 과제 (오답 분석)': 2 } }] }));
+    await page.evaluate(() => { CR_NS_SPLIT_FROM = '2000-01-01'; CR_NS_SPLIT_TO = '2000-01-02'; CR_NS_HW_SPLIT_TO = '2000-01-02'; });
+    await openCard(page, '고1 확인');
+    await page.waitForFunction(() => document.querySelector('.cr-tst.done'), null, { timeout: 8000 }).catch(() => {});
+    r = await page.evaluate(() => ({ tasks: [...document.querySelectorAll('.cr-tname')].map(x => x.textContent), pct: (document.querySelector('.cr-pct') || {}).textContent || '',
+      cum: (document.querySelector('.cr-pct.cum') || {}).textContent || '' }));
+    ok('누적: 지난 검사에서 끝낸 과제는 완료로 이어받음', r.tasks[0] === '옛 과제 완료' && r.tasks[1] === '과제집 w15', JSON.stringify(r));
+    ok('누적: 수행률은 내신 기간 전체 과제 기준(옛 과제 완료 = 50%)', r.pct === '50%' && /완료 1 \/ 2/.test(r.cum), JSON.stringify(r));
+    ok('누적: 지난 점수 조회는 내신 기간 시작부터', (st.hwPrevGets || []).some(u => /token=in\.\("k-park"\)/.test(u) && /week=gte\./.test(u)), JSON.stringify(st.hwPrevGets));
+    await page.click('#cr-save');
+    await page.waitForTimeout(800);
+    const hp = ((st.writes.filter(w => /hwcheck_records/.test(w.u) && w.m === 'POST').slice(-1)[0] || {}).body || [])[0];
+    ok('누적: [저장]하면 이어받은 점수가 이 수업 기록으로 저장(옛 방식으로 끝낸 과제 = 수행 평가 매우 잘함)', !!hp && hp.class_id === 'n002' && hp.scores['옛 과제 (수행 평가)'] === 2 && hp.pct === 50, JSON.stringify(hp));
+    // 내신 기간 과제 검사 모양(2026-11-08 원장님) — 과제마다 [미제출] + 수행 평가 부족·잘함·매우 잘함, 아래 공개·비공개 메모
+    r = await page.evaluate(() => { const c = document.querySelector('.cr-card'); return {
+      lv: [...c.querySelectorAll('.cr-task')][1] ? [...[...c.querySelectorAll('.cr-task')][1].querySelectorAll('.cr-lvp')].map(x => x.textContent) : [],
+      stars: c.querySelectorAll('[data-star]').length, miss: c.querySelectorAll('[data-tmiss]').length,
+      pub: !!c.querySelector('#cr-pub-0'), priv: !!c.querySelector('#cr-priv-0') }; });
+    ok('내신 검사: 과제마다 미제출 + 수행 평가 3단계, 별 없음, 공개·비공개 메모 칸', r.lv.join('|') === '부족|잘함|매우 잘함' && r.stars === 0 && r.miss === 2 && r.pub && r.priv, JSON.stringify(r));
+    await page.click('.cr-task:nth-of-type(2) .cr-lvp.l1').catch(() => {});
+    await page.evaluate(() => { const b = [...document.querySelectorAll('.cr-task')][1].querySelector('.cr-lvp.l1'); b.click(); });
+    await page.fill('#cr-pub-0', '오답 정리가 꼼꼼했어요');
+    await page.fill('#cr-priv-0', '다음 주 재확인');
+    await page.click('#cr-save');
+    await page.waitForTimeout(1200);
+    const hp2 = ((st.writes.filter(w => /hwcheck_records/.test(w.u) && w.m === 'POST').slice(-1)[0] || {}).body || [])[0];
+    ok('내신 검사: 수행 평가·공개·비공개 메모 저장(잘함 = 1, 매우 잘함 + 잘함 = 75%)', !!hp2 && hp2.scores['과제집 w15 (수행 평가)'] === 1 && hp2.pct === 75 && hp2.pub === '오답 정리가 꼼꼼했어요' && hp2.priv === '다음 주 재확인', JSON.stringify(hp2));
     await ctx.close();
   }
 
@@ -525,17 +560,17 @@ const STUDENTS = [
     let nw2 = st.writes.filter(w => /class_notes/.test(w.u)).pop();
     r = await page.evaluate(() => ({ rows: document.querySelectorAll('.cr-item').length, head: (document.querySelector('.cr-src') || {}).textContent || '',
       chips: [...document.querySelectorAll('.cr-xt .cr-unit')].map(x => x.firstChild.textContent) }));
-    ok('추가 → 학생마다 과제당 4줄 · 반 전체 추가 과제 표시', r.rows === 8 && /반 전체에 추가한 과제/.test(r.head) && r.chips.join() === '교재 p.12~15', JSON.stringify(r));
+    ok('추가 → 학생마다 과제당 수행 평가 1줄(내신) · 반 전체 추가 과제 표시', r.rows === 2 && /반 전체에 추가한 과제/.test(r.head) && r.chips.join() === '교재 p.12~15', JSON.stringify(r));
     ok('추가한 과제는 class_notes.comments 예약 키에 저장', nw2 && nw2.body[0].comments['__검사과제'] === '교재 p.12~15', JSON.stringify(nw2 && nw2.body));
     await page.click('#cr-xt-last');
     await page.waitForFunction(() => document.querySelectorAll('.cr-xt .cr-unit').length === 3, null, { timeout: 8000 });
     nw2 = st.writes.filter(w => /class_notes/.test(w.u)).pop();
     ok('지난번 과제 다시 넣기 → 3개', nw2.body[0].comments['__검사과제'] === '교재 p.12~15\n데일리 독해 1회\n어휘 10개' && !(await page.$('#cr-xt-last')), JSON.stringify(nw2.body[0].comments));
     const iP = await page.evaluate(() => CR.names.map(x => x.p).indexOf('박보검'));
-    await page.click(`[data-star="${iP}|0|5"]`);
+    await page.click(`[data-hlv="${iP}|0|2"]`);
     await page.waitForFunction(() => /저장됨/.test(document.querySelector('.cr-dot.ok') ? document.querySelector('.cr-dot.ok').textContent : ''), null, { timeout: 5000 });
     const hw2 = st.writes.filter(w => /hwcheck_records/.test(w.u)).pop();
-    ok('추가 과제 별 저장 — 키·만점 33(과제 3개 × 11)', hw2 && hw2.body[0].scores['교재 p.12~15 (학습량)'] === 5 && hw2.body[0].max === 33 && hw2.body[0].class_id === 'n001', JSON.stringify(hw2 && hw2.body));
+    ok('추가 과제 수행 평가 저장 — 키·만점 6(과제 3개 × 2)', hw2 && hw2.body[0].scores['교재 p.12~15 (수행 평가)'] === 2 && hw2.body[0].max === 6 && hw2.body[0].class_id === 'n001', JSON.stringify(hw2 && hw2.body));
     await ctx.close();
   }
 

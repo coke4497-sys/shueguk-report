@@ -568,6 +568,15 @@
   .cr-attp.a0.on{background:#DCE8E5;color:#3F6159;} .cr-attp.a1.on{background:#EDE4F4;color:#5A4A6A;} .cr-attp.a2.on{background:#F7E2DE;color:#9A5A52;}
   /* 과제별 검사 (2026-09-29) */
   .cr-src{font-size:.72rem;color:var(--ink-soft);margin:2px 0 4px;}
+  .cr-tst{display:inline-block;margin-left:4px;padding:1px 7px;border-radius:999px;background:#EDE4F4;color:#5A4A6A;font-size:.66rem;font-weight:400;vertical-align:middle;}
+  .cr-tst.done{background:#E3EFE7;color:#2F5B44;}
+  .cr-memos{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:6px 0;}
+  .cr-memos label{display:flex;flex-direction:column;gap:3px;font-size:.74rem;color:var(--ink);}
+  .cr-memos small{color:var(--ink-soft);font-size:.66rem;}
+  .cr-memos textarea{width:100%;box-sizing:border-box;font:inherit;font-size:.8rem;padding:6px 8px;border:1px solid #DCE4DF;border-radius:8px;resize:vertical;}
+  @media (max-width:560px){ .cr-memos{grid-template-columns:1fr;} }
+  .cr-task.tfull{opacity:.78;}
+  .cr-pct.cum{background:#EDE4F4;color:#5A4A6A;}
   .cr-task{background:#F4F6F5;border-radius:9px;padding:6px 8px;margin-bottom:5px;}
   .cr-tname{font-size:.8rem;font-weight:700;color:var(--ink);margin-bottom:2px;word-break:keep-all;}
   .cr-thead{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;}
@@ -720,6 +729,7 @@
   .rc-tr > span.n{text-align:left;word-break:keep-all;}
   .rc-tr .n small{display:block;font-size:.72rem;color:#6B7670;margin-top:2px;}
   .rc-tr.miss{background:#F6DCD5;}
+  .rc-tr.perf{grid-template-columns:minmax(0,2fr) minmax(0,1fr);}
   .rc-v{display:inline-block;font-size:.76rem;border-radius:999px;padding:3px 11px;background:#E9EEEA;color:#4C6E66;white-space:nowrap;}
   .rc-v.vol{font-family:'Do Hyeon',sans-serif;font-size:.92rem;padding:2px 12px;color:#2A332F;}
   .rc-v.l2{background:#EDE4F4;color:#5A4A6A;}
@@ -743,6 +753,9 @@
     .rc-tr{grid-template-columns:repeat(4,minmax(0,1fr));row-gap:8px;}
     .rc-tr > span.n{grid-column:1 / -1;}
     .rc-tr > span[data-l]::before{content:attr(data-l);display:block;font-size:.68rem;color:#6B7670;margin-bottom:3px;}
+    .rc-tr.perf{grid-template-columns:minmax(0,1fr) auto;}
+    .rc-tr.perf > span.n{grid-column:auto;}
+    .rc-tr.perf > span[data-l]::before{content:none;}
     .rc-tr.miss > span[data-l]::before{content:none;}
     .rc-v{padding:3px 7px;font-size:.72rem;} .rc-v.vol{padding:2px 9px;}
   }
@@ -8879,6 +8892,7 @@ function openClassNote(c, ctx){
   CR = { c: c, ymd: ymd, bk: bk, part: part, note: null, names: crNamesOf(c), busy: false,
          hwWeek: crPrevWed(ymd), items: CR_HW_DEFAULT.slice(), hw: {}, hwOk: false, more: {},
          ns: null, sib: [], showOff: false, pshow: {}, hshow: {}, hist: {} };
+  CR.nsHw = crRuleBook(c, bk) === '내신' && !crNsHwSplitAt(c, ymd);   // 내신 기간 과제 검사 = 과제마다 수행 평가 3단계 + 공개·비공개 메모
   if (CR_NS_SCOPE && crRuleBook(c, bk) === '내신' && (part === '진도' || part === '확인') && !crNsSplitAt(c, ymd)){   // 고1·고2 예외 기간(정규 수업 중)은 범위·진행 없이
     var pers = crNsPeriods(ymd);
     CR.ns = { periods: pers, period: reqNsDefaultPeriod(ymd), auto: true, part: part, key: part === '진도' ? crScopeKey(c.cls, c.id) : c.id, refKeys: [], refs: [],
@@ -8913,6 +8927,7 @@ function openClassNote(c, ctx){
     crSibAuto();
     crRender();
     crPubCount();
+    crCarryLoad(CR);
   }).catch(function(e){
     if (CR !== mine) return;
     $('cr-body').innerHTML = '<p class="mdesc">기록을 불러오지 못했어요. 인터넷을 확인하고 다시 열어 주세요.</p>';
@@ -9274,8 +9289,13 @@ function crClose(){
  * pct = 합 ÷ 만점 합(과제당 5+2+2+2) — 모두 별 5·완벽이어야 100%(슈퍼스타 별 1개). 옛 '(깊이)' 기록(별 5)은 그대로 읽는다.
  * 베낌 의심은 비공개 — 과제 검사 기록이 아니라 class_notes.comments 예약 키 '__베낌'(학생 → 과제 목록)에 두어 학생·리포트로 안 나간다. */
 var CR_HW_MAX = 5, CR_HW_DIMS = ['학습량', '채점', '학습 분석', '오답 분석'], CR_HW_LV = ['안함', '일부함', '완벽'];
-var CR_HW_DIM_RE = / \((학습량|깊이|채점|학습 분석|오답 분석)\)$/;
-function hwItemMax(name){ var m = String(name || '').match(/\((학습량|깊이|채점|학습 분석|오답 분석)\)$/); return !m ? 6 : (m[1] === '학습량' || m[1] === '깊이') ? 5 : 2; }
+var CR_HW_DIM_RE = / \((학습량|깊이|채점|학습 분석|오답 분석|수행 평가)\)$/;
+/* 내신 기간 과제 검사(2026-11-08 원장님 "과제마다 1. 미제출 버튼 2. 과제 수행 평가: 부족, 잘함, 매우 잘함 … 그 아래에 그 수업에 해당하는 3. 공개 메모 4. 비공개 메모") —
+ * 과제마다 한 항목 '<과제> (수행 평가)'(0 부족 · 1 잘함 · 2 매우 잘함, 만점 2). 정규 기간은 종전 학습량 ★5 + 채점·학습 분석·오답 분석 그대로. */
+var CR_NS_DIMS = ['수행 평가'], CR_NS_LV = ['부족', '잘함', '매우 잘함'];
+function crDims(){ return CR.nsHw ? CR_NS_DIMS : CR_HW_DIMS; }
+function crLvLabels(it){ return / \(수행 평가\)$/.test(String(it)) ? CR_NS_LV : CR_HW_LV; }
+function hwItemMax(name){ var m = String(name || '').match(/\((학습량|깊이|채점|학습 분석|오답 분석|수행 평가)\)$/); return !m ? 6 : (m[1] === '학습량' || m[1] === '깊이') ? 5 : 2; }
 function crTaskOfItem(it){ return String(it).replace(CR_HW_DIM_RE, ''); }
 /* 과제 검사 줄 묶기 — 과제 이름 한 줄 아래 학습량(막대 n/5)·채점 등(안함/일부함/완벽 글자). s.html crpHwHtml 과 같은 모양(고치면 둘 다).
  * 옛 항목('숙제 수행' 등)은 이름 그대로 한 줄. pre = 'crpv'(미리보기) */
@@ -9286,7 +9306,7 @@ function hwGroupHtml(items, miss, pre){
   return groups.map(function(g){
     if ((miss || []).indexOf(g.t) >= 0) return '<div class="' + pre + '-hwrow"><span>' + esc(itemLabel(g.t)) + '</span><span class="' + pre + '-miss">미제출</span><b></b></div>';
     var row = function(lb, x){ var mx = +x.max || hwItemMax(x.name), sc = Math.max(0, Math.min(mx, +x.score || 0));
-      if (mx === 2) return '<div class="' + pre + '-hwrow"><span>' + esc(lb) + '</span><span class="' + pre + '-lv l' + sc + '">' + CR_HW_LV[sc] + '</span><b></b></div>';
+      if (mx === 2) return '<div class="' + pre + '-hwrow"><span>' + esc(lb) + '</span><span class="' + pre + '-lv l' + sc + '">' + crLvLabels(x.name)[sc] + '</span><b></b></div>';
       return '<div class="' + pre + '-hwrow"><span>' + esc(lb) + '</span><span class="' + pre + '-track"><i style="width:' + Math.round(sc / mx * 100) + '%"></i></span><b>' + sc + ' / ' + mx + '</b></div>'; };
     if (!g.dim) return g.rows.map(function(r){ return row(itemLabel(r.x.name), r.x); }).join('');
     return '<div class="' + pre + '-hwtask">' + esc(itemLabel(g.t)) + '</div>' + g.rows.map(function(r){ return row(r.d, r.x); }).join('');
@@ -9320,12 +9340,14 @@ function crHwSrcLoad2(c, bk, ymd, twinId, othSib){
   var ids = [c.id], mine = {}, sibIds = [];
   var weekWed = crPrevWed(ymd);
   var nsRule = crRuleBook(c, bk) === '내신', split = false;
+  var nsStart = '';
   var books = twinId ? 'in.(' + encodeURIComponent('정규') + ',' + encodeURIComponent('내신') + ')' : 'eq.' + encodeURIComponent(bk);
   if (crRuleBook(c, bk) === '내신'){
     // 학생마다 자기 내신 반(진도·확인) — 시간표 명단에서 이름으로 찾는다('이 주만' 반은 뺀다)
     // 10/12~10/27 고1·고2는 진도·확인이 다른 과목이라 같은 수업 구분의 반만 잇는다(2026-10-15 원장님 — 진도 수업에 문학 과제가 연동됨)
     // — 10/28 주부터는 보통 내신처럼 진도·확인 과제를 모두 잇는다(2026-10-28 원장님, crNsHwSplitAt — 범위·진행 칸 기간 crNsSplitAt과는 따로 둔 값 — 지금은 둘 다 10/27)
     split = crNsHwSplitAt(c, ymd), myPart = crPartOf(c, bk);
+    if (!split){ nsStart = crNsStart(c, weekWed); if (nsStart < from) from = nsStart; }
     CR.names.forEach(function(x){
       mine[x.p] = crCls().filter(function(k){ return !/^w/.test(k.id) && (!split || crPartOf(k, bk) === myPart) && (k.students || []).some(function(t){ return plainName(t) === x.p; }); }).map(function(k){ return k.id; });
       if (mine[x.p].indexOf(c.id) < 0) mine[x.p].push(c.id);
@@ -9384,11 +9406,12 @@ function crHwSrcLoad2(c, bk, ymd, twinId, othSib){
         // 내신 기간도 주차 단위 — 이번 주(수요일부터)에 받은 과제는 다음 주 확인 수업 몫이라 뺀다(2026-10-29 원장님 "다음 주 확인 수업 과제는 이번 주 목록에서 빼주세요" — 남주혜T: 수 진도 과제가 목 확인 수업 검사 목록에 올라옴)
         var weekly = moved || nsRule;
         var own = ord.filter(function(r){ return mine[x.p].indexOf(r.class_id) >= 0 && (!weekly || r.ymd < weekWed) && crRowTasks(r, x.p).length; })[0];
-        // 보통 내신 기간: 진도·확인이 이어진다 — 지난주(수요일부터 이번 주 수요일 전까지) 받은 과제를 모두 합친다(2026-10-16 원장님, 10/29 이번 주 과제 제외)
-        if (nsRule && !split && own){
-          var lastWed = crPrevWedShift(weekWed, -7);
-          var all = ord.filter(function(r){ return mine[x.p].indexOf(r.class_id) >= 0 && r.ymd >= lastWed && r.ymd < weekWed && crRowTasks(r, x.p).length; });
-          if (all.length > 1){
+        // 보통 내신 기간: 진도·확인이 이어진다 — **내신 기간 시작부터** 이번 주 수요일 전까지 받은 과제를 모두 합친다
+        // (2026-10-16 원장님, 10/29 이번 주 과제 제외, 2026-11-08 원장님 "확인 수업에서 이 반에서 부여된 모든 과제 리스트 —
+        //  내신 기간 전체를 기준으로 모두 완료해가는 구조" — 옛 '지난주만'을 바꿈). 지난 검사 점수는 crCarryLoad 가 이어받는다.
+        if (nsRule && !split && own && nsStart){
+          var all = ord.filter(function(r){ return mine[x.p].indexOf(r.class_id) >= 0 && r.ymd >= nsStart && r.ymd < weekWed && crRowTasks(r, x.p).length; });
+          if (all.length){
             // 진도·확인에서 이름이 같은 과제('과제집 w15' — 독서 과제집과 문학 과제집)는 다른 책이라 둘 다 두고 '독서 · '/'문학 · '을 붙여 가른다
             // (2026-10-28 원장님 "지난주 고1 과제는 총 4권이에요. 지금은 세권만" — 이름만 보고 하나로 합쳐 한 권이 빠졌다 → "가 독서, 나 문학": 진도(가) = 독서, 확인(나) = 문학, CR_NS_SUBJ).
             // 같은 구분 안의 같은 이름은 한 번만.
@@ -9397,7 +9420,9 @@ function crHwSrcLoad2(c, bk, ymd, twinId, othSib){
             packed.forEach(function(pk){ labs.push(pk.label); pk.tasks.forEach(function(t){ var ps = partsOf[t] = partsOf[t] || []; if (ps.indexOf(pk.part) < 0) ps.push(pk.part); }); });
             packed.forEach(function(pk){ pk.tasks.forEach(function(t){ var nm = partsOf[t].length > 1 ? (CR_NS_SUBJ[pk.part] || crPartLabel(pk.part)) + ' · ' + t : t; if (tasks.indexOf(nm) < 0) tasks.push(nm); }); });
             var top = pack(own, x.p);
-            by[x.p] = { tasks: tasks, ymd: top.ymd, cls: top.cls, part: top.part, label: labs.join(' · ') };
+            by[x.p] = { tasks: tasks, ymd: top.ymd, cls: top.cls, part: top.part, cum: true,
+                        label: '내신 기간(' + mdOfYmdStr(nsStart) + '~) 누적 · ' + (labs.length > 3 ? labs[0] + ' ~ ' + labs[labs.length - 1] + ' · ' +
+                          packed.map(function(pk){ return crPartLabel(pk.part); }).filter(function(v, i, a){ return a.indexOf(v) === i; }).join('·') + ' ' + labs.length + '회' : labs.join(' · ')) };
             return;
           }
         }
@@ -9405,8 +9430,88 @@ function crHwSrcLoad2(c, bk, ymd, twinId, othSib){
         if (sibRow && (!moved || crSameLesson((byId[mine[x.p][0]] || {}).cls, c.cls)) && (!own || own.ymd < crPrevWed(sibRow.ymd))) by[x.p] = pack({ class_id: sibRow.class_id, ymd: sibRow.ymd, homework: sibRow.homework, comments: {} }, x.p);
         else by[x.p] = pack(own, x.p);
       });
-      return { by: by, xtLast: xtLast };
+      return { by: by, xtLast: xtLast, nsStart: nsStart };
     });
+}
+/* 내신 기간 시작 수요일 — 이번 주부터 거꾸로 그 학년이 '내신'인 주(슈국 캘린더 + 학년 예외)를 잇는다. 최대 20주.
+ * 고1·고2 예외 기간(10/27까지 — 내신 시간표로 정규 수업, CR_NS_HW_SPLIT_TO)은 넣지 않는다. */
+function crNsStart(c, weekWed){
+  var g = classGradeOf(c), start = weekWed;
+  for (var k = 0; k < 20; k++){
+    var prev = crPrevWedShift(start, -7);
+    if (effBook(prev, g) !== '내신') break;
+    if (CR_NS_SPLIT.test(g) && prev <= CR_NS_HW_SPLIT_TO) break;
+    start = prev;
+  }
+  return start;
+}
+/* 내신 기간 누적 과제 검사(2026-11-08 원장님 "한주한주의 수행이 아니라 얼마나 완성해가는지가 중요합니다") —
+ * 내신 기간 시작부터 지난 검사(이 수업 기록 말고)에 매긴 점수 중 가장 높은 것을 이어받아 채운다(h.carried 표시).
+ * 이번 수업에 이미 매긴 점수가 먼저다. 미제출로 표시했던 과제는 이어받지 않는다(아직 할 과제로 남음).
+ * 이어받은 점수는 [저장]·[리포트 생성] 때 이 수업 기록으로 저장된다(crSaveCarried — 결석·안 온 친구 제외). */
+function crCarryLoad(cr){
+  var s = cr.src; if (!s || !s.nsStart) return Promise.resolve();
+  var codes = []; cr.names.forEach(function(x){ if (x.stu && codes.indexOf(x.stu.code) < 0) codes.push(x.stu.code); });
+  if (!codes.length) return Promise.resolve();
+  var inC = 'in.(' + codes.map(function(v){ return encodeURIComponent('"' + v + '"'); }).join(',') + ')';
+  return crGet('/hwcheck_records?token=' + inC + '&week=gte.' + s.nsStart + '&week=lte.' + cr.hwWeek +
+               '&select=week,token,class_id,scores,missing_items&order=week.asc&limit=3000')
+    .then(function(rows){
+      if (CR !== cr) return;
+      var prev = {};
+      (rows || []).forEach(function(r){
+        if (r.week === cr.hwWeek && r.class_id === cr.c.id) return;   // 이 수업 기록은 CR.hw 에 이미 있다
+        var m = prev[r.token] = prev[r.token] || {}, miss = Array.isArray(r.missing_items) ? r.missing_items : [];
+        Object.keys(r.scores || {}).forEach(function(k){
+          if (miss.indexOf(crTaskOfItem(k)) >= 0) return;
+          var v = parseInt(r.scores[k], 10) || 0;
+          if (!(k in m) || v > m[k]) m[k] = v;
+        });
+      });
+      cr.carry = prev;
+      cr.names.forEach(function(x){ crCarryApply(x); });
+      crRender();
+    })
+    .catch(function(e){ console.warn('지난 과제 검사 점수 조회 실패', e); });
+}
+function crCarryVal(m, it){
+  if (Object.prototype.hasOwnProperty.call(m, it)) return m[it];
+  var b = it.replace(/^(독서|문학|진도|확인) · /, '');   // 진도·확인 같은 이름 과제의 접두가 나중에 붙은 경우
+  if (b !== it && Object.prototype.hasOwnProperty.call(m, b)) return m[b];
+  // 옛 검사 방식(학습량 ★5 + 채점·학습 분석·오답 분석)으로 끝까지 해낸 과제는 수행 평가 '매우 잘함'으로 잇는다(완성한 과제가 다시 남은 과제로 보이지 않게)
+  var pm = / \(수행 평가\)$/.exec(it); if (!pm) return undefined;
+  var full = [it.replace(pm[0], ''), b.replace(pm[0], '')].some(function(t){
+    return (+m[t + ' (학습량)'] || 0) >= 5 && ['채점', '학습 분석', '오답 분석'].every(function(d){ return (+m[t + ' (' + d + ')'] || 0) >= 2; }); });
+  return full ? 2 : undefined;
+}
+function crCarryApply(x){
+  if (!x.stu || !CR.carry) return;
+  var m = CR.carry[x.stu.code]; if (!m) return;
+  var h = crHwRec(x.stu.code), src = crSrcOf(x);
+  h.carried = h.carried || {};
+  crItemsOf(x).forEach(function(it){
+    if (it in h.carried) return;   // 이미 이어받았거나 선생님이 손댄 항목
+    if (src && crTaskMissed(h, crTaskOfItem(it))) return;
+    var own = Object.prototype.hasOwnProperty.call(h.scores, it), cur = parseInt(h.scores[it], 10) || 0;
+    if (own && (crIsLv(it) || cur > 0)) return;   // 이번 수업에 매긴 점수가 먼저
+    var v = crCarryVal(m, it); if (v === undefined) return;
+    v = parseInt(v, 10) || 0;
+    if (!crIsLv(it) && v <= 0) return;
+    h.scores[it] = v; h.carried[it] = true;
+  });
+}
+function crCarriedOf(h){ return !!h && !!h.carried && Object.keys(h.carried).some(function(k){ return h.carried[k]; }); }
+function crCarryTouch(h, it){ h.carried = h.carried || {}; h.carried[it] = false; }   // 선생님이 고친 항목은 다시 이어받지 않는다
+function crSaveCarried(){
+  CR.names.forEach(function(x, i){
+    if (!x.stu || crOffOf(x, crAttMap()[attKey(CR.c.id, x.nm)])) return;
+    var h = CR.hw[x.stu.code];
+    if (h && !h.saved && crCarriedOf(h) && !crHwTimers[i]) crHwSave(i);
+  });
+}
+/* 과제 하나가 끝났는지 — 학습량 별 5개 + 채점·학습 분석·오답 분석 모두 완벽 */
+function crTaskFull(h, t){
+  return !!h && !crTaskMissed(h, t) && crDims().every(function(d){ var k = t + ' (' + d + ')'; return crHwSc(h.scores, k) >= hwItemMax(k); });
 }
 /* 학생마다 과제(2026-10-01 원장님 "과제 부여를 학생마다 추가") — class_notes.comments 의 예약 키 '__개별과제' = {학생이름: '한 줄에 하나'}.
  * 그 학생의 '다음 수업까지 과제' = 반 과제 + 그 학생 과제. 다음 수업 과제 검사도 그 학생에게만 붙는다. */
@@ -9432,7 +9537,9 @@ function crSrcOf(x){
   tasks = tasks.filter(function(t){ return mine.indexOf(t) < 0; });
   if (!tasks.length) return null;
   if (tasks.length < all) head += ' (이 학생 ' + (all - tasks.length) + '개 뺌)';
-  return { tasks: tasks, head: head };
+  var cum = !!(base && base.cum);
+  if (cum) head += ' — 지난 검사 점수를 이어받았어요. 끝낸 과제는 그대로 두고 남은 과제만 매기면 됩니다.';
+  return { tasks: tasks, head: head, cum: cum };
 }
 var CR_XRMBY_KEY = '__검사제외학생';
 function crXrmByOf(m){ var out = {}; if (m && typeof m === 'object') Object.keys(m).forEach(function(k){ var v = crTasksOf(m[k]); if (v.length) out[k] = v; }); return out; }
@@ -9557,7 +9664,7 @@ function crXtRemove(t){
 }
 function crItemsOf(x){
   var src = crSrcOf(x), out = [];
-  if (src) src.tasks.forEach(function(t){ CR_HW_DIMS.forEach(function(d){ out.push(t + ' (' + d + ')'); }); });
+  if (src) src.tasks.forEach(function(t){ crDims().forEach(function(d){ out.push(t + ' (' + d + ')'); }); });
   return out;
 }
 function crHwRec(code){ return CR.hw[code] || (CR.hw[code] = { scores: {}, pub: '', priv: '', missing: false, miss: [], plan: '', saved: false }); }
@@ -9569,10 +9676,10 @@ function crTaskMissed(h, t){ return !!h && ((h.miss || []).indexOf(t) >= 0 || (!
 function crMissedOf(h, tasks){ return (tasks || []).filter(function(t){ return crTaskMissed(h, t); }); }
 function crSetMissed(h, tasks, list){
   h.miss = tasks.filter(function(t){ return list.indexOf(t) >= 0; });
-  h.miss.forEach(function(t){ CR_HW_DIMS.forEach(function(d){ var k = t + ' (' + d + ')'; if (crIsLv(k)) delete h.scores[k]; else h.scores[k] = 0; }); });
+  h.miss.forEach(function(t){ crDims().forEach(function(d){ var k = t + ' (' + d + ')'; if (crIsLv(k)) delete h.scores[k]; else h.scores[k] = 0; }); });
   h.missing = tasks.length > 0 && h.miss.length === tasks.length;
 }
-function crHwTouched(h){ return !!h && (h.missing || (h.miss || []).length > 0 || Object.keys(h.scores).some(function(k){ return +h.scores[k] > 0 || crIsLv(k); }) || !!String(h.plan || '').trim() || !!String(h.priv || '').trim()); }
+function crHwTouched(h){ return !!h && (h.missing || (h.miss || []).length > 0 || Object.keys(h.scores).some(function(k){ return +h.scores[k] > 0 || crIsLv(k); }) || !!String(h.plan || '').trim() || !!String(h.priv || '').trim() || !!String(h.pub || '').trim()); }
 function crHwPct(h, its){
   if (!h || h.missing || !its || !its.length) return 0;
   var sum = 0, full = 0; its.forEach(function(it){ sum += crHwSc(h.scores, it); full += hwItemMax(it); });
@@ -9585,7 +9692,8 @@ function crHwLabel(code){
   if (!crHwTouched(h)) return '<span class="cr-pct">미검사</span>';
   var x = crXOfCode(code), src = x ? crSrcOf(x) : null, p = crHwPct(h, x ? crItemsOf(x) : []);
   var nm = src ? crMissedOf(h, src.tasks).length : 0;
-  return '<span class="cr-pct' + (p >= 100 ? ' full' : '') + '">' + p + '%' + (p >= 100 ? ' 🏆' : '') + '</span>' +
+  var cum = src && src.cum ? ' <span class="cr-pct cum" title="내신 기간에 받은 과제 중 끝낸 과제">완료 ' + src.tasks.filter(function(t){ return crTaskFull(h, t); }).length + ' / ' + src.tasks.length + '</span>' : '';
+  return '<span class="cr-pct' + (p >= 100 ? ' full' : '') + '">' + p + '%' + (p >= 100 ? ' 🏆' : '') + '</span>' + cum +
     (nm ? ' <span class="cr-pct miss">미제출 ' + nm + '</span>' : '') +
     (p >= 100 ? '<span class="cr-star1" id="cr-star1-' + (x ? CR.names.indexOf(x) : '') + '" title="모든 과제를 완벽하게 해서 슈퍼스타 별 1개">★ 별 +1</span>' : '');
 }
@@ -9598,14 +9706,16 @@ function crStarsHtml(i, code){
   var ii = 0;
   return '<div class="cr-src">' + esc(src.head) + '</div>' + me + src.tasks.map(function(t, ti){
     var tm = crTaskMissed(h, t);
-    return '<div class="cr-task' + (tm ? ' miss' : '') + '"><div class="cr-thead"><div class="cr-tname">' + esc(t) + '</div>' +
+    var tfull = crTaskFull(h, t), tcar = !tfull && !!h && !!h.carried && crDims().some(function(d){ return h.carried[t + ' (' + d + ')']; });
+    return '<div class="cr-task' + (tm ? ' miss' : '') + (tfull ? ' tfull' : '') + '"><div class="cr-thead"><div class="cr-tname">' + esc(t) +
+      (tfull ? ' <small class="cr-tst done">완료</small>' : tcar ? ' <small class="cr-tst">지난 검사 이어받음</small>' : '') + '</div>' +
       '<div class="cr-tacts"><button type="button" class="cr-mini cr-tmiss' + (tm ? ' on' : '') + '" data-tmiss="' + i + '|' + ti + '" aria-pressed="' + tm + '" aria-label="' + esc(t) + ' 미제출">미제출</button>' +
       '<button type="button" class="cr-mini cr-trm" data-trmme="' + i + '|' + ti + '" title="이 학생의 검사 목록에서만 빼기" aria-label="' + esc(t) + ' 이 학생만 빼기">이 학생만 빼기</button>' +
-      '<button type="button" class="cr-mini cr-trm" data-trm="' + i + '|' + ti + '" title="이 수업 검사 목록에서 빼기 (학생 모두)" aria-label="' + esc(t) + ' 모두 빼기">모두 빼기</button></div></div>' + CR_HW_DIMS.map(function(d){
+      '<button type="button" class="cr-mini cr-trm" data-trm="' + i + '|' + ti + '" title="이 수업 검사 목록에서 빼기 (학생 모두)" aria-label="' + esc(t) + ' 모두 빼기">모두 빼기</button></div></div>' + crDims().map(function(d){
       var it = t + ' (' + d + ')', idx = ii++, sc = h ? (parseInt(h.scores[it], 10) || 0) : 0, b = '';
       if (crIsLv(it)){
         var has = !!h && Object.prototype.hasOwnProperty.call(h.scores, it);
-        b = CR_HW_LV.map(function(lv, k){ var on = has && sc === k;
+        b = crLvLabels(it).map(function(lv, k){ var on = has && sc === k;
           return '<button type="button" class="cr-lvp l' + k + (on ? ' on' : '') + '" data-hlv="' + i + '|' + idx + '|' + k + '" aria-pressed="' + on + '" aria-label="' + esc(t) + ' ' + d + ' ' + lv + '">' + lv + '</button>'; }).join('');
         return '<div class="cr-item"><span>' + d + '</span><span class="cr-lv">' + b + '</span></div>';
       }
@@ -9626,7 +9736,7 @@ function crDoneOf(x, a){
     r.hwNa = false; r.hwT = src.tasks.length;
     src.tasks.forEach(function(t){
       if (crTaskMissed(h, t)){ r.hwN++; return; }
-      var ok = CR_HW_DIMS.every(function(d){ var k = t + ' (' + d + ')';
+      var ok = crDims().every(function(d){ var k = t + ' (' + d + ')';
         return crIsLv(k) ? Object.prototype.hasOwnProperty.call(h.scores, k) : (parseInt(h.scores[k], 10) || 0) > 0; });
       if (ok) r.hwN++;
     });
@@ -9646,6 +9756,7 @@ function crDoneHtml(r){
     (r.done ? '<span class="cr-dall">기록 완료</span>' : '') + '</div>';
 }
 function crRender(){
+  if (CR.carry) CR.names.forEach(crCarryApply);   // 검사 목록이 바뀌어도(반 전체 추가·되살리기) 지난 점수를 잇는다
   var n = CR.note || {}, cm = n.comments || {}, part = CR.part;
   var unchecked = 0, hwDone = 0, allDone = 0, shown = 0, onRows = [], offRows = [];
   CR.names.forEach(function(x, i){
@@ -9668,6 +9779,9 @@ function crRender(){
     var hwPart = !CR.hwOk ? '<div class="cr-note">과제 검사를 불러오지 못해 이 창에서는 매길 수 없어요.</div>'
       : !code ? '<div class="cr-note">명단에서 이 학생을 찾지 못해 과제 검사를 저장할 수 없어요(동명이인·미등록).</div>'
       : crStarsHtml(i, code) +
+        (CR.nsHw && crSrcOf(x) ? '<div class="cr-memos"><label>공개 메모 <small>이 수업 과제 검사 · 학생·학부모님께 보여요</small>' +
+          '<textarea class="cr-pub" id="cr-pub-' + i + '" rows="2" maxlength="300" placeholder="예) 과제집 w15 오답 정리가 꼼꼼했어요">' + esc(h ? h.pub : '') + '</textarea></label>' +
+          '<label>비공개 메모 <small>교사·조교만 봐요</small><textarea class="cr-priv" id="cr-priv-' + i + '" rows="2" maxlength="300" placeholder="예) 베낀 흔적 확인 필요">' + esc(h ? h.priv : '') + '</textarea></label></div>' : '') +
         '<div class="cr-row2' + (crSrcOf(x) ? '' : ' one') + '">' + (crSrcOf(x) ? '<button type="button" class="cr-mini' + (allMiss ? ' on' : '') + '" data-miss="' + i + '" title="모든 과제를 미제출로">전체 미제출</button>' : '') +
         '<input id="cr-c-' + i + '" maxlength="200" placeholder="' + esc(allMiss ? '비워 두면 「' + crMissComment(x.p) + '」' : cmPh) + '" value="' + esc(cm[x.p] || '') + '" aria-label="' + esc(x.p) + ' 코멘트" data-cin="' + i + '"></div>' +
         (allMiss ? '<div class="cr-autocm" id="cr-auto-' + i + '"' + (String(cm[x.p] || '').trim() ? ' hidden' : '') + '>코멘트를 비워 두면 <b>' + esc(crMissComment(x.p)) + '</b>로 기록됩니다.</div>' : '') +
@@ -9675,7 +9789,7 @@ function crRender(){
         ihHtml +
         '<span class="cr-links"><button type="button" class="cr-more" data-more="' + i + '">' + (CR.more[i] ? '접기' : '더 보기') + '</button>' + xBtns +
         '<button type="button" class="cr-more" data-pv="' + i + '">리포트 미리보기</button></span>' +
-        (CR.more[i] ? '<textarea class="cr-priv" id="cr-priv-' + i + '" maxlength="300" placeholder="비공개 메모 — 교사·조교만 봐요">' + esc(h ? h.priv : '') + '</textarea>' : '');
+        (CR.more[i] && !CR.nsHw ? '<textarea class="cr-priv" id="cr-priv-' + i + '" maxlength="300" placeholder="비공개 메모 — 교사·조교만 봐요">' + esc(h ? h.priv : '') + '</textarea>' : '');
     if (!CR.hwOk || !code) hwPart += ihHtml + '<span class="cr-links">' + xBtns + '<button type="button" class="cr-more" data-pv="' + i + '">리포트 미리보기</button></span>';
     if (!CR.hwOk || !code) hwPart += '<div class="cr-row2 one"><input id="cr-c-' + i + '" maxlength="200" placeholder="' + esc(cmPh) + '" value="' + esc(cm[x.p] || '') + '"></div>';
     hwPart += (CR.pshow[i] && pOk ? crPStuHtml(x) : '') + (CR.hshow[i] ? crHistHtml(x) : '');
@@ -9996,7 +10110,7 @@ function crNsReq(){
 }
 document.addEventListener('focusout', function(e){
   if (!CR.c || !e.target.id) return;
-  var m = e.target.id.match(/^cr-(plan|priv)-(\d+)$/);
+  var m = e.target.id.match(/^cr-(plan|priv|pub)-(\d+)$/);
   if (m){ var x = CR.names[+m[2]]; if (!x || !x.stu) return; var h = crHwRec(x.stu.code); if ((h[m[1]] || '') !== e.target.value){ h[m[1]] = e.target.value; crHwQueue(+m[2]); } }
 });
 /* 다시 그리기 전에 입력 중인 값(진도·과제·코멘트)을 CR.note에 옮겨 둔다 — 안 그러면 별을 누를 때 쓰던 글이 사라진다 */
@@ -10027,6 +10141,7 @@ function crStar(i, ii, k){
   var before = crPctNow(i);
   var h = crHwRec(x.stu.code), it = crItemsOf(x)[ii]; if (!it) return;
   var cur = parseInt(h.scores[it], 10) || 0;
+  crCarryTouch(h, it);
   h.scores[it] = (cur === k) ? k - 1 : k;   // 같은 별을 다시 누르면 하나 줄이기(숙제 검사 페이지와 같은 규칙)
   if (h.scores[it] > 0){   // 별을 매기면 그 과제는 제출한 것
     var src = crSrcOf(x), t = crTaskOfItem(it);
@@ -10040,6 +10155,7 @@ function crLv(i, ii, k){
   var before = crPctNow(i);
   var h = crHwRec(x.stu.code), it = crItemsOf(x)[ii]; if (!it || !crIsLv(it)) return;
   var has = Object.prototype.hasOwnProperty.call(h.scores, it);
+  crCarryTouch(h, it);
   if (has && (parseInt(h.scores[it], 10) || 0) === k) delete h.scores[it]; else h.scores[it] = k;
   if (Object.prototype.hasOwnProperty.call(h.scores, it)){
     var src = crSrcOf(x), t = crTaskOfItem(it);
@@ -10107,7 +10223,7 @@ function crHwSave(i){
   if (!its.length) return Promise.resolve();
   its.forEach(function(it){ if (!crIsLv(it) || Object.prototype.hasOwnProperty.call(h.scores, it)) scores[it] = crHwSc(h.scores, it); });   // 3단계는 고른 것만
   var src = crSrcOf(x), missed = src ? crMissedOf(h, src.tasks) : [];
-  missed.forEach(function(t){ CR_HW_DIMS.forEach(function(d){ scores[t + ' (' + d + ')'] = 0; }); });
+  missed.forEach(function(t){ crDims().forEach(function(d){ scores[t + ' (' + d + ')'] = 0; }); });
   var maxes = {}, full = 0; its.forEach(function(it){ maxes[it] = hwItemMax(it); full += maxes[it]; });
   var allMiss = !!src && missed.length === src.tasks.length;
   var pct = allMiss ? 0 : crHwPct({ scores: scores }, its);
@@ -10238,7 +10354,7 @@ function crUpsert(extra){
 }
 function crSave(){
   if (!CR.c || CR.busy) return;
-  crFlushHw();
+  crFlushHw(); crSaveCarried();
   crBusy(true); crMsg('저장하는 중…');
   crUpsert().then(function(){ crBusy(false); crRender(); crMsg('저장했어요.'); render(); })
     .catch(function(e){ crBusy(false); crMsg('저장하지 못했어요. 다시 눌러 주세요. (' + e.message + ')', true); });
@@ -10254,7 +10370,7 @@ function crGenerate(){
   var c = CR.c, st = n.report_status;
   if (st === '요청' && !confirm('이미 리포트를 쓰고 있어요. 한 번 더 요청할까요?')) return;
   if (st === '공개' && !confirm('이미 리포트를 생성해 공개했습니다' + (n.reported_at ? ' (' + crHm(n.reported_at) + (CR.pubN ? ' · 학생 ' + CR.pubN + '명' : '') + ')' : '') + '.\n기록을 고친 경우에만 다시 만들면 됩니다. 다시 생성할까요?')) return;
-  crFlushHw();
+  crFlushHw(); crSaveCarried();
   crBusy(true); crMsg('저장하고 리포트를 요청하는 중…');
   crUpsert({ report_status: '요청', report_note: '', requested_at: new Date().toISOString() }).then(function(){
     var text = '[수업 리포트] ' + CR.bk + ' ' + c.id + ' ' + CR.ymd + ' · ' + c.cls + ' · ' + crPartLabel(CR.part) + ' · ' + c.day + ' ' + c.start + '~' + c.end + ' · ' + c.teacher + 'T' +
@@ -10291,7 +10407,7 @@ function crPvItem(i){
   if (h && src && crHwTouched(h)){
     var its = crItemsOf(x), missed = crMissedOf(h, src.tasks), sc = {};
     its.forEach(function(it){ if (!crIsLv(it) || Object.prototype.hasOwnProperty.call(h.scores, it)) sc[it] = crHwSc(h.scores, it); });
-    missed.forEach(function(t){ CR_HW_DIMS.forEach(function(d){ sc[t + ' (' + d + ')'] = 0; }); });
+    missed.forEach(function(t){ crDims().forEach(function(d){ sc[t + ' (' + d + ')'] = 0; }); });
     var all = missed.length === src.tasks.length;
     hw = { items: its.filter(function(it){ return sc.hasOwnProperty(it); }).map(function(it){ return { name: it, score: sc[it], max: hwItemMax(it) }; }), missing: all, miss: missed,
            pct: all ? 0 : crHwPct({ scores: sc }, its), text: h.pub || '' };
@@ -10315,7 +10431,8 @@ function rcNsNone(it, hw){
   if (hw.none || hw.missing) return true;
   return !(hw.items || []).some(function(x){ return x && +x.score > 0; });
 }
-var RC_DIM_RE = / \((학습량|깊이|채점|학습 분석|오답 분석)\)$/;
+var RC_DIM_RE = / \((학습량|깊이|채점|학습 분석|오답 분석|수행 평가)\)$/;
+var RC_PERF = '수행 평가', RC_PERF_LV = ['부족', '잘함', '매우 잘함'];   // 내신 기간 과제 검사(2026-11-08 원장님) — 과제마다 수행 평가 3단계
 function rcHwTasks(hw){   // 과제마다 {t, dim, vol, depth, lv{채점…}, legacy, miss}
   var out = [], by = {}, mi = hw.missing_items || [];
   (hw.items || []).forEach(function(x){
@@ -10338,6 +10455,15 @@ function rcLvCell(g, d){
   return '<span data-l="' + d + '"><span class="rc-v l' + v + '">' + RC_LV[v] + '</span></span>';
 }
 function rcHwTable(hw, tasks){
+  if (tasks.some(function(g){ return g.lv.hasOwnProperty(RC_PERF); })){   // 내신 기간: 과제 | 수행 평가
+    var ph = '<div class="rc-tr th perf"><span class="n">과제</span><span>수행 평가</span></div>';
+    return '<div class="rc-tbl perf">' + ph + tasks.map(function(g){
+      var nm = '<span class="n">' + esc(itemLabel(g.t)) + '</span>';
+      if (g.miss || hw.missing) return '<div class="rc-tr perf miss">' + nm + '<span data-l="수행 평가"><span class="rc-v miss">미제출</span></span></div>';
+      var v = g.lv.hasOwnProperty(RC_PERF) ? g.lv[RC_PERF] : null;
+      return '<div class="rc-tr perf">' + nm + '<span data-l="수행 평가">' + (v === null ? '<span class="rc-v none">—</span>' : '<span class="rc-v l' + v + '">' + RC_PERF_LV[v] + '</span>') + '</span></div>';
+    }).join('') + '</div>';
+  }
   var head = '<div class="rc-tr th"><span class="n">과제</span><span>학습량</span><span>채점</span><span>학습 분석</span><span>오답 분석</span></div>';
   var rows = tasks.map(function(g){
     var nm = '<span class="n">' + esc(itemLabel(g.t)) + (g.depth && !g.miss && !hw.missing ? '<small>깊이 ' + g.depth.sc + '/' + g.depth.mx + '</small>' : '') + '</span>';
