@@ -202,12 +202,12 @@ def cmd_data(book, cid, ymd):
 
 DIM_RE = re.compile(r' \((학습량|깊이|채점|학습 분석|오답 분석|수행 평가)\)$')
 LV = ('안함', '일부함', '완벽')
-PERF_LV = ('부족', '잘함', '매우 잘함')   # 내신 기간 과제 검사 '수행 평가'(2026-11-08 원장님)
+PERF_LV = ('부족', '진행 중', '잘함', '매우 잘함')   # 내신 기간 과제 검사 '수행 평가'(2026-11-08 원장님)
 
 
 def item_max(name):
     m = DIM_RE.search(str(name))
-    return 6 if not m else (5 if m.group(1) in ('학습량', '깊이') else 2)
+    return 6 if not m else (5 if m.group(1) in ('학습량', '깊이') else 3 if m.group(1) == '수행 평가' else 2)
 
 
 def checks_of(h):
@@ -222,7 +222,7 @@ def checks_of(h):
             out.append(by[t])
         mx, v = item_max(k), max(0, min(item_max(k), int(v or 0)))
         lv = PERF_LV if (m and m.group(1) == '수행 평가') else LV
-        by[t][m.group(1) if m else '점수'] = lv[v] if mx == 2 else '%d/%d' % (v, mx)
+        by[t][m.group(1) if m else '점수'] = lv[v] if (mx == 2 or lv is PERF_LV) else '%d/%d' % (v, mx)
     for c in out:
         if any(d in c for d in ('채점', '학습 분석', '오답 분석', '학습량')):
             for d in ('채점', '학습 분석', '오답 분석'):
