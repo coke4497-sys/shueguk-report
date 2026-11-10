@@ -538,8 +538,9 @@
         </div>
         <div>
           <label>학년</label>
-          <input type="text" id="f-grade" list="gradeList" placeholder="예) 2026 고등 1학년" autocomplete="off" />
-          <datalist id="gradeList"></datalist>
+          <!-- 2026-11-10 원장님 "2026년 중3이 선택되지 않아요" — 글자 입력+추천 목록(datalist)은 칸에 글자가 있으면 맞는 것만 보이고
+               휴대폰에서 목록이 잘 안 떠서 고르기 드롭다운으로 바꿈. 목록 = 이번 학년도·다음 학년도 중1~고3 + 명단에 있는 다른 값 -->
+          <select id="f-grade"><option value="">학년 고르기</option></select>
         </div>
       </div>
       <label>학생 휴대폰</label>
@@ -1517,6 +1518,7 @@
   /* ══════════ 신입 슈스 ══════════ */
   var ROSTER_CACHE = null;   // 부팅 때 받은 명단 (별 더하기 탭 재사용)
   function loadRoster(){
+    fGradeFill();   // 명단을 못 받아도 학년은 고를 수 있게
     fetch(ENDPOINT+'?action=roster&t='+Date.now())
       .then(function(r){ return r.json(); })
       .then(function(d){
@@ -1527,12 +1529,33 @@
           if(s.school) sc[s.school]=1; if(s.grade) gr[s.grade]=1; if(s.teacher) tc[s.teacher]=1;
         });
         $('schoolList').innerHTML = Object.keys(sc).sort().map(function(x){return '<option value="'+esc(x)+'">';}).join('');
-        $('gradeList').innerHTML  = Object.keys(gr).sort().map(function(x){return '<option value="'+esc(x)+'">';}).join('');
+        fGradeFill(Object.keys(gr));
         $('teacherList').innerHTML= Object.keys(tc).sort().map(function(x){return '<option value="'+esc(x)+'">';}).join('');
         renderStats(d.students||[]);
       })
       .catch(function(){});
   }
+
+  /* 신입 슈스 학년 드롭다운 — 이번 학년도(3월 시작)·다음 학년도 중1~고3 + 명단에 있는 다른 값, 지금 고른 값은 그대로 */
+  var F_GRADE_EXTRA = [];
+  function fGradeFill(extra){
+    if (extra) F_GRADE_EXTRA = extra;
+    var sel = $('f-grade'), cur = sel.value, y = wtNowYear(), list = [], seen = {};
+    [y, y + 1].forEach(function(yr){
+      ['중등', '고등'].forEach(function(lv){ [1, 2, 3].forEach(function(n){ list.push(yr + ' ' + lv + ' ' + n + '학년'); }); });
+    });
+    F_GRADE_EXTRA.concat(cur ? [cur] : []).forEach(function(g){ if (g && list.indexOf(g) < 0) list.push(g); });
+    var h = '<option value="">학년 고르기</option>', grp = '';
+    list.forEach(function(g){
+      if (seen[g]) return; seen[g] = 1;
+      var yr = (/^(\d{4})/.exec(g) || [])[1] || '그 밖', lab = yr === String(y) ? yr + '학년도 (지금)' : yr === String(y + 1) ? yr + '학년도 (예비)' : '그 밖';
+      if (lab !== grp){ h += (grp ? '</optgroup>' : '') + '<optgroup label="' + esc(lab) + '">'; grp = lab; }
+      h += '<option value="' + esc(g) + '">' + esc(g) + '</option>';
+    });
+    sel.innerHTML = h + (grp ? '</optgroup>' : '');
+    sel.value = cur;
+  }
+  function fGradeSet(v){ v = String(v || ''); if (v && !Array.prototype.some.call($('f-grade').options, function(o){ return o.value === v; })) F_GRADE_EXTRA.push(v); fGradeFill(); $('f-grade').value = v; }
 
   /* ── 재원 현황: 학년별 막대 + 학교별 인원(많은 순) ── */
   function shortGrade(g){
@@ -3282,7 +3305,7 @@
   /* [등록으로 전환] — 신입 슈스 폼에 대기 명단 정보를 채우고, 등록이 끝나면(wtAfterRegister) 그 줄을 입학으로 */
   function wtConvert(r){
     WT.pend = r.id;
-    $('f-name').value = r.name || ''; $('f-school').value = r.school || ''; $('f-grade').value = wtGradeFull(r.year, r.grade);
+    $('f-name').value = r.name || ''; $('f-school').value = r.school || ''; fGradeSet(wtGradeFull(r.year, r.grade));
     $('f-pp1').value = r.phone_parent || ''; $('f-pstu').value = ''; $('f-memo').value = r.memo || '';
     ['f-classA', 'f-classB', 'f-progress', 'f-checkup'].forEach(function(id){ $(id).value = ''; });
     if (r.want_class_id){
