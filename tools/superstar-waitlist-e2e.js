@@ -254,6 +254,8 @@ function serve(){
   ok('[이동 완료] → 확인 창(전체 시간표에서 따로) → status 완료 · 반 이동 완료', /전체 시간표/.test(dialogs[0] || '') && p[0] === 13 && p[1].status === '완료' && p[1].done_note === '반 이동 완료', JSON.stringify(p));
 
   // ⑦ 등록으로 전환 → 신입 폼 → 등록 → 완료
+  r = await pg.evaluate(() => { const sel = document.getElementById('f-grade'); return { tag: sel.tagName, opts: [...sel.options].map(o => o.value), groups: [...sel.querySelectorAll('optgroup')].map(g => g.label) }; });
+  ok('신입 슈스 학년 = 드롭다운(2026-11-10) — 2026 중등 3학년 포함, 이번·다음 학년도 중1~고3', r.tag === 'SELECT' && r.opts.includes('2026 중등 3학년') && r.opts.includes('2027 고등 1학년') && r.opts.includes('2026 중등 1학년') && r.groups[0] === '2026학년도 (지금)' && r.groups[1] === '2027학년도 (예비)', JSON.stringify(r));
   await pg.click('#wtKinds button[data-kind="예비"]');
   ok('예비로 돌아오면 연도 = 다음 학년도(2027)', await pg.$eval('#wt-year', e => e.value) === '2027');
   await pg.click('#wtList .wt-row[data-id="12"] button[data-act="conv"]');
