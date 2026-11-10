@@ -1667,7 +1667,10 @@
   /* 반 이름의 학년('고3파이널A'→고3, '정리정독 중3'→중3, '고1 가'→고1) — 없으면 '' */
   function ttClsGrade(nm){ var m = /([중고])\s*([1-3])/.exec(String(nm || '')); return m ? m[1] + m[2] : ''; }
   /* 학년 칸 값('2026 중등 3학년') → '중3' */
-  function fGradeKey(){ var m = /(중|고)등\s*([1-3])학년/.exec($('f-grade').value || ''); return m ? m[1] + m[2] : ''; }
+  /* 반 고르기·주 1회 판정은 지금(2026) 학년 기준 — '2027 중등 3학년'은 지금 중2라 중2 반이 나온다 (2026-11-10 원장님 "지금은 2026 기준") */
+  function fGradeRaw(v){ var m = /(\d{4})?\s*(중|고)등\s*([1-3])학년/.exec(v || ''); return m ? { y: m[1] ? +m[1] : 0, g: m[2] + m[3] } : null; }
+  function fGradeNow(v){ var r = fGradeRaw(v); if (!r) return ''; return r.y ? wtNowGrade(r.g, r.y) : r.g; }
+  function fGradeKey(){ return fGradeNow($('f-grade').value); }
   /* 중3·고3은 주 1회 등원 — 정규 반 하나만 고르고(내신 짝 반은 자동), 나 반·내신 칸은 숨긴다 (2026-11-10 원장님) */
   function fClassMode(){
     var g = fGradeKey(), once = g === '중3' || g === '고3';
@@ -1675,8 +1678,12 @@
     $('f-classB-w').style.display = once ? 'none' : '';
     $('f-ns-row').style.display = once ? 'none' : '';
     var note = $('f-once-note');
-    note.style.display = once ? '' : 'none';
-    note.textContent = once ? g + '은 주 1회 등원이라 반 하나만 고르면 됩니다. 내신 시간표의 같은 반에도 함께 들어가요.' : '';
+    var raw = fGradeRaw($('f-grade').value), ahead = raw && raw.y && raw.y > wtNowYear() && g;
+    var msg = [];
+    if (ahead) msg.push(raw.y + ' ' + raw.g + '은 지금(' + wtNowYear() + ') ' + g + '이라 ' + g + ' 반에서 고릅니다.');
+    if (once) msg.push(g + '은 주 1회 등원이라 반 하나만 고르면 됩니다. 내신 시간표의 같은 반에도 함께 들어가요.');
+    note.style.display = msg.length ? '' : 'none';
+    note.textContent = msg.join(' ');
     if (once) ['f-classB', 'f-progress', 'f-checkup'].forEach(function(id){ $(id).value = ''; });
     ttPickerFill();
   }
@@ -1810,7 +1817,7 @@
       })(0);
       // 고른 반이 있으면 전체 시간표 명단에도 넣는다 (등록된 이름 기준 — 동명이인 접미사 포함)
       var picks = [pA, pB, pP, pC].filter(Boolean);
-      nwOpen({ name: String(d.name || name).trim(), token: d.token, picks: picks, pstu: pstu, pp1: pp1, pp2: pp2 });
+      nwOpen({ name: String(d.name || name).trim(), token: d.token, picks: picks, pstu: pstu, pp1: pp1, pp2: pp2, grade: fGradeNow(grade) });
       var tEl = $('doneTT');
       if (picks.length && tEl){
         tEl.textContent = '시간표에 넣는 중…'; tEl.className = 'status';
@@ -1837,18 +1844,41 @@
   var NW_TEXT = '[이수경국어학원] 신입생 등록 안내\n#{학생명} 학생의 등록이 완료되었습니다.\n\n▶ 첫 수업: #{첫수업}\n▶ 수업 장소: #{장소}\n\n학생 페이지에서 공지, 수업 리포트, 테스트를 확인할 수 있습니다.';
   function nwPlain(n){ return String(n || '').replace(/[A-Z]$/, ''); }
   // 고른 반 중 오늘(한국 날짜) 이후 가장 먼저 오는 수업
-  function nwFirstClass(picks){
-    var t = todayYmdKST(), base = new Date(t + 'T00:00:00Z'), best = null;
-    (picks || []).forEach(function(c){
-      var di = NW_DAYS.indexOf(String(c.day || '').charAt(0)); if (di < 0) return;
-      var add = (di - base.getUTCDay() + 7) % 7, d = new Date(base.getTime() + add * 864e5);
-      var key = d.getTime() * 10000 + (parseInt(String(c.start_time || '').replace(/[^0-9:]/g, ''), 10) || 0);
-      if (!best || key < best.key) best = { key: key, d: d, c: c };
-    });
-    if (!best) return null;
-    var c = best.c, d = best.d;
-    return { text: (d.getUTCMonth() + 1) + '/' + d.getUTCDate() + '(' + NW_DAYS.charAt(d.getUTCDay()) + ') ' + String(c.start_time || '') + ' ' + String(c.name || ''),
-             place: NW_PLACE[String(c.location || '').trim()] || String(c.location || '').trim() };
+  /* 첫 수업 = 오늘(아직 시작 전)부터 4주 안에서, 그 날짜 주의 시간표(슈국 캘린더 정규/내신 + 학년 예외)에 맞는 반 중 가장 이른 수업.
+     중3·고3은 정규·내신 짝 반이 같은 시간이라 어느 쪽이든 본다 (2026-11-10 점검 — 내신 주에 정규 반 날짜가 잡히던 것을 고침) */
+  function nwMins(t){
+    var s = String(t || '').trim(), am = s.indexOf('오전') === 0, night = s.indexOf('밤') === 0;
+    var p = s.replace(/^(오전|밤)\s*/, '').split(':'), h = parseInt(p[0], 10) || 0, m = parseInt(p[1], 10) || 0;
+    if (am) return (h === 12 ? 0 : h) * 60 + m;
+    if (night) return (h === 12 ? 24 : h + 12) * 60 + m;
+    if (h < 10) h += 12;
+    return h * 60 + m;
+  }
+  function nwYmd(d){ return d.getUTCFullYear() + '-' + ('0' + (d.getUTCMonth() + 1)).slice(-2) + '-' + ('0' + d.getUTCDate()).slice(-2); }
+  function nwWed(d){ return new Date(d.getTime() + (2 - (d.getUTCDay() + 6) % 7) * 864e5); }
+  function nwFirstClass(picks, periods, grade){
+    var t = todayYmdKST(), base = new Date(t + 'T00:00:00Z');
+    var kst = new Date(Date.now() + 9 * 3600e3), nowM = kst.getUTCHours() * 60 + kst.getUTCMinutes();
+    var once = grade === '중3' || grade === '고3', P = periods || {};
+    for (var i = 0; i < 28; i++){
+      var d = new Date(base.getTime() + i * 864e5), dayCh = NW_DAYS.charAt(d.getUTCDay());
+      var per = P[nwYmd(nwWed(d))] || {}, ov = per.overrides || {};
+      var bk = (grade && ov[grade]) || per.book || '정규';
+      var best = null;
+      (picks || []).forEach(function(c){
+        if (String(c.day || '').charAt(0) !== dayCh) return;
+        if (!once && periods && c.book && c.book !== bk) return;
+        var m = nwMins(c.start_time);
+        if (i === 0 && m <= nowM) return;
+        if (!best || m < best.m) best = { m: m, c: c };
+      });
+      if (best){
+        var c = best.c;
+        return { text: (d.getUTCMonth() + 1) + '/' + d.getUTCDate() + '(' + dayCh + ') ' + String(c.start_time || '') + ' ' + String(c.name || ''),
+                 place: NW_PLACE[String(c.location || '').trim()] || String(c.location || '').trim() };
+      }
+    }
+    return null;
   }
   function nwPreview(){
     if (!NW) return;
@@ -1857,8 +1887,26 @@
   }
   function nwOpen(o){
     NW = o; var box = $('nwBox'); if (!box) return;
-    var f = nwFirstClass(o.picks);
-    $('nwFirst').value = f ? f.text : ''; $('nwPlace').value = f ? f.place : '';
+    var setF = function(periods){
+      var f = nwFirstClass(o.picks, periods, o.grade);
+      $('nwFirst').value = f ? f.text : ''; $('nwPlace').value = f ? f.place : ''; nwPreview();
+    };
+    $('nwFirst').dataset.typed = '';
+    setF(null);
+    var t0 = new Date(todayYmdKST() + 'T00:00:00Z');
+    sbx('GET', '/tt_period?select=week_wednesday,book,overrides&week_wednesday=gte.' + nwYmd(nwWed(t0)) + '&week_wednesday=lte.' + nwYmd(new Date(t0.getTime() + 35 * 864e5)))
+      .then(function(rows){
+        if (NW !== o) return;
+        var P = {}; (rows || []).forEach(function(r){ P[String(r.week_wednesday).slice(0, 10)] = r; });
+        if ($('nwFirst').dataset.typed !== '1') setF(P);
+      }).catch(function(){
+        if (NW !== o) return;
+        sbx('GET', '/tt_period?select=week_wednesday,book&week_wednesday=gte.' + nwYmd(nwWed(t0))).then(function(rows){
+          if (NW !== o) return;
+          var P = {}; (rows || []).forEach(function(r){ P[String(r.week_wednesday).slice(0, 10)] = r; });
+          if ($('nwFirst').dataset.typed !== '1') setF(P);
+        }).catch(function(){});
+      });
     var whos = [['학생', '학생', o.pstu], ['학부모1', '학부모님1', o.pp1], ['학부모2', '학부모님2', o.pp2]];
     $('nwWho').innerHTML = whos.map(function(w){
       return '<label' + (w[2] ? '' : ' class="off"') + '><input type="checkbox" class="nw-w" value="' + w[0] + '" data-to="' + esc(w[2] || '') + '"' +
@@ -1910,7 +1958,7 @@
       $('nwGo').disabled = false; $('nwGo').textContent = '신입생 안내 알림톡 보내기';
     });
   }
-  document.addEventListener('input', function(e){ if (e.target && (e.target.id === 'nwFirst' || e.target.id === 'nwPlace')) nwPreview(); });
+  document.addEventListener('input', function(e){ if (e.target && (e.target.id === 'nwFirst' || e.target.id === 'nwPlace')){ if (e.target.id === 'nwFirst') e.target.dataset.typed = '1'; nwPreview(); } });
   function copyLink(){
     var link=$('doneLink').getAttribute('data-link')||'';
     var done=function(){ var s=$('copyStatus'); s.textContent='✓ 링크가 복사되었어요'; s.className='status'; };

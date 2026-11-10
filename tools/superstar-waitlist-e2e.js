@@ -52,6 +52,7 @@ function serve(){
     if (/\/functions\/v1\/activity/.test(u)){ acts.push(JSON.parse(rt.request().postData() || '{}')); return j({ digest: 'none' }); }
     if (/\/rest\/v1\/teacher_accounts/.test(u)) return j([{ display_name: '김현지', login_id: 'hj' }]);
     if (/\/rest\/v1\/students/.test(u)) return j(STU);
+    if (/\/rest\/v1\/tt_period/.test(u)) return j([]);
     if (/\/rest\/v1\/tt_classes/.test(u)) return j(/not\.like\.w/.test(u) ? TT.filter(c => !/^w/.test(c.class_id)) : TT);
     if (/\/rest\/v1\/student_waitlist/.test(u)){
       if (wlMissing) return j({ code: 'PGRST205', message: "Could not find the table 'public.student_waitlist' in the schema cache" }, 404);
@@ -269,6 +270,11 @@ function serve(){
   await pg.waitForFunction(() => [...document.getElementById('f-classA').options].some(o => o.value === 'r001'));
   r = await pg.evaluate(() => ({ lab: document.getElementById('f-classA-l').textContent, b: getComputedStyle(document.getElementById('f-classB-w')).display, a: [...document.getElementById('f-classA').options].map(o => o.value) }));
   ok('고1 = 가·나 칸 그대로 · 반 목록은 고1 반만', r.lab === '정규 가 반' && r.b !== 'none' && !r.a.includes('r010') && r.a.includes('r002'), JSON.stringify(r));
+  // 2027 학년은 지금(2026) 학년 기준 — '2027 고등 1학년'은 지금 중3이라 중3 반·주 1회 (2026-11-10 원장님 "지금은 2026 기준")
+  await pg.evaluate(() => { const sel = document.getElementById('f-grade'); const v = [...sel.options].map(o => o.value).find(x => /^20\d\d 고등 1학년$/.test(x) && +x.slice(0, 4) > wtNowYear()); sel.value = v; sel.dispatchEvent(new Event('change', { bubbles: true })); });
+  await pg.waitForFunction(() => [...document.getElementById('f-classA').options].every(o => !o.value || /중3/.test(o.textContent)));
+  r = await pg.evaluate(() => ({ lab: document.getElementById('f-classA-l').textContent, note: document.getElementById('f-once-note').textContent, a: [...document.getElementById('f-classA').options].map(o => o.value), key: fGradeKey() }));
+  ok('다음 학년도 고1 = 지금 중3 → 중3 반만·주 1회·안내', r.key === '중3' && r.lab === '정규 수업 반 (주 1회)' && r.a.join(',') === ',r010' && /지금\(\d{4}\) 중3이라 중3 반에서/.test(r.note), JSON.stringify(r));
   await pg.selectOption('#f-grade', '');
   await pg.evaluate(() => showTab('wait'));
   r = await pg.evaluate(() => { const sel = document.getElementById('f-grade'); return { tag: sel.tagName, opts: [...sel.options].map(o => o.value), groups: [...sel.querySelectorAll('optgroup')].map(g => g.label) }; });
@@ -287,6 +293,24 @@ function serve(){
   r = await pg.evaluate(() => ({ first: document.getElementById('nwFirst').value, place: document.getElementById('nwPlace').value, pv: document.getElementById('nwPv').textContent,
     whos: [...document.querySelectorAll('.nw-w')].map(x => x.value + ':' + (x.checked ? 1 : 0) + (x.disabled ? 'x' : '')) }));
   ok('신입 안내 — 첫 수업은 고른 반(금 5:30 고1 가)의 다음 날짜 · 받는 분 학생·학부모님1 체크(학부모님2 번호 없음) · 미리보기에 이름', /^\d{1,2}\/\d{1,2}\(금\) 5:30 고1 가$/.test(r.first) && r.whos.join(',') === '학생:1,학부모1:1,학부모2:0x' && /이른대기 학생의 등록이 완료/.test(r.pv) && /첫 수업: \d/.test(r.pv), JSON.stringify(r));
+  // 첫 수업은 그 주 시간표(정규/내신·학년 예외)에 맞는 반만 — 오늘 지난 수업은 건너뜀 (2026-11-10 점검)
+  r = await pg.evaluate(() => {
+    const t = todayYmdKST(), base = new Date(t + 'T00:00:00Z');
+    const wed = d => nwYmd(nwWed(d)), dayCh = i => NW_DAYS.charAt(new Date(base.getTime() + i * 864e5).getUTCDay());
+    const P = {}; for (let i = 0; i < 35; i += 7){ const d = new Date(base.getTime() + i * 864e5); P[wed(d)] = { book: '내신', overrides: { 중2: '정규' } }; }
+    const reg = { book: '정규', day: dayCh(1), start_time: '5:30', name: '고1 가', location: '화정센터' };
+    const ns = { book: '내신', day: dayCh(2), start_time: '5:30', name: '고1 화정A', location: '민트초코' };
+    const a = nwFirstClass([reg, ns], P, '고1');           // 내신 주 → 정규 반은 건너뛰고 내신 반
+    const b = nwFirstClass([reg, ns], P, '중2');           // 중2는 예외로 정규
+    const c = nwFirstClass([reg, ns], null, '고1');        // 기간을 못 읽으면 반 구분 없이 가장 이른 수업
+    const once = nwFirstClass([{ book: '정규', day: dayCh(3), start_time: '11:00', name: '정리정독 중3', location: '본원' }], P, '중3');   // 중3은 짝 반이라 그대로
+    const past = nwFirstClass([{ book: '내신', day: dayCh(0), start_time: '오전7:00', name: '이른 수업', location: '본원' }], P, '고1');  // 오늘 아침 수업은 지남 → 다음 주
+    return { a: a && a.text, ap: a && a.place, b: b && b.text, c: c && c.text, once: once && once.text, past: past && past.text, pastExpect: (d => (d.getUTCMonth()+1)+'/'+d.getUTCDate())(new Date(base.getTime() + 7*864e5)),
+      kst: new Date(Date.now() + 9*3600e3).getUTCHours() };
+  });
+  ok('첫 수업 — 내신 주는 내신 반·장소, 중2 예외는 정규 반, 기간 모르면 가장 이른 수업, 중3은 짝 반 그대로',
+    /고1 화정A$/.test(r.a) && /민트초코센터/.test(r.ap) && /고1 가$/.test(r.b) && /고1 가$/.test(r.c) && /정리정독 중3$/.test(r.once), JSON.stringify(r));
+  ok('오늘 이미 시작한 수업은 첫 수업으로 잡지 않음', r.kst < 7 || (r.past && r.past.indexOf(r.pastExpect + '(') === 0), JSON.stringify(r));
   await pg.click('#nwGo');
   ok('수업 장소가 비면 보내지 않음', alims.length === 0 && /장소/.test(await pg.textContent('#nwMsg')));
   await pg.fill('#nwPlace', '대감빌딩 5층 이수경 국어 본원');
