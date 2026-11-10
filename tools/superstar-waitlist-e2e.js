@@ -30,6 +30,8 @@ function serve(){
     { book: '정규', class_id: 'r002', name: '고1 나', day: '일', start_time: '11:00', teacher: '승연', roster: '박보검 a b' },                       // 3명
     { book: '내신', class_id: 'n001', name: '고1 화정A(천재 공통국어2)', day: '수', start_time: '5:30', teacher: '현지', roster: 'a b c d' },        // 4명
     { book: '내신', class_id: 'n002', name: '고1 확인', day: '토', start_time: '2:00', teacher: '지원', roster: 'a' },
+    { book: '정규', class_id: 'r010', name: '정리정독 중3', day: '토', start_time: '11:00', teacher: '승연', roster: 'p q' },
+    { book: '내신', class_id: 'n010', name: '정리정독 중3', day: '토', start_time: '11:00', teacher: '승연', roster: 'p q' },
     { book: '정규', class_id: 'w261101a', name: '이 주만', day: '일', start_time: '1:00', teacher: '슈', roster: 'x' }];   // w* 는 안 보여야
   let WL = [   // 이미 있는 대기 줄 — 대기 시작일이 늦은 줄을 먼저 넣어 순서 검사
     { id: 11, kind: '예비', name: '늦은대기', year: 2027, grade: '고1', school: '백양고', phone_parent: '01055556666', student_id: null, want_book: '정규', want_class_id: 'r001', want_class_name: '고1 가 · 금 5:30 · 지원T', cap: 12, memo: '', started_on: '2026-10-20', status: '대기', done_at: null, done_by_name: '', done_note: '', author_name: '고희주', created_at: '2026-10-20T01:00:00Z', updated_at: '2026-10-20T01:00:00Z', updated_by_name: '' },
@@ -135,13 +137,13 @@ function serve(){
 
   // ② 반 드롭다운(인원) · 정원 자동
   r = await pg.evaluate(() => [...document.querySelectorAll('#wt-class option')].map(o => o.textContent));
-  ok('정규 반 드롭다운 = 미정 + 정규 반(인원 표시, w* 제외)', r.join('|') === '미정|고1 가 · 금 5:30 · 지원T · 12명|고1 나 · 일 11:00 · 승연T · 3명', r.join('|'));
+  ok('정규 반 드롭다운 = 미정 + 정규 반(인원 표시, w* 제외)', r.join('|') === '미정|고1 가 · 금 5:30 · 지원T · 12명|고1 나 · 일 11:00 · 승연T · 3명|정리정독 중3 · 토 11:00 · 승연T · 2명', r.join('|'));
   await pg.selectOption('#wt-class', 'r001');
   r = await pg.evaluate(() => document.getElementById('wt-cap').value);
   ok('반을 고르면 정원 칸이 지금 인원(12)으로', r === '12', r);
   await pg.click('#wtBook button[data-book="내신"]');
   r = await pg.evaluate(() => ({ opts: [...document.querySelectorAll('#wt-class option')].map(o => o.textContent), cap: document.getElementById('wt-cap').value }));
-  ok('내신으로 바꾸면 내신 반만 · 정원 비움', r.opts.length === 3 && /고1 화정A.*4명/.test(r.opts[1]) && r.cap === '', JSON.stringify(r));
+  ok('내신으로 바꾸면 내신 반만 · 정원 비움', r.opts.length === 4 && /고1 화정A.*4명/.test(r.opts[1]) && r.cap === '', JSON.stringify(r));
   await pg.selectOption('#wt-class', 'n001');
   await pg.fill('#wt-cap', '6');
   await pg.selectOption('#wt-class', 'n002');
@@ -254,6 +256,18 @@ function serve(){
   ok('[이동 완료] → 확인 창(전체 시간표에서 따로) → status 완료 · 반 이동 완료', /전체 시간표/.test(dialogs[0] || '') && p[0] === 13 && p[1].status === '완료' && p[1].done_note === '반 이동 완료', JSON.stringify(p));
 
   // ⑦ 등록으로 전환 → 신입 폼 → 등록 → 완료
+  await pg.evaluate(() => { location.hash = '#new'; });
+  await pg.evaluate(() => showTab('new'));
+  await pg.selectOption('#f-grade', '2026 중등 3학년');
+  await pg.waitForFunction(() => [...document.getElementById('f-classA').options].every(o => !o.value || /중3/.test(o.textContent)));
+  r = await pg.evaluate(() => ({ lab: document.getElementById('f-classA-l').textContent, b: getComputedStyle(document.getElementById('f-classB-w')).display, ns: getComputedStyle(document.getElementById('f-ns-row')).display, note: document.getElementById('f-once-note').textContent, a: [...document.getElementById('f-classA').options].map(o => o.value) }));
+  ok('중3 = 주 1회 — 정규 수업 반 하나만(나 반·내신 칸 숨김, 짝 반 안내) · 반 목록은 중3 반만', r.lab === '정규 수업 반 (주 1회)' && r.b === 'none' && r.ns === 'none' && /내신 시간표의 같은 반/.test(r.note) && r.a.join(',') === ',r010', JSON.stringify(r));
+  await pg.selectOption('#f-grade', '2026 고등 1학년');
+  await pg.waitForFunction(() => [...document.getElementById('f-classA').options].some(o => o.value === 'r001'));
+  r = await pg.evaluate(() => ({ lab: document.getElementById('f-classA-l').textContent, b: getComputedStyle(document.getElementById('f-classB-w')).display, a: [...document.getElementById('f-classA').options].map(o => o.value) }));
+  ok('고1 = 가·나 칸 그대로 · 반 목록은 고1 반만', r.lab === '정규 가 반' && r.b !== 'none' && !r.a.includes('r010') && r.a.includes('r002'), JSON.stringify(r));
+  await pg.selectOption('#f-grade', '');
+  await pg.evaluate(() => showTab('wait'));
   r = await pg.evaluate(() => { const sel = document.getElementById('f-grade'); return { tag: sel.tagName, opts: [...sel.options].map(o => o.value), groups: [...sel.querySelectorAll('optgroup')].map(g => g.label) }; });
   ok('신입 슈스 학년 = 드롭다운(2026-11-10) — 2026 중등 3학년 포함, 이번·다음 학년도 중1~고3', r.tag === 'SELECT' && r.opts.includes('2026 중등 3학년') && r.opts.includes('2027 고등 1학년') && r.opts.includes('2026 중등 1학년') && r.groups[0] === '2026학년도 (지금)' && r.groups[1] === '2027학년도 (예비)', JSON.stringify(r));
   await pg.click('#wtKinds button[data-kind="예비"]');
