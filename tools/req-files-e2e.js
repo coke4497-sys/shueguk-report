@@ -242,6 +242,14 @@ const NS_SCOPE = { period: PERS.fin, class_key: '공유:고1|화정', kind: '범
     return { secs, sum: document.getElementById('sc-sum').textContent, grades: [...document.querySelectorAll('#sc-grade button')].map(b => b.textContent) };
   });
   ok('[전체] = 학년 구역 중2 → 고1 → 고2, 띠마다 그 학년 입력 수, 카드는 학교 가나다', r.secs.join(';') === '중2|입력 완료 0 / 2|중2 백양,중2 화정;고1|입력 완료 0 / 2 · 일부 기록 1|고1 능곡,고1 화정;고2|입력 완료 0 / 1|고2 서정' && r.sum === PERS.fin + ' · 입력 완료 0 / 5 · 일부 기록 1' && r.grades.join(',') === '전체,중2,고1,고2', JSON.stringify(r));
+  // ⑥-0 반 인원 알약(2026-11-10 원장님 "해당 반이 몇 명인지 작게 알약으로") — 반마다 'n명', 반이 둘 이상인 카드는 제목 옆에 합계
+  r = await page.evaluate(() => {
+    const t = scopeTargetsOf([{ class_id: 'n201', name: '고1 화정A(천재수 공통국어2)', teacher: '현지', roster: '박보검 (화정)김하늘 이소율A' },
+      { class_id: 'n202', name: '고1 화정B(천재수 공통국어2)', teacher: '지원', roster: '최다인 한서준' }, { class_id: 'n203', name: '고2 서정A(천재 독작)', teacher: '주혜', roster: '' }]);
+    const box = document.createElement('div'); box.innerHTML = t.map(scopeCardHtml).join('');
+    return [...box.querySelectorAll('.sc-card')].map(c => [...c.querySelectorAll('.sc-cls .sc-n')].map(x => x.textContent).join(',') + '|' + ((c.querySelector('h4 .sc-n') || {}).textContent || ''));
+  });
+  ok('반 인원 알약 — 반마다 n명(괄호 표기도 한 명), 공유 카드는 제목 옆 합계', r.join(';') === '3명,2명|5명;0명|', JSON.stringify(r));
   if (process.env.SHOT) await page.screenshot({ path: process.env.SHOT + '/6b-시험범위탭-학년별.png', clip: { x: 0, y: 0, width: 1300, height: 900 } });
   await page.click('#sc-grade [data-scgr="고1"]');
   r = await page.evaluate(() => ({ secs: [...document.querySelectorAll('.sc-sec')].map(s => s.getAttribute('data-grade')), n: document.querySelectorAll('.sc-card').length, all: document.querySelector('.sc-sec-h .sc-cnt').className }));
