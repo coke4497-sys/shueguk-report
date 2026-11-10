@@ -38,6 +38,7 @@ function serve(){
     { id: 12, kind: '예비', name: '이른대기', year: 2027, grade: '고1', school: '화수고', phone_parent: '', student_id: null, want_book: '정규', want_class_id: 'r001', want_class_name: '고1 가 · 금 5:30 · 지원T', cap: 13, memo: '슈톡에서 올림', started_on: '2026-10-01', status: '대기', done_at: null, done_by_name: '', done_note: '', author_name: '이은지', created_at: '2026-10-01T01:00:00Z', updated_at: '2026-10-01T01:00:00Z', updated_by_name: '' },
     { id: 13, kind: '재원', name: '김하늘', year: 2026, grade: '고1', school: '화정고', phone_parent: '01033334444', student_id: 2, want_book: '정규', want_class_id: 'r002', want_class_name: '고1 나 · 일 11:00 · 승연T', cap: 3, memo: '일요일로 옮기고 싶어요', started_on: '2026-10-15', status: '대기', done_at: null, done_by_name: '', done_note: '', author_name: '고희주', created_at: '2026-10-15T01:00:00Z', updated_at: '2026-10-15T01:00:00Z', updated_by_name: '' },
     { id: 14, kind: '예비', name: '지난완료', year: 2026, grade: '중2', school: '서정중', phone_parent: '', student_id: null, want_book: '', want_class_id: '', want_class_name: '', cap: null, memo: '', started_on: '2026-09-01', status: '완료', done_at: '2026-09-20T01:00:00Z', done_by_name: '고희주', done_note: '신입 등록 전환', author_name: '고희주', created_at: '2026-09-01T01:00:00Z', updated_at: '2026-09-20T01:00:00Z', updated_by_name: '고희주' }];
+  let nwReady = true; const alims = [];
   let wlMissing = false, nextId = 100;
   const posts = [], patches = [], regs = [], acts = [], dels = []; let dialogs = [], promptAnswer = '', confirmNo = false;
   const pg = await (await br.newContext({ viewport: { width: 1100, height: 900 } })).newPage();
@@ -66,8 +67,10 @@ function serve(){
       if (m === 'POST'){
         const b = JSON.parse(rt.request().postData());
         if (b.action === 'addStudent'){ regs.push(b); return j({ result: 'success', name: b.name, token: 'tok-' + regs.length }); }
+        if (b.action === 'alimSend'){ alims.push(b); return j({ result: 'success', okCount: b.items.length, sent: b.items.map(it => ({ student: it.student, who: it.who, ok: true })) }); }
         return j({ result: 'success' });
       }
+      if (/action=alimConfig/.test(u)) return j({ result: 'success', ready: true, templates: { newstu: { ready: nwReady, label: '신입생 등록 안내' } } });
       if (/action=roster/.test(u)) return j({ result: 'success', students: STU.filter(s => !s.enrolled).map(s => ({ name: s.name, school: s.school, grade: s.grade, teacher: s.teacher })) });
       if (/action=newStudents/.test(u)) return j({ result: 'success', students: [] });
       return j({ result: 'success', students: [], list: [] });
@@ -279,6 +282,23 @@ function serve(){
   await pg.click('#regBtn');
   await pg.waitForFunction(() => /입학으로 바꿨/.test(document.getElementById('doneWait').textContent), null, { timeout: 8000 });
   p = patches[patches.length - 1];
+  // ⑦-8b 신입생 등록 안내 알림톡(2026-11-10) — 등록 완료 화면에서 눌러서 보낸다
+  await pg.waitForFunction(() => !document.getElementById('nwGo').disabled, null, { timeout: 5000 });
+  r = await pg.evaluate(() => ({ first: document.getElementById('nwFirst').value, place: document.getElementById('nwPlace').value, pv: document.getElementById('nwPv').textContent,
+    whos: [...document.querySelectorAll('.nw-w')].map(x => x.value + ':' + (x.checked ? 1 : 0) + (x.disabled ? 'x' : '')) }));
+  ok('신입 안내 — 첫 수업은 고른 반(금 5:30 고1 가)의 다음 날짜 · 받는 분 학생·학부모님1 체크(학부모님2 번호 없음) · 미리보기에 이름', /^\d{1,2}\/\d{1,2}\(금\) 5:30 고1 가$/.test(r.first) && r.whos.join(',') === '학생:1,학부모1:1,학부모2:0x' && /이른대기 학생의 등록이 완료/.test(r.pv) && /첫 수업: \d/.test(r.pv), JSON.stringify(r));
+  await pg.click('#nwGo');
+  ok('수업 장소가 비면 보내지 않음', alims.length === 0 && /장소/.test(await pg.textContent('#nwMsg')));
+  await pg.fill('#nwPlace', '대감빌딩 5층 이수경 국어 본원');
+  await pg.click('#nwGo');
+  await pg.waitForFunction(() => /보냈습니다/.test(document.getElementById('nwMsg').textContent), null, { timeout: 5000 });
+  const ab = alims[0], it0 = ab && ab.items[0];
+  ok('alimSend 본문 — 종류 newstu·두 분·변수(학생명·첫수업·장소·접근코드)·중복 키 N:오늘|신입', ab && ab.kind === 'newstu' && ab.items.length === 2 && it0.to === '01099990000' && it0.who === '학생' && it0.vars['학생명'] === '이른대기' && it0.vars['장소'] === '대감빌딩 5층 이수경 국어 본원' && it0.vars['접근코드'] && it0.vars['접근코드'] === ab.items[1].vars['접근코드'] && /^N:\d{4}-\d{2}-\d{2}\|신입$/.test(it0.date) && /고1 가/.test(it0.vars['첫수업']), JSON.stringify(ab));
+  nwReady = false;
+  await pg.evaluate(() => nwOpen({ name: '김심사', token: 't', picks: [], pstu: '01011112222', pp1: '', pp2: '' }));
+  await pg.waitForFunction(() => /심사/.test(document.getElementById('nwState').textContent), null, { timeout: 5000 });
+  ok('템플릿 준비 전이면 버튼 잠금 + 심사 안내', await pg.isDisabled('#nwGo'));
+  nwReady = true;
   ok('등록 성공 → 대기 줄 12 입학(신입 등록 전환) + 등록 완료 카드 안내', regs.length === 1 && regs[0].name === '이른대기' && p[0] === 12 && p[1].status === '입학' && p[1].done_note === '신입 등록 전환', JSON.stringify(p));
   await pg.click('#tabWaitBtn');
   await pg.waitForFunction(() => document.querySelectorAll('#wtList .wt-row').length >= 2, null, { timeout: 5000 });   // 탭을 다시 열면 새로 받는다
