@@ -1667,7 +1667,10 @@
   /* 반 이름의 학년('고3파이널A'→고3, '정리정독 중3'→중3, '고1 가'→고1) — 없으면 '' */
   function ttClsGrade(nm){ var m = /([중고])\s*([1-3])/.exec(String(nm || '')); return m ? m[1] + m[2] : ''; }
   /* 학년 칸 값('2026 중등 3학년') → '중3' */
-  function fGradeKey(){ var m = /(중|고)등\s*([1-3])학년/.exec($('f-grade').value || ''); return m ? m[1] + m[2] : ''; }
+  /* 반 고르기·주 1회 판정은 지금(2026) 학년 기준 — '2027 중등 3학년'은 지금 중2라 중2 반이 나온다 (2026-11-10 원장님 "지금은 2026 기준") */
+  function fGradeRaw(v){ var m = /(\d{4})?\s*(중|고)등\s*([1-3])학년/.exec(v || ''); return m ? { y: m[1] ? +m[1] : 0, g: m[2] + m[3] } : null; }
+  function fGradeNow(v){ var r = fGradeRaw(v); if (!r) return ''; return r.y ? wtNowGrade(r.g, r.y) : r.g; }
+  function fGradeKey(){ return fGradeNow($('f-grade').value); }
   /* 중3·고3은 주 1회 등원 — 정규 반 하나만 고르고(내신 짝 반은 자동), 나 반·내신 칸은 숨긴다 (2026-11-10 원장님) */
   function fClassMode(){
     var g = fGradeKey(), once = g === '중3' || g === '고3';
@@ -1675,8 +1678,12 @@
     $('f-classB-w').style.display = once ? 'none' : '';
     $('f-ns-row').style.display = once ? 'none' : '';
     var note = $('f-once-note');
-    note.style.display = once ? '' : 'none';
-    note.textContent = once ? g + '은 주 1회 등원이라 반 하나만 고르면 됩니다. 내신 시간표의 같은 반에도 함께 들어가요.' : '';
+    var raw = fGradeRaw($('f-grade').value), ahead = raw && raw.y && raw.y > wtNowYear() && g;
+    var msg = [];
+    if (ahead) msg.push(raw.y + ' ' + raw.g + '은 지금(' + wtNowYear() + ') ' + g + '이라 ' + g + ' 반에서 고릅니다.');
+    if (once) msg.push(g + '은 주 1회 등원이라 반 하나만 고르면 됩니다. 내신 시간표의 같은 반에도 함께 들어가요.');
+    note.style.display = msg.length ? '' : 'none';
+    note.textContent = msg.join(' ');
     if (once) ['f-classB', 'f-progress', 'f-checkup'].forEach(function(id){ $(id).value = ''; });
     ttPickerFill();
   }
@@ -1810,8 +1817,7 @@
       })(0);
       // 고른 반이 있으면 전체 시간표 명단에도 넣는다 (등록된 이름 기준 — 동명이인 접미사 포함)
       var picks = [pA, pB, pP, pC].filter(Boolean);
-      var gm = /(중|고)등\s*([1-3])학년/.exec(grade || '');
-      nwOpen({ name: String(d.name || name).trim(), token: d.token, picks: picks, pstu: pstu, pp1: pp1, pp2: pp2, grade: gm ? gm[1] + gm[2] : '' });
+      nwOpen({ name: String(d.name || name).trim(), token: d.token, picks: picks, pstu: pstu, pp1: pp1, pp2: pp2, grade: fGradeNow(grade) });
       var tEl = $('doneTT');
       if (picks.length && tEl){
         tEl.textContent = '시간표에 넣는 중…'; tEl.className = 'status';

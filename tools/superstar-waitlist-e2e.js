@@ -270,6 +270,11 @@ function serve(){
   await pg.waitForFunction(() => [...document.getElementById('f-classA').options].some(o => o.value === 'r001'));
   r = await pg.evaluate(() => ({ lab: document.getElementById('f-classA-l').textContent, b: getComputedStyle(document.getElementById('f-classB-w')).display, a: [...document.getElementById('f-classA').options].map(o => o.value) }));
   ok('고1 = 가·나 칸 그대로 · 반 목록은 고1 반만', r.lab === '정규 가 반' && r.b !== 'none' && !r.a.includes('r010') && r.a.includes('r002'), JSON.stringify(r));
+  // 2027 학년은 지금(2026) 학년 기준 — '2027 고등 1학년'은 지금 중3이라 중3 반·주 1회 (2026-11-10 원장님 "지금은 2026 기준")
+  await pg.evaluate(() => { const sel = document.getElementById('f-grade'); const v = [...sel.options].map(o => o.value).find(x => /^20\d\d 고등 1학년$/.test(x) && +x.slice(0, 4) > wtNowYear()); sel.value = v; sel.dispatchEvent(new Event('change', { bubbles: true })); });
+  await pg.waitForFunction(() => [...document.getElementById('f-classA').options].every(o => !o.value || /중3/.test(o.textContent)));
+  r = await pg.evaluate(() => ({ lab: document.getElementById('f-classA-l').textContent, note: document.getElementById('f-once-note').textContent, a: [...document.getElementById('f-classA').options].map(o => o.value), key: fGradeKey() }));
+  ok('다음 학년도 고1 = 지금 중3 → 중3 반만·주 1회·안내', r.key === '중3' && r.lab === '정규 수업 반 (주 1회)' && r.a.join(',') === ',r010' && /지금\(\d{4}\) 중3이라 중3 반에서/.test(r.note), JSON.stringify(r));
   await pg.selectOption('#f-grade', '');
   await pg.evaluate(() => showTab('wait'));
   r = await pg.evaluate(() => { const sel = document.getElementById('f-grade'); return { tag: sel.tagName, opts: [...sel.options].map(o => o.value), groups: [...sel.querySelectorAll('optgroup')].map(g => g.label) }; });
