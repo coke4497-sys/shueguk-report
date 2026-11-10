@@ -4329,6 +4329,23 @@ var ALIM_TPL_ = {
     text: alimAvailText_('신입생'),
     buttons: [{ name: '학생 페이지 링크', type: 'WL', linkMo: ALIM_STU_LINK_, linkPc: ALIM_STU_LINK_ }]
   }
+  ,
+  /* 신입생 등록 안내(2026-11-10 원장님 "신입전용 알림톡을 연결해주세요" — 문구는 원장님이 솔라피에 등록한 그대로).
+   * 슈퍼스타 관리 → 신입 슈스 등록이 끝난 화면의 [신입생 안내 알림톡 보내기]로만 보낸다(자동 발송 없음).
+   * #{첫수업} = '11/14(토) 11:00 정리정독 중3'(등록 때 고른 반에서 화면이 채움), #{장소} = 그 반 센터(고칠 수 있음).
+   * 중복 키(수업일 칸)는 'N:등록일|신입' — 같은 학생·받는 분에게 하루 한 번. */
+  newstu: {
+    label: '신입생 등록 안내', prop: 'ALIM_TPL_NEWSTU',
+    vars: ['학생명', '첫수업', '장소', '접근코드'],
+    text: '[이수경국어학원] 신입생 등록 안내\n' +
+          '#{학생명} 학생의 등록이 완료되었습니다.\n' +
+          '\n' +
+          '▶ 첫 수업: #{첫수업}\n' +
+          '▶ 수업 장소: #{장소}\n' +
+          '\n' +
+          '학생 페이지에서 공지, 수업 리포트, 테스트를 확인할 수 있습니다.',
+    buttons: [{ name: '학생 페이지 링크', type: 'WL', linkMo: ALIM_STU_LINK_, linkPc: ALIM_STU_LINK_ }]
+  }
   // 행사 안내(notice_event)는 2026-09-29 사용자 "행사 안내는 삭제"로 뺐다 — 공지 알림은 일곱 종류(결석까지 8종).
 };
 function alimProps_() { return PropertiesService.getScriptProperties(); }

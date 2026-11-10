@@ -456,6 +456,19 @@
   }
   @media (max-width:560px){
   }
+  /* 신입생 안내 알림톡 (2026-11-10) */
+  .nw-box{margin-top:16px;padding:14px 16px;border-radius:14px;background:#F6F2FA;text-align:left;display:flex;flex-direction:column;gap:8px;}
+  .nw-h{font-weight:700;color:#5A4A6A;font-size:15px;}
+  .nw-st{font-size:13px;color:#5C6A64;}
+  .nw-st.wait{color:#8a6a35;}
+  .nw-who{display:flex;flex-wrap:wrap;gap:6px;}
+  .nw-who label{display:flex;align-items:center;gap:5px;background:#fff;border-radius:999px;padding:5px 11px;font-size:13px;color:#2A332F;cursor:pointer;}
+  .nw-who label.off{color:#9aa6a0;cursor:not-allowed;}
+  .nw-l{display:flex;flex-direction:column;gap:4px;font-size:13px;color:#4F5C56;}
+  .nw-l input{border:1px solid #DCD3E6;border-radius:10px;padding:8px 10px;font-size:14px;background:#fff;}
+  .nw-pv{white-space:pre-wrap;font-family:inherit;font-size:13px;line-height:1.6;background:#FFFDF6;border-radius:10px;padding:10px 12px;margin:0;color:#2A332F;}
+  .nw-go{border:0;border-radius:10px;background:#EDE4F4;color:#5A4A6A;font-weight:700;font-size:14px;padding:10px 14px;cursor:pointer;}
+  .nw-go:disabled{opacity:.5;cursor:not-allowed;}
 </style>
 </head>
 <body class="locked">
@@ -593,6 +606,19 @@
       링크를 잃어버리면 티쳐스의 <b>'학생 페이지 링크'</b> 메뉴에서 언제든 다시 찾을 수 있습니다.</p>
       <div class="status" id="doneTT"></div>
       <div class="status" id="doneWait"></div>
+      <!-- 신입생 등록 안내 알림톡 (2026-11-10 원장님 "신입전용 알림톡을 연결해주세요") — 자동 발송 없음, 눌러서 보낸다 -->
+      <div class="nw-box" id="nwBox" style="display:none">
+        <div class="nw-h">신입생 안내 알림톡</div>
+        <div class="nw-st" id="nwState"></div>
+        <div id="nwForm">
+          <div class="nw-who" id="nwWho"></div>
+          <label class="nw-l">첫 수업 <input type="text" id="nwFirst" maxlength="60" placeholder="예) 11/14(토) 11:00 정리정독 중3"></label>
+          <label class="nw-l">수업 장소 <input type="text" id="nwPlace" maxlength="60" placeholder="예) 대감빌딩 5층 이수경 국어 본원"></label>
+          <pre class="nw-pv" id="nwPv"></pre>
+          <button type="button" class="nw-go" id="nwGo" onclick="nwSend()">신입생 안내 알림톡 보내기</button>
+          <div class="status" id="nwMsg"></div>
+        </div>
+      </div>
       <div class="status" id="copyStatus"></div>
     </section>
 
@@ -1630,7 +1656,7 @@
   var TTC = null;
   function ttLoadClasses(){
     if (TTC) return Promise.resolve(TTC);
-    return sbx('GET','/tt_classes?class_id=not.like.w*&select=book,class_id,name,day,start_time,teacher')
+    return sbx('GET','/tt_classes?class_id=not.like.w*&select=book,class_id,name,day,start_time,teacher,location')
       .then(function(rows){
         TTC = (rows||[]).sort(function(a,b){
           return String(a.name).localeCompare(String(b.name),'ko') || String(a.start_time).localeCompare(String(b.start_time));
@@ -1784,6 +1810,7 @@
       })(0);
       // 고른 반이 있으면 전체 시간표 명단에도 넣는다 (등록된 이름 기준 — 동명이인 접미사 포함)
       var picks = [pA, pB, pP, pC].filter(Boolean);
+      nwOpen({ name: String(d.name || name).trim(), token: d.token, picks: picks, pstu: pstu, pp1: pp1, pp2: pp2 });
       var tEl = $('doneTT');
       if (picks.length && tEl){
         tEl.textContent = '시간표에 넣는 중…'; tEl.className = 'status';
@@ -1796,6 +1823,94 @@
     })
     .catch(function(){ btn.disabled=false; setReg('연결 실패 — 인터넷을 확인해 주세요. (재배포 전이면 아직 사용할 수 없어요)','err'); });
   }
+  /* ══ 신입생 등록 안내 알림톡 (2026-11-10 원장님 "신입전용 알림톡을 연결해주세요") ══
+   * 등록 완료 화면에서 눌러서 보낸다(자동 발송 없음). 템플릿 = 백엔드 ALIM_TPL_.newstu(솔라피 심사본과 글자 하나까지 같아야 함).
+   * #{첫수업} = 등록 때 고른 반 중 오늘 이후 가장 먼저 오는 수업('11/14(토) 11:00 정리정독 중3'), #{장소} = 그 반 센터 — 둘 다 고칠 수 있다. */
+  var NW = null, NW_DAYS = '일월화수목금토';
+  var NW_PLACE = { '본원':'슈국 본원 (고양시 덕양구 화중로76 대감빌딩 5층)',
+                   '정리정독':'정리정독 중등센터 (고양시 덕양구 화중로60 화정빌딩 6층)',
+                   '화정센터':'화정센터 (고양시 덕양구 화신로278 세일빌딩 4층)',
+                   '민트초코':'민트초코센터 (고양시 덕양구 화신로278 세일빌딩 3층)',
+                   '민초센터':'민트초코센터 (고양시 덕양구 화신로278 세일빌딩 3층)',
+                   '도래울':'도래울센터 (고양시 덕양구 도래울로52 센터프라자 2층)',
+                   '도래울센터':'도래울센터 (고양시 덕양구 도래울로52 센터프라자 2층)' };
+  var NW_TEXT = '[이수경국어학원] 신입생 등록 안내\n#{학생명} 학생의 등록이 완료되었습니다.\n\n▶ 첫 수업: #{첫수업}\n▶ 수업 장소: #{장소}\n\n학생 페이지에서 공지, 수업 리포트, 테스트를 확인할 수 있습니다.';
+  function nwPlain(n){ return String(n || '').replace(/[A-Z]$/, ''); }
+  // 고른 반 중 오늘(한국 날짜) 이후 가장 먼저 오는 수업
+  function nwFirstClass(picks){
+    var t = todayYmdKST(), base = new Date(t + 'T00:00:00Z'), best = null;
+    (picks || []).forEach(function(c){
+      var di = NW_DAYS.indexOf(String(c.day || '').charAt(0)); if (di < 0) return;
+      var add = (di - base.getUTCDay() + 7) % 7, d = new Date(base.getTime() + add * 864e5);
+      var key = d.getTime() * 10000 + (parseInt(String(c.start_time || '').replace(/[^0-9:]/g, ''), 10) || 0);
+      if (!best || key < best.key) best = { key: key, d: d, c: c };
+    });
+    if (!best) return null;
+    var c = best.c, d = best.d;
+    return { text: (d.getUTCMonth() + 1) + '/' + d.getUTCDate() + '(' + NW_DAYS.charAt(d.getUTCDay()) + ') ' + String(c.start_time || '') + ' ' + String(c.name || ''),
+             place: NW_PLACE[String(c.location || '').trim()] || String(c.location || '').trim() };
+  }
+  function nwPreview(){
+    if (!NW) return;
+    $('nwPv').textContent = NW_TEXT.replace('#{학생명}', nwPlain(NW.name)).replace('#{첫수업}', $('nwFirst').value.trim() || '(첫 수업)')
+      .replace('#{장소}', $('nwPlace').value.trim() || '(수업 장소)') + '\n\n[학생 페이지 링크]';
+  }
+  function nwOpen(o){
+    NW = o; var box = $('nwBox'); if (!box) return;
+    var f = nwFirstClass(o.picks);
+    $('nwFirst').value = f ? f.text : ''; $('nwPlace').value = f ? f.place : '';
+    var whos = [['학생', '학생', o.pstu], ['학부모1', '학부모님1', o.pp1], ['학부모2', '학부모님2', o.pp2]];
+    $('nwWho').innerHTML = whos.map(function(w){
+      return '<label' + (w[2] ? '' : ' class="off"') + '><input type="checkbox" class="nw-w" value="' + w[0] + '" data-to="' + esc(w[2] || '') + '"' +
+        (w[2] ? ' checked' : ' disabled') + '>' + w[1] + (w[2] ? '' : ' (번호 없음)') + '</label>';
+    }).join('');
+    $('nwMsg').textContent = ''; $('nwMsg').className = 'status';
+    $('nwGo').disabled = true; $('nwGo').textContent = '신입생 안내 알림톡 보내기';
+    $('nwState').className = 'nw-st'; $('nwState').textContent = '알림톡 준비 상태를 확인하는 중…';
+    box.style.display = 'flex'; nwPreview();
+    fetch(ENDPOINT + '?action=alimConfig&pw=' + encodeURIComponent(SERVER_PW) + '&t=' + Date.now())
+      .then(function(r){ return r.json(); })
+      .then(function(c){
+        var t = c && c.templates && c.templates.newstu;
+        var ready = !!(c && c.ready && t && t.ready);
+        NW.ready = ready;
+        $('nwState').className = 'nw-st' + (ready ? '' : ' wait');
+        $('nwState').textContent = ready ? '받는 분과 첫 수업을 확인하고 보내 주세요. 같은 분에게는 하루 한 번만 갑니다.'
+          : (t ? '카카오 심사가 끝나면 보낼 수 있어요. 지금은 템플릿이 준비 전입니다.' : '백엔드를 새로 배포하면 쓸 수 있어요.');
+        $('nwGo').disabled = !ready;
+      })
+      .catch(function(){ $('nwState').className = 'nw-st wait'; $('nwState').textContent = '알림톡 상태를 확인하지 못했습니다. 잠시 뒤 다시 등록 화면을 열어 주세요.'; });
+  }
+  function nwSend(){
+    if (!NW || !NW.ready) return;
+    var first = $('nwFirst').value.trim(), place = $('nwPlace').value.trim(), msg = $('nwMsg');
+    var ws = Array.prototype.filter.call(document.querySelectorAll('.nw-w'), function(x){ return x.checked && x.getAttribute('data-to'); });
+    if (!first || !place){ msg.className = 'status err'; msg.textContent = '첫 수업과 수업 장소를 적어 주세요.'; return; }
+    if (!ws.length){ msg.className = 'status err'; msg.textContent = '받는 분을 한 분 이상 골라 주세요.'; return; }
+    if (!NW.token){ msg.className = 'status err'; msg.textContent = '접근코드가 없어 학생 페이지 버튼을 만들 수 없습니다.'; return; }
+    if (!confirm(nwPlain(NW.name) + ' 학생 신입생 안내 알림톡을 ' + ws.length + '분께 보낼까요?\n\n첫 수업: ' + first + '\n수업 장소: ' + place)) return;
+    var seen = {}, items = [];
+    ws.forEach(function(x){ var to = x.getAttribute('data-to').replace(/\D/g, ''); if (seen[to]) return; seen[to] = 1;   // 같은 번호는 한 통
+      items.push({ student: NW.name, to: to, who: x.value, cls: '신입', date: 'N:' + todayYmdKST() + '|신입',
+                   vars: { '학생명': nwPlain(NW.name), '첫수업': first, '장소': place, '접근코드': NW.token } }); });
+    $('nwGo').disabled = true; $('nwGo').textContent = '보내는 중…';
+    giverName().then(function(by){
+      return fetch(ENDPOINT, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
+        body: JSON.stringify({ action:'alimSend', pw: SERVER_PW, kind:'newstu', by: by, items: items }) }).then(function(r){ return r.json(); });
+    }).then(function(res){
+      if (!res || res.result !== 'success') throw new Error((res && res.message) || '알 수 없는 답');
+      var bad = (res.sent || []).filter(function(x){ return !x.ok; }), dup = (res.sent || []).filter(function(x){ return x.dup; });
+      msg.className = 'status' + (bad.length ? ' err' : ' ok');
+      msg.textContent = (res.okCount ? '✓ ' + res.okCount + '분께 보냈습니다.' : '') + (dup.length ? ' 이미 받은 ' + dup.length + '분은 건너뛰었어요.' : '') +
+        (bad.length ? ' 못 보낸 분: ' + bad.map(function(x){ return x.who + ' (' + x.message + ')'; }).join(', ') : '');
+      $('nwGo').textContent = '보냈어요'; $('nwGo').disabled = !bad.length;
+      try { if (window.shuegukActivity) shuegukActivity('알림톡', '신입생 등록 안내', nwPlain(NW.name), res.okCount + '분', true); } catch (e) {}
+    }).catch(function(e){
+      msg.className = 'status err'; msg.textContent = '보내지 못했습니다: ' + (e && e.message || '인터넷 연결 문제');
+      $('nwGo').disabled = false; $('nwGo').textContent = '신입생 안내 알림톡 보내기';
+    });
+  }
+  document.addEventListener('input', function(e){ if (e.target && (e.target.id === 'nwFirst' || e.target.id === 'nwPlace')) nwPreview(); });
   function copyLink(){
     var link=$('doneLink').getAttribute('data-link')||'';
     var done=function(){ var s=$('copyStatus'); s.textContent='✓ 링크가 복사되었어요'; s.className='status'; };
@@ -1812,6 +1927,7 @@
     fClassMode();
     $('copyStatus').textContent=''; if($('doneWait')) $('doneWait').textContent='';
     $('doneCard').style.display='none';
+    if ($('nwBox')) $('nwBox').style.display='none'; NW = null;
     $('formCard').style.display='block';
     hideWarn(); setReg('');
     loadRoster();   // 방금 등록한 학교·학년도 자동완성에 반영

@@ -359,7 +359,7 @@ const posts = [];
   await page.waitForFunction(() => document.getElementById('status').textContent.includes('미등원 알림톡'), null, { timeout: 8000 });
   const np = posts.filter(p => p.action === 'alimSend').pop();
   ok('POST kind noshow·오늘 날짜·변수 넷(학원번호 = 화정센터)', np && np.kind === 'noshow' && np.items.length === 3 && np.items.every(x => x.date === ymd && x.vars['학생명'] === '박지우' && x.vars['반이름'] === '고1 가' && x.vars['학원번호'] === '031-979-4497' && Object.keys(x.vars).length === 4), JSON.stringify(np));
-  ok('센터 번호 — 위치로·학년으로·모르면 본원', await page.evaluate(() => [alimCenterTel({loc:'민트초코'}), alimCenterTel({loc:'민초센터'}), alimCenterTel({loc:'정리정독'}), alimCenterTel({loc:'도래울센터'}), alimCenterTel({loc:'', cls:'고3파이널A'}), alimCenterTel({loc:'', cls:'고2 확인'}), alimCenterTel({loc:'', cls:'정리정독 중3'}), alimCenterTel({loc:'', cls:'논술B 국어'})].join()) === '031-969-4497,031-969-4497,031-994-0624,031-969-4497,031-973-4497,031-969-4497,031-994-0624,031-973-4497');
+  ok('센터 번호 — 위치로·학년으로·모르면 본원', await page.evaluate(() => [alimCenterTel({loc:'민트초코'}), alimCenterTel({loc:'민초센터'}), alimCenterTel({loc:'정리정독'}), alimCenterTel({loc:'도래울센터'}), alimCenterTel({loc:'', cls:'고3파이널A'}), alimCenterTel({loc:'', cls:'고2 확인'}), alimCenterTel({loc:'', cls:'정리정독 중3'}), alimCenterTel({loc:'', cls:'논술B 국어'})].join()) === '031-970-4497,031-970-4497,031-994-0624,031-969-4497,031-973-4497,031-970-4497,031-994-0624,031-973-4497');
   ok('상태 줄 — 미등원 알림톡 3건', (await page.textContent('#status')).includes('미등원 알림톡 3건 보냈어요'));
   ok('출석 기록은 그대로 없음', await page.evaluate(() => !attend[attKey('r010', '박지우')]));
   await page.evaluate(() => openAttend(classes[0], '박지우'));
