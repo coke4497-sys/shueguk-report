@@ -4372,8 +4372,8 @@ function alimSheet_(ss) {
   var sh = ss.getSheetByName(TAB_ALIM);
   if (!sh) {
     sh = ss.insertSheet(TAB_ALIM);
-    sh.appendRow(['기록일시', '종류', '학생', '받는분', '번호', '반', '수업일', '결과', '메시지', '그룹ID', '보낸사람', '예약시각']);
-    sh.getRange(1, 1, 1, 12).setFontWeight('bold').setBackground('#DDE5E1');
+    sh.appendRow(['기록일시', '종류', '학생', '받는분', '번호', '반', '수업일', '결과', '메시지', '그룹ID', '보낸사람', '예약시각', '내용']);
+    sh.getRange(1, 1, 1, 13).setFontWeight('bold').setBackground('#DDE5E1');
   } else {
     if (String(sh.getRange(1, 11).getValue() || '').trim() !== '보낸사람') {
       // 옛 시트(A~J)에 K열 머리글 보충 — 2026-10-03 '누가 보냈는지'를 남기기 시작
@@ -4382,6 +4382,10 @@ function alimSheet_(ss) {
     if (String(sh.getRange(1, 12).getValue() || '').trim() !== '예약시각') {
       // L열 — 예약 발송(2026-10-18). 결과 '예약'/'예약 취소' 줄의 보낼 시각(yyyy-MM-dd HH:mm, 한국 시각)
       sh.getRange(1, 12).setValue('예약시각').setFontWeight('bold').setBackground('#DDE5E1');
+    }
+    if (String(sh.getRange(1, 13).getValue() || '').trim() !== '내용') {
+      // M열 — 실제로 보낸 글(템플릿에 변수를 채운 것, 2026-11-11 원장님 "알림톡 뭐라고 보냈는지 발송내역에서 확인")
+      sh.getRange(1, 13).setValue('내용').setFontWeight('bold').setBackground('#DDE5E1');
     }
   }
   return sh;
@@ -4493,7 +4497,8 @@ function alimSendLocked_(data, kind, tpl, items, key, secret, pfId, from, tplId)
     var m = { to: to, type: 'ATA', kakaoOptions: { pfId: pfId, templateId: tplId, variables: vars, disableSms: !from } };
     if (from) m.from = from;
     msgs.push(m);
-    pending.push({ student: student, to: to, who: who, cls: String(it.cls || '').trim(), date: date });
+    var body = String(tpl.text || '').replace(/#\{([^}]+)\}/g, function(_, k) { return vars['#{' + k + '}'] != null ? vars['#{' + k + '}'] : '#{' + k + '}'; });
+    pending.push({ student: student, to: to, who: who, cls: String(it.cls || '').trim(), date: date, text: body.slice(0, 2000) });
   });
   var groupId = '';
   if (msgs.length) {
@@ -4524,11 +4529,11 @@ function alimSendLocked_(data, kind, tpl, items, key, secret, pfId, from, tplId)
     var rows = pending.map(function(p) {
       var err = errAll || failedByTo[p.to] || '';
       var res = err ? '실패' : (data._sched ? '예약' : '성공');
-      return [new Date(), kind, p.student, p.who, p.to, p.cls, p.date, res, err, groupId, by, data._sched ? data._sched.text : ''];
+      return [new Date(), kind, p.student, p.who, p.to, p.cls, p.date, res, err, groupId, by, data._sched ? data._sched.text : '', p.text];
     });
     var r0 = sh.getLastRow() + 1;
-    var rg = sh.getRange(r0, 1, rows.length, 12);
-    rg.setNumberFormats(rows.map(function() { return ['yyyy-mm-dd hh:mm', '@', '@', '@', '@', '@', '@', '@', '@', '@', '@', '@']; }));
+    var rg = sh.getRange(r0, 1, rows.length, 13);
+    rg.setNumberFormats(rows.map(function() { return ['yyyy-mm-dd hh:mm', '@', '@', '@', '@', '@', '@', '@', '@', '@', '@', '@', '@']; }));
     rg.setValues(rows);
   }
   var okCount = sent.filter(function(x) { return x.ok && !x.dup; }).length;
@@ -4708,7 +4713,8 @@ function alimLogGet(from, to, limit) {
                  student: String(r[2] || '').trim(), who: String(r[3] || ''), to: String(r[4] || ''),
                  cls: String(r[5] || ''), date: ymd, ok: String(r[7] || '') === '성공', message: String(r[8] || ''), by: String(r[10] || '').trim(),
                  res: String(r[7] || '').trim(), groupId: String(r[9] || '').trim(),
-                 sched: (r[11] && r[11].getTime) ? alimFmtTs_(r[11]) : String(r[11] || '').trim() });
+                 sched: (r[11] && r[11].getTime) ? alimFmtTs_(r[11]) : String(r[11] || '').trim(),
+                 text: String(r[12] == null ? '' : r[12]) });
     });
   }
   out.reverse();
