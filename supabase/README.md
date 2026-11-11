@@ -887,3 +887,9 @@ default privileges 까지 되돌렸다. `tools/check_lock.py` 통과(표 15/15 �
 ## 058 — 모의고사 회차 정답·배점·등급컷 `smock_exams.info` (2026-10-21)
 - info jsonb(answers·points·items·cuts·nat — 저장소 CLAUDE.md '교육청, 평가원 모의고사 리포트' 절). 배점이 있는 회차는 `smock_submit` 이 점수를 계산해 저장한다. `smock_mine` 이 info 를 함께 준다. 057 을 다시 돌리면 이 두 함수가 옛 정의로 돌아가니 058 도 다시 돌릴 것.
 - **적용 상태: 2026-10-21 실제 수파베이스에 적용 완료**(관리 API, 토큰 저장 안 함). 같은 날 `supabase/smock-info/2026-10-고1.json`·`2026-10-고2.json` 을 info 로 넣었다. 실제 고2 학생으로 거래 안에서 회차 열기 → 틀린 23·20·7번 제출(화면 점수 5) → 92점 저장을 확인하고 되돌림.
+
+## 064 — H WORK 다시 풀기 · 오답 정리 `hwork_retry`·`hwork_review`·`hwork_retry_state` (2026-11-11)
+- `hwork_submissions` 새 열 retry_key·retry_answers·retry_detail·retry_got·retry_at·review·review_at. `hwork_submit`(020 본문 + 열쇠)이 id·key를 돌려주고 응답 detail에서 틀린 문항 ans를 뺀다. 다시 풀기·정리는 id+key가 맞아야 하고 각각 한 번만. 도우미 함수는 anon 실행 불가. 자세한 흐름은 shueguk-h-work CLAUDE.md 같은 절.
+- **063을 다시 돌려도 hwork_submit은 그대로**(063은 hwork_grade_만 바꿈). **020을 다시 돌리면 hwork_submit이 열쇠 없는 옛 본문으로 돌아가니 그 뒤 064도 다시 돌릴 것.**
+- 검증: `PGHOST=/home/pgtest PGPORT=5499 PGUSER=postgres bash tools/hwork-retry-sql-test.sh`(35건).
+
