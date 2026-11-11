@@ -583,6 +583,7 @@
   .hw-go{display:inline-flex;align-items:center;gap:5px;margin-top:12px;color:var(--accent);font-size:.84rem;font-weight:700;text-decoration:none;}
   .hw-go svg{width:15px;height:15px;}
   .hw-go:hover{opacity:.8;}
+  .hw-re{margin-left:14px;font-weight:400;}
 
   /* 슈퍼스타 별 여정 */
   .star-card{background:var(--surface);border:1px solid var(--line-soft);border-radius:var(--radius);padding:18px;}
@@ -3174,6 +3175,16 @@ function hwFmtDue(s){
   if(m) return m[1]+'년 '+(+m[2])+'월 '+(+m[3])+'일';
   return String(s);
 }
+/* 배정 과제 바로 열기 (2026-11-11 원장님) — 과제·담당 강사·학생 이름·학교·학년을 실어 보내
+ * H WORK 화면이 다시 고르지 않고 그 과제 입력 화면만 띄운다(값은 고정). */
+function hwGoHref(base, h){
+  var i = STATE.info || {};
+  return base + '?c=' + encodeURIComponent(h.code || '')
+       + '&t='  + encodeURIComponent(h.teacher || '')
+       + '&nm=' + encodeURIComponent(i.name || '')
+       + '&sc=' + encodeURIComponent(i.school || '')
+       + '&gr=' + encodeURIComponent(levelGrade(i.grade) || '');
+}
 function renderHomework(){
   var hs = STATE.homework || [];
   var list = $('homeworkList');
@@ -3188,9 +3199,11 @@ function renderHomework(){
       var meta = [];
       if(h.due)  meta.push('마감 '+hwFmtDue(h.due));
       if(h.memo) meta.push(h.memo);
+      var href = hwGoHref(base, h);
       var action = h.done
-        ? '<span class="nchk-done">✓ 제출 완료 · 별 +1</span>'
-        : '<a class="hw-go" href="'+esc(base)+'" target="_blank" rel="noopener">H WORK 풀러 가기 '+svg(ICON.arrow)+'</a>';
+        ? '<span class="nchk-done">✓ 제출 완료 · 별 +1</span>' +
+          '<a class="hw-go hw-re" href="'+esc(href+'&done=1')+'" target="_blank" rel="noopener">오답하기 이어 하기 '+svg(ICON.arrow)+'</a>'
+        : '<a class="hw-go" href="'+esc(href)+'" target="_blank" rel="noopener">H WORK 풀러 가기 '+svg(ICON.arrow)+'</a>';
       return '<div class="notice-item">' +
         '<span class="ntag">'+(h.done?'제출 완료':'배정 과제')+'</span>' +
         '<div class="nh"><span class="ntitle">'+esc(title)+'</span>' +
