@@ -3185,6 +3185,28 @@ function hwGoHref(base, h){
        + '&sc=' + encodeURIComponent(i.school || '')
        + '&gr=' + encodeURIComponent(levelGrade(i.grade) || '');
 }
+/* 교재 앞쪽부터 (2026-11-11 원장님) — 'SHUEGUK REAL … 2권(심화·종합) 03 파생어 · 심화 (1/2: …)'를 읽어
+ * 교재 → 권 → 단원 문제(기본·실력·심화) 먼저, 종합 문제는 뒤 → 단원 번호 → 기본·실력·심화 → 나눈 편(1/2·2/2).
+ * 교재 꼴이 아닌 과제(어휘 등)는 그 뒤에 배정 날짜 순서 그대로. */
+function hwBookKey(code){
+  var m = String(code||'').match(/^(.*?)\s*(\d+)권\([^)]*\)\s+(\d+)\s+(.*)$/);
+  if(!m) return null;
+  var rest = m[4], lv = { '기본':0, '실력':1, '심화':2 };
+  var lvM = rest.match(/·\s*(기본|실력|심화)/), part = rest.match(/\((\d+)\/\d+/);
+  return [m[1], +m[2], /종합 문제/.test(rest) ? 1 : 0, +m[3], lvM ? lv[lvM[1]] : 0, part ? +part[1] : 0];
+}
+function hwBookSort(arr){
+  var book = [], other = [];
+  arr.forEach(function(h, i){ var k = hwBookKey(h.code); (k ? book : other).push({ h:h, k:k, i:i }); });
+  book.sort(function(a, b){
+    for(var j=0;j<a.k.length;j++){
+      if(a.k[j] === b.k[j]) continue;
+      return j === 0 ? String(a.k[j]).localeCompare(String(b.k[j]), 'ko') : (a.k[j] < b.k[j] ? -1 : 1);
+    }
+    return a.i - b.i;
+  });
+  return book.concat(other).map(function(x){ return x.h; });
+}
 function renderHomework(){
   var hs = STATE.homework || [];
   var list = $('homeworkList');
@@ -3193,7 +3215,7 @@ function renderHomework(){
   } else {
     var base = 'https://coke4497-sys.github.io/shueguk-h-work/hwork.html';
     // 안 푼 과제 먼저, 제출 완료는 아래로
-    var ordered = hs.filter(function(h){ return !h.done; }).concat(hs.filter(function(h){ return h.done; }));
+    var ordered = hwBookSort(hs.filter(function(h){ return !h.done; })).concat(hwBookSort(hs.filter(function(h){ return h.done; })));
     list.innerHTML = ordered.map(function(h){
       var title = (h.teacher ? (h.teacher+' · ') : '') + (h.code||'과제');
       var meta = [];
