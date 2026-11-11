@@ -2614,6 +2614,7 @@ function doPost(e) {
     if (data && data.action === 'ttMemoSet')        { return ttMemoSet(data); }
     if (data && data.action === 'editReqAdd')       { return editReqAdd(data); }
     if (data && data.action === 'grammaReport')     { return grammaReport(data); }
+    if (data && data.action === 'hworkReport')      { return hworkReport(data); }
     if (data && data.action === 'editReqSet')       { return editReqSet(data); }
     if (data && data.action === 'editReqTokenSet')  { return editReqTokenSet(data); }
     if (data && data.action === 'alimSend')         { return alimSend(data); }
@@ -4103,6 +4104,23 @@ function grammaReport(data) {
   if (cut(data.mine, 120) || cut(data.answer, 120)) body += '\n내 답: ' + (cut(data.mine, 120) || '-') + ' / 정답: ' + (cut(data.answer, 120) || '-');
   return editReqAppend_(writer, GRAMMA_REPORT_SCREEN, body);
 }
+/** H WORK 문항 오류 신고(2026-11-11 원장님 "문항 오류 신고도 수정 요청함으로 가게").
+ *  학생 오답하기 화면(shueguk-h-work hwork.html)에서 오므로 비밀번호 없음 — 대신 길이 제한·내용 필수.
+ *  원본 기록은 수파베이스 hwork_submissions.review[q].error(hwork_flag) — 여기는 수정 요청함 알림용 사본.
+ *  { name, school, grade, teacher, code, qno, mine, text } → '수정요청' 탭에 화면 'H WORK 오류 신고'로 한 줄. */
+var HWORK_REPORT_SCREEN = 'H WORK 오류 신고';
+function hworkReport(data) {
+  var cut = function(v, n) { return String(v == null ? '' : v).replace(/[\r\n]+/g, ' ').trim().slice(0, n); };
+  var text = String(data.text || '').trim().slice(0, 300);
+  if (!text) return json({ result:'error', message:'어떤 점이 이상한지 적어 주세요.' });
+  var code = cut(data.code, 160), qno = cut(data.qno, 6);
+  if (!code || !qno) return json({ result:'error', message:'과제와 문항 번호가 필요합니다.' });
+  var writer = cut(data.name, 20) || '(이름 없음)';
+  if (cut(data.school, 20) || cut(data.grade, 10)) writer += ' (' + [cut(data.school, 20), cut(data.grade, 10)].filter(function(x) { return x; }).join(' ') + ')';
+  var body = '[' + code + ' · ' + qno + '번 · 담당 ' + (cut(data.teacher, 20) || '-') + ']\n내용: ' + text;
+  if (cut(data.mine, 120)) body += '\n학생이 고른 답: ' + cut(data.mine, 120);
+  return editReqAppend_(writer, HWORK_REPORT_SCREEN, body);
+}
 /** 요청 접수 즉시 클로드 호출 — 알림 채널 PR(#329, 항상 열어 두는 PR)에 댓글을 달면
  *  그 PR을 구독 중인 클로드 세션이 댓글 이벤트로 깨어나 요청함을 바로 처리한다
  *  (매시 순찰의 최대 1시간 대기 해소, 순찰은 안전망으로 유지).
@@ -4122,7 +4140,8 @@ function editReqNotify_(writer, screen, text) {
     headers: { 'Authorization': 'Bearer ' + token, 'Accept': 'application/vnd.github+json' },
     muteHttpExceptions: true,
     payload: JSON.stringify({
-      body: (screen === GRAMMA_REPORT_SCREEN ? '[문법 오류 제보 접수] 문법 테스트 화면에서 오류 제보가 들어왔습니다(CLAUDE.md 「시간표 수정 요청함」 절의 \'문법 테스트 오류 제보\' 정책 — 데이터를 고치지 말고 확인 결과만 보류로 남긴다).\n\n' : '[수정 요청 접수] 티쳐스 \'수정 요청함\'에 새 요청이 등록됐습니다.\n\n') +
+      body: (screen === GRAMMA_REPORT_SCREEN ? '[문법 오류 제보 접수] 문법 테스트 화면에서 오류 제보가 들어왔습니다(CLAUDE.md 「시간표 수정 요청함」 절의 \'문법 테스트 오류 제보\' 정책 — 데이터를 고치지 말고 확인 결과만 보류로 남긴다).\n\n' :
+             screen === HWORK_REPORT_SCREEN ? '[H WORK 오류 신고 접수] 학생 오답하기 화면에서 문항 오류 신고가 들어왔습니다(CLAUDE.md 「시간표 수정 요청함」 절의 \'H WORK 오류 신고\' 정책 — 정답 데이터를 고치지 말고 확인 결과만 보류로 남긴다).\n\n' : '[수정 요청 접수] 티쳐스 \'수정 요청함\'에 새 요청이 등록됐습니다.\n\n') +
             '- 작성자: ' + (writer || '(미기재)') + ' / 화면: ' + (screen || '-') + '\n' +
             '- 내용: ' + text + '\n\n' +
             "구독 세션 처리 안내: CLAUDE.md 「시간표 수정 요청함」 절의 '자동 순찰(Routine)' 정책 그대로 — " +
