@@ -34,4 +34,12 @@ r = stub.J(F.editReqAdd({ writer: '조교', screen: '전체 시간표', text: '�
 ok(r.result === 'error', 'editReqAdd는 비밀번호 없으면 거절(종전 그대로)');
 r = stub.J(F.editReqAdd({ pw: F.TEACHER_PW, writer: '조교', screen: '전체 시간표', text: '테스트' }));
 ok(r.result === 'success' && notes[notes.length - 1].body.body.startsWith('[수정 요청 접수]'), 'editReqAdd 등록 + 옛 머리글 알림');
+// H WORK 문항 오류 신고(hworkReport, 2026-11-11) — 학생 화면, 비밀번호 없음
+r = stub.J(F.hworkReport({ name: '박보검', school: '무원고등학교', grade: '고2', teacher: '이수경', code: 'SHUEGUK REAL 내신 기출 음운 1권(기본) 03 탈락·첨가·축약 · 기본', qno: '7', mine: '3', text: '보기 ②도 맞는 것 같아요' }));
+list = stub.J(F.getEditReqList()).reqs;
+ok(r.result === 'success' && list[0].screen === 'H WORK 오류 신고' && list[0].status === '접수됨', "H WORK 신고 = 화면 'H WORK 오류 신고' · 접수됨");
+ok(list[0].writer === '박보검 (무원고등학교 고2)' && list[0].text === '[SHUEGUK REAL 내신 기출 음운 1권(기본) 03 탈락·첨가·축약 · 기본 · 7번 · 담당 이수경]\n내용: 보기 ②도 맞는 것 같아요\n학생이 고른 답: 3', 'H WORK 신고 내용 = 과제·번호·담당·내용·고른 답');
+ok(notes[notes.length - 1].body.body.startsWith('[H WORK 오류 신고 접수]'), 'H WORK 신고 즉시 알림 머리글');
+ok(stub.J(F.hworkReport({ name: 'a', code: 'C', qno: '1', text: '  ' })).result === 'error', 'H WORK 신고 내용 비면 거절');
+ok(stub.J(F.hworkReport({ name: 'a', code: '', qno: '1', text: 'x' })).result === 'error', 'H WORK 신고 과제 없으면 거절');
 console.log(bad ? `실패 ${bad} / ${n}` : `전부 통과 (${n}건)`); process.exit(bad ? 1 : 0);
