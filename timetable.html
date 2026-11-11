@@ -203,6 +203,7 @@
   .sc-st{font-size:.7rem;border-radius:999px;padding:2px 9px;font-family:"Gowun Dodum",sans-serif;font-weight:400;} .sc-st.ok{background:#DCE8E5;color:#3F6159;} .sc-st.no{background:#EEF1EF;color:#5C6A64;} .sc-st.part{background:#F9EFD0;color:#7A6230;}   /* 아직 없어요 연한 회색(2026-10-27 원장님) · 일부 기록 연노랑 · 입력 완료 세이지 */
   .sc-stsel{display:flex;gap:6px;align-items:center;flex-wrap:wrap;font-size:.8rem;color:var(--ink-soft);} .sc-stsel button{font:inherit;font-size:.78rem;border:0;border-radius:999px;padding:4px 11px;background:#EEF1EF;color:#5C6A64;cursor:pointer;} .sc-stsel button.on{background:#DCE8E5;color:#3F6159;font-weight:700;} .sc-stsel button.on.part{background:#F9EFD0;color:#7A6230;}
   .sc-cls{font-size:.74rem;color:var(--ink-soft);}
+  .sc-n{display:inline-block;font-size:.68rem;line-height:1.5;border-radius:999px;padding:0 7px;background:#EDE4F4;color:#5A4A6A;font-family:"Gowun Dodum",sans-serif;font-weight:400;white-space:nowrap;vertical-align:1px;}   /* 반 인원 알약(2026-11-10) */
   .sc-card .cr-scope-view{margin-bottom:0;background:#F6F8F7;}
   .sc-card .cr-f{margin:0;} .sc-card .cr-f label{font-size:.8rem;display:block;margin-bottom:4px;} .sc-card .cr-f label small{color:var(--ink-soft);font-weight:400;}
   .sc-btns{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
@@ -4398,7 +4399,7 @@ function scopeLoadAndRender(){
   var per = SC.period;
   Promise.all([
     SC.targets ? Promise.resolve(SC.targets) : Promise.all([
-      crGet('/tt_classes?book=' + encodeURIComponent('eq.내신') + '&class_id=not.like.w*&select=class_id,name,teacher&order=class_id'),
+      crGet('/tt_classes?book=' + encodeURIComponent('eq.내신') + '&class_id=not.like.w*&select=class_id,name,teacher,roster&order=class_id'),
       crGet('/tt_log?kind=' + encodeURIComponent('eq.적용일변경') + '&book=' + encodeURIComponent('eq.내신') + '&order=apply_date,id&select=from_class_id,reason').catch(function(){ return []; })
     ]).then(function(rr){ SC.targets = scopeTargetsOf(scopeNextTeacher(rr[0], rr[1])); return SC.targets; }),
     crGet('/naeshin_records?period=eq.' + encodeURIComponent(per) + '&kind=' + encodeURIComponent('eq.범위') + '&student=eq.&select=class_key,text1,text2,at')
@@ -4425,9 +4426,10 @@ function scopeTargetsOf(rows){
     if (!cls || !id || /^w/.test(id) || CR_ALWAYS_REG.test(cls) || /확인/.test(cls)) return;
     var key = crScopeKey(cls, id), m = cls.match(/^([중고][1-3])\s+([가-힣]+)/);
     var grade = m ? m[1] : ((cls.match(/(중[1-3]|고[1-3])/) || [])[1] || '');
-    if (!by[key]) by[key] = { key: key, grade: grade, school: m ? m[2] : '', label: m ? m[1] + ' ' + m[2] : cls.replace(/\(.*\)\s*$/, '').trim(), book: '', cls: [], teachers: [], shared: /^공유:/.test(key) };
+    if (!by[key]) by[key] = { key: key, grade: grade, school: m ? m[2] : '', label: m ? m[1] + ' ' + m[2] : cls.replace(/\(.*\)\s*$/, '').trim(), book: '', cls: [], ns: [], total: 0, teachers: [], shared: /^공유:/.test(key) };
     if (!by[key].book) by[key].book = crDefaultBook(cls);
     by[key].cls.push(cls + (r.teacher ? ' · ' + r.teacher + 'T' : ''));
+    var nn = String(r.roster || '').split(/\s+/).filter(Boolean).length; by[key].ns.push(nn); by[key].total += nn;   // 반 인원(2026-11-10 원장님 "몇 명인지 작게 알약으로")
     var tn = String(r.teacher || '').trim(); if (tn && by[key].teachers.indexOf(tn) < 0) by[key].teachers.push(tn);
   });
   return Object.keys(by).map(function(k){ return by[k]; }).sort(function(a, b){
@@ -4485,7 +4487,7 @@ function scopeCount(items){
 function scopeCountLabel(c, total){ return '입력 완료 ' + c.ok + ' / ' + total + (c.ok === total ? ' · 모두 완료' : (c.part ? ' · 일부 기록 ' + c.part : '')); }
 function scopeCardHtml(t){
   var r = SC.rows && SC.rows[t.key], sp = crNsParseScope(r), n = sp ? crNsItems({ scope: sp }).length : 0, on = SC.edit === t.key, st = scopeStat(sp);
-  var head = '<h4>' + esc(t.label) + (t.shared ? '<small>같은 학교·학년 반 공유</small>' : '') + '<span class="sc-st ' + st + '">' + SC_ST_LBL[st] + (sp ? ' · 항목 ' + n + '개' : '') + '</span></h4>' +
+  var head = '<h4>' + esc(t.label) + (t.shared ? '<small>같은 학교·학년 반 공유</small>' : '') + '<span class="sc-st ' + st + '">' + SC_ST_LBL[st] + (sp ? ' · 항목 ' + n + '개' : '') + '</span>' + (t.cls.length > 1 ? '<span class="sc-n" title="이 범위를 쓰는 반 학생 합계">' + t.total + '명</span>' : '') + '</h4>' +
     '<div class="sc-cls">' + scopeClsHtml(t) + '</div>';
   if (on){
     var sel = SC.doneSel === null ? !!(sp && sp.done) : !!SC.doneSel;   // 입력 중 고른 상태(없으면 지금 상태)
@@ -4504,7 +4506,8 @@ function scopeCardHtml(t){
 /* 반 목록 — 담당 선생님을 골랐으면 그 선생님 반을 굵게 */
 function scopeClsHtml(t){
   var k = scopeTeacherNow();
-  return t.cls.map(function(c){ return k && c.slice(-(k.length + 4)) === ' · ' + k + 'T' ? '<b>' + esc(c) + '</b>' : esc(c); }).join(' · ');
+  return t.cls.map(function(c, i){ var n = (t.ns || [])[i], pill = n == null ? '' : ' <span class="sc-n">' + n + '명</span>';
+    return (k && c.slice(-(k.length + 4)) === ' · ' + k + 'T' ? '<b>' + esc(c) + '</b>' : esc(c)) + pill; }).join(' · ');
 }
 function scopeMountEdit(host){
   var card = host.querySelector('.sc-card.on'); if (!card) return;
