@@ -8995,8 +8995,12 @@ function crSibLoad(c, bk, ymd){
  * (2026-10-02 원장님 "같은 수업의 진도, 과제는 불러오기 되어있었으면 해요"). 고른 기록은 드롭다운에서 바꿀 수 있다 */
 /* 반 전체 검사 과제(__검사과제)도 같다(2026-10-02 원장님 "반 전체에 과제 추가한 내용도 동일하게 채워줄 수 있어?") — 이 반에 아직 없으면
  * 같은 이름 반의 가장 최근 목록을 채워 둔다(CR.xtPending). 별·단계를 처음 매기거나 [저장]·태도·과제 추가로 수업 기록이 저장될 때 이 반에도 저장된다. */
+/* 2026-11-11 원장님 결정으로 자동 미리 채우기를 없앴다 — [가져오기]를 눌렀을 때만 들어온다(고2화정C 수요팀 보충 리포트에
+ * 고2 화정A 진도 기록이 그대로 실렸다). CR_SIB_AUTO 를 참으로 바꾸면 옛 동작. 되살리지 말 것. */
+var CR_SIB_AUTO = false;
 function crSibAuto(){
   CR.sibAuto = -1; CR.xtAuto = -1;
+  if (!CR_SIB_AUTO) return;
   if (!CR.sib || !CR.sib.length) return;
   if (!(CR.xt || []).length){
     for (var k = 0; k < CR.sib.length; k++){ if ((CR.sib[k].xt || []).length){ CR.xt = CR.sib[k].xt.slice(); CR.xtAuto = k; CR.xtPending = true; break; } }

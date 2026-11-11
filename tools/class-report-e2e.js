@@ -675,9 +675,9 @@ const STUDENTS = [
   await page.waitForSelector('#crpanel:not([hidden]) .cr-card', { timeout: 8000 });
   r = await page.evaluate(() => ({ bar: (document.querySelector('.cr-sib') || {}).textContent || '', opts: document.querySelectorAll('#cr-sib-sel option').length,
     p: document.getElementById('cr-prog').value, t: document.getElementById('cr-task').value }));
-  ok('빈 반은 같은 이름 반 기록을 미리 채운다(2026-10-02)', r.p === '문학 — 관동별곡 1~3연' && r.t === '관동별곡 학습지' && /불러왔습니다/.test(r.bar), JSON.stringify(r));
+  ok('빈 반이어도 같은 이름 반 기록을 미리 채우지 않는다(2026-11-11 원장님 — [가져오기]로만)', r.p === '' && r.t === '' && !/불러왔습니다/.test(r.bar), JSON.stringify(r));
   const rx = await page.evaluate(() => ({ xt: [...document.querySelectorAll('.cr-xt .cr-unit')].map(x => x.firstChild.textContent), pend: (document.querySelector('.cr-xt-pend') || {}).textContent || '', bar: (document.querySelector('.cr-sib') || {}).textContent || '' }));
-  ok('반 전체 검사 과제도 같은 이름 반 것으로 미리 채운다(2026-10-02)', rx.xt.join('|') === '슈주간지 1002|어휘 30개' && /불러온 과제/.test(rx.pend) && /반 전체 검사 과제/.test(rx.bar), JSON.stringify(rx));
+  ok('반 전체 검사 과제도 미리 채우지 않는다(2026-11-11)', !rx.xt.length && !rx.pend, JSON.stringify(rx));
   ok('미리 채우기만으로는 저장하지 않는다', !st.writes.some(w => /class_notes/.test(w.u)));
   ok('같은 이름 반(고2 가 · 은지T) 기록만 보이고 다른 반(고1 가)은 없다', /같은 수업 반 기록/.test(r.bar) && /은지T/.test(r.bar) && /관동별곡/.test(r.bar) && r.opts === 1 && !/다른 반 진도/.test(r.bar), JSON.stringify(r));
   ok('조회는 같은 이름 반 ID만 · 이번 주 범위', (st.sibGets || []).some(u => /class_id=in\.\("r002"\)/.test(u) && /ymd=gte\./.test(u) && /ymd=lte\./.test(u)), JSON.stringify(st.sibGets));
@@ -724,7 +724,7 @@ const STUDENTS = [
     p: (document.getElementById('cr-prog') || {}).value || '', t: (document.getElementById('cr-task') || {}).value || '',
     lab: (document.querySelector('label[for=cr-prog]') || {}).textContent || '', bar: (document.querySelector('.cr-sib') || {}).textContent || '', opts: document.querySelectorAll('#cr-sib-sel option').length }));
   ok('내신 진도: 범위가 없으면 안내만(단원 칸 없음) + 오늘 진도·과제 칸', r.kind === '진도 수업' && r.scope && !r.unit && /오늘 진도/.test(r.lab) && !st.ns.length, JSON.stringify(r));
-  ok('고2 진도: 다른 학교 진도 반(화정B) 기록을 미리 채운다', r.p === '고2 공통 진도 — 관동별곡' && r.t === '관동별곡 학습지' && /불러왔습니다/.test(r.bar) && /고2 화정B/.test(r.bar), JSON.stringify(r));
+  ok('고2 진도: 다른 학교 진도 반(화정B) 기록은 목록에만 — 미리 채우지 않는다', r.p === '' && r.t === '' && !/불러왔습니다/.test(r.bar) && /고2 화정B/.test(r.bar), JSON.stringify(r));
   ok('고2 진도: 확인 반·고1 반은 목록에 없다', r.opts === 1 && !/확인 수업 내용|고1 진도/.test(r.bar), JSON.stringify(r));
   ok('조회 = 같은 학년 진도 반 ID만', (st.sibGets || []).some(u => /class_id=in\.\("n002"\)/.test(u)), JSON.stringify(st.sibGets));
   await page.fill('#cr-prog', '고친 진도');
@@ -740,7 +740,7 @@ const STUDENTS = [
   await page.evaluate(() => document.querySelector('.blk[data-cid="n005"] .crbtn').click());
   await page.waitForSelector('#crpanel:not([hidden]) .cr-card', { timeout: 8000 });
   r = await page.evaluate(() => ({ p: (document.getElementById('cr-prog') || {}).value || '', t: (document.getElementById('cr-task') || {}).value || '', bar: (document.querySelector('.cr-sib') || {}).textContent || '' }));
-  ok('고2 확인: 다른 확인 반 기록만 불러온다', r.p === '확인 수업 내용' && r.t === '서술형 오답' && !/관동별곡/.test(r.bar) && (st.sibGets || []).some(u => /class_id=in\.\("n003"\)/.test(u)), JSON.stringify(r));
+  ok('고2 확인: 다른 확인 반 기록만 목록에', r.p === '' && /확인 수업 내용/.test(r.bar) && !/관동별곡/.test(r.bar) && (st.sibGets || []).some(u => /class_id=in\.\("n003"\)/.test(u)), JSON.stringify(r));
   await page.click('.cr-x');
   st.sibGets = [];
   await page.evaluate(() => document.querySelector('.blk[data-cid="n007"] .crbtn').click());
@@ -793,7 +793,7 @@ const STUDENTS = [
     await openCard(page, '고3파이널B');
     r = await page.evaluate(() => ({ p: document.getElementById('cr-prog').value, t: document.getElementById('cr-task').value, bar: (document.querySelector('.cr-sib') || {}).textContent || '',
       tasks: [...document.querySelectorAll('.cr-card .cr-tname')].map(x => x.textContent) }));
-    ok('고3파이널B: 고3파이널A 기록을 미리 채운다', r.p === '상상 모의고사 복기' && r.t === '이매진 1주차' && /불러왔습니다/.test(r.bar), JSON.stringify(r));
+    ok('고3파이널B: 고3파이널A 기록이 목록에 있다(미리 채우지 않음)', r.p === '' && /상상 모의고사 복기/.test(r.bar) && !/불러왔습니다/.test(r.bar), JSON.stringify(r));
     ok('고3파이널B: 지난주 정규 고3파이널A 과제로 검사', r.tasks.join('|') === '2-5회차 모의고사', JSON.stringify(r));
     await ctx.close();
   }
