@@ -1099,3 +1099,6 @@ clasp update-deployment -d "설명" <DEPLOYMENT_ID>   # 기존 배포 새 버전
 - **원장님 설정(ChatGPT 유료 계정)**: chatgpt.com/codex → 설정 → GitHub 앱 설치 → 저장소 8개 접근 허용 → 저장소마다 Code review 켜기(+ Automatic reviews 켜면 모든 PR 자동 검토, 끄면 PR 댓글 `@codex review`로 호출). 비용은 구독에 포함.
 - 수정 요청함 알림용 초안 PR #329는 초안 상태라 Codex가 검토하지 않는다(그대로 둘 것).
 - 클로드 세션은 PR을 연 뒤 `subscribe_pr_activity`로 구독해 두면 Codex 댓글 이벤트로 깨어나 처리한다.
+
+## H WORK 화면 이탈 기록 — 066 (2026-11-12 원장님)
+- `hwork_submissions.away_n`·`away_sec` + `hwork_submit`이 `p.away {n, sec}`를 받아 저장(064 본문 그대로 + 두 값, 이상한 값 0·상한 9999회/86400초). 학생 화면의 방해 금지 안내·이탈 세기와 교사 표시는 H WORK 저장소 CLAUDE.md 같은 절. **064를 다시 돌리면 066도 다시 돌릴 것.** 검증: `tools/hwork-retry-sql-test.sh`(46건).

@@ -1,5 +1,5 @@
 #!/bin/bash
-# 064·065 H WORK 오답하기 — 로컬 PostgreSQL 검사 (원격에 돌리지 말 것)
+# 064·065 H WORK 오답하기 + 066 화면 이탈 — 로컬 PostgreSQL 검사 (원격에 돌리지 말 것)
 # PGHOST=/home/pgtest PGPORT=5499 PGUSER=postgres bash tools/hwork-retry-sql-test.sh
 set -u
 M=$(cd "$(dirname "$0")/../supabase/migrations" && pwd)
@@ -7,7 +7,7 @@ DB=hwretry_test
 psql -q -d postgres -c "drop database if exists $DB" -c "create database $DB" >/dev/null 2>&1
 export PGDATABASE=$DB
 psql -q -c "do \$\$begin create role anon; exception when others then null; end\$\$; do \$\$begin create role authenticated; exception when others then null; end\$\$;" >/dev/null 2>&1
-for f in 007_hwork 020_hwork_origin 063_hwork_essay 064_hwork_retry 065_hwork_fix 064_hwork_retry 065_hwork_fix; do
+for f in 007_hwork 020_hwork_origin 063_hwork_essay 064_hwork_retry 065_hwork_fix 064_hwork_retry 065_hwork_fix 066_hwork_away 066_hwork_away; do
   out=$(psql -q -v ON_ERROR_STOP=1 -f "$M/$f.sql" 2>&1 | grep -v NOTICE)
   [ -n "$out" ] && { echo "적용 실패 $f: $out"; exit 1; }
 done
@@ -75,6 +75,15 @@ ok '다 맞히면 done' "$(q "hwork_retry_state('{\"id\":$I2,\"key\":\"$K2\"}')"
 
 ok 'anon 도우미 막힘' "$(q "hwork_cleared_ans_('{}','{}')")" 'permission denied'
 ok 'anon 표 막힘' "$(q "count(*) from hwork_submissions")" 'permission denied'
+# 066 화면 이탈
+A=$(q "hwork_submit('{\"teacher\":\"T\",\"code\":\"C\",\"name\":\"aw\",\"answers\":{},\"away\":{\"n\":3,\"sec\":130}}')")
+ok '066 이탈 있는 제출' "$A" '"ok": true'
+ok '066 이탈 저장' "$(psql -At -c "select away_n||'/'||away_sec from hwork_submissions where name='aw'")" '^3/130$'
+q "hwork_submit('{\"teacher\":\"T\",\"code\":\"C\",\"name\":\"aw2\",\"answers\":{},\"away\":{\"n\":\"x\",\"sec\":-5}}')" >/dev/null
+ok '066 이상한 값은 0' "$(psql -At -c "select away_n||'/'||away_sec from hwork_submissions where name='aw2'")" '^0/0$'
+q "hwork_submit('{\"teacher\":\"T\",\"code\":\"C\",\"name\":\"aw3\",\"answers\":{},\"away\":{\"n\":99999,\"sec\":999999}}')" >/dev/null
+ok '066 상한' "$(psql -At -c "select away_n||'/'||away_sec from hwork_submissions where name='aw3'")" '^9999/86400$'
+ok '066 away 없는 옛 화면' "$(psql -At -c "select away_n||'/'||away_sec from hwork_submissions where name='n'")" '^0/0$'
 psql -q -d postgres -c "drop database $DB" >/dev/null 2>&1
 echo "통과 $PASS · 실패 $FAIL"
 [ $FAIL -eq 0 ]
