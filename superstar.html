@@ -395,6 +395,16 @@
   .wt-legend i{display:inline-block;width:12px;height:12px;border-radius:3px;background:#dcefe2;box-shadow:inset 0 0 0 1px #a9cdb4;flex:none;margin:0;vertical-align:0;}
   .wt-fbox{display:flex;flex-direction:column;gap:8px;padding:12px 14px;background:#fafbf9;border-radius:14px;}
   .wt-fbox:empty{display:none;}
+  .wt-find{display:flex;align-items:center;gap:8px;height:44px;padding:0 6px 0 14px;background:#fafbf9;border:1px solid #dfe5e1;border-radius:12px;}
+  .wt-find:focus-within{border-color:#b9b0d6;background:#fff;}
+  .wt-find svg{width:16px;height:16px;flex:none;color:#7d8c84;}
+  .wt-find input{flex:1;min-width:0;border:0;outline:0;background:transparent;font:inherit;font-size:15px;color:#2b3a33;padding:0;}
+  .wt-find .x{flex:none;border:0;background:#eef1ee;color:#4b6157;border-radius:999px;padding:5px 10px;font:inherit;font-size:13px;cursor:pointer;}
+  .wt-find .x[hidden]{display:none;}
+  .wt-qnote{margin:-4px 0 0;font-size:13px;color:#54655c;}
+  .wt-qnote:empty{display:none;}
+  .wt-qnote button{border:0;background:none;padding:0;font:inherit;color:#4a4266;text-decoration:underline;cursor:pointer;}
+  .wt-row mark{background:#f6e7a8;color:inherit;border-radius:3px;padding:0 1px;}
   .wt-filt{display:grid;grid-template-columns:34px 1fr;gap:8px;align-items:start;margin:0;font-size:13px;}
   .wt-filt .lab{color:#54655c;padding-top:5px;margin:0;}
   .wt-filt .chips{display:flex;flex-wrap:wrap;gap:5px;}
@@ -687,6 +697,8 @@
         <div class="bt"><button type="button" class="wt-pill" id="wtPast">지난 기록 보기</button><button type="button" class="wt-pill" onclick="wtLoad(true)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M13 8a5 5 0 1 1-1.5-3.6M13 2.5V5h-2.5"/></svg>새로고침</button></div>
       </div>
       <p class="wt-legend" id="wtLegend"><i></i><span>초록 줄 = 희망 반 인원이 정원 아래로 내려와 지금 이동할 수 있는 학생입니다. 대기 시작일이 빠른 순서예요.</span></p>
+      <div class="wt-find"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="7" cy="7" r="4.5"/><path d="M10.4 10.4 14 14"/></svg><input id="wtQ" type="search" placeholder="대기생 이름 찾기 (학교·연락처 뒤 4자리도 돼요)" aria-label="대기생 이름 찾기" autocomplete="off"><button type="button" class="x" id="wtQx" hidden>지우기</button></div>
+      <p class="wt-qnote" id="wtQNote"></p>
       <div class="wt-fbox" id="wtFilt"></div>
       <div class="wt-selbar" id="wtSelBar"></div>
       <div class="wt-rows" id="wtList"><div class="mgr-empty">불러오는 중…</div></div>
@@ -3031,7 +3043,7 @@
    * 표 = 허브 마이그레이션 202610290001 `student_waitlist`(교사 로그인 전체 읽기쓰기, 공개 키 차단, 시트 사본 없음).
    * 슈톡 [대기생 등록](messenger.html)도 같은 표에 넣는다. 이동 가능 = 희망 반의 지금 인원(tt_classes 명단 수) < cap(정원 —
    * 반을 고를 때 그 반 인원으로 자동, 고칠 수 있음). 등록으로 전환하면 신입 슈스 폼을 채우고 등록이 끝나면 그 줄이 '완료'가 된다. */
-  var WT = { kind:'예비', book:'정규', rows:null, ttc:null, stu:null, pick:null, past:false, pend:null, missing:false, editing:null, capTouched:false, inited:false, fg:'', fs:'', sg:'', vis:[], fgs:[] };   // fgs = 명단 학년 거르기(여러 개, 2026-11-06) — WT.fg 는 그중 하나만 골랐을 때의 값(그래프·학교 줄용)   // fg·fs = 학년·학교 거르기('' = 전체), sg = 현황 그래프에서 고른 학년
+  var WT = { kind:'예비', book:'정규', rows:null, ttc:null, stu:null, pick:null, past:false, pend:null, missing:false, editing:null, capTouched:false, inited:false, fg:'', fs:'', sg:'', vis:[], fgs:[], q:'' };   // fgs = 명단 학년 거르기(여러 개, 2026-11-06) — WT.fg 는 그중 하나만 골랐을 때의 값(그래프·학교 줄용)   // fg·fs = 학년·학교 거르기('' = 전체), sg = 현황 그래프에서 고른 학년
   var WT_ERR_MISSING = /sb 404|PGRST205|42P01|does not exist/;
   var WT_LEFT = /^(퇴원|n|no|off|x|중단|비재원)$/i;   // 어댑터 스크립트의 LEFT_RE·tr_·stuActive 는 다른 script 블록이라 여기서 다시 둔다
   function wtTr(v){ return String(v == null ? '' : v).trim(); }
@@ -3068,6 +3080,10 @@
     $('wt-stu').addEventListener('change', wtPickStu);
     $('wtSave').addEventListener('click', wtSave);
     $('wtPast').addEventListener('click', function(){ WT.past = !WT.past; wtRender(); });
+    // 이름 찾기(2026-11-12 원장님 "대기생 이름을 검색할 수 있도록") — 입력칸은 다시 그리지 않는다(한글 조합이 끊기지 않게), 명단만 갈아 끼운다.
+    $('wtQ').addEventListener('input', function(){ WT.q = this.value; wtRender(); });
+    $('wtQx').addEventListener('click', function(){ $('wtQ').value = ''; WT.q = ''; wtRender(); $('wtQ').focus(); });
+    $('wtQNote').addEventListener('click', function(e){ var b = e.target.closest('button[data-kind]'); if (b) wtSetKind(b.getAttribute('data-kind')); });
     $('wtFilt').addEventListener('click', function(e){ var b = e.target.closest('button[data-f]'); if (!b) return; var f = b.getAttribute('data-f'), v = b.getAttribute('data-v');
       if (f === 'fg'){ if (!v) WT.fgs = []; else { var i = WT.fgs.indexOf(v); if (i < 0) WT.fgs.push(v); else WT.fgs.splice(i, 1); } } else WT[f] = v;
       wtRender(); });
@@ -3186,7 +3202,7 @@
     var dn = wtDayN(r.started_on);
     var h = '<div class="wt-row' + (can ? ' can' : '') + (past ? ' done' : '') + '" data-id="' + r.id + '"><div class="wt-top">';
     h += '<span class="wt-no">' + (past ? '·' : (i + 1)) + '</span><div class="wt-main">';
-    h += '<div class="wt-l1"><b>' + esc(r.name) + '</b><span class="wt-sub">' + esc([r.year, r.grade].filter(Boolean).join(' ') + (r.school ? ' · ' + r.school : '')) + '</span>';
+    h += '<div class="wt-l1"><b>' + wtQMark(r.name) + '</b><span class="wt-sub">' + esc([r.year, r.grade].filter(Boolean).join(' ') + (r.school ? ' · ' + r.school : '')) + '</span>';
     if (past) h += '<span class="wt-st ' + (WT_ST_CLS[r.status] || '') + '">' + esc(wtStLabel(r, r.status)) + (r.done_note ? ' · ' + esc(r.done_note) : '') + (r.done_by_name ? ' (' + esc(r.done_by_name) + ')' : '') + '</span>';
     h += '</div><div class="wt-info">';
     h += '<span class="k">' + (r.kind === '재원' ? '이동 희망' : '희망 반') + '</span><span class="v wt-l2">' + wtWantHtml(r) + '</span>';
@@ -3246,12 +3262,19 @@
     wtDrawStat(wait);
     $('wtFilt').innerHTML = wtFiltHtml(wait);
     var keep = function(r){ return (!WT.fgs.length || WT.fgs.indexOf(wtGradeOf(r)) >= 0) && (!WT.fs || wtSchoolOf(r) === WT.fs); };
-    var filt = !!(WT.fgs.length || WT.fs); if (filt){ wait = wait.filter(keep); past = past.filter(keep); }
+    var q = wtQNorm(WT.q), qOn = !!q;
+    var filt = !!(WT.fgs.length || WT.fs || qOn); if (filt){ wait = wait.filter(keep); past = past.filter(keep); }
+    if (qOn){ var qm = function(r){ return wtQHit(r, q); }; wait = wait.filter(qm); past = past.filter(qm); }
+    $('wtQx').hidden = !qOn;
+    var other = qOn ? WT.rows.filter(function(r){ return r.kind !== WT.kind && wtQHit(r, q); }).length : 0, ok = WT.kind === '예비' ? '재원' : '예비';
+    $('wtQNote').innerHTML = !qOn ? '' : '「' + esc(String(WT.q).trim()) + '」 찾은 결과 — 대기 ' + wait.length + '명' + (past.length ? ' · 지난 기록 ' + past.length + '건' : '')
+      + (WT.fgs.length || WT.fs ? ' (고른 학년·학교 안에서)' : '')
+      + (other ? ' · <button type="button" data-kind="' + ok + '">' + (ok === '예비' ? '예비 슈스 대기 명단' : '재원 슈스 반 이동 대기 명단') + '에도 ' + other + '명 있어요</button>' : '');
     $('wtCount').innerHTML = (filt ? '보는 중 <b>' + wait.length + '</b>명 · ' : '') + '대기 <b>' + (filt ? mine.filter(function(r){ return r.status === '대기'; }).length : wait.length) + '</b>명' + (can ? ' · 이동 가능 <b>' + can + '</b>명' : '') + (past.length ? ' · 지난 기록 ' + past.length + '건' : '');
     $('wtPast').textContent = (WT.past ? '지난 기록 닫기' : '지난 기록 보기') + (past.length ? ' (' + past.length + ')' : '');
     $('wtPast').style.display = past.length ? '' : 'none';
-    var h = wait.length ? wait.map(wtRowHtml).join('') : '<div class="mgr-empty">' + (filt ? '고른 학년·학교에 대기 중인 학생이 없어요.' : WT.kind === '예비' ? '대기 중인 예비 슈스가 없어요.' : '반 이동을 기다리는 재원 슈스가 없어요.') + '</div>';
-    if (WT.past && past.length){
+    var h = wait.length ? wait.map(wtRowHtml).join('') : '<div class="mgr-empty">' + (qOn ? '찾는 이름의 대기 중인 학생이 없어요.' + (past.length ? ' 아래 지난 기록을 확인해 주세요.' : '') : filt ? '고른 학년·학교에 대기 중인 학생이 없어요.' : WT.kind === '예비' ? '대기 중인 예비 슈스가 없어요.' : '반 이동을 기다리는 재원 슈스가 없어요.') + '</div>';
+    if ((WT.past || qOn) && past.length){   // 찾는 중에는 지난 기록(입학·취소 등)도 함께 보여 준다
       var pc = {}; past.forEach(function(r){ var k = wtStLabel(r, r.status); pc[k] = (pc[k] || 0) + 1; });
       h += '<p class="wt-note" style="margin:14px 0 8px;font-weight:700;">지난 기록 — ' + esc(Object.keys(pc).map(function(k){ return k + ' ' + pc[k]; }).join(' · ')) + '</p>' + past.map(wtRowHtml).join('');
     }
@@ -3364,6 +3387,18 @@
   }   // 초5·초6 = 2027 초6처럼 이른 대기(2026-10-29 원장님)
   function wtGradeOf(r){ return String(r.grade || '').trim() || '미정'; }
   function wtSchoolOf(r){ return String(r.school || '').trim() || '학교 미상'; }
+  // 찾기 — 공백을 빼고 이름·학교에서 찾는다. 숫자만 4자리 이상이면 학부모님 연락처에서도 찾는다.
+  function wtQNorm(v){ return String(v || '').replace(/\s+/g, '').toLowerCase(); }
+  function wtQHit(r, q){
+    if (!q) return true;
+    if (wtQNorm(r.name).indexOf(q) >= 0 || wtQNorm(r.school).indexOf(q) >= 0) return true;
+    return /^\d{4,}$/.test(q) && String(r.phone_parent || '').replace(/\D/g, '').indexOf(q) >= 0;
+  }
+  // 이름 속 찾은 글자를 노랗게(공백 없이 찾은 경우만 — 띄어쓰기가 섞이면 그냥 이름)
+  function wtQMark(name){
+    var n = String(name || ''), q = String(WT.q || '').trim(), i = q ? n.toLowerCase().indexOf(q.toLowerCase()) : -1;
+    return i < 0 ? esc(n) : esc(n.slice(0, i)) + '<mark>' + esc(n.slice(i, i + q.length)) + '</mark>' + esc(n.slice(i + q.length));
+  }
   function wtFiltHtml(wait){
     if (!wait.length) return '';
     var g = {}, sc = {}; wait.forEach(function(r){ var a = wtGradeOf(r), b = wtSchoolOf(r); g[a] = (g[a] || 0) + 1; sc[b] = (sc[b] || 0) + 1; });
