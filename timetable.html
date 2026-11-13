@@ -7771,7 +7771,7 @@ function alimCfgEnsure(cb, force){
  * 결석 통보를 해서 기록하면 바로 보낼 수 있도록") — 앞날 결석을 기록하면 결석 안내('결석했습니다') 대신 이 창이 뜬다. */
 var ALIM_UI = {
   absent:    { title:'결석 알림톡', short:'결석 알림톡', must:'<b>결석 알림톡은 반드시 보냅니다.</b> 받는 분을 확인하고 [알림톡 보내기]를 눌러 주세요.' },
-  preabsent: { title:'결석 예고 알림톡', short:'결석 예고 알림톡', must:'<b>앞날 결석을 기록했습니다. 결석 예고 알림톡을 보냅니다.</b> 누가 알렸는지 고르고, 사유와 보충 안내를 확인해 주세요.' },
+  preabsent: { title:'결석 예고 알림톡', short:'결석 예고 알림톡', must:'<b>수업 전에 미리 알린 결석을 기록했습니다. 결석 예고 알림톡을 보냅니다.</b> 누가 알렸는지 고르고, 사유와 보충 안내를 확인해 주세요.' },
   /* 미등원·등원 안내(2026-10-29 원장님) — 출석 창에서만 열고, 결석 알림톡과 달리 닫을 수 있다(보내지 않아도 되는 안내) */
   noshow:    { title:'미등원 알림톡', short:'미등원 알림톡', must:'<b>수업이 시작됐는데 아직 등원하지 않은 학생입니다.</b> 학생과 학부모님께 전화해 연결되지 않았을 때만 보내 주세요. 출석 기록은 바뀌지 않아요.' },
   arrived:   { title:'지각 등원 알림톡', short:'지각 등원 알림톡', must:'<b>미등원 안내를 보낸 학생이 등원했습니다.</b> 등원 알림톡을 보내면 학부모님이 안심하실 수 있어요.' }
@@ -7793,8 +7793,24 @@ var ALIM_FROM_OPTS = ['학부모님께', '학생에게'];
 function alimFromOpts(cfg){ var o = cfg && cfg.templates && cfg.templates.preabsent && cfg.templates.preabsent.options; return (o && o['알린분'] && o['알린분'].length) ? o['알린분'] : ALIM_FROM_OPTS; }
 function alimFromLabel(o){ return /학부모/.test(o) ? '학부모님이 알렸어요' : /학생/.test(o) ? '학생이 알렸어요' : o; }
 function alimReady(cfg, kind){ return !!(cfg && cfg.ready && cfg.templates && cfg.templates[kind] && cfg.templates[kind].ready); }
-/* 앞날(오늘 뒤) 수업의 결석 = 결석 예고 */
-function alimKindOf(ymd){ return String(ymd || '') > todayStr() ? 'preabsent' : 'absent'; }
+/* 앞날(오늘 뒤) 수업의 결석 = 결석 예고. 오늘 수업도 시작 전이면 결석 예고(2026-11-13 원장님 "결석 예고 알림톡 당일도 보낼 수 있게") —
+ * 수업이 시작된 뒤에는 결석 안내. cid 를 모르면(반 목록에 없음) 오늘은 결석 안내로 둔다. */
+function alimKindOf(ymd, cid){
+  ymd = String(ymd || '');
+  var today = todayStr();
+  if (ymd > today) return 'preabsent';
+  if (ymd === today && cid){
+    var c = classes.find(function(x){ return x.id === cid; });
+    if (c && c.start && !alimClassStarted(c, ymd)) return 'preabsent';
+  }
+  return 'absent';
+}
+/* 설정까지 본 종류 — 오늘 수업의 결석 예고는 그 템플릿이 준비 전이면 결석 안내로(앞날은 그대로 결석 예고 — 결석했습니다를 미리 보내면 안 된다) */
+function alimKindFor(ymd, cid, cfg){
+  var k = alimKindOf(ymd, cid);
+  if (k === 'preabsent' && String(ymd || '') === todayStr() && !alimReady(cfg, 'preabsent')) return 'absent';
+  return k;
+}
 /* 보낸 기록 캐시 키 — 결석 안내는 옛 그대로 날짜, 다른 종류는 '종류|날짜' */
 function alimLogKey(ymd, kind){ return (!kind || kind === 'absent') ? ymd : kind + '|' + ymd; }
 function alimLogEnsure(ymd, cb, force, kind){
@@ -7853,8 +7869,8 @@ function alimMemoOf(cid, nm, ymd){
 /* 결석 저장 뒤 확인 창. cid가 null이면 items의 cid를 쓴다(복수 선택). names: 이름 배열 또는 {cid,nm} 배열 */
 function alimOfferAbsent(cid, names, ymd, memo){
   var items = names.map(function(x){ return typeof x === 'string' ? { cid: cid, nm: x, memo: memo || '' } : x; });
-  var kind = alimKindOf(ymd);   // 앞날 결석 = 결석 예고, 오늘·지난 날 = 결석 안내
   alimCfgEnsure(function(cfg){
+    var kind = alimKindFor(ymd, items[0] && items[0].cid, cfg);   // 앞날·오늘 수업 시작 전 결석 = 결석 예고, 그 밖 = 결석 안내
     // 설정 전에는 조용히 — 결석 예고 템플릿이 준비 전이면 앞날 결석은 그 날 출석 창의 결석 알림으로 보낸다
     if (!alimReady(cfg, kind)) return;
     stuPhonesEnsure(function(){
@@ -8101,8 +8117,8 @@ function alimAttLine(cid, nm, ymd, status){
 }
 /* 결석 줄(옛 alimAttLine 그대로) */
 function alimAttLineAbsent(cid, nm, ymd){
-  var kind = alimKindOf(ymd), ui = ALIM_UI[kind];
   alimCfgEnsure(function(cfg){
+    var kind = alimKindFor(ymd, cid, cfg), ui = ALIM_UI[kind];
     var el = $('att-alim'); if (!el) return;
     if (!alimReady(cfg, kind)){
       el.innerHTML = '<span class="al-note">'+(kind === 'preabsent'
@@ -8151,9 +8167,9 @@ function whoLbl(w){ return String(w || '').replace(/학부모(?!님)/g, '학부�
  * 발송 기록 캐시(alimLogByDate)는 건드리지 않는다 — 전에는 창을 열려고 그 학생 기록을 캐시에서 지워, '보내지 않기'로 닫으면
  * 출석 창에 '아직 안 보냄'이 잘못 남았다(2026-10-03 고침). */
 function alimResend(cid, nm, ymd, kind){
-  kind = kind || alimKindOf(ymd);   // 넷째 인자 = 미등원·등원 안내(2026-10-29), 없으면 결석 안내·결석 예고
   stuPhonesEnsure(function(){
     alimCfgEnsure(function(cfg){
+      kind = kind || alimKindFor(ymd, cid, cfg);   // 넷째 인자 = 미등원·등원 안내(2026-10-29), 없으면 결석 안내·결석 예고
       if (!alimReady(cfg, kind)) return;
       alimLogEnsure(ymd, function(log){
         var s = log[plainName(nm)], one = [{ cid: cid, nm: nm }];

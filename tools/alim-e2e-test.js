@@ -280,7 +280,7 @@ const posts = [];
   await page.click('.att-btns .pick-abs');
   await page.waitForSelector('#al-rows', { timeout: 8000 });
   const pt = await modalText();
-  ok('결석 예고 창 제목·안내', pt.includes('결석 예고 알림톡') && pt.includes('앞날 결석을 기록했습니다'), pt);
+  ok('결석 예고 창 제목·안내', pt.includes('결석 예고 알림톡') && pt.includes('미리 알린 결석을 기록했습니다'), pt);
   ok('사유 칸에 출석 메모가 미리 들어간다', (await page.inputValue('#al-rs0')) === '학교 체험학습');
   ok('보충 안내 두 가지, 첫째가 기본', (await page.$$eval('input[name="al-mk"]', e => e.map(x => x.value + (x.checked ? '+' : '')).join('|'))) === MKO[0] + '+|' + MKO[1]);
   let pv = await page.textContent('.al-prev');
@@ -311,7 +311,8 @@ const posts = [];
   await page.waitForFunction(() => (document.getElementById('att-alim') || {}).textContent.includes('보냄'), null, { timeout: 8000 });
   ok('앞날 출석 창 줄 — 결석 예고 알림톡 보냄', (await page.textContent('#att-alim')).includes('결석 예고 알림톡 보냄'), await page.textContent('#att-alim'));
   // 13-3) 그 날이 오면 — 결석 안내 창은 체크 없이·닫을 수 있게
-  await page.evaluate(t => { closeModal(); window.__realToday = todayStr; todayStr = function(){ return t; }; alimLogByDate = {}; }, tmr);
+  await page.evaluate(t => { closeModal(); window.__realToday = todayStr; todayStr = function(){ return t; }; alimLogByDate = {};
+    window.__realStarted0 = alimClassStarted; alimClassStarted = function(c, y){ return y === todayStr(); }; }, tmr);   // 수업이 시작된 뒤
   await page.evaluate(t => openAttend(classes[0], '박지우', t), tmr);
   await page.waitForFunction(() => (document.getElementById('att-alim') || {}).textContent.includes('결석 예고 보냄'), null, { timeout: 8000 });
   ok('그 날 출석 창 — 결석 예고 보냄 + [결석 안내도 보내기]', (await page.textContent('#att-alim button')) === '결석 안내도 보내기', await page.textContent('#att-alim'));
@@ -319,7 +320,20 @@ const posts = [];
   await page.waitForSelector('#al-rows', { timeout: 8000 });
   ok('결석 안내 창 — 예고 보냄 표시·체크 없음', (await modalText()).includes('결석 예고') && (await whoBoxes(0)).every(x => x.endsWith('-')), (await whoBoxes(0)).join());
   ok('결석 안내 창 — [닫기]로 닫을 수 있다', !!(await page.$('#modal-box .mbtns button:not(#al-go)')));
-  await page.evaluate(() => { closeModal(); todayStr = window.__realToday; });
+  // 13-4) 당일 수업 시작 전 결석(2026-11-13 원장님 "결석 예고 알림톡 당일도 보낼 수 있게") — 오늘이라도 시작 전이면 결석 예고, 시작 뒤면 결석 안내
+  ok('당일 수업 시작 뒤 = 결석 안내', await page.evaluate(t => alimKindOf(t, classes[0].id) === 'absent', tmr));
+  await page.evaluate(() => { alimClassStarted = function(){ return false; }; });
+  ok('당일 수업 시작 전 = 결석 예고', await page.evaluate(t => alimKindOf(t, classes[0].id) === 'preabsent', tmr));
+  ok('반을 모르면 당일은 결석 안내', await page.evaluate(t => alimKindOf(t) === 'absent' && alimKindOf(t, 'zzz') === 'absent', tmr));
+  ok('지난 날은 언제나 결석 안내', await page.evaluate(() => alimKindOf('2020-01-01', classes[0].id) === 'absent'));
+  await page.evaluate(() => { closeModal(); attend = {}; alimLogByDate = {}; logRows = []; });
+  logRows = logRows.filter(x => x.student !== '박지우');
+  await page.evaluate(t => openAttend(classes[0], '박지우', t), tmr);
+  await page.fill('#att-memo', '열이 나서 병원');
+  await page.click('.att-btns .pick-abs');
+  await page.waitForSelector('#al-rows', { timeout: 8000 });
+  ok('당일 수업 전 결석 기록 → 결석 예고 창', (await modalText()).includes('결석 예고 알림톡') && (await page.inputValue('#al-rs0')) === '열이 나서 병원', await modalText());
+  await page.evaluate(() => { closeModal(); todayStr = window.__realToday; alimClassStarted = window.__realStarted0; });
 
   // 14) 미등원 안내 · 등원 안내(2026-10-29 원장님 "수업이 시작했는데 등원하지 않았고 전화를 받지 않았고 … 알림톡" +
   //     "뒤늦게 등원했을 경우 지금 등원했습니다 알림톡도") — 출석 창 버튼으로만, 자동 발송 없음, 닫을 수 있다
