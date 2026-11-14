@@ -929,6 +929,9 @@
   .tk-loc.l-전체{background:#EFF1EF;color:#6A716C;}
   .tk-txt{min-width:0;}
   .tk-txt .t{line-height:1.4;}
+  .tk-txt .t .due{display:inline-block;font-size:.7rem;font-weight:700;border-radius:5px;padding:1px 6px;margin-right:5px;vertical-align:1px;background:#E9EDF8;color:#64749E;}
+  .tk-txt .t .due.today{background:#F9EFD0;color:#9B8046;}
+  .tk-txt .t .due.past{background:#F7E2DE;color:#B0736A;}
   .tk-txt .t .carried{font-size:.68rem;background:#F7E2DE;color:#B0736A;border-radius:5px;padding:1px 6px;margin-right:5px;vertical-align:1px;}
   .tk-txt .stu{display:inline-block;background:#E9EDF8;color:#64749E;border-radius:5px;padding:0 6px;font-size:.74rem;margin-left:4px;}
   .tk-txt .meta{font-size:.72rem;color:var(--ink-soft);margin-top:2px;}
@@ -12393,6 +12396,32 @@ function tkEnsure(force){
 }
 function tkReload(){ tkList = null; tkLog = null; tkRender(); tkEnsure(true); }
 function tkWaiting(){ return (tkList || []).filter(function(t){ return t.status === '대기'; }); }
+/* 해결할 날 — 글 안의 첫 'M/D'(예: '11/15(일) 2:00 …')를 읽는다. 저장 칸이 따로 없어 글에서만 찾는다(2026-11-14 수정 요청함 최예나 → 원장님 1안).
+   연도는 남긴 날(ymd) 기준으로 가장 가까운 해(12월에 남긴 '1/3'은 다음 해). 못 찾으면 '' */
+function tkDueOf(t){
+  var m = /(^|[^\d])(\d{1,2})\/(\d{1,2})(?!\d)/.exec(String(t.text || ''));
+  if (!m) return '';
+  var mo = +m[2], d = +m[3];
+  if (mo < 1 || mo > 12 || d < 1 || d > 31) return '';
+  var base = String(t.ymd || todayStr()).split('-'), y = +base[0], bm = +base[1];
+  if (mo - bm > 6) y -= 1; else if (bm - mo > 6) y += 1;
+  return y + '-' + String(mo).padStart(2, '0') + '-' + String(d).padStart(2, '0');
+}
+/* 대기 줄 순서 — 해결할 날이 이른 것부터, 날짜를 못 찾은 줄은 맨 아래(그 안에서는 남긴 순서) */
+function tkSortWait(list){
+  return list.map(function(t, i){ return { t: t, due: tkDueOf(t), i: i }; })
+    .sort(function(a, b){
+      if (a.due && b.due && a.due !== b.due) return a.due < b.due ? -1 : 1;
+      if (!!a.due !== !!b.due) return a.due ? -1 : 1;
+      return a.i - b.i;
+    }).map(function(x){ return x.t; });
+}
+function tkDueChip(t){
+  var due = tkDueOf(t); if (!due) return '';
+  var today = todayStr(), cls = due === today ? ' today' : (due < today ? ' past' : '');
+  var tail = due === today ? ' · 오늘' : (due < today ? ' · 지난 날짜' : '');
+  return '<span class="due' + cls + '" title="글에 적힌 해결할 날">' + esc(tkMd(due)) + ' (' + mkDayOf(due) + ')' + tail + '</span>';
+}
 function tkRebuildByName(){
   tkByName = {};
   tkWaiting().forEach(function(t){ if (t.student && !tkByName[t.student]) tkByName[t.student] = t; });
@@ -12434,7 +12463,7 @@ function tkItemHtml(t, done){
   }).join('');
   return '<div class="tk-item' + (done ? ' done' : '') + '" data-id="' + t.id + '">' +
     '<span class="tk-loc l-' + esc(t.loc) + '">' + esc(tkLocLabel(t.loc)) + '</span>' +
-    '<div class="tk-txt"><div class="t">' + (carried ? '<span class="carried">지난 요청</span>' : '') + esc(t.text) +
+    '<div class="tk-txt"><div class="t">' + (done ? '' : tkDueChip(t)) + (carried ? '<span class="carried">지난 요청</span>' : '') + esc(t.text) +
     (t.student ? '<span class="stu">' + esc(t.student) + '</span>' : '') + '</div>' +
     '<div class="meta"><span class="tk-flow"><b>' + esc(t.author || '이름 없음') + '</b><i>→</i><b>' + esc(tkToLabel(t.loc)) + '</b></span> · ' + esc(tkMd(t.ymd)) + ' (' + mkDayOf(t.ymd) + ')' +
     (t.createdAt ? ' ' + esc(tkHm(t.createdAt)) : '') + ' 작성' +
@@ -12453,7 +12482,7 @@ function tkRender(){
     return;
   }
   tkRebuildByName();
-  var all = tkWaiting(), wait = all.filter(tkVisible);
+  var all = tkWaiting(), wait = tkSortWait(all.filter(tkVisible));
   var carried = wait.filter(function(t){ return t.ymd < todayStr(); }).length;
   var done = (tkList || []).filter(function(t){ return t.status === '완료' && tkVisible(t); });
   if (cnt){ cnt.textContent = all.length; cnt.hidden = !all.length; }
