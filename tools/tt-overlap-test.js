@@ -21,6 +21,8 @@ const CLASSES = [
   mk('rB', TODAY, '3:30', '5:00', '화정센터', '지원', '고1 백양C', ['라', '마']),
   // 안 겹치는 반 — 원래 폭 그대로여야 한다
   mk('rC', TODAY, '7:00', '8:30', '화정센터', '지원', '고1 나', ['바', '사']),
+  // 다른 강사의 안 겹치는 반 — 겹친 열은 이 열보다 넓어져 갈라진 카드도 한 열 폭을 쓴다 (2026-11-14)
+  mk('rD', TODAY, '3:30', '5:00', '화정센터', '현지', '고1 화수D', ['아', '자']),
 ];
 (async () => {
   const b = await chromium.launch();
@@ -45,11 +47,11 @@ const CLASSES = [
       const box = (el) => { const q = el.getBoundingClientRect(); return { l: q.left, r: q.right, w: q.width, t: q.top }; };
       const blks = [...document.querySelectorAll(sel)];
       const byCls = (t) => blks.find(e => e.textContent.indexOf(t) >= 0);
-      const a = byCls('고1 확인'), c2 = byCls('고1 백양C'), c3 = byCls('고1 나');
+      const a = byCls('고1 확인'), c2 = byCls('고1 백양C'), c3 = byCls('고1 나'), d = byCls('고1 화수D');
       if (!a || !c2 || !c3) return { miss: true, n: blks.length };
       const A = box(a), B = box(c2), C = box(c3);
       const hit = (bx, el) => { const e = document.elementFromPoint(bx.l + bx.w / 2, bx.t + 8); return !!(e && el.contains(e)); };
-      return { A, B, C, hitA: hit(A, a), hitB: hit(B, c2) };
+      return { A, B, C, D: d ? box(d) : null, hitA: hit(A, a), hitB: hit(B, c2) };
     }, sel);
     ok(label + ': 카드 셋 모두 존재', !r.miss, JSON.stringify(r));
     if (r.miss) return;
@@ -57,6 +59,7 @@ const CLASSES = [
     ok(label + ': 겹친 두 장이 좌우로 갈라짐', side, JSON.stringify([r.A, r.B]));
     ok(label + ': 나뉜 폭이 원폭의 절반쯤', r.A.w < r.C.w * 0.62 && r.B.w < r.C.w * 0.62, JSON.stringify([r.A.w, r.B.w, r.C.w]));
     ok(label + ': 안 겹친 반은 원래 폭', r.C.w > r.A.w * 1.6, JSON.stringify([r.A.w, r.C.w]));
+    if (r.D) ok(label + ': 겹친 열을 넓혀 갈라진 카드도 한 열 폭쯤', r.A.w > r.D.w * 0.8 && r.B.w > r.D.w * 0.8, JSON.stringify([r.A.w, r.B.w, r.D.w]));
     ok(label + ': 두 장 다 클릭이 닿음', r.hitA && r.hitB, JSON.stringify([r.hitA, r.hitB]));
   }
   // ① 오늘의 시간표
