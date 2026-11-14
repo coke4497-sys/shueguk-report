@@ -60,13 +60,13 @@ const ok = (n, c, x) => { if (c) pass++; else { fail++; console.log('  ✗ ' + n
 
 (async () => {
   const b = await chromium.launch();
-  async function open(ctx, mode){
+  async function open(ctx, mode, cls, logs){
     const page = await ctx.newPage();
     await page.addInitScript(({ cls, logs, mode }) => {
       sessionStorage.setItem('tt_mode', mode); sessionStorage.setItem('tt_book', '정규');
       sessionStorage.setItem('tt_vmopen', '0'); sessionStorage.setItem('tt_chopen', '0');
       localStorage.setItem('ttc:list:정규', JSON.stringify({ t: Date.now(), d: { classes: cls, onceMoves: logs } }));
-    }, { cls: CLASSES, logs: LOGS, mode });
+    }, { cls: cls || CLASSES, logs: logs || LOGS, mode });
     await page.goto('http://127.0.0.1:' + port + '/timetable.html');
     await page.waitForSelector('.blk, .wk-mini', { timeout: 15000 });
     await page.waitForTimeout(500);
@@ -259,6 +259,23 @@ const ok = (n, c, x) => { if (c) pass++; else { fail++; console.log('  ✗ ' + n
   page = await open(wide, 'week');
   r = await page.evaluate(() => [...document.querySelectorAll('.wk-mini')].some(e => /정리정독 중2/.test(e.textContent)));
   ok('⑦ 주차별 개요: 빈 명단 반 카드 없음', !r, String(r));
+  await page.close();
+
+  /* ⑧ 같은 날·같은 선생님 자리에서 시간만 늘린 수업 = 사라진 수업 아님 (2026-11-14 원장님
+   *    "무원고B반의 시간을 확장했더니 사라진 수업이라고 나옵니다") */
+  const C8 = [mk('r30', '7:30', '9:00', '본원', '현정', '고2 무원B(창비 화언)', ['김정재', '신찬규']),
+              mk(WID + 'g', '7:30', '9:30', '본원', '현정', '고2 무원B(창비 화언)', [])];
+  const L8 = [{ row: 9, kind: '주간반이동', date: TS, ymd: TS, student: '', fromId: 'r30', toId: WID + 'g', reason: '시간 연장' }];
+  for (const md of ['today']){   // 주차별은 이 가짜 데이터로 주간 기록이 안 들어와 오늘 화면만 본다
+    page = await open(wide, md, C8, L8);
+    await page.waitForTimeout(400);
+    r = await page.evaluate(() => ({
+      btn: [...document.querySelectorAll('.gonebtn')].filter(e => /무원B/.test(e.title)).length,
+      faded: [...document.querySelectorAll('.blk.wkoff, .wk-mini.mvd')].filter(e => /무원B/.test(e.textContent)).length,
+      cards: [...document.querySelectorAll('.blk, .wk-mini')].filter(e => /무원B/.test(e.textContent)).length }));
+    ok('⑧ ' + md + ': 시간만 늘린 수업은 사라진 버튼·흐린 카드 없음 · 카드 하나', r.btn === 0 && r.faded === 0 && r.cards === 1, JSON.stringify(r));
+    await page.close();
+  }
   await b.close(); srv.close();
   console.log(fail ? ('통과 ' + pass + ' / 실패 ' + fail) : ('✓ ' + pass + '건 통과'));
   process.exit(fail ? 1 : 0);

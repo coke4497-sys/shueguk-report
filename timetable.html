@@ -5420,6 +5420,8 @@ function locGroupList(list, makeCard, offCtx){
       box.appendChild(h);
       if (toffs[c.loc] && !toffs[c.loc].done){ toffs[c.loc].done = true; box.appendChild(teacherOffCtrEl(toffs[c.loc])); }
     }
+    var ldstr = offCtx ? offCtx.dstr : (mode === 'today' ? viewYmd() : '');
+    if (ldstr && wkSameSlotMove(c, ldstr)) return;   // 시간만 바꾼 원본 — 복사본 카드만 둔다
     var off = offCtx ? wkOffAt(c.id, offCtx.dstr) : null;
     if (off){ pendingOff.push({ c: c, off: off }); return; }
     if (offCtx && noRosterAt(c, offCtx.dstr)){   // 명단이 빈 반 — 카드 대신 작은 '사라진' 버튼 (2026-11-04)
@@ -5518,7 +5520,7 @@ function buildWeekList(){
  * 그리드에서는 카드도 띠도 그리지 않고 시간 축의 작은 버튼 하나로 모은다 — 실제 수업이 원래 폭을 쓴다. */
 function goneInfo(c, dstr){
   var mv = wkMovedAway(c.id, dstr);
-  if (mv) return { kind: '이동', info: mv };
+  if (mv) return { kind: '이동', info: mv, same: !!wkSameSlotMove(c, dstr) };
   var off = wkOffAt(c.id, dstr);
   if (off) return { kind: '휴강', info: off };
   var em = emptyAt(c, dstr);
@@ -5574,6 +5576,7 @@ function awayStateOf(c, dstr){
 }
 /* 사라진 수업을 칸(담당T 열 × 시작 시각)별로 모은다 */
 function goneAdd(cells, col, r0, lo, c, gone){
+  if (gone.same) return;   // 같은 날·같은 자리에서 시간만 바꾼 수업 — 사라진 것이 아니다 (2026-11-14)
   var k = col + '|' + r0;
   if (!cells[k]) cells[k] = { col: col, r0: r0, t0: lo + r0*30, t1: lo + (r0+1)*30, items: [] };
   cells[k].items.push({ c: c, kind: gone.kind, info: gone.info });
@@ -6379,6 +6382,16 @@ function classesOn(dstr){
   });
   return out;
 }
+/* 같은 날짜·같은 선생님·겹치는 시간으로 옮긴 수업 = 시간만 늘리거나 줄인 것
+ * (2026-11-14 원장님 "무원고B반의 시간을 확장했더니 사라진 수업이라고 나옵니다").
+ * 원본은 그 자리를 복사본이 그대로 쓰므로 '사라진 수업' 버튼·흐린 카드를 만들지 않는다. */
+function wkSameSlotMove(c, dstr){
+  var mv = wkMovedAway(c.id, dstr);
+  if (!mv || wkIdYmd(mv.toId) !== dstr) return null;
+  var t = classes.find(function(x){ return x.id === mv.toId; });
+  if (!t || String(t.teacher || '').trim() !== String(c.teacher || '').trim()) return null;
+  return (mins(t.start) < minsEnd(c) && minsEnd(t) > mins(c.start)) ? mv : null;
+}
 function wkVisible(c, dstr){
   if (c.wk) return !!dstr && c.wk === dstr;
   // 휴강·이 주만 이동 모두 감추지 않는다 — 휴강은 '이 주 휴강', 이동은 '어디로 이동' 흐린 카드로
@@ -6669,6 +6682,7 @@ function buildWeekOverview(){
         col.appendChild(cl);
         if (offLoc[c.loc] && !offLoc[c.loc].done){ offLoc[c.loc].done = true; col.appendChild(teacherOffCtrEl(offLoc[c.loc])); }
       }
+      if (wkSameSlotMove(c, dstr)) return;   // 시간만 바꾼 원본 — 복사본 카드만 둔다
       var off = wkOffAt(c.id, dstr);
       if (off){ pendingOff.push({ c: c, off: off }); return; }
       var m = document.createElement('button');
@@ -6712,6 +6726,7 @@ function buildWeekZoom(dname){
       slim.className = 'wk-slim';
       slim.appendChild(wkDayHeader(dy, dates, 'slim', function(){ weekZoomDay = dy; keepScroll = false; render(); }));
       wkDayClasses(dy, ymdOf(dates[dy])).filter(viewOn).forEach(function(c){
+        if (wkSameSlotMove(c, ymdOf(dates[dy]))) return;
         var b = document.createElement('div');
         var mvB = wkMovedAway(c.id, ymdOf(dates[dy]));
         var offB = wkOffAt(c.id, ymdOf(dates[dy]));
