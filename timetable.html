@@ -5237,6 +5237,29 @@ function spreadOverlaps(items){
   });
 }
 
+/* 열마다 겹치는 카드가 가장 많이 나란히 서는 수(차선 수) — 그만큼 그 열을 넓힌다.
+ * 같은 강사·같은 시간 카드 두 장이 한 열을 반씩 나눠 반 이름·학생 칩이 세로로 부서졌다
+ * (2026-11-14 원장님 "이렇게 되는 것을 해결할 수 없나요?" — 현정T 화수D 이 주만 + 행신B). spreadOverlaps와 같은 묶음 규칙. */
+function laneCounts(items){
+  var byCol = {}, out = {};
+  items.forEach(function(it){ (byCol[it.col] = byCol[it.col] || []).push(it); });
+  Object.keys(byCol).forEach(function(k){
+    var arr = byCol[k].slice().sort(function(a, b){ return a.s - b.s || a.e - b.e; });
+    var lanes = [], end = -1, max = 1;
+    arr.forEach(function(it){
+      if (lanes.length && it.s >= end){ lanes = []; end = -1; }
+      var lane = -1;
+      for (var i = 0; i < lanes.length; i++){ if (lanes[i] <= it.s){ lane = i; break; } }
+      if (lane < 0){ lane = lanes.length; lanes.push(0); }
+      lanes[lane] = it.e;
+      if (it.e > end) end = it.e;
+      if (lanes.length > max) max = lanes.length;
+    });
+    out[k] = max;
+  });
+  return out;
+}
+
 /* 요일별·오늘 보기: 담당T × 시간 그리드 */
 function buildDayGrid(list){
   var dname = list.length ? list[0].day : todayDay();
@@ -5274,7 +5297,14 @@ function buildDayGrid(list){
 
   // 좁은 화면(모바일)은 열 최소폭을 확보해 가로 스크롤, 넓은 화면은 전체 폭에 맞춤
   var narrow = window.innerWidth < 760;
-  var colDefs = '42px repeat(' + cols.length + ', ' + (narrow ? 'minmax(96px, 1fr)' : 'minmax(0, 1fr)') + ')';
+  // 카드가 겹치는 열은 겹친 수만큼 넓게 — 나란히 선 카드도 한 열 폭을 그대로 쓴다
+  var laneN = laneCounts(list.filter(function(c){ return !goneInfo(c, viewYmd()); }).map(function(c){
+    return { col: (colIdx[c.loc+'|'+c.teacher]||0)+2, s: mins(c.start), e: minsEnd(c) };
+  }));
+  var colDefs = '42px ' + cols.map(function(c, i){
+    var n = laneN[i+2] || 1;
+    return narrow ? 'minmax(' + (96*n) + 'px, ' + n + 'fr)' : 'minmax(0, ' + n + 'fr)';
+  }).join(' ');
 
   // 고정 헤더(담당T·위치) — 세로 스크롤 시 상단 고정
   var hg = document.createElement('div');
@@ -6133,7 +6163,13 @@ function zoomCenterGrids(big, dname, list, makeBlock, goneOf, dstr){   // dstr =
     var n = Math.max(1, Math.round((hi - lo) / 30));
     var g = document.createElement('div');
     g.className = 'wk-tgrid';
-    g.style.gridTemplateColumns = '46px repeat(' + cols.length + ', minmax(var(--zcol, 0px), 1fr))';
+    var laneZ = laneCounts(cl.filter(function(c){ return !(goneOf && goneOf(c)); }).map(function(c){
+      return { col: cols.indexOf(c.teacher) + 2, s: mins(c.start), e: minsEnd(c) };
+    }));
+    g.style.gridTemplateColumns = '46px ' + cols.map(function(t, j){
+      var k = laneZ[j+2] || 1;   // 겹치는 열은 겹친 수만큼 넓게 (2026-11-14)
+      return 'minmax(calc(var(--zcol, 0px) * ' + k + '), ' + k + 'fr)';
+    }).join(' ');
     g.style.gridTemplateRows = 'auto repeat(' + n + ', 30px)';
     var corner = document.createElement('div');
     corner.className = 'wk-tcorner';
@@ -11089,10 +11125,9 @@ function wkSrcOptions(){
              (c.teacher ? ' · '+esc(c.teacher)+'T' : '')+' ('+c.students.length+'명)</option>';
     }).join('');
 }
-/* '이 주만' 반을 만들기 전 — 그 날짜·같은 강사의 겹치는 수업이 있으면 한 번 물어본다
- * (2026-09-13 사용자 승인 "확인창 만들어줘" — 겹침 나란히 표시와 한 세트).
- * 일부러 겹치게 여는 보충은 [확인]으로 그대로 진행되고, 실수만 걸러 준다.
- * 담당T가 빈 값이면 묻지 않는다. excludeId = 그 날짜에 어차피 숨는 원본 반(옮기기 자기 자신). */
+/* '이 주만' 반을 만들기 전 — 그 날짜·같은 강사의 겹치는 수업이 있으면 만들지 않는다
+ * (2026-09-13 처음엔 묻기만 했다가 2026-11-14 원장님 "막는 장치가 필요해요"로 막음).
+ * 담당T가 빈 값이면 보지 않는다. excludeId = 그 날짜에 어차피 숨는 원본 반(옮기기 자기 자신). */
 function wkOverlapOk(dstr, dayName, s, e, teacher, excludeId){
   var t = String(teacher || '').trim();
   if (!t) return true;
@@ -11104,9 +11139,24 @@ function wkOverlapOk(dstr, dayName, s, e, teacher, excludeId){
     return mins(c.start) < e && minsEnd(c) > s;
   });
   if (!hit.length) return true;
+  // 막는다 — 묻기만 하던 때 [확인]으로 지나가 11/15·22·29 현정T 화수D 보충이 행신B 3:30과 겹쳐 만들어졌다
+  // (2026-11-14 원장님 "같은 시간대에 수업을 만들 때 그것을 막는 장치가 필요해요")
+  alert(overlapMsg(t, hit));
+  return false;
+}
+/* 같은 선생님 수업이 겹칠 때 안내 문구 — '이 주만' 반·정규 [반 추가] 공용 */
+function overlapMsg(t, hit){
   var lines = hit.map(function(c){ return '· ' + c.cls + ' — ' + c.start + '~' + c.end + (c.loc ? ' (' + c.loc + ')' : ''); });
-  return confirm(t + 'T의 같은 시간에 이미 수업이 있어요.\n\n' + lines.join('\n') +
-                 '\n\n일부러 겹치게 여는 수업이면 [확인]을 눌러 그대로 만들고,\n실수라면 [취소]를 눌러 시간을 바꿔 주세요.');
+  return t + 'T의 같은 시간에 이미 수업이 있어 만들 수 없습니다.\n\n' + lines.join('\n') +
+         '\n\n시간이나 담당 선생님을 바꿔 주세요. 꼭 겹쳐야 하는 수업이면 원장님께 말씀해 주세요.';
+}
+/* 정규·내신 [반 추가] — 같은 시간표·같은 요일·같은 선생님의 반과 시간이 겹치는지 */
+function regOverlapHit(dayName, s, e, teacher){
+  var t = String(teacher || '').trim();
+  if (!t) return [];
+  return classes.filter(function(c){
+    return !c.wk && String(c.teacher || '').trim() === t && c.day === dayName && mins(c.start) < e && minsEnd(c) > s;
+  });
 }
 function openAddWeekClass(){
   var dates = weekDates();
@@ -12090,6 +12140,8 @@ function submitAddClass(){
   var st0 = mins(st), en0 = mins(en);
   if (en0 <= st0) en0 += 12*60;
   if (en0 <= st0 || en0 > 24*60){ $('nc-err').textContent = '끝 시간이 시작보다 빨라요. (수업은 오전 7시 ~ 밤 12시)'; return; }
+  var hit = regOverlapHit(d, st0, en0, teacher);
+  if (hit.length){ $('nc-err').textContent = overlapMsg(teacher, hit).replace(/\n+/g, ' '); return; }
   closeModal();
   post({ action:'timetableAddClass', book:book, day:d, start:st, end:en, loc:loc, teacher:teacher, cls:cls },
     '반을 만드는 중…', function(res){
