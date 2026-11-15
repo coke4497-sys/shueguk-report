@@ -82,6 +82,7 @@ const STUDENTS = [
       if (/\/hwcheck_records/.test(u) && m === 'GET' && /token=eq\./.test(u)){ (st.hwHistGets = st.hwHistGets || []).push(u); return json(200, opt.hwHist || []); }
       if (/\/hwcheck_records/.test(u) && m === 'GET' && /token=in\./.test(u)){ (st.hwPrevGets = st.hwPrevGets || []).push(decodeURIComponent(u)); return json(200, opt.hwPrev || []); }
       if (/\/hwcheck_records/.test(u)){ if (m === 'GET'){ (st.hwGets = st.hwGets || []).push(decodeURIComponent(u)); return json(200, opt.hw || []); } return r.fulfill({ status: 201, body: '' }); }
+      if (/\/hwork_submissions/.test(u) && m === 'GET'){ (st.hwkGets = st.hwkGets || []).push(u); return json(200, opt.hwork || []); }
       if (/\/tt_log\?/.test(u) && m === 'GET') return json(200, opt.log || []);
       if (/\/report_config/.test(u)) return json(200, [{ value: '숙제 수행, 오답 처리' }]);
       if (/\/students\?/.test(u)) return json(200, STUDENTS);
@@ -1266,6 +1267,67 @@ const STUDENTS = [
     r = await p12.evaluate(() => [...document.querySelectorAll('.cr-card')].map(c => c.querySelector('.cr-top b').textContent));
     ok('⑪-2 다른 날로 1회 이동해 나간 학생은 수업 기록 목록에 없다', r.includes('박보검') && !r.includes('김하늘'), JSON.stringify(r));
     await c12.ctx.close();
+  }
+
+  // ⑫ H WORK 제출을 수업 기록에 반영(2026-11-15 원장님 — 표시 + 자동 체크 · 지난 수업 이후)
+  {
+    const c13 = await ctxOf({ book: '정규',
+      rows: [row('r001', '고2 가', '지원', '박보검 김하늘 최다은')],
+      att: [{ class_id: 'r001', student: '박보검', status: '출석' }, { class_id: 'r001', student: '김하늘', status: '출석' }],
+      // 과제 줄은 H WORK 제목과 같게(또는 끝이 같게) 적는다 — s.html classDone 과 같은 규칙
+      prev: [{ class_id: 'r001', ymd: LASTWK, homework: '지필 대비 · SHUEGUK REAL 관동별곡 학습지 3회\n오답 노트' }],
+      // 김하늘은 선생님이 이미 매긴 과제 — 자동으로 덮지 않는다
+      hw: [{ token: 'k-kim', scores: { '지필 대비 · SHUEGUK REAL 관동별곡 학습지 3회 (학습량)': 5, '지필 대비 · SHUEGUK REAL 관동별곡 학습지 3회 (채점)': 0 }, pct: 20, pub: '', priv: '', missing: false, plan: '' }],
+      hwork: [
+        { name: '박보검', school: '화정고등학교', code: 'SHUEGUK REAL 관동별곡 학습지 3회', got: 18, total: 36, ts: LASTWK + ' 20:10', retry_got: 4, review_at: null },
+        { name: '김하늘', school: '화정고등학교', code: 'SHUEGUK REAL 관동별곡 학습지 3회', got: 30, total: 36, ts: LASTWK + ' 21:00', retry_got: 0, review_at: null },
+        { name: '최다은', school: '화정고등학교', code: 'SHUEGUK REAL 관동별곡 학습지 3회', got: 36, total: 36, ts: '2026-01-02 10:00', retry_got: 0, review_at: null } ] });
+    const p13 = c13.page;
+    await openCard(p13, '고2 가');
+    await p13.waitForTimeout(900);
+    r = await p13.evaluate(() => [...document.querySelectorAll('.cr-card')].map(c => ({
+      nm: c.querySelector('.cr-top b').textContent,
+      hwk: (c.querySelector('.cr-hwk') || {}).textContent || '',
+      auto: [...c.querySelectorAll('.cr-task')].filter(t => t.querySelector('.cr-auto')).map(t => t.querySelector('.cr-tname').textContent.replace(/\s/g, '')),
+      items: [...c.querySelectorAll('.cr-item')].map(x => x.querySelector('span').textContent + ':' + x.querySelectorAll('.cr-stars button.on').length + ':' + [...x.querySelectorAll('.cr-lvp.on')].map(b => b.textContent).join('')) })));
+    const park = r.find(x => x.nm === '박보검'), kim = r.find(x => x.nm === '김하늘'), choi = r.find(x => x.nm === '최다은');
+    ok('⑫ 제출한 학생 카드에 H WORK 제출 줄', /H WORK 제출 1건/.test(park.hwk) && /관동별곡 학습지 3회/.test(park.hwk) && /18 \/ 36/.test(park.hwk) && /다시 푼 문항 4/.test(park.hwk), park.hwk);
+    ok('⑫ 지난 수업 전 제출은 보이지 않는다', !choi.hwk, choi.hwk);
+    ok("⑫ 자동으로 채운 과제에만 '자동' 표시", park.auto.length === 1 && /^지필대비·SHUEGUKREAL관동별곡학습지3회자동$/.test(park.auto[0]), JSON.stringify(park.auto));
+    ok('⑫ 학습량 별 = 점수 비율(18/36 → 3개) · 채점 = 완벽', park.items[0] === '학습량:3:' && park.items[1] === '채점:0:완벽', JSON.stringify(park.items.slice(0, 2)));
+    ok('⑫ 학습 분석·오답 분석은 비워 둔다', park.items[2] === '학습 분석:0:' && park.items[3] === '오답 분석:0:', JSON.stringify(park.items.slice(2, 4)));
+    ok('⑫ 검사 목록에 있어도 제출이 없는 과제는 그대로', park.items[4] === '학습량:0:', JSON.stringify(park.items.slice(4, 6)));
+    ok('⑫ 이미 매긴 항목은 덮어쓰지 않는다(김하늘 학습량 5·채점 안함)', kim.items[0] === '학습량:5:' && kim.items[1] === '채점:0:안함', JSON.stringify(kim.items.slice(0, 2)));
+    const hwk = c13.st.writes.filter(w => /hwcheck_records/.test(w.u) && w.body[0].token === 'k-park').pop();
+    ok('⑫ 자동 반영분이 저장된다', hwk && hwk.body[0].scores['지필 대비 · SHUEGUK REAL 관동별곡 학습지 3회 (학습량)'] === 3 && hwk.body[0].scores['지필 대비 · SHUEGUK REAL 관동별곡 학습지 3회 (채점)'] === 2, JSON.stringify(hwk && hwk.body[0].scores));
+    ok('⑫ 손대지 않은 학생은 자동 저장 대상이 아니다', !c13.st.writes.some(w => /hwcheck_records/.test(w.u) && w.body[0].token === 'k-kim'));
+    ok('⑫ 제출 조회는 그 수업 날짜까지', (c13.st.hwkGets || []).some(u => /hwork_submissions\?ts=gte\./.test(u) && u.indexOf('ts=lte.' + TODAYSTR) >= 0), JSON.stringify(c13.st.hwkGets));
+    await c13.ctx.close();
+  }
+
+  // ⑫-2 내신 기간은 '수행 평가' 한 항목으로 자동 반영
+  {
+    const c14 = await ctxOf({ book: '내신',
+      rows: [Object.assign(row('n002', '고1 확인', '연주', '(화정)박보검 김하늘'), { start_time: '7:30', end_time: '9:00' })],
+      att: [{ class_id: 'n002', student: '(화정)박보검', status: '출석' }, { class_id: 'n002', student: '김하늘', status: '출석' }], hw: [],
+      prev: [{ class_id: 'n002', ymd: LASTWK, homework: 'SHUEGUK REAL 관동별곡 학습지 3회' }],
+      hwork: [
+        { name: '박보검', school: '화정고등학교', code: 'SHUEGUK REAL 관동별곡 학습지 3회', got: 18, total: 36, ts: LASTWK + ' 20:10', retry_got: 0, review_at: null },
+        { name: '김하늘', school: '화정고등학교', code: 'SHUEGUK REAL 관동별곡 학습지 3회', got: 35, total: 36, ts: LASTWK + ' 20:20', retry_got: 0, review_at: null } ] });
+    const p14 = c14.page;
+    await p14.evaluate(() => { CR_NS_SPLIT_FROM = '2000-01-01'; CR_NS_SPLIT_TO = '2000-01-02'; CR_NS_HW_SPLIT_TO = '2000-01-02'; });
+    await openCard(p14, '고1 확인');
+    await p14.waitForTimeout(900);
+    r = await p14.evaluate(() => [...document.querySelectorAll('.cr-card')].map(c => ({
+      nm: c.querySelector('.cr-top b').textContent,
+      auto: c.querySelectorAll('.cr-auto').length,
+      lv: [...c.querySelectorAll('.cr-item')].map(x => [...x.querySelectorAll('.cr-lvp.on')].map(b => b.textContent).join('')) })));
+    const pk = r.find(x => x.nm.indexOf('박보검') >= 0), km = r.find(x => x.nm.indexOf('김하늘') >= 0);
+    ok("⑫-2 내신: 절반 푼 과제는 '진행 중'", pk && pk.auto === 1 && pk.lv[0] === '진행 중', JSON.stringify(pk));
+    ok("⑫-2 내신: 9할 넘게 푼 과제는 '매우 잘함'", km && km.auto === 1 && km.lv[0] === '매우 잘함', JSON.stringify(km));
+    const w14 = c14.st.writes.filter(w => /hwcheck_records/.test(w.u) && w.body[0].token === 'k-park').pop();
+    ok('⑫-2 내신: 수행 평가 항목으로 저장', w14 && w14.body[0].scores['SHUEGUK REAL 관동별곡 학습지 3회 (수행 평가)'] === 1, JSON.stringify(w14 && w14.body[0].scores));
+    await c14.ctx.close();
   }
 
   ok('페이지 오류 없음', perr === 0);

@@ -598,6 +598,15 @@
   .cr-cpb.on{background:#5A4A6A;color:#fff;}
   .cr-cp small{font-size:.66rem;color:#8B978F;}
   .cr-dim{font-size:.76rem;color:var(--ink-soft);}
+  /* H WORK 제출 반영(2026-11-15 원장님 "학생이 h work에 제출했을 때 수업 기록에 반영") */
+  .cr-hwk{background:#E9EDF8;border-radius:9px;padding:5px 8px;margin:0 0 5px;font-size:.73rem;color:#3F4A6B;}
+  .cr-hwk b{font-size:.74rem;color:#2B3A5B;}
+  .cr-hwk ul{list-style:none;margin:2px 0 0;padding:0;}
+  .cr-hwk li{display:flex;flex-wrap:wrap;gap:4px;align-items:baseline;line-height:1.5;}
+  .cr-hwk .t{font-weight:700;word-break:keep-all;}
+  .cr-hwk .sc{background:#fff;border-radius:999px;padding:0 6px;font-size:.7rem;}
+  .cr-hwk small{color:#64749E;font-size:.68rem;}
+  .cr-auto{font-size:.66rem;background:#EDE4F4;color:#5A4A6A;border-radius:5px;padding:1px 6px;margin-left:4px;vertical-align:1px;}
   .cr-scope{background:#F6F8F7;border-radius:12px;padding:9px 12px;}
   .cr-scope summary{cursor:pointer;font-size:.86rem;font-weight:700;}
   .cr-scope summary .sc-st,.cr-ref b .sc-st,.cr-pbox b .sc-st{margin-left:4px;vertical-align:1px;} .cr-scope summary small{font-weight:400;color:var(--ink-soft);margin-left:6px;} .cr-scope summary small.warn{color:#7A6230;}
@@ -8985,7 +8994,8 @@ function openClassNote(c, ctx){
     crHwSrcLoad(c, bk, ymd).catch(function(e){ console.warn('지난 과제 조회 실패', e); return null; }),
     crStudentsEnsure().catch(function(){ return null; }),
     CR.ns ? crStudentsEnsure().catch(function(){ return null; }).then(function(){ return crNsLoad(CR.ns, c.id, c); }).catch(function(e){ console.warn('시험범위 조회 실패', e); CR.ns = null; }) : Promise.resolve(),   // 범위를 못 읽어도 창은 연다(정규처럼)
-    crSibLoad(c, bk, ymd).catch(function(){ return []; })
+    crSibLoad(c, bk, ymd).catch(function(){ return []; }),
+    crHwkLoad(ymd).catch(function(e){ console.warn('H WORK 제출 조회 실패', e); return []; })
   ]).then(function(r){
     if (CR !== mine) return;
     CR.note = r[0][0] || null;
@@ -8997,8 +9007,10 @@ function openClassNote(c, ctx){
     CR.src = r[2];
     CR.names.forEach(function(x){ x.stu = crStuOf(x.nm); });
     CR.sib = r[5] || [];
+    CR.hwk = r[6] || [];
     crSibAuto();
     crRender();
+    crHwkApplySave();     // H WORK 제출 자동 반영(비어 있는 항목만)
     crPubCount();
     crCarryLoad(CR);
   }).catch(function(e){
@@ -9743,6 +9755,107 @@ function crXtRemove(t){
   if (!confirm("'" + t + "' 과제를 반 전체에서 뺄까요? 이미 매긴 별은 %에서 빠져요.")) return;
   crXtSet((CR.xt || []).filter(function(x){ return x !== t; }), '과제를 뺐습니다.');
 }
+/* H WORK 제출을 수업 기록에 반영(2026-11-15 원장님 "학생이 h work에 제출했을 때 수업 기록에 반영해줘"
+ *   → 원장님 선택: ① 표시 + 자동 체크 ② 기간은 지난 수업 이후).
+ * ① 표시: 학생 카드에 'H WORK 제출 n건' 줄(제목 · 19/36 · 11/15 17:44 · 다시 푼 문항 · 복습 완료).
+ * ② 자동 체크: 검사 과제 이름이 H WORK 제목과 맞으면 **아직 비어 있는 항목만** 미리 채운다
+ *    — 정규 기간은 학습량 별 = 점수 비율(제출했으니 최소 1)·채점 '완벽'(H WORK가 자동 채점),
+ *      내신 기간은 '수행 평가' 한 항목(9할 이상 매우 잘함 · 2/3 이상 잘함 · 그 밖에는 진행 중 — '부족'은 자동으로 매기지 않는다).
+ *    선생님이 미제출로 표시한 과제·이미 매긴 항목·지난 검사에서 이어받은 항목은 건드리지 않는다.
+ * 규칙을 바꾸려면 crHwkAuto 한 곳. */
+var CR_HWK_DAYS = 21;         // 받아 오는 창(지난 수업이 3주 전까지면 잡힌다)
+var CR_HWK_FALLBACK = 7;      // 지난 수업 기록이 없는 학생은 최근 n일 제출만 본다
+function crHwkSchool(s){ return String(s || '').trim().replace(/등학교$/, '').replace(/학교$/, ''); }
+function crHwkName(n){ var p = plainName(n); return /A$/.test(p) ? p.slice(0, -1) : p; }
+/* 검사 과제 이름 ↔ H WORK 제목 — s.html 의 classDone 과 같은 규칙(고치면 둘 다):
+ * 제목 앞 꼬리표 '[…]'를 떼고 띄어쓰기를 지운 뒤, 과제 줄 끝이 그 제목과 같으면 같은 과제로 본다. */
+function crHwkCore(x){ return String(x || '').replace(/\s+/g, ''); }
+function crHwkMatch(task, code){
+  var c = crHwkCore(String(code || '').replace(/^\s*\[[^\]]*\]\s*/, '')); if (c.length < 6) return false;
+  var t = crHwkCore(crTaskOfItem(task));
+  return t === c || t.slice(-c.length) === c;
+}
+function crHwkLoad(ymd){
+  var d = new Date(ymd + 'T00:00:00'); d.setDate(d.getDate() - CR_HWK_DAYS);
+  return crGet('/hwork_submissions?ts=gte.' + encodeURIComponent(crYmd(d)) + '&ts=lte.' + encodeURIComponent(ymd + ' 23:59') +
+               '&select=name,school,code,got,total,ts,retry_got,review_at&order=ts&limit=3000')
+    .then(function(rows){ return rows || []; });
+}
+/* '지난 수업 이후' 기준 날짜 — 과제 검사가 잇는 지난 수업 기록(CR.src)의 날짜, 없으면 최근 n일.
+ * crSrcOf 는 과제 목록만 돌려줘서 날짜는 여기서 직접 본다(지난 수업 기록 모양을 바꾸면 함께 고칠 것). */
+function crHwkSince(x){
+  var s = CR.src, base = !s ? null : (s.common !== undefined ? s.common : (s.by && s.by[x.p]) || null);
+  if (base && base.ymd) return base.ymd;
+  var d = new Date(CR.ymd + 'T00:00:00'); d.setDate(d.getDate() - CR_HWK_FALLBACK);
+  return crYmd(d);
+}
+/* 그 학생이 지난 수업 이후에 낸 H WORK — 이름(끝 A 무시)과 학교(등학교 뗀 이름)로 고른다 */
+function crHwkOf(x){
+  var all = CR.hwk; if (!all || !all.length) return [];
+  var since = crHwkSince(x), nm = crHwkName(x.p), sch = x.stu ? crHwkSchool(x.stu.school) : '';
+  return all.filter(function(r){
+    if (crHwkName(r.name) !== nm) return false;
+    if (sch && crHwkSchool(r.school) && crHwkSchool(r.school) !== sch) return false;
+    return String(r.ts || '').slice(0, 10) >= since;
+  });
+}
+function crHwkHtml(x){
+  var rows = crHwkOf(x); if (!rows.length) return '';
+  return '<div class="cr-hwk"><b>H WORK 제출 ' + rows.length + '건</b> <small>지난 수업 이후</small><ul>' +
+    rows.map(function(r){
+      var md = String(r.ts || '').slice(5, 16).replace('-', '/');
+      var sc = (+r.total > 0) ? ((+r.got || 0) + ' / ' + (+r.total)) : '';
+      return '<li><span class="t">' + esc(r.code || '제목 없음') + '</span>' +
+        (sc ? '<span class="sc">' + esc(sc) + '</span>' : '') +
+        '<small>' + esc(md) + (+r.retry_got ? ' · 다시 푼 문항 ' + (+r.retry_got) : '') +
+        (r.review_at && r.review_at !== 'None' ? ' · 복습 완료' : '') + '</small></li>';
+    }).join('') + '</ul></div>';
+}
+/* H WORK 점수 비율 → 그 항목에 넣을 값 */
+function crHwkVal(it, pct){
+  if (crIsPerf(it)) return pct >= 0.9 ? 3 : pct >= 2 / 3 - 1e-9 ? 2 : 1;   // 매우 잘함 · 잘함 · 진행 중
+  if (/ \(채점\)$/.test(it)) return 2;                                      // H WORK 가 자동 채점 — 완벽
+  if (/ \(학습량\)$/.test(it)) return Math.max(1, Math.min(CR_HW_MAX, Math.round(pct * CR_HW_MAX)));
+  return 0;                                                                // 학습 분석·오답 분석은 선생님이 본다
+}
+/* 자동 체크 — 비어 있는 항목만 채우고 채운 학생 번호를 돌려준다(저장은 부르는 쪽에서) */
+function crHwkAuto(){
+  var filled = [];
+  if (!CR.hwOk) return filled;
+  CR.names.forEach(function(x, i){
+    var code = x.stu ? x.stu.code : ''; if (!code) return;
+    var src = crSrcOf(x); if (!src || !src.tasks.length) return;
+    var subs = crHwkOf(x); if (!subs.length) return;
+    var h = crHwRec(code), hit = false;
+    src.tasks.forEach(function(t){
+      if (crTaskMissed(h, t)) return;                      // 선생님이 미제출로 표시한 과제는 건드리지 않는다
+      var s = subs.filter(function(r){ return crHwkMatch(t, r.code); }).pop(); if (!s) return;
+      var pct = (+s.total > 0) ? (+s.got || 0) / +s.total : 0, one = false;
+      crDims().forEach(function(d){
+        var it = t + ' (' + d + ')';
+        if (Object.prototype.hasOwnProperty.call(h.scores, it)) return;     // 이미 매겼거나 이어받은 항목
+        var v = crHwkVal(it, pct); if (!v) return;
+        h.scores[it] = v; crCarryTouch(h, it);                              // 지난 검사 이어받기가 덮지 않게
+        one = true;
+      });
+      if (one){ h.auto = h.auto || {}; h.auto[t] = s; hit = true; }
+    });
+    if (hit) filled.push(i);
+  });
+  return filled;
+}
+/* 창을 열 때 한 번 — 자동으로 채운 학생만 차례로 저장한다(선생님이 고치면 그 값으로 다시 저장된다) */
+function crHwkApplySave(){
+  var filled = crHwkAuto();
+  if (!filled.length) return;
+  crRender();
+  crMsg('H WORK 제출을 과제 검사에 자동으로 반영했어요(' + filled.length + '명). 다르면 고쳐 주세요.');
+  var mine = CR;
+  filled.reduce(function(pr, i){
+    return pr.then(function(){ return (CR === mine) ? crHwSave(i) : null; })
+             .catch(function(e){ console.warn('H WORK 자동 반영 저장 실패', e); });
+  }, Promise.resolve());
+}
 function crItemsOf(x){
   var src = crSrcOf(x), out = [];
   if (src) src.tasks.forEach(function(t){ crDims().forEach(function(d){ out.push(t + ' (' + d + ')'); }); });
@@ -9789,6 +9902,7 @@ function crStarsHtml(i, code){
     var tm = crTaskMissed(h, t);
     var tfull = crTaskFull(h, t), tcar = !tfull && !!h && !!h.carried && crDims().some(function(d){ return h.carried[t + ' (' + d + ')']; });
     return '<div class="cr-task' + (tm ? ' miss' : '') + (tfull ? ' tfull' : '') + '"><div class="cr-thead"><div class="cr-tname">' + esc(t) +
+      (h && h.auto && h.auto[t] ? ' <span class="cr-auto" title="H WORK 제출로 자동 반영 — 고칠 수 있어요">자동</span>' : '') +
       (tfull ? ' <small class="cr-tst done">완료</small>' : tcar ? ' <small class="cr-tst">지난 검사 이어받음</small>' : '') + '</div>' +
       '<div class="cr-tacts"><button type="button" class="cr-mini cr-tmiss' + (tm ? ' on' : '') + '" data-tmiss="' + i + '|' + ti + '" aria-pressed="' + tm + '" aria-label="' + esc(t) + ' 미제출">미제출</button>' +
       '<button type="button" class="cr-mini cr-trm" data-trmme="' + i + '|' + ti + '" title="이 학생의 검사 목록에서만 빼기" aria-label="' + esc(t) + ' 이 학생만 빼기">이 학생만 빼기</button>' +
@@ -9859,7 +9973,7 @@ function crRender(){
       '<textarea class="cr-ih" id="cr-ih-' + i + '" rows="1" maxlength="300" placeholder="예) 서술형 3문항 다시 쓰기">' + esc(crIhOf(cm, x.p)) + '</textarea></label>';
     var hwPart = !CR.hwOk ? '<div class="cr-note">과제 검사를 불러오지 못해 이 창에서는 매길 수 없어요.</div>'
       : !code ? '<div class="cr-note">명단에서 이 학생을 찾지 못해 과제 검사를 저장할 수 없어요(동명이인·미등록).</div>'
-      : crStarsHtml(i, code) +
+      : crHwkHtml(x) + crStarsHtml(i, code) +
         (CR.nsHw && crSrcOf(x) ? '<div class="cr-memos"><label>공개 메모 <small>이 수업 과제 검사 · 학생·학부모님께 보여요</small>' +
           '<textarea class="cr-pub" id="cr-pub-' + i + '" rows="2" maxlength="300" placeholder="예) 과제집 w15 오답 정리가 꼼꼼했어요">' + esc(h ? h.pub : '') + '</textarea></label>' +
           '<label>비공개 메모 <small>교사·조교만 봐요</small><textarea class="cr-priv" id="cr-priv-' + i + '" rows="2" maxlength="300" placeholder="예) 베낀 흔적 확인 필요">' + esc(h ? h.priv : '') + '</textarea></label></div>' : '') +
