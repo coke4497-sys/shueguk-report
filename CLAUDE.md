@@ -1108,7 +1108,7 @@ clasp update-deployment -d "설명" <DEPLOYMENT_ID>   # 기존 배포 새 버전
 - s.html `student_bundle` 계산에서 그 학생의 `hwcheck_records` 과제 줄(끝 ' (수행 평가)' 등 떼고)과 H WORK 제목(앞 '[…]' 떼고)을 띄어쓰기 없이 비교해 **과제 줄 끝이 H WORK 제목과 같고** 점수가 만점의 2/3 이상(수행 평가 잘함·매우 잘함)이면 `h.classDone` — H WORK 목록·허브 '풀어야 할 과제' 수에서 빠지고 목록 아래 '수업 시간에 선생님과 확인한 과제 n개는 목록에서 뺐습니다'. 배정·제출 기록은 그대로(화면에서만 뺌). 그래서 수업 기록 과제 줄은 H WORK 제목과 같게 적어야 잇는다('4(1) 워드투벡, … · 02 기출 포인트 OX').
 
 ## H WORK 정답 없는 문항 = 모두 정답 — 067 (2026-11-16 원장님 "33번 답이 없음" → '모두 정답 처리')
-- 문항의 ans 가 `'*'`이면 `hwork_grade_`가 어떤 답이든(빈 답 포함) 정답으로 채점하고 결과 정답 칸은 '모두 정답'(063 본문 + 한 갈래). H WORK `apps-script/Code.gs` gradeOne 과 두 벌. **063 을 다시 돌리면 067 도 다시 돌릴 것.** 처음 쓴 곳: 「문장 1권 02 서술어 자릿수·필수 성분 · 기본」 33번(수정 요청함 827) — 이미 낸 3명은 같은 날 detail·got·review 를 직접 고쳐 다시 채점했다. 검증: `tools/hwork-retry-sql-test.sh`(50건).
+- 문항의 ans 가 `'*'`이면 `hwork_grade_`가 어떤 답이든(빈 답 포함) 정답으로 채점하고 결과 정답 칸은 '모두 정답'(063 본문 + 한 갈래). H WORK `apps-script/Code.gs` gradeOne 과 두 벌. **063 을 다시 돌리면 067 도 다시 돌릴 것.** 처음 쓴 곳: 「문장 1권 02 서술어 자릿수·필수 성분 · 기본」 33번(수정 요청함 827) — 이미 낸 3명은 같은 날 detail·got·review 를 직접 고쳐 다시 채점했다. **적용 상태: 2026-11-16 실제 수파베이스에 적용 완료**(관리 API, 두 번 실행해 재실행 안전 확인 — prosrc에 '*' 갈래, authenticated·service_role 실행·공개 키 불가, 시험 채점으로 '모두 정답' 확인). 같은 날 그 과제 33번 ans 를 '*'로 바꿨다(시트 saveHomework + hwork_homeworks). 검증: `tools/hwork-retry-sql-test.sh`(50건).
 
 ## H WORK 화면 이탈 기록 — 066 (2026-11-12 원장님)
 - `hwork_submissions.away_n`·`away_sec` + `hwork_submit`이 `p.away {n, sec}`를 받아 저장(064 본문 그대로 + 두 값, 이상한 값 0·상한 9999회/86400초). 학생 화면의 방해 금지 안내·이탈 세기와 교사 표시는 H WORK 저장소 CLAUDE.md 같은 절. **064를 다시 돌리면 066도 다시 돌릴 것.** 검증: `tools/hwork-retry-sql-test.sh`(46건).
