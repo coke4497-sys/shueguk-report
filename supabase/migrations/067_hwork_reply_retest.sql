@@ -2,7 +2,8 @@
 -- "h work를 제출한 친구들에게 문항을 띄워 답장하는 기능" → 고른 것: **도움 요청에 답장**
 --   · 학생이 오답하기에서 [왜 틀렸는지 모르겠어요 · 선생님 도와주세요]를 누른 문항(review[q].help)에
 --     선생님이 답장을 적는다 → hwork_submissions.reply = {q: {text, by, at}}.
---     쓰기는 hwork_reply(p {id, q, text, by}) 하나(교사 계정만) — 빈 글이면 답장을 지운다.
+--     쓰기는 hwork_reply(p {id, q, text, by}) 하나(교사 계정만) — 빈 글이고 첨부도 없으면 답장을 지운다.
+--     첨부(사진·영상·파일)는 비공개 버킷 hwork-reply-files + 표 hwork_reply_files, 학생은 hwork_reply_file_url(10분 창).
 --     학생 오답하기 화면(review 열)과 따로 둔 열이라 학생이 동시에 오답하기를 해도 덮이지 않는다.
 --   · 학생은 학생 페이지 H WORK 목록(hwork_student_extra)과 H WORK 오답하기 화면(hwork_retry_state 의 reply)에서 본다.
 --   · 학생 페이지에서 연 오답하기는 이 기기 기록이 없어도 접근코드로 이어 한다(hwork_open_mine — 같은 학생의 가장 최근 제출).
@@ -17,6 +18,83 @@
 -- 다시 실행해도 안전하다.
 
 alter table public.hwork_submissions add column if not exists reply jsonb;
+
+-- ── 답장 첨부 — 사진·영상·파일 (같은 날 원장님 "답장할 때 사진, 영상, 파일 첨부 기능 필요") ──
+--   비공개 버킷 'hwork-reply-files'(파일당 50MB — 수파베이스 업로드 한도), 경로 'r/{제출}/{무작위}.{확장자}'.
+--   선생님(교사 계정)이 올리고 hwork_reply_files 에 줄을 넣는다. 학생은 hwork_reply_file_url 로
+--   그 파일의 내려받기 창을 10분 열고(032 복습 영상 자료와 같은 방식) 공개 키로 받는다.
+insert into storage.buckets (id, name, public, file_size_limit)
+values ('hwork-reply-files', 'hwork-reply-files', false, 52428800)
+on conflict (id) do update set public = false, file_size_limit = excluded.file_size_limit;
+
+create table if not exists public.hwork_reply_files (
+  id         bigint generated always as identity primary key,
+  sub_id     bigint not null references public.hwork_submissions(id) on delete cascade,
+  q          text not null default '',
+  path       text not null unique,
+  name       text not null default '',
+  size       bigint not null default 0,
+  mime       text not null default '',
+  created_by text not null default '',
+  open_until timestamptz,
+  created_at timestamptz not null default now()
+);
+create index if not exists hwork_reply_files_sub_idx on public.hwork_reply_files (sub_id, q);
+alter table public.hwork_reply_files enable row level security;
+drop policy if exists teacher_all on public.hwork_reply_files;
+create policy teacher_all on public.hwork_reply_files for all to authenticated using (true) with check (true);
+revoke all on public.hwork_reply_files from anon, public;
+revoke references, trigger, truncate on public.hwork_reply_files from authenticated;
+grant select, insert, update, delete on public.hwork_reply_files to authenticated;
+
+create or replace function public.hwork_reply_file_ok(p_name text)
+returns boolean language sql stable security definer set search_path = public as $$
+  select exists (select 1 from public.hwork_reply_files where path = p_name and open_until > now())
+$$;
+revoke all on function public.hwork_reply_file_ok(text) from public;
+grant execute on function public.hwork_reply_file_ok(text) to anon, authenticated;
+
+drop policy if exists hwork_reply_files_teacher on storage.objects;
+create policy hwork_reply_files_teacher on storage.objects for all to authenticated
+  using (bucket_id = 'hwork-reply-files') with check (bucket_id = 'hwork-reply-files');
+drop policy if exists hwork_reply_files_student_read on storage.objects;
+create policy hwork_reply_files_student_read on storage.objects for select to anon
+  using (bucket_id = 'hwork-reply-files' and public.hwork_reply_file_ok(name));
+
+-- 한 문항 답장의 첨부 목록(경로는 싣지 않는다)
+create or replace function public.hwork_reply_files_(p_sub bigint, p_q text)
+returns jsonb language sql stable security definer set search_path = public as $$
+  select coalesce(jsonb_agg(jsonb_build_object('id', f.id, 'name', f.name, 'size', f.size, 'mime', f.mime) order by f.id), '[]'::jsonb)
+    from public.hwork_reply_files f where f.sub_id = p_sub and f.q = p_q
+$$;
+revoke all on function public.hwork_reply_files_(bigint, text) from public;
+
+-- 학생: 첨부 하나의 내려받기 창을 연다.
+--   via 'retry' = 오답하기 화면(p.id + p.key = retry_key) / 그 밖 = 학생 페이지(p.key 접근코드 또는 p.student)
+create or replace function public.hwork_reply_file_url(p jsonb)
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare f public.hwork_reply_files; s public.hwork_submissions; me public.students;
+        v_fid bigint := case when coalesce(p->>'file','') ~ '^\d{1,18}$' then (p->>'file')::bigint else -1 end;
+begin
+  select * into f from hwork_reply_files where id = v_fid;
+  if f.id is null then return jsonb_build_object('ok', false, 'error', '파일을 찾을 수 없습니다.'); end if;
+  if coalesce(p->>'via','') = 'retry' then
+    s := hwork_row_(p);
+    if s.id is null or s.id <> f.sub_id then return jsonb_build_object('ok', false, 'error', 'not_mine'); end if;
+  else
+    me := review_me_(p);
+    if me.id is null then return jsonb_build_object('ok', false, 'error', 'no_student'); end if;
+    select * into s from hwork_submissions where id = f.sub_id;
+    if s.id is null or not hwork_is_me_(me, s.name, s.school, s.grade) then
+      return jsonb_build_object('ok', false, 'error', 'not_mine');
+    end if;
+  end if;
+  if not (coalesce(s.reply, '{}'::jsonb) ? f.q) then return jsonb_build_object('ok', false, 'error', 'not_mine'); end if;
+  update hwork_reply_files set open_until = now() + interval '10 minutes' where id = f.id;
+  return jsonb_build_object('ok', true, 'bucket', 'hwork-reply-files', 'path', f.path, 'name', f.name, 'size', f.size, 'mime', f.mime);
+end $$;
+revoke all on function public.hwork_reply_file_url(jsonb) from public;
+grant execute on function public.hwork_reply_file_url(jsonb) to anon, authenticated;
 
 -- ── 답장 쓰기 (교사 계정만) ─────────────────────────────────────
 create or replace function public.hwork_reply(p jsonb)
@@ -34,11 +112,11 @@ begin
   end if;
   if char_length(txt) > 1000 then return jsonb_build_object('ok', false, 'error', '답장은 1,000자까지 적을 수 있어요.', 'reason', 'long'); end if;
   rp := coalesce(s.reply, '{}'::jsonb);
-  if txt = '' then rp := rp - q;
+  if txt = '' and not exists (select 1 from hwork_reply_files f where f.sub_id = s.id and f.q = coalesce(p->>'q','')) then rp := rp - q;
   else rp := rp || jsonb_build_object(q, jsonb_build_object('text', txt, 'by', left(who, 40), 'at', ts_now));
   end if;
   update hwork_submissions set reply = case when rp = '{}'::jsonb then null else rp end where id = s.id;
-  return jsonb_build_object('ok', true, 'q', q, 'reply', rp->q, 'removed', txt = '');
+  return jsonb_build_object('ok', true, 'q', q, 'reply', rp->q, 'removed', not (rp ? q), 'files', hwork_reply_files_(s.id, q));
 end $$;
 
 -- 065 본문 그대로 + reply
@@ -54,7 +132,8 @@ begin
     'got', s.got, 'total', s.total,
     'detail', hwork_hide_wrong_(s.detail),
     'review', s.review, 'answers', hwork_cleared_ans_(s.detail, s.review),
-    'reply', coalesce(s.reply, '{}'::jsonb));
+    'reply', (select coalesce(jsonb_object_agg(e.k, e.v || jsonb_build_object('files', hwork_reply_files_(s.id, e.k))), '{}'::jsonb)
+                from jsonb_each(coalesce(s.reply, '{}'::jsonb)) e(k, v)));
 end $$;
 
 -- ── 학생 ↔ 제출 대조 (s.html hworkDoneSet_ 와 같은 규칙) ─────────
@@ -93,7 +172,8 @@ begin
                'type', coalesce(s.detail->e.k->>'type', 'choice5'), 'mine', coalesce(s.detail->e.k->>'mine', ''),
                'help', coalesce(s.review->e.k->'help'->>'text', ''), 'help_at', coalesce(s.review->e.k->'help'->>'at', ''),
                'cleared', coalesce(s.review->e.k, '{}'::jsonb) ? 'cleared_at',
-               'text', e.v->>'text', 'by', coalesce(e.v->>'by', ''), 'at', coalesce(e.v->>'at', '')) x
+               'text', e.v->>'text', 'by', coalesce(e.v->>'by', ''), 'at', coalesce(e.v->>'at', ''),
+               'files', hwork_reply_files_(s.id, e.k)) x
         from hwork_submissions s, jsonb_each(coalesce(s.reply, '{}'::jsonb)) e(k, v)
        where s.reply is not null and (s.name = btrim(me.name) or s.name = v_base)
          and hwork_is_me_(me, s.name, s.school, s.grade)

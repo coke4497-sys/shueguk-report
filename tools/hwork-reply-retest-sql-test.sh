@@ -9,6 +9,14 @@ psql -q -d postgres -c "drop database if exists $DB" -c "create database $DB" >/
 export PGDATABASE=$DB
 psql -q -c "do \$\$begin create role anon; exception when others then null; end\$\$; do \$\$begin create role authenticated; exception when others then null; end\$\$;" >/dev/null 2>&1
 # 학생 표 · review_me_ (031 의 그 함수만 떼어 씀)
+psql -q <<'SQL' >/dev/null
+create schema if not exists storage;
+create table if not exists storage.buckets (id text primary key, name text, public boolean, file_size_limit bigint);
+create table if not exists storage.objects (id bigserial primary key, bucket_id text, name text);
+alter table storage.objects enable row level security;
+grant usage on schema storage to anon, authenticated;
+grant select, insert, delete on storage.objects to anon, authenticated;
+SQL
 psql -q -c "create table students(id bigint generated always as identity primary key, seq int default 0, code text, student_id text, name text, school text, grade text)"
 python3 - "$M/031_review_videos.sql" > "$TMPF" <<'PY'
 import sys,re
@@ -53,6 +61,27 @@ ok '답장 지우기' "$(qt "hwork_reply('{\"id\":$ID,\"q\":\"5\",\"text\":\"\"}
 ok '지운 뒤 하나' "$(psql -At -c "select reply::text from hwork_submissions where id=$ID")" '^{"1"'
 qt "hwork_reply('{\"id\":$ID,\"q\":\"1\",\"text\":\"\"}')" >/dev/null
 ok '모두 지우면 null' "$(psql -At -c "select coalesce(reply::text,'NULL') from hwork_submissions where id=$ID")" '^NULL$'
+qt "hwork_reply('{\"id\":$ID,\"q\":\"1\",\"text\":\"다시 답장\",\"by\":\"김현지\"}')" >/dev/null
+
+# ── 답장 첨부 ──
+ok '버킷 비공개·50MB' "$(psql -At -c "select public, file_size_limit from storage.buckets where id='hwork-reply-files'")" '^f|52428800$'
+ok '학생 키로 첨부 표 못 씀' "$(psql -At -c "set role anon; insert into hwork_reply_files(sub_id,q,path) values ($ID,'1','r/x')" 2>&1)" 'permission denied'
+FID=$(psql -At -c "set role authenticated; insert into hwork_reply_files(sub_id,q,path,name,size,mime,created_by) values ($ID,'1','r/$ID/aaa.png','풀이.png',1234,'image/png','김현지') returning id" | grep -E "^[0-9]+$" | head -1)
+psql -q -c "insert into storage.objects(bucket_id,name) values ('hwork-reply-files','r/$ID/aaa.png')"
+S=$(q "hwork_retry_state('{\"id\":$ID,\"key\":\"$KEY\"}')")
+ok '상태에 첨부 목록' "$(js "$S" "d['reply']['1']['files'][0]['name']")" '풀이.png'
+no '첨부 목록에 경로 없음' "$S" 'aaa.png'
+ok '창 열기 전 공개 키로 못 받음' "$(psql -At -c "set role anon; select count(*) from storage.objects where bucket_id='hwork-reply-files'")" '^0$'
+ok '남의 오답하기 열쇠로 못 엶' "$(q "hwork_reply_file_url('{\"via\":\"retry\",\"id\":$ID2,\"key\":\"x\",\"file\":$FID}')")" 'not_mine'
+ok '학교 다른 학생 못 엶' "$(q "hwork_reply_file_url('{\"key\":\"K2\",\"file\":$FID}')")" 'not_mine'
+U=$(q "hwork_reply_file_url('{\"via\":\"retry\",\"id\":$ID,\"key\":\"$KEY\",\"file\":$FID}')")
+ok '오답하기 화면에서 창 열기' "$(js "$U" "(d['path'],d['name'])")" "('r/$ID/aaa.png', '풀이.png')"
+ok '창 연 뒤 공개 키로 받음' "$(psql -At -c "set role anon; select count(*) from storage.objects where bucket_id='hwork-reply-files'")" '^1$'
+ok '접근코드로도 창 열기' "$(q "hwork_reply_file_url('{\"key\":\"K1\",\"file\":$FID}')")" '"ok": true'
+ok '목록에 첨부' "$(js "$(q "hwork_student_extra('{\"key\":\"K1\"}')")" "d['replies'][0]['files'][0]['mime']")" 'image/png'
+# 글 없이 첨부만 있어도 답장은 남는다
+ok '글 비워도 첨부 있으면 유지' "$(qt "hwork_reply('{\"id\":$ID,\"q\":\"1\",\"text\":\"\",\"by\":\"김현지\"}')")" '"removed": false'
+ok '첨부 없는 문항 빈 글은 지움' "$(qt "hwork_reply('{\"id\":$ID,\"q\":\"5\",\"text\":\"\"}')")" '"removed": true'
 qt "hwork_reply('{\"id\":$ID,\"q\":\"1\",\"text\":\"다시 답장\",\"by\":\"김현지\"}')" >/dev/null
 
 # ── 학생 페이지 목록 ──

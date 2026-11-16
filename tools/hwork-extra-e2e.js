@@ -9,7 +9,7 @@ const ROOT = path.resolve(__dirname, '..');
 let pass = 0, fail = 0;
 const SHOT = process.env.SHOT || '';
 const ok = (m, c, x) => { c ? (pass++, console.log('  ✓ ' + m)) : (fail++, console.log('  ✗ ' + m + (x ? ' ' + x : ''))); };
-let EXTRA = { ok: true, replies: [], retests: [] }, CALLS = [];
+let EXTRA = { ok: true, replies: [], retests: [] }, CALLS = [], FCALLS = [], SCALLS = [];
 (async () => {
   const srv = await new Promise(res => { const s = http.createServer((q, r) => {
     const f = path.join(ROOT, decodeURIComponent(q.url.split('?')[0]).replace(/^\//, ''));
@@ -25,6 +25,12 @@ let EXTRA = { ok: true, replies: [], retests: [] }, CALLS = [];
     const m = /\/rest\/v1\/rpc\/(\w+)/.exec(u);
     const json = o => rt.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(o) });
     if (m && m[1] === 'hwork_student_extra'){ CALLS.push(JSON.parse(rt.request().postData() || '{}').p); return json(EXTRA); }
+    if (m && m[1] === 'hwork_reply_file_url'){ const p = JSON.parse(rt.request().postData() || '{}').p; FCALLS.push(p);
+      const f = { 11: ['r/41/a.png', '풀이.png', 'image/png'], 12: ['r/41/b.mp4', '설명.mp4', 'video/mp4'], 13: ['r/41/c.pdf', '정리.pdf', 'application/pdf'] }[p.file];
+      return json(f ? { ok: true, bucket: 'hwork-reply-files', path: f[0], name: f[1], mime: f[2] } : { ok: false, error: 'not_mine' }); }
+    if (u.includes('/storage/v1/object/authenticated/hwork-reply-files/')){ SCALLS.push({ u, auth: rt.request().headers()['authorization'] });
+      return rt.fulfill({ status: 200, contentType: u.endsWith('.png') ? 'image/png' : 'application/octet-stream',
+        body: u.endsWith('.png') ? Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64') : Buffer.from('x') }); }
     if (m) return json({ ok: false });
     return rt.fulfill({ status: 204, body: '' });
   });
@@ -87,6 +93,19 @@ let EXTRA = { ok: true, replies: [], retests: [] }, CALLS = [];
   await pg.evaluate(() => { STATE.homework = []; renderHomework(); }); await pg.waitForTimeout(200);
   const secs2 = await pg.$$eval('#homeworkList .hw-sec', a => a.map(e => e.textContent));
   ok('배정 과제 없음 + 리테스트·답장', JSON.stringify(secs2) === JSON.stringify(['리테스트', '선생님 답장']) && !(await pg.$('#homeworkList .empty-state')), JSON.stringify(secs2));
+  // ⑤ 답장 첨부 — 사진은 바로 작게, 영상은 눌러서 재생, 파일은 내려받기 (글 없이 파일만 있는 답장도 보임)
+  EXTRA.replies[0].files = [{ id: 11, name: '풀이.png', size: 2048, mime: 'image/png' }, { id: 12, name: '설명.mp4', size: 3145728, mime: 'video/mp4' }, { id: 13, name: '정리.pdf', size: 51200, mime: 'application/pdf' }];
+  EXTRA.replies[1] = Object.assign({}, EXTRA.replies[1], { text: '', files: [] });
+  await pg.evaluate(() => { STATE.hwExtra = null; hwExtraRefresh(false); }); await pg.waitForTimeout(600);
+  ok('사진 첨부가 바로 그림으로', await pg.$('#homeworkList .hw-rfimg img') !== null);
+  ok('접근코드로 파일 창 열기', FCALLS.some(p => p.key === 'tok-kim' && p.file === 11), JSON.stringify(FCALLS));
+  ok('공개 키로 받기', SCALLS.length >= 1 && /sb_publishable/.test(SCALLS[0].auth || ''), JSON.stringify(SCALLS[0]));
+  ok('영상·파일 단추 이름·크기', /영상 보기 · 설명\.mp4 3\.0MB/.test(await pg.textContent('#homeworkList')) && /내려받기 · 정리\.pdf 50KB/.test(await pg.textContent('#homeworkList')));
+  await pg.click('[data-hwrf="12"]'); await pg.waitForTimeout(400);
+  ok('영상 보기 → 그 자리에서 재생 칸', await pg.$('#hwrfv12 video') !== null);
+  const [dl] = await Promise.all([pg.waitForEvent('download', { timeout: 3000 }).catch(() => null), pg.click('[data-hwrf="13"]')]);
+  ok('파일은 원래 이름으로 내려받기', dl && dl.suggestedFilename() === '정리.pdf', dl && dl.suggestedFilename());
+  if (SHOT) await pg.screenshot({ path: path.join(SHOT, 'hw-reply-files.png'), fullPage: true });
   ok('페이지 오류 없음', perr === 0);
   console.log('\n통과 ' + pass + ' · 실패 ' + fail);
   await br.close(); srv.close(); process.exit(fail ? 1 : 0);

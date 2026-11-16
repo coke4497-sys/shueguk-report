@@ -588,6 +588,14 @@
   /* 선생님 답장 · 리테스트 (067, 2026-11-16) */
   .hw-sec{font-family:'Gowun Batang',serif;font-weight:700;font-size:15px;color:#3A544E;margin:18px 4px 8px;}
   .hw-rp{margin-top:10px;background:#EAF3ED;border-radius:10px;padding:10px 12px;font-size:.88rem;line-height:1.6;white-space:pre-wrap;word-break:break-all;color:#2C2F2D;}
+  .hw-rfs{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;white-space:normal;}
+  .hw-rfimg{border:none;padding:0;background:#fff;border-radius:10px;overflow:hidden;cursor:zoom-in;max-width:100%;min-height:44px;}
+  .hw-rfimg img{display:block;max-width:100%;max-height:320px;}
+  .hw-rfimg .ld{display:block;padding:12px 14px;font-size:.8rem;color:#5C6A64;}
+  .hw-rfvid{width:100%;}
+  .hw-rfvid video{width:100%;max-height:360px;border-radius:10px;background:#000;}
+  .hw-rfb{border:none;border-radius:999px;background:#fff;color:#2F6B52;padding:7px 13px;font-family:inherit;font-size:.84rem;cursor:pointer;text-align:left;word-break:break-all;}
+  .hw-rfb .sz{color:#7A8780;font-size:.74rem;}
   .hw-rp .rh{display:block;font-size:.76rem;color:#2F6B52;font-weight:700;margin-bottom:2px;white-space:normal;}
   .hw-ask{margin-top:8px;font-size:.82rem;color:#65726B;line-height:1.55;}
   .hw-ask b{color:#5A4A6A;}
@@ -3261,12 +3269,59 @@ function hwExtraHtml(){
         '<span class="ndate">'+esc(r.at||'')+'</span></div>' +
         '<div class="hw-ask"><b>'+esc(r.q)+'번</b> · 처음에 고른 답 '+esc(hwChoiceLbl(r.type, r.mine))+(r.cleared?' · 오답하기 클리어':'')+
           '<br><b>내 도움 요청</b> '+esc(r.help || '왜 틀렸는지 모르겠어요')+'</div>' +
-        '<div class="hw-rp"><span class="rh">'+esc((r.by?r.by+' 선생님':'선생님'))+'의 답장</span>'+esc(r.text||'')+'</div>' +
+        '<div class="hw-rp"><span class="rh">'+esc((r.by?r.by+' 선생님':'선생님'))+'의 답장</span>'+esc(r.text||'')+hwRfHtml(r.files)+'</div>' +
         '</div>';
     }).join('');
   }
   return out;
 }
+/* 선생님 답장 첨부 — 사진·영상·파일 (같은 날 원장님, 리포트 067) — H WORK hwork.html rf* 와 같은 모양(고치면 둘 다).
+ * 비공개 버킷이라 hwork_reply_file_url(접근코드)로 10분 창을 열고 공개 키로 받는다.
+ * 사진은 바로 작게 보이고 누르면 크게, 영상은 [영상 보기]를 누르면 그 자리에서 재생, 그 밖 파일은 내려받기. */
+var HW_RF = {};
+function hwRfKind(f){ var m = String(f.mime||''), n = String(f.name||'');
+  if(m.indexOf('image/')===0 || /\.(png|jpe?g|gif|webp)$/i.test(n)) return 'img';
+  if(m.indexOf('video/')===0 || /\.(mp4|mov|m4v|webm)$/i.test(n)) return 'vid'; return 'file'; }
+function hwRfSize(n){ n = Number(n)||0; return n>=1048576 ? (n/1048576).toFixed(1)+'MB' : Math.max(1, Math.round(n/1024))+'KB'; }
+function hwRfHtml(files){
+  if(!files || !files.length) return '';
+  return '<div class="hw-rfs">' + files.map(function(f){ var k = hwRfKind(f), id = +f.id;
+    if(k==='img') return '<button type="button" class="hw-rfimg" data-hwrf="'+id+'" data-rk="img" title="크게 보기"><span class="ld">사진 불러오는 중</span></button>';
+    if(k==='vid') return '<div class="hw-rfvid" id="hwrfv'+id+'"><button type="button" class="hw-rfb" data-hwrf="'+id+'" data-rk="vid">영상 보기 · '+esc(f.name)+' <span class="sz">'+hwRfSize(f.size)+'</span></button></div>';
+    return '<button type="button" class="hw-rfb" data-hwrf="'+id+'" data-rk="file">내려받기 · '+esc(f.name)+' <span class="sz">'+hwRfSize(f.size)+'</span></button>';
+  }).join('') + '</div>';
+}
+function hwRfBlob(id){
+  if(HW_RF[id]) return Promise.resolve(HW_RF[id]);
+  return rvRpc('hwork_reply_file_url', { file: id }).then(function(r){
+    if(!r || !r.ok) throw new Error(r && r.error || 'x');
+    return fetch(QQ_REST.replace('/rest/v1', '') + '/storage/v1/object/authenticated/' + r.bucket + '/' + r.path.split('/').map(encodeURIComponent).join('/'), {
+      headers: { 'apikey': QQ_KEY, 'Authorization': 'Bearer ' + QQ_KEY }
+    }).then(function(res){ if(!res.ok) throw new Error('dl ' + res.status); return res.blob(); })
+      .then(function(b){ return (HW_RF[id] = { url: URL.createObjectURL(b), name: r.name, mime: r.mime }); });
+  });
+}
+function hwRfThumbs(){
+  var bs = document.querySelectorAll('#homeworkView .hw-rfimg[data-hwrf]:not([data-ldd])');
+  Array.prototype.forEach.call(bs, function(b){
+    b.setAttribute('data-ldd', '1');
+    hwRfBlob(+b.getAttribute('data-hwrf')).then(function(x){ b.innerHTML = '<img src="'+x.url+'" alt="'+esc(x.name)+'">'; })
+      .catch(function(){ b.innerHTML = '<span class="ld">사진을 불러오지 못했어요 · 눌러서 다시</span>'; b.removeAttribute('data-ldd'); });
+  });
+}
+document.addEventListener('click', function(e){
+  var b = e.target.closest && e.target.closest('[data-hwrf]'); if(!b) return;
+  var id = +b.getAttribute('data-hwrf'), k = b.getAttribute('data-rk');
+  if(k==='img' && !HW_RF[id]){ b.removeAttribute('data-ldd'); hwRfThumbs(); return; }
+  var label = b.innerHTML;
+  if(k!=='img'){ b.disabled = true; b.textContent = '불러오는 중…'; }
+  hwRfBlob(id).then(function(x){
+    if(k==='img'){ window.open(x.url, '_blank'); return; }
+    if(k==='vid'){ var box = $('hwrfv'+id); if(box) box.innerHTML = '<video src="'+x.url+'" controls playsinline preload="metadata"></video>'; return; }
+    var a = document.createElement('a'); a.href = x.url; a.download = x.name || 'file'; document.body.appendChild(a); a.click(); a.remove();
+    b.disabled = false; b.innerHTML = label;
+  }).catch(function(){ b.disabled = false; b.innerHTML = label; alert('파일을 열지 못했습니다. 잠시 뒤 다시 눌러 주세요.'); });
+});
 function closeHomework(){ $('homeworkView').style.display='none'; show('hubView'); renderHub(); window.scrollTo(0,0); }
 function hwFmtDue(s){
   if(!s) return '';
@@ -3343,6 +3398,7 @@ function renderHomework(keepSeen){
   list.innerHTML = extra + list.innerHTML;
   if(clsN) list.innerHTML += '<p class="hw-clsnote">수업 시간에 선생님과 확인한 과제 '+clsN+'개는 목록에서 뺐습니다.</p>';
   hwMarkSeen();
+  setTimeout(hwRfThumbs, 0);
   if(keepSeen === true) return;
   hide('hubView'); $('homeworkView').style.display='block'; window.scrollTo(0,0);
 }
