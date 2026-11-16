@@ -1109,3 +1109,10 @@ clasp update-deployment -d "설명" <DEPLOYMENT_ID>   # 기존 배포 새 버전
 
 ## H WORK 화면 이탈 기록 — 066 (2026-11-12 원장님)
 - `hwork_submissions.away_n`·`away_sec` + `hwork_submit`이 `p.away {n, sec}`를 받아 저장(064 본문 그대로 + 두 값, 이상한 값 0·상한 9999회/86400초). 학생 화면의 방해 금지 안내·이탈 세기와 교사 표시는 H WORK 저장소 CLAUDE.md 같은 절. **064를 다시 돌리면 066도 다시 돌릴 것.** 검증: `tools/hwork-retry-sql-test.sh`(46건).
+
+## H WORK 도움 요청 답장 · 개인 리테스트 — 067 (2026-11-16 원장님)
+- `hwork_submissions.reply` {q:{text,by,at}} + `hwork_reply`(교사 계정만 — 학생이 [선생님 도와주세요]를 누른 문항에만) · `hwork_retry_state`가 reply 를 함께 돌려줌(065 본문 + 한 칸 — **065를 다시 돌리면 067도**) · 학생 `hwork_student_extra`(접근코드 → 답장 목록·리테스트 목록) · `hwork_open_mine`(접근코드로 내 가장 최근 제출의 오답하기 열쇠 — 다른 기기에서 이어 하기). 제출 ↔ 학생 대조 `hwork_is_me_`는 s.html hworkDoneSet_ 와 같은 규칙.
+- 표 `hwork_retests`(학생·원 제출마다 한 줄, qs = 처음 제출에서 틀린 문항, src_id 유일, 교사 전용) + 학생 `hwork_retest_open`·`hwork_retest_submit`(한 번만, 또 틀린 문항 정답 감춤). **별 없음** — 별 집계 세 벌은 hwork_submissions 만 센다(손대지 않음).
+- 학생 페이지 s.html H WORK 목록 맨 위 '리테스트'·'선생님 답장'(`hwExtraHtml`, 본 답장은 localStorage `hw_rp_seen`), 허브 카드에 '리테스트 n개 · 새 선생님 답장 n개'. [오답하기 이어 하기] 주소에 `&k=접근코드`.
+- 알림톡 종류 `notice_hwreply`('H WORK 질문 답변 안내', 속성 `ALIM_TPL_NOTICE_HWREPLY`, 변수 학생명·제목(과제)·접근코드, 버튼 '학생 페이지 링크') — 문구 = `alimNoticeTpl_` 꼴 + 마지막 줄 '학생 페이지의 H-work 메뉴에서 선생님 답변을 확인해 주세요.' 보내는 곳은 H WORK 선생님 확인 화면(확인 창 뒤). **솔라피 등록·심사 + 백엔드 재배포가 있어야 쓸 수 있다.**
+- 자세한 화면 규칙은 shueguk-h-work CLAUDE.md 같은 절. 검증: `PGHOST=/home/pgtest PGPORT=5499 PGUSER=postgres bash tools/hwork-reply-retest-sql-test.sh`(30건) + `LC_ALL=C.UTF-8 NODE_PATH=$(npm root -g) node tools/hwork-extra-e2e.js`(15건) + `node tools/alim-stub-test.js`. **적용 상태: 067 아직 실제 수파베이스에 적용 전.**

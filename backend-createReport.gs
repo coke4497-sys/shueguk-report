@@ -4293,6 +4293,10 @@ var ALIM_TPL_ = {
   // 'H WORK 안내'는 카카오가 "'안내'만으로는 내용을 알 수 없다"로 반려(2026-09-30) → 원장님이 'H WORK 과제 안내'로 정함
   notice_hwork:    alimNoticeTpl_('H WORK 과제 안내',           'ALIM_TPL_NOTICE_HWORK',
                      alimTail_('학생 페이지의 H-work 메뉴에서 과제를 확인하고 제출해 주세요.')),
+  // H WORK 오답하기의 [선생님 도와주세요]에 선생님이 답장을 남긴 뒤 보낸다(2026-11-16 원장님, 리포트 마이그레이션 067).
+  // #{제목} = 과제 이름. 보내는 곳은 H WORK 선생님 확인 화면(hwork_teacher.html)의 [알림톡 보내기].
+  notice_hwreply:  alimNoticeTpl_('H WORK 질문 답변 안내',       'ALIM_TPL_NOTICE_HWREPLY',
+                     alimTail_('학생 페이지의 H-work 메뉴에서 선생님 답변을 확인해 주세요.')),
   notice_report:   alimNoticeTpl_('지필고사 리포트 제작 안내',   'ALIM_TPL_NOTICE_REPORT',
                      alimTail_('학생 페이지의 지필고사 데이터 메뉴에서 시험 복기를 입력해 주세요.')),
   notice_reportup: alimNoticeTpl_('지필고사 리포트 업데이트 안내', 'ALIM_TPL_NOTICE_REPORTUP',
