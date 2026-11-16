@@ -99,8 +99,7 @@ def crop(pdf, out):
         for s in spans(d[pn]):
             t = s['text'].strip()
             x0, y0 = s['bbox'][0], s['bbox'][1]
-            if 'Type3' in s['font']:
-                continue
+            # 번호가 Type3 글꼴로만 들어 있는 쪽도 있다(국어사 2·3권) — 같은 번호가 두 번 잡혀도 아래 차례 검사가 거른다
             if re.fullmatch(r'\d{2,3}', t) and abs(s['size'] - 9.4) < .3 and min(abs(x0 - v) for v in COL_X) < 2:
                 ev.append((pn, 0 if x0 < 180 else 1, y0, 'q', int(t)))
             elif abs(s['size'] - 15) < .5 and re.fullmatch(r'\d{2}', t):
@@ -109,6 +108,8 @@ def crop(pdf, out):
     sets, cur = [], None
     for e in ev:
         if e[3] == 'set':
+            if cur and cur['page'] == e[0] and cur['no'] == e[4]:
+                continue
             cur = {'page': e[0], 'no': e[4], 'title': set_title(d[e[0]], e[4]), 'qs': []}
             sets.append(cur)
         elif cur and e[4] == len(cur['qs']) + 1:
