@@ -56,6 +56,9 @@ T=$(qt "hwork_item_imgs_t('{\"code\":\"$C1\"}')")
 ok '교사: 과제 번호로 이음(1=교재 37)' "$(js "$T" "d['items']['1'][0]['path']")" 'q037_0'
 ok '교사: 여러 조각 순서' "$(js "$T" "[x['path'] for x in d['items']['2']]")" "q038_0.png', 'b/x/q038_1"
 ok '교사: 앞 과제 번호는 안 섞임' "$(js "$T" "sorted(d['items'])")" "\['1', '2', '3'\]"
+C3='SHUEGUK REAL 내신 기출 음운 1권(기본) 01 음운과 음운 체계 · 기본 (1/2: 교재 1~36번)'
+ok '제목 읽기(앞 과제 끝 번호)' "$(sq "select off||'|'||lim from hwork_book_ref_('$C3')")" '^0|36$'
+ok '앞 과제: 끝 번호 뒤 문항은 안 섞임' "$(js "$(qt "hwork_item_imgs_t('{\"code\":\"$C3\"}')")" "sorted(d['items'])")" "\['36'\]"
 ok '교사: 번호만' "$(js "$(qt "hwork_item_imgs_t('{\"code\":\"$C1\",\"qs\":[\"3\"]}')")" "sorted(d['items'])")" "\['3'\]"
 ok '교사: 세트 이름이 정확해야(실력 안 섞임)' "$(js "$(qt "hwork_item_imgs_t('{\"code\":\"$C2\"}')")" "d['items']['1'][0]['path']")" 'b/y/q001_0'
 ok '창 열기 전 저장소 못 읽음' "$(psql -At -c "set role anon; select count(*) from storage.objects where bucket_id='hwork-items'")" '^0$'

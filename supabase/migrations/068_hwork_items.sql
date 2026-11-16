@@ -45,17 +45,19 @@ drop policy if exists hwork_items_student_read on storage.objects;
 create policy hwork_items_student_read on storage.objects for select to anon
   using (bucket_id = 'hwork-items' and public.hwork_item_ok(name));
 
--- 과제 제목 → 교재·세트·번호 차이. 맞지 않으면 book null
-create or replace function public.hwork_book_ref_(p_code text, out book text, out set_key text, out off int)
+-- 과제 제목 → 교재·세트·번호 차이(+ 나눈 과제의 끝 번호 lim). 맞지 않으면 book null
+drop function if exists public.hwork_book_ref_(text);
+create or replace function public.hwork_book_ref_(p_code text, out book text, out set_key text, out off int, out lim int)
 language plpgsql immutable set search_path = public as $$
 declare m text[];
 begin
   m := regexp_match(coalesce(p_code,''),
-    '^SHUEGUK REAL 내신 기출 (.+?) (\d권\([^)]*\)) (\d{2} .+?)(?: \(\d/\d: 교재 (\d+)~\d+번\))?$');
+    '^SHUEGUK REAL 내신 기출 (.+?) (\d권\([^)]*\)) (\d{2} .+?)(?: \(\d/\d: 교재 (\d+)~(\d+)번\))?$');
   if m is null then return; end if;
   book := m[1] || ' ' || m[2];
   set_key := m[3];
   off := coalesce(m[4]::int, 1) - 1;
+  lim := m[5]::int;
 end $$;
 revoke all on function public.hwork_book_ref_(text) from public;
 
@@ -68,14 +70,14 @@ begin
   if r.book is null then return out; end if;
   if p_open then
     update hwork_book_imgs i set open_until = now() + interval '10 minutes'
-     where i.book = r.book and i.set_key = r.set_key and i.q > r.off
+     where i.book = r.book and i.set_key = r.set_key and i.q > r.off and (r.lim is null or i.q <= r.lim)
        and (p_nums is null or (i.q - r.off)::text = any (p_nums));
   end if;
   select coalesce(jsonb_object_agg(n, v), '{}'::jsonb) into out from (
     select (i.q - r.off)::text n,
            jsonb_agg(jsonb_build_object('path', i.path, 'w', i.w, 'h', i.h) order by i.j) v
       from hwork_book_imgs i
-     where i.book = r.book and i.set_key = r.set_key and i.q > r.off
+     where i.book = r.book and i.set_key = r.set_key and i.q > r.off and (r.lim is null or i.q <= r.lim)
        and (p_nums is null or (i.q - r.off)::text = any (p_nums))
      group by i.q, r.off) t;
   return out;
