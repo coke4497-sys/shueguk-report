@@ -1117,3 +1117,8 @@ clasp update-deployment -d "설명" <DEPLOYMENT_ID>   # 기존 배포 새 버전
 - 학생 페이지 s.html H WORK 목록 맨 위 '리테스트'·'선생님 답장'(`hwExtraHtml`, 본 답장은 localStorage `hw_rp_seen`), 허브 카드에 '리테스트 n개 · 새 선생님 답장 n개'. [오답하기 이어 하기] 주소에 `&k=접근코드`.
 - 알림톡 종류 `notice_hwreply`('H WORK 질문 답변 안내', 속성 `ALIM_TPL_NOTICE_HWREPLY`, 변수 학생명·제목(과제)·접근코드, 버튼 '학생 페이지 링크') — 문구 = `alimNoticeTpl_` 꼴 + 마지막 줄 '학생 페이지의 H-work 메뉴에서 선생님 답변을 확인해 주세요.' 보내는 곳은 H WORK 선생님 확인 화면(확인 창 뒤). **솔라피 등록·심사 + 백엔드 재배포가 있어야 쓸 수 있다.**
 - 자세한 화면 규칙은 shueguk-h-work CLAUDE.md 같은 절. 검증: `PGHOST=/home/pgtest PGPORT=5499 PGUSER=postgres bash tools/hwork-reply-retest-sql-test.sh`(43건) + `LC_ALL=C.UTF-8 NODE_PATH=$(npm root -g) node tools/hwork-extra-e2e.js`(21건) + `node tools/alim-stub-test.js`. **적용 상태: 067은 2026-11-16 실제 수파베이스에 적용 완료**(관리 API, 원장님이 준 sbp_ 토큰 — 저장 안 함, 두 번 실행해 재실행 안전 확인. 적용 전 hwork_retry_state 본문 md5 가 065 와 같음 확인. 공개 키로 hwork_reply 실행 불가·두 표 401, 한 거래 안에서 실제 제출 572번에 도움 요청·답장·첨부 줄을 넣어 hwork_retry_state·hwork_reply_file_url·hwork_student_extra 응답을 확인하고 되돌림 — 남은 줄 0). 알림톡 템플릿(notice_hwreply)은 아직 솔라피 등록·백엔드 재배포 전.
+
+## H WORK 교재 문항 그림 — 068 (2026-11-16 원장님)
+- 「SHUEGUK REAL 내신 기출」 학생용 PDF를 문항마다 그림으로 잘라 비공개 버킷 `hwork-items` + 표 `hwork_book_imgs`(교재·세트·번호·조각 j·경로·크기)에 둔다. 과제 제목 → 교재·세트·번호 차이 = `hwork_book_ref_`. 학생 `hwork_item_imgs(p {via:'retry', id, key} | {via:'retest', id, key=접근코드})`가 그 과제(리테스트면 그 문항만) 그림의 10분 창을 열고 목록을 준다, 교사 `hwork_item_imgs_t(p {code, qs?})`(authenticated만). 자르기·올리기는 `python3 tools/hwork_items.py crop|check|put <학생용.pdf> <폴더> "<교재>"`(교사 계정, 다시 돌려도 덮어씀). 화면은 shueguk-h-work CLAUDE.md 같은 절.
+- **교사용 PDF(정답·해설)는 올리지 않는다** — 학생용만.
+- 검증: `PGHOST=/home/pgtest PGPORT=5499 PGUSER=postgres bash tools/hwork-items-sql-test.sh`(20건). **적용 상태: 아직 실제 수파베이스에 적용 전**(관리 토큰 필요), 그림도 올리기 전.
