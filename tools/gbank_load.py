@@ -68,7 +68,7 @@ def build(root, out):
                 stem = gen.fixhtml(o['stem'])
                 stem = re.sub(r'\[\s*(\d)\s*점\s*\]', r'<span class="pt">[\1점]</span>', stem)
                 body = gen.render_body(o['body'], 0, i)          # 정답 표시 없이
-                src = gen.meta(o['file'])
+                src = gen.meta(o['file'], i)               # 2025 문항(id≥457)은 번호가 필요하다
                 html = f'<div class="qh"><div class="stem">{stem}</div></div>{body}'
                 a, good, bad = gen.expl(i)
                 ans = gen.ANSN.get(gen.items[i]['ans'], 0)
@@ -140,7 +140,13 @@ def main():
         rest('PATCH', f'/gbank_items?id=not.in.({ids})&active=is.true', {'active': False}, 'return=minimal')
         print('올렸습니다.')
     elif cmd == 'list':
-        rows = rest('GET', '/gbank_items?select=area,lvl,active&limit=5000') or []
+        rows, off = [], 0
+        while True:                                   # 수파베이스는 한 번에 1000줄까지 — 끝까지 넘긴다
+            part = rest('GET', f'/gbank_items?select=area,lvl,active&order=id&limit=1000&offset={off}') or []
+            rows += part
+            off += 1000
+            if len(part) < 1000:
+                break
         c = {}
         for r in rows:
             k = (r['area'], r['lvl'], r['active'])
