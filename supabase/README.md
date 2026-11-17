@@ -898,3 +898,7 @@ default privileges 까지 되돌렸다. `tools/check_lock.py` 통과(표 15/15 �
 - **064를 다시 돌리면 그 뒤 065도 다시 돌릴 것**(064가 지운 두 함수를 되살린다).
 - 검증: `PGHOST=/home/pgtest PGPORT=5499 PGUSER=postgres bash tools/hwork-retry-sql-test.sh`(41건).
 
+## 067 — 모의고사 문법 문항 은행 `gbank_*` · H WORK 질문 대화 `hwork_qa` (2026-11-17)
+- `gbank_items`(문항 454 — 학생용 HTML·정답·해설)·`gbank_passages`(지문 84)는 authenticated 만(anon 권한 없음). `hwork_qa`(제출 cascade)는 교사가 선생님 글만 넣고(정책 with check), 학생은 `hwork_qa_list/post/mine`(제출 열쇠·접근코드). `hwork_qs`(문제, 정답 없음)·`hwork_expl`(맞힌·클리어한 문항만). `hwork_meta` 다시 정의(+bank). 제출 트리거 `hwork_qa_from_submit`, 이미 쌓인 review.help → 대화(한 번).
+- 2026-11-17 실제 적용(관리 API, 두 번 실행) · 옮긴 도움 요청 20건 · 공개 키 표 401 · 한 거래 안 왕복 뒤 되돌림. 문항은 `tools/gbank_load.py put`.
+

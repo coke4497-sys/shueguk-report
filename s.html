@@ -113,6 +113,13 @@
   #noticeView{display:none;}
   #hwcheckView{display:none;}
   .hw-clsnote{text-align:center;color:#65726B;font-size:13px;margin:14px 0 4px;}
+  .hwqa{background:#fff;border-radius:16px;padding:12px 14px;margin:0 0 14px;}
+  .hwqa-h{font-family:'Gowun Batang',serif;font-weight:700;font-size:15px;margin-bottom:6px;}
+  .hwqa-row{display:flex;align-items:center;gap:6px;padding:9px 2px;border-top:1px solid #EEF2EF;text-decoration:none;color:#2C2F2D;}
+  .hwqa-t{flex:1;min-width:0;font-size:14px;}
+  .hwqa-t small{display:block;color:#65726B;font-size:12px;}
+  .hwqa-new{background:#D9485F;color:#fff;border-radius:999px;padding:1px 8px;font-size:12px;white-space:nowrap;}
+  .hwqa-n{background:#E9EDF8;color:#4F5E86;border-radius:999px;padding:1px 8px;font-size:12px;white-space:nowrap;}
   .hwc-week{background:var(--surface,#fff);border:1px solid #E5EDE8;border-radius:16px;padding:14px 16px;margin-bottom:10px;}
   .hwc-week .wk-top{display:flex;justify-content:space-between;align-items:baseline;gap:8px;}
   .hwc-week .wk-name{font-family:"Gowun Batang",serif;font-weight:700;}
@@ -2256,7 +2263,11 @@ function renderHub(){
   var hCnt = hs0.filter(function(h){ return !h.done && !h.classDone; }).length;
   var hDesc = hs0.length===0 ? '배정된 과제 없음'
             : (hCnt>0 ? ('풀어야 할 과제 '+hCnt+'건') : '과제 모두 제출 완료');
-  var hDot = hCnt>0 ? '<span class="new-dot">'+(hCnt>9?'9+':hCnt)+'</span>' : '';
+  // 선생님 답장 (067) — 처음 한 번 뒤에서 받는다(hwQaRefresh). 안 읽은 답장이 있으면 설명·점에 함께
+  if(STATE.hwqa === undefined){ STATE.hwqa = null; hwQaRefresh(); }
+  var hUnread = (STATE.hwqa||[]).reduce(function(a, x){ return a + (x.unread||0); }, 0);
+  if(hUnread>0) hDesc = '선생님 답장 '+hUnread+'개 · ' + hDesc;
+  var hDot = (hCnt+hUnread)>0 ? '<span class="new-dot">'+((hCnt+hUnread)>9?'9+':(hCnt+hUnread))+'</span>' : '';
   html += '<button class="card t-sky" onclick="openHomework()">' +
             '<span class="icon">'+svg(ICON.clip)+hDot+'</span>' +
             '<h3>H-work</h3><p class="desc">'+esc(hDesc)+'</p>' +
@@ -3196,7 +3207,30 @@ function renderNotices(){
 }
 
 /* ---- H WORK (배정된 과제) ---- */
-function openHomework(){ renderHomework(); }
+function openHomework(){ renderHomework(); hwQaRefresh(); }
+/* H WORK 질문 대화 (2026-11-17, 067) — 내 제출 중 선생님과 나눈 질문이 있거나 오답하기가 남은 것.
+ * 다른 기기에서도 hwork.html?sid=&k=(접근코드) 로 그 결과·대화를 바로 연다(제출 열쇠는 주소에 싣지 않음). */
+function hwQaRefresh(){
+  return rvRpc('hwork_qa_mine').then(function(r){
+    STATE.hwqa = (r && r.ok) ? (r.list || []) : [];
+    if($('homeworkView').style.display === 'block') renderHomework(true);
+    else if($('hubView').style.display !== 'none') renderHub();
+  }).catch(function(){ STATE.hwqa = STATE.hwqa || []; });
+}
+function hwQaHtml(){
+  var L = (STATE.hwqa || []).filter(function(x){ return x.msgs > 0 || !x.done; });
+  if(!L.length) return '';
+  var base = 'https://coke4497-sys.github.io/shueguk-h-work/hwork.html';
+  return '<div class="hwqa"><div class="hwqa-h">선생님과 나눈 질문 · 남은 오답하기</div>' + L.map(function(x){
+    // 주소에는 제출 열쇠(retry_key)를 싣지 않는다 — 이 페이지의 접근코드(또는 학생ID)로 H WORK 화면이 hwork_qa_mine 을 다시 불러 찾는다
+    var who = rvWho();
+    var href = base + '?sid=' + encodeURIComponent(x.id) + (who.key ? '&k=' + encodeURIComponent(who.key) : '&st=' + encodeURIComponent(who.student));
+    var tags = (x.unread ? '<span class="hwqa-new">새 답장 '+x.unread+'</span>' : '') +
+               (x.msgs ? '<span class="hwqa-n">질문 '+x.msgs+'</span>' : '') + (x.done ? '' : '<span class="hwqa-n">오답하기 남음</span>');
+    return '<a class="hwqa-row" href="'+esc(href)+'" target="_blank" rel="noopener"><span class="hwqa-t">'+esc(x.code||'')+
+           '<small>'+esc(x.teacher||'')+' · '+esc(String(x.ts||'').slice(5))+'</small></span>'+tags+'</a>';
+  }).join('') + '</div>';
+}
 function closeHomework(){ $('homeworkView').style.display='none'; show('hubView'); window.scrollTo(0,0); }
 function hwFmtDue(s){
   if(!s) return '';
@@ -3236,7 +3270,7 @@ function hwBookSort(arr){
   });
   return book.concat(other).map(function(x){ return x.h; });
 }
-function renderHomework(){
+function renderHomework(keepScroll){
   var hsAll = STATE.homework || [];
   var hs = hsAll.filter(function(h){ return !h.classDone; });   // 수업에서 확인한 과제는 빼고(2026-11-14)
   var clsN = hsAll.length - hs.length;
@@ -3267,7 +3301,8 @@ function renderHomework(){
     }).join('');
   }
   if(clsN) list.innerHTML += '<p class="hw-clsnote">수업 시간에 선생님과 확인한 과제 '+clsN+'개는 목록에서 뺐습니다.</p>';
-  hide('hubView'); $('homeworkView').style.display='block'; window.scrollTo(0,0);
+  list.innerHTML = hwQaHtml() + list.innerHTML;
+  hide('hubView'); $('homeworkView').style.display='block'; if(!keepScroll) window.scrollTo(0,0);
 }
 
 /* ---- 클리닉 (신청 + 내 신청 내역) ---- */

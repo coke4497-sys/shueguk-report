@@ -1109,3 +1109,8 @@ clasp update-deployment -d "설명" <DEPLOYMENT_ID>   # 기존 배포 새 버전
 
 ## H WORK 화면 이탈 기록 — 066 (2026-11-12 원장님)
 - `hwork_submissions.away_n`·`away_sec` + `hwork_submit`이 `p.away {n, sec}`를 받아 저장(064 본문 그대로 + 두 값, 이상한 값 0·상한 9999회/86400초). 학생 화면의 방해 금지 안내·이탈 세기와 교사 표시는 H WORK 저장소 CLAUDE.md 같은 절. **064를 다시 돌리면 066도 다시 돌릴 것.** 검증: `tools/hwork-retry-sql-test.sh`(46건).
+
+## 모의고사 문법 문항 은행 · H WORK 질문 대화 — 067 (2026-11-17 원장님)
+- 표 `gbank_items`·`gbank_passages`(교사만 — 사설 문항 저작권, 저장소에 문항 없음) + `hwork_qa`(제출×문항 대화, 학생은 함수로만) + 함수 `hwork_qs`·`hwork_expl`·`hwork_qa_list`·`hwork_qa_post`·`hwork_qa_mine`, `hwork_meta`에 `bank`(020 본문 + 한 칸 — **020 을 다시 돌리면 067 도**), 제출 때 [질문] 글은 트리거가 대화 첫 글로. 올리기 `tools/gbank_load.py`(작업 폴더 gen.py·fixes.py 를 거친 결과 — 오타는 fixes.py 고친 뒤 build → put). 화면·결정은 H WORK 저장소 CLAUDE.md 같은 절. 학생 페이지 s.html H WORK 카드의 '선생님 답장' 숫자·목록 위 줄은 `hwQaRefresh`/`hwQaHtml`(링크는 접근코드 `k=` — 제출 열쇠를 주소에 싣지 않음).
+- 검증: `PGHOST=/home/pgtest PGPORT=5499 PGUSER=postgres bash tools/gbank-qa-sql-test.sh`(37건).
+
