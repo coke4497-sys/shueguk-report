@@ -1114,3 +1114,7 @@ clasp update-deployment -d "설명" <DEPLOYMENT_ID>   # 기존 배포 새 버전
 - 표 `gbank_items`·`gbank_passages`(교사만 — 사설 문항 저작권, 저장소에 문항 없음) + `hwork_qa`(제출×문항 대화, 학생은 함수로만) + 함수 `hwork_qs`·`hwork_expl`·`hwork_qa_list`·`hwork_qa_post`·`hwork_qa_mine`, `hwork_meta`에 `bank`(020 본문 + 한 칸 — **020 을 다시 돌리면 067 도**), 제출 때 [질문] 글은 트리거가 대화 첫 글로. 올리기 `tools/gbank_load.py`(작업 폴더 gen.py·fixes.py 를 거친 결과 — 오타는 fixes.py 고친 뒤 build → put). 화면·결정은 H WORK 저장소 CLAUDE.md 같은 절. 학생 페이지 s.html H WORK 카드의 '선생님 답장' 숫자·목록 위 줄은 `hwQaRefresh`/`hwQaHtml`(링크는 접근코드 `k=` — 제출 열쇠를 주소에 싣지 않음).
 - 검증: `PGHOST=/home/pgtest PGPORT=5499 PGUSER=postgres bash tools/gbank-qa-sql-test.sh`(37건).
 
+## 이미 낸 H WORK 과제에 문제 원문 잇기 — SHUEGUK REAL 내신 기출 (2026-11-17 원장님 "지금 h work 에 출제된 파일들을 먼저 연결하고 싶어", 068)
+- 교재를 만든 클로드 프로젝트가 교재마다 zip(`SHUEGUK_REAL_<교재>` — data/<교재>_<n>권.json(과제 이름이 H WORK 과 글자 하나까지 같음·과제 안 번호·교정 반영 원문·정답·예시 답) + source/ 작업 폴더 + 정답수정_오류문항_뺀문항.md, 공용 스크립트는 '공통' zip)을 보내 준다. 학교 기출이라 **저장소에 두지 않는다** — 스크래치패드에 풀고 `python3 tools/real_load.py build <out.json> <교재 폴더>…`(문제 HTML = 그 교재 source/gen.py 의 group_body 그대로, 손글씨 답 칸 뺌, 정답 표시 없음) → `check`(지금 H WORK 과 이름·문항 수·5지 정답 대조) → `put`(같은 과제·번호 덮어씀, 그 과제에서 빠진 번호만 숨김).
+- 화면: hwork.html·hwork_qa.html 이 `style:'real'`이면 교재 모양 `real.css`(.rq)로 그리고, 정답 버튼은 '정답 보기'(해설 없음 — 학교 기출 원본에 해설이 없다). 질문 대화는 모의고사 은행과 같다.
+- 2026-11-17 연결: 문장 1·2권, 음운 1~4권(70과제·1,757문항). **남은 교재(단어 형성·문법 요소·국어사·지필 워크북)는 같은 zip 이 오면 build → put 만 하면 된다.** check 가 알린 차이 1건: 문장 1권 02 서술어 자릿수·필수 성분 · 기본 33번 — H WORK 정답은 '*'(모두 정답), 교재 정답 ⑤(H WORK 은 그대로 둠, 정답 보기는 ⑤).
