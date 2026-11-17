@@ -1134,6 +1134,7 @@ clasp update-deployment -d "설명" <DEPLOYMENT_ID>   # 기존 배포 새 버전
 
 ## Shuefit 문법 시험지 — 076 (2026-11-17 원장님 "출제선생님을 구분하고 싶어. 강사별로 시험지를 저장")
 - 표 `shufit_papers`(teacher·title 유일 — ids = gbank_items.id 순서·author·created_at·updated_at) — 허브 shufit_grammar.html 의 [시험지 저장]이 쓰고, 그 선생님이 '낸 적 있는 문항'을 이 표 + H WORK 과제(data.bank)로 센다. 교사 전용(045 규칙 — authenticated 전체 허용), 공개 키 차단, 시트 사본 없음. **2026-11-17 실제 적용**(두 번 실행, 권한 authenticated SELECT/INSERT/UPDATE/DELETE 만·공개 키 401). 화면은 허브 CLAUDE.md 슈핏 문법 절.
+- **077 — 인쇄 날짜·학교**(같은 날 원장님 "데이터베이스에 저장해서 다른 기기에서도 보이게"): `shufit_papers.print_date`(date, 선택)·`school`(text 30자, 기본 ''). 권한·정책은 076 그대로(새 열도 authenticated 만). **2026-11-17 실제 적용**(두 번 실행, 교사 UPDATE 권한·공개 키 불가 확인).
 
 ## H WORK 질문 → 슈톡 업무 카드 — 072 (2026-11-17 원장님)
 - `msg_tasks.hw_ref` + 트리거 `hwork_qa_to_task`(hwork_qa insert): 학생 글 → 과제 강사(활성 교사 표시 이름이 같을 때, 없으면 원장님들) 업무 카드에 'H WORK 질문' 할 일(같은 제출·문항은 한 줄, 링크 hwork_result.html?sid=&q=), 선생님 답장 → 그 할 일 완료. `hwork_qa_post`가 `push`(알림 보낼 할 일 id)를 돌려준다. 2026-11-17 실제 적용(지난 질문 20건을 할 일로 채움). **067 을 다시 돌리면 072 도.** 화면·질문함 폐지는 H WORK·허브 CLAUDE.md 같은 절.
