@@ -4363,8 +4363,8 @@ var ALIM_TPL_ = {
           '\n' +
           '▶ #{과제}\n' +
           '\n' +
-          '학생 페이지의 H WORK 메뉴에서 답장을 확인해 주세요.',
-    buttons: [{ name: '학생 페이지 링크', type: 'WL', linkMo: ALIM_STU_LINK_, linkPc: ALIM_STU_LINK_ }]
+          '슈퍼스타 페이지의 H WORK 메뉴에서 답장을 확인해 주세요.',
+    buttons: [{ name: '슈퍼스타 페이지', type: 'WL', linkMo: ALIM_STU_LINK_, linkPc: ALIM_STU_LINK_ }]
   },
   // H WORK 과제 미완료 안내 (같은 날 원장님 "과제가 완료되지 않았습니다. 선생님이 기다리고 있어요. 알림톡 필요")
   // 보내는 곳 = hwork_result.html '과제 검사' 상자(오답하기를 아직 다 마치지 않은 제출). 중복 키 = 'T:제출번호|날짜' — 하루 한 번.
@@ -4377,8 +4377,8 @@ var ALIM_TPL_ = {
           '\n' +
           '▶ #{과제}\n' +
           '\n' +
-          '학생 페이지의 H WORK 메뉴에서 과제를 마무리해 주세요.',
-    buttons: [{ name: '학생 페이지 링크', type: 'WL', linkMo: ALIM_STU_LINK_, linkPc: ALIM_STU_LINK_ }]
+          '슈퍼스타 페이지의 H WORK 메뉴에서 과제를 마무리해 주세요.',
+    buttons: [{ name: '슈퍼스타 페이지', type: 'WL', linkMo: ALIM_STU_LINK_, linkPc: ALIM_STU_LINK_ }]
   },
   newstu: {
     label: '신입생 등록 안내', prop: 'ALIM_TPL_NEWSTU',
