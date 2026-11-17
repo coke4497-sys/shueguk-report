@@ -1132,3 +1132,6 @@ clasp update-deployment -d "설명" <DEPLOYMENT_ID>   # 기존 배포 새 버전
 
 ## H WORK 질문 → 슈톡 업무 카드 — 072 (2026-11-17 원장님)
 - `msg_tasks.hw_ref` + 트리거 `hwork_qa_to_task`(hwork_qa insert): 학생 글 → 과제 강사(활성 교사 표시 이름이 같을 때, 없으면 원장님들) 업무 카드에 'H WORK 질문' 할 일(같은 제출·문항은 한 줄, 링크 hwork_result.html?sid=&q=), 선생님 답장 → 그 할 일 완료. `hwork_qa_post`가 `push`(알림 보낼 할 일 id)를 돌려준다. 2026-11-17 실제 적용(지난 질문 20건을 할 일로 채움). **067 을 다시 돌리면 072 도.** 화면·질문함 폐지는 H WORK·허브 CLAUDE.md 같은 절.
+
+## H WORK 답장 보고 '이해했어요' → 클리어 — 073 (2026-11-17 원장님)
+- `hwork_qa_clear(p {id, key, q})`(anon — 제출 열쇠): 그 문항에 선생님 답장이 있을 때만. review[q].understood_at, 1차 오답·클리어 전이면 cleared_at·via 'qa'(정답 열림·review_at 다시 셈). `hwork_fix`는 069 본문(실제 DB 와 같음 확인) + retry_got 에서 via 'qa' 제외. **069 를 다시 돌리면 073 도.** 2026-11-17 실제 적용(두 번 실행, 한 거래 안에서 실제 제출로 클리어·잘못된 열쇠 거절을 돌리고 되돌림 — understood_at 남은 줄 0, anon 실행 가능). 화면은 H WORK CLAUDE.md 같은 날 절.
