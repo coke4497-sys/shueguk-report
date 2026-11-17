@@ -1119,6 +1119,9 @@ clasp update-deployment -d "설명" <DEPLOYMENT_ID>   # 기존 배포 새 버전
 - **070**: `hwork_reply_files.qa_id`(질문함 답장 hwork_qa.id — 지우면 함께) · `hwork_qa_rows_`가 줄마다 files · `hwork_reply_file_url`이 qa_id 첨부도 그 제출 학생에게 연다 · `hwork_retest_submit` 채점을 069 `hwork_ans_ok_`로('3,4'·'*'). 2026-11-17 실제 적용(두 번, 적용 전 함수가 그 브랜치 본문과 같음 확인, 한 거래 안에서 첨부 창 열기·남의 열쇠 거절을 돌리고 되돌림). **그 세션의 067 을 다시 돌리면 070 도.**
 - 화면은 H WORK 저장소 CLAUDE.md '질문함 — 답장 첨부 · 개인 리테스트' 절. 학생 페이지 s.html: `hwQaRefresh`가 `hwork_student_extra`로 리테스트를 받아(STATE.hwrt) H WORK 카드 설명·점('리테스트 n개')과 목록 맨 위 '개인 리테스트' 줄(`hwRtHtml` — 안 푼 것 [리테스트 풀기 · n문항], 푼 것 '점수 · 결과 보기', 주소 `hwork.html?rt=번호&k=접근코드`(학생ID로 연 페이지는 `&st=`)). 검증: `tools/hwork-retest-list-e2e.js`(8건).
 
+## 오답을 모은 리테스트 — 071 (2026-11-17 원장님 "오답 문항을 모아서 리테스트를 만들어주고 싶은데요" · "인쇄할 수도")
+- `hwork_retests.parts` jsonb = [{teacher, code, q}] — 리테스트 n번 = parts[n-1], qs 는 ["1".."N"], code = 제목. 없으면 예전처럼 한 과제의 qs 번호(질문함 [리테스트 내기]). `hwork_retest_open`이 parts 면 문항마다 그 과제의 종류와 parts 를, `hwork_retest_submit`이 문항마다 그 과제 정답으로(069 규칙) 채점. 2026-11-17 실제 적용(두 번, 한 거래 안에서 두 과제 리테스트 열기·채점을 돌리고 되돌림). **070 이나 그 세션 067 을 다시 돌리면 071 도.** 화면은 H WORK 저장소 retest_make.html.
+
 ## 이미 낸 H WORK 과제에 문제 원문 잇기 — SHUEGUK REAL 내신 기출 (2026-11-17 원장님 "지금 h work 에 출제된 파일들을 먼저 연결하고 싶어", 068)
 - 교재를 만든 클로드 프로젝트가 교재마다 zip(`SHUEGUK_REAL_<교재>` — data/<교재>_<n>권.json(과제 이름이 H WORK 과 글자 하나까지 같음·과제 안 번호·교정 반영 원문·정답·예시 답) + source/ 작업 폴더 + 정답수정_오류문항_뺀문항.md, 공용 스크립트는 '공통' zip)을 보내 준다. 학교 기출이라 **저장소에 두지 않는다** — 스크래치패드에 풀고 `python3 tools/real_load.py build <out.json> <교재 폴더>…`(문제 HTML = 그 교재 source/gen.py 의 group_body 그대로, 손글씨 답 칸 뺌, 정답 표시 없음) → `check`(지금 H WORK 과 이름·문항 수·5지 정답 대조) → `put`(같은 과제·번호 덮어씀, 그 과제에서 빠진 번호만 숨김).
 - 화면: hwork.html·hwork_qa.html 이 `style:'real'`이면 교재 모양 `real.css`(.rq)로 그리고, 정답 버튼은 '정답 보기'(해설 없음 — 학교 기출 원본에 해설이 없다). 질문 대화는 모의고사 은행과 같다.
