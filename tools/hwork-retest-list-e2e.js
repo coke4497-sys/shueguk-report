@@ -55,6 +55,14 @@ const RT = [{ id: 5, teacher: '이현지', code: '[테스트] 문장 1회', n: 2
   await pg.evaluate(() => openHomework()); await pg.waitForTimeout(400);
   const h2 = await pg.evaluate(() => (document.querySelector('#homeworkView .hwqa-row') || {}).getAttribute && document.querySelector('#homeworkView .hwqa-row').getAttribute('href'));
   ok('학생ID로 연 페이지 — st= 로 연다', /\?rt=5&st=12345678$/.test(h2 || ''), h2);
+  // 질문 목록 문구 (2026-11-17 원장님) — '새 답장 n'·'질문 n'·'오답하기 남음' 대신 문장
+  const qaT = await pg.evaluate(() => { STATE.hwqa = [{ id: 1, code: 'A', teacher: 'T', ts: '2026-11-15 15:25', unread: 2, msgs: 4, done: true },
+      { id: 2, code: 'B', teacher: 'T', ts: '2026-11-14 03:01', unread: 0, msgs: 0, done: false },
+      { id: 3, code: 'C', teacher: 'T', ts: '2026-11-13 03:01', unread: 0, msgs: 2, done: true }];
+    STATE.hwrt = []; return hwQaHtml().replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' '); });
+  ok('답장 — 질문에 답장이 왔습니다 · 숫자 알약 없음', /A .*질문에 답장이 왔습니다/.test(qaT) && !/새 답장|질문 4/.test(qaT), qaT);
+  ok('오답 — 남은 오답이 있습니다', /B .*남은 오답이 있습니다/.test(qaT) && !/오답하기 남음/.test(qaT));
+  ok('다 끝난 질문 — 지난 질문 보기', /C .*지난 질문 보기/.test(qaT));
   ok('페이지 오류 없음', perr === 0);
   await br.close(); srv.close();
   console.log(`통과 ${pass} · 실패 ${fail}`); process.exit(fail ? 1 : 0);

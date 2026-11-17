@@ -119,6 +119,7 @@
   .hwqa-t{flex:1;min-width:0;font-size:14px;}
   .hwqa-t small{display:block;color:#65726B;font-size:12px;}
   .hwqa-new{background:#D9485F;color:#fff;border-radius:999px;padding:1px 8px;font-size:12px;white-space:nowrap;}
+  .hwqa-tags{display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex:none;}
   .hwqa-n{background:#E9EDF8;color:#4F5E86;border-radius:999px;padding:1px 8px;font-size:12px;white-space:nowrap;}
   .hwc-week{background:var(--surface,#fff);border:1px solid #E5EDE8;border-radius:16px;padding:14px 16px;margin-bottom:10px;}
   .hwc-week .wk-top{display:flex;justify-content:space-between;align-items:baseline;gap:8px;}
@@ -2266,7 +2267,7 @@ function renderHub(){
   // 선생님 답장 (067) — 처음 한 번 뒤에서 받는다(hwQaRefresh). 안 읽은 답장이 있으면 설명·점에 함께
   if(STATE.hwqa === undefined){ STATE.hwqa = null; hwQaRefresh(); }
   var hUnread = (STATE.hwqa||[]).reduce(function(a, x){ return a + (x.unread||0); }, 0);
-  if(hUnread>0) hDesc = '선생님 답장 '+hUnread+'개 · ' + hDesc;
+  if(hUnread>0) hDesc = '질문에 답장이 왔습니다 · ' + hDesc;
   var hRt = (STATE.hwrt||[]).filter(function(x){ return !x.submitted_at; }).length;   // 아직 안 푼 개인 리테스트 (070)
   if(hRt>0) hDesc = '리테스트 '+hRt+'개 · ' + hDesc;
   var hDot = (hCnt+hUnread+hRt)>0 ? '<span class="new-dot">'+((hCnt+hUnread+hRt)>9?'9+':(hCnt+hUnread+hRt))+'</span>' : '';
@@ -3244,10 +3245,12 @@ function hwQaHtml(){
     // 주소에는 제출 열쇠(retry_key)를 싣지 않는다 — 이 페이지의 접근코드(또는 학생ID)로 H WORK 화면이 hwork_qa_mine 을 다시 불러 찾는다
     var who = rvWho();
     var href = base + '?sid=' + encodeURIComponent(x.id) + (who.key ? '&k=' + encodeURIComponent(who.key) : '&st=' + encodeURIComponent(who.student));
-    var tags = (x.unread ? '<span class="hwqa-new">새 답장 '+x.unread+'</span>' : '') +
-               (x.msgs ? '<span class="hwqa-n">질문 '+x.msgs+'</span>' : '') + (x.done ? '' : '<span class="hwqa-n">오답하기 남음</span>');
+    // 2026-11-17 원장님 — '새 답장 n'·'질문 n'(질문+답장을 모두 센 수라 헷갈렸다)·'오답하기 남음' 대신 문장으로
+    var tags = (x.unread ? '<span class="hwqa-new">질문에 답장이 왔습니다</span>' : '') +
+               (x.done ? '' : '<span class="hwqa-n">남은 오답이 있습니다</span>') +
+               (!x.unread && x.done ? '<span class="hwqa-n">지난 질문 보기</span>' : '');
     return '<a class="hwqa-row" href="'+esc(href)+'" target="_blank" rel="noopener"><span class="hwqa-t">'+esc(x.code||'')+
-           '<small>'+esc(x.teacher||'')+' · '+esc(String(x.ts||'').slice(5))+'</small></span>'+tags+'</a>';
+           '<small>'+esc(x.teacher||'')+' · '+esc(String(x.ts||'').slice(5))+'</small></span><span class="hwqa-tags">'+tags+'</span></a>';
   }).join('') + '</div>';
 }
 function closeHomework(){ $('homeworkView').style.display='none'; show('hubView'); window.scrollTo(0,0); }
