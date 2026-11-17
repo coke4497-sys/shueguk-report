@@ -1135,3 +1135,6 @@ clasp update-deployment -d "설명" <DEPLOYMENT_ID>   # 기존 배포 새 버전
 
 ## H WORK 답장 보고 '이해했어요' → 클리어 — 073 (2026-11-17 원장님)
 - `hwork_qa_clear(p {id, key, q})`(anon — 제출 열쇠): 그 문항에 선생님 답장이 있을 때만. review[q].understood_at, 1차 오답·클리어 전이면 cleared_at·via 'qa'(정답 열림·review_at 다시 셈). `hwork_fix`는 069 본문(실제 DB 와 같음 확인) + retry_got 에서 via 'qa' 제외. **069 를 다시 돌리면 073 도.** 2026-11-17 실제 적용(두 번 실행, 한 거래 안에서 실제 제출로 클리어·잘못된 열쇠 거절을 돌리고 되돌림 — understood_at 남은 줄 0, anon 실행 가능). 화면은 H WORK CLAUDE.md 같은 날 절.
+
+## H WORK 선생님 확인 · 학생 하트 팝업 · 답장 5000자 — 074 (2026-11-17 원장님)
+- hwork_submissions.checked {q:{at,by}} · check_done {at,by,note} · check_seen_at(학생이 팝업을 본 때) — 선생님은 교사 계정으로 표를 직접 고친다. `hwork_retry_state`(실제 DB 본문 + 세 칸 — 064·065·070 을 다시 돌리면 074 도), `hwork_check_seen(p {id,key})`(anon). hwork_qa 글 제약 1000 → 5000(학생 질문은 hwork_qa_post 가 1000). 2026-11-17 실제 적용(두 번 실행, 한 거래 안에서 retry_state·check_seen·잘못된 열쇠를 돌리고 되돌림 — 남은 줄 0). 화면은 H WORK CLAUDE.md.
