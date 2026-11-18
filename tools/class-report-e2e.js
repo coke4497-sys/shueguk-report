@@ -132,6 +132,19 @@ const STUDENTS = [
   ok('지난주 같은 반 과제 2개 × 학습량·채점·학습 분석·오답 분석 = 8줄, 학습량 별 5개 + 3단계 알약 3개씩 + 베낌 의심', card('박보검').tasks.join('|') === '관동별곡 학습지|오답 노트' && card('박보검').rows === 8 && card('박보검').stars === 10 &&
      card('박보검').lv === 18 && card('박보검').cp === 2 && card('박보검').lvOn.length === 0 &&
      /과제/.test(card('박보검').src), JSON.stringify(card('박보검')));
+  // 다 한 과제는 숨김(2026-11-18 원장님) — 김하늘 관동별곡 학습지(별 5·완벽 3)는 접혀 있고 [완료한 과제 1개 보기]
+  {
+    const iK = await page.evaluate(() => CR.names.map(x => x.p).indexOf('김하늘'));
+    const hid = await page.evaluate(i => ({ tasks: [...document.querySelectorAll('.cr-card[data-i="' + i + '"] .cr-tname')].map(x => x.textContent),
+      btn: (document.querySelector('[data-tfshow="' + i + '"]') || {}).textContent }), iK);
+    ok('다 한 과제 숨김 + [완료한 과제 1개 보기]', hid.tasks.join('|') === '오답 노트' && hid.btn === '완료한 과제 1개 보기', JSON.stringify(hid));
+    await page.click(`[data-tfshow="${iK}"]`);
+    const shown = await page.evaluate(i => ({ tasks: [...document.querySelectorAll('.cr-card[data-i="' + i + '"] .cr-tname')].map(x => x.textContent),
+      btn: document.querySelector('[data-tfshow="' + i + '"]').textContent }), iK);
+    ok('[완료한 과제 보기] → 다 한 과제가 "완료" 표시와 함께 보이고 버튼은 [숨기기]', /^관동별곡 학습지.*완료/.test(shown.tasks[0]) && shown.tasks.length === 2 && shown.btn === '완료한 과제 숨기기', JSON.stringify(shown));
+    r.cards = await page.evaluate(() => [...document.querySelectorAll('.cr-card')].map(c => ({ nm: c.querySelector('.cr-top b').textContent, at: c.querySelector('.cr-chip').textContent,
+      pct: c.querySelector('.cr-top').textContent, on: c.querySelectorAll('.cr-stars .on').length, lvOn: [...c.querySelectorAll('.cr-lvp.on')].map(x => x.textContent) })));
+  }
   ok('지난 과제 조회 = 같은 반·지난 3주', (st.srcGets || []).some(u => /class_id=in\.\("r001"\)/.test(u) && /ymd=gte\./.test(u)), JSON.stringify(st.srcGets));
   ok('기존 기록 50%·별 5개·완벽 3개 켜짐(없는 3단계 키는 미체크) · 없는 학생 미검사', /50%/.test(card('김하늘').pct) && card('김하늘').on === 5 && card('김하늘').lvOn.join() === '완벽,완벽,완벽' && /미검사/.test(card('박보검').pct), JSON.stringify(r.cards));
   ok('창에 "숙제"라는 말이 없다', await page.$eval('#crpanel', e => !/숙제/.test(e.textContent)));
@@ -502,7 +515,10 @@ const STUDENTS = [
                  scores: { '옛 과제 (학습량)': 5, '옛 과제 (채점)': 2, '옛 과제 (학습 분석)': 2, '옛 과제 (오답 분석)': 2, '과제집 w15 (학습량)': 3 } }] }));
     await page.evaluate(() => { CR_NS_SPLIT_FROM = '2000-01-01'; CR_NS_SPLIT_TO = '2000-01-02'; CR_NS_HW_SPLIT_TO = '2000-01-02'; });
     await openCard(page, '고1 확인');
-    await page.waitForFunction(() => document.querySelector('.cr-tst.done'), null, { timeout: 8000 }).catch(() => {});
+    await page.waitForFunction(() => document.querySelector('[data-tfshow]'), null, { timeout: 8000 }).catch(() => {});
+    r = await page.evaluate(() => ({ tasks: [...document.querySelectorAll('.cr-tname')].map(x => x.textContent), btn: (document.querySelector('[data-tfshow]') || {}).textContent }));
+    ok('누적: 지난 검사에서 끝낸 과제는 숨김 + [완료한 과제 1개 보기]', r.tasks.length === 1 && /^과제집 w15/.test(r.tasks[0]) && r.btn === '완료한 과제 1개 보기', JSON.stringify(r));
+    await page.click('[data-tfshow]');
     r = await page.evaluate(() => ({ tasks: [...document.querySelectorAll('.cr-tname')].map(x => x.textContent), pct: (document.querySelector('.cr-pct') || {}).textContent || '',
       cum: (document.querySelector('.cr-pct.cum') || {}).textContent || '',
       on1: ([...document.querySelectorAll('.cr-task')][1] && ([...document.querySelectorAll('.cr-task')][1].querySelector('.cr-lvp.on') || {}).textContent) || '' }));
