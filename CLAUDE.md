@@ -1147,3 +1147,6 @@ clasp update-deployment -d "설명" <DEPLOYMENT_ID>   # 기존 배포 새 버전
 
 ## 알림톡 — H WORK 질문 답장 안내 · H WORK 과제 미완료 안내 (2026-11-17 원장님)
 - `ALIM_TPL_.hwork_reply`(속성 `ALIM_TPL_HWORK_REPLY`)·`hwork_todo`(`ALIM_TPL_HWORK_TODO`) — 변수 학생명·과제·접근코드, 버튼 '슈퍼스타 페이지'(본문도 '슈퍼스타 페이지의 H WORK 메뉴' — 같은 날 원장님 선택, 주소는 학생 페이지 s.html?key=). 보내는 곳 = H WORK hwork_result.html(학생에게, 답장 안내는 과제마다 한 번·미완료는 하루 한 번). 문구는 이 파일 그대로 솔라피에 등록·심사 → 승인 뒤 [솔라피에서 가져오기]. **리포트 배포 @161(2026-11-17)에 포함** — 배포본이 e609da3 과 같음을 확인한 뒤 올림, alimConfig 에 두 종류가 준비 전으로 보임(솔라피 승인 뒤 alimDiscover 로 ID 저장 → 화면 버튼이 열림). 검증 alim-stub-test(종류 수 19). **2026-11-18 두 템플릿 솔라피 승인 → 클로슈가 `alimDiscover`를 서버에 직접 불러 ID 저장, alimConfig에서 두 종류 모두 준비됨 확인**(19종 중 18종 준비 — 남은 하나는 쓰지 않기로 한 notice_pre1). H WORK 결과 화면의 두 버튼이 이제 열린다.
+
+## H WORK 풀이 시간 기록 — 078 (2026-11-18 원장님)
+- `hwork_submissions.timelog` jsonb(화면이 센 구간 목록 — 객체·20000자·구간 60개 이하일 때만) + `hwork_submit`(066 본문 + p.time) + `hwork_retry_state`(074 실제 본문 + time·away_n·away_sec). 2026-11-18 실제 적용(두 번 실행, 한 거래 안에서 제출·다시 읽기·잘못된 모양 무시를 돌리고 되돌림, 공개 키 401). **064·066·069 의 hwork_submit, 064·065·070·074 의 hwork_retry_state 를 다시 돌리면 078 도.** 화면·규칙은 H WORK CLAUDE.md 같은 절.
