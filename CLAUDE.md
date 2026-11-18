@@ -1107,6 +1107,9 @@ clasp update-deployment -d "설명" <DEPLOYMENT_ID>   # 기존 배포 새 버전
 ## 수업에서 확인한 H WORK는 학생 목록에서 뺀다 (2026-11-14 원장님 "수업 기록에서 확인하고 완료한 과제는 학생 페이지 h work 리스트에서 삭제" → 기준 '잘함 이상')
 - s.html `student_bundle` 계산에서 그 학생의 `hwcheck_records` 과제 줄(끝 ' (수행 평가)' 등 떼고)과 H WORK 제목(앞 '[…]' 떼고)을 띄어쓰기 없이 비교해 **과제 줄 끝이 H WORK 제목과 같고** 점수가 만점의 2/3 이상(수행 평가 잘함·매우 잘함)이면 `h.classDone` — H WORK 목록·허브 '풀어야 할 과제' 수에서 빠지고 목록 아래 '수업 시간에 선생님과 확인한 과제 n개는 목록에서 뺐습니다'. 배정·제출 기록은 그대로(화면에서만 뺌). 그래서 수업 기록 과제 줄은 H WORK 제목과 같게 적어야 잇는다('4(1) 워드투벡, … · 02 기출 포인트 OX').
 
+## 슈핏 문법 H WORK → 수업 기록 과제 검사 (2026-11-18 원장님 "모든 친구의 슈핏 문법 과제는 수업 기록에 연동" → '검사 목록 + 제출 결과 표시' · '배정 이후 그 학생의 모든 수업')
+- timetable.html 수업 기록 창(`crSfLoad`/`crSfApply`/`crSfBadge`, 접두 `crSf`): `assignments`(tool 'H WORK', 과제 이름에 shuefit)가 그 학생에게 맞고(`crSfMatch` = s.html `noticeMatches` 규칙, 학교가 다르면 잇지 않음) **배정일 ≤ 수업일 ≤ 마감일(없으면 배정일 + 14일 `CR_SF_DAYS`)**이면 그 수업(정규·내신, 진도·확인 모두)의 과제 검사 목록에 **H WORK 과제 이름 그대로** 더한다(`crSrcOf` — 머리 '… + 슈핏 문법 H WORK 과제'). 과제 이름 옆 알약 = `hwork_submissions` 가장 최근 제출(이름(끝 알파벳 뗌)·학년 숫자·학교 `crSfSch`)로 'H WORK · 제출 · 9/10점 · 오답하기 클리어 1/1' / 'H WORK · 미제출'. 수행 평가·별은 선생님이 매긴다. 마감은 시트가 'Tue Nov 24'처럼 줘서 `crSfYmd`가 연도를 배정일에서 채운다. 이름이 H WORK 제목과 같아 위 '수업에서 확인한 H WORK' 규칙과 이어진다. [빼기]·학생별 빼기도 그대로 된다. DB 변경 없음. 검증: class-report-e2e ②-7(227건).
+
 ## H WORK 화면 이탈 기록 — 066 (2026-11-12 원장님)
 - `hwork_submissions.away_n`·`away_sec` + `hwork_submit`이 `p.away {n, sec}`를 받아 저장(064 본문 그대로 + 두 값, 이상한 값 0·상한 9999회/86400초). 학생 화면의 방해 금지 안내·이탈 세기와 교사 표시는 H WORK 저장소 CLAUDE.md 같은 절. **064를 다시 돌리면 066도 다시 돌릴 것.** 검증: `tools/hwork-retry-sql-test.sh`(46건).
 
