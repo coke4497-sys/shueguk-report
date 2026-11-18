@@ -571,6 +571,9 @@
   .cr-src{font-size:.72rem;color:var(--ink-soft);margin:2px 0 4px;}
   .cr-tst{display:inline-block;margin-left:4px;padding:1px 7px;border-radius:999px;background:#EDE4F4;color:#5A4A6A;font-size:.66rem;font-weight:400;vertical-align:middle;}
   .cr-tst.done{background:#E3EFE7;color:#2F5B44;}
+  .cr-tfbtn{display:inline-block;margin:6px 0 2px;padding:5px 12px;border:0;border-radius:999px;background:#EDE4F4;color:#5A4A6A;font:inherit;font-size:.74rem;cursor:pointer;}
+  .cr-tfbtn:hover{background:#E3D7EE;}
+  .cr-tfall{margin:4px 0;padding:6px 10px;border-radius:10px;background:#E3EFE7;color:#2F5B44;font-size:.76rem;}
   .cr-sf{display:inline-block;margin-left:4px;padding:1px 7px;border-radius:999px;font-size:.66rem;font-weight:400;vertical-align:middle;background:#E9EDF8;color:#3F4E78;}
   .cr-sf.no{background:#F7E2DE;color:#8A4A40;}
   .cr-sf.part{background:#F9EFD0;color:#6B5420;}
@@ -8970,7 +8973,7 @@ function openClassNote(c, ctx){
   var ymd = CRX ? CRX.ymd : todayStr(), part = crPartOf(c, bk);
   CR = { c: c, ymd: ymd, bk: bk, part: part, note: null, names: crNamesOf(c), busy: false,
          hwWeek: crPrevWed(ymd), items: CR_HW_DEFAULT.slice(), hw: {}, hwOk: false, more: {},
-         ns: null, sib: [], showOff: false, pshow: {}, hshow: {}, hist: {} };
+         ns: null, sib: [], showOff: false, pshow: {}, hshow: {}, hist: {}, tfShow: {} };
   CR.nsHw = crRuleBook(c, bk) === '내신' && !crNsHwSplitAt(c, ymd);   // 내신 기간 과제 검사 = 과제마다 수행 평가 3단계 + 공개·비공개 메모
   if (CR_NS_SCOPE && crRuleBook(c, bk) === '내신' && (part === '진도' || part === '확인') && !crNsSplitAt(c, ymd)){   // 고1·고2 예외 기간(정규 수업 중)은 범위·진행 없이
     var pers = crNsPeriods(ymd);
@@ -9602,6 +9605,13 @@ function crSaveCarried(){
 function crTaskFull(h, t){
   return !!h && !crTaskMissed(h, t) && crDims().every(function(d){ var k = t + ' (' + d + ')'; return crHwSc(h.scores, k) >= hwItemMax(k); });
 }
+/* 수업 기록 창에서 숨기는 과제(2026-11-18 원장님 "다 한 과제는 숨기기, 완료한 과제 보기 누르면 확인") — 다 한 과제 중
+ * 이 창에서 선생님이 아직 손대지 않은 것. 지금 막 별을 채운 과제는 바로 사라지지 않게 남긴다(crCarryTouch 가 false 로 표시). */
+function crTaskHide(h, t){
+  if (!crTaskFull(h, t)) return false;
+  var c = h.carried || {};
+  return !crDims().some(function(d){ return c[t + ' (' + d + ')'] === false; });
+}
 /* 학생마다 과제(2026-10-01 원장님 "과제 부여를 학생마다 추가") — class_notes.comments 의 예약 키 '__개별과제' = {학생이름: '한 줄에 하나'}.
  * 그 학생의 '다음 수업까지 과제' = 반 과제 + 그 학생 과제. 다음 수업 과제 검사도 그 학생에게만 붙는다. */
 var CR_IH_KEY = '__개별과제';
@@ -9899,8 +9909,11 @@ function crStarsHtml(i, code){
   if (!src) return '<div class="cr-note">' + (me ? '이 학생의 검사할 과제를 모두 뺐습니다. 리포트에는 \'확인할 것이 없습니다\'로 들어갑니다.'
     : (CR.xrm || []).length ? '검사할 과제를 모두 뺐습니다. 아래 [반 전체 검사 과제 추가] 칸에서 되살릴 수 있어요. 리포트에는 \'확인할 것이 없습니다\'로 들어갑니다.'
     : '지난 수업에 적힌 과제가 없습니다. 리포트에는 \'확인할 것이 없습니다\'로 들어갑니다.') + '</div>' + me;
-  var ii = 0;
-  return '<div class="cr-src">' + esc(src.head) + '</div>' + me + src.tasks.map(function(t, ti){
+  var ii = 0, nHide = src.tasks.filter(function(t){ return crTaskHide(h, t); }).length, showHid = !!CR.tfShow[i];
+  var hidBtn = nHide ? '<button type="button" class="cr-tfbtn" data-tfshow="' + i + '" aria-expanded="' + showHid + '">' +
+    (showHid ? '완료한 과제 숨기기' : '완료한 과제 ' + nHide + '개 보기') + '</button>' : '';
+  return '<div class="cr-src">' + esc(src.head) + '</div>' + me + (nHide === src.tasks.length && !showHid ? '<div class="cr-tfall">검사할 과제를 모두 완료했습니다.</div>' : '') + src.tasks.map(function(t, ti){
+    if (!showHid && crTaskHide(h, t)){ ii += crDims().length; return ''; }   // 다 한 과제는 숨김(2026-11-18 원장님) — 별 번호(ii)는 그대로 센다
     var tm = crTaskMissed(h, t);
     var tfull = crTaskFull(h, t), tcar = !tfull && !!h && !!h.carried && crDims().some(function(d){ return h.carried[t + ' (' + d + ')']; });
     return '<div class="cr-task' + (tm ? ' miss' : '') + (tfull ? ' tfull' : '') + '"><div class="cr-thead"><div class="cr-tname">' + esc(t) + crSfBadge(x, t) +
@@ -9919,7 +9932,7 @@ function crStarsHtml(i, code){
       return '<div class="cr-item"><span>' + d + '</span><span class="cr-stars">' + b + '</span></div>';
     }).join('') + (function(){ var cp = crCopyOf(x.p).indexOf(t) >= 0;
       return '<div class="cr-cp"><button type="button" class="cr-cpb' + (cp ? ' on' : '') + '" data-cp="' + i + '|' + ti + '" aria-pressed="' + cp + '" aria-label="' + esc(t) + ' 베낌 의심">베낌 의심</button><small>비공개 · 학생·리포트에 안 나가요</small></div>'; })() + '</div>';
-  }).join('');
+  }).join('') + hidBtn;
 }
 /* 학생마다 기록이 다 됐는지 — 출석·수업 태도·과제 검사(2026-10-02 원장님 "완료된 친구와 아직 기록이 부족한 친구가 구분되도록").
  * 결석이면 태도·과제 검사는 해당 없음. 검사할 과제가 없거나(지난 과제 없음·명단에서 못 찾음) 불러오지 못했으면 과제 검사도 해당 없음.
@@ -10270,6 +10283,7 @@ document.addEventListener('click', function(e){
   if (b.hasAttribute('data-pv')){ crPvOpen(+b.getAttribute('data-pv')); return; }
   if (b.hasAttribute('data-tmiss')){ var tp = b.getAttribute('data-tmiss').split('|'); crTaskMiss(+tp[0], +tp[1]); return; }
   if (b.hasAttribute('data-miss')){ crMiss(+b.getAttribute('data-miss')); return; }
+  if (b.hasAttribute('data-tfshow')){ var fi = +b.getAttribute('data-tfshow'); crKeepInputs(); CR.tfShow[fi] = !CR.tfShow[fi]; crRender(); return; }
   if (b.hasAttribute('data-more')){ var i = +b.getAttribute('data-more'); crKeepInputs(); CR.more[i] = !CR.more[i]; crRender(); return; }
   if (b.hasAttribute('data-per')){ crKeepInputs(); crNsPeriod(b.getAttribute('data-per')); return; }
   if (b.hasAttribute('data-unrm')){ crNsUnit(b.getAttribute('data-unrm'), false); return; }

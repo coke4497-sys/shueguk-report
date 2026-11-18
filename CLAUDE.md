@@ -1110,6 +1110,9 @@ clasp update-deployment -d "설명" <DEPLOYMENT_ID>   # 기존 배포 새 버전
 ## 슈핏 문법 H WORK → 수업 기록 과제 검사 (2026-11-18 원장님 "모든 친구의 슈핏 문법 과제는 수업 기록에 연동" → '검사 목록 + 제출 결과 표시' · '배정 이후 그 학생의 모든 수업')
 - timetable.html 수업 기록 창(`crSfLoad`/`crSfApply`/`crSfBadge`, 접두 `crSf`): `assignments`(tool 'H WORK', 과제 이름에 shuefit)가 그 학생에게 맞고(`crSfMatch` = s.html `noticeMatches` 규칙, 학교가 다르면 잇지 않음) **배정일 ≤ 수업일 ≤ 마감일(없으면 배정일 + 14일 `CR_SF_DAYS`)**이면 그 수업(정규·내신, 진도·확인 모두)의 과제 검사 목록에 **H WORK 과제 이름 그대로** 더한다(`crSrcOf` — 머리 '… + 슈핏 문법 H WORK 과제'). 과제 이름 옆 알약 = `hwork_submissions` 가장 최근 제출(이름(끝 알파벳 뗌)·학년 숫자·학교 `crSfSch`)로 'H WORK · 제출 · 9/10점 · 오답하기 클리어 1/1' / 'H WORK · 미제출'. 수행 평가·별은 선생님이 매긴다. 마감은 시트가 'Tue Nov 24'처럼 줘서 `crSfYmd`가 연도를 배정일에서 채운다. 이름이 H WORK 제목과 같아 위 '수업에서 확인한 H WORK' 규칙과 이어진다. [빼기]·학생별 빼기도 그대로 된다. DB 변경 없음. 검증: class-report-e2e ②-7(227건).
 
+## 수업 기록 — 다 한 과제는 숨김 (2026-11-18 원장님 "수업기록에서 다 한 과제는 숨기기 상태로. 완료한 과제 보기 누르면 다한 과제를 확인")
+- timetable.html 수업 기록 창 학생 카드의 과제 검사 목록에서 **다 한 과제(`crTaskFull` — 모든 항목 만점, 내신 누적의 이어받은 '매우 잘함' 포함)는 접어 두고** 목록 아래 연보라 [완료한 과제 n개 보기](`data-tfshow`, 학생마다 `CR.tfShow[i]`) → 누르면 '완료' 표시와 함께 보이고 [완료한 과제 숨기기]. 판정 `crTaskHide` — 이 창에서 선생님이 막 별·알약을 눌러 채운 과제는 바로 사라지지 않게 남긴다(`crCarryTouch`가 남긴 false 표시). 모두 숨으면 '검사할 과제를 모두 완료했습니다.' 숨긴 과제의 점수·%·저장·기록 완료 판정은 그대로(화면만). 별 번호(ii)는 숨긴 과제도 센다. 검증: class-report-e2e(230건).
+
 ## H WORK 화면 이탈 기록 — 066 (2026-11-12 원장님)
 - `hwork_submissions.away_n`·`away_sec` + `hwork_submit`이 `p.away {n, sec}`를 받아 저장(064 본문 그대로 + 두 값, 이상한 값 0·상한 9999회/86400초). 학생 화면의 방해 금지 안내·이탈 세기와 교사 표시는 H WORK 저장소 CLAUDE.md 같은 절. **064를 다시 돌리면 066도 다시 돌릴 것.** 검증: `tools/hwork-retry-sql-test.sh`(46건).
 
