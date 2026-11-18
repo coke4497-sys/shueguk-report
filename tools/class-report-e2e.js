@@ -84,6 +84,8 @@ const STUDENTS = [
       if (/\/hwcheck_records/.test(u)){ if (m === 'GET'){ (st.hwGets = st.hwGets || []).push(decodeURIComponent(u)); return json(200, opt.hw || []); } return r.fulfill({ status: 201, body: '' }); }
       if (/\/tt_log\?/.test(u) && m === 'GET') return json(200, opt.log || []);
       if (/\/report_config/.test(u)) return json(200, [{ value: '숙제 수행, 오답 처리' }]);
+      if (/\/assignments\?/.test(u)){ (st.asgGets = st.asgGets || []).push(u); return json(200, opt.asg || []); }
+      if (/\/hwork_submissions\?/.test(u)) return json(200, opt.sfSubs || []);
       if (/\/students\?/.test(u)) return json(200, STUDENTS);
       if (/\/tt_period/.test(u)) return json(200, WEDS.map(w => ({ week_wednesday: w, book: opt.book })));
       if (/\/attendance\?/.test(u)) return json(200, opt.att.map(a => Object.assign({ date: TODAYSTR, book: opt.book, memo: '' }, a)));
@@ -524,6 +526,31 @@ const STUDENTS = [
     await page.waitForTimeout(1200);
     const hp2 = ((st.writes.filter(w => /hwcheck_records/.test(w.u) && w.m === 'POST').slice(-1)[0] || {}).body || [])[0];
     ok('내신 검사: 수행 평가·공개·비공개 메모 저장(잘함 = 2, 매우 잘함 3 + 잘함 2 / 6 = 83%)', !!hp2 && hp2.scores['과제집 w15 (수행 평가)'] === 2 && hp2.pct === 83 && hp2.pub === '오답 정리가 꼼꼼했어요' && hp2.priv === '다음 주 재확인', JSON.stringify(hp2));
+    await ctx.close();
+  }
+
+  // ②-7 슈핏 문법 H WORK 과제 → 수업 기록 과제 검사 목록(2026-11-18 원장님) — 배정 학생·기간 안·제출 결과 표시·다른 학교 제출은 잇지 않음
+  {
+    const FUT = (() => { const d = new Date(T0); d.setDate(d.getDate() + 5); return ymd(d); })(), D16 = (() => { const d = new Date(T0); d.setDate(d.getDate() - 16); return ymd(d); })();
+    const SF = 'Shuefit 문법: 음운 기본 (10)', SF2 = 'Shuefit 문법: 형태소 심화 (33)', SF3 = 'Shuefit 문법: 국어사 기본 (10)';
+    ({ ctx, page, st } = await ctxOf({ book: '정규',
+      rows: [row('r001', '고2 가', '지원', '박보검 김하늘 최다은')], att: [], hw: [], prev: [],
+      asg: [{ seq: 1, date: D7, type: '일부', target: '박보검, 김하늘', item: '이수경 / ' + SF, due: FUT },
+            { seq: 2, date: D16, type: '일부', target: '최다은', item: '이수경 / ' + SF2, due: '' },
+            { seq: 3, date: D7, type: '일부', target: '최다은|서정고|2026 고등 2학년', item: '이수경 / ' + SF3, due: '' },
+            { seq: 4, date: D7, type: '일부', target: '최다은', item: '이수경 / 문장 1권 01', due: '' }],
+      sfSubs: [{ id: 5, ts: '2026-11-01 10:00', teacher: '이수경', code: SF, school: '서정고', grade: '고2', name: '박보검', got: 2, total: 10, detail: {}, review: {} },
+               { id: 7, ts: '2026-11-02 10:00', teacher: '이수경', code: SF, school: '화정고', grade: '고2', name: '박보검', got: 9, total: 10,
+                 detail: { '1': { ok: true }, '3': { ok: false } }, review: { '3': { cleared_at: '2026-11-02 10:10' } } }] }));
+    await openCard(page, '고2 가');
+    await page.waitForFunction(() => document.querySelector('.cr-sf'), null, { timeout: 8000 }).catch(() => {});
+    r = await page.evaluate(() => [...document.querySelectorAll('.cr-card')].map(c => ({ nm: c.querySelector('.cr-top b').textContent,
+      tasks: [...c.querySelectorAll('.cr-tname')].map(x => x.textContent), src: (c.querySelector('.cr-src') || {}).textContent || '', items: c.querySelectorAll('.cr-item').length })));
+    const cd = n => r.find(x => x.nm === n) || {};
+    ok('슈핏: 배정 학생 검사 목록에 H WORK 과제 이름 그대로 + 제출 결과(점수·오답하기 클리어)', cd('박보검').tasks.length === 1 && cd('박보검').tasks[0].indexOf(SF + ' H WORK · 제출 · 9/10점 · 오답하기 클리어 1/1') === 0 && /슈핏 문법 H WORK 과제/.test(cd('박보검').src) && cd('박보검').items === 4, JSON.stringify(r));
+    ok('슈핏: 아직 안 낸 학생은 미제출 표시', cd('김하늘').tasks.join('|') === SF + ' H WORK · 미제출', JSON.stringify(cd('김하늘')));
+    ok('슈핏: 마감 없는 배정은 배정일 + 14일까지만 · 다른 학교 토큰·슈핏이 아닌 과제는 넣지 않음', cd('최다은').tasks.length === 0, JSON.stringify(cd('최다은')));
+    ok('슈핏: 배정 조회 = H WORK·shuefit', (st.asgGets || []).some(u => /tool=eq\.H WORK/.test(u) && /item=ilike\.\*shuefit\*/.test(u)), JSON.stringify(st.asgGets));
     await ctx.close();
   }
 

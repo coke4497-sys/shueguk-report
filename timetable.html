@@ -571,6 +571,9 @@
   .cr-src{font-size:.72rem;color:var(--ink-soft);margin:2px 0 4px;}
   .cr-tst{display:inline-block;margin-left:4px;padding:1px 7px;border-radius:999px;background:#EDE4F4;color:#5A4A6A;font-size:.66rem;font-weight:400;vertical-align:middle;}
   .cr-tst.done{background:#E3EFE7;color:#2F5B44;}
+  .cr-sf{display:inline-block;margin-left:4px;padding:1px 7px;border-radius:999px;font-size:.66rem;font-weight:400;vertical-align:middle;background:#E9EDF8;color:#3F4E78;}
+  .cr-sf.no{background:#F7E2DE;color:#8A4A40;}
+  .cr-sf.part{background:#F9EFD0;color:#6B5420;}
   .cr-memos{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:6px 0;}
   .cr-memos label{display:flex;flex-direction:column;gap:3px;font-size:.74rem;color:var(--ink);}
   .cr-memos small{color:var(--ink-soft);font-size:.66rem;}
@@ -8953,10 +8956,10 @@ function crStuOf(nm){
 }
 function crStudentsEnsure(){
   if (crStudents) return Promise.resolve(crStudents);
-  return crGet('/students?select=name,school,grade,code,enrolled&order=seq,id').then(function(rows){
+  return crGet('/students?select=name,school,grade,code,enrolled,student_id&order=seq,id').then(function(rows){
     var LEFT = /^(퇴원|n|no|off|x|중단|비재원)$/i;
     crStudents = rows.filter(function(r){ return String(r.name || '').trim() && String(r.code || '').trim() && !LEFT.test(String(r.enrolled || '').trim()); })
-      .map(function(r){ return { name: String(r.name).trim(), school: String(r.school || '').trim(), grade: String(r.grade || '').trim(), code: String(r.code).trim() }; });
+      .map(function(r){ return { name: String(r.name).trim(), school: String(r.school || '').trim(), grade: String(r.grade || '').trim(), code: String(r.code).trim(), sid: String(r.student_id || '').trim() }; });
     return crStudents;
   });
 }
@@ -8988,7 +8991,8 @@ function openClassNote(c, ctx){
     crHwSrcLoad(c, bk, ymd).catch(function(e){ console.warn('지난 과제 조회 실패', e); return null; }),
     crStudentsEnsure().catch(function(){ return null; }),
     CR.ns ? crStudentsEnsure().catch(function(){ return null; }).then(function(){ return crNsLoad(CR.ns, c.id, c); }).catch(function(e){ console.warn('시험범위 조회 실패', e); CR.ns = null; }) : Promise.resolve(),   // 범위를 못 읽어도 창은 연다(정규처럼)
-    crSibLoad(c, bk, ymd).catch(function(){ return []; })
+    crSibLoad(c, bk, ymd).catch(function(){ return []; }),
+    crSfLoad(ymd).catch(function(e){ console.warn('슈핏 문법 과제 조회 실패', e); return null; })
   ]).then(function(r){
     if (CR !== mine) return;
     CR.note = r[0][0] || null;
@@ -8999,6 +9003,7 @@ function openClassNote(c, ctx){
     if (r[1]){ CR.hwOk = !!r[3]; r[1].forEach(function(x){ CR.hw[x.token] = { scores: x.scores || {}, pub: x.pub || '', priv: x.priv || '', missing: !!x.missing, miss: Array.isArray(x.missing_items) ? x.missing_items.slice() : [], plan: x.plan || '', saved: true }; }); }
     CR.src = r[2];
     CR.names.forEach(function(x){ x.stu = crStuOf(x.nm); });
+    crSfApply(r[6], ymd);
     CR.sib = r[5] || [];
     crSibAuto();
     crRender();
@@ -9607,6 +9612,111 @@ function crRowTasks(r, nm){
   return t;
 }
 /* 이 학생이 오늘 검사할 과제 목록과 저장 키 */
+/* 슈핏 문법 H WORK 과제 → 수업 기록 과제 검사 목록(2026-11-18 원장님 "모든 친구의 슈핏 문법 과제는 수업 기록에 연동" →
+ * '검사 목록 + 제출 결과 표시' · '배정 이후 그 학생의 모든 수업'). 배정(assignments, tool 'H WORK', 과제 이름에 shuefit)이
+ * 그 학생에게 맞고 배정일 ≤ 수업일 ≤ 마감일(없으면 배정일 + 14일)이면 그 수업의 검사 목록에 H WORK 과제 이름 그대로 넣는다
+ * (학생 페이지의 '수업에서 확인한 H WORK는 목록에서 뺀다' 규칙과 이어지게). 옆에 제출 결과(점수·오답하기 클리어) 표시,
+ * 수행 평가는 선생님이 매긴다. 배정 판정 = s.html noticeMatches, 제출 = 이름(끝 알파벳 뗌)+학년 숫자+학교 — 학교가 다르면 잇지 않는다. */
+var CR_SF_RE = /shuefit/i, CR_SF_DAYS = 14;
+function crSfTr(v){ return String(v == null ? '' : v).trim(); }
+function crSfGd(s){ s = String(s || '').replace(/\s+/g, ''); var m = s.match(/([1-3])학년/) || s.match(/[고중초]([1-6])/); if (m) return m[1]; var a = s.match(/[1-6]/g); return a ? a[a.length - 1] : ''; }
+function crSfLv(s){ s = String(s || ''); return /고/.test(s) ? '고' : /중/.test(s) ? '중' : /초/.test(s) ? '초' : ''; }
+function crSfSch(a, b){
+  a = String(a || '').replace(/\s+/g, ''); b = String(b || '').replace(/\s+/g, '');
+  if (!a || !b) return false; if (a === b) return true;
+  var re = /(등학교|고등학교|중학교|학교|고|중)$/, na = a.replace(re, ''), nb = b.replace(re, '');
+  if (na && nb && na === nb){ var la = crSfLv(a.slice(na.length)), lb = crSfLv(b.slice(nb.length)); return !la || !lb || la === lb; }
+  return false;
+}
+function crSfMatch(type, target, stu){   // s.html noticeMatches 와 같은 규칙(학교가 다르면 잇지 않음)
+  type = crSfTr(type); target = crSfTr(target);
+  if (type.indexOf('전체') >= 0) return true;
+  if (type === '' && target === '') return true;
+  var tokens = target.split(/[,\n;\/·\s]+/).map(crSfTr).filter(Boolean);
+  if (!tokens.length) return false;
+  if (type.indexOf('학년') >= 0){
+    var g = stu.grade.replace(/\s+/g, ''), sg = (stu.school + stu.grade).replace(/\s+/g, ''), gd = crSfGd(stu.grade), lvS = crSfLv(g);
+    return target.split(/[,\n;\/·]+/).map(crSfTr).filter(Boolean).some(function(t){
+      var tt = t.replace(/\s+/g, ''); if (!tt) return false;
+      var td = crSfGd(tt); if (td && gd && td !== gd) return false;
+      var lvT = crSfLv(tt); if (lvT && lvS && lvT !== lvS) return false;
+      return tt === g || sg.indexOf(tt) >= 0 || g.indexOf(tt) >= 0 || (td && td === gd && lvT === lvS);
+    });
+  }
+  return tokens.some(function(t){
+    if (t.indexOf('|') >= 0){
+      var p = t.split('|'), tn = crSfTr(p[0]), ts = crSfTr(p[1]), tg = crSfTr(p[2]);
+      if (!tn || tn !== stu.name) return false;
+      if (ts && stu.school && !crSfSch(ts, stu.school)) return false;
+      if (tg && stu.grade && tg.replace(/\s+/g, '') !== stu.grade.replace(/\s+/g, '')) return false;
+      return true;
+    }
+    return t === stu.name || (stu.sid && t === stu.sid) || t === stu.code;
+  });
+}
+var CR_SF_MON = { jan:1, feb:2, mar:3, apr:4, may:5, jun:6, jul:7, aug:8, sep:9, oct:10, nov:11, dec:12 };
+function crSfYmd(v, base){   // '2026-11-24' · 'Tue Nov 24' · Date 문자열 → yyyy-MM-dd (연도가 없으면 배정일 해, 그보다 앞이면 다음 해)
+  var s = crSfTr(v); if (!s) return '';
+  var m = s.match(/^(\d{4})[-.\/](\d{1,2})[-.\/](\d{1,2})/);
+  if (m) return m[1] + '-' + ('0' + m[2]).slice(-2) + '-' + ('0' + m[3]).slice(-2);
+  m = s.match(/([A-Za-z]{3})[a-z]*\s+(\d{1,2})(?:\D+(\d{4}))?/);
+  if (m && CR_SF_MON[m[1].toLowerCase()]){
+    var y = m[3] || String(base || '').slice(0, 4) || String(new Date().getFullYear());
+    var out = y + '-' + ('0' + CR_SF_MON[m[1].toLowerCase()]).slice(-2) + '-' + ('0' + m[2]).slice(-2);
+    if (!m[3] && base && out < base) out = (+y + 1) + out.slice(4);
+    return out;
+  }
+  return '';
+}
+function crSfAddDays(ymd, n){ var d = new Date(ymd + 'T00:00:00'); d.setDate(d.getDate() + n); return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); }
+function crSfLoad(ymd){
+  var from = crSfAddDays(ymd, -70);
+  return Promise.all([
+    crGet('/assignments?tool=eq.' + encodeURIComponent('H WORK') + '&item=ilike.*shuefit*&select=seq,date,type,target,item,due&order=seq.asc'),
+    crGet('/hwork_submissions?code=ilike.*shuefit*&ts=gte.' + from + '&select=id,ts,teacher,code,school,grade,name,got,total,detail,review,review_at&order=id.asc')
+  ]).then(function(r){ return { asg: r[0] || [], subs: r[1] || [] }; });
+}
+function crSfApply(data, ymd){   // CR.sf = {접근코드: [{code, teacher, due, sub}]}
+  CR.sf = {}; if (!data) return;
+  var asg = data.asg.filter(function(a){
+    if (!CR_SF_RE.test(a.item || '')) return false;
+    var d = crSfYmd(a.date); if (!d || d > ymd) return false;
+    var due = crSfYmd(a.due, d) || crSfAddDays(d, CR_SF_DAYS);
+    return ymd <= due;
+  });
+  if (!asg.length) return;
+  CR.names.forEach(function(x){
+    var s = x.stu; if (!s) return;
+    var stu = { name: s.name, school: s.school, grade: s.grade, code: s.code, sid: s.sid || '' }, base = s.name.replace(/[A-Za-z]$/, ''), gd = crSfGd(s.grade);
+    var list = [];
+    asg.forEach(function(a){
+      if (!crSfMatch(a.type, a.target, stu)) return;
+      var item = crSfTr(a.item), idx = item.indexOf(' / '), teacher = idx >= 0 ? crSfTr(item.slice(0, idx)) : '', code = idx >= 0 ? crSfTr(item.slice(idx + 3)) : item;
+      if (list.some(function(o){ return o.code === code; })) return;
+      var sub = null;
+      data.subs.forEach(function(r){
+        if (crSfTr(r.code) !== code || (teacher && crSfTr(r.teacher) && crSfTr(r.teacher) !== teacher)) return;
+        var rn = crSfTr(r.name); if (rn !== s.name && rn !== base) return;
+        var rg = crSfGd(r.grade); if (gd && rg && rg !== gd) return;
+        if (!crSfSch(r.school, s.school)) return;   // 학교가 다르면 잇지 않는다
+        sub = r;   // id 오름차순 → 마지막이 가장 최근 제출
+      });
+      list.push({ code: code, teacher: teacher, sub: sub });
+    });
+    if (list.length) CR.sf[s.code] = list;
+  });
+}
+function crSfOf(x, t){ var l = (x && x.stu && CR.sf && CR.sf[x.stu.code]) || []; for (var i = 0; i < l.length; i++) if (l[i].code === t) return l[i]; return null; }
+function crSfBadge(x, t){
+  var f = crSfOf(x, t); if (!f) return '';
+  var s = f.sub;
+  if (!s) return ' <small class="cr-sf no" title="슈핏 문법 H WORK 과제 — 아직 제출하지 않았습니다">H WORK · 미제출</small>';
+  var det = s.detail || {}, rv = s.review || {}, wrong = 0, cl = 0;
+  Object.keys(det).forEach(function(q){ var d = det[q]; if (d && d.ok === false){ wrong++; if (rv[q] && rv[q].cleared_at) cl++; } });
+  var txt = 'H WORK · 제출 · ' + (s.got == null ? '-' : s.got) + '/' + (s.total == null ? '-' : s.total) + '점' + (wrong ? ' · 오답하기 클리어 ' + cl + '/' + wrong : '');
+  return ' <small class="cr-sf' + (wrong && cl < wrong ? ' part' : ' ok') + '" title="슈핏 문법 H WORK 과제 · 제출 ' + esc(s.ts || '') + '">' + esc(txt) + '</small>';
+}
+function crSfTasks(x){ return ((x && x.stu && CR.sf && CR.sf[x.stu.code]) || []).map(function(o){ return o.code; }); }
 function crSrcOf(x){
   var s = CR.src, base = !s ? null : s.common !== undefined ? s.common : (s.by && s.by[x.p]) || null;   // common = 옛 모양(테스트 호환)
   var xt = CR.xt || [], xrm = CR.xrm || [], mine = crXrmMine(x.p);
@@ -9617,6 +9727,8 @@ function crSrcOf(x){
   xt.forEach(function(t){ if (tasks.indexOf(t) < 0) tasks.push(t); });
   if (!xt.length) head = base ? base.label + ' 과제' + (baseTasks.length < base.tasks.length ? ' (' + (base.tasks.length - baseTasks.length) + '개 뺌)' : '') : '';
   else head = baseTasks.length ? base.label + ' 과제 + 반 전체 추가 과제' : '반 전체에 추가한 과제';
+  var sfAdd = crSfTasks(x).filter(function(t){ return xrm.indexOf(t) < 0 && tasks.indexOf(t) < 0; });
+  if (sfAdd.length){ sfAdd.forEach(function(t){ tasks.push(t); }); head = head ? head + ' + 슈핏 문법 H WORK 과제' : '슈핏 문법 H WORK 과제'; }
   var all = tasks.length;
   tasks = tasks.filter(function(t){ return mine.indexOf(t) < 0; });
   if (!tasks.length) return null;
@@ -9791,7 +9903,7 @@ function crStarsHtml(i, code){
   return '<div class="cr-src">' + esc(src.head) + '</div>' + me + src.tasks.map(function(t, ti){
     var tm = crTaskMissed(h, t);
     var tfull = crTaskFull(h, t), tcar = !tfull && !!h && !!h.carried && crDims().some(function(d){ return h.carried[t + ' (' + d + ')']; });
-    return '<div class="cr-task' + (tm ? ' miss' : '') + (tfull ? ' tfull' : '') + '"><div class="cr-thead"><div class="cr-tname">' + esc(t) +
+    return '<div class="cr-task' + (tm ? ' miss' : '') + (tfull ? ' tfull' : '') + '"><div class="cr-thead"><div class="cr-tname">' + esc(t) + crSfBadge(x, t) +
       (tfull ? ' <small class="cr-tst done">완료</small>' : tcar ? ' <small class="cr-tst">지난 검사 이어받음</small>' : '') + '</div>' +
       '<div class="cr-tacts"><button type="button" class="cr-mini cr-tmiss' + (tm ? ' on' : '') + '" data-tmiss="' + i + '|' + ti + '" aria-pressed="' + tm + '" aria-label="' + esc(t) + ' 미제출">미제출</button>' +
       '<button type="button" class="cr-mini cr-trm" data-trmme="' + i + '|' + ti + '" title="이 학생의 검사 목록에서만 빼기" aria-label="' + esc(t) + ' 이 학생만 빼기">이 학생만 빼기</button>' +
