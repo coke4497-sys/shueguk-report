@@ -65,6 +65,12 @@ def _shapes(o, comp):
     return out
 
 
+def pua_fix(x):
+    """한글 전용 기호(사용자 정의 글자) → 보통 글자. 화면 글꼴에 없어 네모 칸으로 보인다."""
+    x = re.sub('\uf000([^\uf000]*)\uf000', '『\\1』', x)
+    x = x.replace('\uf077', '◆')                 # 어휘 풀이가 있는 낱말 표시
+    return re.sub('[\ue000-\uf8ff]', '', x)
+
 def _para_html(body, runs, shapes):
     """PARA_TEXT(utf-16) + 글자 모양 구간 → (글, html)."""
     n = len(body) // 2
@@ -105,6 +111,7 @@ def _para_html(body, runs, shapes):
     if cur['u']: out.append('</u>')
     if cur['b']: out.append('</b>')
     h = ''.join(out)
+    t, h = pua_fix(t), pua_fix(h)
     h = re.sub(r'</u>(\s*)<u>', r'\1', re.sub(r'</b>(\s*)<b>', r'\1', h))
     return t, h
 
