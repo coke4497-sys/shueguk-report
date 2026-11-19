@@ -1093,6 +1093,13 @@ const STUDENTS = [
   ok('8/29 내신 진도 — 수업 진도 타일·과제 검사 없음은 "내신대비 기간에는 확인 수업에서 과제 검사를 진행합니다…"(2026-10-28 원장님 문장, 학부모님 오해 방지)',
      /진도 수업/.test(r.items[2]) && /수업 진도사미인곡/.test(r.items[2]) && /내신대비 기간에는 확인 수업에서 과제 검사를 진행합니다\. 이번 정규 수업에서는 과제 기록이 없습니다\./.test(r.items[2]) && !/확인할 것이 없습니다/.test(r.items[2]) && /확인 수업에서/.test(r.items[2]) && !/%/.test(r.items[2]) && !/미제출/.test(r.items[2]), r.items[2]);
   ok('"숙제"라는 말이 없다', !r.items.some(t => /숙제/.test(t)));
+  // 내신 기간 누적 검사 — 퍼센트 옆·과제 검사 칸에 누적 안내(2026-11-19 원장님 "부실하게 한 것으로 오해")
+  r = await hp.evaluate(() => { const d = document.createElement('div'); d.innerHTML = rcCardHtml({ ymd: '2026-11-19', part: '확인', cls: '고1 확인', teacher: '지원', attend: '출석',
+    hw: { items: [{ name: '과제집 w15 (수행 평가)', score: 3, max: 3 }, { name: '교과서 1~6번 (수행 평가)', score: 1, max: 3 }, { name: '서술형 정리 (수행 평가)', score: 0, max: 3 }], pct: 44, missing: false, missing_items: ['서술형 정리'], text: '' } }, {});
+    return { tile: (d.querySelector('.rc-tile.hw') || {}).textContent || '', h5: [...d.querySelectorAll('h5')].map(x => x.textContent), note: (d.querySelector('.rc-cumnote') || {}).textContent || '' }; });
+  ok('내신 누적 검사 카드 — 타일 "내신 기간 누적 · 3개 중 1개 완성 · 미제출 1" · 제목 "내신 기간 누적 과제 검사" · 안내 문장',
+     /44%내신 기간 누적 · 3개 중 1개 완성 · 미제출 1/.test(r.tile) && r.h5.indexOf('내신 기간 누적 과제 검사') >= 0 && /지금까지 받은 과제 전체 가운데 완성한 정도/.test(r.note), JSON.stringify(r));
+  ok('정규 카드에는 누적 안내가 없다', !/내신 기간 누적/.test(await hp.evaluate(() => document.getElementById('lhList').textContent)));
   ok('100% 아닌 수업에는 별 +1 표시·효과가 없다', await hp.evaluate(() => !document.querySelector('.lh-star1') && !document.querySelector('.rc-star1') && !document.querySelector('.lh-sb')));
   await hp.click('#lhMoreBtn');
   await hp.waitForFunction(() => document.querySelectorAll('.rc').length === 4, null, { timeout: 5000 });
