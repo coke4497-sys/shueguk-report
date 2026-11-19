@@ -5250,7 +5250,7 @@ function getAssignList(tool, item) {
       out.push({
         rowIndex: i+1, date: ds, tool: t, item: it,
         type: String(r[3]||'').trim(), target: tg,
-        due: String(r[5]||'').trim(), memo: String(r[6]||'').trim()
+        due: fmtCellDate_(r[5]), memo: String(r[6]||'').trim()
       });
     }
   }
@@ -5267,6 +5267,8 @@ function addAssignment(data) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sh = ensureAssignSheet_(ss);
   sh.appendRow([ new Date(), tool, String(data.item||'').trim(), type, String(data.target||'').trim(), String(data.due||'').trim(), String(data.memo||'').trim() ]);
+  // 마감일 칸은 글자로 — 시트가 '2026-11-25'를 날짜로 바꾸면 assignList 가 영어 날짜를 돌려줬다 (2026-11-19)
+  try { var lr = sh.getLastRow(); sh.getRange(lr, 6).setNumberFormat('@').setValue(String(data.due||'').trim()); } catch (e) {}
   dropTab_(TAB_ASSIGN);
   return json({ result:'success' });
 }
