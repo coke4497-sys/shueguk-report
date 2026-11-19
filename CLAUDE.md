@@ -1179,6 +1179,7 @@ clasp update-deployment -d "설명" <DEPLOYMENT_ID>   # 기존 배포 새 버전
 
 - **083 — 학습 자료도 문제지에**(같은 날 원장님 "3단계도 진행해 주세요"): `shufit_reading_papers.seq` jsonb(차례 전체 — 문항 = reading_items.id 숫자, 학습 자료 = 'm:지문id:종류' 글자, 600개까지). ids 는 그대로 문항만. 비면 옛 문제지(ids 차례). **2026-11-19 실제 적용**(관리 API 두 번, 교사 UPDATE 권한·공개 키 불가 확인). 화면은 허브 CLAUDE.md Shuefit 독서 절 '3단계'.
 
+- **085 — 화법·작문도 같은 표**(같은 날 원장님 "화법·작문 화면도"): subject check 에 '화법'·'작문'(reading_passages·shufit_reading_papers). **2026-11-19 실제 적용**(두 번 실행).
 - **084 — Shuefit 문학도 같은 표**(같은 날 원장님 "이제 문학도 같은 틀로"): `reading_passages.subject`('독서'|'문학', 기본 '독서')·`shufit_reading_papers.subject` + 열쇠 (subject, teacher, title)(옛 (teacher, title) 은 옛 화면 때문에 남김). 문학 지문에 여러 작품이 섞이면 data.works = [{title, author, genre}], area = 갈래. **2026-11-19 실제 적용**(두 번 실행 — 지문 4개·문제지 0개 모두 '독서'). 문학 작품을 올릴 땐 `tools/reading_load.py`가 subject 를 넣도록 고칠 것(지금은 넣지 않음). 화면은 허브 CLAUDE.md Shuefit 문학 절.
 
 ## Shuefit 독서 교과서 지문 — 081 (2026-11-19 원장님 "네, 파일명은 [교과서명]단원(작가명)")
