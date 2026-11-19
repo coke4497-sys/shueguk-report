@@ -208,7 +208,7 @@ def lit_info(fname, L):
     return src, title, author
 
 
-def lit_passage(L):
+def lit_passage(L, prose=False):
     """문학 지문 — 머리글 '제목 (작가)' 다음 줄부터 첫 구역 전까지. 빈 줄 = 연 나눔, '- 작가, <제목>' = 출처."""
     out, stanza, started, seen = [], [], False, False
     for x in L:
@@ -217,6 +217,8 @@ def lit_passage(L):
             if re.match(r'^\[국어공방\]\[[^\]]+\]$', t):
                 seen = True; continue
             if seen and re.match(r'^.+\s*\([^()]+\)$', t):
+                started = True
+            if re.match(r'^\[국어공방\]\[[^\]]+\]\s*\S.*\([^()]+\)$', t):   # 머리글과 제목이 한 줄(「뿌리가 꽃이다」)
                 started = True
             continue
         if SEC_HEAD.match(t) and len(t) < 40:
@@ -231,6 +233,8 @@ def lit_passage(L):
             if stanza:
                 out.append({'p': '<br>'.join(stanza)}); stanza = []
             out.append({'p': RH.norm_u(x['h']), 'src': 1}); continue
+        if prose:   # 소설·수필 — 한 줄이 한 문단
+            out.append({'p': RH.norm_u(x['h'])}); continue
         stanza.append(RH.norm_u(x['h']))
     if stanza:
         out.append({'p': '<br>'.join(stanza)})
@@ -247,10 +251,17 @@ def unfloat(L):
     while k < len(L):
         x = L[k]
         m = INL_HEAD.search(x['t'])
-        if m and m.start() > 0:
+        if m and (m.start() > 0 or len(x['t'].strip()) > len(m.group(1).strip()) + 2):   # 문장 앞·가운데에 붙은 머리글
             head = m.group(1)
             x = dict(x, t=x['t'].replace(head, '', 1), h=x['h'].replace(head, '', 1))
             out.append(x)
+            if any(y['t'].strip() == head.strip() for y in L[k + 1:]):   # 같은 머리글이 뒤에 제 줄로 또 있음(「버팀목」) — 떼기만
+                k += 1; continue
+            if '정오답' in head:   # 정오답 선지 근거 머리글 — 실제 시작은 '[맞는 선택지와 근거 모음]' 줄(「버팀목」 빈칸 칸 안에 떠 있음)
+                j = next((j for j in range(k + 1, len(L)) if re.match(r'^\[맞는 선택지', L[j]['t'])), None)
+                if j is not None:
+                    L = L[:j] + [{'t': head, 'h': head, 'lvl': 0}] + L[j:]
+                    k += 1; continue
             j = k + 1
             while j < len(L) and not L[j]['t']:
                 j += 1
@@ -291,9 +302,23 @@ def lit_table(L2):
 
 def convert(path, fname=None):
     L = lines(path)
-    lit = any(re.match(r'^01-\d', x['t']) for x in L)
+    lit = any(re.match(r'^0[12]-\d', x['t']) for x in L)   # 01- 시 · 02- 소설·수필 문제 풀이
     if lit:
         L = unfloat(L)
+        # 정오답 선지 근거 머리글이 빠진 파일 — '[맞는 선택지와 근거 모음]' 앞에 '0n-07' 을 넣는다
+        if not any(re.match(r'^0[12]-07', x['t']) for x in L):
+            k = next((k for k, x in enumerate(L) if re.match(r'^\[맞는 선택지와 근거 모음\]', x['t'])), None)
+            if k is not None:
+                pre7 = next((re.match(r'^(0[12])-', x['t']).group(1) for x in L if re.match(r'^0[12]-\d', x['t'])), '01')
+                L.insert(k, {'t': pre7 + '-07 분석 정오답 선지', 'h': pre7 + '-07 분석 정오답 선지', 'lvl': 0})
+        # 작품 정리 머리글에 번호가 빠진 파일(「버팀목에 대하여」 — '시 핵심 정리'만 있음) → 첫 머리글 앞이면 '0n-02' 를 붙인다
+        pre = next((re.match(r'^(0[12])-', x['t']).group(1) for x in L if re.match(r'^0[12]-\d', x['t'])), '01')
+        for k, x in enumerate(L):
+            if re.match(r'^0[12]-\d', x['t']):
+                break
+            if re.fullmatch(r'(시|소설|현대소설|고전소설|수필|극|고전시가)?\s*핵심\s*정리', x['t']):
+                L[k] = dict(x, t=pre + '-02 ' + x['t'], h=pre + '-02 ' + x['t'])
+                break
     if lit:
         src, title, author = lit_info(fname or path, L)
         mg = re.search(r'(현시|고시|현소|고소|수필|극)$', src)
@@ -354,7 +379,7 @@ def convert(path, fname=None):
     if vocab:
         passage['vocab'] = vocab
     if lit:
-        passage = {'blocks': lit_passage(L)}
+        passage = {'blocks': lit_passage(L, prose=bool(mg and mg.group(1) in ('현소', '고소', '수필', '극')))}
     doc = {'file': os.path.basename(fname or path), 'book': book, 'unit': unit, 'title': title, 'author': author,
            'lit': lit, 'genre': (GENRE[mg.group(1)] if lit and mg else ''),
            'passage': passage, 'notes': [], 'analysis': [], 'blanks': None, 'keys': [], 'sections': [], 'imgs': {},
@@ -364,7 +389,7 @@ def convert(path, fname=None):
         c = s['code']
         L2 = []
         for x in s['lines']:
-            if JUNK.match(x['t']):
+            if JUNK.match(x['t']) or re.fullmatch(r'\S*정답 및 해설', x['t']):
                 continue
             if CHAT.match(x['t']):
                 doc['removed'].append(x['t']); continue
@@ -390,6 +415,8 @@ def convert(path, fname=None):
         hit = next((sc for sc in SECS if sc[0] == c), None)
         if lit and c[3:] in LIT_SECS:
             hit = (c, LIT_SECS[c[3:]][0], LIT_SECS[c[3:]][1])
+            if c[3:] == '04' and '모의고사' in s['name']:   # 소설·수필 '02-04 변형 모의고사형'
+                hit = (c, '13', '모의고사형')
         if not hit:
             doc['sections'].append({'code': '?', 'name': s['name'], 'items': [], 'rest': [x['t'] for x in L2[:3]]})
             continue
