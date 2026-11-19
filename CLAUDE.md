@@ -1163,3 +1163,6 @@ clasp update-deployment -d "설명" <DEPLOYMENT_ID>   # 기존 배포 새 버전
 - 도구: `tools/reading_hwpx.py`(HWPX → 구조, 밑줄·굵게만 HTML, 풀린 Ⓐ~Ⓒ 짝짓기 표를 다시 표로) · `tools/reading_load.py build <out.json> <hwpx…> [--area 제목=영역]` → `check` → `put`(교사 계정, 같은 자리 덮어씀·빠진 문항 active=false) → `list`. HWPX·JSON은 저장소 밖(스크래치)에.
 - **적용 상태: 079는 2026-11-18 실제 수파베이스에 적용 완료**(관리 API, 두 번 실행 — 교사 SELECT/INSERT/UPDATE/DELETE만, 공개 키 401). 같은 날 첫 두 지문을 올렸다 — 2021학년도 3월 고2 「진화론도 진화한다, 이타적 인간의 출현」(인문, 원장님 지정)·2023학년도 6월 고2 「독점 기업의 이윤 추구 과정 / 공정거래법의 이해」(사회), 지문마다 원 기출 6 + 기본 137 + 실력 137 = 560문항.
 - 변형 문항은 다른 도구로 만든 것이라 학생에게 내기 전 검수가 필요하다(원장님과 이야기함 — 아직 학생 화면·H WORK 출제는 없다).
+
+## Shuefit 독서 문제지 — 080 (2026-11-19 원장님 "문제지 저장 기능도 문법처럼")
+- 표 `shufit_reading_papers`(teacher·title 유일 — ids = reading_items.id 순서·author·print_date·school) — 076 shufit_papers 와 같은 짜임, 표는 따로(문법 화면이 shufit_papers ids 를 gbank_items 로 읽음). 교사 전용(045 규칙), 공개 키 차단, 시트 사본 없음. **2026-11-19 실제 적용**(관리 API 두 번, 교사 권한 SELECT/INSERT/UPDATE/DELETE 만·공개 키 401). 화면은 허브 CLAUDE.md Shuefit 독서 절.
