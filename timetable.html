@@ -542,6 +542,7 @@
   .cr-done{display:flex;flex-wrap:wrap;align-items:center;gap:4px;font-size:.7rem;}
   .cr-dtag{padding:1px 8px;border-radius:6px;background:#F7EED9;color:#7A6230;}
   .cr-dtag.ok{background:#DCE8E5;color:#3F6159;} .cr-dtag.na{background:#EEF1EF;color:#65726B;}
+  .cr-nb{display:inline-flex;align-items:center;justify-content:center;min-width:19px;height:19px;padding:0 5px;box-sizing:border-box;border-radius:999px;background:#D9485F;color:#fff;font-size:.72rem;font-weight:700;line-height:1;margin-left:-2px;}
   .cr-dall{margin-left:auto;padding:1px 9px;border-radius:999px;background:#3F6159;color:#fff;}
   .cr-prog-bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:.8rem;color:var(--ink-soft);margin:2px 0 6px;}
   .cr-prog-bar b{color:#3F6159;}
@@ -9737,6 +9738,24 @@ function crSfBadge(x, t){
   var txt = 'H WORK · 제출 · ' + (s.got == null ? '-' : s.got) + '/' + (s.total == null ? '-' : s.total) + '점' + (wrong ? ' · 오답하기 클리어 ' + cl + '/' + wrong : '');
   return ' <small class="cr-sf' + (wrong && cl < wrong ? ' part' : ' ok') + '" title="슈핏 문법 H WORK 과제 · 제출 ' + esc(s.ts || '') + '">' + esc(txt) + '</small>';
 }
+/* 제출했는데 아직 평가하지 않은 H WORK 과제 수(2026-11-19 원장님 "제출한 h work가 있는데 평가하지 않은 것이 있다면 친구 이름에 빨간 원 안 숫자")
+ * — 이 수업 검사 목록의 슈핏 문법 H WORK 과제 중 제출 기록이 있고, 이 수업 과제 검사에서 어느 항목도 매기지 않았고 미제출로도 표시하지 않은 것. */
+function crSfPending(x){
+  if (!x || !x.stu || !CR.hwOk) return 0;
+  var src = crSrcOf(x); if (!src) return 0;
+  var h = CR.hw[x.stu.code], sc = (h && h.scores) || {}, n = 0;
+  src.tasks.forEach(function(t){
+    var f = crSfOf(x, t); if (!f || !f.sub) return;
+    if (h && crTaskMissed(h, t)) return;
+    var rated = crDims().some(function(d){ var k = t + ' (' + d + ')'; return crIsLv(k) ? Object.prototype.hasOwnProperty.call(sc, k) && sc[k] !== '' && sc[k] != null : +sc[k] > 0; });
+    if (!rated) n++;
+  });
+  return n;
+}
+function crSfDot(x){
+  var n = crSfPending(x); if (!n) return '';
+  return '<span class="cr-nb" title="제출한 H WORK ' + n + '개를 아직 평가하지 않았습니다" aria-label="평가하지 않은 H WORK ' + n + '개">' + n + '</span>';
+}
 function crSfTasks(x){ return ((x && x.stu && CR.sf && CR.sf[x.stu.code]) || []).map(function(o){ return o.code; }); }
 function crSrcOf(x){
   var s = CR.src, base = !s ? null : s.common !== undefined ? s.common : (s.by && s.by[x.p]) || null;   // common = 옛 모양(테스트 호환)
@@ -9984,7 +10003,7 @@ function crRowHtml(i, x, a, ch, off, dn, code){
     : tag(dn.tone, dn.tone ? '태도 ' + tone : '태도 미입력') +
       (dn.hwNa ? tag(true, '과제 없음', true) : tag(dn.hwOk, dn.hwOk ? '과제 검사 ✓' : '과제 검사 ' + dn.hwN + '/' + dn.hwT));
   return '<button type="button" class="cr-row ' + (off ? 'off' : dn.done ? 'done' : 'todo') + '" data-sel="' + i + '" data-i="' + i + '">' +
-    '<span class="cr-rmain"><b title="' + esc(x.nm) + '">' + esc(x.p) + '</b>' +
+    '<span class="cr-rmain"><b title="' + esc(x.nm) + '">' + esc(x.p) + '</b>' + crSfDot(x) +
       '<span class="cr-chip ' + ch + '">' + (a ? esc(a.status) : '출석 미체크') + '</span>' +
       (off ? '<span class="cr-offtag">' + esc(off) + '</span>' : '') +
       (code && CR.hwOk ? crHwLabel(code) : '') + '</span>' +
@@ -10040,7 +10059,7 @@ function crRender(){
     if (!CR.hwOk || !code) hwPart += ihHtml + '<span class="cr-links">' + xBtns + '<button type="button" class="cr-more" data-pv="' + i + '">리포트 미리보기</button></span>';
     if (!CR.hwOk || !code) hwPart += '<div class="cr-row2 one"><input id="cr-c-' + i + '" maxlength="200" placeholder="' + esc(cmPh) + '" value="' + esc(cm[x.p] || '') + '"></div>';
     hwPart += (CR.pshow[i] && pOk ? crPStuHtml(x) : '') + (CR.hshow[i] ? crHistHtml(x) : '');
-    var html = '<div class="cr-card ' + (off ? 'off' : dn.done ? 'done' : 'todo') + '" data-i="' + i + '"><div class="cr-top"><b title="' + esc(x.nm) + '">' + esc(x.p) + '</b>' +
+    var html = '<div class="cr-card ' + (off ? 'off' : dn.done ? 'done' : 'todo') + '" data-i="' + i + '"><div class="cr-top"><b title="' + esc(x.nm) + '">' + esc(x.p) + '</b>' + crSfDot(x) +
       '<span class="cr-chip ' + ch + '">' + (a ? esc(a.status) : '미체크') + '</span>' +
       (off ? '<span class="cr-offtag">' + esc(off) + '</span>' : '') +
       '<span id="cr-pct-' + i + '">' + (code && CR.hwOk ? crHwLabel(code) : '') + '</span>' +

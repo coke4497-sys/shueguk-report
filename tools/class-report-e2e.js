@@ -569,6 +569,18 @@ const STUDENTS = [
     ok('슈핏: 아직 안 낸 학생은 미제출 표시', cd('김하늘').tasks.join('|') === SF + ' H WORK · 미제출', JSON.stringify(cd('김하늘')));
     ok('슈핏: 마감 없는 배정은 배정일 + 14일까지만 · 다른 학교 토큰·슈핏이 아닌 과제는 넣지 않음', cd('최다은').tasks.length === 0, JSON.stringify(cd('최다은')));
     ok('슈핏: 배정 조회 = H WORK·shuefit', (st.asgGets || []).some(u => /tool=eq\.H WORK/.test(u) && /item=ilike\.\*shuefit\*/.test(u)), JSON.stringify(st.asgGets));
+    // 제출했는데 아직 평가하지 않은 H WORK → 이름 옆 빨간 원 숫자(2026-11-19 원장님)
+    const dots = () => page.evaluate(() => { const o = {}; document.querySelectorAll('.cr-card, .cr-row').forEach(c => { const b = c.querySelector('b'); o[b.textContent] = (c.querySelector('.cr-nb') || {}).textContent || ''; }); return o; });
+    r = await dots();
+    ok('슈핏: 제출했는데 평가 전이면 이름 옆 빨간 원 1 · 안 낸 학생은 없음', r['박보검'] === '1' && r['김하늘'] === '' && r['최다은'] === '', JSON.stringify(r));
+    const iP = await page.evaluate(() => CR.names.map(x => x.p).indexOf('박보검'));
+    await page.evaluate(() => { CR_STU_LIST = true; crRender(); });
+    r = await dots();
+    ok('슈핏: 학생 목록 줄에도 같은 빨간 원', r['박보검'] === '1' && r['김하늘'] === '', JSON.stringify(r));
+    await page.click(`.cr-row[data-sel="${iP}"]`);
+    await page.click(`.cr-card [data-star^="${iP}|"]`);
+    r = await dots();
+    ok('슈핏: 별을 매기면 빨간 원이 사라진다', r['박보검'] === '', JSON.stringify(r));
     await ctx.close();
   }
 
