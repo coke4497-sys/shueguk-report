@@ -3254,11 +3254,13 @@ function hwQaHtml(){
   }).join('') + '</div>';
 }
 function closeHomework(){ $('homeworkView').style.display='none'; show('hubView'); window.scrollTo(0,0); }
+/* 마감일 한국식 — 'yyyy-MM-dd'와 시트가 날짜로 바꿔 넘긴 영어 날짜('Wed Nov 25 2026 …') 모두 '2026년 11월 25일 (수)'로 */
 function hwFmtDue(s){
   if(!s) return '';
-  var m=String(s).match(/(\d{4})-(\d{2})-(\d{2})/);
-  if(m) return m[1]+'년 '+(+m[2])+'월 '+(+m[3])+'일';
-  return String(s);
+  var y, mo, d, m=String(s).match(/(\d{4})-(\d{2})-(\d{2})/);
+  if(m){ y=+m[1]; mo=+m[2]; d=+m[3]; }
+  else { var t=Date.parse(String(s)); if(isNaN(t)) return String(s); var x=new Date(t+9*3600000); y=x.getUTCFullYear(); mo=x.getUTCMonth()+1; d=x.getUTCDate(); }
+  return y+'년 '+mo+'월 '+d+'일 ('+'일월화수목금토'.charAt(new Date(Date.UTC(y,mo-1,d)).getUTCDay())+')';
 }
 /* 배정 과제 바로 열기 (2026-11-11 원장님) — 과제·담당 강사·학생 이름·학교·학년을 실어 보내
  * H WORK 화면이 다시 고르지 않고 그 과제 입력 화면만 띄운다(값은 고정). */
