@@ -1118,6 +1118,19 @@ function collectAssignments_(ss, info, key, tool) {
 }
 
 /** 날짜 셀을 yyyy-MM-dd 문자열로 (빈값·문자열도 안전) */
+/** 마감일 칸 → 'yyyy-MM-dd'. 날짜 값·이미 글자로 굳은 영어 날짜('Wed Nov 25 2026 …') 모두 (2026-11-19) */
+function dueYmd_(v) {
+  if (v instanceof Date) return fmtCellDate_(v);
+  var t = String(v || '').trim();
+  if (!t || /^\d{4}-\d{2}-\d{2}$/.test(t)) return t;
+  var m = t.match(/(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+(\d{1,2}),?\s+(\d{4})/);
+  if (m) {
+    var mo = 'JanFebMarAprMayJunJulAugSepOctNovDec'.indexOf(m[1]) / 3 + 1;
+    return m[3] + '-' + (mo < 10 ? '0' : '') + mo + '-' + (m[2].length < 2 ? '0' : '') + m[2];
+  }
+  return t;
+}
+
 function fmtCellDate_(d) {
   if (!d) return '';
   try { return (d instanceof Date) ? Utilities.formatDate(d, 'GMT+9', 'yyyy-MM-dd') : String(d).trim(); }
@@ -5250,7 +5263,7 @@ function getAssignList(tool, item) {
       out.push({
         rowIndex: i+1, date: ds, tool: t, item: it,
         type: String(r[3]||'').trim(), target: tg,
-        due: fmtCellDate_(r[5]), memo: String(r[6]||'').trim()
+        due: dueYmd_(r[5]), memo: String(r[6]||'').trim()
       });
     }
   }
