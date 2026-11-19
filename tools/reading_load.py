@@ -6,6 +6,7 @@
 둘째 괄호 = 영역(없으면 --area 로), 끝 = 기본|실력. 같은 지문의 기본·실력 두 파일을 함께 넘긴다.
 
   python3 -I tools/reading_load.py build <out.json> <a 기본.hwpx> <a 실력.hwpx> … [--area '제목=인문']
+  python3 -I tools/reading_load.py build <out.json> '[비상 독서와 작문]5-(1)-1 제목(작가).hwp' …   # 교과서 묶음(081)
   python3 -I tools/reading_load.py check <out.json>
   python3 -I tools/reading_load.py put <out.json>      # 검사 뒤 올리기(교사 계정) — 같은 지문·자리는 덮어쓰고, 빠진 문항은 active=false
   python3 -I tools/reading_load.py list
@@ -21,6 +22,7 @@ import urllib.request
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import reading_hwpx as RH  # noqa: E402
+import reading_hwp5 as R5  # noqa: E402
 
 SB = 'https://bangdbhqpphqqdwcledg.supabase.co'
 KEY = 'sb_publishable_dE9d1KIbpgYaQkaS2MSrlg_-7SiRJuT'
@@ -80,7 +82,42 @@ def pid_of(src, title):
     return (src + '-' + slug) if src else slug
 
 
+def build_textbook(f, area_over):
+    """국어공방 '비문학 문제 풀이'(교과서 지문, 옛 .hwp) 한 파일 → 지문 하나."""
+    d = R5.convert(f)
+    if not (d['book'] and d['unit'] and d['title']):
+        sys.exit('교과서 이름·단원·제목을 못 읽었습니다(파일 이름 [교과서명]단원 제목(작가).hwp): ' + f)
+    m = re.match(r'(\d+)-\((\d+)\)-(\d+)', d['unit'])
+    slug = re.sub(r'[^0-9A-Za-z가-힣]', '', d['book'])[:20]
+    pid = '교과서-%s-%s-%s-%s' % (slug, m.group(1), m.group(2), m.group(3))
+    items = []
+    for s in d['sections']:
+        if s['code'] == '?':
+            sys.exit('모르는 구역: %s (%s)' % (s['name'], f))
+        for i, it in enumerate(s['items']):
+            items.append({'level': '교과서', 'code': s['code'], 'sec_name': s['name'], 'v': 1, 'ord': i + 1,
+                          'kind': it['kind'], 'data': it, 'plain': item_plain(it)})
+    P = d['passage']
+    return {
+        'id': pid, 'title': d['title'], 'src': slug + d['unit'], 'srcname': '%s %s' % (d['book'], d['unit']),
+        'kind': '교과서', 'area': area_over.get(d['title'], ''), 'grade': '',
+        'data': {'passage': P, 'notes': d['notes'], 'analysis': d['analysis'], 'blanks': d['blanks'], 'keys': d['keys'],
+                 'book': d['book'], 'unit': d['unit'], 'author': d['author'], 'levels': ['교과서']},
+        'imgs': {},
+        'plain': plain(d['title'] + ' ' + d['author'] + ' ' + ' '.join(b.get('p', '') for b in P['blocks'])
+                       + ' ' + ' '.join(' '.join(r) for b in P['blocks'] for r in b.get('tbl', [])) + ' ' + ' '.join(P.get('vocab', []))),
+        'items': items, '_removed': d['removed'], '_fixed': d['fixed'],
+    }
+
+
 def build(out, files, area_over):
+    res = [build_textbook(f, area_over) for f in files if f.lower().endswith('.hwp')]
+    files = [f for f in files if not f.lower().endswith('.hwp')]
+    if not files:
+        json.dump(res, open(out, 'w', encoding='utf8'), ensure_ascii=False)
+        for p in res:
+            print(p['id'], '|', p['title'], '|', p['srcname'], '| 문항', len(p['items']), '| 뺀 줄', len(p['_removed']), '| 고친 줄', len(p['_fixed']))
+        return res
     groups = {}
     for f in files:
         d = RH.convert(f)
@@ -92,7 +129,6 @@ def build(out, files, area_over):
         if lv in g['levels']:
             sys.exit('같은 지문·난도 파일이 둘입니다: %s %s' % (title, lv))
         g['levels'][lv] = d
-    res = []
     for title, g in groups.items():
         base = g['levels'].get('기본') or next(iter(g['levels'].values()))
         tags = g['tags']
@@ -153,9 +189,9 @@ def check(res):
         ids.add(tag)
         if not re.fullmatch(r'[0-9A-Za-z가-힣_-]{3,80}', tag):
             errs.append('%s: id 모양' % tag)
-        if not p['area']:
+        if not p['area'] and p['kind'] != '교과서':
             warns.append('%s: 영역이 없습니다 (--area 로 넣으세요)' % tag)
-        elif p['area'] not in AREAS:
+        elif p['area'] and p['area'] not in AREAS:
             errs.append('%s: 영역 %s' % (tag, p['area']))
         if not p['data']['passage']['blocks']:
             errs.append('%s: 지문 비어 있음' % tag)
@@ -188,7 +224,7 @@ def check(res):
         lv = {}
         for it in p['items']:
             lv[it['level']] = lv.get(it['level'], 0) + 1
-        if lv.get('공통', 0) == 0:
+        if lv.get('공통', 0) == 0 and p['kind'] != '교과서':
             warns.append('%s: 원 기출이 없습니다' % tag)
     for w in warns:
         print('  알림:', w)
