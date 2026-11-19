@@ -37,6 +37,65 @@ def text_lines(path):
     return out
 
 
+DOC = ''   # 문서 전체 글(줄바꿈 없이 이어 쓴 꼴을 찾는 데 쓴다)
+
+
+def join2(a, b):
+    """PDF 가 폭에 맞춰 꺾은 두 줄을 잇는다. 낱말 가운데서 꺾였는지 띄어쓰기 자리인지 글자 층에 표시가 없어,
+    문서의 다른 곳(한 줄 안)에 붙여 쓴 꼴이 있으면 붙이고 아니면 띄운다."""
+    if not a:
+        return b
+    if not b:
+        return a
+    if a.endswith(('/', '(', '‘', '“')):
+        return a + b
+    x = re.search(r'([가-힣]+)$', a); y = re.match(r'^([가-힣]+)', b)
+    if x and y:
+        w = x.group(1) + y.group(1)
+        if re.search(r'(?<![가-힣])' + re.escape(w), DOC) and not re.search(re.escape(x.group(1)) + ' ' + re.escape(y.group(1)), DOC):
+            return a + b
+        if len(x.group(1)) == 1 and x.group(1) in '갑그' and y.group(1)[0] in '자런렇래':
+            return a + b
+    return a + ' ' + b
+
+
+def paras(lines):
+    """〈보기〉 같은 줄글 → 문단(문자열, 시 행은 '<br>' 로 이음 — 호출한 쪽이 esc 하기 전 '\n' 로 둔다).
+    'ㄱ.'·'•'·'-'·'Ⅰ' 따위로 시작하는 줄과 문장이 끝난 뒤의 줄은 새 문단.
+    마침표 없이 '…다'로 끝나는 줄이 이어지면 시 행으로 보고 줄을 살린다(〈보기〉 속 시)."""
+    # 표처럼 흩어진 'Ⅰ·Ⅱ·…' + '1~4행→5~7행→…' 한 줄 → 'Ⅰ(1~4행) → Ⅱ(5~7행) → …'
+    nums = [t for t in lines if re.fullmatch(r'[ⅠⅡⅢⅣⅤⅥⅦ]', t)]
+    tail = [t for t in lines if re.match(r'^[ⅠⅡⅢⅣⅤⅥⅦ]?\s*\d+~\d+행(→\d+~\d+행)+$', t)]
+    if nums and len(tail) == 1:
+        last = re.match(r'^([ⅠⅡⅢⅣⅤⅥⅦ]?)\s*(.*)$', tail[0])
+        ns = nums + ([last.group(1)] if last.group(1) else [])
+        rs = last.group(2).split('→')
+        if len(ns) == len(rs):
+            rest = [t for t in lines if t not in nums and t != tail[0]]
+            return [' → '.join('%s(%s)' % (a, b) for a, b in zip(ns, rs))] + paras(rest)
+    # 〈보기〉 속 시: 출처 줄('- 작가, 「제목」') 바로 앞에서 마침표로 끝나는 줄까지 거슬러 올라간 줄들은 행을 살린다
+    poemln = set()
+    for i, t in enumerate(lines):
+        if SRC.match(t):
+            j = i - 1
+            wrap = lambda k: k >= 0 and len(lines[k]) >= 31 and not re.search(r'[.?!]$', lines[k])   # 줄글이 폭에 맞춰 꺾인 줄
+            while j >= 0 and not SRC.match(lines[j]) and not wrap(j) and not (re.search(r'[.?!]$', lines[j]) and wrap(j - 1)):
+                poemln.add(j); j -= 1
+    out = []
+    for i, t in enumerate(lines):
+        if i in poemln:
+            if i - 1 in poemln and out:
+                out[-1] += '\n' + t
+            else:
+                out.append(t)
+            continue
+        if not out or (i - 1) in poemln or re.match(r'^([ㄱ-ㅎ]\.|[•·▪○◦\-–]|[ⅠⅡⅢⅣⅤⅥ]|\(?[0-9]+[).]|\[[A-Z]\]|\([가-하]\))', t) or re.search(r'[.?!」』)]$', out[-1]) and len(out[-1].split('\n')[-1]) < 25:
+            out.append(t)
+        else:
+            out[-1] = join2(out[-1], t)
+    return out
+
+
 def esc(t):
     return html.escape(t, quote=False)
 
@@ -51,20 +110,22 @@ def passage_of(lines):
     for t in lines:
         if LABEL.match(t):
             flush(); blocks.append({'label': t}); continue
+        if vocab and not t.startswith('*') and not re.match(r'^\([가-하]\)', t) and not stanza and blocks and blocks[-1].get('src') and not re.search(r'[.]$', vocab[-1]):
+            vocab[-1] = join2(vocab[-1], t); continue
         ml = re.match(r'^(\([가-하]\))\s*(\S.*)$', t)
-        if ml and not stanza:
+        if ml:
             flush(); blocks.append({'label': ml.group(1)}); t = ml.group(2)
         m = SRC.match(t)
         if m:
             flush(); blocks.append({'p': esc(t), 'src': 1})
             works.append({'title': m.group(2).strip(), 'author': m.group(1).strip()}); continue
         if t.startswith('*'):
-            flush(); vocab.append(esc(t)); continue
+            flush(); vocab.append(t); continue
         stanza.append(t)
     flush()
     P = {'blocks': blocks}
     if vocab:
-        P['vocab'] = vocab
+        P['vocab'] = [esc(re.sub(r'^\*\s*귓전으로: 흘리며', '* 귓전으로 흘리며:', v)) for v in vocab]
     return P, works
 
 
@@ -79,8 +140,16 @@ def item_of(lines):
         if re.match(r'^[<〈]\s*보기\s*\d?\s*[>〉]$', t):
             mode = 'box'; box.append({'label': t.replace('<', '〈').replace('>', '〉')}); continue
         if mode == 'box':
-            box.append({'p': esc(t)}); continue
+            box.append(t); continue
+        if re.fullmatch(r'\[\d+(?:\.\d+)?점\]', t) and not opts:
+            stem.append(t); continue
+        if stem and re.search(r'(것은|고른 것은)[?>]?$', stem[-1].rstrip()) and not box:
+            mode = 'box'; box.append(t); continue
         stem.append(t)
+    lab = [b for b in box if isinstance(b, dict)]
+    txt = paras([b for b in box if isinstance(b, str)])
+    box = lab + [{'p': '<br>'.join(esc(y) for y in x.split('\n'))} for x in txt]
+    opts = [re.sub(r'\s*(?:\[[^\]]*|[^\s\]]+(?:\s[^\s\]]+)?)\]\S*\d{2}-\d-(?:중간|기말)\S*:\s*[①-⑤]\s*$', '', o) for o in opts]   # 기출 출처 표시('비상 문학]지산고20-1-기말: ④')
     st = ' '.join(stem)
     pts = re.search(r'\s*\[(\d+(?:\.\d+)?)점\]\s*$', st)
     st = re.sub(r'\s*\[(\d+(?:\.\d+)?)점\]\s*$', '', st).replace('것은>', '것은?')
@@ -106,11 +175,13 @@ def answers_of(lines):
             for n, a in m2:
                 ans[n] = a
         k += 1
-    return ans, {n: ' '.join(v) for n, v in expl.items()}
+    return ans, {n: re.sub(r'\s+\d{1,3}$', '', ' '.join(v)) for n, v in expl.items()}
 
 
 def convert(path):
+    global DOC
     L = text_lines(path)
+    DOC = ' '.join(L)
     cut = next((i for i, t in enumerate(L) if t == '정답과 해설'), len(L))
     ans, expl = answers_of(L[cut + 1:])
     body = L[:cut]
@@ -136,7 +207,7 @@ def convert(path):
             it = item_of(ql)
             it['no'] = n
             it['ans'] = ans.get(str(n), '')
-            it['expl'] = esc(expl.get(str(n), ''))
+            it['expl'] = expl.get(str(n), '')   # 해설은 글 그대로(화면이 esc 한다)
             it['kind'] = 'choice'
             it['passage'] = P
             it['works'] = works
