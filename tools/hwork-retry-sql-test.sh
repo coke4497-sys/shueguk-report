@@ -1,5 +1,5 @@
 #!/bin/bash
-# 064·065 H WORK 오답하기 + 066 화면 이탈 + 067 정답 없는 문항 — 로컬 PostgreSQL 검사 (원격에 돌리지 말 것)
+# 064·065 H WORK 오답하기 + 066 화면 이탈 + 069 복수 정답 — 로컬 PostgreSQL 검사 (원격에 돌리지 말 것)
 # PGHOST=/home/pgtest PGPORT=5499 PGUSER=postgres bash tools/hwork-retry-sql-test.sh
 set -u
 M=$(cd "$(dirname "$0")/../supabase/migrations" && pwd)
@@ -7,7 +7,7 @@ DB=hwretry_test
 psql -q -d postgres -c "drop database if exists $DB" -c "create database $DB" >/dev/null 2>&1
 export PGDATABASE=$DB
 psql -q -c "do \$\$begin create role anon; exception when others then null; end\$\$; do \$\$begin create role authenticated; exception when others then null; end\$\$;" >/dev/null 2>&1
-for f in 007_hwork 020_hwork_origin 063_hwork_essay 064_hwork_retry 065_hwork_fix 064_hwork_retry 065_hwork_fix 066_hwork_away 066_hwork_away 067_hwork_any_answer 067_hwork_any_answer; do
+for f in 007_hwork 020_hwork_origin 063_hwork_essay 064_hwork_retry 065_hwork_fix 064_hwork_retry 065_hwork_fix 066_hwork_away 066_hwork_away 069_hwork_multi_ans 069_hwork_multi_ans; do
   out=$(psql -q -v ON_ERROR_STOP=1 -f "$M/$f.sql" 2>&1 | grep -v NOTICE)
   [ -n "$out" ] && { echo "적용 실패 $f: $out"; exit 1; }
 done
@@ -84,14 +84,15 @@ ok '066 이상한 값은 0' "$(psql -At -c "select away_n||'/'||away_sec from hw
 q "hwork_submit('{\"teacher\":\"T\",\"code\":\"C\",\"name\":\"aw3\",\"answers\":{},\"away\":{\"n\":99999,\"sec\":999999}}')" >/dev/null
 ok '066 상한' "$(psql -At -c "select away_n||'/'||away_sec from hwork_submissions where name='aw3'")" '^9999/86400$'
 ok '066 away 없는 옛 화면' "$(psql -At -c "select away_n||'/'||away_sec from hwork_submissions where name='n'")" '^0/0$'
-# 067 정답 없는 문항 = 모두 정답
-psql -q -c "insert into hwork_homeworks(teacher,code,data) values ('T','C7','{\"count\":2,\"items\":{\"1\":{\"type\":\"choice5\",\"ans\":\"*\"},\"2\":{\"type\":\"choice5\",\"ans\":2}}}')"
-R7=$(q "hwork_submit('{\"teacher\":\"T\",\"code\":\"C7\",\"name\":\"z\",\"answers\":{\"1\":\"4\",\"2\":\"1\"}}')")
-ok '067 아무 답이나 정답' "$(js "$R7" "d['result']['detail']['1']['ok']")" '^True$'
-ok '067 정답 칸 모두 정답' "$(js "$R7" "d['result']['detail']['1']['ans']")" '^모두 정답$'
-ok '067 다른 문항은 그대로 채점' "$(js "$R7" "d['result']['detail']['2']['ok']")" '^False$'
-R8=$(q "hwork_submit('{\"teacher\":\"T\",\"code\":\"C7\",\"name\":\"z2\",\"answers\":{\"2\":\"2\"}}')")
-ok '067 빈 답도 정답' "$(js "$R8" "d['result']['got']")" '^2$'
+# 069 복수 정답 · 모두 정답
+psql -q -c "insert into hwork_homeworks(teacher,code,data) values ('T','M','{\"count\":3,\"items\":{\"1\":{\"type\":\"choice5\",\"ans\":\"3,4\"},\"2\":{\"type\":\"choice5\",\"ans\":\"*\"},\"3\":{\"type\":\"choice5\",\"ans\":\"3,4\"}}}')"
+M3=$(q "hwork_submit('{\"teacher\":\"T\",\"code\":\"M\",\"name\":\"m1\",\"answers\":{\"1\":\"4\",\"2\":\"1\",\"3\":\"2\"}}')")
+ok '069 복수 정답 4 = 정답' "$(js "$M3" "d['result']['detail']['1']['ok']")" '^True$'
+ok '069 모두 정답' "$(js "$M3" "d['result']['detail']['2']['ok']")" '^True$'
+ok '069 복수 정답 밖 2 = 오답' "$(js "$M3" "d['result']['detail']['3']['ok']")" '^False$'
+ID=$(js "$M3" "d['id']"); KEY=$(js "$M3" "d['key']")
+ok '069 오답하기 3 = 클리어' "$(fx 3 a 3 b)" '"correct": true'
+ok '069 빈 답은 오답' "$(psql -At -c "select hwork_ans_ok_('', '3,4')::text")" '^false$'
 psql -q -d postgres -c "drop database $DB" >/dev/null 2>&1
 echo "통과 $PASS · 실패 $FAIL"
 [ $FAIL -eq 0 ]

@@ -4353,6 +4353,33 @@ var ALIM_TPL_ = {
    * 슈퍼스타 관리 → 신입 슈스 등록이 끝난 화면의 [신입생 안내 알림톡 보내기]로만 보낸다(자동 발송 없음).
    * #{첫수업} = '11/14(토) 11:00 정리정독 중3'(등록 때 고른 반에서 화면이 채움), #{장소} = 그 반 센터(고칠 수 있음).
    * 중복 키(수업일 칸)는 'N:등록일|신입' — 같은 학생·받는 분에게 하루 한 번. */
+  // H WORK 질문 답장 안내 (2026-11-17 원장님 "질문에 답변이 등록되었다는 것을 알림톡으로 학생에게" — 과제마다 한 번, 학생에게)
+  // 보내는 곳 = H WORK 채점 결과 화면(hwork_result.html) '과제 검사' 상자. 중복 키(수업일 칸) = 'H:제출번호|마지막 답장 번호'.
+  hwork_reply: {
+    label: 'H WORK 질문 답장 안내', prop: 'ALIM_TPL_HWORK_REPLY',
+    vars: ['학생명', '과제', '접근코드'],
+    text: '[이수경국어학원] H WORK 질문 답장 안내\n' +
+          '#{학생명} 학생이 남긴 H WORK 질문에 선생님 답장이 등록되었습니다.\n' +
+          '\n' +
+          '▶ #{과제}\n' +
+          '\n' +
+          '슈퍼스타 페이지의 H WORK 메뉴에서 답장을 확인해 주세요.',
+    buttons: [{ name: '슈퍼스타 페이지', type: 'WL', linkMo: ALIM_STU_LINK_, linkPc: ALIM_STU_LINK_ }]
+  },
+  // H WORK 과제 미완료 안내 (같은 날 원장님 "과제가 완료되지 않았습니다. 선생님이 기다리고 있어요. 알림톡 필요")
+  // 보내는 곳 = hwork_result.html '과제 검사' 상자(오답하기를 아직 다 마치지 않은 제출). 중복 키 = 'T:제출번호|날짜' — 하루 한 번.
+  hwork_todo: {
+    label: 'H WORK 과제 미완료 안내', prop: 'ALIM_TPL_HWORK_TODO',
+    vars: ['학생명', '과제', '접근코드'],
+    text: '[이수경국어학원] H WORK 과제 미완료 안내\n' +
+          '#{학생명} 학생의 H WORK 과제가 아직 완료되지 않았습니다.\n' +
+          '선생님이 기다리고 있어요.\n' +
+          '\n' +
+          '▶ #{과제}\n' +
+          '\n' +
+          '슈퍼스타 페이지의 H WORK 메뉴에서 과제를 마무리해 주세요.',
+    buttons: [{ name: '슈퍼스타 페이지', type: 'WL', linkMo: ALIM_STU_LINK_, linkPc: ALIM_STU_LINK_ }]
+  },
   newstu: {
     label: '신입생 등록 안내', prop: 'ALIM_TPL_NEWSTU',
     vars: ['학생명', '첫수업', '장소', '접근코드'],
@@ -5223,7 +5250,7 @@ function getAssignList(tool, item) {
       out.push({
         rowIndex: i+1, date: ds, tool: t, item: it,
         type: String(r[3]||'').trim(), target: tg,
-        due: String(r[5]||'').trim(), memo: String(r[6]||'').trim()
+        due: fmtCellDate_(r[5]), memo: String(r[6]||'').trim()
       });
     }
   }
@@ -5240,6 +5267,8 @@ function addAssignment(data) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sh = ensureAssignSheet_(ss);
   sh.appendRow([ new Date(), tool, String(data.item||'').trim(), type, String(data.target||'').trim(), String(data.due||'').trim(), String(data.memo||'').trim() ]);
+  // 마감일 칸은 글자로 — 시트가 '2026-11-25'를 날짜로 바꾸면 assignList 가 영어 날짜를 돌려줬다 (2026-11-19)
+  try { var lr = sh.getLastRow(); sh.getRange(lr, 6).setNumberFormat('@').setValue(String(data.due||'').trim()); } catch (e) {}
   dropTab_(TAB_ASSIGN);
   return json({ result:'success' });
 }

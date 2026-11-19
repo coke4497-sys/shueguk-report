@@ -113,6 +113,14 @@
   #noticeView{display:none;}
   #hwcheckView{display:none;}
   .hw-clsnote{text-align:center;color:#65726B;font-size:13px;margin:14px 0 4px;}
+  .hwqa{background:#fff;border-radius:16px;padding:12px 14px;margin:0 0 14px;}
+  .hwqa-h{font-family:'Gowun Batang',serif;font-weight:700;font-size:15px;margin-bottom:6px;}
+  .hwqa-row{display:flex;align-items:center;gap:6px;padding:9px 2px;border-top:1px solid #EEF2EF;text-decoration:none;color:#2C2F2D;}
+  .hwqa-t{flex:1;min-width:0;font-size:14px;}
+  .hwqa-t small{display:block;color:#65726B;font-size:12px;}
+  .hwqa-new{background:#D9485F;color:#fff;border-radius:999px;padding:1px 8px;font-size:12px;white-space:nowrap;}
+  .hwqa-tags{display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex:none;}
+  .hwqa-n{background:#E9EDF8;color:#4F5E86;border-radius:999px;padding:1px 8px;font-size:12px;white-space:nowrap;}
   .hwc-week{background:var(--surface,#fff);border:1px solid #E5EDE8;border-radius:16px;padding:14px 16px;margin-bottom:10px;}
   .hwc-week .wk-top{display:flex;justify-content:space-between;align-items:baseline;gap:8px;}
   .hwc-week .wk-name{font-family:"Gowun Batang",serif;font-weight:700;}
@@ -2256,7 +2264,13 @@ function renderHub(){
   var hCnt = hs0.filter(function(h){ return !h.done && !h.classDone; }).length;
   var hDesc = hs0.length===0 ? '배정된 과제 없음'
             : (hCnt>0 ? ('풀어야 할 과제 '+hCnt+'건') : '과제 모두 제출 완료');
-  var hDot = hCnt>0 ? '<span class="new-dot">'+(hCnt>9?'9+':hCnt)+'</span>' : '';
+  // 선생님 답장 (067) — 처음 한 번 뒤에서 받는다(hwQaRefresh). 안 읽은 답장이 있으면 설명·점에 함께
+  if(STATE.hwqa === undefined){ STATE.hwqa = null; hwQaRefresh(); }
+  var hUnread = (STATE.hwqa||[]).reduce(function(a, x){ return a + (x.unread||0); }, 0);
+  if(hUnread>0) hDesc = '질문에 답장이 왔습니다 · ' + hDesc;
+  var hRt = (STATE.hwrt||[]).filter(function(x){ return !x.submitted_at; }).length;   // 아직 안 푼 개인 리테스트 (070)
+  if(hRt>0) hDesc = '리테스트 '+hRt+'개 · ' + hDesc;
+  var hDot = (hCnt+hUnread+hRt)>0 ? '<span class="new-dot">'+((hCnt+hUnread+hRt)>9?'9+':(hCnt+hUnread+hRt))+'</span>' : '';
   html += '<button class="card t-sky" onclick="openHomework()">' +
             '<span class="icon">'+svg(ICON.clip)+hDot+'</span>' +
             '<h3>H-work</h3><p class="desc">'+esc(hDesc)+'</p>' +
@@ -3196,23 +3210,74 @@ function renderNotices(){
 }
 
 /* ---- H WORK (배정된 과제) ---- */
-function openHomework(){ renderHomework(); }
+function openHomework(){ renderHomework(); hwQaRefresh(); }
+/* H WORK 질문 대화 (2026-11-17, 067) — 내 제출 중 선생님과 나눈 질문이 있거나 오답하기가 남은 것.
+ * 다른 기기에서도 hwork.html?sid=&k=(접근코드) 로 그 결과·대화를 바로 연다(제출 열쇠는 주소에 싣지 않음). */
+function hwQaRefresh(){
+  // 개인 리테스트 (2026-11-17, 070 — 선생님이 질문함에서 낸 것). 함수가 없거나 실패하면 목록만 비운다
+  rvRpc('hwork_student_extra').then(function(r){
+    STATE.hwrt = (r && r.ok) ? (r.retests || []) : [];
+    if($('homeworkView').style.display === 'block') renderHomework(true);
+    else if($('hubView').style.display !== 'none') renderHub();
+  }).catch(function(){ STATE.hwrt = STATE.hwrt || []; });
+  return rvRpc('hwork_qa_mine').then(function(r){
+    STATE.hwqa = (r && r.ok) ? (r.list || []) : [];
+    if($('homeworkView').style.display === 'block') renderHomework(true);
+    else if($('hubView').style.display !== 'none') renderHub();
+  }).catch(function(){ STATE.hwqa = STATE.hwqa || []; });
+}
+function hwRtHtml(){
+  var L = STATE.hwrt || [], who = rvWho();
+  if(!L.length) return '';
+  var base = 'https://coke4497-sys.github.io/shueguk-h-work/hwork.html';
+  return '<div class="hwqa"><div class="hwqa-h">개인 리테스트 · 선생님이 낸 다시 풀기</div>' + L.map(function(x){
+    var href = base + '?rt=' + encodeURIComponent(x.id) + (who.key ? '&k=' + encodeURIComponent(who.key) : '&st=' + encodeURIComponent(who.student));
+    var tag = x.submitted_at ? '<span class="hwqa-n">'+esc(x.got)+' / '+esc(x.total)+' · 결과 보기</span>' : '<span class="hwqa-new">리테스트 풀기 · '+esc(x.n)+'문항</span>';
+    return '<a class="hwqa-row" href="'+esc(href)+'" target="_blank" rel="noopener"><span class="hwqa-t">'+esc(x.code||'')+
+           '<small>'+esc(x.teacher||'')+' · '+esc(String(x.created_at||'').slice(5))+'</small></span>'+tag+'</a>';
+  }).join('') + '</div>';
+}
+function hwQaHtml(){
+  var L = (STATE.hwqa || []).filter(function(x){ return x.msgs > 0 || !x.done; });
+  if(!L.length) return hwRtHtml();
+  var base = 'https://coke4497-sys.github.io/shueguk-h-work/hwork.html';
+  return hwRtHtml() + '<div class="hwqa"><div class="hwqa-h">선생님과 나눈 질문 · 남은 오답하기</div>' + L.map(function(x){
+    // 주소에는 제출 열쇠(retry_key)를 싣지 않는다 — 이 페이지의 접근코드(또는 학생ID)로 H WORK 화면이 hwork_qa_mine 을 다시 불러 찾는다
+    var who = rvWho();
+    var href = base + '?sid=' + encodeURIComponent(x.id) + (who.key ? '&k=' + encodeURIComponent(who.key) : '&st=' + encodeURIComponent(who.student));
+    // 2026-11-17 원장님 — '새 답장 n'·'질문 n'(질문+답장을 모두 센 수라 헷갈렸다)·'오답하기 남음' 대신 문장으로
+    var tags = (x.unread ? '<span class="hwqa-new">질문에 답장이 왔습니다</span>' : '') +
+               (x.done ? '' : '<span class="hwqa-n">남은 오답이 있습니다</span>') +
+               (!x.unread && x.done ? '<span class="hwqa-n">지난 질문 보기</span>' : '');
+    return '<a class="hwqa-row" href="'+esc(href)+'" target="_blank" rel="noopener"><span class="hwqa-t">'+esc(x.code||'')+
+           '<small>'+esc(x.teacher||'')+' · '+esc(String(x.ts||'').slice(5))+'</small></span><span class="hwqa-tags">'+tags+'</span></a>';
+  }).join('') + '</div>';
+}
 function closeHomework(){ $('homeworkView').style.display='none'; show('hubView'); window.scrollTo(0,0); }
+/* 마감일 한국식 — 'yyyy-MM-dd'와 시트가 날짜로 바꿔 넘긴 영어 날짜('Wed Nov 25 2026 …') 모두 '2026년 11월 25일 (수)'로 */
 function hwFmtDue(s){
   if(!s) return '';
-  var m=String(s).match(/(\d{4})-(\d{2})-(\d{2})/);
-  if(m) return m[1]+'년 '+(+m[2])+'월 '+(+m[3])+'일';
-  return String(s);
+  var y, mo, d, m=String(s).match(/(\d{4})-(\d{2})-(\d{2})/);
+  if(m){ y=+m[1]; mo=+m[2]; d=+m[3]; }
+  else { var t=Date.parse(String(s)); if(isNaN(t)) return String(s); var x=new Date(t+9*3600000); y=x.getUTCFullYear(); mo=x.getUTCMonth()+1; d=x.getUTCDate(); }
+  return y+'년 '+mo+'월 '+d+'일 ('+'일월화수목금토'.charAt(new Date(Date.UTC(y,mo-1,d)).getUTCDay())+')';
 }
 /* 배정 과제 바로 열기 (2026-11-11 원장님) — 과제·담당 강사·학생 이름·학교·학년을 실어 보내
  * H WORK 화면이 다시 고르지 않고 그 과제 입력 화면만 띄운다(값은 고정). */
-function hwGoHref(base, h){
+function hwGoHref(base, h, nx){
   var i = STATE.info || {};
   return base + '?c=' + encodeURIComponent(h.code || '')
        + '&t='  + encodeURIComponent(h.teacher || '')
        + '&nm=' + encodeURIComponent(i.name || '')
        + '&sc=' + encodeURIComponent(i.school || '')
-       + '&gr=' + encodeURIComponent(levelGrade(i.grade) || '');
+       + '&gr=' + encodeURIComponent(levelGrade(i.grade) || '')
+       + (nx && nx.length ? '&nx=' + encodeURIComponent(nx.map(function(x){ return (x.teacher||'')+'\t'+(x.code||''); }).join('\n')) : '');
+}
+/* 클리어 뒤 '다음 챕터에 도전할까요?'(2026-11-19 원장님) — 아직 안 낸 과제를 교재 순서로, 이 과제 다음 것부터 최대 6개 */
+function hwNextOf(todo, h){
+  var at = todo.indexOf(h);
+  var rest = at < 0 ? todo.slice() : todo.slice(at + 1).concat(todo.slice(0, at));
+  return rest.filter(function(x){ return x !== h && x.code; }).slice(0, 6);
 }
 /* 교재 앞쪽부터 (2026-11-11 원장님) — 'SHUEGUK REAL … 2권(심화·종합) 03 파생어 · 심화 (1/2: …)'를 읽어
  * 교재 → 권 → 단원 문제(기본·실력·심화) 먼저, 종합 문제는 뒤 → 단원 번호 → 기본·실력·심화 → 나눈 편(1/2·2/2).
@@ -3236,7 +3301,7 @@ function hwBookSort(arr){
   });
   return book.concat(other).map(function(x){ return x.h; });
 }
-function renderHomework(){
+function renderHomework(keepScroll){
   var hsAll = STATE.homework || [];
   var hs = hsAll.filter(function(h){ return !h.classDone; });   // 수업에서 확인한 과제는 빼고(2026-11-14)
   var clsN = hsAll.length - hs.length;
@@ -3246,13 +3311,14 @@ function renderHomework(){
   } else {
     var base = 'https://coke4497-sys.github.io/shueguk-h-work/hwork.html';
     // 안 푼 과제 먼저, 제출 완료는 아래로
-    var ordered = hwBookSort(hs.filter(function(h){ return !h.done; })).concat(hwBookSort(hs.filter(function(h){ return h.done; })));
+    var todo = hwBookSort(hs.filter(function(h){ return !h.done; }));
+    var ordered = todo.concat(hwBookSort(hs.filter(function(h){ return h.done; })));
     list.innerHTML = ordered.map(function(h){
       var title = (h.teacher ? (h.teacher+' · ') : '') + (h.code||'과제');
       var meta = [];
       if(h.due)  meta.push('마감 '+hwFmtDue(h.due));
       if(h.memo) meta.push(h.memo);
-      var href = hwGoHref(base, h);
+      var href = hwGoHref(base, h, hwNextOf(todo, h));
       var action = h.done
         ? '<span class="nchk-done">✓ 제출 완료 · 별 +1</span>' +
           '<a class="hw-go hw-re" href="'+esc(href+'&done=1')+'" target="_blank" rel="noopener">오답하기 이어 하기 '+svg(ICON.arrow)+'</a>'
@@ -3267,7 +3333,8 @@ function renderHomework(){
     }).join('');
   }
   if(clsN) list.innerHTML += '<p class="hw-clsnote">수업 시간에 선생님과 확인한 과제 '+clsN+'개는 목록에서 뺐습니다.</p>';
-  hide('hubView'); $('homeworkView').style.display='block'; window.scrollTo(0,0);
+  list.innerHTML = hwQaHtml() + list.innerHTML;
+  hide('hubView'); $('homeworkView').style.display='block'; if(!keepScroll) window.scrollTo(0,0);
 }
 
 /* ---- 클리닉 (신청 + 내 신청 내역) ---- */
@@ -5171,6 +5238,11 @@ function boot(){
       if(d.exams){ STATE.exams=d.exams; }
       renderHub();
       loadGradeGates();
+      // H WORK 클리어 팝업의 [다른 H WORK 고르기]로 오면 H WORK 목록을 바로 연다 (2026-11-19)
+      if (location.hash === '#hw'){
+        try { history.replaceState(null, '', location.pathname + location.search); } catch(e){}
+        openHomework();
+      }
     })
     .catch(function(){ showError('연결 실패','인터넷 상태를 확인한 뒤 새로고침해 주세요.'); });
 }

@@ -521,7 +521,23 @@
   .cr-hint{font-size:.76rem;color:var(--ink-soft);background:#F2F5F3;border-radius:9px;padding:7px 10px;}
   .cr-card{background:#F6F8F7;border-radius:12px;padding:9px 11px;display:flex;flex-direction:column;gap:5px;}
   .cr-card.done{background:#EAF2EE;}
-  .cr-stu.only .cr-card.done{display:none;}
+  .cr-stu.only .cr-card.done,.cr-stu.only .cr-row.done{display:none;}
+  /* 학생 목록 줄(2026-11-19) — 누르면 세부 화면 */
+  .cr-row{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;width:100%;text-align:left;border:0;border-radius:12px;padding:10px 12px;background:#F6F8F7;color:var(--ink);font:inherit;cursor:pointer;}
+  .cr-row:hover{background:#EEF2F0;} .cr-row.done{background:#EAF2EE;} .cr-row.off{background:#FBFBFA;}
+  .cr-rmain{display:flex;flex-wrap:wrap;align-items:center;gap:6px;flex:1 1 auto;min-width:0;} .cr-rmain b{font-size:.95rem;}
+  .cr-rtags{display:flex;flex-wrap:wrap;gap:4px;align-items:center;font-size:.72rem;flex:1 1 100%;} .cr-rtags .cr-dall{margin-left:0;}
+  .cr-rgo{font-style:normal;color:#8A978F;font-size:1.1rem;margin-left:auto;align-self:center;position:absolute;right:12px;}
+  .cr-row{position:relative;padding-right:28px;}
+  .cr-spg{display:inline-flex;align-items:center;gap:4px;font-size:.74rem;font-weight:700;color:#5A4A6A;background:#EDE4F4;border-radius:999px;padding:4px 10px;text-decoration:none;white-space:nowrap;}
+  .cr-spg:hover{background:#E3D7EE;}
+  .cr-row .cr-spg{position:absolute;top:9px;right:26px;}
+  .cr-row .cr-rmain{padding-right:96px;}
+  .cr-dbar .cr-spg{margin-left:auto;font-size:.82rem;padding:6px 12px;}
+  .cr-dbar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;position:sticky;top:-14px;z-index:2;background:var(--surface);padding:6px 0;margin-top:-6px;}
+  .cr-dbar button{border:0;border-radius:999px;padding:6px 12px;font:inherit;font-size:.84rem;background:#EDE4F4;color:#5A4A6A;cursor:pointer;}
+  .cr-dbar button:disabled{opacity:.4;cursor:default;} .cr-dbar #cr-back{background:#DCE8E5;color:#3F6159;}
+  .cr-dpos{font-size:.78rem;color:var(--ink-soft);} .cr-dnav{display:flex;gap:6px;margin-left:auto;}
   .cr-off{margin-top:10px;}
   .cr-off > button{border:0;background:#F2F5F3;color:#5C6A64;border-radius:999px;padding:7px 13px;font:inherit;font-size:.86rem;cursor:pointer;}
   .cr-off > button:hover{background:#E8EDEA;}
@@ -531,6 +547,7 @@
   .cr-done{display:flex;flex-wrap:wrap;align-items:center;gap:4px;font-size:.7rem;}
   .cr-dtag{padding:1px 8px;border-radius:6px;background:#F7EED9;color:#7A6230;}
   .cr-dtag.ok{background:#DCE8E5;color:#3F6159;} .cr-dtag.na{background:#EEF1EF;color:#65726B;}
+  .cr-nb{display:inline-flex;align-items:center;justify-content:center;min-width:19px;height:19px;padding:0 5px;box-sizing:border-box;border-radius:999px;background:#D9485F;color:#fff;font-size:.72rem;font-weight:700;line-height:1;margin-left:-2px;}
   .cr-dall{margin-left:auto;padding:1px 9px;border-radius:999px;background:#3F6159;color:#fff;}
   .cr-prog-bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:.8rem;color:var(--ink-soft);margin:2px 0 6px;}
   .cr-prog-bar b{color:#3F6159;}
@@ -571,6 +588,12 @@
   .cr-src{font-size:.72rem;color:var(--ink-soft);margin:2px 0 4px;}
   .cr-tst{display:inline-block;margin-left:4px;padding:1px 7px;border-radius:999px;background:#EDE4F4;color:#5A4A6A;font-size:.66rem;font-weight:400;vertical-align:middle;}
   .cr-tst.done{background:#E3EFE7;color:#2F5B44;}
+  .cr-tfbtn{display:inline-block;margin:6px 0 2px;padding:5px 12px;border:0;border-radius:999px;background:#EDE4F4;color:#5A4A6A;font:inherit;font-size:.74rem;cursor:pointer;}
+  .cr-tfbtn:hover{background:#E3D7EE;}
+  .cr-tfall{margin:4px 0;padding:6px 10px;border-radius:10px;background:#E3EFE7;color:#2F5B44;font-size:.76rem;}
+  .cr-sf{display:inline-block;margin-left:4px;padding:1px 7px;border-radius:999px;font-size:.66rem;font-weight:400;vertical-align:middle;background:#E9EDF8;color:#3F4E78;}
+  .cr-sf.no{background:#F7E2DE;color:#8A4A40;}
+  .cr-sf.part{background:#F9EFD0;color:#6B5420;}
   .cr-memos{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:6px 0;}
   .cr-memos label{display:flex;flex-direction:column;gap:3px;font-size:.74rem;color:var(--ink);}
   .cr-memos small{color:var(--ink-soft);font-size:.66rem;}
@@ -8310,7 +8333,7 @@ function reqWhoHtml(){
 // 슈국 조교 슈콩이 — 맞이 말풍선. 확인할 요청이 있으면 책상에서 일하고, 다 처리했으면 응원한다
 var REQ_SK = 'assets/';
 function reqSkHtml(){
-  var n = (reqRows || []).filter(function(r){ return r.status === '접수됨' && r.screen !== CR_SCREEN && r.screen !== '별 사유'; }).length;
+  var n = (reqRows || []).filter(function(r){ return r.status === '접수됨' && r.screen !== CR_SCREEN && r.screen !== '별 사유' && r.screen !== '슈핏 문항'; }).length;
   var img = n ? 'sk-desk' : 'sk-cheer';
   var say = reqRows === null ? '시간표에서 잘못됐거나 고치고 싶은 것을 적어 주세요. 제가 확인해서 처리하고, 결과를 아래 목록에 남겨 둘게요.'
     : n ? '지금 요청 ' + n + '건을 확인하고 있어요. 처리하면 아래에 결과를 남겨 둘게요.'
@@ -8341,7 +8364,7 @@ function reqRenderList(){
   if ($('req-sk')) $('req-sk').innerHTML = reqSkHtml();
   if (reqRows === null){ box.innerHTML = '<p class="mdesc">목록을 불러오지 못했어요. 인터넷을 확인해 주세요.</p>'; return; }
   var shown = reqRows.map(function(r, i){ return { r: r, i: i }; })
-    .filter(function(x){ return x.r.screen !== CR_SCREEN && x.r.screen !== '별 사유'; });   // 수업 리포트 요청은 '수업 기록' 창에서 상태를 본다, 별 사유 다듬기(클로슈 전용)는 목록에 넣지 않는다
+    .filter(function(x){ return x.r.screen !== CR_SCREEN && x.r.screen !== '별 사유' && x.r.screen !== '슈핏 문항'; });   // 수업 리포트 요청은 '수업 기록' 창에서 상태를 본다, 별 사유 다듬기(클로슈 전용)는 목록에 넣지 않는다
   if (!shown.length){ box.innerHTML = '<p class="mdesc">아직 남긴 요청이 없어요.</p>'; return; }
   var keys = [];
   box.innerHTML = shown.map(function(x){
@@ -8953,10 +8976,10 @@ function crStuOf(nm){
 }
 function crStudentsEnsure(){
   if (crStudents) return Promise.resolve(crStudents);
-  return crGet('/students?select=name,school,grade,code,enrolled&order=seq,id').then(function(rows){
+  return crGet('/students?select=name,school,grade,code,enrolled,student_id&order=seq,id').then(function(rows){
     var LEFT = /^(퇴원|n|no|off|x|중단|비재원)$/i;
     crStudents = rows.filter(function(r){ return String(r.name || '').trim() && String(r.code || '').trim() && !LEFT.test(String(r.enrolled || '').trim()); })
-      .map(function(r){ return { name: String(r.name).trim(), school: String(r.school || '').trim(), grade: String(r.grade || '').trim(), code: String(r.code).trim() }; });
+      .map(function(r){ return { name: String(r.name).trim(), school: String(r.school || '').trim(), grade: String(r.grade || '').trim(), code: String(r.code).trim(), sid: String(r.student_id || '').trim() }; });
     return crStudents;
   });
 }
@@ -8967,7 +8990,7 @@ function openClassNote(c, ctx){
   var ymd = CRX ? CRX.ymd : todayStr(), part = crPartOf(c, bk);
   CR = { c: c, ymd: ymd, bk: bk, part: part, note: null, names: crNamesOf(c), busy: false,
          hwWeek: crPrevWed(ymd), items: CR_HW_DEFAULT.slice(), hw: {}, hwOk: false, more: {},
-         ns: null, sib: [], showOff: false, pshow: {}, hshow: {}, hist: {} };
+         ns: null, sib: [], showOff: false, pshow: {}, hshow: {}, hist: {}, tfShow: {} };
   CR.nsHw = crRuleBook(c, bk) === '내신' && !crNsHwSplitAt(c, ymd);   // 내신 기간 과제 검사 = 과제마다 수행 평가 3단계 + 공개·비공개 메모
   if (CR_NS_SCOPE && crRuleBook(c, bk) === '내신' && (part === '진도' || part === '확인') && !crNsSplitAt(c, ymd)){   // 고1·고2 예외 기간(정규 수업 중)은 범위·진행 없이
     var pers = crNsPeriods(ymd);
@@ -8988,7 +9011,8 @@ function openClassNote(c, ctx){
     crHwSrcLoad(c, bk, ymd).catch(function(e){ console.warn('지난 과제 조회 실패', e); return null; }),
     crStudentsEnsure().catch(function(){ return null; }),
     CR.ns ? crStudentsEnsure().catch(function(){ return null; }).then(function(){ return crNsLoad(CR.ns, c.id, c); }).catch(function(e){ console.warn('시험범위 조회 실패', e); CR.ns = null; }) : Promise.resolve(),   // 범위를 못 읽어도 창은 연다(정규처럼)
-    crSibLoad(c, bk, ymd).catch(function(){ return []; })
+    crSibLoad(c, bk, ymd).catch(function(){ return []; }),
+    crSfLoad(ymd).catch(function(e){ console.warn('슈핏 문법 과제 조회 실패', e); return null; })
   ]).then(function(r){
     if (CR !== mine) return;
     CR.note = r[0][0] || null;
@@ -8999,6 +9023,7 @@ function openClassNote(c, ctx){
     if (r[1]){ CR.hwOk = !!r[3]; r[1].forEach(function(x){ CR.hw[x.token] = { scores: x.scores || {}, pub: x.pub || '', priv: x.priv || '', missing: !!x.missing, miss: Array.isArray(x.missing_items) ? x.missing_items.slice() : [], plan: x.plan || '', saved: true }; }); }
     CR.src = r[2];
     CR.names.forEach(function(x){ x.stu = crStuOf(x.nm); });
+    crSfApply(r[6], ymd);
     CR.sib = r[5] || [];
     crSibAuto();
     crRender();
@@ -9597,6 +9622,13 @@ function crSaveCarried(){
 function crTaskFull(h, t){
   return !!h && !crTaskMissed(h, t) && crDims().every(function(d){ var k = t + ' (' + d + ')'; return crHwSc(h.scores, k) >= hwItemMax(k); });
 }
+/* 수업 기록 창에서 숨기는 과제(2026-11-18 원장님 "다 한 과제는 숨기기, 완료한 과제 보기 누르면 확인") — 다 한 과제 중
+ * 이 창에서 선생님이 아직 손대지 않은 것. 지금 막 별을 채운 과제는 바로 사라지지 않게 남긴다(crCarryTouch 가 false 로 표시). */
+function crTaskHide(h, t){
+  if (!crTaskFull(h, t)) return false;
+  var c = h.carried || {};
+  return !crDims().some(function(d){ return c[t + ' (' + d + ')'] === false; });
+}
 /* 학생마다 과제(2026-10-01 원장님 "과제 부여를 학생마다 추가") — class_notes.comments 의 예약 키 '__개별과제' = {학생이름: '한 줄에 하나'}.
  * 그 학생의 '다음 수업까지 과제' = 반 과제 + 그 학생 과제. 다음 수업 과제 검사도 그 학생에게만 붙는다. */
 var CR_IH_KEY = '__개별과제';
@@ -9607,6 +9639,129 @@ function crRowTasks(r, nm){
   return t;
 }
 /* 이 학생이 오늘 검사할 과제 목록과 저장 키 */
+/* 슈핏 문법 H WORK 과제 → 수업 기록 과제 검사 목록(2026-11-18 원장님 "모든 친구의 슈핏 문법 과제는 수업 기록에 연동" →
+ * '검사 목록 + 제출 결과 표시' · '배정 이후 그 학생의 모든 수업'). 배정(assignments, tool 'H WORK', 과제 이름에 shuefit)이
+ * 그 학생에게 맞고 배정일 ≤ 수업일 ≤ 마감일(없으면 배정일 + 14일)이면 그 수업의 검사 목록에 H WORK 과제 이름 그대로 넣는다
+ * (학생 페이지의 '수업에서 확인한 H WORK는 목록에서 뺀다' 규칙과 이어지게). 옆에 제출 결과(점수·오답하기 클리어) 표시,
+ * 수행 평가는 선생님이 매긴다. 배정 판정 = s.html noticeMatches, 제출 = 이름(끝 알파벳 뗌)+학년 숫자+학교 — 학교가 다르면 잇지 않는다. */
+var CR_SF_RE = /shuefit/i, CR_SF_DAYS = 14;
+function crSfTr(v){ return String(v == null ? '' : v).trim(); }
+function crSfGd(s){ s = String(s || '').replace(/\s+/g, ''); var m = s.match(/([1-3])학년/) || s.match(/[고중초]([1-6])/); if (m) return m[1]; var a = s.match(/[1-6]/g); return a ? a[a.length - 1] : ''; }
+function crSfLv(s){ s = String(s || ''); return /고/.test(s) ? '고' : /중/.test(s) ? '중' : /초/.test(s) ? '초' : ''; }
+function crSfSch(a, b){
+  a = String(a || '').replace(/\s+/g, ''); b = String(b || '').replace(/\s+/g, '');
+  if (!a || !b) return false; if (a === b) return true;
+  var re = /(등학교|고등학교|중학교|학교|고|중)$/, na = a.replace(re, ''), nb = b.replace(re, '');
+  if (na && nb && na === nb){ var la = crSfLv(a.slice(na.length)), lb = crSfLv(b.slice(nb.length)); return !la || !lb || la === lb; }
+  return false;
+}
+function crSfMatch(type, target, stu){   // s.html noticeMatches 와 같은 규칙(학교가 다르면 잇지 않음)
+  type = crSfTr(type); target = crSfTr(target);
+  if (type.indexOf('전체') >= 0) return true;
+  if (type === '' && target === '') return true;
+  var tokens = target.split(/[,\n;\/·\s]+/).map(crSfTr).filter(Boolean);
+  if (!tokens.length) return false;
+  if (type.indexOf('학년') >= 0){
+    var g = stu.grade.replace(/\s+/g, ''), sg = (stu.school + stu.grade).replace(/\s+/g, ''), gd = crSfGd(stu.grade), lvS = crSfLv(g);
+    return target.split(/[,\n;\/·]+/).map(crSfTr).filter(Boolean).some(function(t){
+      var tt = t.replace(/\s+/g, ''); if (!tt) return false;
+      var td = crSfGd(tt); if (td && gd && td !== gd) return false;
+      var lvT = crSfLv(tt); if (lvT && lvS && lvT !== lvS) return false;
+      return tt === g || sg.indexOf(tt) >= 0 || g.indexOf(tt) >= 0 || (td && td === gd && lvT === lvS);
+    });
+  }
+  return tokens.some(function(t){
+    if (t.indexOf('|') >= 0){
+      var p = t.split('|'), tn = crSfTr(p[0]), ts = crSfTr(p[1]), tg = crSfTr(p[2]);
+      if (!tn || tn !== stu.name) return false;
+      if (ts && stu.school && !crSfSch(ts, stu.school)) return false;
+      if (tg && stu.grade && tg.replace(/\s+/g, '') !== stu.grade.replace(/\s+/g, '')) return false;
+      return true;
+    }
+    return t === stu.name || (stu.sid && t === stu.sid) || t === stu.code;
+  });
+}
+var CR_SF_MON = { jan:1, feb:2, mar:3, apr:4, may:5, jun:6, jul:7, aug:8, sep:9, oct:10, nov:11, dec:12 };
+function crSfYmd(v, base){   // '2026-11-24' · 'Tue Nov 24' · Date 문자열 → yyyy-MM-dd (연도가 없으면 배정일 해, 그보다 앞이면 다음 해)
+  var s = crSfTr(v); if (!s) return '';
+  var m = s.match(/^(\d{4})[-.\/](\d{1,2})[-.\/](\d{1,2})/);
+  if (m) return m[1] + '-' + ('0' + m[2]).slice(-2) + '-' + ('0' + m[3]).slice(-2);
+  m = s.match(/([A-Za-z]{3})[a-z]*\s+(\d{1,2})(?:\D+(\d{4}))?/);
+  if (m && CR_SF_MON[m[1].toLowerCase()]){
+    var y = m[3] || String(base || '').slice(0, 4) || String(new Date().getFullYear());
+    var out = y + '-' + ('0' + CR_SF_MON[m[1].toLowerCase()]).slice(-2) + '-' + ('0' + m[2]).slice(-2);
+    if (!m[3] && base && out < base) out = (+y + 1) + out.slice(4);
+    return out;
+  }
+  return '';
+}
+function crSfAddDays(ymd, n){ var d = new Date(ymd + 'T00:00:00'); d.setDate(d.getDate() + n); return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); }
+function crSfLoad(ymd){
+  var from = crSfAddDays(ymd, -70);
+  return Promise.all([
+    crGet('/assignments?tool=eq.' + encodeURIComponent('H WORK') + '&item=ilike.*shuefit*&select=seq,date,type,target,item,due&order=seq.asc'),
+    crGet('/hwork_submissions?code=ilike.*shuefit*&ts=gte.' + from + '&select=id,ts,teacher,code,school,grade,name,got,total,detail,review,review_at&order=id.asc')
+  ]).then(function(r){ return { asg: r[0] || [], subs: r[1] || [] }; });
+}
+function crSfApply(data, ymd){   // CR.sf = {접근코드: [{code, teacher, due, sub}]}
+  CR.sf = {}; if (!data) return;
+  var asg = data.asg.filter(function(a){
+    if (!CR_SF_RE.test(a.item || '')) return false;
+    var d = crSfYmd(a.date); if (!d || d > ymd) return false;
+    var due = crSfYmd(a.due, d) || crSfAddDays(d, CR_SF_DAYS);
+    return ymd <= due;
+  });
+  if (!asg.length) return;
+  CR.names.forEach(function(x){
+    var s = x.stu; if (!s) return;
+    var stu = { name: s.name, school: s.school, grade: s.grade, code: s.code, sid: s.sid || '' }, base = s.name.replace(/[A-Za-z]$/, ''), gd = crSfGd(s.grade);
+    var list = [];
+    asg.forEach(function(a){
+      if (!crSfMatch(a.type, a.target, stu)) return;
+      var item = crSfTr(a.item), idx = item.indexOf(' / '), teacher = idx >= 0 ? crSfTr(item.slice(0, idx)) : '', code = idx >= 0 ? crSfTr(item.slice(idx + 3)) : item;
+      if (list.some(function(o){ return o.code === code; })) return;
+      var sub = null;
+      data.subs.forEach(function(r){
+        if (crSfTr(r.code) !== code || (teacher && crSfTr(r.teacher) && crSfTr(r.teacher) !== teacher)) return;
+        var rn = crSfTr(r.name); if (rn !== s.name && rn !== base) return;
+        var rg = crSfGd(r.grade); if (gd && rg && rg !== gd) return;
+        if (!crSfSch(r.school, s.school)) return;   // 학교가 다르면 잇지 않는다
+        sub = r;   // id 오름차순 → 마지막이 가장 최근 제출
+      });
+      list.push({ code: code, teacher: teacher, sub: sub });
+    });
+    if (list.length) CR.sf[s.code] = list;
+  });
+}
+function crSfOf(x, t){ var l = (x && x.stu && CR.sf && CR.sf[x.stu.code]) || []; for (var i = 0; i < l.length; i++) if (l[i].code === t) return l[i]; return null; }
+function crSfBadge(x, t){
+  var f = crSfOf(x, t); if (!f) return '';
+  var s = f.sub;
+  if (!s) return ' <small class="cr-sf no" title="슈핏 문법 H WORK 과제 — 아직 제출하지 않았습니다">H WORK · 미제출</small>';
+  var det = s.detail || {}, rv = s.review || {}, wrong = 0, cl = 0;
+  Object.keys(det).forEach(function(q){ var d = det[q]; if (d && d.ok === false){ wrong++; if (rv[q] && rv[q].cleared_at) cl++; } });
+  var txt = 'H WORK · 제출 · ' + (s.got == null ? '-' : s.got) + '/' + (s.total == null ? '-' : s.total) + '점' + (wrong ? ' · 오답하기 클리어 ' + cl + '/' + wrong : '');
+  return ' <small class="cr-sf' + (wrong && cl < wrong ? ' part' : ' ok') + '" title="슈핏 문법 H WORK 과제 · 제출 ' + esc(s.ts || '') + '">' + esc(txt) + '</small>';
+}
+/* 제출했는데 아직 평가하지 않은 H WORK 과제 수(2026-11-19 원장님 "제출한 h work가 있는데 평가하지 않은 것이 있다면 친구 이름에 빨간 원 안 숫자")
+ * — 이 수업 검사 목록의 슈핏 문법 H WORK 과제 중 제출 기록이 있고, 이 수업 과제 검사에서 어느 항목도 매기지 않았고 미제출로도 표시하지 않은 것. */
+function crSfPending(x){
+  if (!x || !x.stu || !CR.hwOk) return 0;
+  var src = crSrcOf(x); if (!src) return 0;
+  var h = CR.hw[x.stu.code], sc = (h && h.scores) || {}, n = 0;
+  src.tasks.forEach(function(t){
+    var f = crSfOf(x, t); if (!f || !f.sub) return;
+    if (h && crTaskMissed(h, t)) return;
+    var rated = crDims().some(function(d){ var k = t + ' (' + d + ')'; return crIsLv(k) ? Object.prototype.hasOwnProperty.call(sc, k) && sc[k] !== '' && sc[k] != null : +sc[k] > 0; });
+    if (!rated) n++;
+  });
+  return n;
+}
+function crSfDot(x){
+  var n = crSfPending(x); if (!n) return '';
+  return '<span class="cr-nb" title="제출한 H WORK ' + n + '개를 아직 평가하지 않았습니다" aria-label="평가하지 않은 H WORK ' + n + '개">' + n + '</span>';
+}
+function crSfTasks(x){ return ((x && x.stu && CR.sf && CR.sf[x.stu.code]) || []).map(function(o){ return o.code; }); }
 function crSrcOf(x){
   var s = CR.src, base = !s ? null : s.common !== undefined ? s.common : (s.by && s.by[x.p]) || null;   // common = 옛 모양(테스트 호환)
   var xt = CR.xt || [], xrm = CR.xrm || [], mine = crXrmMine(x.p);
@@ -9617,6 +9772,8 @@ function crSrcOf(x){
   xt.forEach(function(t){ if (tasks.indexOf(t) < 0) tasks.push(t); });
   if (!xt.length) head = base ? base.label + ' 과제' + (baseTasks.length < base.tasks.length ? ' (' + (base.tasks.length - baseTasks.length) + '개 뺌)' : '') : '';
   else head = baseTasks.length ? base.label + ' 과제 + 반 전체 추가 과제' : '반 전체에 추가한 과제';
+  var sfAdd = crSfTasks(x).filter(function(t){ return xrm.indexOf(t) < 0 && tasks.indexOf(t) < 0; });
+  if (sfAdd.length){ sfAdd.forEach(function(t){ tasks.push(t); }); head = head ? head + ' + 슈핏 문법 H WORK 과제' : '슈핏 문법 H WORK 과제'; }
   var all = tasks.length;
   tasks = tasks.filter(function(t){ return mine.indexOf(t) < 0; });
   if (!tasks.length) return null;
@@ -9787,11 +9944,14 @@ function crStarsHtml(i, code){
   if (!src) return '<div class="cr-note">' + (me ? '이 학생의 검사할 과제를 모두 뺐습니다. 리포트에는 \'확인할 것이 없습니다\'로 들어갑니다.'
     : (CR.xrm || []).length ? '검사할 과제를 모두 뺐습니다. 아래 [반 전체 검사 과제 추가] 칸에서 되살릴 수 있어요. 리포트에는 \'확인할 것이 없습니다\'로 들어갑니다.'
     : '지난 수업에 적힌 과제가 없습니다. 리포트에는 \'확인할 것이 없습니다\'로 들어갑니다.') + '</div>' + me;
-  var ii = 0;
-  return '<div class="cr-src">' + esc(src.head) + '</div>' + me + src.tasks.map(function(t, ti){
+  var ii = 0, nHide = src.tasks.filter(function(t){ return crTaskHide(h, t); }).length, showHid = !!CR.tfShow[i];
+  var hidBtn = nHide ? '<button type="button" class="cr-tfbtn" data-tfshow="' + i + '" aria-expanded="' + showHid + '">' +
+    (showHid ? '완료한 과제 숨기기' : '완료한 과제 ' + nHide + '개 보기') + '</button>' : '';
+  return '<div class="cr-src">' + esc(src.head) + '</div>' + me + (nHide === src.tasks.length && !showHid ? '<div class="cr-tfall">검사할 과제를 모두 완료했습니다.</div>' : '') + src.tasks.map(function(t, ti){
+    if (!showHid && crTaskHide(h, t)){ ii += crDims().length; return ''; }   // 다 한 과제는 숨김(2026-11-18 원장님) — 별 번호(ii)는 그대로 센다
     var tm = crTaskMissed(h, t);
     var tfull = crTaskFull(h, t), tcar = !tfull && !!h && !!h.carried && crDims().some(function(d){ return h.carried[t + ' (' + d + ')']; });
-    return '<div class="cr-task' + (tm ? ' miss' : '') + (tfull ? ' tfull' : '') + '"><div class="cr-thead"><div class="cr-tname">' + esc(t) +
+    return '<div class="cr-task' + (tm ? ' miss' : '') + (tfull ? ' tfull' : '') + '"><div class="cr-thead"><div class="cr-tname">' + esc(t) + crSfBadge(x, t) +
       (tfull ? ' <small class="cr-tst done">완료</small>' : tcar ? ' <small class="cr-tst">지난 검사 이어받음</small>' : '') + '</div>' +
       '<div class="cr-tacts"><button type="button" class="cr-mini cr-tmiss' + (tm ? ' on' : '') + '" data-tmiss="' + i + '|' + ti + '" aria-pressed="' + tm + '" aria-label="' + esc(t) + ' 미제출">미제출</button>' +
       '<button type="button" class="cr-mini cr-trm" data-trmme="' + i + '|' + ti + '" title="이 학생의 검사 목록에서만 빼기" aria-label="' + esc(t) + ' 이 학생만 빼기">이 학생만 빼기</button>' +
@@ -9807,7 +9967,7 @@ function crStarsHtml(i, code){
       return '<div class="cr-item"><span>' + d + '</span><span class="cr-stars">' + b + '</span></div>';
     }).join('') + (function(){ var cp = crCopyOf(x.p).indexOf(t) >= 0;
       return '<div class="cr-cp"><button type="button" class="cr-cpb' + (cp ? ' on' : '') + '" data-cp="' + i + '|' + ti + '" aria-pressed="' + cp + '" aria-label="' + esc(t) + ' 베낌 의심">베낌 의심</button><small>비공개 · 학생·리포트에 안 나가요</small></div>'; })() + '</div>';
-  }).join('');
+  }).join('') + hidBtn;
 }
 /* 학생마다 기록이 다 됐는지 — 출석·수업 태도·과제 검사(2026-10-02 원장님 "완료된 친구와 아직 기록이 부족한 친구가 구분되도록").
  * 결석이면 태도·과제 검사는 해당 없음. 검사할 과제가 없거나(지난 과제 없음·명단에서 못 찾음) 불러오지 못했으면 과제 검사도 해당 없음.
@@ -9838,6 +9998,40 @@ function crDoneHtml(r){
       : tag(r.tone, r.tone ? '태도 ✓' : '태도 미입력') +
         (r.hwNa ? tag(true, '검사할 과제 없음', true) : tag(r.hwOk, r.hwOk ? '과제 검사 ✓' : '과제 검사 ' + r.hwN + '/' + r.hwT))) +
     (r.done ? '<span class="cr-dall">기록 완료</span>' : '') + '</div>';
+}
+/* 학생 목록 줄 — 이름·출석·수업 태도·과제 검사가 한눈에. 누르면 그 학생 세부 화면. */
+var CR_STU_LIST = true;
+function crRowHtml(i, x, a, ch, off, dn, code){
+  function tag(ok, label, na){ return '<span class="cr-dtag' + (na ? ' na' : ok ? ' ok' : '') + '">' + label + '</span>'; }
+  var tone = crAttOf(x.p);
+  var tags = dn.abs ? tag(true, '결석이라 태도·과제 없음', true)
+    : tag(dn.tone, dn.tone ? '태도 ' + tone : '태도 미입력') +
+      (dn.hwNa ? tag(true, '과제 없음', true) : tag(dn.hwOk, dn.hwOk ? '과제 검사 ✓' : '과제 검사 ' + dn.hwN + '/' + dn.hwT));
+  return '<div role="button" tabindex="0" class="cr-row ' + (off ? 'off' : dn.done ? 'done' : 'todo') + '" data-sel="' + i + '" data-i="' + i + '">' +
+    '<span class="cr-rmain"><b title="' + esc(x.nm) + '">' + esc(x.p) + '</b>' + crSfDot(x) +
+      '<span class="cr-chip ' + ch + '">' + (a ? esc(a.status) : '출석 미체크') + '</span>' +
+      (off ? '<span class="cr-offtag">' + esc(off) + '</span>' : '') +
+      (code && CR.hwOk ? crHwLabel(code) : '') + '</span>' +
+    '<span class="cr-rtags">' + tags + (dn.done ? '<span class="cr-dall">기록 완료</span>' : '') + '</span>' +
+    crSpgLink(code) + '<em class="cr-rgo" aria-hidden="true">›</em></div>';
+}
+/* 학생 페이지 바로 가기 (2026-11-19 원장님 "이 리스트에서 바로 학생페이지로") — 접근코드가 있을 때만 */
+function crSpgLink(code){
+  if (!code) return '';
+  return '<a class="cr-spg" href="' + SPAGE_BASE + encodeURIComponent(code) + '" target="_blank" rel="noopener" title="학생 페이지를 새 탭으로 엽니다">' +
+    '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c1.2-3.6 4-5.4 7-5.4s5.8 1.8 7 5.4"/></svg>학생 페이지</a>';
+}
+function crRenderDetail(all){
+  var ent = all.filter(function(r){ return r.i === CR.sel; })[0];
+  var k = CR.order.indexOf(CR.sel), prev = CR.order[k - 1], next = CR.order[k + 1];
+  var nm = function(j){ return j == null ? '' : esc(CR.names[j].p); };
+  $('cr-body').innerHTML = '<div class="cr-dbar"><button type="button" id="cr-back">‹ 학생 목록</button>' +
+      '<span class="cr-dpos">' + (k + 1) + ' / ' + CR.order.length + '</span>' +
+      '<span class="cr-dnav"><button type="button" id="cr-dprev"' + (prev == null ? ' disabled' : ' data-sel="' + prev + '"') + '>‹ ' + (prev == null ? '이전' : nm(prev)) + '</button>' +
+      '<button type="button" id="cr-dnext"' + (next == null ? ' disabled' : ' data-sel="' + next + '"') + '>' + (next == null ? '다음' : nm(next)) + ' ›</button></span>' +
+    crSpgLink(CR.names[CR.sel] && CR.names[CR.sel].stu ? CR.names[CR.sel].stu.code : '') + '</div>' +
+    '<div class="cr-stu detail">' + ent.html + '</div>';
+  crGenLabel();
 }
 function crRender(){
   if (CR.carry) CR.names.forEach(crCarryApply);   // 검사 목록이 바뀌어도(반 전체 추가·되살리기) 지난 점수를 잇는다
@@ -9877,14 +10071,23 @@ function crRender(){
     if (!CR.hwOk || !code) hwPart += ihHtml + '<span class="cr-links">' + xBtns + '<button type="button" class="cr-more" data-pv="' + i + '">리포트 미리보기</button></span>';
     if (!CR.hwOk || !code) hwPart += '<div class="cr-row2 one"><input id="cr-c-' + i + '" maxlength="200" placeholder="' + esc(cmPh) + '" value="' + esc(cm[x.p] || '') + '"></div>';
     hwPart += (CR.pshow[i] && pOk ? crPStuHtml(x) : '') + (CR.hshow[i] ? crHistHtml(x) : '');
-    var html = '<div class="cr-card ' + (off ? 'off' : dn.done ? 'done' : 'todo') + '" data-i="' + i + '"><div class="cr-top"><b title="' + esc(x.nm) + '">' + esc(x.p) + '</b>' +
+    var html = '<div class="cr-card ' + (off ? 'off' : dn.done ? 'done' : 'todo') + '" data-i="' + i + '"><div class="cr-top"><b title="' + esc(x.nm) + '">' + esc(x.p) + '</b>' + crSfDot(x) +
       '<span class="cr-chip ' + ch + '">' + (a ? esc(a.status) : '미체크') + '</span>' +
       (off ? '<span class="cr-offtag">' + esc(off) + '</span>' : '') +
       '<span id="cr-pct-' + i + '">' + (code && CR.hwOk ? crHwLabel(code) : '') + '</span>' +
       '<span class="cr-dot" id="cr-dot-' + i + '"></span></div>' + crDoneHtml(dn) + (pOk ? crPLineHtml(i, x) : '') + crAttHtml(i, x) + hwPart + '</div>';
-    (off ? offRows : onRows).push(pOk && !off ? { html: html, g: crPGroupOf(x) } : html);
+    var ent = { i: i, html: html, row: crRowHtml(i, x, a, ch, off, dn, code), g: pOk && !off ? crPGroupOf(x) : '' };
+    (off ? offRows : onRows).push(ent);
   });
-  var cards = CR.ns && part === '확인' ? crPGroupsHtml(onRows) : onRows.join(''), offCards = offRows.join('');
+  /* 학생 목록 → 학생 세부 화면(2026-11-19 원장님 "이름을 선택하면 학생 세부 화면으로 이동, 목록에서 출석·수업 태도 등이 체크됐는지 파악") */
+  var useList = CR_STU_LIST, grouped = !!(CR.ns && part === '확인');
+  var orderOn = grouped ? crPGroupOrder(onRows) : onRows;
+  CR.order = orderOn.map(function(r){ return r.i; }).concat(offRows.map(function(r){ return r.i; }));
+  if (useList && CR.sel != null && CR.order.indexOf(CR.sel) >= 0){ crRenderDetail(onRows.concat(offRows)); return; }
+  CR.sel = null;
+  var pick = function(r){ return { html: useList ? r.row : r.html, g: r.g, i: r.i }; };
+  var cards = grouped ? crPGroupsHtml(onRows.map(pick)) : onRows.map(function(r){ return pick(r).html; }).join(''),
+      offCards = offRows.map(function(r){ return pick(r).html; }).join('');
   var offBox = offRows.length ? '<div class="cr-off"><button type="button" id="cr-off-tog" aria-expanded="' + !!CR.showOff + '">오늘 안 온 친구 ' +
       offRows.length + '명 ' + (CR.showOff ? '숨기기' : '보기') + '</button>' +
       (CR.showOff ? '<div class="cr-off-list">' + offCards + '</div>' : '') + '</div>' : '';
@@ -9910,7 +10113,7 @@ function crRender(){
     (CR.hwOk ? '<span class="' + (hwDone < shown && part !== '진도' ? 'warn' : 'ok') + '">' + '과제 검사 ' + hwDone + ' / ' + shown + '명</span>'
              : '<span class="warn">과제 검사 기록을 불러오지 못했어요</span>') + '</div>';
   $('cr-body').innerHTML = st + top +
-    '<div class="cr-stu' + (CR.onlyTodo ? ' only' : '') + '"><div class="cr-sh"><b>학생별</b><span>' + hwHead + '</span></div>' + hint +
+    '<div class="cr-stu' + (CR.onlyTodo ? ' only' : '') + (useList ? ' list' : '') + '"><div class="cr-sh"><b>학생별</b><span>' + hwHead + '</span></div>' + hint +
       (shown ? '<div class="cr-prog-bar" id="cr-donebar"><span><b>기록 완료 ' + allDone + '명</b> · 아직 부족 ' + (shown - allDone) + '명</span>' +
         (allDone < shown || CR.onlyTodo ? '<button type="button" id="cr-only-todo" aria-pressed="' + !!CR.onlyTodo + '">' + (CR.onlyTodo ? '모두 보기' : '부족한 친구만 보기') + '</button>' : '') + '</div>' : '') +
       (CR.hwOk && shown ? crXtHtml() : '') +
@@ -10056,10 +10259,17 @@ function crPLineHtml(i, x){
   return '<button type="button" class="cr-pline' + (ids.length ? '' : ' none') + (CR.pshow[i] ? ' on' : '') + '" data-pshow="' + i + '" aria-expanded="' + !!CR.pshow[i] + '">' +
     '<span>진도반</span><b>' + esc(txt) + '</b><em>' + (CR.pshow[i] ? '진도표 접기' : '진도표 보기') + '</em></button>';
 }
-function crPGroupsHtml(rows){
-  var ns = CR.ns, groups = {}, order = [];
-  rows.forEach(function(r){ if (!groups[r.g]){ groups[r.g] = []; order.push(r.g); } groups[r.g].push(r.html); });
+function crPGroupSort(rows){
+  var groups = {}, order = [];
+  rows.forEach(function(r){ if (!groups[r.g]){ groups[r.g] = []; order.push(r.g); } groups[r.g].push(r); });
   order.sort(function(a, b){ return (a === '?') - (b === '?') || groups[b].length - groups[a].length; });
+  return { groups: groups, order: order };
+}
+/* 진도반 묶음 순서대로 줄 세우기 — 학생 세부 화면의 이전·다음 순서 */
+function crPGroupOrder(rows){ var gs = crPGroupSort(rows), out = []; gs.order.forEach(function(g){ out = out.concat(gs.groups[g]); }); return out; }
+function crPGroupsHtml(rows){
+  var ns = CR.ns, gs = crPGroupSort(rows), order = gs.order, groups = {};
+  order.forEach(function(g){ groups[g] = gs.groups[g].map(function(r){ return r.html; }); });
   CR.gopen = CR.gopen || {};
   return order.map(function(g){
     var n = groups[g].length;
@@ -10145,12 +10355,22 @@ document.addEventListener('input', function(e){
   var el = e.target; if (!el || !el.hasAttribute || !el.hasAttribute('data-cin')) return;
   var n = $('cr-auto-' + el.getAttribute('data-cin')); if (n) n.hidden = !!el.value.trim();
 });
+/* 학생 목록 줄(div)도 Enter·스페이스로 연다 */
+document.addEventListener('keydown', function(e){
+  if (e.key !== 'Enter' && e.key !== ' ') return;
+  var r = e.target && e.target.classList && e.target.classList.contains('cr-row') ? e.target : null;
+  if (!r || !r.hasAttribute('data-sel')) return;
+  e.preventDefault(); r.click();
+});
 /* ── 창 안의 클릭(위임) ── */
 document.addEventListener('click', function(e){
   var body = $('cr-body');
   if (!body || !body.contains(e.target) || !CR.c) return;
-  var b = e.target.closest('button');
+  if (e.target.closest('a')) return;   // 학생 페이지 링크 등은 그대로 연다
+  var b = e.target.closest('button') || e.target.closest('.cr-row[data-sel]');
   if (!b) return;
+  if (b.id === 'cr-back'){ crKeepInputs(); CR.sel = null; crRender(); body.scrollTop = CR.listScroll || 0; return; }
+  if (b.hasAttribute('data-sel')){ crKeepInputs(); if (CR.sel == null) CR.listScroll = body.scrollTop; CR.sel = +b.getAttribute('data-sel'); crRender(); body.scrollTop = 0; return; }
   if (b.hasAttribute('data-star')){ var s = b.getAttribute('data-star').split('|'); crStar(+s[0], +s[1], +s[2]); return; }
   if (b.hasAttribute('data-hlv')){ var lv = b.getAttribute('data-hlv').split('|'); crLv(+lv[0], +lv[1], +lv[2]); return; }
   if (b.hasAttribute('data-cp')){ var cp = b.getAttribute('data-cp').split('|'); crCopySet(+cp[0], +cp[1]); return; }
@@ -10158,6 +10378,7 @@ document.addEventListener('click', function(e){
   if (b.hasAttribute('data-pv')){ crPvOpen(+b.getAttribute('data-pv')); return; }
   if (b.hasAttribute('data-tmiss')){ var tp = b.getAttribute('data-tmiss').split('|'); crTaskMiss(+tp[0], +tp[1]); return; }
   if (b.hasAttribute('data-miss')){ crMiss(+b.getAttribute('data-miss')); return; }
+  if (b.hasAttribute('data-tfshow')){ var fi = +b.getAttribute('data-tfshow'); crKeepInputs(); CR.tfShow[fi] = !CR.tfShow[fi]; crRender(); return; }
   if (b.hasAttribute('data-more')){ var i = +b.getAttribute('data-more'); crKeepInputs(); CR.more[i] = !CR.more[i]; crRender(); return; }
   if (b.hasAttribute('data-per')){ crKeepInputs(); crNsPeriod(b.getAttribute('data-per')); return; }
   if (b.hasAttribute('data-unrm')){ crNsUnit(b.getAttribute('data-unrm'), false); return; }

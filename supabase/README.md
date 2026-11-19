@@ -898,3 +898,13 @@ default privileges 까지 되돌렸다. `tools/check_lock.py` 통과(표 15/15 �
 - **064를 다시 돌리면 그 뒤 065도 다시 돌릴 것**(064가 지운 두 함수를 되살린다).
 - 검증: `PGHOST=/home/pgtest PGPORT=5499 PGUSER=postgres bash tools/hwork-retry-sql-test.sh`(41건).
 
+## 067 — 모의고사 문법 문항 은행 `gbank_*` · H WORK 질문 대화 `hwork_qa` (2026-11-17)
+- `gbank_items`(문항 454 — 학생용 HTML·정답·해설)·`gbank_passages`(지문 84)는 authenticated 만(anon 권한 없음). `hwork_qa`(제출 cascade)는 교사가 선생님 글만 넣고(정책 with check), 학생은 `hwork_qa_list/post/mine`(제출 열쇠·접근코드). `hwork_qs`(문제, 정답 없음)·`hwork_expl`(맞힌·클리어한 문항만). `hwork_meta` 다시 정의(+bank). 제출 트리거 `hwork_qa_from_submit`, 이미 쌓인 review.help → 대화(한 번).
+- 2026-11-17 실제 적용(관리 API, 두 번 실행) · 옮긴 도움 요청 20건 · 공개 키 표 401 · 한 거래 안 왕복 뒤 되돌림. 문항은 `tools/gbank_load.py put`.
+
+
+## 068 — 이미 낸 H WORK 과제에 문제 원문 잇기 `hwork_src_items`·`hwork_src_passages` (2026-11-17)
+- 「SHUEGUK REAL 내신 기출」 교재 과제(이미 H WORK 에 정답만 올라가 있던 것)에 문제 원문을 잇는다. 과제 이름(code) × 과제 안 번호(no)로 잇고 `hwork_homeworks.data` 는 건드리지 않는다. 학교 기출이라 표는 교사(authenticated)만, 학생은 `hwork_qs`·`hwork_expl`(맞힌·클리어한 문항의 정답·예시 답만)로만.
+- `hwork_meta`·`hwork_qs`·`hwork_expl` 을 067 본문 + 원문 갈래로 다시 정의(`style` 'gbank'|'real'). **020·067 을 다시 돌리면 068 도.**
+- 올리기 = `tools/real_load.py build <out.json> <교재 폴더>… → put`(교재 작업 폴더 zip — 드라이브 「클로슈」, 저장소 밖). check 가 지금 H WORK 과제와 이름·문항 수·5지 정답을 대조해 알린다.
+- **적용 상태: 2026-11-17 실제 수파베이스에 적용 완료**(관리 API, 두 번 실행. 적용 전 세 함수 md5 가 067 본문과 같음 확인). 문장 1·2권·음운 1~4권 70과제 1,757문항·지문 149 올림, 공개 키로 표 401, 공개 키 `hwork_meta`/`hwork_qs` 가 교재 과제에 style 'real'·문항 46개(정답 없음) 확인. 검증: `tools/hwork-src-sql-test.sh`(20건).
