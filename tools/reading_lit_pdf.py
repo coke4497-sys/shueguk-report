@@ -136,7 +136,7 @@ def convert(path):
             it = item_of(ql)
             it['no'] = n
             it['ans'] = ans.get(str(n), '')
-            it['expl'] = esc(expl.get(str(n), ''))
+            it['expl'] = expl.get(str(n), '')   # 해설은 글 그대로(화면이 esc 한다)
             it['kind'] = 'choice'
             it['passage'] = P
             it['works'] = works
