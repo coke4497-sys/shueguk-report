@@ -46,6 +46,13 @@ def run_html(r, cp):
             out += s
     return out
 
+def pua(h):
+    """한글 전용 기호(사용자 정의 글자) → 보통 글자. 화면 글꼴에 없어 네모 칸으로 보인다."""
+    h = h.replace('\U000f0854', '『').replace('\U000f0855', '』')
+    h = re.sub('\uf000([^\uf000]*)\uf000', '『\\1』', h)   # 짝으로 쓰인 책 이름 묶음
+    h = h.replace('\uf077', '◆')                                # 어휘 풀이가 있는 낱말 표시
+    return re.sub('[\ue000-\uf8ff]', '', h)                     # 그 밖의 사용자 정의 글자는 뺌
+
 def para_lines(sec, cp, bins, z, imgs):
     """맨 위 문단마다 {h:html, t:text} 또는 {img:..}/{tbl:[[..]]}."""
     lines = []
@@ -80,7 +87,7 @@ def para_lines(sec, cp, bins, z, imgs):
                             cells.append('<br>'.join(s for s in ps if s))
                         rows.append(cells)
                     extra.append({'tbl': rows})
-        h = h.replace('󰡔', '『').replace('󰡕', '』')
+        h = pua(h)
         t = html.unescape(re.sub(r'<[^>]+>', '', h)).strip()
         if i == 0: continue           # 쪽 머리 표
         lines.append({'h': h.strip(), 't': t})
