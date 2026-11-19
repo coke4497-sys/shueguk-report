@@ -321,6 +321,48 @@ def check(res):
     return not errs
 
 
+def _walk(obj, path):
+    ks = path.split('.')
+    for k in ks[:-1]:
+        obj = obj[int(k)] if isinstance(obj, list) else obj[k]
+    last = ks[-1]
+    return obj, (int(last) if isinstance(obj, list) else last)
+
+
+def apply_edits(p, edits):
+    """검수 고침(원장님 지시로 고친 글자·정답·해설·삭제)을 지문 하나에 적용한다 — 원본 파일로 다시 올려도 사라지지 않게
+    reading_passages.data.edits 에 남겨 두고 put 이 다시 적용한다. 원소: {code, ord, level, v, path, old→new | set} ·
+    {code, ord, level, v, delete} · {passage, path, old→new | set}. 적용하지 못한 고침(원본이 바뀌어 old 가 없음)은 돌려준다."""
+    miss = []
+    for e in edits:
+        if e.get('passage'):
+            tgt = p['data']
+        else:
+            hit = [i for i in p['items'] if i['code'] == e['code'] and i['ord'] == e['ord'] and i['level'] == e.get('level', i['level']) and i['v'] == e.get('v', i['v'])]
+            if not hit:
+                miss.append(e); continue
+            if e.get('delete'):
+                hit[0]['_deleted'] = True; continue
+            tgt = hit[0]['data']
+        try:
+            o, k = _walk(tgt, e['path'])
+            if 'set' in e:
+                o[k] = e['set']
+            else:
+                cur = o[k]
+                if not isinstance(cur, str) or cur.count(e['old']) != 1:
+                    if isinstance(cur, str) and e['new'] in cur and e['old'] not in cur:
+                        continue   # 이미 고쳐져 있음
+                    miss.append(e); continue
+                o[k] = cur.replace(e['old'], e['new'])
+        except (KeyError, IndexError, TypeError, ValueError):
+            miss.append(e)
+    for i in p['items']:
+        if not i.get('_deleted'):
+            i['plain'] = item_plain(i['data'])
+    return miss
+
+
 def put(res):
     if not check(res):
         sys.exit(1)
@@ -330,18 +372,54 @@ def put(res):
         for x in ('subject', 'review', 'uploaded_by'):   # 084·086
             if p.get(x):
                 row[x] = p[x]
+        old = rest('GET', '/reading_passages?select=data&id=eq.' + urllib.parse.quote(p['id']))
+        eds = ((old[0]['data'] or {}).get('edits') or []) if old else []
+        if eds:   # 앞서 검수에서 고친 것을 새로 만든 자료에도 다시 적용
+            miss = apply_edits(p, eds)
+            p['data']['edits'] = eds
+            row['data'] = p['data']
+            print('검수 고침 다시 적용: %d건' % (len(eds) - len(miss)) + (' · 적용 못 함 %d건(원본이 바뀜 — 확인)' % len(miss) if miss else ''))
         rest('POST', '/reading_passages?on_conflict=id', [row], 'resolution=merge-duplicates,return=minimal')
         rows = [{'passage_id': p['id'], 'level': i['level'], 'code': i['code'], 'sec_name': i['sec_name'], 'v': i['v'],
-                 'ord': i['ord'], 'kind': i['kind'], 'data': i['data'], 'plain': i['plain'], 'active': True} for i in p['items']]
+                 'ord': i['ord'], 'kind': i['kind'], 'data': i['data'], 'plain': i['plain'], 'active': not i.get('_deleted')} for i in p['items']]
         for j in range(0, len(rows), 200):
             rest('POST', '/reading_items?on_conflict=passage_id,level,code,v,ord', rows[j:j + 200],
                  'resolution=merge-duplicates,return=minimal')
         have = rest('GET', '/reading_items?select=id,level,code,v,ord&active=is.true&passage_id=eq.' + urllib.parse.quote(p['id']))
-        keep = {(i['level'], i['code'], i['v'], i['ord']) for i in p['items']}
+        keep = {(i['level'], i['code'], i['v'], i['ord']) for i in p['items'] if not i.get('_deleted')}
         gone = [h['id'] for h in have if (h['level'], h['code'], h['v'], h['ord']) not in keep]
         if gone:
             rest('PATCH', '/reading_items?id=in.(%s)' % ','.join(map(str, gone)), {'active': False}, 'return=minimal')
         print('올림:', p['id'], '| 문항', len(rows), '| 숨김', len(gone))
+
+
+def edit_cmd(pid, edits):
+    """올라가 있는 지문에 검수 고침을 적용·기록한다(edits.json — 위 apply_edits 형식, 문항은 id 로 줘도 된다)."""
+    q = urllib.parse.quote(pid)
+    P = rest('GET', '/reading_passages?select=id,data&id=eq.' + q)[0]
+    its = rest('GET', '/reading_items?select=id,level,code,v,ord,kind,data&active=is.true&passage_id=eq.' + q)
+    byid = {i['id']: i for i in its}
+    for e in edits:   # id → (level, code, v, ord)
+        if 'id' in e:
+            i = byid.get(e.pop('id'))
+            if not i:
+                sys.exit('없는 문항 id: ' + json.dumps(e, ensure_ascii=False))
+            e.update(level=i['level'], code=i['code'], v=i['v'], ord=i['ord'])
+    p = {'id': pid, 'data': P['data'], 'items': its}
+    miss = apply_edits(p, edits)
+    if miss:
+        for m in miss:
+            print('적용 못 함:', json.dumps(m, ensure_ascii=False)[:300])
+        sys.exit('적용하지 못한 고침이 있어 아무것도 올리지 않았습니다.')
+    p['data']['edits'] = (P['data'].get('edits') or []) + edits
+    rest('PATCH', '/reading_passages?id=eq.' + q, {'data': p['data']}, 'return=minimal')
+    n = 0
+    for i in its:
+        if i.get('_deleted'):
+            rest('PATCH', '/reading_items?id=eq.%d' % i['id'], {'active': False}, 'return=minimal'); n += 1
+        else:
+            rest('PATCH', '/reading_items?id=eq.%d' % i['id'], {'data': i['data'], 'plain': i['plain'], 'kind': i['data'].get('kind', i['kind'])}, 'return=minimal')
+    print('고침 %d건 적용 · 숨긴 문항 %d' % (len(edits), n))
 
 
 def lst():
@@ -398,6 +476,8 @@ if __name__ == '__main__':
         sys.exit(0 if check(json.load(open(a[1], encoding='utf8'))) else 1)
     elif a[0] == 'put':
         put(json.load(open(a[1], encoding='utf8')))
+    elif a[0] == 'edit':
+        edit_cmd(a[1], json.load(open(a[2], encoding='utf8')))
     elif a[0] == 'list':
         lst()
     else:
