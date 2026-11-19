@@ -6,7 +6,7 @@
 둘째 괄호 = 영역(없으면 --area 로), 끝 = 기본|실력. 같은 지문의 기본·실력 두 파일을 함께 넘긴다.
 
   python3 -I tools/reading_load.py build <out.json> <a 기본.hwpx> <a 실력.hwpx> … [--area '제목=인문']
-  python3 -I tools/reading_load.py build <out.json> '[비상 독서와 작문]5-(1)-1 제목(작가).hwp' …   # 교과서 묶음(080)
+  python3 -I tools/reading_load.py build <out.json> '[비상 독서와 작문]5-(1)-1 제목(작가).hwp' …   # 교과서 묶음(081)
   python3 -I tools/reading_load.py check <out.json>
   python3 -I tools/reading_load.py put <out.json>      # 검사 뒤 올리기(교사 계정) — 같은 지문·자리는 덮어쓰고, 빠진 문항은 active=false
   python3 -I tools/reading_load.py list
