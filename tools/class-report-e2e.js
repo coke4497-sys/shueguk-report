@@ -104,6 +104,8 @@ const STUDENTS = [
     await page.goto('http://127.0.0.1:' + port + '/timetable.html' + (opt.qs || ''));
     // 고1·고2 예외 기간(CR_NS_SPLIT — 2026-10-12~11-03, 내신 시간표로 정규 수업)은 날짜에 묶여 있어 검사에서는 기본으로 끈다(②-2b 가 따로 켠다)
     await page.evaluate(() => { if (typeof CR_NS_SPLIT_FROM !== 'undefined'){ CR_NS_SPLIT_FROM = '2000-01-01'; CR_NS_SPLIT_TO = '2000-01-02'; CR_NS_HW_SPLIT_TO = '2000-01-02'; } });
+    // 학생 목록 → 세부 화면(2026-11-19)은 ⑦-5 에서 따로 검사 — 나머지는 카드를 한 번에 펼친 옛 화면으로
+    if (!opt.list) await page.evaluate(() => { if (typeof CR_STU_LIST !== 'undefined') CR_STU_LIST = false; });
     return { ctx, page, st };
   }
   const openCard = async (page, name) => {
@@ -1309,6 +1311,51 @@ const STUDENTS = [
     r = await p12.evaluate(() => [...document.querySelectorAll('.cr-card')].map(c => c.querySelector('.cr-top b').textContent));
     ok('⑪-2 다른 날로 1회 이동해 나간 학생은 수업 기록 목록에 없다', r.includes('박보검') && !r.includes('김하늘'), JSON.stringify(r));
     await c12.ctx.close();
+  }
+
+  // ⑦-5 학생 목록 → 학생 세부 화면(2026-11-19 원장님) — 목록에서 출석·태도·과제 검사가 보이고, 이름을 누르면 그 학생 화면
+  {
+    const full = {}; ['학습량', '채점', '학습 분석', '오답 분석'].forEach(d => { full['관동별곡 학습지 (' + d + ')'] = d === '학습량' ? 5 : 2; });
+    const c5 = await ctxOf({ book: '정규', list: true, rows: [row('r001', '고2 가', '지원', '박보검 김하늘 최다은')],
+      att: [{ class_id: 'r001', student: '박보검', status: '출석' }, { class_id: 'r001', student: '김하늘', status: '지각' }, { class_id: 'r001', student: '최다은', status: '결석' }],
+      prev: [{ class_id: 'r001', ymd: LASTWK, homework: '관동별곡 학습지' }],
+      hw: [{ token: 'k-park', class_id: 'r001', scores: full, pct: 100, pub: '', priv: '', missing: false, plan: '' }] });
+    const p5 = c5.page;
+    c5.st.notes['정규|r001'] = { id: 1, book: '정규', class_id: 'r001', ymd: TODAYSTR, progress: '', homework: '', report_status: '', comments: { '__태도': { '박보검': '좋음' } } };
+    await p5.waitForFunction(() => [...document.querySelectorAll('.blk')].some(x => /고2 가/.test(x.textContent) && x.querySelector('.crbtn')), null, { timeout: 15000 });
+    await p5.evaluate(() => [...document.querySelectorAll('.blk')].find(x => /고2 가/.test(x.textContent)).querySelector('.crbtn').click());
+    await p5.waitForSelector('#crpanel:not([hidden]) .cr-row', { timeout: 8000 });
+    const rows = () => p5.evaluate(() => [...document.querySelectorAll('.cr-row')].map(e => ({ nm: e.querySelector('b').textContent,
+      chip: e.querySelector('.cr-chip').textContent, tags: [...e.querySelectorAll('.cr-dtag')].map(t => t.textContent).join('|'), done: e.classList.contains('done'), vis: e.offsetParent !== null })));
+    r = (await rows()).sort((x, y) => x.nm < y.nm ? 1 : -1);   // 박보검, 김하늘
+    const ix = n => p5.evaluate(n => CR.names.map(x => x.p).indexOf(n), n);
+    const iK = await ix('김하늘');
+    ok('⑦-5 목록 = 학생마다 한 줄, 카드는 없다', r.length === 2 && !(await p5.$('.cr-card')), JSON.stringify(r));
+    ok('⑦-5 줄에 출석·태도·과제 검사·기록 완료', r[0].nm === '박보검' && r[0].chip === '출석' && r[0].tags === '태도 좋음|과제 검사 ✓' && r[0].done &&
+      r[1].chip === '지각' && r[1].tags === '태도 미입력|과제 검사 0/1' && !r[1].done, JSON.stringify(r));
+    ok('⑦-5 진도·과제 칸과 기록 완료 줄은 목록 위에 그대로', !!(await p5.$('#cr-prog')) && !!(await p5.$('#cr-donebar')));
+    await p5.fill('#cr-prog', '사미인곡 정리');
+    await p5.click(`.cr-row[data-sel="${iK}"]`);
+    ok('⑦-5 이름을 누르면 그 학생 세부 화면(카드 하나 + 학생 목록 버튼)', (await p5.$$eval('.cr-card', e => e.length)) === 1 &&
+      (await p5.$eval('.cr-card .cr-top b', e => e.textContent)) === '김하늘' && !!(await p5.$('#cr-back')) && !(await p5.$('#cr-prog')));
+    ok('⑦-5 세부 화면 위치(목록 순서 그대로)', /1 \/ 3/.test(await p5.$eval('.cr-dpos', e => e.textContent)) && /박보검/.test(await p5.$eval('#cr-dnext', e => e.textContent)));
+    await p5.click('#cr-dnext');
+    ok('⑦-5 [다음] 학생', (await p5.$eval('.cr-card .cr-top b', e => e.textContent)) === '박보검');
+    await p5.click('#cr-dprev');
+    await p5.click(`[data-att="${iK}"][data-lv="0"]`);
+    await p5.fill(`#cr-c-${iK}`, '집중 좋음');
+    await p5.click('#cr-dnext'); await p5.click('#cr-dnext');
+    ok('⑦-5 [다음] = 안 온 친구(최다은)도 차례로', (await p5.$eval('.cr-card .cr-top b', e => e.textContent)) === '최다은' && !!(await p5.$('#cr-dnext:disabled')));
+    await p5.click('#cr-back');
+    r = (await rows()).sort((x, y) => x.nm < y.nm ? 1 : -1);
+    ok('⑦-5 돌아오면 고른 태도가 목록 줄에 보인다', r[1].tags === '태도 매우 좋음|과제 검사 0/1', JSON.stringify(r));
+    ok('⑦-5 목록으로 돌아와도 쓰던 진도·코멘트가 남는다', (await p5.$eval('#cr-prog', e => e.value)) === '사미인곡 정리' && (await p5.evaluate(() => CR.note.comments['김하늘'])) === '집중 좋음');
+    await p5.click('#cr-only-todo');
+    r = (await rows()).sort((x, y) => x.nm < y.nm ? 1 : -1);
+    ok('⑦-5 [부족한 친구만 보기] → 완료 줄은 숨는다', !r[0].vis && r[1].vis, JSON.stringify(r));
+    await p5.setViewportSize({ width: 390, height: 800 });
+    ok('⑦-5 휴대폰에서 목록 가로 넘침 없음', await p5.evaluate(() => { const b = document.getElementById('cr-body'); return b.scrollWidth <= b.clientWidth + 1; }));
+    await c5.ctx.close();
   }
 
   ok('페이지 오류 없음', perr === 0);
