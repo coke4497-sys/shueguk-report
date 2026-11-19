@@ -8333,7 +8333,7 @@ function reqWhoHtml(){
 // 슈국 조교 슈콩이 — 맞이 말풍선. 확인할 요청이 있으면 책상에서 일하고, 다 처리했으면 응원한다
 var REQ_SK = 'assets/';
 function reqSkHtml(){
-  var n = (reqRows || []).filter(function(r){ return r.status === '접수됨' && r.screen !== CR_SCREEN && r.screen !== '별 사유'; }).length;
+  var n = (reqRows || []).filter(function(r){ return r.status === '접수됨' && r.screen !== CR_SCREEN && r.screen !== '별 사유' && r.screen !== '슈핏 문항'; }).length;
   var img = n ? 'sk-desk' : 'sk-cheer';
   var say = reqRows === null ? '시간표에서 잘못됐거나 고치고 싶은 것을 적어 주세요. 제가 확인해서 처리하고, 결과를 아래 목록에 남겨 둘게요.'
     : n ? '지금 요청 ' + n + '건을 확인하고 있어요. 처리하면 아래에 결과를 남겨 둘게요.'
@@ -8364,7 +8364,7 @@ function reqRenderList(){
   if ($('req-sk')) $('req-sk').innerHTML = reqSkHtml();
   if (reqRows === null){ box.innerHTML = '<p class="mdesc">목록을 불러오지 못했어요. 인터넷을 확인해 주세요.</p>'; return; }
   var shown = reqRows.map(function(r, i){ return { r: r, i: i }; })
-    .filter(function(x){ return x.r.screen !== CR_SCREEN && x.r.screen !== '별 사유'; });   // 수업 리포트 요청은 '수업 기록' 창에서 상태를 본다, 별 사유 다듬기(클로슈 전용)는 목록에 넣지 않는다
+    .filter(function(x){ return x.r.screen !== CR_SCREEN && x.r.screen !== '별 사유' && x.r.screen !== '슈핏 문항'; });   // 수업 리포트 요청은 '수업 기록' 창에서 상태를 본다, 별 사유 다듬기(클로슈 전용)는 목록에 넣지 않는다
   if (!shown.length){ box.innerHTML = '<p class="mdesc">아직 남긴 요청이 없어요.</p>'; return; }
   var keys = [];
   box.innerHTML = shown.map(function(x){
