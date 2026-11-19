@@ -10,6 +10,7 @@
   python3 -I tools/reading_load.py build <out.json> '[국어공방][26EBS수특문학-29현시]멸치(김기택) ….hwp' '[기출]멸치(김기택).pdf' [--by 이름]
         # 문학(086) — 국어공방 '시 문제 풀이' .hwp + 슈국 '내신 기출' PDF(코드 30, 문항마다 독립 지문). 같은 이름 PDF 는 대조용.
         # 문학은 subject '문학'·review '검수 중'(원장님이 화면에서 [검수 완료]), --by = 올린 선생님
+        # --by 이름 = 선생님이 [문항 올리기]로 올린 자료 → 어느 과목이든 '검수 중' · --subject 독서|문학|화법|작문 = 폴더 과목
   python3 -I tools/reading_load.py check <out.json>
   python3 -I tools/reading_load.py put <out.json>      # 검사 뒤 올리기(교사 계정) — 같은 지문·자리는 덮어쓰고, 빠진 문항은 active=false
   python3 -I tools/reading_load.py list
@@ -369,11 +370,13 @@ if __name__ == '__main__':
     if a[0] == 'build':
         over = {}
         rest_args = []
-        by = ''
+        by = subj = ''
         k = 1
         while k < len(a):
             if a[k] == '--by':
                 by = a[k + 1]; k += 2
+            elif a[k] == '--subject':
+                subj = a[k + 1]; k += 2
             elif a[k] == '--area':
                 t, v = a[k + 1].rsplit('=', 1)
                 over[t.strip()] = v.strip()
@@ -382,6 +385,14 @@ if __name__ == '__main__':
                 rest_args.append(a[k])
                 k += 1
         res = build(rest_args[0], rest_args[1:], over, by)
+        # [문항 올리기](087) — 선생님이 올린 자료는 모두 '검수 중'(원장님이 화면에서 [검수 완료]), 과목은 폴더대로
+        if by or subj:
+            for p in res:
+                if by:
+                    p['uploaded_by'] = by; p['review'] = '검수 중'
+                if subj:
+                    p['subject'] = subj
+            json.dump(res, open(rest_args[0], 'w', encoding='utf8'), ensure_ascii=False)
         check(res)
     elif a[0] == 'check':
         sys.exit(0 if check(json.load(open(a[1], encoding='utf8'))) else 1)
