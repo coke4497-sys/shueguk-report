@@ -3264,13 +3264,20 @@ function hwFmtDue(s){
 }
 /* 배정 과제 바로 열기 (2026-11-11 원장님) — 과제·담당 강사·학생 이름·학교·학년을 실어 보내
  * H WORK 화면이 다시 고르지 않고 그 과제 입력 화면만 띄운다(값은 고정). */
-function hwGoHref(base, h){
+function hwGoHref(base, h, nx){
   var i = STATE.info || {};
   return base + '?c=' + encodeURIComponent(h.code || '')
        + '&t='  + encodeURIComponent(h.teacher || '')
        + '&nm=' + encodeURIComponent(i.name || '')
        + '&sc=' + encodeURIComponent(i.school || '')
-       + '&gr=' + encodeURIComponent(levelGrade(i.grade) || '');
+       + '&gr=' + encodeURIComponent(levelGrade(i.grade) || '')
+       + (nx && nx.length ? '&nx=' + encodeURIComponent(nx.map(function(x){ return (x.teacher||'')+'\t'+(x.code||''); }).join('\n')) : '');
+}
+/* 클리어 뒤 '다음 챕터에 도전할까요?'(2026-11-19 원장님) — 아직 안 낸 과제를 교재 순서로, 이 과제 다음 것부터 최대 6개 */
+function hwNextOf(todo, h){
+  var at = todo.indexOf(h);
+  var rest = at < 0 ? todo.slice() : todo.slice(at + 1).concat(todo.slice(0, at));
+  return rest.filter(function(x){ return x !== h && x.code; }).slice(0, 6);
 }
 /* 교재 앞쪽부터 (2026-11-11 원장님) — 'SHUEGUK REAL … 2권(심화·종합) 03 파생어 · 심화 (1/2: …)'를 읽어
  * 교재 → 권 → 단원 문제(기본·실력·심화) 먼저, 종합 문제는 뒤 → 단원 번호 → 기본·실력·심화 → 나눈 편(1/2·2/2).
@@ -3304,13 +3311,14 @@ function renderHomework(keepScroll){
   } else {
     var base = 'https://coke4497-sys.github.io/shueguk-h-work/hwork.html';
     // 안 푼 과제 먼저, 제출 완료는 아래로
-    var ordered = hwBookSort(hs.filter(function(h){ return !h.done; })).concat(hwBookSort(hs.filter(function(h){ return h.done; })));
+    var todo = hwBookSort(hs.filter(function(h){ return !h.done; }));
+    var ordered = todo.concat(hwBookSort(hs.filter(function(h){ return h.done; })));
     list.innerHTML = ordered.map(function(h){
       var title = (h.teacher ? (h.teacher+' · ') : '') + (h.code||'과제');
       var meta = [];
       if(h.due)  meta.push('마감 '+hwFmtDue(h.due));
       if(h.memo) meta.push(h.memo);
-      var href = hwGoHref(base, h);
+      var href = hwGoHref(base, h, hwNextOf(todo, h));
       var action = h.done
         ? '<span class="nchk-done">✓ 제출 완료 · 별 +1</span>' +
           '<a class="hw-go hw-re" href="'+esc(href+'&done=1')+'" target="_blank" rel="noopener">오답하기 이어 하기 '+svg(ICON.arrow)+'</a>'
@@ -5230,6 +5238,11 @@ function boot(){
       if(d.exams){ STATE.exams=d.exams; }
       renderHub();
       loadGradeGates();
+      // H WORK 클리어 팝업의 [다른 H WORK 고르기]로 오면 H WORK 목록을 바로 연다 (2026-11-19)
+      if (location.hash === '#hw'){
+        try { history.replaceState(null, '', location.pathname + location.search); } catch(e){}
+        openHomework();
+      }
     })
     .catch(function(){ showError('연결 실패','인터넷 상태를 확인한 뒤 새로고침해 주세요.'); });
 }

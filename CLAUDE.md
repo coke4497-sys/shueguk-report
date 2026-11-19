@@ -1176,3 +1176,6 @@ clasp update-deployment -d "설명" <DEPLOYMENT_ID>   # 기존 배포 새 버전
 
 ## H WORK 배정 마감일 = 'yyyy-MM-dd' 글자 (2026-11-19 원장님 "마감시간 한국 스타일로 수정")
 - 시트 '배정' 칸이 '2026-11-25'를 날짜로 바꿔 `getAssignList`가 'Wed Nov 25 2026 00:00:00 GMT+0900 …'을 돌려줬고, 그 값이 assignments 미러(55줄)와 학생 페이지 '마감'에 영어로 보였다. 미러 55줄은 'yyyy-MM-dd'로 고쳤고, 백엔드는 `getAssignList` due = `fmtCellDate_`, `addAssignment`가 마감 칸을 글자 서식으로 쓴다(**재배포해야 반영**). 화면 s.html `hwFmtDue`('2026년 11월 25일 (수)')·H WORK hwork_status `md`·hwork_assign `fmtDue`는 영어 날짜도 한국 날짜로 읽는다.
+
+## H WORK 세트 클리어 → 다음 챕터 (2026-11-19 원장님)
+- s.html H WORK 목록의 [풀러 가기]·[오답하기 이어 하기] 주소에 `nx`(`hwNextOf` — 아직 안 낸 배정 과제를 교재 순서로, 이 과제 다음 것부터 최대 6개)를 싣는다. H WORK hwork.html 클리어 팝업이 그 첫 과제를 '다음 챕터'로 띄운다(H WORK 저장소 CLAUDE.md 같은 날 절). 학생 페이지를 `#hw`로 열면 로드 뒤 H WORK 목록을 바로 연다(팝업의 [다른 H WORK 고르기]).
