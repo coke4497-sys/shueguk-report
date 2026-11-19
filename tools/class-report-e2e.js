@@ -1346,8 +1346,13 @@ const STUDENTS = [
     ok('⑦-5 줄에 출석·태도·과제 검사·기록 완료', r[0].nm === '박보검' && r[0].chip === '출석' && r[0].tags === '태도 좋음|과제 검사 ✓' && r[0].done &&
       r[1].chip === '지각' && r[1].tags === '태도 미입력|과제 검사 0/1' && !r[1].done, JSON.stringify(r));
     ok('⑦-5 진도·과제 칸과 기록 완료 줄은 목록 위에 그대로', !!(await p5.$('#cr-prog')) && !!(await p5.$('#cr-donebar')));
+    const spg = await p5.evaluate(() => [...document.querySelectorAll('.cr-row')].map(e => { const a = e.querySelector('a.cr-spg'); return a ? a.getAttribute('href') + '|' + a.target : ''; }));
+    ok('⑦-5 목록 줄마다 [학생 페이지] 링크(접근코드·새 탭)', spg.length === 2 && spg.every(h => /s\.html\?key=.+\|_blank$/.test(h)), JSON.stringify(spg));
+    await p5.evaluate(() => { const a = document.querySelector('.cr-row a.cr-spg'); a.addEventListener('click', ev => ev.preventDefault(), { once: true }); a.click(); });
+    ok('⑦-5 링크를 눌러도 세부 화면으로 넘어가지 않는다', !(await p5.$('#cr-back')) && (await p5.evaluate(() => CR.sel)) == null);
     await p5.fill('#cr-prog', '사미인곡 정리');
     await p5.click(`.cr-row[data-sel="${iK}"]`);
+    ok('⑦-5 세부 화면 위에도 [학생 페이지]', /s\.html\?key=/.test(await p5.$eval('.cr-dbar a.cr-spg', e => e.getAttribute('href'))));
     ok('⑦-5 이름을 누르면 그 학생 세부 화면(카드 하나 + 학생 목록 버튼)', (await p5.$$eval('.cr-card', e => e.length)) === 1 &&
       (await p5.$eval('.cr-card .cr-top b', e => e.textContent)) === '김하늘' && !!(await p5.$('#cr-back')) && !(await p5.$('#cr-prog')));
     ok('⑦-5 세부 화면 위치(목록 순서 그대로)', /1 \/ 3/.test(await p5.$eval('.cr-dpos', e => e.textContent)) && /박보검/.test(await p5.$eval('#cr-dnext', e => e.textContent)));
@@ -1358,6 +1363,9 @@ const STUDENTS = [
     await p5.fill(`#cr-c-${iK}`, '집중 좋음');
     await p5.click('#cr-dnext'); await p5.click('#cr-dnext');
     ok('⑦-5 [다음] = 안 온 친구(최다은)도 차례로', (await p5.$eval('.cr-card .cr-top b', e => e.textContent)) === '최다은' && !!(await p5.$('#cr-dnext:disabled')));
+    await p5.click('#cr-back');
+    await p5.focus(`.cr-row[data-sel="${iK}"]`); await p5.keyboard.press('Enter');
+    ok('⑦-5 목록 줄은 Enter로도 열린다', !!(await p5.$('#cr-back')));
     await p5.click('#cr-back');
     r = (await rows()).sort((x, y) => x.nm < y.nm ? 1 : -1);
     ok('⑦-5 돌아오면 고른 태도가 목록 줄에 보인다', r[1].tags === '태도 매우 좋음|과제 검사 0/1', JSON.stringify(r));

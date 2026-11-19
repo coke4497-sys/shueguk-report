@@ -529,6 +529,11 @@
   .cr-rtags{display:flex;flex-wrap:wrap;gap:4px;align-items:center;font-size:.72rem;flex:1 1 100%;} .cr-rtags .cr-dall{margin-left:0;}
   .cr-rgo{font-style:normal;color:#8A978F;font-size:1.1rem;margin-left:auto;align-self:center;position:absolute;right:12px;}
   .cr-row{position:relative;padding-right:28px;}
+  .cr-spg{display:inline-flex;align-items:center;gap:4px;font-size:.74rem;font-weight:700;color:#5A4A6A;background:#EDE4F4;border-radius:999px;padding:4px 10px;text-decoration:none;white-space:nowrap;}
+  .cr-spg:hover{background:#E3D7EE;}
+  .cr-row .cr-spg{position:absolute;top:9px;right:26px;}
+  .cr-row .cr-rmain{padding-right:96px;}
+  .cr-dbar .cr-spg{margin-left:auto;font-size:.82rem;padding:6px 12px;}
   .cr-dbar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;position:sticky;top:-14px;z-index:2;background:var(--surface);padding:6px 0;margin-top:-6px;}
   .cr-dbar button{border:0;border-radius:999px;padding:6px 12px;font:inherit;font-size:.84rem;background:#EDE4F4;color:#5A4A6A;cursor:pointer;}
   .cr-dbar button:disabled{opacity:.4;cursor:default;} .cr-dbar #cr-back{background:#DCE8E5;color:#3F6159;}
@@ -10002,13 +10007,19 @@ function crRowHtml(i, x, a, ch, off, dn, code){
   var tags = dn.abs ? tag(true, '결석이라 태도·과제 없음', true)
     : tag(dn.tone, dn.tone ? '태도 ' + tone : '태도 미입력') +
       (dn.hwNa ? tag(true, '과제 없음', true) : tag(dn.hwOk, dn.hwOk ? '과제 검사 ✓' : '과제 검사 ' + dn.hwN + '/' + dn.hwT));
-  return '<button type="button" class="cr-row ' + (off ? 'off' : dn.done ? 'done' : 'todo') + '" data-sel="' + i + '" data-i="' + i + '">' +
+  return '<div role="button" tabindex="0" class="cr-row ' + (off ? 'off' : dn.done ? 'done' : 'todo') + '" data-sel="' + i + '" data-i="' + i + '">' +
     '<span class="cr-rmain"><b title="' + esc(x.nm) + '">' + esc(x.p) + '</b>' + crSfDot(x) +
       '<span class="cr-chip ' + ch + '">' + (a ? esc(a.status) : '출석 미체크') + '</span>' +
       (off ? '<span class="cr-offtag">' + esc(off) + '</span>' : '') +
       (code && CR.hwOk ? crHwLabel(code) : '') + '</span>' +
     '<span class="cr-rtags">' + tags + (dn.done ? '<span class="cr-dall">기록 완료</span>' : '') + '</span>' +
-    '<em class="cr-rgo" aria-hidden="true">›</em></button>';
+    crSpgLink(code) + '<em class="cr-rgo" aria-hidden="true">›</em></div>';
+}
+/* 학생 페이지 바로 가기 (2026-11-19 원장님 "이 리스트에서 바로 학생페이지로") — 접근코드가 있을 때만 */
+function crSpgLink(code){
+  if (!code) return '';
+  return '<a class="cr-spg" href="' + SPAGE_BASE + encodeURIComponent(code) + '" target="_blank" rel="noopener" title="학생 페이지를 새 탭으로 엽니다">' +
+    '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c1.2-3.6 4-5.4 7-5.4s5.8 1.8 7 5.4"/></svg>학생 페이지</a>';
 }
 function crRenderDetail(all){
   var ent = all.filter(function(r){ return r.i === CR.sel; })[0];
@@ -10017,7 +10028,8 @@ function crRenderDetail(all){
   $('cr-body').innerHTML = '<div class="cr-dbar"><button type="button" id="cr-back">‹ 학생 목록</button>' +
       '<span class="cr-dpos">' + (k + 1) + ' / ' + CR.order.length + '</span>' +
       '<span class="cr-dnav"><button type="button" id="cr-dprev"' + (prev == null ? ' disabled' : ' data-sel="' + prev + '"') + '>‹ ' + (prev == null ? '이전' : nm(prev)) + '</button>' +
-      '<button type="button" id="cr-dnext"' + (next == null ? ' disabled' : ' data-sel="' + next + '"') + '>' + (next == null ? '다음' : nm(next)) + ' ›</button></span></div>' +
+      '<button type="button" id="cr-dnext"' + (next == null ? ' disabled' : ' data-sel="' + next + '"') + '>' + (next == null ? '다음' : nm(next)) + ' ›</button></span>' +
+    crSpgLink(CR.names[CR.sel] && CR.names[CR.sel].stu ? CR.names[CR.sel].stu.code : '') + '</div>' +
     '<div class="cr-stu detail">' + ent.html + '</div>';
   crGenLabel();
 }
@@ -10343,11 +10355,19 @@ document.addEventListener('input', function(e){
   var el = e.target; if (!el || !el.hasAttribute || !el.hasAttribute('data-cin')) return;
   var n = $('cr-auto-' + el.getAttribute('data-cin')); if (n) n.hidden = !!el.value.trim();
 });
+/* 학생 목록 줄(div)도 Enter·스페이스로 연다 */
+document.addEventListener('keydown', function(e){
+  if (e.key !== 'Enter' && e.key !== ' ') return;
+  var r = e.target && e.target.classList && e.target.classList.contains('cr-row') ? e.target : null;
+  if (!r || !r.hasAttribute('data-sel')) return;
+  e.preventDefault(); r.click();
+});
 /* ── 창 안의 클릭(위임) ── */
 document.addEventListener('click', function(e){
   var body = $('cr-body');
   if (!body || !body.contains(e.target) || !CR.c) return;
-  var b = e.target.closest('button');
+  if (e.target.closest('a')) return;   // 학생 페이지 링크 등은 그대로 연다
+  var b = e.target.closest('button') || e.target.closest('.cr-row[data-sel]');
   if (!b) return;
   if (b.id === 'cr-back'){ crKeepInputs(); CR.sel = null; crRender(); body.scrollTop = CR.listScroll || 0; return; }
   if (b.hasAttribute('data-sel')){ crKeepInputs(); if (CR.sel == null) CR.listScroll = body.scrollTop; CR.sel = +b.getAttribute('data-sel'); crRender(); body.scrollTop = 0; return; }
