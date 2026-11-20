@@ -1390,6 +1390,29 @@ function showError(title, msg){
   show('errBox');
 }
 
+/* 퇴원생 페이지는 선생님만 본다 (2026-11-20 원장님, 088) — 이 기기에 허브 개인 로그인이 있으면 그 신분으로
+ * student_bundle 을 불러 서버가 활성 교사인지 판단한다. 학생·학부모님 기기에는 로그인이 없어 공개 키로 부른다. */
+var LEFT_STU_RE = /^(퇴원|n|no|off|x|중단|비재원)$/i;
+var TEACHER_TOK = null;   // null = 아직 안 봄, '' = 로그인 없음
+function teacherTok(){
+  if (TEACHER_TOK !== null) return Promise.resolve(TEACHER_TOK);
+  var LS = 'shueguk_teacher_session_v2', s = null;
+  try { s = JSON.parse(localStorage.getItem(LS) || 'null'); } catch (e) { s = null; }
+  if (!s || !s.access_token || !s.refresh_token){ TEACHER_TOK = ''; return Promise.resolve(''); }
+  if (Number(s.expires_at || 0) > Date.now() / 1000 + 90){ TEACHER_TOK = s.access_token; return Promise.resolve(TEACHER_TOK); }
+  return fetch('https://bangdbhqpphqqdwcledg.supabase.co/auth/v1/token?grant_type=refresh_token', {
+      method: 'POST', headers: { apikey: 'sb_publishable_dE9d1KIbpgYaQkaS2MSrlg_-7SiRJuT', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refresh_token: s.refresh_token }) })
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      if (!d || !d.access_token){ TEACHER_TOK = ''; return ''; }
+      try { localStorage.setItem(LS, JSON.stringify({ access_token: d.access_token, refresh_token: d.refresh_token,
+        expires_at: Number(d.expires_at || (Date.now() / 1000 + Number(d.expires_in || 3600))), user: d.user || s.user || null })); } catch (e) {}
+      TEACHER_TOK = d.access_token; return TEACHER_TOK;
+    })
+    .catch(function(){ TEACHER_TOK = ''; return ''; });
+}
+
 function api(extra){
   var q = (IS_ID ? '?student=' : '?key=') + encodeURIComponent(KEY) + (extra||'');
   return fetch(ENDPOINT + q).then(function(r){ return r.json(); });
@@ -1408,10 +1431,10 @@ function api(extra){
   /* 표를 직접 읽는 함수는 두지 않는다 — 학생 화면은 아래 sbRpc 로 DB 함수만 부른다.
    * (공개 키에 표 권한이 없으므로 표를 조회하면 어차피 막힌다, 2026-08-25) */
   /* DB 함수 호출 — 학생 화면은 표를 직접 읽지 않고 이걸 쓴다(012 마이그레이션) */
-  function sbRpc(fn, args){
+  function sbRpc(fn, args, tok){
     return fetch(SB_REST + '/rpc/' + fn, {
       method: 'POST',
-      headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY, 'Content-Type': 'application/json' },
+      headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + (tok || SB_KEY), 'Content-Type': 'application/json' },
       body: JSON.stringify(args || {})
     }).then(function(r){ if(!r.ok) throw new Error('sb rpc ' + r.status); return r.json(); });
   }
@@ -1601,7 +1624,15 @@ function api(extra){
      * 읽혔다. 이제 함수가 접근코드에 해당하는 학생 몫만 조립해 돌려준다.
      * 조회 조건은 그대로 함수 안으로 옮겼고(012 마이그레이션), 아래 조립 규칙은 안 바꿨다.
      * 덤으로 왕복이 16번 → 1번이 된다. 함수 호출이 실패하면 기존 백엔드로 폴백한다. */
-    return sbRpc('student_bundle', { p_key: qsKey, p_is_id: !!isId, p_pw: pw || '' }).then(function(B){
+    return teacherTok().then(function(tok){
+      return sbRpc('student_bundle', { p_key: qsKey, p_is_id: !!isId, p_pw: pw || '' }, tok).catch(function(e){
+        // 로그인 신분이 낡아 거절되면 공개 키로 한 번 더 (퇴원생이 아니면 그대로 열린다)
+        if (!tok) throw e;
+        return sbRpc('student_bundle', { p_key: qsKey, p_is_id: !!isId, p_pw: pw || '' });
+      });
+    }).then(function(B){
+      if (B && B.found === true && B.left === true)
+        return { result: 'left', name: String((B.me && B.me.name) || '') };
       if (!B || B.found !== true) throw new Error('mirror: student not found');
       var me = B.me || {};
       var key = isId ? '' : qsKey;
@@ -2205,7 +2236,7 @@ function renderHub(){
   var en = String(info.enrolled||'').trim();
   if(en && en!=='재원'){
     var b=$('s_badge');
-    b.textContent = en;
+    b.textContent = LEFT_STU_RE.test(en) ? en + ' · 선생님만 보는 화면' : en;
     b.style.display='inline-block';
   }
 
@@ -5211,8 +5242,13 @@ function boot(){
   else if(id){ KEY=id; IS_ID=true; }
   else { showError('잘못된 접근','개인 링크로 접속해주세요. 링크를 분실하셨다면 선생님께 문의해주세요.'); return; }
 
-  api('')
+  teacherTok().then(function(){ return api(''); })
     .then(function(d){
+      // 퇴원생 페이지 — 선생님(허브 개인 로그인)만 본다 (2026-11-20, 088). 예비 경로(옛 백엔드)로 온 경우도 여기서 막는다.
+      if(d.result==='left' || (d.result==='success' && d.info && LEFT_STU_RE.test(String(d.info.enrolled||'').trim()) && !TEACHER_TOK)){
+        showError('열람할 수 없는 페이지입니다', '학원 수강이 끝난 학생의 페이지예요. 궁금한 점은 학원으로 문의해 주세요.');
+        return;
+      }
       if(d.result!=='success'){ showError('열 수 없습니다', d.message||''); return; }
       STATE.info=d.info; STATE.authed=!!d.authed; STATE.examCount=d.examCount||0;
       STATE.notices=d.notices||[];
