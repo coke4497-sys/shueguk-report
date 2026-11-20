@@ -848,7 +848,7 @@ function alItemTitle(title, stu){
 }
 function alKind(){ return AL_KINDS[AL.mode] || AL_KINDS.make; }
 var AL_PHONE = { '학생': 'phone_student', '학부모1': 'phone_parent1', '학부모2': 'phone_parent2' };
-var AL_LEFT = /^(퇴원|n|no|off|x|중단|비재원)$/i;
+var AL_LEFT = /^(퇴원|n|no|off|x|중단|비재원|졸업)$/i;
 var AL_REST = 'https://bangdbhqpphqqdwcledg.supabase.co/rest/v1';
 function alWho(w){ return String(w || '').replace(/학부모(?!님)/g, '학부모님'); }
 function alTr(v){ return String(v == null ? '' : v).trim(); }

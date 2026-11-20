@@ -1107,7 +1107,7 @@
       sv.forEach(function(r){
         var nm = tr_(r.name);
         if (!nm) return;
-        if (/^(퇴원|n|no|off|x|중단|비재원)$/i.test(tr_(r.enrolled))) return;
+        if (/^(퇴원|n|no|off|x|중단|비재원|졸업)$/i.test(tr_(r.enrolled))) return;
         var id = tr_(r.student_id), k = stus.length;
         stus.push({ id: id, name: nm, school: tr_(r.school), grade: tr_(r.grade),
                     exam: {}, clinic: {}, voca: {}, hwork: {}, mock: {}, notice: {}, hwcheck: {}, gramma: {}, smock: {}, avail: {}, bonus: 0, bonusTs: 0 });
@@ -1251,7 +1251,7 @@
    * 시트에는 같은 액션을 뒤에서 보낸다(학생 페이지 폴백·별 집계 레거시가 아직 시트를 읽어서).
    * 신입 등록(addStudent)·아웃(exitDelete)은 접근코드 발급·행 삭제가 백엔드에 있어 종전대로
    * 백엔드 먼저 + 즉시 미러(AFTER 훅) — 등록 직후에도 미러가 바로 맞는 구조는 이미 있다. */
-  var LEFT_RE = /^(퇴원|n|no|off|x|중단|비재원)$/i;
+  var LEFT_RE = /^(퇴원|n|no|off|x|중단|비재원|졸업)$/i;
   function stuAll(){ return sbAll('/students?select=*&order=seq,id'); }
   function stuActive(rows){
     return rows.filter(function(r){ return tr_(r.name) && !LEFT_RE.test(tr_(r.enrolled)); });
@@ -2265,7 +2265,7 @@
   }
   function leaveBtns(){
     var stu = ITEMS.filter(function(it){ return it.src==='sb' && it.table==='students'; });
-    var anyLeft = stu.some(function(it){ return /^(퇴원|n|no|off|x|중단|비재원)$/i.test(it.enrolled); });
+    var anyLeft = stu.some(function(it){ return /^(퇴원|n|no|off|x|중단|비재원|졸업)$/i.test(it.enrolled); });
     $('backBtn').style.display = anyLeft ? 'block' : 'none';
     $('leaveLinks').innerHTML = stu.filter(function(it){ return it.code; }).map(function(it){
       return '<a href="'+S_BASE+encodeURIComponent(it.code)+'" target="_blank" rel="noopener">'+esc(it.name)+' 학생 페이지 보기 ↗</a>';
@@ -3119,7 +3119,7 @@
    * 반을 고를 때 그 반 인원으로 자동, 고칠 수 있음). 등록으로 전환하면 신입 슈스 폼을 채우고 등록이 끝나면 그 줄이 '완료'가 된다. */
   var WT = { kind:'예비', book:'정규', rows:null, ttc:null, stu:null, pick:null, past:false, pend:null, missing:false, editing:null, capTouched:false, inited:false, fg:'', fs:'', sg:'', vis:[], fgs:[] };   // fgs = 명단 학년 거르기(여러 개, 2026-11-06) — WT.fg 는 그중 하나만 골랐을 때의 값(그래프·학교 줄용)   // fg·fs = 학년·학교 거르기('' = 전체), sg = 현황 그래프에서 고른 학년
   var WT_ERR_MISSING = /sb 404|PGRST205|42P01|does not exist/;
-  var WT_LEFT = /^(퇴원|n|no|off|x|중단|비재원)$/i;   // 어댑터 스크립트의 LEFT_RE·tr_·stuActive 는 다른 script 블록이라 여기서 다시 둔다
+  var WT_LEFT = /^(퇴원|n|no|off|x|중단|비재원|졸업)$/i;   // 어댑터 스크립트의 LEFT_RE·tr_·stuActive 는 다른 script 블록이라 여기서 다시 둔다
   function wtTr(v){ return String(v == null ? '' : v).trim(); }
   // 대기 연도 기본값 = 다음 학년도(2026-10-29 원장님 "2027로" — 대기는 다음 해 등록을 기다리는 것). 3월부터는 내년, 1·2월은 올해(한국 날짜). 슈톡 wtmDefaultYear 와 같은 규칙.
   function wtDefaultYear(){ var y = todayYmdKST(); var yr = +y.slice(0, 4), m = +y.slice(5, 7); return m >= 3 ? yr + 1 : yr; }

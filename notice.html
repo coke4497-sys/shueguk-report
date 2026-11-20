@@ -547,7 +547,7 @@
       return t === stu.name || t === stu.sid || t === stu.code;
     });
   }
-  var LEFT_RE = /^(퇴원|n|no|off|x|중단|비재원)$/i;
+  var LEFT_RE = /^(퇴원|n|no|off|x|중단|비재원|졸업)$/i;
   var alimPending = null;   // { ref, title, items:[{student,to,who,code}], missing:[names] }
   // 받는 분 — 학생·학부모1·학부모2를 함께 고를 수 있다(2026-09-29 사용자 "학생, 학부모님 모두에게 발송"). 학부모2는 번호가 있는 학생만.
   var ALIM_PHONE = { '학생': 'phone_student', '학부모1': 'phone_parent1', '학부모2': 'phone_parent2' };

@@ -398,7 +398,7 @@
    * 재원여부가 퇴원류면 빼고, 시트 행 순서(seq)를 유지한다. */
   var ITEMS_KEY = '숙제검사 항목';
   var DEFAULT_ITEMS = ['숙제 수행', '오답 처리'];   // 저장 키 — 화면 표시는 itemLabel('과제 수행')
-  var LEFT_RE = /^(퇴원|n|no|off|x|중단|비재원)$/i;
+  var LEFT_RE = /^(퇴원|n|no|off|x|중단|비재원|졸업)$/i;
   var STU_COLS = 'student_id,name,school,grade,teacher,memo,class_a,class_b,naeshin_a,naeshin_b,enrolled,code,reg_date';
   function studentLinks(rows){
     return rows.filter(function(r){

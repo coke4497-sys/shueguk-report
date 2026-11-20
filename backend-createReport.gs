@@ -809,7 +809,7 @@ function getStudent(opts) {
   for (var n3 = 1; n3 < sv.length; n3++) {
     var rn3 = String(sv[n3][1] || '').trim();
     if (!rn3 || baseName_(rn3) !== myBase) continue;
-    if (/^(퇴원|n|no|off|x|중단|비재원)$/i.test(String(sv[n3][10] || '').trim())) continue;
+    if (/^(퇴원|n|no|off|x|중단|비재원|졸업)$/i.test(String(sv[n3][10] || '').trim())) continue;
     nameDupCount++;
   }
   info.nameDup = nameDupCount > 1;
@@ -1545,7 +1545,7 @@ function starRankingData_() {
   for (var i = 1; i < sv.length; i++) {
     var nm = String(sv[i][1] || '').trim();
     if (!nm) continue;
-    if (/^(퇴원|n|no|off|x|중단|비재원)$/i.test(String(sv[i][10] || '').trim())) continue;
+    if (/^(퇴원|n|no|off|x|중단|비재원|졸업)$/i.test(String(sv[i][10] || '').trim())) continue;
     var id = String(sv[i][0] || '').trim();
     var k = stus.length;
     stus.push({ id: id, name: nm, school: String(sv[i][2] || '').trim(), grade: String(sv[i][3] || '').trim(),
@@ -2395,7 +2395,7 @@ function addStudent(data) {
       if (tk) used[tk] = true;
       var rn = String(v[i][1] || '').trim();
       if (!rn) continue;
-      if (/^(퇴원|n|no|off|x|중단|비재원)$/i.test(String(v[i][10] || '').trim())) continue;
+      if (/^(퇴원|n|no|off|x|중단|비재원|졸업)$/i.test(String(v[i][10] || '').trim())) continue;
       var rid = String(v[i][0] || '').replace(/^'/, '').trim();
       var who = rn + ' (' + String(v[i][2] || '') + ' ' + String(v[i][3] || '') + ')';
       if (rn === name) warns.push('같은 이름의 재원생이 이미 있어요: ' + who + ' — 동명이인이면 이름 뒤에 A·B 접미사를 붙여 등록하세요 (예: ' + name + 'B).');
@@ -2715,7 +2715,7 @@ function getNewStudents(monthParam) {
       var ds = (d && d.getTime) ? Utilities.formatDate(d, 'Asia/Seoul', 'yyyy-MM-dd') : String(d || '').trim();
       if (ds.slice(0, 7) !== month) continue;
       if (!String(v[i][1] || '').trim()) continue;
-      if (/^(퇴원|n|no|off|x|중단|비재원)$/i.test(String(v[i][10] || '').trim())) continue;
+      if (/^(퇴원|n|no|off|x|중단|비재원|졸업)$/i.test(String(v[i][10] || '').trim())) continue;
       out.push({
         date: ds,
         name: String(v[i][1] || '').trim(), school: String(v[i][2] || '').trim(),
@@ -2739,7 +2739,7 @@ function getRoster() {
     var name = String(v[i][1] || '').trim();
     if (!name) continue;
     var enrolled = String(v[i][10] || '').trim();   // K: 재원여부
-    if (/^(퇴원|n|no|off|x|중단|비재원)$/i.test(enrolled)) continue;   // 퇴원 등은 제외
+    if (/^(퇴원|n|no|off|x|중단|비재원|졸업)$/i.test(enrolled)) continue;   // 퇴원 등은 제외
     out.push({
       name: name,
       school: String(v[i][2] || '').trim(),
@@ -2762,7 +2762,7 @@ function studentLinksData_() {
   for (var i = 1; i < v.length; i++) {
     var name = String(v[i][1] || '').trim();
     if (!name) continue;
-    if (/^(퇴원|n|no|off|x|중단|비재원)$/i.test(String(v[i][10] || '').trim())) continue;
+    if (/^(퇴원|n|no|off|x|중단|비재원|졸업)$/i.test(String(v[i][10] || '').trim())) continue;
     out.push({
       name:   name,
       sid:    String(v[i][0] || '').replace(/^'/, '').trim(),   // 학생ID(부모님 8자리 = 비밀번호)

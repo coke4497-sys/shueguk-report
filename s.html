@@ -2800,7 +2800,7 @@ function rcHwTasks(hw){   // 과제마다 {t, dim, vol, depth, lv{채점…}, le
 function rcPctNote(tasks){
   if (tasks.some(function(g){ return g.lv.hasOwnProperty(RC_PERF); })){
     var top = tasks.filter(function(g){ return !g.miss && g.lv[RC_PERF] === 3; }).length;
-    return '<span class="hn">모든 과제를 \'매우 잘함\'으로 마치면 100%예요 · 매우 잘함 ' + top + ' / ' + tasks.length + '</span>';
+    return '<span class="hn">내신 기간에는 과제가 많이 나가고, 시험 전까지 하나씩 완성해 가는 방식이에요. 모든 과제를 \'매우 잘함\'으로 마치면 100%예요 · 매우 잘함 ' + top + ' / ' + tasks.length + '</span>';
   }
   if (tasks.some(function(g){ return g.vol || Object.keys(g.lv).length; }))
     return '<span class="hn">과제마다 학습량을 다 채우고 채점·학습 분석·오답 분석을 \'완벽\'으로 마치면 100%예요</span>';

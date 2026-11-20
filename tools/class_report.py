@@ -27,7 +27,7 @@ import urllib.request
 SB = 'https://bangdbhqpphqqdwcledg.supabase.co'
 KEY = 'sb_publishable_dE9d1KIbpgYaQkaS2MSrlg_-7SiRJuT'
 T_ID, T_PW = 'teachers@shueguk.internal', 'shg_FCePWvnawH44SV8kYB9BHRKi6aag'
-LEFT_RE = re.compile(r'^(퇴원|n|no|off|x|중단|비재원)$', re.I)
+LEFT_RE = re.compile(r'^(퇴원|n|no|off|x|중단|비재원|졸업)$', re.I)
 _tok = None
 
 
