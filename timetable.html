@@ -744,6 +744,7 @@
   .rc-tile .k{font-size:.74rem;color:#6B7670;}
   .rc-tile .v{font-family:'Do Hyeon',sans-serif;font-size:1.28rem;line-height:1.25;word-break:keep-all;}
   .rc-tile .v .u{white-space:nowrap;}
+  .rc-tile .hn{font-size:.76rem;color:#5C6A64;line-height:1.45;}
   .rc-tile .v small{font-family:'Gowun Dodum',sans-serif;font-size:.76rem;color:#6B7670;margin-left:6px;}
   .rc-sec h5{font-size:.92rem;font-weight:700;margin:0 0 11px;color:#2A332F;}
   .rc-sec p{margin:0;font-size:.92rem;line-height:1.8;color:#3A443F;white-space:pre-wrap;}
@@ -10757,6 +10758,16 @@ function rcHwTasks(hw){   // 과제마다 {t, dim, vol, depth, lv{채점…}, le
   out.forEach(function(g){ g.miss = mi.indexOf(g.t) >= 0; });
   return out;
 }
+/* 과제 검사 % 안내 (2026-11-20 원장님 "과제검사 퍼센트에 안내 멘트가 없어요") — %가 무엇을 센 값인지 한 줄로. s.html·timetable.html 두 벌 */
+function rcPctNote(tasks){
+  if (tasks.some(function(g){ return g.lv.hasOwnProperty(RC_PERF); })){
+    var top = tasks.filter(function(g){ return !g.miss && g.lv[RC_PERF] === 3; }).length;
+    return '<span class="hn">모든 과제를 \'매우 잘함\'으로 마치면 100%예요 · 매우 잘함 ' + top + ' / ' + tasks.length + '</span>';
+  }
+  if (tasks.some(function(g){ return g.vol || Object.keys(g.lv).length; }))
+    return '<span class="hn">과제마다 학습량을 다 채우고 채점·학습 분석·오답 분석을 \'완벽\'으로 마치면 100%예요</span>';
+  return '<span class="hn">과제 검사 항목을 모두 만점으로 마치면 100%예요</span>';
+}
 function rcLvCell(g, d){
   if (!g.lv.hasOwnProperty(d)) return '<span data-l="' + d + '"><span class="rc-v none">—</span></span>';
   var v = g.lv[d];
@@ -10807,7 +10818,7 @@ function rcCardHtml(it, opt){
       var nm = tasks.filter(function(g){ return g.miss; }).length, pct = Math.max(0, Math.min(100, +hw.pct || 0));
       hv = pct + '%' + (pct >= 100 ? ' 🏆' : '') + (tasks.length ? '<small>' + (nm ? tasks.length + '건 중 ' + nm + '건 미제출' : tasks.length + '건 모두 제출') + '</small>' : '');
     }
-    tiles += '<div class="rc-tile hw"><span class="k">과제 검사</span><span class="v">' + hv + '</span></div>';
+    tiles += '<div class="rc-tile hw"><span class="k">과제 검사</span><span class="v">' + hv + '</span>' + (tasks.length && !hw.missing ? rcPctNote(tasks) : '') + '</div>';
   }
   if (tiles) h += '<div class="rc-tiles">' + tiles + '</div>';
   var sum = String(it.summary || '').trim(), body = '';
