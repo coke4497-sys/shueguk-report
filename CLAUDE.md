@@ -1224,3 +1224,6 @@ clasp update-deployment -d "설명" <DEPLOYMENT_ID>   # 기존 배포 새 버전
 
 ## H WORK [잘 고쳤습니다]도 슈톡 업무 카드 완료 — 082 (2026-11-19 원장님)
 - 트리거 `hwork_check_to_task`(hwork_submissions.checked 가 바뀔 때): 새로 확인한 문항의 '대기' H WORK 질문 할 일(hw_ref 'hw:제출:문항')을 완료로(done_by_name = checked 의 by). 확인 취소로 되살리지 않고, 학생이 다시 물으면 072 가 새로 올린다. 이미 확인한 뒤 남은 할 일도 한 번 정리(적용 때 0건). **2026-11-19 실제 적용 완료**(두 번 실행 — 적용 전 한 거래 안에서 제출 605 11번을 확인해 할 일 876 이 완료되고 다른 문항은 그대로인 것을 보고 되돌림). 화면 규칙은 H WORK CLAUDE.md '[잘 고쳤습니다]도 처리로 친다'.
+
+## H WORK 답장 수정·지우기 — 089 (2026-11-20 원장님)
+- `hwork_qa.edited_at` + 삭제 트리거 `hwork_qa_reopen`(선생님 답장을 지워 마지막 글이 학생 질문이면 슈톡 'H WORK 질문' 할 일을 '대기'로, 확인한 문항 제외). 2026-11-20 실제 적용(두 번 실행). 화면은 H WORK CLAUDE.md 같은 날 절. **관리 API database/query 는 begin…rollback 을 한 요청에 넣어도 되돌리지 않을 수 있다 — 시험은 DO 블록 끝에서 raise exception 으로 되돌릴 것.**
