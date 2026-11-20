@@ -324,7 +324,10 @@
 - **클로슈 도구**(`tools/class_report.py`): data/publish가 수업 한 번 단위(위 처리 절차).
 - 검증: `tools/class-history-sql-test.sh`(039·040 — 공개만·내 것만·순서·before·60개+more·유일 조건·class_report_list 삭제·권한) + `tools/class-report-e2e.js` 95건(⑦-4 학생마다 과제·1회 이동 원래 반, ⑧ 새 모양·주간 카드 없음·⑧-2 비활성 카드).
 
-### 학생 화면 '← 내 페이지로' 링크 — me-back.js (2026-10-02)
+#### 과제 검사 % 안내 한 줄 (2026-11-20 원장님 "과제검사 퍼센트에 안내 멘트가 없어요")
+- 수업 리포트 카드(`rcCardHtml` — s.html·timetable.html 미리보기 두 벌)의 과제 검사 타일 아래 작은 글 `.hn`(`rcPctNote`): 내신 수행 평가면 '모든 과제를 '매우 잘함'으로 마치면 100%예요 · 매우 잘함 a / n', 정규면 '과제마다 학습량을 다 채우고 채점·학습 분석·오답 분석을 '완벽'으로 마치면 100%예요', 옛 항목이면 '…모두 만점으로'. 전체 미제출·과제 없음에는 없다. 검증 class-report-e2e(249건).
+
+## 학생 화면 '← 내 페이지로' 링크 — me-back.js (2026-10-02)
 원장님 "지필고사 리포트에서 메인 페이지로 돌아가는 기능이 없었어요 — 다른 페이지도 확인" → 학생 페이지에서 여는 다른 페이지 6곳에 돌아가는 링크가 없었다(r.html·허브 omr.html·주말 signup.html·클리닉 index.html·어휘 test.html·H WORK hwork.html. 문법은 원래 '내 페이지로'가 있음). 공용 `me-back.js`(리포트 저장소): s.html이 `data-mode="remember"`로 자기 주소를 session/localStorage `shueguk_me`에 적고(모든 학생 화면이 coke4497-sys.github.io 한 출처라 공유된다), 다른 페이지는 `</body>` 앞 `<script src="https://coke4497-sys.github.io/shueguk-report/me-back.js">`가 body 맨 위에 링크를 넣는다(넘어온 주소가 s.html이면 그것이 먼저). 학생 페이지를 거치지 않았거나 `?preview=1`이면 넣지 않는다. **학생이 여는 새 페이지를 만들면 같은 한 줄을 넣을 것.**
 
 ### 티쳐스 학습 관리 [과제 검사] 카드 삭제 (2026-10-03)

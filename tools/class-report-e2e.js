@@ -952,6 +952,7 @@ const STUDENTS = [
     z: +getComputedStyle(document.getElementById('crpv')).zIndex }));
   ok('카드의 [리포트 미리보기] → 그 학생 카드(진도·과제·태도·코멘트·과제 검사·과제별 미제출)', r.open && /박보검/.test(r.t) && /사미인곡/.test(r.t) && /비교 학습지 1장/.test(r.t) &&
      /수업 태도 ?매우 좋음/.test(r.t) && /집중이 좋았어요/.test(r.t) && /관동별곡 학습지5\/5/.test(r.t) && /오답 노트미제출/.test(r.t) && /과제 검사23%2건 중 1건 미제출/.test(r.t) && r.z > 81, r.t);
+  ok('과제 검사 % 아래 안내 한 줄(무엇을 다 하면 100%인지)', /채점·학습 분석·오답 분석을 '완벽'으로 마치면 100%예요/.test(r.t), r.t);
   await page.waitForTimeout(900);
   ok('미리보기는 리포트를 요청하지 않는다', !st.gas.some(g => g.action === 'editReqAdd') && st.writes.slice(wBefore).every(w => !w.body || !w.body[0] || !w.body[0].report_status));
   await page.keyboard.press('Escape');
