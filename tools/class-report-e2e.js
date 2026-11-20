@@ -373,6 +373,28 @@ const STUDENTS = [
   ok('확인 수업은 진도 없이도 생성', st.gas.some(g => g.action === 'editReqAdd' && /n002/.test(g.text) && /확인 수업/.test(g.text)));
   await ctx.close();
 
+  // ②-8 '이 주만' 옮긴 내신 진도 수업(w…) — 진도 단원·주차 기록은 원래 반ID로 읽고 쓴다
+  //      (2026-11-20 원장님 "무원고2 진도가 기록되지 않았네요" — 11/21 복사본 창이 원래 반 진도를 못 읽었다)
+  {
+    const WID = 'w' + TODAYSTR.slice(2).replace(/-/g, '') + 'a';
+    ({ ctx, page, st } = await ctxOf({ book: '내신',
+      rows: [Object.assign(row(WID, '고2 무원B(창비 화언)', '슈', ''), { start_time: '7:30', end_time: '9:45' }), Object.assign(row('n078', '고2 무원B(창비 화언)', '슈', '박보검'), { day: '월' })],
+      log: [{ id: 9, at: TODAYSTR + 'T00:00:00+09:00', book: '내신', kind: '주간반이동', student: '', from_class_id: 'n078', to_class_id: WID, from_class: '고2 무원B(창비 화언)', to_class: '', apply_date: TODAYSTR, reason: '진도 보충' }],
+      att: [], hw: [] }));
+    st.ns.push({ period: UPCOMING, class_key: '공유:고2|무원', kind: '범위', week: '', student: '', text1: JSON.stringify({ book: '창비 화법과 언어', inRange: '단원 가\n단원 나', extra: '', outRange: '' }), text2: '' },
+      { period: UPCOMING, class_key: 'n078', kind: '클리어', week: '', student: '', text1: JSON.stringify({ '단원 가': { s: PREVWED7, d: PREVWED7 } }), text2: '' });
+    await page.waitForFunction(() => typeof openClassNote === 'function' && typeof classes !== 'undefined' && classes.length, null, { timeout: 15000 });
+    await page.evaluate(id => openClassNote(classes.find(c => c.id === id)), WID);
+    await page.waitForSelector('#crpanel:not([hidden]) .cr-ptab', { timeout: 8000 });
+    r = await page.evaluate(() => ({ own: CR.ns.own, rows: [...document.querySelectorAll('.cr-ptab tbody tr:not(:has(.sec))')].map(t => t.children[0].textContent + '=' + t.querySelector('.pst').textContent) }));
+    ok('②-8 복사본 창 = 원래 반(n078)의 진도 단원을 읽는다', r.own === 'n078' && /단원 가=완료/.test(r.rows.join('|')), JSON.stringify(r));
+    await page.click('[data-unadd="단원 나"]');
+    await page.waitForFunction(() => document.querySelectorAll('.cr-unit').length === 1, null, { timeout: 5000 });
+    const cw = st.writes.filter(w => /naeshin_records/.test(w.u)).pop();
+    ok('②-8 단원 고르기 → 원래 반ID(n078) 클리어 기록', cw && cw.body[0].class_key === 'n078' && JSON.parse(cw.body[0].text1)['단원 가'] && JSON.parse(cw.body[0].text1)['단원 나'], JSON.stringify(cw && cw.body));
+    await ctx.close();
+  }
+
   // ③-2 확인 수업 — 학생 카드를 진도반별로 묶고(머리 = 진도반·진행 요약, 누르면 진도표), 카드마다 진도반 한 줄 요약,
   //      진도표에 주차별 누적 진도, 학교가 다른 같은 이름은 잇지 않는다(2026-11-05 원장님 ①+② · "주차별 누적 진도가 보여야")
   {
