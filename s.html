@@ -840,6 +840,59 @@
   table.tr-cat td.na{color:#C4CDC7;}
 
   /* 모의고사 성적표 (OMR 스타일 · 정오표 포함) */
+  /* 주말 모의고사 성적표 — 2026-11-20 원장님 "디자인 개선이 시급" (회차 칩 + 카드형 성적표 .mr-*) */
+  .mr-pick{background:var(--surface);border-radius:18px;padding:14px 16px 12px;margin:0 0 14px;}
+  .mr-pick-h{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin:0 2px 10px;}
+  .mr-pick-h b{font-family:"Gowun Batang",serif;font-size:15px;color:var(--ink);}
+  .mr-pick-h span{font-size:12px;color:var(--ink-soft);}
+  .mr-chips{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;scrollbar-width:thin;}
+  .mr-chip{flex:0 0 auto;min-width:76px;border:none;border-radius:14px;background:#F2F5F3;color:var(--ink);padding:9px 12px 8px;cursor:pointer;font-family:inherit;text-align:center;}
+  .mr-chip .d{display:block;font-family:"Do Hyeon",sans-serif;font-size:18px;line-height:1.1;}
+  .mr-chip .s{display:block;margin-top:3px;font-size:11.5px;color:var(--ink-soft);white-space:nowrap;}
+  .mr-chip.on{background:#EDE4F4;color:#5A4A6A;}
+  .mr-chip.on .s{color:#6B5B7B;}
+  .mr{background:var(--surface);border-radius:18px;padding:20px 18px 18px;margin-bottom:14px;}
+  .mr-top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;}
+  .mr-k{font-size:11.5px;letter-spacing:.12em;color:var(--ink-soft);}
+  .mr-date{font-family:"Do Hyeon",sans-serif;font-size:30px;color:var(--ink);line-height:1.15;margin-top:2px;}
+  .mr-code{font-size:12px;color:var(--ink-soft);margin-top:2px;}
+  .mr-sub{flex:0 0 auto;font-size:12px;padding:5px 11px;border-radius:999px;background:#EDE4F4;color:#5A4A6A;}
+  .mr-who{margin-top:10px;font-size:13px;color:#4F5C56;}
+  .mr-tiles{display:grid;grid-template-columns:1.2fr 1fr;gap:10px;margin-top:16px;}
+  .mr-tile{border-radius:16px;background:#F2F5F3;padding:14px 16px;}
+  .mr-tile.main{background:#EAF1EC;}
+  .mr-tile .l{font-size:12px;color:var(--ink-soft);}
+  .mr-tile .v{font-family:"Do Hyeon",sans-serif;font-size:40px;line-height:1.1;color:var(--accent);margin-top:4px;}
+  .mr-tile .v small{font-size:17px;color:var(--ink-soft);margin-left:3px;}
+  .mr-tile.lv .v{color:#5A4A6A;}
+  .mr-cuts{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;}
+  .mr-cut{font-size:12px;padding:4px 10px;border-radius:999px;background:#F2F5F3;color:#4F5C56;}
+  .mr-cut.me{background:#EDE4F4;color:#5A4A6A;font-weight:700;}
+  .mrs{margin-top:22px;}
+  .mrs h3{font-family:"Gowun Batang",serif;font-size:15px;margin:0 0 10px;color:var(--ink);display:flex;align-items:baseline;gap:8px;}
+  .mrs h3 span{font-family:inherit;font-size:12px;font-weight:400;color:var(--ink-soft);}
+  .mr-cat{margin-top:12px;}
+  .mr-cat-h{display:flex;justify-content:space-between;align-items:baseline;font-size:13px;font-weight:700;color:var(--ink);padding:0 2px 6px;border-bottom:1px solid var(--line-soft);}
+  .mr-cat-h span{font-weight:400;color:var(--ink-soft);font-size:12px;}
+  .mr-ar{display:grid;grid-template-columns:76px 1fr 58px;align-items:center;gap:10px;padding:7px 2px;font-size:13px;}
+  .mr-ar .n{color:#4F5C56;word-break:keep-all;}
+  .mr-ar .t{height:10px;border-radius:999px;background:#EEF1EF;overflow:hidden;}
+  .mr-ar .t i{display:block;height:100%;border-radius:999px;background:#9DB3A9;}
+  .mr-ar.low .t i{background:#E3A9A6;}
+  .mr-ar .p{text-align:right;font-variant-numeric:tabular-nums;color:var(--ink);}
+  .mr-ar .p small{display:block;font-size:11px;color:var(--ink-soft);}
+  .mr-wrong{font-size:13px;color:#4F5C56;margin:0 0 10px;line-height:1.6;}
+  .mr-wrong b{color:#B0524E;}
+  .mr-qs{display:grid;grid-template-columns:repeat(auto-fill,minmax(52px,1fr));gap:6px;}
+  .mr-q{border-radius:10px;background:#F2F5F3;padding:6px 4px;text-align:center;font-size:12px;line-height:1.35;}
+  .mr-q .no{display:block;font-size:11px;color:var(--ink-soft);}
+  .mr-q .ok{display:block;color:var(--accent);font-weight:700;}
+  .mr-q.x{background:#FBEBEA;}
+  .mr-q.x .no{color:#B0524E;}
+  .mr-q .mine{display:block;color:#B0524E;font-weight:700;}
+  .mr-q .ans{display:block;font-size:10.5px;color:#4F5C56;}
+  .mr-legend{font-size:11.5px;color:var(--ink-soft);margin-top:8px;}
+  @media (max-width:420px){ .mr-tile .v{font-size:34px;} .mr-date{font-size:26px;} .mr-ar{grid-template-columns:66px 1fr 52px;} }
   .omr-report{ --shadow:0 2px 10px rgba(63,58,68,.06);
     background:#f7f6f3; border:1px solid var(--line-soft); border-radius:var(--radius); overflow:hidden; margin-bottom:16px;
     font-family:"Gowun Dodum",sans-serif; color:#3f3a44; }
@@ -1084,7 +1137,7 @@
     <span class="gv-ttl">주말 실전 모의고사 · 성적</span>
   </div>
   <div id="mockTrend" style="display:none;"></div>
-  <div class="exam-tabs" id="mockTabs" style="display:none;"></div>
+  <div class="mr-pick" id="mockTabs" style="display:none;"></div>
   <div id="mockList"></div>
   <footer><p>이수경국어 Shueguk · 학생용</p></footer>
 </main></div>
@@ -3871,17 +3924,30 @@ function closeMockHub(){ $('mockHubView').style.display='none'; show('hubView');
 
 var MOCK_SEL=0;
 function closeMock(){ $('mockView').style.display='none'; $('mockHubView').style.display='block'; window.scrollTo(0,0); }
-function pickMock(i){ var reps=STATE.mock||[]; MOCK_SEL=i; var t=$('mockTabs').children;
-  for(var k=0;k<t.length;k++){ t[k].className='exam-tab'+(k===i?' active':''); }
-  $('mockList').innerHTML=mockCardHtml(reps[i]); window.scrollTo(0,0); }
+function pickMock(i){ var reps=STATE.mock||[]; MOCK_SEL=i;
+  $('mockTabs').innerHTML=mockPickHtml(reps);
+  $('mockList').innerHTML=mockCardHtml(reps[i]);
+  var c=$('mockTabs').querySelector('.mr-chip.on'); if(c && c.scrollIntoView) try{ c.scrollIntoView({block:'nearest',inline:'center'}); }catch(e){}
+  var top=$('mockTabs').getBoundingClientRect().top + window.pageYOffset - 10;
+  window.scrollTo(0, Math.max(0, top)); }
+// 회차 고르기 — 날짜(도현체)·점수·등급 칩, 최근 회차가 왼쪽 (옛 기본 버튼 줄 대체)
+function mockLv(v){ v=String(v==null?'':v).trim(); return /^\d$/.test(v) ? v+'등급' : v; }
+function mockPickHtml(reps){
+  return '<div class="mr-pick-h"><b>회차 고르기</b><span>'+reps.length+'회 응시 · 최근 회차부터</span></div><div class="mr-chips">'+
+    reps.map(function(x,i){
+      var d=TREND.label(x);
+      var lv=mockLv(x.level);
+      return '<button class="mr-chip'+(i===MOCK_SEL?' on':'')+'" onclick="pickMock('+i+')" title="'+esc(x.code||x.examName||'')+'">'+
+        '<span class="d">'+esc(d)+'</span><span class="s">'+esc(x.got)+'점'+(lv?' · '+esc(lv):'')+'</span></button>';
+    }).join('')+'</div>';
+}
 function renderMock(){
   var reps=STATE.mock||[]; var tabs=$('mockTabs'), list=$('mockList');
   if(!reps.length){ tabs.style.display='none';
     list.innerHTML='<div class="empty-state"><p>아직 응시한 주말 모의고사 성적이 없습니다.<br>모의고사에 응시하면 이곳에 성적표가 쌓입니다.</p></div>'; }
   else {
     if(MOCK_SEL>=reps.length) MOCK_SEL=0;
-    if(reps.length>1){ tabs.style.display='flex';
-      tabs.innerHTML=reps.map(function(x,i){ return '<button class="exam-tab'+(i===MOCK_SEL?' active':'')+'" onclick="pickMock('+i+')">'+esc(x.examName||('회차 '+(i+1)))+'</button>'; }).join(''); }
+    if(reps.length>1){ tabs.style.display='block'; tabs.innerHTML=mockPickHtml(reps); }
     else { tabs.style.display='none'; }
     list.innerHTML=mockCardHtml(reps[MOCK_SEL]);
   }
@@ -3927,24 +3993,39 @@ function mockCardHtml(x){
       ox+='<td class="'+(d.ok?'o':'x')+'">'+(d.ok?esc(d.pt):0)+'</td>'; }
     return '<table class="scoretbl">'+qn+'</tr>'+an+'</tr>'+my+'</tr>'+ox+'</tr></table>';
   }
-  var cuts=(x.cuts&&x.cuts.length)?x.cuts.join('-'):'';
-  return '<div class="omr-report">'+
-    '<div class="rbrand"><div><div class="rname">이수경국어</div><div class="rsub">Shueguk</div></div><div class="rlogo">Shueguk</div></div>'+
-    '<div class="tbar">2026 주간 모의고사 성적표 · '+esc(x.code||x.examName||'')+'</div>'+
-    '<section><h2>1. 학생정보</h2>'+
-      '<table class="info"><tr><th>성명</th><th>학교</th><th>학년</th><th>선택과목</th><th>응시일</th></tr>'+
-      '<tr><td>'+esc(name)+'</td><td>'+esc(x.school)+'</td><td>'+esc(x.grade)+'</td><td>'+esc(x.subject)+'</td><td>'+esc(mockDateLabel(x.examDate))+'</td></tr></table></section>'+
-    '<section><h2>2. 성적</h2>'+
-      '<table class="score"><tr><th>점수(100점 만점)</th><th>등급</th><th>등급컷</th></tr>'+
-      '<tr><td class="big">'+esc(got)+'</td><td class="big">'+esc(x.level)+'</td><td>'+esc(cuts)+'</td></tr></table></section>'+
-    '<section><h2>3. 영역분류별 성취도 분석</h2>'+
-      '<table class="areatbl"><tr><th>분류</th><th>영역</th><th>배점</th><th>득점</th><th>성취도(%)</th></tr>'+
-      areaRows+'<tr class="total"><td colspan="2">합계</td><td>'+esc(total)+'</td><td>'+esc(got)+'</td><td>'+totalRate+'</td></tr></table>'+
-      '<div class="chart">'+chart+'</div></section>'+
-    '<section><h2>4. 문항 채점표</h2>'+
-      '<div class="grid-wrap">'+block(1,15)+block(16,30)+block(31,45)+'</div>'+
-      '<div class="legend">정오 칸의 숫자 = 획득 배점 · 0 = 오답</div></section>'+
-    '</div>';
+  // 2026-11-20 새 성적표 — 카드형(점수·등급 타일 · 등급컷 칩 · 영역 막대 · 문항 칸). 옛 표·세로 막대(위 bars/block)는 쓰지 않는다.
+  var lvTxt=mockLv(x.level), myLv=/^\d$/.test(String(x.level||'').trim()) ? Number(x.level) : 0;
+  var cutChips=(x.cuts||[]).map(function(c,i){ return '<span class="mr-cut'+(myLv===i+1?' me':'')+'">'+(i+1)+'등급 '+esc(c)+'점</span>'; }).join('');
+  var cats=[], byCat={};
+  areas.forEach(function(a){ var c=a.cat||'기타'; if(!byCat[c]){ byCat[c]=[]; cats.push(c); } byCat[c].push(a); });
+  var areaHtml=cats.map(function(c){
+    var f=0,g=0; byCat[c].forEach(function(a){ f+=Number(a.full)||0; g+=Number(a.score)||0; });
+    return '<div class="mr-cat"><div class="mr-cat-h">'+esc(c)+'<span>'+g+' / '+f+'점 · '+(f?Math.round(g/f*100):0)+'%</span></div>'+
+      byCat[c].map(function(a){ var r=Math.max(0,Math.min(100,Number(a.rate)||0));
+        return '<div class="mr-ar'+(r<70?' low':'')+'"><span class="n">'+esc(a.name)+'</span><span class="t"><i style="width:'+r+'%"></i></span>'+
+          '<span class="p">'+esc(a.rate)+'%<small>'+esc(a.score)+'/'+esc(a.full)+'</small></span></div>'; }).join('')+'</div>';
+  }).join('');
+  var qs=Object.keys(detail).map(Number).filter(function(n){ return n>0; }).sort(function(a,b){ return a-b; });
+  var wrong=qs.filter(function(q){ return !(detail[q]||{}).ok; });
+  var qHtml=qs.map(function(q){ var d=detail[q]||{};
+    return d.ok ? '<div class="mr-q"><span class="no">'+q+'</span><span class="ok">'+esc(d.pt)+'점</span></div>'
+      : '<div class="mr-q x"><span class="no">'+q+'</span><span class="mine">'+(String(d.mine==null?'':d.mine).trim()?esc(d.mine):'—')+'</span><span class="ans">정답 '+esc(d.ans)+'</span></div>';
+  }).join('');
+  var who=[name, [x.school, x.grade ? (/^\d$/.test(String(x.grade).trim())?x.grade+'학년':x.grade) : ''].filter(Boolean).join(' ')].filter(Boolean).join(' · ');
+  return '<div class="mr">'+
+    '<div class="mr-top"><div><div class="mr-k">주말 실전 모의고사 성적표</div>'+
+      '<div class="mr-date">'+esc(mockDateLabel(x.examDate)||TREND.label(x))+'</div>'+
+      '<div class="mr-code">'+esc(x.code||x.examName||'')+'</div></div>'+
+      (x.subject?'<span class="mr-sub">'+esc(x.subject)+'</span>':'')+'</div>'+
+    '<div class="mr-who">'+esc(who)+'</div>'+
+    '<div class="mr-tiles"><div class="mr-tile main"><div class="l">점수</div><div class="v">'+esc(got)+'<small>/ '+esc(total||100)+'</small></div></div>'+
+      '<div class="mr-tile lv"><div class="l">등급</div><div class="v">'+esc(lvTxt||'—')+'</div></div></div>'+
+    (cutChips?'<div class="mr-cuts">'+cutChips+'</div>':'')+
+    (areas.length?'<div class="mrs"><h3>영역별 성취도<span>70% 아래는 분홍 막대</span></h3>'+areaHtml+'</div>':'')+
+    (qs.length?'<div class="mrs"><h3>문항 채점<span>'+(qs.length-wrong.length)+' / '+qs.length+'문항 정답</span></h3>'+
+      (wrong.length?'<p class="mr-wrong">틀린 문항 <b>'+wrong.length+'개</b> · '+wrong.join(', ')+'번</p>':'<p class="mr-wrong">모든 문항을 맞혔어요.</p>')+
+      '<div class="mr-qs">'+qHtml+'</div><p class="mr-legend">초록 칸 = 얻은 배점 · 분홍 칸 = 내가 고른 답과 정답</p></div>':'')+
+  '</div>';
 }
 
 /* ==TREND-CORE== 모의고사 성적 추이 계산 (화면과 분리 — tools/mock-trend-test.js 가 이 블록만 떼어 검증한다) */
@@ -4165,7 +4246,7 @@ function mockTrendHtml(reps){
   if(lastAvg>=0){
     var ax=trendPoint(sc.x(lastAvg)), ay=trendPoint(sc.y(P[lastAvg].avg));
     avgLine += '<circle cx="'+ax+'" cy="'+ay+'" r="2.6" fill="#9DB3A9"/>'+
-      '<text x="'+ax+'" y="'+(ay+12)+'" text-anchor="'+(lastAvg===P.length-1?'end':'middle')+'" font-size="9" fill="#7E8D85">평균 '+P[lastAvg].avg+'</text>';
+      '';   // 2026-11-20 '평균 n' 글자는 내 점수 선과 겹쳐 뺐다 — 범례·위 요약 문장에 평균이 있다
   }
   var dots = P.map(function(p,i){
     var x=trendPoint(sc.x(i)), y=trendPoint(sc.y(p.got));
