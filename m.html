@@ -882,7 +882,7 @@ document.addEventListener('DOMContentLoaded',function(){
 var ROSTER=[];   // 학생 명단 — 학교 목록·내신 자동 배정용
 /* 학교 목록은 수파베이스 students 에서 먼저 받는다(2026-09-30 — 옛 백엔드 roster 는 실측 19초가 걸려
  * 그동안 학교 드롭다운이 비어 있었다). 실패하면 옛 경로로. 재원생만(퇴원 등 제외 — class_report.py LEFT_RE 와 같은 규칙). */
-var ROSTER_LEFT_RE = /^(퇴원|n|no|off|x|중단|비재원)$/i;
+var ROSTER_LEFT_RE = /^(퇴원|n|no|off|x|중단|비재원|졸업)$/i;
 function fillSchools(list){
   var sel=document.getElementById('f_school');
   if(!sel) return;
