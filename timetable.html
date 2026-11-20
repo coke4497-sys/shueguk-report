@@ -8995,7 +8995,9 @@ function openClassNote(c, ctx){
   CR.nsHw = crRuleBook(c, bk) === '내신' && !crNsHwSplitAt(c, ymd);   // 내신 기간 과제 검사 = 과제마다 수행 평가 3단계 + 공개·비공개 메모
   if (CR_NS_SCOPE && crRuleBook(c, bk) === '내신' && (part === '진도' || part === '확인') && !crNsSplitAt(c, ymd)){   // 고1·고2 예외 기간(정규 수업 중)은 범위·진행 없이
     var pers = crNsPeriods(ymd);
-    CR.ns = { periods: pers, period: reqNsDefaultPeriod(ymd), auto: true, part: part, key: part === '진도' ? crScopeKey(c.cls, c.id) : c.id, refKeys: [], refs: [],
+    // 내신 진도 기록(오늘 나간 단원·주차 메모)의 열쇠 = 반ID — '이 주만' 옮기기·보충 복사본(w…)은 원래 반ID로 잇는다(own, crNsOwnResolve)
+    // (2026-11-20 원장님 "무원고2 진도가 기록되지 않았네요" — 11/21 복사본 w261121b 창이 원래 반 n078 의 진도를 못 읽었다)
+    CR.ns = { periods: pers, period: reqNsDefaultPeriod(ymd), auto: true, part: part, key: part === '진도' ? crScopeKey(c.cls, c.id) : c.id, own: c.id, refKeys: [], refs: [],
               week: crPrevWed(ymd), scope: null, cleared: {}, weekRec: null, open: false, edit: false, loaded: false };
   }
   $('cr-ttl').textContent = c.cls + ' · ' + c.day + ' ' + c.start + '~' + c.end;
@@ -9011,7 +9013,7 @@ function openClassNote(c, ctx){
     crGet('/hwcheck_records?week=eq.' + CR.hwWeek + '&class_id=eq.' + encodeURIComponent(c.id) + '&select=*').catch(function(){ return null; }),
     crHwSrcLoad(c, bk, ymd).catch(function(e){ console.warn('지난 과제 조회 실패', e); return null; }),
     crStudentsEnsure().catch(function(){ return null; }),
-    CR.ns ? crStudentsEnsure().catch(function(){ return null; }).then(function(){ return crNsLoad(CR.ns, c.id, c); }).catch(function(e){ console.warn('시험범위 조회 실패', e); CR.ns = null; }) : Promise.resolve(),   // 범위를 못 읽어도 창은 연다(정규처럼)
+    CR.ns ? crStudentsEnsure().catch(function(){ return null; }).then(function(){ return crNsOwnResolve(CR.ns, c); }).then(function(){ return crNsLoad(CR.ns, CR.ns.own, c); }).catch(function(e){ console.warn('시험범위 조회 실패', e); CR.ns = null; }) : Promise.resolve(),   // 범위를 못 읽어도 창은 연다(정규처럼)
     crSibLoad(c, bk, ymd).catch(function(){ return []; }),
     crSfLoad(ymd).catch(function(e){ console.warn('슈핏 문법 과제 조회 실패', e); return null; })
   ]).then(function(r){
@@ -9182,6 +9184,20 @@ function crNsTokSchool(tok, k){
   if (km && km[1].length >= 2) return crNsSchoolBase(km[1]);
   var st = crStuOf(tok);
   return st && st.school ? crNsSchoolBase(st.school) : '';
+}
+/* '이 주만' 옮기기·보충 복사본(w…)의 원래 반 — 진도 단원·주차 기록은 원래 반ID 열쇠로 읽고 쓴다(학교 없는 반은 범위 열쇠도). */
+function crNsOwnResolve(ns, c){
+  if (!/^w/.test(c.id)) return Promise.resolve(ns.own);
+  var set = function(from){
+    if (!from || /^w/.test(from)) return ns.own;
+    if (ns.key === c.id) ns.key = from;
+    ns.own = from; return from;
+  };
+  var o = wkMovedFrom(c.id);
+  if (o && o.fromId) return Promise.resolve(set(o.fromId));
+  return crGet('/tt_log?kind=in.(' + encodeURIComponent('주간반이동') + ',' + encodeURIComponent('주간반보강') + ')&to_class_id=eq.' + encodeURIComponent(c.id) + '&select=from_class_id&order=id.desc&limit=1')
+    .then(function(rows){ return set(rows && rows[0] && rows[0].from_class_id); })
+    .catch(function(){ return ns.own; });
 }
 function crNsLoad(ns, cid, c){
   if (ns.part === '확인') ns.refKeys = crNsRefKeys(c);
@@ -10605,7 +10621,7 @@ function crNsUnit(it, add){
   }
   crKeepInputs(); crRender();
   var has = Object.keys(ns.cleared).length;
-  crNsWrite('클리어', CR.c.id, '', has ? JSON.stringify(ns.cleared) : '', '')
+  crNsWrite('클리어', ns.own || CR.c.id, '', has ? JSON.stringify(ns.cleared) : '', '')
     .then(function(){ crMsg('진도 단원을 저장했어요.'); })
     .catch(function(e){ crMsg('진도 단원을 저장하지 못했어요. (' + e.message + ')', true); });
 }
@@ -10649,7 +10665,7 @@ function crUpsert(extra){
   for (var k in (extra || {})) body[k] = extra[k];
   var jobs = [crSend('POST', '/class_notes?on_conflict=book,class_id,ymd', [body], 'resolution=merge-duplicates,return=representation')];
   // 내신 진도 수업은 그 주 메모·과제를 내신대비 피드백 기록에도 남긴다(같은 페이지에서 보이게)
-  if (CR.ns && CR.part === '진도') jobs.push(crNsWrite('주차', CR.c.id, CR.ns.week, body.progress, body.homework).then(function(){ CR.ns.weekRec = { prog: body.progress, hw: body.homework }; }));
+  if (CR.ns && CR.part === '진도') jobs.push(crNsWrite('주차', CR.ns.own || CR.c.id, CR.ns.week, body.progress, body.homework).then(function(){ CR.ns.weekRec = { prog: body.progress, hw: body.homework }; }));
   var cr = CR, key = CR.bk + '|' + CR.c.id;   // 창을 닫은 뒤 응답이 와도(CR 이 바뀌어도) 그 수업 것으로 처리
   var pend = cr.xtPending; cr.xtPending = false;
   return Promise.all(jobs).then(function(r){
