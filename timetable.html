@@ -309,7 +309,9 @@
     .attbar,.editbar{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;-ms-overflow-style:none;}
     .attbar::-webkit-scrollbar,.editbar::-webkit-scrollbar{display:none;}
     .attbar button,.editbar button,.attbar .elabel,.editbar .elabel{flex:none;white-space:nowrap;}
-    .searchbar,.searchbar .searchbox{flex:1;min-width:0;}
+    /* 휴대폰은 검색창이 늘 한 줄을 다 쓴다 — 오늘·주차별·전체가 같은 폭 (2026-11-21 박언호대표님) */
+    .searchbar{flex:1 1 100%;min-width:0;}
+    .searchbar .searchbox{flex:1;min-width:0;}
     .searchbar input{width:100%;}
   }
   .attbar .elabel{font-size:.78rem;color:var(--ink-soft);margin-right:2px;}
@@ -322,7 +324,7 @@
   /* 검색창 — 길게 + 세이지 라인 돋보기 아이콘 (2026-08-22 사용자 요청 "작아요") */
   .searchbar .searchbox{position:relative;display:inline-flex;align-items:center;max-width:100%;}
   .searchbar .searchbox svg{position:absolute;left:12px;width:16px;height:16px;color:var(--accent);pointer-events:none;}
-  .searchbar input{font:inherit;font-size:.9rem;padding:7px 12px 7px 36px;border:1.5px solid var(--line);border-radius:10px;width:290px;max-width:100%;}
+  .searchbar input{font:inherit;font-size:.9rem;padding:7px 12px 7px 36px;border:1.5px solid var(--line);border-radius:10px;width:380px;max-width:100%;}
   .searchbar input:focus{outline:none;border-color:var(--accent);}
   #searchResults{display:flex;gap:6px;flex-wrap:wrap;font-size:.8rem;align-items:center;color:var(--ink-soft);}
   #searchResults button{font:inherit;font-size:.8rem;background:#fff;border:1px solid var(--line);
