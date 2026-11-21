@@ -187,6 +187,16 @@
   .del{width:100%;margin-top:8px;padding:14px;border:none;border-radius:12px;background:var(--bad);color:#fff;
     font-family:"Gowun Batang",serif;font-size:16px;font-weight:700;cursor:pointer;}
   .del:disabled{background:#d9a09b;cursor:default;}
+  /* 퇴원 처리 (2026-11-20) */
+  .lv-box{margin-top:14px;padding:14px 16px;border-radius:14px;background:#EDE4F4;}
+  .lv-h{margin:0 0 4px;font-weight:700;color:#5A4A6A;}
+  .lv-d{margin:0 0 10px;font-size:13px;line-height:1.6;color:#4F5C56;}
+  .lv-box .submit{background:#5A4A6A;margin-top:0;}
+  .lv-back{width:100%;margin-top:8px;padding:11px;border:none;border-radius:12px;background:#fff;color:#5A4A6A;font:inherit;cursor:pointer;}
+  .lv-links{margin-top:8px;font-size:13px;}
+  .lv-links a{display:inline-block;margin:4px 8px 0 0;padding:5px 12px;border-radius:999px;background:#fff;color:#5A4A6A;text-decoration:none;}
+  .rm-fold{margin-top:14px;}
+  .rm-fold summary{cursor:pointer;font-size:13px;color:var(--ink-soft);padding:6px 0;}
   .empty{text-align:center;color:#9aa6a0;font-size:13.5px;padding:16px;}
 
   /* 슈스 링크 탭 */
@@ -505,7 +515,7 @@
 
     <div class="menu-grid" id="menuGrid">
       <button type="button" class="mcard" data-tab="new" onclick="showTab('new')"><span class="mi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="16" y1="11" x2="22" y2="11"/></svg></span><span><span class="mt">신입 슈스</span><span class="md">새 학생 등록 · 개인 페이지 링크 발급</span></span></button>
-      <button type="button" class="mcard" data-tab="out" onclick="showTab('out')"><span class="mi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="17" y1="8" x2="22" y2="13"/><line x1="22" y1="8" x2="17" y2="13"/></svg></span><span><span class="mt">아웃 슈스</span><span class="md">퇴원 학생 기록 정리</span></span></button>
+      <button type="button" class="mcard" data-tab="out" onclick="showTab('out')"><span class="mi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="17" y1="8" x2="22" y2="13"/><line x1="22" y1="8" x2="17" y2="13"/></svg></span><span><span class="mt">아웃 슈스</span><span class="md">퇴원 처리 · 기록은 남겨요</span></span></button>
       <button type="button" class="mcard" data-tab="link" onclick="showTab('link')"><span class="mi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></span><span><span class="mt">슈스 링크</span><span class="md">개인 페이지 링크 · 학생 정보 수정</span></span></button>
       <button type="button" class="mcard" data-tab="star" onclick="showTab('star')"><span class="mi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l2.9 6.2 6.8.8-5 4.7 1.3 6.7L12 17.1 6 20.4l1.3-6.7-5-4.7 6.8-.8z"/></svg></span><span><span class="mt">별 더하기</span><span class="md">깜짝 보너스 별 · 슈퍼스타 TOP 30</span></span></button>
       <button type="button" class="mcard wide" data-tab="wait" onclick="showTab('wait')"><span class="mi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span><span><span class="mt">대기 슈스</span><span class="md">예비 슈스 대기 명단 · 재원 슈스 반 이동 대기 명단</span></span></button>
@@ -697,7 +707,7 @@
   <div id="tab-out" style="display:none;">
     <section class="card">
       <h2><span class="dot"></span>학생 찾기</h2>
-      <p class="sub">명단·성적·신청 등 모든 시트에서 기록을 찾아 한 번에 삭제해요. 이름은 필수, 부모님 8자리를 넣으면 동명이인 기록을 자동으로 구분합니다.</p>
+      <p class="sub">퇴원한 학생을 찾아 <b>퇴원 처리</b>합니다. 학생 기록과 개인 페이지는 지우지 않고 남겨 두고, 재원 명단·시간표에서만 빠져요. 이름은 필수, 부모님 8자리를 넣으면 동명이인 기록을 자동으로 구분합니다.</p>
       <label>이름</label>
       <input type="text" id="x-name" placeholder="예) 이승준 (접미사 없이 실명으로 검색해도 함께 찾아요)" autocomplete="off" />
       <label>부모님 연락처 8자리 <span class="opt">(선택)</span></label>
@@ -710,9 +720,20 @@
       <h2><span class="dot"></span>찾은 기록</h2>
       <p class="sub" id="resultSub"></p>
       <div id="list"></div>
-      <div class="warn" id="outWarn">⚠️ 삭제는 되돌릴 수 없어요. <b>번호가 다른 행</b>은 동명이인의 기록일 수 있어 자동으로 체크를 풀어두었습니다 — 삭제 전에 학교·학년을 꼭 확인해 주세요. 학생정보 행이 지워지면 개인 페이지 링크도 즉시 무효화돼요.</div>
-      <button type="button" class="del" id="delBtn" onclick="removeChecked()">선택한 기록 삭제</button>
-      <div class="status" id="delStatus"></div>
+      <div class="lv-box" id="leaveBox">
+        <p class="lv-h">퇴원 처리 — 기록은 그대로 남깁니다</p>
+        <p class="lv-d">체크한 <b>학생정보</b>의 재원 여부를 '퇴원'으로 바꾸고, 체크한 <b>시간표 명단·주간 기록</b>을 정리합니다. 성적·리포트·별·제출 기록은 지우지 않아요. 개인 페이지는 학생·학부모님께는 닫히고 <b>허브에 로그인한 선생님만</b> 볼 수 있습니다.</p>
+        <button type="button" class="submit" id="leaveBtn" onclick="leaveChecked('퇴원')">퇴원 처리</button>
+        <button type="button" class="lv-back" id="backBtn" onclick="leaveChecked('재원')" style="display:none;">재원으로 되돌리기</button>
+        <div class="lv-links" id="leaveLinks"></div>
+        <div class="status" id="leaveStatus"></div>
+      </div>
+      <details class="rm-fold" id="rmFold">
+        <summary>기록까지 지우기 (잘못 등록한 학생 등)</summary>
+        <div class="warn" id="outWarn">⚠️ 삭제는 되돌릴 수 없어요. 퇴원생은 위 [퇴원 처리]로 기록을 남겨 두세요. <b>번호가 다른 행</b>은 동명이인의 기록일 수 있어 자동으로 체크를 풀어두었습니다 — 학교·학년을 꼭 확인해 주세요. 학생정보 행이 지워지면 개인 페이지 링크도 즉시 무효화돼요.</div>
+        <button type="button" class="del" id="delBtn" onclick="removeChecked()">선택한 기록 영구 삭제</button>
+        <div class="status" id="delStatus"></div>
+      </details>
     </section>
   </div>
 
@@ -1086,7 +1107,7 @@
       sv.forEach(function(r){
         var nm = tr_(r.name);
         if (!nm) return;
-        if (/^(퇴원|n|no|off|x|중단|비재원)$/i.test(tr_(r.enrolled))) return;
+        if (/^(퇴원|n|no|off|x|중단|비재원|졸업)$/i.test(tr_(r.enrolled))) return;
         var id = tr_(r.student_id), k = stus.length;
         stus.push({ id: id, name: nm, school: tr_(r.school), grade: tr_(r.grade),
                     exam: {}, clinic: {}, voca: {}, hwork: {}, mock: {}, notice: {}, hwcheck: {}, gramma: {}, smock: {}, avail: {}, bonus: 0, bonusTs: 0 });
@@ -1230,7 +1251,7 @@
    * 시트에는 같은 액션을 뒤에서 보낸다(학생 페이지 폴백·별 집계 레거시가 아직 시트를 읽어서).
    * 신입 등록(addStudent)·아웃(exitDelete)은 접근코드 발급·행 삭제가 백엔드에 있어 종전대로
    * 백엔드 먼저 + 즉시 미러(AFTER 훅) — 등록 직후에도 미러가 바로 맞는 구조는 이미 있다. */
-  var LEFT_RE = /^(퇴원|n|no|off|x|중단|비재원)$/i;
+  var LEFT_RE = /^(퇴원|n|no|off|x|중단|비재원|졸업)$/i;
   function stuAll(){ return sbAll('/students?select=*&order=seq,id'); }
   function stuActive(rows){
     return rows.filter(function(r){ return tr_(r.name) && !LEFT_RE.test(tr_(r.enrolled)); });
@@ -2103,7 +2124,7 @@
     return d.getUTCFullYear()+'-'+p2(d.getUTCMonth()+1)+'-'+p2(d.getUTCDate());
   }
   var SB_SCAN = [
-    { table:'students',          label:'학생정보(명단)',    sel:'id,name,student_id,school,grade,teacher,enrolled', idf:'student_id',
+    { table:'students',          label:'학생정보(명단)',    sel:'id,name,student_id,school,grade,teacher,enrolled,code', idf:'student_id',
       desc:function(r){ return [r.school, r.grade, r.teacher, r.enrolled].map(function(x){return String(x||'').trim();}).filter(Boolean).join(' · '); } },
     { table:'submissions',       label:'지필 제출결과',     sel:'id,name,parent_phone,submitted_at,exam,school', idf:'parent_phone',
       desc:function(r){ return [exYmd(r.submitted_at), r.exam, r.school].map(function(x){return String(x||'').trim();}).filter(Boolean).join(' · '); } },
@@ -2147,7 +2168,7 @@
             var rid = cfg.idf ? String(r[cfg.idf]==null?'':r[cfg.idf]).replace(/^'/,'').trim() : '';
             return { src:'sb', table:cfg.table, dbid:r.id, label:cfg.label,
                      name:String(r.name||'').trim(), id:rid, idMatch:exIdMatch(rid, sid, sid4),
-                     desc:cfg.desc(r) };
+                     desc:cfg.desc(r), code:String(r.code||'').trim(), enrolled:String(r.enrolled||'').trim() };
           });
         });
     })).then(function(parts){
@@ -2184,6 +2205,7 @@
         ITEMS = (rs[0]||[]).concat(rs[1]||[]).concat(rs[2]||[]);
         setStatus('scanStatus','');
         renderList(nm, sid);
+        if (SCAN_AFTER){ var f = SCAN_AFTER; SCAN_AFTER = null; f(); }
       })
       .catch(function(e){
         if (e && e.ttlog){   // 주간 기록을 못 읽었으면 없는 줄 알고 나머지만 지우게 두지 않는다
@@ -2200,13 +2222,13 @@
     var card=$('resultCard'); card.style.display='block';
     if(!ITEMS.length){
       $('resultSub').textContent = '"'+nm+'" 이름으로 남아 있는 기록이 없어요.';
-      $('list').innerHTML=''; $('delBtn').style.display='none';
-      $('outWarn').style.display='none';
+      $('list').innerHTML=''; $('leaveBox').style.display='none'; $('rmFold').style.display='none';
       return;
     }
-    $('delBtn').style.display='block';
-    $('outWarn').style.display='block';
-    $('resultSub').textContent = '총 '+ITEMS.length+'건 — 삭제할 기록만 체크하세요.';
+    $('leaveBox').style.display='block'; $('rmFold').style.display='block'; $('rmFold').open = false;
+    $('leaveLinks').innerHTML=''; setStatus('leaveStatus','');
+    $('resultSub').textContent = '총 '+ITEMS.length+'건 — 퇴원 처리할 학생정보·시간표가 체크돼 있어요. 성적·제출 기록은 체크하지 않아도 그대로 남습니다.';
+    leaveBtns();
     var groups = {};
     ITEMS.forEach(function(it,i){ (groups[it.label]=groups[it.label]||[]).push(i); });
     var html='';
@@ -2215,7 +2237,8 @@
       html+='<div class="grp"><p class="gt">'+esc(lb)+' <span class="cnt">'+idxs.length+'건</span></p>';
       idxs.forEach(function(i){
         var it=ITEMS[i];
-        var checked = it.idMatch !== false;
+        // 기본 체크 = 퇴원 처리 대상(학생정보·시간표 명단·주간 기록)만 — 다른 기록은 지울 때만 직접 고른다 (2026-11-20)
+        var checked = it.idMatch !== false && isLeaveItem(it);
         var idHtml = it.id ? '<span class="idv'+(it.idMatch===false?' bad':'')+'">'+esc(it.id)+(it.idMatch===false?' · 번호 다름':'')+'</span>' : '';
         html+='<label class="it"><input type="checkbox" data-i="'+i+'"'+(checked?' checked':'')+' />'+
           '<span class="bd"><span class="nm">'+esc(it.name)+'</span>'+idHtml+
@@ -2226,6 +2249,69 @@
     $('list').innerHTML=html;
     setStatus('delStatus','');
   }
+
+  /* ── 퇴원 처리 — 기록은 남기고 재원 여부만 '퇴원'으로 (2026-11-20 원장님 "퇴원생 데이터를 남기고 싶어요") ──
+   * 학생정보(students) 줄: enrolled 를 바꾼다(원본) + 시트 사본 studentEnrolledSet(접근코드로 K열만).
+   * 시간표 명단·앞날 주간 기록은 종전 아웃과 같은 경로로 정리(명단·시간표에서 빠지게).
+   * 재원 명단·랭킹·알림톡·배정은 이미 '퇴원'을 빼고 세므로 따로 손댈 곳이 없다.
+   * 개인 페이지는 088 student_bundle 이 학생·학부모님께 닫고 허브 로그인 선생님께만 연다. */
+  function isLeaveItem(it){ return (it.src==='sb' && it.table==='students') || it.src==='ttroster' || it.src==='ttlog'; }
+  function checkedItems(){
+    var out = [];
+    document.querySelectorAll('#list input[type=checkbox]:checked').forEach(function(c){
+      var it = ITEMS[+c.getAttribute('data-i')]; if (it) out.push(it);
+    });
+    return out;
+  }
+  function leaveBtns(){
+    var stu = ITEMS.filter(function(it){ return it.src==='sb' && it.table==='students'; });
+    var anyLeft = stu.some(function(it){ return /^(퇴원|n|no|off|x|중단|비재원|졸업)$/i.test(it.enrolled); });
+    $('backBtn').style.display = anyLeft ? 'block' : 'none';
+    $('leaveLinks').innerHTML = stu.filter(function(it){ return it.code; }).map(function(it){
+      return '<a href="'+S_BASE+encodeURIComponent(it.code)+'" target="_blank" rel="noopener">'+esc(it.name)+' 학생 페이지 보기 ↗</a>';
+    }).join('');
+  }
+  function leaveChecked(to){
+    var sel = checkedItems();
+    var stu = sel.filter(function(it){ return it.src==='sb' && it.table==='students'; });
+    var tt = to==='퇴원' ? sel.filter(function(it){ return it.src==='ttroster'; }) : [];
+    var tl = to==='퇴원' ? sel.filter(function(it){ return it.src==='ttlog'; }) : [];
+    if (!stu.length && !tt.length && !tl.length){ setStatus('leaveStatus', to==='퇴원' ? '학생정보나 시간표를 하나 이상 체크해 주세요.' : '되돌릴 학생정보를 체크해 주세요.','err'); return; }
+    var names = stu.map(function(it){ return it.name; }).join(', ');
+    var msg = to==='퇴원'
+      ? (stu.length ? names+' 학생을 퇴원 처리할까요?\n\n· 성적·리포트·별·제출 기록은 그대로 남습니다.\n· 개인 페이지는 학생·학부모님께 닫히고 선생님만 볼 수 있어요.' : '체크한 시간표만 정리할까요?')+
+        (tt.length?'\n· 시간표 명단 '+tt.length+'건에서 빠집니다.':'')+(tl.length?'\n· 앞날 \'이 주\' 기록 '+tl.length+'건을 지웁니다.':'')
+      : names+' 학생을 다시 재원으로 돌릴까요?\n(시간표 명단은 슈국 스케쥴에서 다시 넣어 주세요.)';
+    if (!confirm(msg)) return;
+    var btn = $(to==='퇴원' ? 'leaveBtn' : 'backBtn'); btn.disabled = true;
+    setStatus('leaveStatus', to==='퇴원' ? '퇴원 처리하는 중…' : '되돌리는 중…');
+    var ok = 0, fail = 0;
+    var ids = stu.map(function(it){ return it.dbid; });
+    var job = ids.length
+      ? sbx('PATCH','/students?id=in.('+ids.join(',')+')', { enrolled: to }, { 'Prefer':'return=representation' })
+          .then(function(r){ ok = (r||[]).length; fail = ids.length - ok; }, function(e){ console.warn('재원 여부 저장 실패', e); fail = ids.length; })
+      : Promise.resolve();
+    job.then(function(){
+      // 시트 사본(학생정보 K열) — 원본이 바뀐 학생만, 실패해도 무해(일일 점검이 보고)
+      var codes = stu.filter(function(it){ return it.code; }).map(function(it){ return { code: it.code, enrolled: to }; });
+      if (ok && codes.length) fetch(ENDPOINT, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
+          body: JSON.stringify({ action:'studentEnrolledSet', pw:SERVER_PW, items:codes }) }).catch(function(){});
+      return Promise.all([ removeRoster(tt), removeTTLogs(tl) ]);
+    }).then(function(rr){
+      btn.disabled = false;
+      var t1 = rr[0], t2 = rr[1], parts = [];
+      if (ids.length) parts.push((to==='퇴원'?'퇴원 처리 ':'재원으로 되돌림 ')+ok+'명'+(fail?' ('+fail+'명 실패 — 다시 시도해 주세요)':''));
+      if (tt.length) parts.push('시간표 명단 '+t1.ok+'건 정리'+(t1.fail?' ('+t1.fail+'건 실패)':''));
+      if (tl.length) parts.push('주간 기록 '+t2.ok+'건 삭제'+(t2.fail?' ('+t2.fail+'건 실패)':''));
+      setStatus('leaveStatus','✓ '+parts.join(' · ')+(to==='퇴원'?' — 기록은 모두 남겨 두었어요.':''), (fail||t1.fail||t2.fail)?'err':'ok');
+      try { if (window.shuegukActivity) shuegukActivity('아웃 슈스', to==='퇴원'?'퇴원 처리':'재원 복귀', names || $('x-name').value.trim(), parts.join(' · '), true); } catch (e) {}
+      LINKS = null; ROSTER_CACHE = null;
+      var keep = $('leaveStatus').textContent, kc = $('leaveStatus').className;
+      scanAfter(function(){ $('leaveStatus').textContent = keep; $('leaveStatus').className = kc; });
+    }).catch(function(){ btn.disabled = false; setStatus('leaveStatus','연결 실패 — 다시 시도해 주세요.','err'); });
+  }
+  var SCAN_AFTER = null;
+  function scanAfter(cb){ SCAN_AFTER = cb; scan(); }
 
   /* 시간표 명단에서 토큰 제거 — 수파베이스(원본, 값 그대로일 때만 씀) + 시트 백엔드 + '빼기' 기록 */
   function removeRoster(items){
@@ -3033,7 +3119,7 @@
    * 반을 고를 때 그 반 인원으로 자동, 고칠 수 있음). 등록으로 전환하면 신입 슈스 폼을 채우고 등록이 끝나면 그 줄이 '완료'가 된다. */
   var WT = { kind:'예비', book:'정규', rows:null, ttc:null, stu:null, pick:null, past:false, pend:null, missing:false, editing:null, capTouched:false, inited:false, fg:'', fs:'', sg:'', vis:[], fgs:[] };   // fgs = 명단 학년 거르기(여러 개, 2026-11-06) — WT.fg 는 그중 하나만 골랐을 때의 값(그래프·학교 줄용)   // fg·fs = 학년·학교 거르기('' = 전체), sg = 현황 그래프에서 고른 학년
   var WT_ERR_MISSING = /sb 404|PGRST205|42P01|does not exist/;
-  var WT_LEFT = /^(퇴원|n|no|off|x|중단|비재원)$/i;   // 어댑터 스크립트의 LEFT_RE·tr_·stuActive 는 다른 script 블록이라 여기서 다시 둔다
+  var WT_LEFT = /^(퇴원|n|no|off|x|중단|비재원|졸업)$/i;   // 어댑터 스크립트의 LEFT_RE·tr_·stuActive 는 다른 script 블록이라 여기서 다시 둔다
   function wtTr(v){ return String(v == null ? '' : v).trim(); }
   // 대기 연도 기본값 = 다음 학년도(2026-10-29 원장님 "2027로" — 대기는 다음 해 등록을 기다리는 것). 3월부터는 내년, 1·2월은 올해(한국 날짜). 슈톡 wtmDefaultYear 와 같은 규칙.
   function wtDefaultYear(){ var y = todayYmdKST(); var yr = +y.slice(0, 4), m = +y.slice(5, 7); return m >= 3 ? yr + 1 : yr; }

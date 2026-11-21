@@ -36,8 +36,13 @@ SECS = [
     (r'03-05a', '14', '보기형'), (r'03-05b', '15', '고난도 보기형'), (r'03-05c', '16', '1등급 보기형'),
     (r'03-08a', '17', '주관식'), (r'03-08b', '18', '조건형 서술'), (r'03-09', '19', '키워드 빈칸'),
 ]
+# 문학 '시(소설…) 문제 풀이'(2026-11-19, 086) — 구역 번호가 '01-'로 시작하고 뒤 번호는 같다. 코드는 교과서와 같은 11~19, 이름만 문학식.
+LIT_SECS = {'03a': ('11', 'OX 쉬움'), '03b': ('12', 'OX 어려움'), '04': ('13', '표현법·시어의 의미'), '05a': ('14', '보기형'),
+            '05b': ('15', '고난도 보기형'), '05c': ('16', '참고자료 보기형'), '08a': ('17', '주관식'), '08b': ('18', '조건형 서술'),
+            '09': ('19', '키워드 빈칸')}
+GENRE = {'현시': '현대시', '고시': '고전시가', '현소': '현대소설', '고소': '고전소설', '수필': '수필', '극': '극'}
 SEC_HEAD = re.compile(r'^(0\d-\d+[a-z]?)\s+\S')
-JUNK = re.compile(r'^(국어공방|••|\[\s*국어공방\s*\]\s*비문학 문제 풀이|\[국어공방\]\[[^\]]*\]\[[^\]]*\])$')
+JUNK = re.compile(r'^(국어공방|••|\[\s*국어공방\s*\]\s*\S+\s*문제 풀이|\[국어공방\]\[[^\]]*\]\[[^\]]*\]|\[국어공방\]\[[^\]]*\])$')
 # 원본에 남은 AI 대화 문장(5-(1)-2 지문 분석 머리) — 학생 자료에 싣지 않는다
 CHAT = re.compile(r'^(물론이야|물론입니다|네,? 알겠|요청한 형식|아래와 같이 정리|첨부된 지문)')
 
@@ -186,9 +191,140 @@ def title_space(t, book):
     return t
 
 
+def lit_info(fname, L):
+    """문학 — (출처, 제목, 작가). 파일 이름 '[국어공방][26EBS수특문학-29현시]멸치(김기택) [국어공방] JY….hwp' 또는 머리글."""
+    base = os.path.splitext(os.path.basename(fname))[0]
+    m = re.search(r'\[국어공방\]\[([^\]]+)\]\s*([^\[\]]+?)\s*\(([^()]+)\)', base)
+    if m:
+        return m.group(1).strip(), m.group(2).strip(), m.group(3).strip()
+    src = title = author = ''
+    for x in L[:40]:
+        mb = re.match(r'^\[국어공방\]\[([^\]]+)\]$', x['t'])
+        if mb:
+            src = mb.group(1)
+        mt = re.match(r'^(.+?)\s*\(([^()]+)\)$', x['t'])
+        if src and mt and not title:
+            title, author = mt.group(1), mt.group(2)
+    return src, title, author
+
+
+def lit_passage(L, prose=False):
+    """문학 지문 — 머리글 '제목 (작가)' 다음 줄부터 첫 구역 전까지. 빈 줄 = 연 나눔, '- 작가, <제목>' = 출처."""
+    out, stanza, started, seen = [], [], False, False
+    for x in L:
+        t = x['t']
+        if not started:
+            if re.match(r'^\[국어공방\]\[[^\]]+\]$', t):
+                seen = True; continue
+            if seen and re.match(r'^.+\s*\([^()]+\)$', t):
+                started = True
+            if re.match(r'^\[국어공방\]\[[^\]]+\]\s*\S.*\([^()]+\)$', t):   # 머리글과 제목이 한 줄(「뿌리가 꽃이다」)
+                started = True
+            continue
+        if SEC_HEAD.match(t) and len(t) < 40:
+            break
+        if not t:
+            if stanza and x['lvl'] == 0:
+                out.append({'p': '<br>'.join(stanza)}); stanza = []
+            continue
+        if JUNK.match(t) or t.startswith('▣'):
+            continue
+        if re.match(r'^-\s*\S+,\s*[<〈「]', t):
+            if stanza:
+                out.append({'p': '<br>'.join(stanza)}); stanza = []
+            out.append({'p': RH.norm_u(x['h']), 'src': 1}); continue
+        if prose:   # 소설·수필 — 한 줄이 한 문단
+            out.append({'p': RH.norm_u(x['h'])}); continue
+        stanza.append(RH.norm_u(x['h']))
+    if stanza:
+        out.append({'p': '<br>'.join(stanza)})
+    return out
+
+
+INL_HEAD = re.compile(r'(0\d-\d+[a-z]?\s+(?:시|소설|수필|극|고전시가|고전소설|현대시|현대소설)?\s*(?:변형\s*)?(?:OX\s*어려움|OX\s*쉬움|핵심\s*정리|\S*보기형|주관식(?:\s*조건형)?|분석\s*정오답\s*선지|표현법\S*))')
+
+
+def unfloat(L):
+    """글상자로 떠 있는 구역 머리글이 문장 한가운데 끼어 나온 줄 — '…생명01-03b 시 OX어려움의 비가역적…' 을 떼어
+    그 문항(바로 뒤의 같은 [정답] 줄 사본까지) 다음에 머리글 줄로 넣는다."""
+    out, k = [], 0
+    while k < len(L):
+        x = L[k]
+        m = INL_HEAD.search(x['t'])
+        if m and (m.start() > 0 or len(x['t'].strip()) > len(m.group(1).strip()) + 2):   # 문장 앞·가운데에 붙은 머리글
+            head = m.group(1)
+            x = dict(x, t=x['t'].replace(head, '', 1), h=x['h'].replace(head, '', 1))
+            out.append(x)
+            if any(y['t'].strip() == head.strip() for y in L[k + 1:]):   # 같은 머리글이 뒤에 제 줄로 또 있음(「버팀목」) — 떼기만
+                k += 1; continue
+            if '정오답' in head:   # 정오답 선지 근거 머리글 — 실제 시작은 '[맞는 선택지와 근거 모음]' 줄(「버팀목」 빈칸 칸 안에 떠 있음)
+                j = next((j for j in range(k + 1, len(L)) if re.match(r'^\[맞는 선택지', L[j]['t'])), None)
+                if j is not None:
+                    L = L[:j] + [{'t': head, 'h': head, 'lvl': 0}] + L[j:]
+                    k += 1; continue
+            j = k + 1
+            while j < len(L) and not L[j]['t']:
+                j += 1
+            if j < len(L) and L[j]['t'] == x['t']:
+                out.extend(L[k + 1:j + 1]); k = j
+            out.append({'t': head, 'h': head, 'lvl': 0})
+            k += 1; continue
+        out.append(x); k += 1
+    return out
+
+
+def lit_table(L2):
+    """문학 작품 정리 — 표 칸(lvl ≥ 1)이 '제목' / '멸치'처럼 한 줄씩 풀려 나온다. 이름 칸 + 값 칸을 한 줄('<b>제목</b> 멸치')로,
+    값이 여러 줄이면 이름 칸을 굵게 한 줄 두고 값을 잇는다. 이름 칸 = 문장 끝(. 다 함 음 됨 임)이 아니고 '-'·'→'로 시작하지 않는 40자 이하 줄."""
+    def is_lab(x):
+        t = x['t']
+        return x['lvl'] >= 1 and len(t) <= 40 and not re.search(r'[.다함음됨임?]$', t) and not t.startswith(('-', '→', '▷'))
+    out, k = [], 0
+    while k < len(L2):
+        x = L2[k]
+        if not is_lab(x):
+            out.append(x); k += 1; continue
+        j = k + 1
+        vals = []
+        while j < len(L2) and L2[j]['lvl'] >= 1 and not is_lab(L2[j]):
+            vals.append(L2[j]); j += 1
+        if len(vals) == 0 and j < len(L2) and L2[j]['lvl'] >= 1 and len(L2[j]['t']) <= 40 and is_lab(L2[j]) and len(x['t']) <= 12 \
+                and not (j + 1 < len(L2) and L2[j + 1]['lvl'] >= 1 and not is_lab(L2[j + 1])):
+            vals = [L2[j]]; j += 1      # 값도 짧은 칸('멸치', '김기택')
+        lab = x['h'] if re.fullmatch(r'<b>.*</b>', x['h']) else '<b>' + x['h'] + '</b>'
+        if len(vals) == 1 and len(vals[0]['t']) <= 80 and not vals[0]['t'].startswith('-'):
+            out.append(dict(x, t=x['t'] + ' ' + vals[0]['t'], h=lab + '　' + vals[0]['h']))
+        else:
+            out.append(dict(x, h=lab)); out.extend(vals)
+        k = j
+    return out
+
+
 def convert(path, fname=None):
     L = lines(path)
-    book, unit, title, author = name_info(fname or path, L)
+    lit = any(re.match(r'^0[12]-\d', x['t']) for x in L)   # 01- 시 · 02- 소설·수필 문제 풀이
+    if lit:
+        L = unfloat(L)
+        # 정오답 선지 근거 머리글이 빠진 파일 — '[맞는 선택지와 근거 모음]' 앞에 '0n-07' 을 넣는다
+        if not any(re.match(r'^0[12]-07', x['t']) for x in L):
+            k = next((k for k, x in enumerate(L) if re.match(r'^\[맞는 선택지와 근거 모음\]', x['t'])), None)
+            if k is not None:
+                pre7 = next((re.match(r'^(0[12])-', x['t']).group(1) for x in L if re.match(r'^0[12]-\d', x['t'])), '01')
+                L.insert(k, {'t': pre7 + '-07 분석 정오답 선지', 'h': pre7 + '-07 분석 정오답 선지', 'lvl': 0})
+        # 작품 정리 머리글에 번호가 빠진 파일(「버팀목에 대하여」 — '시 핵심 정리'만 있음) → 첫 머리글 앞이면 '0n-02' 를 붙인다
+        pre = next((re.match(r'^(0[12])-', x['t']).group(1) for x in L if re.match(r'^0[12]-\d', x['t'])), '01')
+        for k, x in enumerate(L):
+            if re.match(r'^0[12]-\d', x['t']):
+                break
+            if re.fullmatch(r'(시|소설|현대소설|고전소설|수필|극|고전시가)?\s*핵심\s*정리', x['t']):
+                L[k] = dict(x, t=pre + '-02 ' + x['t'], h=pre + '-02 ' + x['t'])
+                break
+    if lit:
+        src, title, author = lit_info(fname or path, L)
+        mg = re.search(r'(현시|고시|현소|고소|수필|극)$', src)
+        book, unit = src, ''
+    else:
+        book, unit, title, author = name_info(fname or path, L)
     book = nice_book(book)
     # 구역 나누기
     secs = []
@@ -242,7 +378,10 @@ def convert(path, fname=None):
     passage = {'blocks': blocks}
     if vocab:
         passage['vocab'] = vocab
+    if lit:
+        passage = {'blocks': lit_passage(L, prose=bool(mg and mg.group(1) in ('현소', '고소', '수필', '극')))}
     doc = {'file': os.path.basename(fname or path), 'book': book, 'unit': unit, 'title': title, 'author': author,
+           'lit': lit, 'genre': (GENRE[mg.group(1)] if lit and mg else ''),
            'passage': passage, 'notes': [], 'analysis': [], 'blanks': None, 'keys': [], 'sections': [], 'imgs': {},
            'removed': [], 'fixed': []}
     seen02 = 0
@@ -250,7 +389,7 @@ def convert(path, fname=None):
         c = s['code']
         L2 = []
         for x in s['lines']:
-            if JUNK.match(x['t']):
+            if JUNK.match(x['t']) or re.fullmatch(r'\S*정답 및 해설', x['t']):
                 continue
             if CHAT.match(x['t']):
                 doc['removed'].append(x['t']); continue
@@ -261,6 +400,10 @@ def convert(path, fname=None):
             if x['t'].startswith('#'):
                 x['t'] = re.sub(r'^#+\s*', '', x['t']); x['h'] = re.sub(r'^#+\s*', '', x['h'])
             L2.append(x)
+        if lit:
+            c = '03-' + c.split('-', 1)[1]
+        if lit and c == '03-02':
+            L2 = lit_table(L2)
         if c == '03-02':
             seen02 += 1
             (doc['notes'] if seen02 == 1 else doc['analysis']).extend(RH.parse_notes(L2))
@@ -270,6 +413,10 @@ def convert(path, fname=None):
         if c == '03-07':
             doc['keys'] = RH.parse_notes(L2); continue
         hit = next((sc for sc in SECS if sc[0] == c), None)
+        if lit and c[3:] in LIT_SECS:
+            hit = (c, LIT_SECS[c[3:]][0], LIT_SECS[c[3:]][1])
+            if c[3:] == '04' and '모의고사' in s['name']:   # 소설·수필 '02-04 변형 모의고사형'
+                hit = (c, '13', '모의고사형')
         if not hit:
             doc['sections'].append({'code': '?', 'name': s['name'], 'items': [], 'rest': [x['t'] for x in L2[:3]]})
             continue
@@ -284,6 +431,12 @@ def convert(path, fname=None):
         for it in items:
             if it['kind'] == 'ox' or re.search(r'\(\s*O\s*/\s*X\s*\)\s*$', it.get('stem', '')):
                 it['stem'] = re.sub(r'\s*\(\s*O\s*/\s*X\s*\)\s*$', '', it['stem'])
+        prev = next((x for x in doc['sections'] if x['code'] == hit[1]), None)
+        if prev:   # 같은 구역이 둘(01-05c 두 묶음) — 한 유형으로 잇는다
+            prev['items'].extend(items)
+            if rest:
+                prev.setdefault('rest', []).extend(x['t'] for x in rest)
+            continue
         e = {'code': hit[1], 'name': hit[2], 'v': 1, 'items': items}
         if rest:
             e['rest'] = [x['t'] for x in rest]

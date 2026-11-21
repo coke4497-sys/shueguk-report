@@ -7,6 +7,10 @@
 
   python3 -I tools/reading_load.py build <out.json> <a 기본.hwpx> <a 실력.hwpx> … [--area '제목=인문']
   python3 -I tools/reading_load.py build <out.json> '[비상 독서와 작문]5-(1)-1 제목(작가).hwp' …   # 교과서 묶음(081)
+  python3 -I tools/reading_load.py build <out.json> '[국어공방][26EBS수특문학-29현시]멸치(김기택) ….hwp' '[기출]멸치(김기택).pdf' [--by 이름]
+        # 문학(086) — 국어공방 '시 문제 풀이' .hwp + 슈국 '내신 기출' PDF(코드 30, 문항마다 독립 지문). 같은 이름 PDF 는 대조용.
+        # 문학은 subject '문학'·review '검수 중'(원장님이 화면에서 [검수 완료]), --by = 올린 선생님
+        # --by 이름 = 선생님이 [문항 올리기]로 올린 자료 → 어느 과목이든 '검수 중' · --subject 독서|문학|화법|작문 = 폴더 과목
   python3 -I tools/reading_load.py check <out.json>
   python3 -I tools/reading_load.py put <out.json>      # 검사 뒤 올리기(교사 계정) — 같은 지문·자리는 덮어쓰고, 빠진 문항은 active=false
   python3 -I tools/reading_load.py list
@@ -23,11 +27,12 @@ import urllib.request
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import reading_hwpx as RH  # noqa: E402
 import reading_hwp5 as R5  # noqa: E402
+import reading_lit_pdf as RL  # noqa: E402
 
 SB = 'https://bangdbhqpphqqdwcledg.supabase.co'
 KEY = 'sb_publishable_dE9d1KIbpgYaQkaS2MSrlg_-7SiRJuT'
 T_ID, T_PW = 'teachers@shueguk.internal', 'shg_FCePWvnawH44SV8kYB9BHRKi6aag'
-AREAS = ['인문', '사회', '과학', '기술', '예술', '융합']
+AREAS = ['인문', '사회', '과학', '기술', '예술', '융합', '현대시', '현대소설', '고전시가', '고전소설', '수필', '극', '갈래 복합']
 KINDS = ('choice', 'ox', 'multi', 'blank', 'essay')
 CIRC = '①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳'
 _tok = None
@@ -110,13 +115,95 @@ def build_textbook(f, area_over):
     }
 
 
-def build(out, files, area_over):
-    res = [build_textbook(f, area_over) for f in files if f.lower().endswith('.hwp')]
-    files = [f for f in files if not f.lower().endswith('.hwp')]
+def html_un(t):
+    import html as H
+    return H.unescape(re.sub(r'<[^>]+>', '', t))
+
+
+def lit_srcname(src):
+    """'26EBS수특문학-29현시' → '2026 수능특강 문학 29'."""
+    m = re.match(r'^(\d\d)EBS수특문학-(\d+)', src)
+    if m:
+        return '20%s 수능특강 문학 %d' % (m.group(1), int(m.group(2)))
+    return src
+
+
+def build_lit(d, f, pdfs, by):
+    """문학 .hwp 하나(+ '[기출]제목(작가).pdf') → 지문 하나. 문항 = 국어공방 구역(11~19) + 내신 기출(30, 독립 지문)."""
+    if not d['title']:
+        sys.exit('작품 제목·작가를 못 읽었습니다(파일 이름 [국어공방][출처]제목(작가)…hwp): ' + f)
+    slug = re.sub(r'[^0-9A-Za-z가-힣]', '', d['title'])[:24]
+    src = re.sub(r'[^0-9A-Za-z가-힣-]', '', d['book'])[:30]
+    pid = '문학-%s-%s' % (src, slug)
+    items, notes = [], []
+    for s in d['sections']:
+        if s['code'] == '?':
+            sys.exit('모르는 구역: %s (%s)' % (s['name'], f))
+        for i, it in enumerate(s['items']):
+            items.append({'level': '교과서', 'code': s['code'], 'sec_name': s['name'], 'v': 1, 'ord': i + 1,
+                          'kind': it['kind'], 'data': it, 'plain': item_plain(it)})
+    base = os.path.splitext(os.path.basename(f))[0]
+    poem = [html_un(x) for b in d['passage']['blocks'] if not b.get('src') for x in b.get('p', '').split('<br>')]
+    for pf in pdfs:
+        pb = os.path.splitext(os.path.basename(pf))[0]
+        m = re.match(r'^\[기출\]\s*(.+?)\s*\(([^()]+)\)$', pb)
+        if m and m.group(1).replace(' ', '') == d['title'].replace(' ', ''):
+            r = RL.convert(pf)
+            notes += ['기출 PDF: ' + x for x in r['notes']]
+            for i, it in enumerate(r['items']):
+                it2 = {k: v for k, v in it.items() if k not in ('works', 'no', 'range')}
+                if it.get('works'):
+                    it2['passage'] = dict(it2['passage'], works=it['works'])
+                items.append({'level': '교과서', 'code': '30', 'sec_name': '내신 기출', 'v': 1, 'ord': i + 1,
+                              'kind': 'choice', 'data': it2, 'plain': item_plain(it2)})
+            # 기출 지문 속 이 작품 행을 국어공방 원문과 대조 — 표시(㉠·[A]≪≫·ㄱ.)·마침표·띄어쓰기를 빼고도 다른 글자가 있는 행만 알린다
+            import difflib
+            nz = lambda t: re.sub(r"[㉠-㉭\s.‘’'\"≪≫《》]|\[[A-Z]\]|^[ㄱ-ㅎ]\.|\([一-龥]+\)", '', t)
+            P0 = [(nz(w), w) for w in poem if w]
+            seen = set()
+            for it in r['items']:
+                for b in it['passage']['blocks']:
+                    for ln in b.get('p', '').split('<br>'):
+                        t = html_un(re.sub(r'\s+', ' ', ln).strip()); z = nz(t)
+                        if len(z) < 8 or z in seen or any(z == q for q, _ in P0):
+                            continue
+                        best = max(P0, key=lambda q: difflib.SequenceMatcher(None, z, q[0]).ratio())
+                        if abs(len(z) - len(best[0])) <= 4 and difflib.SequenceMatcher(None, z, best[0]).ratio() >= .8:
+                            seen.add(z)
+                            notes.append('기출 PDF 행이 원문과 다름(%d번 등): 「%s」 ↔ 원문 「%s」' % (it['no'], t, best[1]))
+        elif pb.replace(' ', '') == base.replace(' ', ''):
+            import pymupdf
+            txt = ''.join(pg.get_text() for pg in pymupdf.open(pf)).replace(' ', '')
+            miss = [w for w in poem if w and w.replace(' ', '') not in txt]
+            notes.append('같은 이름 PDF 대조: 원문 %d행 중 %d행이 PDF 에 그대로 있음' % (len(poem), len(poem) - len(miss)))
+    P = d['passage']
+    works = [{'title': d['title'], 'author': d['author'], 'genre': d['genre']}]
+    return {
+        'id': pid, 'title': d['title'], 'src': src, 'srcname': lit_srcname(d['book']),
+        'kind': 'EBS' if 'EBS' in d['book'] else '', 'area': d['genre'], 'grade': '',
+        'subject': '문학', 'review': '검수 중', 'uploaded_by': by,
+        'data': {'passage': P, 'notes': d['notes'], 'analysis': d['analysis'], 'blanks': d['blanks'], 'keys': d['keys'],
+                 'author': d['author'], 'works': works, 'levels': ['교과서'], 'file': os.path.basename(f)},
+        'imgs': {},
+        'plain': plain(d['title'] + ' ' + d['author'] + ' ' + ' '.join(b.get('p', '') for b in P['blocks'])),
+        'items': items, '_removed': d['removed'], '_fixed': d['fixed'], '_notes': notes,
+    }
+
+
+def build(out, files, area_over, by=''):
+    res, pdfs = [], [f for f in files if f.lower().endswith('.pdf')]
+    for f in files:
+        if not f.lower().endswith('.hwp'):
+            continue
+        d = R5.convert(f)
+        res.append(build_lit(d, f, pdfs, by) if d.get('lit') else build_textbook(f, area_over))
+    files = [f for f in files if not f.lower().endswith(('.hwp', '.pdf'))]
     if not files:
         json.dump(res, open(out, 'w', encoding='utf8'), ensure_ascii=False)
         for p in res:
             print(p['id'], '|', p['title'], '|', p['srcname'], '| 문항', len(p['items']), '| 뺀 줄', len(p['_removed']), '| 고친 줄', len(p['_fixed']))
+            for n in p.get('_notes', []):
+                print('   확인:', n)
         return res
     groups = {}
     for f in files:
@@ -189,7 +276,7 @@ def check(res):
         ids.add(tag)
         if not re.fullmatch(r'[0-9A-Za-z가-힣_-]{3,80}', tag):
             errs.append('%s: id 모양' % tag)
-        if not p['area'] and p['kind'] != '교과서':
+        if not p['area'] and p['kind'] != '교과서' and p.get('subject') != '문학':
             warns.append('%s: 영역이 없습니다 (--area 로 넣으세요)' % tag)
         elif p['area'] and p['area'] not in AREAS:
             errs.append('%s: 영역 %s' % (tag, p['area']))
@@ -224,7 +311,7 @@ def check(res):
         lv = {}
         for it in p['items']:
             lv[it['level']] = lv.get(it['level'], 0) + 1
-        if lv.get('공통', 0) == 0 and p['kind'] != '교과서':
+        if lv.get('공통', 0) == 0 and p['kind'] != '교과서' and lv.get('교과서', 0) == 0:
             warns.append('%s: 원 기출이 없습니다' % tag)
     for w in warns:
         print('  알림:', w)
@@ -234,24 +321,105 @@ def check(res):
     return not errs
 
 
+def _walk(obj, path):
+    ks = path.split('.')
+    for k in ks[:-1]:
+        obj = obj[int(k)] if isinstance(obj, list) else obj[k]
+    last = ks[-1]
+    return obj, (int(last) if isinstance(obj, list) else last)
+
+
+def apply_edits(p, edits):
+    """검수 고침(원장님 지시로 고친 글자·정답·해설·삭제)을 지문 하나에 적용한다 — 원본 파일로 다시 올려도 사라지지 않게
+    reading_passages.data.edits 에 남겨 두고 put 이 다시 적용한다. 원소: {code, ord, level, v, path, old→new | set} ·
+    {code, ord, level, v, delete} · {passage, path, old→new | set}. 적용하지 못한 고침(원본이 바뀌어 old 가 없음)은 돌려준다."""
+    miss = []
+    for e in edits:
+        if e.get('passage'):
+            tgt = p['data']
+        else:
+            hit = [i for i in p['items'] if i['code'] == e['code'] and i['ord'] == e['ord'] and i['level'] == e.get('level', i['level']) and i['v'] == e.get('v', i['v'])]
+            if not hit:
+                miss.append(e); continue
+            if e.get('delete'):
+                hit[0]['_deleted'] = True; continue
+            tgt = hit[0]['data']
+        try:
+            o, k = _walk(tgt, e['path'])
+            if 'set' in e:
+                o[k] = e['set']
+            else:
+                cur = o[k]
+                if not isinstance(cur, str) or cur.count(e['old']) != 1:
+                    if isinstance(cur, str) and e['new'] in cur and e['old'] not in cur:
+                        continue   # 이미 고쳐져 있음
+                    miss.append(e); continue
+                o[k] = cur.replace(e['old'], e['new'])
+        except (KeyError, IndexError, TypeError, ValueError):
+            miss.append(e)
+    for i in p['items']:
+        if not i.get('_deleted'):
+            i['plain'] = item_plain(i['data'])
+    return miss
+
+
 def put(res):
     if not check(res):
         sys.exit(1)
     for k, p in enumerate(res):
         row = {x: p[x] for x in ('id', 'title', 'src', 'srcname', 'kind', 'area', 'grade', 'data', 'imgs', 'plain')}
         row['active'] = True
+        for x in ('subject', 'review', 'uploaded_by'):   # 084·086
+            if p.get(x):
+                row[x] = p[x]
+        old = rest('GET', '/reading_passages?select=data&id=eq.' + urllib.parse.quote(p['id']))
+        eds = ((old[0]['data'] or {}).get('edits') or []) if old else []
+        if eds:   # 앞서 검수에서 고친 것을 새로 만든 자료에도 다시 적용
+            miss = apply_edits(p, eds)
+            p['data']['edits'] = eds
+            row['data'] = p['data']
+            print('검수 고침 다시 적용: %d건' % (len(eds) - len(miss)) + (' · 적용 못 함 %d건(원본이 바뀜 — 확인)' % len(miss) if miss else ''))
         rest('POST', '/reading_passages?on_conflict=id', [row], 'resolution=merge-duplicates,return=minimal')
         rows = [{'passage_id': p['id'], 'level': i['level'], 'code': i['code'], 'sec_name': i['sec_name'], 'v': i['v'],
-                 'ord': i['ord'], 'kind': i['kind'], 'data': i['data'], 'plain': i['plain'], 'active': True} for i in p['items']]
+                 'ord': i['ord'], 'kind': i['kind'], 'data': i['data'], 'plain': i['plain'], 'active': not i.get('_deleted')} for i in p['items']]
         for j in range(0, len(rows), 200):
             rest('POST', '/reading_items?on_conflict=passage_id,level,code,v,ord', rows[j:j + 200],
                  'resolution=merge-duplicates,return=minimal')
         have = rest('GET', '/reading_items?select=id,level,code,v,ord&active=is.true&passage_id=eq.' + urllib.parse.quote(p['id']))
-        keep = {(i['level'], i['code'], i['v'], i['ord']) for i in p['items']}
+        keep = {(i['level'], i['code'], i['v'], i['ord']) for i in p['items'] if not i.get('_deleted')}
         gone = [h['id'] for h in have if (h['level'], h['code'], h['v'], h['ord']) not in keep]
         if gone:
             rest('PATCH', '/reading_items?id=in.(%s)' % ','.join(map(str, gone)), {'active': False}, 'return=minimal')
         print('올림:', p['id'], '| 문항', len(rows), '| 숨김', len(gone))
+
+
+def edit_cmd(pid, edits):
+    """올라가 있는 지문에 검수 고침을 적용·기록한다(edits.json — 위 apply_edits 형식, 문항은 id 로 줘도 된다)."""
+    q = urllib.parse.quote(pid)
+    P = rest('GET', '/reading_passages?select=id,data&id=eq.' + q)[0]
+    its = rest('GET', '/reading_items?select=id,level,code,v,ord,kind,data&active=is.true&passage_id=eq.' + q)
+    byid = {i['id']: i for i in its}
+    for e in edits:   # id → (level, code, v, ord)
+        if 'id' in e:
+            i = byid.get(e.pop('id'))
+            if not i:
+                sys.exit('없는 문항 id: ' + json.dumps(e, ensure_ascii=False))
+            e.update(level=i['level'], code=i['code'], v=i['v'], ord=i['ord'])
+    p = {'id': pid, 'data': P['data'], 'items': its}
+    miss = apply_edits(p, edits)
+    if miss:
+        for m in miss:
+            print('적용 못 함:', json.dumps(m, ensure_ascii=False)[:300])
+        sys.exit('적용하지 못한 고침이 있어 아무것도 올리지 않았습니다.')
+    p['data']['edits'] = (P['data'].get('edits') or []) + edits
+    rest('PATCH', '/reading_passages?id=eq.' + q, {'data': p['data']}, 'return=minimal')
+    n = 0
+    for i in its:
+        if i.get('_deleted'):
+            rest('PATCH', '/reading_items?id=eq.%d' % i['id'], {'active': False}, 'return=minimal'); n += 1
+        else:
+            rest('PATCH', '/reading_items?id=eq.%d' % i['id'], {'data': i['data'], 'plain': i['plain'], 'kind': i['data'].get('kind', i['kind'])}, 'return=minimal')
+    print('고침 %d건 적용 · 숨긴 문항 %d' % (len(edits), n))
 
 
 def lst():
@@ -280,21 +448,36 @@ if __name__ == '__main__':
     if a[0] == 'build':
         over = {}
         rest_args = []
+        by = subj = ''
         k = 1
         while k < len(a):
-            if a[k] == '--area':
+            if a[k] == '--by':
+                by = a[k + 1]; k += 2
+            elif a[k] == '--subject':
+                subj = a[k + 1]; k += 2
+            elif a[k] == '--area':
                 t, v = a[k + 1].rsplit('=', 1)
                 over[t.strip()] = v.strip()
                 k += 2
             else:
                 rest_args.append(a[k])
                 k += 1
-        res = build(rest_args[0], rest_args[1:], over)
+        res = build(rest_args[0], rest_args[1:], over, by)
+        # [문항 올리기](087) — 선생님이 올린 자료는 모두 '검수 중'(원장님이 화면에서 [검수 완료]), 과목은 폴더대로
+        if by or subj:
+            for p in res:
+                if by:
+                    p['uploaded_by'] = by; p['review'] = '검수 중'
+                if subj:
+                    p['subject'] = subj
+            json.dump(res, open(rest_args[0], 'w', encoding='utf8'), ensure_ascii=False)
         check(res)
     elif a[0] == 'check':
         sys.exit(0 if check(json.load(open(a[1], encoding='utf8'))) else 1)
     elif a[0] == 'put':
         put(json.load(open(a[1], encoding='utf8')))
+    elif a[0] == 'edit':
+        edit_cmd(a[1], json.load(open(a[2], encoding='utf8')))
     elif a[0] == 'list':
         lst()
     else:

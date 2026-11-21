@@ -16,7 +16,7 @@ def sb(method, path, body=None, tok=None, prefer=None):
 
 tok=sb('POST','/auth/v1/token?grant_type=password',{'email':'teachers@shueguk.internal','password':'shg_FCePWvnawH44SV8kYB9BHRKi6aag'})['access_token']
 students=sb('GET','/rest/v1/students?select=id,code,name,student_id,student_phone,enrolled',tok=tok)
-LEFT=re.compile(r'^(퇴원|n|no|off|x|중단|비재원)$',re.I)
+LEFT=re.compile(r'^(퇴원|n|no|off|x|중단|비재원|졸업)$',re.I)
 act=[s for s in students if str(s.get('name') or '').strip() and not LEFT.match(str(s.get('enrolled') or '').strip())]
 by_name={}
 for s in act: by_name.setdefault(s['name'].strip(), []).append(s)

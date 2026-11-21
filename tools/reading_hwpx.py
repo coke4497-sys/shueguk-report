@@ -236,9 +236,14 @@ def parse_notes(L):
 def parse_blanks(L):
     lines = parse_notes(L); ans = ''
     keep = []
+    nxt = False
     for b in lines:
         p = b.get('p', '')
-        if p.startswith('[답안]'): ans = p[4:].strip(); continue
+        if p.startswith('[답안]'):
+            ans = p[4:].strip(); nxt = not ans; continue
+        if nxt and p.lstrip().startswith('(1)'):   # '[답안]' 줄 다음 줄에 답이 있는 파일(「뿌리가 꽃이다」)
+            ans = p; nxt = False; continue
+        nxt = False
         keep.append(b)
     amap = dict(re.findall(r'\((\d+)\)\s*([^()]+?)(?=\s*\(\d+\)|$)', html.unescape(re.sub('<[^>]+>', '', ans))))
     return {'lines': keep, 'answers': {k: v.strip() for k, v in amap.items()}}
