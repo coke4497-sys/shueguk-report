@@ -64,6 +64,28 @@ const RT = [{ id: 5, teacher: '이현지', code: '[테스트] 문장 1회', n: 2
   ok('오답 — 남은 오답이 있습니다', /B .*남은 오답이 있습니다/.test(qaT) && !/오답하기 남음/.test(qaT));
   ok('다 끝난 질문 — 지난 질문 보기', /C .*지난 질문 보기/.test(qaT));
   ok('페이지 오류 없음', perr === 0);
+  // 같은 단원으로 나뉜 H WORK — 단원 카드 하나 → 누르면 세부 문제지 (2026-11-21 원장님)
+  const g = await pg.evaluate(() => {
+    STATE.hwqa = []; STATE.hwrt = [];
+    STATE.homework = [
+      { teacher: '이수경', code: 'Shuefit 독서: 문화를 담은 건축물 · 01 OX 쉬움 (17)', done: true },
+      { teacher: '이수경', code: 'Shuefit 독서: 문화를 담은 건축물 · 02 모의고사형 (8)', done: false },
+      { teacher: '이수경', code: 'Shuefit 독서: 문화를 담은 건축물 · 03 보기형 (6)', done: false },
+      { teacher: '이수경', code: '[테스트] 어휘 1회', done: false },
+      { teacher: '이수경', code: '[지필 워크북] 로봇 · 01 지문 학습 빈칸', done: true } ];
+    renderHomework();
+    const grp = [...document.querySelectorAll('#homeworkList .hw-grp')];
+    const box = grp[0];
+    const before = box && getComputedStyle(box.querySelector('.hw-parts')).display;
+    box && box.querySelector('.hw-gh').click();
+    const parts = box ? [...box.querySelectorAll('.hw-part')].map(p => ({ t: p.querySelector('.pt').textContent, d: p.classList.contains('done'), h: (p.querySelector('a') || {}).getAttribute('href') })) : [];
+    return { n: grp.length, head: box && box.querySelector('.hw-gh').textContent.replace(/\s+/g, ' '), before, after: box && getComputedStyle(box.querySelector('.hw-parts')).display, parts,
+      singles: [...document.querySelectorAll('#homeworkList > .notice-item:not(.hw-grp) .ntitle')].map(e => e.textContent) };
+  });
+  ok('단원 카드는 두 개 이상 나뉜 단원만 (하나뿐인 단원은 그대로)', g.n === 1 && g.singles.length === 2, JSON.stringify(g.singles));
+  ok('단원 카드 — 이름 · 문제지 수 · 남은 수', /문화를 담은 건축물/.test(g.head) && /문제지 3개/.test(g.head) && /남은 2개/.test(g.head), g.head);
+  ok('처음엔 접혀 있고 누르면 세부 문제지', g.before === 'none' && g.after === 'block', g.before + '→' + g.after);
+  ok('세부 문제지 — 구간 이름·제출 여부·바로 열기', g.parts.length === 3 && g.parts[0].t.startsWith('01 OX 쉬움') && g.parts[0].d && /&done=1$/.test(g.parts[0].h) && /hwork\.html\?c=/.test(g.parts[1].h), JSON.stringify(g.parts));
   await br.close(); srv.close();
   console.log(`통과 ${pass} · 실패 ${fail}`); process.exit(fail ? 1 : 0);
 })().catch(e => { console.error(e); process.exit(1); });

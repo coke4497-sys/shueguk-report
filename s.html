@@ -112,6 +112,22 @@
   /* 알려드립니다 뷰 */
   #noticeView{display:none;}
   #hwcheckView{display:none;}
+  /* 같은 단원으로 나뉜 H WORK — 단원 카드를 누르면 세부 문제지 (2026-11-21) */
+  .hw-grp .hw-gh{display:flex;align-items:center;gap:12px;width:100%;border:0;background:none;padding:0;text-align:left;cursor:pointer;font:inherit;color:inherit;}
+  .hw-grp .hw-gh .ntitle{flex:1;min-width:0;}
+  .hw-grp .hw-gcnt{font-size:.8rem;color:var(--ink-soft);white-space:nowrap;}
+  .hw-grp .hw-gcnt b{color:#B0525D;}
+  .hw-grp .hw-gar{width:18px;height:18px;flex:none;color:var(--ink-soft);transition:transform .15s;}
+  .hw-grp.open .hw-gar{transform:rotate(90deg);}
+  .hw-grp .hw-parts{display:none;margin-top:12px;border-top:1px solid var(--line-soft);}
+  .hw-grp.open .hw-parts{display:block;}
+  .hw-part{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:11px 2px;border-bottom:1px solid var(--line-soft);}
+  .hw-part:last-child{border-bottom:0;}
+  .hw-part .pt{flex:1;min-width:150px;font-size:.93rem;color:var(--ink);line-height:1.45;}
+  .hw-part .pt small{display:block;color:var(--ink-soft);font-size:.76rem;}
+  .hw-part .ps{font-size:.74rem;border-radius:20px;padding:2px 10px;white-space:nowrap;background:#F6E6E9;color:#8A3F4B;}
+  .hw-part.done .ps{background:#DCE6E0;color:var(--accent);}
+  .hw-part .hw-go{margin-top:0;}
   .hw-clsnote{text-align:center;color:#65726B;font-size:13px;margin:14px 0 4px;}
   .hwqa{background:#fff;border-radius:16px;padding:12px 14px;margin:0 0 14px;}
   .hwqa-h{font-family:'Gowun Batang',serif;font-weight:700;font-size:15px;margin-bottom:6px;}
@@ -3432,6 +3448,12 @@ function hwBookSort(arr){
   });
   return book.concat(other).map(function(x){ return x.h; });
 }
+var HW_GOPEN = {};   // 펼친 단원(이 화면에서만)
+function hwGroupToggle(btn){
+  var box = btn.closest('.hw-grp'); if(!box) return;
+  var k = box.getAttribute('data-hwg'), on = !box.classList.contains('open');
+  box.classList.toggle('open', on); if(on) HW_GOPEN[k] = 1; else delete HW_GOPEN[k];
+}
 function renderHomework(keepScroll){
   var hsAll = STATE.homework || [];
   var hs = hsAll.filter(function(h){ return !h.classDone; });   // 수업에서 확인한 과제는 빼고(2026-11-14)
@@ -3444,7 +3466,40 @@ function renderHomework(keepScroll){
     // 안 푼 과제 먼저, 제출 완료는 아래로
     var todo = hwBookSort(hs.filter(function(h){ return !h.done; }));
     var ordered = todo.concat(hwBookSort(hs.filter(function(h){ return h.done; })));
-    list.innerHTML = ordered.map(function(h){
+    /* 같은 단원으로 나뉜 과제(제목의 마지막 ' · ' 앞이 같고 강사가 같음, 2개 이상)는 단원 카드 하나로 묶는다 (2026-11-21 원장님) */
+    var gkOf = function(h){ var c = String(h.code||''), i = c.lastIndexOf(' · '); return i > 0 ? (h.teacher||'') + '\t' + c.slice(0, i) : ''; };
+    var gcnt = {}; ordered.forEach(function(h){ var k = gkOf(h); if(k) gcnt[k] = (gcnt[k]||0) + 1; });
+    var grp = {}, seq = [];
+    ordered.forEach(function(h){
+      var k = gkOf(h);
+      if(k && gcnt[k] > 1){ if(!grp[k]){ grp[k] = []; seq.push({ g:k }); } grp[k].push(h); }
+      else seq.push({ h:h });
+    });
+    // 남은 문제지가 있는 단원은 위(안 푼 과제 자리), 다 낸 단원은 제출 완료 쪽으로
+    seq = seq.filter(function(x){ return x.h ? !x.h.done : grp[x.g].some(function(h){ return !h.done; }); })
+      .concat(seq.filter(function(x){ return x.h ? x.h.done : grp[x.g].every(function(h){ return h.done; }); }));
+    var partHtml = function(h){
+      var c = String(h.code||''), i = c.lastIndexOf(' · '), name = i > 0 ? c.slice(i + 3) : c;
+      var href = hwGoHref(base, h, hwNextOf(todo, h));
+      var sub = []; if(h.due) sub.push('마감 '+hwFmtDue(h.due)); if(h.memo) sub.push(h.memo);
+      return '<div class="hw-part'+(h.done?' done':'')+'"><span class="pt">'+esc(name)+(sub.length?'<small>'+esc(sub.join(' · '))+'</small>':'')+'</span>' +
+        '<span class="ps">'+(h.done?'제출 완료':'아직 안 냄')+'</span>' +
+        (h.done ? '<a class="hw-go hw-re" href="'+esc(href+'&done=1')+'" target="_blank" rel="noopener">오답하기 '+svg(ICON.arrow)+'</a>'
+                : '<a class="hw-go" href="'+esc(href)+'" target="_blank" rel="noopener">풀러 가기 '+svg(ICON.arrow)+'</a>') + '</div>';
+    };
+    var groupHtml = function(k){
+      var hs2 = grp[k].slice().sort(function(a, b){ return String(a.code||'').localeCompare(String(b.code||''), 'ko', { numeric:true }); }), left = hs2.filter(function(h){ return !h.done; }).length;
+      var unit = k.split('\t')[1], t = hs2[0].teacher;
+      var open = HW_GOPEN[k] ? ' open' : '';
+      return '<div class="notice-item hw-grp'+open+'" data-hwg="'+esc(k)+'">' +
+        '<span class="ntag">'+(left?'배정 과제 · 단원':'제출 완료 · 단원')+'</span>' +
+        '<button type="button" class="hw-gh" onclick="hwGroupToggle(this)"><span class="ntitle">'+esc((t?t+' · ':'')+unit)+'</span>' +
+        '<span class="hw-gcnt">문제지 '+hs2.length+'개 · '+(left?'<b>남은 '+left+'개</b>':'모두 제출')+'</span>' +
+        '<svg class="hw-gar" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></button>' +
+        '<div class="hw-parts">'+hs2.map(partHtml).join('')+'</div></div>';
+    };
+    list.innerHTML = seq.map(function(x){ return x.g ? groupHtml(x.g) : itemHtml(x.h); }).join('');
+    function itemHtml(h){
       var title = (h.teacher ? (h.teacher+' · ') : '') + (h.code||'과제');
       var meta = [];
       if(h.due)  meta.push('마감 '+hwFmtDue(h.due));
@@ -3461,7 +3516,7 @@ function renderHomework(keepScroll){
         (meta.length ? '<div class="nbody">'+esc(meta.join(' · '))+'</div>' : '') +
         action +
         '</div>';
-    }).join('');
+    }
   }
   if(clsN) list.innerHTML += '<p class="hw-clsnote">수업 시간에 선생님과 확인한 과제 '+clsN+'개는 목록에서 뺐습니다.</p>';
   list.innerHTML = hwQaHtml() + list.innerHTML;
