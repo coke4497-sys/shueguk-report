@@ -117,6 +117,17 @@
   .hw-grp .hw-gh .ntitle{flex:1;min-width:0;}
   .hw-grp .hw-gcnt{font-size:.8rem;color:var(--ink-soft);white-space:nowrap;}
   .hw-grp .hw-gcnt b{color:#B0525D;}
+  /* 단원 키워드 색 (2026-11-21 원장님 — 독점·이타적·건축물·문장 등을 목록에서 빨리 찾게) */
+  .hwk{display:inline-block;font-family:var(--sans);font-weight:700;font-size:.78rem;border-radius:20px;padding:2px 10px;margin-right:6px;vertical-align:2px;white-space:nowrap;}
+  mark.hwm{font-weight:700;border-radius:4px;padding:0 3px;}
+  .hwk.k0,mark.hwm.k0{background:#F7DCD6;color:#8A3F35;}
+  .hwk.k1,mark.hwm.k1{background:#DCEFE3;color:#2F6A4A;}
+  .hwk.k2,mark.hwm.k2{background:#F7EBC8;color:#7A5B12;}
+  .hwk.k3,mark.hwm.k3{background:#E3DDF3;color:#4F3F80;}
+  .hwk.k4,mark.hwm.k4{background:#D9E8F5;color:#2C5577;}
+  .hwk.k5,mark.hwm.k5{background:#F5DDEB;color:#7E3560;}
+  .hwk.k6,mark.hwm.k6{background:#DDF0EE;color:#25655F;}
+  .hwk.k7,mark.hwm.k7{background:#F8E2CF;color:#80461C;}
   .hw-grp .hw-gar{width:18px;height:18px;flex:none;color:var(--ink-soft);transition:transform .15s;}
   .hw-grp.open .hw-gar{transform:rotate(90deg);}
   .hw-grp .hw-parts{display:none;margin-top:12px;border-top:1px solid var(--line-soft);}
@@ -3448,6 +3459,32 @@ function hwBookSort(arr){
   });
   return book.concat(other).map(function(x){ return x.h; });
 }
+/* 단원 키워드 (2026-11-21 원장님) — 제목에서 단원 이름을 찾아 색 알약을 앞에 붙이고 제목 속 그 낱말도 같은 색으로.
+ * 위에서부터 먼저 맞는 것 하나(단어 형성 1권 '01 형태소…'는 단어 형성). 새 단원은 이 표에 한 줄. */
+var HW_KW = [
+  { k:'독점',      re:/독점/,           c:0 },
+  { k:'이타적',    re:/이타적|진화론/,  c:1 },
+  { k:'건축물',    re:/건축물/,         c:2 },
+  { k:'정치',      re:/정치/,           c:3 },
+  { k:'로봇',      re:/로봇/,           c:4 },
+  { k:'워드투벡',  re:/워드투벡/,       c:5 },
+  { k:'단어 형성', re:/단어 형성/,      c:6 },
+  { k:'맞춤법',    re:/맞춤법/,         c:7 },
+  { k:'문장',      re:/문장/,           c:3 },
+  { k:'음운',      re:/음운/,           c:4 },
+  { k:'형태소',    re:/형태소/,         c:5 }
+];
+function hwKwOf(code){
+  var t = String(code||'');
+  for(var i=0;i<HW_KW.length;i++) if(HW_KW[i].re.test(t)) return HW_KW[i];
+  return null;
+}
+function hwKwTitle(text, code){
+  var w = hwKwOf(code), h = esc(text);
+  if(!w) return h;
+  var re = new RegExp(w.re.source);
+  return '<span class="hwk k'+w.c+'">'+esc(w.k)+'</span>' + h.replace(re, function(m){ return '<mark class="hwm k'+w.c+'">'+m+'</mark>'; });
+}
 var HW_GOPEN = {};   // 펼친 단원(이 화면에서만)
 function hwGroupToggle(btn){
   var box = btn.closest('.hw-grp'); if(!box) return;
@@ -3493,7 +3530,7 @@ function renderHomework(keepScroll){
       var open = HW_GOPEN[k] ? ' open' : '';
       return '<div class="notice-item hw-grp'+open+'" data-hwg="'+esc(k)+'">' +
         '<span class="ntag">'+(left?'배정 과제 · 단원':'제출 완료 · 단원')+'</span>' +
-        '<button type="button" class="hw-gh" onclick="hwGroupToggle(this)"><span class="ntitle">'+esc((t?t+' · ':'')+unit)+'</span>' +
+        '<button type="button" class="hw-gh" onclick="hwGroupToggle(this)"><span class="ntitle">'+hwKwTitle((t?t+' · ':'')+unit, unit)+'</span>' +
         '<span class="hw-gcnt">문제지 '+hs2.length+'개 · '+(left?'<b>남은 '+left+'개</b>':'모두 제출')+'</span>' +
         '<svg class="hw-gar" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></button>' +
         '<div class="hw-parts">'+hs2.map(partHtml).join('')+'</div></div>';
@@ -3511,7 +3548,7 @@ function renderHomework(keepScroll){
         : '<a class="hw-go" href="'+esc(href)+'" target="_blank" rel="noopener">H WORK 풀러 가기 '+svg(ICON.arrow)+'</a>';
       return '<div class="notice-item">' +
         '<span class="ntag">'+(h.done?'제출 완료':'배정 과제')+'</span>' +
-        '<div class="nh"><span class="ntitle">'+esc(title)+'</span>' +
+        '<div class="nh"><span class="ntitle">'+hwKwTitle(title, h.code)+'</span>' +
         (h.date ? '<span class="ndate">'+esc(h.date)+'</span>' : '') + '</div>' +
         (meta.length ? '<div class="nbody">'+esc(meta.join(' · '))+'</div>' : '') +
         action +
