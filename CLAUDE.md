@@ -1236,3 +1236,6 @@ clasp update-deployment -d "설명" <DEPLOYMENT_ID>   # 기존 배포 새 버전
 
 ## H WORK 답장 수정·지우기 — 089 (2026-11-20 원장님)
 - `hwork_qa.edited_at` + 삭제 트리거 `hwork_qa_reopen`(선생님 답장을 지워 마지막 글이 학생 질문이면 슈톡 'H WORK 질문' 할 일을 '대기'로, 확인한 문항 제외). 2026-11-20 실제 적용(두 번 실행). 화면은 H WORK CLAUDE.md 같은 날 절. **관리 API database/query 는 begin…rollback 을 한 요청에 넣어도 되돌리지 않을 수 있다 — 시험은 DO 블록 끝에서 raise exception 으로 되돌릴 것.**
+
+## 학생 페이지 H WORK 목록 — 같은 단원은 단원 카드로 묶기 (2026-11-21 원장님 "H work 리스트가 같은 단원으로 여러개가 나뉠 때 단원을 선택한 후 세부 문제지로")
+- s.html `renderHomework` — 같은 강사이고 과제 이름의 마지막 ' · ' 앞이 같은 과제가 둘 이상이면(Shuefit 독서 구간 과제 'Shuefit 독서: 지문 · 01 OX 쉬움 (17)', 지필 워크북, SHUEGUK REAL '… · 기본' 등) 단원 카드 하나 `.hw-grp`('문제지 n개 · 남은 m개', 접힘) → 누르면 세부 문제지 줄 `.hw-part`(구간 이름 · 제출 완료/아직 안 냄 · [풀러 가기]/[오답하기] — 주소·다음 챕터 nx 는 종전 그대로, 구간 번호 순). 남은 문제지가 있는 단원은 안 푼 과제 자리, 다 냈으면 제출 완료 쪽. 하나뿐인 과제는 종전 카드. 펼친 단원은 이 화면에서만 기억(`HW_GOPEN`·`hwGroupToggle`). 검증 hwork-retest-list-e2e(15).
