@@ -238,7 +238,7 @@ const ok = (n, c, x) => { if (c) pass++; else { fail++; console.log('  ✗ ' + n
   await page.evaluate(() => closeModal());
   await page.close();
 
-  /* ④-3 휴대폰 목록 보기는 종전대로 흐린 카드 */
+  /* ④-3 휴대폰 목록 보기 — 휴강·이동은 흐린 카드, 전원 빠짐은 흐린 '사라짐' 카드 */
   const narrow = await b.newContext({ viewport: { width: 420, height: 860 }, timezoneId: 'Asia/Seoul' });
   await narrow.route(/script\.google\.com|supabase\.co|googleusercontent/, r2 => r2.fulfill({ status: 200, contentType: 'application/json', body: '{"result":"error"}' }));
   await narrow.route(/fonts\.g/, r2 => r2.abort());
@@ -251,6 +251,11 @@ const ok = (n, c, x) => { if (c) pass++; else { fail++; console.log('  ✗ ' + n
   r = await page.evaluate(() => ({ card: [...document.querySelectorAll('.daylist .blk')].some(e => /정리정독 중2/.test(e.textContent)),
     btn: [...document.querySelectorAll('.daylist .gonebtn.inlist')].map(e => e.title) }));
   ok('⑦ 휴대폰 목록: 빈 명단 반은 카드 없이 작은 버튼', !r.card && r.btn.length === 1 && /정리정독 중2/.test(r.btn[0]), JSON.stringify(r));
+  r = await page.evaluate(() => [...document.querySelectorAll('.daylist .blk.gonel')].map(e => ({ t: e.textContent, op: getComputedStyle(e).opacity })));
+  ok('휴대폰 목록(2026-11-22): 전원 빠진 고2 확인은 흐린 "사라짐" 카드', r.length === 1 && /고2 확인/.test(r[0].t) && /사라짐/.test(r[0].t) && /2명 모두 빠짐/.test(r[0].t) && +r[0].op < 0.7, JSON.stringify(r));
+  await page.evaluate(() => document.querySelector('.daylist .blk.gonel').click());
+  r = await page.evaluate(() => (document.querySelector('#modal') || document.body).textContent);
+  ok('휴대폰 목록: 사라짐 카드를 누르면 빠진 학생', /모두 빠졌어요/.test(r) && /김소은/.test(r), r.slice(0, 80));
   await page.close();
 
   /* ⑦ 오늘 그리드: 빈 명단 반 = 작은 버튼, 누르면 그 반 */
