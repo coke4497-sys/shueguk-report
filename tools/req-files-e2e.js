@@ -83,7 +83,7 @@ const NS_SCOPE = { period: PERS.fin, class_key: '공유:고1|화정', kind: '범
     const page = await ctx.newPage();
     page.on('pageerror', e => { fail++; console.log('  ✗ 페이지 오류 ' + e.message); });
     page.on('dialog', d => d.accept());
-    await page.addInitScript(o => { sessionStorage.setItem('tt_mode', 'today'); sessionStorage.setItem('tt_book', o.bk); localStorage.clear(); }, { bk: opt.rows ? '내신' : '정규' });
+    await page.addInitScript(o => { sessionStorage.setItem('tt_mode', 'today'); sessionStorage.setItem('tt_book', o.bk); localStorage.clear(); localStorage.setItem('shueguk_teacher_session_v2', JSON.stringify({ access_token: 'T', refresh_token: 'R', expires_at: Math.floor(Date.now() / 1000) + 3600 })); }, { bk: opt.rows ? '내신' : '정규' });
     await page.goto('http://127.0.0.1:' + port + '/timetable.html');
     await page.waitForSelector('#ab-req', { timeout: 15000 });
     return { ctx, page };

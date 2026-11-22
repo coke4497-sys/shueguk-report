@@ -14,7 +14,9 @@ def sb(method, path, body=None, tok=None, prefer=None):
     with urllib.request.urlopen(req) as r:
         t=r.read().decode(); return json.loads(t) if t else None
 
-tok=sb('POST','/auth/v1/token?grant_type=password',{'email':'teachers@shueguk.internal','password':'shg_FCePWvnawH44SV8kYB9BHRKi6aag'})['access_token']
+T_ID = 'closhu@shueguk.internal'   # 클로슈 전용 계정(2026-11-22 공용 교사 계정 폐지) — 비밀번호는 환경 비밀값 CLOSHU_TOKEN 에서 만든다
+T_PW = __import__('hashlib').sha256(('shueguk-closhu-sb:' + (__import__('os').environ.get('CLOSHU_TOKEN') or (_ for _ in ()).throw(SystemExit('환경 비밀값 CLOSHU_TOKEN 이 없습니다 — 클로슈 계정으로 로그인할 수 없어요')))).encode()).hexdigest()
+tok=sb('POST','/auth/v1/token?grant_type=password',{'email':T_ID,'password':T_PW})['access_token']
 students=sb('GET','/rest/v1/students?select=id,code,name,student_id,student_phone,enrolled',tok=tok)
 LEFT=re.compile(r'^(퇴원|n|no|off|x|중단|비재원|졸업)$',re.I)
 act=[s for s in students if str(s.get('name') or '').strip() and not LEFT.match(str(s.get('enrolled') or '').strip())]

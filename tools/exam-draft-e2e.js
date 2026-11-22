@@ -43,6 +43,7 @@ const ROWS0 = [
   async function open(q){
     const st = { rest: [], store: [], gas: [], rows: JSON.parse(JSON.stringify(ROWS0)) };
     const ctx = await b.newContext({ viewport: { width: 1100, height: 900 } });
+    await ctx.addInitScript(() => { try { localStorage.setItem('shueguk_teacher_session_v2', JSON.stringify({ access_token: 't', refresh_token: 'R', expires_at: Math.floor(Date.now() / 1000) + 3600 })); } catch (e) {} });   // 허브 개인 로그인(2026-11-22 공용 교사 계정 폐지)
     await ctx.route(/fonts\.g/, r => r.abort());
     await ctx.route(/script\.google\.com|googleusercontent/, r => {
       const req = r.request(), u = decodeURIComponent(req.url());

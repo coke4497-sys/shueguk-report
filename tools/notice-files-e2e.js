@@ -66,6 +66,7 @@ async function route(page){
   await new Promise(r => srv.listen(PORT, r));
   const browser = await chromium.launch();
   const ctx = await browser.newContext({ acceptDownloads: true });
+  await ctx.addInitScript(() => { try { localStorage.setItem('shueguk_teacher_session_v2', JSON.stringify({ access_token: 'T', refresh_token: 'R', expires_at: Math.floor(Date.now() / 1000) + 3600 })); } catch (e) {} });   // 허브 개인 로그인(2026-11-22 공용 교사 계정 폐지)
   const page = await ctx.newPage();
   page.on('pageerror', e => { bad++; console.error('  ✗ pageerror', e.message); });
   page.on('dialog', d => d.accept());

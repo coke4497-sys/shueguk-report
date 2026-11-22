@@ -50,6 +50,7 @@ const STUDENTS = [
     const st = { writes: [], gas: [], notes: {}, ns: [] };
     Object.assign(st.notes, opt.notes || {});
     const ctx = await b.newContext({ viewport: { width: 1300, height: 900 }, timezoneId: 'Asia/Seoul' });
+    await ctx.addInitScript(() => { try { localStorage.setItem('shueguk_teacher_session_v2', JSON.stringify({ access_token: 'T', refresh_token: 'R', expires_at: Math.floor(Date.now() / 1000) + 3600 })); } catch (e) {} });   // 허브 개인 로그인(2026-11-22 공용 교사 계정 폐지)
     await ctx.route(/fonts\.g/, r => r.abort());
     await ctx.route(/script\.google\.com|googleusercontent/, r => {
       const req = r.request();
@@ -100,7 +101,7 @@ const STUDENTS = [
     const page = await ctx.newPage();
     page.on('pageerror', e => { perr++; console.log('  ✗ pageerror', e.message); });
     page.on('dialog', d => d.accept());
-    await page.addInitScript(o => { sessionStorage.setItem('tt_mode', o.mode || 'today'); sessionStorage.setItem('tt_book', o.bk); localStorage.clear(); }, { bk: opt.book, mode: opt.mode });
+    await page.addInitScript(o => { sessionStorage.setItem('tt_mode', o.mode || 'today'); sessionStorage.setItem('tt_book', o.bk); localStorage.clear(); localStorage.setItem('shueguk_teacher_session_v2', JSON.stringify({ access_token: 'T', refresh_token: 'R', expires_at: Math.floor(Date.now() / 1000) + 3600 })); }, { bk: opt.book, mode: opt.mode });
     await page.goto('http://127.0.0.1:' + port + '/timetable.html' + (opt.qs || ''));
     // 고1·고2 예외 기간(CR_NS_SPLIT — 2026-10-12~11-03, 내신 시간표로 정규 수업)은 날짜에 묶여 있어 검사에서는 기본으로 끈다(②-2b 가 따로 켠다)
     await page.evaluate(() => { if (typeof CR_NS_SPLIT_FROM !== 'undefined'){ CR_NS_SPLIT_FROM = '2000-01-01'; CR_NS_SPLIT_TO = '2000-01-02'; CR_NS_HW_SPLIT_TO = '2000-01-02'; } });
