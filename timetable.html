@@ -5431,6 +5431,18 @@ function mviewToggleBtn(){
   return tg;
 }
 /* 구역(정리정독→화정센터→민트초코→본원)별로 묶고 구역 안에서 시간순 정렬한 카드 목록 */
+/* 휴대폰 목록 — 학생이 모두 빠진 수업(직전보강 등)은 흐린 '사라짐' 카드, 누르면 누가 왜 빠졌는지 (2026-11-22 원장님) */
+function goneListCard(c, dstr, gone, canManage){
+  var b = document.createElement('div');
+  b.className = 'blk ' + colorOf(c.cls) + (c.wk ? ' wkonly' : '') + ' wkoff gonel';
+  b.setAttribute('data-cid', c.id);
+  b.innerHTML = '<div class="bt"><span class="nm">'+esc(c.cls)+jbBadge(c)+' <em class="wkflag">사라짐</em></span>'+
+                '<small>'+esc(c.start)+'~'+esc(c.end)+' · '+esc(c.teacher)+'T'+(c.loc ? ' · '+esc(c.loc) : '')+'</small></div>'+
+                '<div class="stus"><span class="empty-note">학생 '+gone.n+'명 모두 빠짐 — '+esc(emptyReasonText(gone))+'</span></div>';
+  b.title = c.cls + ' — 학생이 모두 빠졌어요 (누르면 자세히)';
+  b.addEventListener('click', function(e){ e.stopPropagation(); openGoneEmpty(c, dstr, gone, canManage); });
+  return b;
+}
 function locGroupList(list, makeCard, offCtx){
   var box = document.createElement('div');
   box.className = 'daylist';
@@ -5476,6 +5488,8 @@ function locGroupList(list, makeCard, offCtx){
       box.appendChild(gb);
       return;
     }
+    var gone = offCtx ? emptyAt(c, offCtx.dstr) : null;
+    if (gone){ box.appendChild(goneListCard(c, offCtx.dstr, gone, offCtx.canManage)); return; }   // 전원 빠짐 — 흐린 '사라짐' 카드 (2026-11-22)
     box.appendChild(makeCard(c));
   });
   flushOff();
