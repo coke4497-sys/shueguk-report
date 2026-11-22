@@ -53,7 +53,7 @@ const LOGS = [
   { row: 4, kind: '주간반휴강', date: TS, ymd: TS, student: '', fromId: 'r09', toId: '', reason: '시험 주간' },
   { row: 5, kind: '주간빼기', date: TS, ymd: TS, student: '김소은(화정)', fromId: 'r11', toId: '', reason: '10/8 목4:00-7:00' },
   { row: 6, kind: '주간빼기', date: TS, ymd: TS, student: '채정후(화정)', fromId: 'r11', toId: '', reason: '10/8 목4:00-7:00' },
-  { row: 7, kind: '주간빼기', date: TS, ymd: TS, student: '문준승', fromId: 'r12', toId: '', reason: '시험 전 미리 진행' },
+  { row: 7, kind: '주간빼기', date: TS, ymd: TS, student: '문준승', fromId: 'r12', toId: '', reason: '직전보강으로 이동 (12/3)' },
 ];
 let pass = 0, fail = 0;
 const ok = (n, c, x) => { if (c) pass++; else { fail++; console.log('  ✗ ' + n + (x ? ' — ' + x : '')); } };
@@ -130,6 +130,11 @@ const ok = (n, c, x) => { if (c) pass++; else { fail++; console.log('  ✗ ' + n
   ok('⑤ 오늘: 전원 빠진 반은 카드 대신 "사라진 1"', r.has && r.t === '사라진 1' && /전원 빠짐/.test(r.title), JSON.stringify([r.t, r.title]));
   ok('⑤ 오늘: 버튼이 같은 칸 4:00~7:00 수업 카드 안 맨 위', r.inblk && r.first && /고2 화정A/.test(r.host), JSON.stringify([r.inblk, r.first, r.host]));
   ok('⑤ 오늘: 4:00~7:00 수업이 열 폭을 그대로 쓴다(반으로 안 나뉨)', r.live > r.cell * 0.9, JSON.stringify([r.live, r.cell]));
+  {
+    const jb = await page.evaluate(() => { const b = [...document.querySelectorAll('.stus button.away')].find(x => /문준승/.test(x.textContent));
+      return b ? { jb: b.classList.contains('jbout'), title: b.title, deco: getComputedStyle(b).textDecorationLine, em: !!b.querySelector('em') } : null; });
+    ok('⑤-2 직전보강으로 빠진 학생: 가로줄 · 마우스를 올리면 사유만', !!jb && jb.jb && /line-through/.test(jb.deco) && jb.title === '직전보강으로 이동 (12/3)' && !jb.em, JSON.stringify(jb));
+  }
   ok('⑤ 오늘: 한 명이라도 남으면 카드 유지(빠진 칩 1 · 전체 2)', r.keep && r.keepAway === 1 && r.keepAll === 2, JSON.stringify([r.keep, r.keepAway, r.keepAll]));
   ok('⑥ 오늘: 다른 날짜 "이 주만" 반은 열을 만들지 않음(은지 본원 없음)', !r.heads.some(h => /은지/.test(h) && /본원/.test(h)) && r.heads.some(h => /은지/.test(h) && /정리정독/.test(h)), JSON.stringify(r.heads));
   await page.evaluate(() => [...document.querySelectorAll('.gonebtn')].find(x => /고2 확인/.test(x.title)).click());
