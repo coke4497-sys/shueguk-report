@@ -51,6 +51,7 @@ var GRAMMA_ROUNDS = { '음운': 20, '형태소': 10, '형태소 레벨2': 10, '�
 // 원본 집계는 수파베이스 gramma_results(리포트 027 마이그레이션)로 학생 페이지(student_bundle)·순위(superstar computeRanking)가 한다.
 var GRAMMA_SHEET_ID = '1aofZTG14J7Teqyi7He_oC0itMd-9HcNA_RavRvdrdkw';   // 2026-09-13 사용자 제공 — 첫 탭 머리글 time·name·school·grade·phone8·unit·round·score·details
 var GRAMMA_STAR_FROM = '2026-09-13';   // 이 날짜(제출 시각 time 열, yyyy-MM-dd) 이후 제출만 별로 센다 — 수파베이스 gramma_results(원본)가 이 날부터 쌓이므로 폴백도 같은 범위. 지난 기록도 세려면 원본에 백필하고 이 값을 비울 것.
+var HWORK_STAR_UNTIL = '2026-11-21';   // H WORK 별 +1 은 2026-11-22 부터 중지(2026-11-22 원장님) — 이 날짜(제출시각, yyyy-MM-dd)까지 낸 제출만 별로 센다. 시각이 없으면 센다. s.html·superstar.html 과 세 벌.
 var TAB_NOTICE_READ = '공지확인';   // A:일시 B:학생ID C:이름 D:학교 E:공지키(작성일|제목)
 // 어휘·H WORK·주말 모의고사 자동 적립용 스프레드시트 ID (비우면 그 항목은 0으로 계산)
 var VOCA_SHEET_ID  = '1AVDyKpBj9kSW5hzSzOieVIZpV6FnIpcFMjsjUyuGAbE';   // 어휘 결과 시트
@@ -208,14 +209,16 @@ function hworkSnap_() {
     var H = v[0].map(function (h) { return String(h || '').trim().toLowerCase(); });
     var iName = idxOfAny_(H, ['name', '이름']), iSchool = idxOfAny_(H, ['school', '학교']);
     var iTitle = idxOfAny_(H, ['제목', 'title']), iTeach = idxOfAny_(H, ['강사']), iGrade = idxOfAny_(H, ['학년', 'grade']);
-    snap.has = { name: iName >= 0, school: iSchool >= 0, title: iTitle >= 0, teacher: iTeach >= 0, grade: iGrade >= 0 };
+    var iTs = idxOfAny_(H, ['제출시각', '제출일시', 'time', '일시']);
+    snap.has = { name: iName >= 0, school: iSchool >= 0, title: iTitle >= 0, teacher: iTeach >= 0, grade: iGrade >= 0, ts: iTs >= 0 };
     for (var i = 1; i < v.length; i++) {
       snap.rows.push([
         iTeach  >= 0 ? String(v[i][iTeach]  || '') : '',
         iTitle  >= 0 ? String(v[i][iTitle]  || '') : '',
         iName   >= 0 ? String(v[i][iName]   || '') : '',
         iSchool >= 0 ? String(v[i][iSchool] || '') : '',
-        iGrade  >= 0 ? String(v[i][iGrade]  || '') : ''
+        iGrade  >= 0 ? String(v[i][iGrade]  || '') : '',
+        iTs     >= 0 ? hworkYmd_(v[i][iTs]) : ''      // 제출 날짜 yyyy-MM-dd (별 중지 날짜 대조용)
       ]);
     }
     return snap;
@@ -1658,6 +1661,7 @@ function starRankingData_() {
       if (hN >= 0) for (var h2 = 1; h2 < hv.length; h2++) {
         var kh = resolve('', hv[h2][hN], hS >= 0 ? hv[h2][hS] : '', hG >= 0 ? hv[h2][hG] : '');
         if (kh < 0) continue;
+        if (hTs >= 0 && !hworkStarOk_(hv[h2][hTs])) continue;   // 2026-11-22 부터 낸 H WORK 는 별 없음
         var ht = hC >= 0 ? String(hv[h2][hC] || '').trim() : '';
         mark_(stus[kh].hwork, ht ? ((hT >= 0 ? String(hv[h2][hT] || '').trim() : '') + '|' + ht) : ('r' + h2), tsOf_(hTs >= 0 ? hv[h2][hTs] : ''));
       }
@@ -1847,6 +1851,21 @@ function grammaSnap_() {
 function grammaTimeStr_(v) {
   if (v instanceof Date && !isNaN(v)) return Utilities.formatDate(v, 'Asia/Seoul', 'yyyy-MM-dd HH:mm');
   return String(v || '').trim();
+}
+/** H WORK 제출 시각 → 한국 날짜 yyyy-MM-dd (Date 든 '2026-11-22 15:11' 글자든). 모르면 ''. */
+function hworkYmd_(v) {
+  if (v instanceof Date) return Utilities.formatDate(v, 'Asia/Seoul', 'yyyy-MM-dd');
+  var s = String(v || '').trim();
+  var m = s.match(/^(\d{4})[-./](\d{1,2})[-./](\d{1,2})/);
+  if (m) return m[1] + '-' + ('0' + m[2]).slice(-2) + '-' + ('0' + m[3]).slice(-2);
+  var t = new Date(s);
+  return isNaN(t.getTime()) ? '' : Utilities.formatDate(t, 'Asia/Seoul', 'yyyy-MM-dd');
+}
+/** HWORK_STAR_UNTIL 뒤에 낸 H WORK 는 별로 세지 않는다(날짜를 모르면 센다). */
+function hworkStarOk_(v) {
+  if (!HWORK_STAR_UNTIL) return true;
+  var d = hworkYmd_(v);
+  return !d || d <= HWORK_STAR_UNTIL;
 }
 /** GRAMMA_STAR_FROM 이전 제출은 별로 세지 않는다(시각이 없으면 센다). */
 function grammaInRange_(timeStr) {
@@ -2065,6 +2084,7 @@ function countHwork_(name, school, uniq, grade) {
   var set = {}, myGd = gradeDigit_(grade), base = baseName_(name);
   for (var i = 0; i < snap.rows.length; i++) {
     var r = snap.rows[i];
+    if (snap.has.ts && !hworkStarOk_(r[5])) continue;   // 2026-11-22 부터 낸 H WORK 는 별 없음
     var rn = r[2].trim();
     if (rn !== name && rn !== base) continue;
     if (myGd && snap.has.grade) {
