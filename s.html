@@ -139,6 +139,16 @@
   .hw-part .ps{font-size:.74rem;border-radius:20px;padding:2px 10px;white-space:nowrap;background:#F6E6E9;color:#8A3F4B;}
   .hw-part.done .ps{background:#DCE6E0;color:var(--accent);}
   .hw-part .hw-go{margin-top:0;}
+  /* 카드·줄 전체가 링크 (2026-11-22) — 누르는 곳이 어디든 풀러 가기 */
+  a.hw-part{text-decoration:none;color:inherit;cursor:pointer;border-radius:10px;}
+  a.hw-part:hover,a.hw-part:focus-visible{background:#F3F7F4;outline:none;}
+  a.hw-part .hw-go{margin-left:auto;}
+  a.notice-item.hw-card{display:block;text-decoration:none;color:inherit;cursor:pointer;transition:box-shadow .15s,transform .15s;}
+  a.notice-item.hw-card:hover,a.notice-item.hw-card:focus-visible{box-shadow:0 4px 16px rgba(60,80,70,.12);transform:translateY(-1px);outline:none;}
+  a.notice-item.hw-card:active{transform:none;}
+  .hw-card .hw-act{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;}
+  .hw-card .hw-act .hw-go{margin-left:auto;}
+  .hw-card .hw-act .nchk-done{margin-top:12px;}
   .hw-clsnote{text-align:center;color:#65726B;font-size:13px;margin:14px 0 4px;}
   .hwqa{background:#fff;border-radius:16px;padding:12px 14px;margin:0 0 14px;}
   .hwqa-h{font-family:'Gowun Batang',serif;font-weight:700;font-size:15px;margin-bottom:6px;}
@@ -3519,10 +3529,11 @@ function renderHomework(keepScroll){
       var c = String(h.code||''), i = c.lastIndexOf(' · '), name = i > 0 ? c.slice(i + 3) : c;
       var href = hwGoHref(base, h, hwNextOf(todo, h));
       var sub = []; if(h.due) sub.push('마감 '+hwFmtDue(h.due)); if(h.memo) sub.push(h.memo);
-      return '<div class="hw-part'+(h.done?' done':'')+'"><span class="pt">'+esc(name)+(sub.length?'<small>'+esc(sub.join(' · '))+'</small>':'')+'</span>' +
+      /* 줄 전체가 링크 — 누르면 바로 풀러 가기·오답하기 (2026-11-22 원장님 "풀러가기 버튼이 불편해요") */
+      return '<a class="hw-part'+(h.done?' done':'')+'" href="'+esc(h.done ? href+'&done=1' : href)+'" target="_blank" rel="noopener">' +
+        '<span class="pt">'+esc(name)+(sub.length?'<small>'+esc(sub.join(' · '))+'</small>':'')+'</span>' +
         '<span class="ps">'+(h.done?'제출 완료':'아직 안 냄')+'</span>' +
-        (h.done ? '<a class="hw-go hw-re" href="'+esc(href+'&done=1')+'" target="_blank" rel="noopener">오답하기 '+svg(ICON.arrow)+'</a>'
-                : '<a class="hw-go" href="'+esc(href)+'" target="_blank" rel="noopener">풀러 가기 '+svg(ICON.arrow)+'</a>') + '</div>';
+        '<span class="hw-go'+(h.done?' hw-re':'')+'">'+(h.done?'오답하기':'풀러 가기')+' '+svg(ICON.arrow)+'</span></a>';
     };
     var groupHtml = function(k){
       var hs2 = grp[k].slice().sort(function(a, b){ return String(a.code||'').localeCompare(String(b.code||''), 'ko', { numeric:true }); }), left = hs2.filter(function(h){ return !h.done; }).length;
@@ -3542,17 +3553,18 @@ function renderHomework(keepScroll){
       if(h.due)  meta.push('마감 '+hwFmtDue(h.due));
       if(h.memo) meta.push(h.memo);
       var href = hwGoHref(base, h, hwNextOf(todo, h));
+      /* 카드 전체가 링크 — 어디를 눌러도 바로 풀러 가기·오답하기 (2026-11-22 원장님 "풀러가기 버튼이 불편해요") */
       var action = h.done
         ? '<span class="nchk-done">✓ 제출 완료 · 별 +1</span>' +
-          '<a class="hw-go hw-re" href="'+esc(href+'&done=1')+'" target="_blank" rel="noopener">오답하기 이어 하기 '+svg(ICON.arrow)+'</a>'
-        : '<a class="hw-go" href="'+esc(href)+'" target="_blank" rel="noopener">H WORK 풀러 가기 '+svg(ICON.arrow)+'</a>';
-      return '<div class="notice-item">' +
+          '<span class="hw-go hw-re">오답하기 이어 하기 '+svg(ICON.arrow)+'</span>'
+        : '<span class="hw-go">풀러 가기 '+svg(ICON.arrow)+'</span>';
+      return '<a class="notice-item hw-card'+(h.done?' done':'')+'" href="'+esc(h.done ? href+'&done=1' : href)+'" target="_blank" rel="noopener">' +
         '<span class="ntag">'+(h.done?'제출 완료':'배정 과제')+'</span>' +
         '<div class="nh"><span class="ntitle">'+hwKwTitle(title, h.code)+'</span>' +
         (h.date ? '<span class="ndate">'+esc(h.date)+'</span>' : '') + '</div>' +
         (meta.length ? '<div class="nbody">'+esc(meta.join(' · '))+'</div>' : '') +
-        action +
-        '</div>';
+        '<div class="hw-act">'+action+'</div>' +
+        '</a>';
     }
   }
   if(clsN) list.innerHTML += '<p class="hw-clsnote">수업 시간에 선생님과 확인한 과제 '+clsN+'개는 목록에서 뺐습니다.</p>';
