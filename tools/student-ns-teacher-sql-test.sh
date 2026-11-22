@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 학생 페이지 '담당 선생님' = 내신 진도 반 담당(090 student_bundle.me.ns_teacher) 검증 — 로컬 PostgreSQL.
+# 학생 페이지 "담당 선생님" = 내신 진도 반 담당(090 student_bundle.me.ns_teacher) + H WORK 별 중지용 제출 시각(091 hwork_submissions[].ts) 검증 — 로컬 PostgreSQL.
 # 001~089 를 얹고(저장소·auth 스키마는 흉내, 실제 DB 전용 표를 전제한 070·071·072·082 는 건너뜀) 090 을 두 번 얹어(재실행 안전) me.ns_teacher 가 048 exam_ns_teacher_ 규칙으로 들어가는지,
 # 088 의 퇴원생 가림·teacher 그대로·anon 실행 권한이 유지되는지 assert 로 확인한다.
 # 사용:  PGHOST=/home/pgtest PGPORT=5499 PGUSER=postgres bash tools/student-ns-teacher-sql-test.sh   (원격에는 절대 돌리지 말 것)
@@ -33,7 +33,7 @@ create table if not exists public.teacher_accounts (user_id uuid primary key, lo
 SQL
 # 070·071·072·082 는 실제 DB 에만 있는 표(다른 세션의 hwork_reply_files·hwork_retests, 허브 msg_tasks)를 전제해 로컬에선 건너뛴다(student_bundle 과 무관).
 for f in supabase/migrations/0*.sql; do
-  case "$f" in *090_*|*070_hwork_qa_files_retest*|*071_hwork_retest_parts*|*072_hwork_qa_shuetalk*|*082_hwork_check_task*) continue;; esac
+  case "$f" in *090_*|*091_*|*070_hwork_qa_files_retest*|*071_hwork_retest_parts*|*072_hwork_qa_shuetalk*|*082_hwork_check_task*) continue;; esac
   psql -v ON_ERROR_STOP=1 -q -d "$DB" -f "$f" >/dev/null || { echo "적용 실패: $f"; exit 1; }
 done
 psql -v ON_ERROR_STOP=1 -q -d "$DB" <<'SQL'
@@ -46,15 +46,21 @@ insert into tt_classes (book, class_id, day, start_time, end_time, teacher, name
   ('내신','n002','목','17:30','19:00','지원','고2 확인','박보검 김하늘'),
   ('내신','n003','금','17:30','19:00','지원','고2 화정B','김하늘 박보검B'),
   ('정규','r001','수','17:30','19:00','은지','고2 가','박보검 김하늘');
+insert into hwork_submissions (ts, teacher, code, school, grade, name, got, total, answers, detail, questions) values
+  ('2026-11-21 20:10','이수경','Shuefit 문법: 음운 기본 (10)','화정고','고2','박보검',7,10,'{}','{}','{}'),
+  ('2026-11-22 15:11','이수경','Shuefit 문법: 음운 실력 (33)','화정고','고2','박보검',20,33,'{}','{}','{}');
 do $$
 declare r jsonb;
 begin
   r := public.student_bundle('tok-park');
   assert r->'me' ? 'ns_teacher' = false, '090 전에는 me.ns_teacher 없음: ' || (r->'me')::text;
+  assert (r->'hwork_submissions'->0) ? 'ts' = false, '091 전에는 hwork_submissions 항목에 ts 없음';
 end $$;
 SQL
 psql -v ON_ERROR_STOP=1 -q -d "$DB" -f supabase/migrations/090_student_ns_teacher.sql >/dev/null
 psql -v ON_ERROR_STOP=1 -q -d "$DB" -f supabase/migrations/090_student_ns_teacher.sql >/dev/null   # 재실행 안전
+psql -v ON_ERROR_STOP=1 -q -d "$DB" -f supabase/migrations/091_hwork_star_stop.sql >/dev/null
+psql -v ON_ERROR_STOP=1 -q -d "$DB" -f supabase/migrations/091_hwork_star_stop.sql >/dev/null   # 재실행 안전
 psql -v ON_ERROR_STOP=1 -q -d "$DB" <<'SQL'
 set role anon;
 do $$
@@ -64,6 +70,10 @@ begin
   assert r->>'found' = 'true' and (r->'me'->>'ns_teacher') = '이현지',
     '090: me.ns_teacher = 내신 진도 반 담당(끝 A 떼고·확인 반 제외·짧은 이름→전체 이름): ' || (r->'me')::text;
   assert r->'me'->>'teacher' = '이현지', '090: me.teacher(슈스 링크 담당)는 그대로';
+  assert jsonb_array_length(r->'hwork_submissions') = 2
+     and (r->'hwork_submissions'->0->>'ts') = '2026-11-21 20:10'
+     and (r->'hwork_submissions'->1->>'ts') = '2026-11-22 15:11',
+    '091: hwork_submissions 항목에 제출 시각 ts(별 중지 날짜 대조용): ' || (r->'hwork_submissions')::text;
   assert r ? 'notices' and r ? 'avail_responses', '090: 088 본문의 다른 항목 유지';
   r := public.student_bundle('tok-kim');
   assert r->'me'->>'ns_teacher' = '', '090: 진도 담당이 둘(현지·지원)이면 빈 값 — 화면은 students.teacher 로 폴백: ' || (r->'me')::text;
@@ -81,4 +91,4 @@ do $$ begin
   assert not has_function_privilege('anon', 'public.exam_ns_teacher_(text)', 'execute') or true, 'exam_ns_teacher_ 권한은 048 그대로';
 end $$;
 SQL
-echo "student-ns-teacher-sql-test: 모두 통과 (090)"
+echo "student-ns-teacher-sql-test: 모두 통과 (090·091)"

@@ -104,3 +104,4 @@
 - 수업 기록 창 확인 수업의 진도반 잇기(`crNsLoad` stuP)는 이름과 학교가 모두 맞을 때만 — 학교를 모르면 잇지 않는다(`crNsStuSchool`/`crNsTokSchool`).
 - 퇴원생은 기록을 지우지 않고 `students.enrolled`='퇴원'으로 둔다(2026-11-20, 088). 아웃 슈스의 기본 동작을 다시 '삭제'로 바꾸거나, 퇴원생 student_bundle 을 공개 키에 다시 여는 변경은 지적할 것. student_bundle 을 다시 정의하는 마이그레이션은 088의 퇴원생 확인을 빠뜨리면 안 된다.
 - 학생 페이지 '담당 선생님' = `student_bundle.me.ns_teacher`(090 — 048 `exam_ns_teacher_` 값, 내신 진도 반 담당). student_bundle 을 다시 정의하는 마이그레이션이 이 칸을 빠뜨리거나, s.html 이 `ns_teacher`가 비었을 때 `students.teacher` 폴백 없이 줄을 숨기는 변경은 지적할 것.
+- H WORK 별 +1은 2026-11-22부터 중지(091) — `HWORK_STAR_UNTIL`(s.html `hworkStarOk`·superstar.html `hworkStarOk_`·백엔드 `hworkStarOk_`) 세 벌이 같은 값이어야 하고, student_bundle 을 다시 정의하는 마이그레이션이 hwork_submissions 항목의 `ts`를 빠뜨리면 지적할 것. ts 가 없는 항목은 옛 제출로 보고 센다(막지 말 것).
