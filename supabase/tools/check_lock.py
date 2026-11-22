@@ -15,8 +15,8 @@ import sys, json, ssl, os, urllib.request, urllib.error
 
 SB = 'https://bangdbhqpphqqdwcledg.supabase.co'
 KEY = 'sb_publishable_dE9d1KIbpgYaQkaS2MSrlg_-7SiRJuT'
-T_ID = 'teachers@shueguk.internal'
-T_PW = 'shg_FCePWvnawH44SV8kYB9BHRKi6aag'   # 비밀 아님 — 공개된 교사용 페이지에 그대로 있음
+T_ID = 'closhu@shueguk.internal'   # 클로슈 전용 계정(2026-11-22 공용 교사 계정 폐지) — 비밀번호는 환경 비밀값 CLOSHU_TOKEN 에서 만든다
+T_PW = __import__('hashlib').sha256(('shueguk-closhu-sb:' + (__import__('os').environ.get('CLOSHU_TOKEN') or (_ for _ in ()).throw(SystemExit('환경 비밀값 CLOSHU_TOKEN 이 없습니다 — 클로슈 계정으로 로그인할 수 없어요')))).encode()).hexdigest()
 
 def ctx():
     ca = os.environ.get('SSL_CERT_FILE') or '/root/.ccr/ca-bundle.crt'

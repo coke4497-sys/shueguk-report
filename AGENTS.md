@@ -15,6 +15,7 @@
 ## Code Review Rules
 
 ### 데이터 원본 (가장 중요)
+- 교사 페이지·도구에 공용 교사 계정(teachers@shueguk.internal)의 비밀번호나 password 로그인을 다시 넣으면 P1 — 2026-11-22부터 교사 페이지는 허브 개인 로그인(shueguk_teacher_session_v2), 클로드 도구는 클로슈 계정(CLOSHU_TOKEN 에서 만든 비밀번호)으로만 쓴다. 누가 했는지는 DB 트리거(audit_log)가 남긴다.
 - **수파베이스가 원본인 데이터를 구글시트 기준으로 통째 덮어쓰는 코드는 금지.** 원본이 수파베이스인 것: 시간표 명단·반(`tt_classes`), 학생정보(`students`), 출석·이동 기록(`attendance`·`tt_log`), 클리닉 신청, 어휘·H WORK 제출, 지필 시험·복기, OMR 회차·응답, 질문 대기열, 공지 확인. 옛 `resyncClasses`·`sbResyncSignup` 같은 "시트 기준 재동기화"를 되살리는 변경은 방금 저장한 이동·신청을 되돌립니다.
 - **명단(`tt_classes.roster`)은 읽은 값이 그대로일 때만 씁니다**(`roster=eq.<읽은 값>` 조건의 compare-and-swap, 어긋나면 다시 읽어 재시도). 조건 없이 덮어쓰는 PATCH는 다른 조교의 저장을 지웁니다.
 - **중3·고3 정규/내신 짝 반**: 명단·반 시간을 바꾸는 저장(영구 이동·추가·빼기·표기수정·반 통째 이동)은 짝 반에도 함께 적용해야 합니다. 같은 규칙이 두 벌(백엔드 `ttTwinRoster_`, 화면 `rosterOps`/`twinOf`) 있으므로 한쪽만 고친 변경은 지적하세요. 한쪽만 짝이 있으면 건드리지 않는 것이 맞습니다.

@@ -15,7 +15,7 @@
      다시 요청됐는데 바뀐 게 없는 경우: python3 tools/class_report.py same 내신 n081 2026-09-27 ["메모"]
        → 이미 공개된 리포트는 그대로 두고 상태만 '공개'로 되돌린다(이걸 안 하면 버튼이 '기록 완료'에 머문다)
 
-교사 인증은 페이지들과 같은 공개 조각(teachers@shueguk.internal)을 쓴다 — 학생 페이지에는 넣지 않는 값.
+교사 인증은 클로슈 전용 계정(closhu@shueguk.internal, 비밀번호는 CLOSHU_TOKEN 에서)을 쓴다 — 학생 페이지에는 넣지 않는 값.
 """
 import datetime as dt
 import json
@@ -26,7 +26,8 @@ import urllib.request
 
 SB = 'https://bangdbhqpphqqdwcledg.supabase.co'
 KEY = 'sb_publishable_dE9d1KIbpgYaQkaS2MSrlg_-7SiRJuT'
-T_ID, T_PW = 'teachers@shueguk.internal', 'shg_FCePWvnawH44SV8kYB9BHRKi6aag'
+T_ID = 'closhu@shueguk.internal'   # 클로슈 전용 계정(2026-11-22 공용 교사 계정 폐지) — 비밀번호는 환경 비밀값 CLOSHU_TOKEN 에서 만든다
+T_PW = __import__('hashlib').sha256(('shueguk-closhu-sb:' + (__import__('os').environ.get('CLOSHU_TOKEN') or (_ for _ in ()).throw(SystemExit('환경 비밀값 CLOSHU_TOKEN 이 없습니다 — 클로슈 계정으로 로그인할 수 없어요')))).encode()).hexdigest()
 LEFT_RE = re.compile(r'^(퇴원|n|no|off|x|중단|비재원|졸업)$', re.I)
 _tok = None
 

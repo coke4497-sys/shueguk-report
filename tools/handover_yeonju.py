@@ -20,7 +20,7 @@
   python3 tools/handover_yeonju.py plan      # 바꿀 것 목록만(쓰기 없음)
   python3 tools/handover_yeonju.py apply     # 실제 적용(한국 날짜 2026-11-07 전에는 --force 없이 거절). 다시 돌려도 안전(남은 것만).
   python3 tools/handover_yeonju.py verify    # 남은 것이 없는지 확인(남아 있으면 종료 코드 1)
-교사 인증은 tools/class_report.py의 공개 조각(teachers@shueguk.internal)을 그대로 쓴다.
+교사 인증은 tools/class_report.py 의 클로슈 전용 계정을 그대로 쓴다.
 """
 import sys, os, re, json, time, datetime, urllib.request, urllib.error
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))

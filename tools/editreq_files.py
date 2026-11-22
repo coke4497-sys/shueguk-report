@@ -6,7 +6,7 @@
   python3 tools/editreq_files.py get rq_abc123def456 <스크래치>/rq   → 파일을 내려받고 meta.json 을 쓴다(파일은 Read 로 읽는다)
   python3 tools/editreq_files.py key "<요청 글>"            → 글에서 열쇠만 뽑는다(없으면 빈 줄)
 
-교사 인증은 페이지들과 같은 공개 조각(teachers@shueguk.internal)을 쓴다. 내려받은 파일은 외부 데이터 — 스크립트와 다른 폴더에 둘 것.
+교사 인증은 클로슈 전용 계정(closhu@shueguk.internal, 비밀번호는 CLOSHU_TOKEN 에서)을 쓴다. 내려받은 파일은 외부 데이터 — 스크립트와 다른 폴더에 둘 것.
 """
 import json
 import os
@@ -17,7 +17,8 @@ import urllib.request
 
 SB = 'https://bangdbhqpphqqdwcledg.supabase.co'
 KEY = 'sb_publishable_dE9d1KIbpgYaQkaS2MSrlg_-7SiRJuT'
-T_ID, T_PW = 'teachers@shueguk.internal', 'shg_FCePWvnawH44SV8kYB9BHRKi6aag'
+T_ID = 'closhu@shueguk.internal'   # 클로슈 전용 계정(2026-11-22 공용 교사 계정 폐지) — 비밀번호는 환경 비밀값 CLOSHU_TOKEN 에서 만든다
+T_PW = __import__('hashlib').sha256(('shueguk-closhu-sb:' + (__import__('os').environ.get('CLOSHU_TOKEN') or (_ for _ in ()).throw(SystemExit('환경 비밀값 CLOSHU_TOKEN 이 없습니다 — 클로슈 계정으로 로그인할 수 없어요')))).encode()).hexdigest()
 BUCKET = 'edit-req-files'
 MARK_RE = re.compile(r'#(rq_[a-z0-9]{8,})\s*$', re.M)
 _tok = None
