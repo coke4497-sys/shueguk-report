@@ -103,6 +103,7 @@ function makeStore(){
              chipTask: !!(chip && chip.classList.contains('task')), chipTitle: chip ? chip.title : '',
              other: [...document.querySelectorAll('.blk .stus button.task')].map(e => e.textContent.trim()),
              pills: [...document.querySelectorAll('#tk-pills button')].map(e => e.textContent + (e.classList.contains('on') ? '*' : '')),
+             flows: [...document.querySelectorAll('#tk-list .tk-item .tk-flow')].map(e => e.textContent),
              who: document.querySelector('.tk-who').textContent, open: !document.getElementById('vmpanel').classList.contains('closed') };
   });
   ok('① 할 일 상자가 오늘 보충 위에', r.order.indexOf('tk-list') >= 0 && r.order.indexOf('tk-list') < r.order.indexOf('vm-side'), JSON.stringify(r.order));
@@ -111,6 +112,7 @@ function makeStore(){
   ok('① 대기 2건 + 완료 1건(처리한 조교 이름·시각)', r.items.length === 3 && r.items.filter(x => x.done).length === 1 && /완료 · 박언호 14:02/.test(r.items[2].txt), JSON.stringify(r.items.map(x => x.txt.slice(0, 40))));
   ok('① 어제 요청은 "지난 요청" + 못 함 이력', r.carried && /김상우.*못 함: 학생이 전화를 안 받아서/.test(r.hist), r.hist);
   ok('① 허민 칩에 붉은 점 + 설명', r.chipTask && /할 일: 허민 병결 반영/.test(r.chipTitle) && r.other.join() === '이채민,허민', JSON.stringify([r.chipTask, r.chipTitle, r.other]));
+  ok('① 줄마다 누가 → 누구(센터 조교님)', r.flows.length === 3 && r.flows.every(f => /^.+→.+ 조교님$/.test(f)), JSON.stringify(r.flows));
   ok('① 쓰기 줄: 센터 알약(본원 기본)·작성자 이름', r.pills.join() === '본원*,화정센터,민초센터,정리정독,전체' && /작성자 박언호/.test(r.who), JSON.stringify([r.pills, r.who]));
 
   /* ② 남기기 */
@@ -250,6 +252,25 @@ function makeStore(){
   w = store.writes[store.writes.length - 1];
   ok('⑪ 화정센터 보기 중에도 기억한 본원으로 저장(보기는 저장 위치를 바꾸지 않음)', w && w.method === 'POST' && w.body[0].loc === '본원', JSON.stringify(w && w.body));
   await ctx.close();
+
+  /* ⑫ 해결할 날 칩·정렬 (2026-11-14 수정 요청함 최예나 → 원장님 1안): 글 안 첫 M/D를 읽어 칩, 이른 날부터, 날짜 없는 줄은 맨 아래 */
+  {
+    const md = y => (+y.slice(5, 7)) + '/' + (+y.slice(8, 10));
+    const st = makeStore();
+    st.rows.length = 0;
+    const base = { loc:'본원', student:'', author:'권윤수', status:'대기', done_by:'', done_at:null, done_ymd:null, history:[] };
+    st.rows.push(Object.assign({}, base, { id:31, ymd:YDAY, text: md(TMRW) + ' 2:00 중2 결석 알림톡 보내주세요.', created_at:YDAY+'T10:00:00+09:00', updated_at:YDAY+'T10:00:00+09:00' }));
+    st.rows.push(Object.assign({}, base, { id:32, ymd:YDAY, text: '날짜 없는 전달 사항', created_at:YDAY+'T10:01:00+09:00', updated_at:YDAY+'T10:01:00+09:00' }));
+    st.rows.push(Object.assign({}, base, { id:33, ymd:TS, text: md(TS) + ' 5:00 빈칸 재시험', created_at:TS+'T09:00:00+09:00', updated_at:TS+'T09:00:00+09:00' }));
+    st.rows.push(Object.assign({}, base, { id:34, ymd:TS, text: md(YDAY) + ' 결석 보충 확인', created_at:TS+'T09:05:00+09:00', updated_at:TS+'T09:05:00+09:00' }));
+    ({ page, ctx, store } = await open({ store: st }));
+    await page.waitForFunction(() => document.querySelectorAll('#tk-list .tk-item').length === 4, null, { timeout: 8000 });
+    r = await page.evaluate(() => [...document.querySelectorAll('#tk-list .tk-item')].map(e => { const c = e.querySelector('.due'); return { id: e.getAttribute('data-id'), due: c ? c.textContent : '', cls: c ? c.className : '' }; }));
+    ok('⑫ 정렬: 지난 날짜 → 오늘 → 내일 → 날짜 없음', r.map(x => x.id).join(',') === '34,33,31,32', JSON.stringify(r));
+    ok('⑫ 칩: 오늘은 노랑·지난 날짜는 분홍·내일은 기본, 날짜 없는 줄은 칩 없음',
+      /오늘/.test(r[1].due) && /today/.test(r[1].cls) && /지난 날짜/.test(r[0].due) && /past/.test(r[0].cls) && r[2].due.indexOf(md(TMRW)) === 0 && !/today|past/.test(r[2].cls) && r[3].due === '', JSON.stringify(r));
+    await ctx.close();
+  }
 
   await b.close(); srv.close();
   console.log(fail ? ('통과 ' + pass + ' / 실패 ' + fail) : ('✓ ' + pass + '건 통과'));

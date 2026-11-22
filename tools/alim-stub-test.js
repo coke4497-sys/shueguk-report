@@ -73,7 +73,9 @@ eq('kakaoOptions', [body.messages[0].kakaoOptions.pfId, body.messages[0].kakaoOp
 eq('변수 #{} 형식·순서', body.messages[0].kakaoOptions.variables, { '#{학생명}': '김하나', '#{수업일}': '9/11(금) 5:30', '#{반이름}': '고1 가' });
 const rows = SHEETS['알림톡기록'];
 eq('기록 1줄', rows.length, 2);
-eq('기록 내용', rows[1].slice(1), ['absent', '김하나', '학부모1', '01012345678', '고1 가', '2026-09-11', '성공', '', 'G1', '']);
+eq('기록 내용', rows[1].slice(1), ['absent', '김하나', '학부모1', '01012345678', '고1 가', '2026-09-11', '성공', '', 'G1', '', '', '[이수경국어학원] 결석 안내\n김하나 학생이 9/11(금) 5:30 고1 가 수업에 결석했습니다.']);
+eq('머리글에 내용 열(M)', rows[0][12], '내용');
+eq('조회에 보낸 글', J(fns.alimLogGet('2026-09-11', '2026-09-11')).rows[0].text, '[이수경국어학원] 결석 안내\n김하나 학생이 9/11(금) 5:30 고1 가 수업에 결석했습니다.');
 eq('머리글에 보낸사람 열', rows[0][10], '보낸사람');
 
 console.log('4) 발신번호 있으면 문자 대체');
@@ -197,6 +199,13 @@ eq('codes[].status 승인 → 저장', PROPS.ALIM_TPL_ABSENT, 'KA01TP888');
 ROUTES['/kakao/v1/templates'] = { code: 200, body: [{ templateId: 'KA01TP444', content: TXT + ' 감사합니다.', status: 'APPROVED' }] };
 r = J(fns.alimDiscover({ pw: 'sh' }));
 eq('문구 다르면 저장 안 함 + 안내', [r.templates.absent.saved, r.notes.some(n => n.indexOf('똑같은 템플릿이 없어요') >= 0)], ['', true]);
+// 수업 일정 안내 두 벌(2026-10-29 — 마지막 줄 있음/없음)은 문구 대조로 각각 제 자리에만 저장된다
+ROUTES['/kakao/v1/templates'] = { code: 200, body: [
+  { templateId: 'KA01TPS1', name: '수업 일정 안내', content: fns.ALIM_TPL_.notice_sched.text, status: 'APPROVED' },
+  { templateId: 'KA01TPS2', name: '수업 일정 안내(학생페이지 안내 없음)', content: fns.ALIM_TPL_.notice_sched2.text + '\n', status: 'APPROVED' } ] };
+r = J(fns.alimDiscover({ pw: 'sh' }));
+eq('수업 일정 안내 두 종류가 각각 제 ID로 저장(끝 줄바꿈 무시)', [PROPS.ALIM_TPL_NOTICE_SCHED, PROPS.ALIM_TPL_NOTICE_SCHED2, r.templates.notice_sched.found, r.templates.notice_sched2.found], ['KA01TPS1', 'KA01TPS2', 1, 1]);
+delete PROPS.ALIM_TPL_NOTICE_SCHED; delete PROPS.ALIM_TPL_NOTICE_SCHED2;
 // 채널 여럿 → 저장 안 하고 목록
 delete PROPS.KAKAO_PFID;
 ROUTES['/kakao/v1/plus-friends'] = { code: 200, body: [{ pfId: 'KA01PFaaa', name: 'A' }, { pfId: 'KA01PFbbb', name: 'B' }] };
@@ -218,10 +227,10 @@ global.UrlFetchApp = { fetch: (url, opt) => { CALLS.push({ url, opt }); const n 
   return { getResponseCode: () => n.code, getContentText: () => JSON.stringify(n.body) }; } };
 fns.alimConfigSet({ pw: 'sh', apiKey: 'KEY1', apiSecret: 'SEC1', pfId: 'PF1', tpl: { absent: 'KA01TP1' } });
 r = J(fns.alimConfigGet());
-const NK = Object.keys(r.templates).filter(k => r.templates[k].notice);
-eq('공지 종류 여덟(notice 표시, 결석까지 9종) — 옛 단일 notice 없음', [NK, 'notice' in r.templates, r.templates.absent.notice, Object.keys(r.templates).length],
-   [['notice_sched', 'notice_mock', 'notice_hwork', 'notice_report', 'notice_reportup', 'notice_voca', 'notice_gramma'], false, false, 8]);
-eq('종류 이름', NK.map(k => r.templates[k].label), ['수업 일정 안내', '주말 실전 모의고사 신청 안내', 'H WORK 과제 안내', '지필고사 리포트 제작 안내', '지필고사 리포트 업데이트 안내', '어휘 테스트 참여 안내', '문법 테스트 참여 안내']);
+const NK = Object.keys(r.templates).filter(k => r.templates[k].notice && k !== 'notice_mockrep' && k !== 'notice_pre1' && !/^notice_avail/.test(k));   // notice_mockrep·스케쥴 조사 안내는 문구 모양이 달라 12-2에서 따로 본다
+eq('공지 종류 여덟(notice 표시) + 결석 안내·결석 예고 — 옛 단일 notice 없음', [NK, 'notice' in r.templates, r.templates.absent.notice, Object.keys(r.templates).length],
+   [['notice_sched', 'notice_sched2', 'notice_mock', 'notice_hwork', 'notice_report', 'notice_reportup', 'notice_voca', 'notice_gramma'], false, false, 19]);
+eq('종류 이름', NK.map(k => r.templates[k].label), ['수업 일정 안내', '수업 일정 안내 (학생 페이지 안내 없음)', '주말 실전 모의고사 신청 안내', 'H WORK 과제 안내', '지필고사 리포트 제작 안내', '지필고사 리포트 업데이트 안내', '어휘 테스트 참여 안내', '문법 테스트 참여 안내']);
 eq('설정 목록에 공지 템플릿(아직 ID 없음)', [typeof r.templates.notice_mock.text, r.templates.notice_mock.ready, r.templates.notice_mock.vars, r.templates.notice_voca.vars], ['string', false, ['학생명', '제목', '장소', '신청일', '정원', '접근코드'], ['학생명', '제목', '접근코드']]);
 const MOCK_BODY = '1. #{장소}에서 실시합니다.\n2. 8:30까지 등원하여 8:40-10:00까지, 모의수능시험에 응시합니다. 8:35분이 지나면 출입을 통제하고 이후 입실이 <불가>합니다.\n3. #{신청일} 중 택1하여 신청합니다. 마감되면 설문을 종료합니다.\n4. 장소가 협소하므로 각 요일 #{정원}명 선착순으로 마감합니다. 임의로 요일을 이동할 수 없습니다.\n\n';
 const TAILS = { notice_sched: '학생 페이지에서 내용을 확인해 주세요.', notice_mock: '학생 페이지의 주말 실전 모의고사 메뉴에서 신청할 수 있습니다.',
@@ -229,8 +238,15 @@ const TAILS = { notice_sched: '학생 페이지에서 내용을 확인해 주세
   notice_reportup: '학생 페이지의 지필고사 데이터 메뉴에서 새로 올라온 리포트를 확인해 주세요.', notice_voca: '학생 페이지의 어휘 테스트 메뉴에서 이번 주 테스트에 참여해 주세요.',
   notice_gramma: '학생 페이지의 문법 테스트 메뉴에서 배정된 테스트에 참여해 주세요.' };
 eq('문구 = 제목 줄·둘째 줄에 종류 이름 + ▶ 제목 + 종류별 마지막 줄 + 학생 페이지 주소(#{접근코드})',
-   NK.map(k => r.templates[k].text === '[이수경국어학원] ' + r.templates[k].label + '\n#{학생명} 학생에게 ' + r.templates[k].label + '가 도착했어요.\n\n▶ #{제목}\n\n' + (k === 'notice_mock' ? MOCK_BODY : '') + TAILS[k]),
-   NK.map(() => true));
+   NK.filter(k => k !== 'notice_sched2').map(k => r.templates[k].text === '[이수경국어학원] ' + r.templates[k].label + '\n#{학생명} 학생에게 ' + r.templates[k].label + '가 도착했어요.\n\n▶ #{제목}\n\n' + (k === 'notice_mock' ? MOCK_BODY : '') + TAILS[k]),
+   NK.filter(k => k !== 'notice_sched2').map(() => true));
+// 2026-10-29 원장님 — 마지막 줄 없는 '수업 일정 안내' 종류(솔라피에 따로 등록, 제목 줄·둘째 줄은 같고 ▶ 제목 줄로 끝남)
+eq('수업 일정 안내(학생 페이지 안내 없음) = 같은 문구에서 마지막 줄만 없음, 뒤에 빈 줄도 없음',
+   [r.templates.notice_sched2.text, r.templates.notice_sched2.vars, r.templates.notice_sched2.buttons[0].name, r.templates.notice_sched2.text !== r.templates.notice_sched.text],
+   ['[이수경국어학원] 수업 일정 안내\n#{학생명} 학생에게 수업 일정 안내가 도착했어요.\n\n▶ #{제목}', ['학생명', '제목', '접근코드'], '학생 페이지 링크', true]);
+eq('고1 국어 미리보기 안내 = 원장님 문장 그대로·변수 학생명·접근코드·버튼',
+   [r.templates.notice_pre1.notice, r.templates.notice_pre1.vars, r.templates.notice_pre1.text.split('\n')[0], r.templates.notice_pre1.text.split('\n')[1], r.templates.notice_pre1.buttons[0].name, /s\.html\?key=#\{접근코드\}$/.test(r.templates.notice_pre1.buttons[0].linkMo)],
+   [true, ['학생명', '접근코드'], '[이수경국어학원] 고1 국어 미리보기 안내', '#{학생명} 학생, 학부모님 안녕하세요.', '학생 페이지 링크', true]);
 eq('공지 템플릿 버튼 = 학생 페이지 열기(웹링크, 접근코드 변수) — 결석은 버튼 없음',
    [NK.map(k => r.templates[k].buttons.map(b => [b.name, b.type, b.linkMo === b.linkPc, /s\.html\?key=#\{접근코드\}$/.test(b.linkMo)])), r.templates.absent.buttons],
    [NK.map(() => [['학생 페이지 링크', 'WL', true, true]]), []]);
@@ -241,7 +257,7 @@ r = J(fns.alimSend({ pw: 'sh', kind: 'notice', items: [nitem('김하나', '01012
 eq('옛 종류 notice는 없는 종류로 거절', r.result, 'error');
 fns.alimConfigSet({ pw: 'sh', tpl: { notice_mock: 'KA01TPS', notice_voca: 'KA01TPE' } });
 r = J(fns.alimConfigGet());
-eq('종류별 ID 저장 → 그 종류만 준비됨', NK.map(k => r.templates[k].ready), [false, true, false, false, false, true, false]);
+eq('종류별 ID 저장 → 그 종류만 준비됨', NK.map(k => r.templates[k].ready), [false, false, true, false, false, false, true, false]);
 r = J(fns.alimSend({ pw: 'sh', kind: 'notice_mock', items: [nitem('김하나', '01012345678', '추석 휴강 안내'), nitem('김둘', '01000000002', '추석 휴강 안내')] }));
 eq('공지 2건 발송', [r.okCount, r.failCount], [2, 0]);
 let nb = JSON.parse(CALLS[CALLS.length - 1].opt.payload);
@@ -271,6 +287,157 @@ eq('안 보내면 빈 값', [SHEETS['알림톡기록'][2][10], J(fns.alimLogGet(
 { const sh = SHEETS['알림톡기록']; sh[0] = sh[0].slice(0, 10);   // 옛 시트(A~J)
   fns.alimSend({ pw: 'sh', kind: 'absent', items: [item('김옛', '01000000007', '2026-09-11')], by: '이은지' });
   eq('옛 시트에 머리글 보충', [sh[0][10], sh[3][10]], ['보낸사람', '이은지']); }
+
+console.log('11) 결석 예고 (2026-10-16)');
+reset();
+fns.alimConfigSet({ pw: 'sh', apiKey: 'KEY1', apiSecret: 'SEC1', pfId: 'PF1', tpl: { absent: 'KA01TP1' } });
+r = J(fns.alimConfigGet());
+eq('결석 예고 템플릿 — 이름·변수·보충 안내 선택지·준비 전', [r.templates.preabsent.label, r.templates.preabsent.vars, r.templates.preabsent.options['보충안내'].length, r.templates.preabsent.options['알린분'], r.templates.preabsent.ready, !!r.templates.preabsent.notice],
+   ['결석 예고 안내', ['학생명', '수업일', '반이름', '알린분', '사유', '보충안내'], 2, ['학부모님께', '학생에게'], false, false]);
+eq('문구 — 알린 분 자리', /결석한다는 연락을 #\{알린분\} 받았습니다/.test(r.templates.preabsent.text), true);
+eq('문구 첫 줄', r.templates.preabsent.text.split('\n')[0], '[이수경국어학원] 결석 예고 안내');
+const pitem = (nm, to, d, why, mk) => ({ student: nm, to, who: '학부모1', cls: '고1 가', date: d, vars: { 학생명: nm, 수업일: '10/17(토) 2:00', 반이름: '고1 가', 알린분: '학부모님께', 사유: why, 보충안내: mk } });
+r = J(fns.alimSend({ pw: 'sh', kind: 'preabsent', items: [pitem('김예고', '01012345678', '2026-10-17', '학교 행사', '보충 일정은 별도 안내드립니다.')] }));
+eq('템플릿 ID 없으면 거절', [r.result, /결석 예고/.test(r.message)], ['error', true]);
+fns.alimConfigSet({ pw: 'sh', tpl: { preabsent: 'KA01TPP' } });
+r = J(fns.alimSend({ pw: 'sh', kind: 'preabsent', items: [pitem('김예고', '01012345678', '2026-10-17', '학교 행사', '보충 일정은 별도 안내드립니다.')] }));
+let pb = JSON.parse(CALLS[CALLS.length - 1].opt.payload).messages[0].kakaoOptions;
+eq('발송 — 템플릿 ID·알린 분·사유·보충 안내 변수', [r.okCount, pb.templateId, pb.variables['#{알린분}'], pb.variables['#{사유}'], pb.variables['#{보충안내}']], [1, 'KA01TPP', '학부모님께', '학교 행사', '보충 일정은 별도 안내드립니다.']);
+eq('기록 — 종류 preabsent·수업일', [SHEETS['알림톡기록'][1][1], SHEETS['알림톡기록'][1][6]], ['preabsent', '2026-10-17']);
+{ const nc = CALLS.length;
+  r = J(fns.alimSend({ pw: 'sh', kind: 'preabsent', items: [pitem('김사유', '01000000002', '2026-10-17', ' ', '보충 일정은 별도 안내드립니다.')] }));
+  eq('사유가 비면 보내지 않음', [r.okCount, /사유/.test(r.sent[0].message), CALLS.length === nc], [0, true, true]); }
+{ const nc = CALLS.length, it = pitem('김알림', '01000000003', '2026-10-17', '학교 행사', '보충 일정은 별도 안내드립니다.'); it.vars.알린분 = '';
+  r = J(fns.alimSend({ pw: 'sh', kind: 'preabsent', items: [it] }));
+  eq('알린 분이 비면 보내지 않음', [r.okCount, /알린분/.test(r.sent[0].message), CALLS.length === nc], [0, true, true]); }
+r = J(fns.alimSend({ pw: 'sh', kind: 'preabsent', items: [pitem('김예고', '01012345678', '2026-10-17', '학교 행사', '보충 일정은 별도 안내드립니다.')] }));
+eq('같은 결석 예고는 중복 건너뜀', r.sent[0].dup, true);
+r = J(fns.alimSend({ pw: 'sh', kind: 'absent', items: [item('김예고', '01012345678', '2026-10-17')] }));
+eq('결석 안내는 종류가 달라 막히지 않음(화면이 체크를 풀어 둔다)', r.okCount, 1);
+
+console.log('12) 예약 발송 (2026-10-18)');
+reset();
+fns.alimConfigSet({ pw: 'sh', apiKey: 'KEY1', apiSecret: 'SEC1', pfId: 'PF1', tpl: { absent: 'KA01TP1', notice_sched: 'KA01TPS' } });
+{
+  const p = n => String(n).padStart(2, '0');
+  const kst = t => { const d = new Date(t + 9 * 3600000); return d.getUTCFullYear() + '-' + p(d.getUTCMonth() + 1) + '-' + p(d.getUTCDate()) + ' ' + p(d.getUTCHours()) + ':' + p(d.getUTCMinutes()); };
+  const slot = t => { const x = Math.ceil(t / 1800000) * 1800000; return x; };   // 30분 단위로 올림
+  const at = slot(Date.now() + 2 * 3600000), when = kst(at);
+  const nitem = (st, to) => ({ student: st, to, who: '학생', cls: '', date: 'N:2026-10-18|일정', vars: { 학생명: st, 제목: '일정', 접근코드: 'c1' } });
+  let r = J(fns.alimSend({ pw: 'sh', kind: 'notice_sched', schedule: kst(at + 15 * 60000), items: [nitem('김예약', '01011112222')] }));
+  eq('30분 단위가 아니면 거절', [r.result, /30분 단위/.test(r.message), CALLS.length], ['error', true, 0]);
+  r = J(fns.alimSend({ pw: 'sh', kind: 'notice_sched', schedule: kst(Math.floor(Date.now() / 1800000) * 1800000), items: [nitem('김예약', '01011112222')] }));
+  eq('10분 안·지난 시각은 거절', [r.result, /10분 뒤/.test(r.message)], ['error', true]);
+  r = J(fns.alimSend({ pw: 'sh', kind: 'notice_sched', schedule: kst(slot(Date.now() + 40 * 86400000)), items: [nitem('김예약', '01011112222')] }));
+  eq('30일 넘으면 거절', [r.result, /30일/.test(r.message)], ['error', true]);
+  r = J(fns.alimSend({ pw: 'sh', kind: 'absent', schedule: when, items: [item('김결석', '01011113333', '2026-10-18')] }));
+  eq('결석 안내는 예약 거절', [r.result, /바로 보냅니다/.test(r.message), CALLS.length], ['error', true, 0]);
+  NEXT = { code: 200, body: { groupInfo: { _id: 'GS1' }, failedMessageList: [] } };
+  r = J(fns.alimSend({ pw: 'sh', kind: 'notice_sched', schedule: when, by: '김현지 선생님', items: [nitem('김예약', '01011112222'), nitem('이예약', '01011114444')] }));
+  const pl = JSON.parse(CALLS[0].opt.payload);
+  eq('예약 성공 응답', [r.result, r.okCount, r.scheduled, r.sent[0].message], ['success', 2, when, '예약했어요']);
+  eq('솔라피 scheduledDate = ISO +09:00', pl.scheduledDate, when.replace(' ', 'T') + ':00+09:00');
+  const R = SHEETS['알림톡기록'];
+  eq('머리글 L열 예약시각', R[0][11], '예약시각');
+  eq('기록 결과 예약 · 예약시각 · 그룹ID', [R[1][7], R[1][11], R[1][9], R[2][7]], ['예약', when, 'GS1', '예약']);
+  r = J(fns.alimSend({ pw: 'sh', kind: 'notice_sched', items: [nitem('김예약', '01011112222')] }));
+  eq('예약해 둔 알림은 바로 보내기에서 중복으로 건너뜀', [r.sent[0].dup, CALLS.length], [true, 1]);
+  const lg = J(fns.alimLogGet('', '', 10)).rows;
+  eq('기록 조회에 res·sched·groupId', [lg[0].res, lg[0].sched, lg[0].groupId, lg[0].ok], ['예약', when, 'GS1', false]);
+  // 취소
+  eq('묶음 번호 없으면 거절', J(fns.alimCancel({ pw: 'sh', groupId: '' })).result, 'error');
+  NEXT = { code: 400, body: { errorMessage: 'nope' } };
+  r = J(fns.alimCancel({ pw: 'sh', groupId: 'GS1' }));
+  eq('솔라피가 거절하면 기록은 그대로', [r.result, R[1][7]], ['error', '예약']);
+  NEXT = { code: 200, body: {} };
+  r = J(fns.alimCancel({ pw: 'sh', groupId: 'GS1', by: '김현지 선생님' }));
+  const cc = CALLS[CALLS.length - 1];
+  eq('취소 = DELETE groups/{id}/schedule', [cc.url, cc.opt.method], ['https://api.solapi.com/messages/v4/groups/GS1/schedule', 'delete']);
+  eq('두 줄 예약 취소로', [r.result, r.canceled, R[1][7], R[2][7], R[1][8]], ['success', 2, '예약 취소', '예약 취소', '취소함 · 김현지 선생님']);
+  eq('다시 취소하면 거절', J(fns.alimCancel({ pw: 'sh', groupId: 'GS1' })).result, 'error');
+  NEXT = { code: 200, body: { groupInfo: { _id: 'G2' }, failedMessageList: [] } };
+  r = J(fns.alimSend({ pw: 'sh', kind: 'notice_sched', items: [nitem('김예약', '01011112222')] }));
+  eq('취소한 뒤에는 다시 보낼 수 있다', [r.okCount, R[R.length - 1][7]], [1, '성공']);
+  // 시각 지난 예약은 취소 거절
+  R.push([new Date(), 'notice_sched', '박지남', '학생', '01011115555', '', 'N:x', '예약', '', 'GOLD', '', kst(Date.now() + 30000)]);
+  r = J(fns.alimCancel({ pw: 'sh', groupId: 'GOLD' }));
+  eq('보낼 시각이 지난 예약은 취소 거절', [r.result, /지나/.test(r.message)], ['error', true]);
+}
+
+console.log('12-2) 교육청·평가원 모의고사 리포트 제출 안내 (2026-10-21)');
+reset();
+fns.alimConfigSet({ pw: 'sh', apiKey: 'KEY1', apiSecret: 'SEC1', pfId: 'PF1' });
+{
+  let r = J(fns.alimConfigGet()), t = r.templates.notice_mockrep;
+  eq('공지 종류로 표시·변수 넷·아직 준비 전', [t.notice, t.vars, t.ready, t.label], [true, ['학생명', '제목', '마감일', '접근코드'], false, '교육청·평가원 모의고사 리포트 제출 안내']);
+  eq('문구 = 원장님 확정본 그대로', t.text, '[이수경국어학원] 교육청·평가원 모의고사 리포트 제출 안내\n#{학생명} 학생, #{제목}를 성실하게 치러 내느라 정말 고생 많았습니다.\n\n학생 페이지의 교육청·평가원 모의고사 리포트 메뉴에서 틀린 문제를 선택 입력해 주세요. 채점한 시험지를 준비했다면 1분이면 끝나요!\n\n▶ 제출 기한: #{마감일}\n\n애타게 기다리고 있을 선생님들의 마음을 헤아려 얼른 제출해 주세요.');
+  eq('버튼 = 학생 개인 페이지(승인본)', t.buttons.map(b => [b.name, b.type, /s\.html\?key=#\{접근코드\}$/.test(b.linkMo), b.linkMo === b.linkPc]), [['학생 개인 페이지', 'WL', true, true]]);
+  fns.alimConfigSet({ pw: 'sh', tpl: { notice_mockrep: 'KA01TPMR' } });
+  const it = (st, due) => ({ student: st, to: '01012340000', who: '학생', cls: '공지', date: 'N:2026-10-21|26년 10월 학력평가', vars: { 학생명: st, 제목: '26년 10월 학력평가', 마감일: due, 접근코드: 'k1' } });
+  const nc = CALLS.length;
+  r = J(fns.alimSend({ pw: 'sh', kind: 'notice_mockrep', items: [it('김마감', ' ')] }));
+  eq('마감일이 비면 보내지 않음', [r.okCount, /마감일/.test(r.sent[0].message), CALLS.length === nc], [0, true, true]);
+  r = J(fns.alimSend({ pw: 'sh', kind: 'notice_mockrep', items: [it('김하나', '10/25(일)')] }));
+  const v = JSON.parse(CALLS[CALLS.length - 1].opt.payload).messages[0].kakaoOptions;
+  eq('발송 — 템플릿 ID·변수', [r.okCount, v.templateId, v.variables], [1, 'KA01TPMR', { '#{학생명}': '김하나', '#{제목}': '26년 10월 학력평가', '#{마감일}': '10/25(일)', '#{접근코드}': 'k1' }]);
+}
+
+console.log('12-3) 재원생·신입생 스케쥴 조사 안내 (2026-11-05)');
+reset();
+fns.alimConfigSet({ pw: 'sh', apiKey: 'KEY1', apiSecret: 'SEC1', pfId: 'PF1' });
+{
+  const r = J(fns.alimConfigGet());
+  const body = who => '[이수경국어학원] ' + who + ' 스케쥴 조사 안내\n#{학생명} 학생, 학부모님 안녕하세요.\n효율적인 학습 시간표 구성을 위해 학생이 수업에 참여하기 어려운 시간을 조사합니다.\n\n▶ #{제목}\n▶ 마감: #{마감일}\n슈퍼스타 페이지의 시간표 조사 메뉴에서 수업에 참여할 수 없는 시간을 모두 골라 제출해 주세요. 학생과 학부모님이 같은 응답을 함께 수정할 수 있습니다.';
+  [['notice_avail', '재원생'], ['notice_avail_new', '신입생']].forEach(([k, who]) => {
+    const t = r.templates[k];
+    eq(who + ' — 이름·공지·변수·준비 전', [t.label, t.notice, t.vars, t.ready], [who + ' 스케쥴 조사 안내', true, ['학생명', '제목', '마감일', '접근코드'], false]);
+    eq(who + ' — 문구 = 원장님 문구 그대로', t.text, body(who));
+    eq(who + ' — 버튼', t.buttons.map(b => [b.name, b.type, /s\.html\?key=#\{접근코드\}$/.test(b.linkMo)]), [['학생 페이지 링크', 'WL', true]]);
+  });
+  fns.alimConfigSet({ pw: 'sh', tpl: { notice_avail: 'KA01TPAV' } });
+  const it = due => ({ student: '김조사', to: '01012340000', who: '학부모1', cls: '공지', date: 'N:2026-11-05|화정고1 새 시간표', vars: { 학생명: '김조사', 제목: '화정고1 새 시간표', 마감일: due, 접근코드: 'k1' } });
+  const nc = CALLS.length;
+  let x = J(fns.alimSend({ pw: 'sh', kind: 'notice_avail', items: [it('')] }));
+  eq('마감일이 비면 보내지 않음', [x.okCount, CALLS.length === nc], [0, true]);
+  x = J(fns.alimSend({ pw: 'sh', kind: 'notice_avail', items: [it('11/12(목)')] }));
+  const v = JSON.parse(CALLS[CALLS.length - 1].opt.payload).messages[0].kakaoOptions;
+  eq('발송 — 템플릿 ID·변수', [x.okCount, v.templateId, v.variables['#{마감일}'], v.variables['#{제목}']], [1, 'KA01TPAV', '11/12(목)', '화정고1 새 시간표']);
+  x = J(fns.alimSend({ pw: 'sh', kind: 'notice_avail_new', items: [it('11/12(목)')] }));
+  eq('신입생 종류는 ID 없으면 거절', x.result, 'error');
+}
+
+console.log('13) 미등원 안내 · 등원 안내 (2026-10-29)');
+reset();
+fns.alimConfigSet({ pw: 'sh', apiKey: 'KEY1', apiSecret: 'SEC1', pfId: 'PF1', tpl: { absent: 'KA01TP1' } });
+{
+  let r = J(fns.alimConfigGet()), ns = r.templates.noshow, ar = r.templates.arrived;
+  eq('미등원 안내 — 이름·변수·공지 아님·준비 전', [ns.label, ns.vars, !!ns.notice, ns.ready, ns.buttons], ['미등원 안내', ['학생명', '수업일', '반이름', '학원번호'], false, false, []]);
+  eq('미등원 문구 = 원장님 승인 그대로', ns.text, '[이수경국어학원] 미등원 안내\n#{학생명} 학생이 #{수업일} #{반이름} 수업 시간에 아직 등원하지 않았습니다.\n학생과 학부모님께 연락을 드렸으나 연결되지 않았습니다.\n확인 후 학원(#{학원번호})으로 연락 부탁드립니다.');
+  eq('등원 안내 — 이름·변수(등원시각)·준비 전', [ar.label, ar.vars, !!ar.notice, ar.ready], ['지각 등원 안내', ['학생명', '수업일', '반이름', '등원시각'], false, false]);
+  eq('등원 문구', ar.text, '[이수경국어학원] 지각 등원 안내\n#{학생명} 학생이 #{수업일} #{반이름} 수업에 지금 등원했습니다. (#{등원시각} 도착)\n앞서 보내 드린 미등원 안내는 확인하지 않으셔도 됩니다.');
+  const ni = (nm, to, who) => ({ student: nm, to, who, cls: '고1 가', date: '2026-10-29', vars: { 학생명: nm, 수업일: '10/29(목) 5:30', 반이름: '고1 가', 학원번호: '031-979-4497' } });
+  r = J(fns.alimSend({ pw: 'sh', kind: 'noshow', items: [ni('김미등', '01012345678', '학부모1')] }));
+  eq('템플릿 ID 없으면 거절', [r.result, /미등원 안내/.test(r.message)], ['error', true]);
+  fns.alimConfigSet({ pw: 'sh', tpl: { noshow: 'KA01TPNS', arrived: 'KA01TPAR' } });
+  r = J(fns.alimSend({ pw: 'sh', kind: 'noshow', items: [ni('김미등', '01012345678', '학부모1'), ni('김미등', '01012345679', '학생')] }));
+  let pb = JSON.parse(CALLS[CALLS.length - 1].opt.payload).messages[0].kakaoOptions;
+  eq('미등원 발송 — 두 분·템플릿 ID·변수', [r.okCount, pb.templateId, pb.variables['#{수업일}'], Object.keys(pb.variables).length], [2, 'KA01TPNS', '10/29(목) 5:30', 4]);
+  eq('학원번호 변수가 비면 그 건은 보내지 않음', J(fns.alimSend({ pw: 'sh', kind: 'noshow', items: [Object.assign(ni('김번호', '01012345671', '학부모1'), { vars: { 학생명: '김번호', 수업일: '10/29(목) 5:30', 반이름: '고1 가' } })] })).okCount || 0, 0);
+  eq('기록 — 종류 noshow·수업일', [SHEETS['알림톡기록'][1][1], SHEETS['알림톡기록'][1][6]], ['noshow', '2026-10-29']);
+  r = J(fns.alimSend({ pw: 'sh', kind: 'noshow', items: [ni('김미등', '01012345678', '학부모1')] }));
+  eq('같은 날 같은 학생 미등원 안내는 중복 건너뜀', r.sent[0].dup, true);
+  r = J(fns.alimSend({ pw: 'sh', kind: 'absent', items: [item('김미등', '01012345678', '2026-10-29')] }));
+  eq('뒤에 결석 안내는 종류가 달라 막히지 않음', r.okCount, 1);
+  const ai = Object.assign(ni('김미등', '01012345678', '학부모1'), { vars: { 학생명: '김미등', 수업일: '10/29(목) 5:30', 반이름: '고1 가', 등원시각: '오후 5:52' } });
+  r = J(fns.alimSend({ pw: 'sh', kind: 'arrived', items: [ai] }));
+  pb = JSON.parse(CALLS[CALLS.length - 1].opt.payload).messages[0].kakaoOptions;
+  eq('등원 발송 — 등원시각 변수', [r.okCount, pb.templateId, pb.variables['#{등원시각}']], [1, 'KA01TPAR', '오후 5:52']);
+  { const nc = CALLS.length, it = Object.assign(ni('김시각', '01000000009', '학부모1'), { vars: { 학생명: '김시각', 수업일: '10/29(목) 5:30', 반이름: '고1 가', 등원시각: '' } });
+    r = J(fns.alimSend({ pw: 'sh', kind: 'arrived', items: [it] }));
+    eq('등원시각이 비면 보내지 않음', [r.okCount, /등원시각/.test(r.sent[0].message), CALLS.length === nc], [0, true, true]); }
+  r = J(fns.alimSend({ pw: 'sh', kind: 'noshow', schedule: (function(){ var d = new Date(Date.now() + 9 * 3600000 + 2 * 86400000); return d.toISOString().slice(0, 10) + ' 10:00'; })(), items: [ni('김예약', '01012345670', '학부모1')] }));
+  eq('미등원 안내는 예약 거절', [r.result, /예약하지 않고/.test(r.message)], ['error', true]);
+}
 
 console.log(fail ? ('\n' + fail + '건 실패') : '\n전부 통과');
 process.exit(fail ? 1 : 0);

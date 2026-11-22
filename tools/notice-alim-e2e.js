@@ -40,6 +40,7 @@ let ALIM_CFG = { result: 'success', ready: true, smsFallback: false, has: { key:
                notice_voca: ntpl('어휘 테스트 참여 안내', true), notice_gramma: ntpl('문법 테스트 참여 안내', true) } };
 let PREV_TXT = '';
 const posts = [];   // 백엔드 POST 본문
+let NOTICE_ROWS = [];   // 공지 목록(관리) 응답 — ①-2 목록 줄의 [알림톡 보내기] 검사에서 채운다
 let NOTICES = [];   // 학생 페이지에 줄 공지
 const reads = [];   // notice_read_submit 호출
 
@@ -71,7 +72,7 @@ async function route(page){
       }
       if (q.get('action') === 'roster') return j({ result: 'success', students: ROSTER });
       if (q.get('action') === 'alimConfig') return j(ALIM_CFG);
-      if (q.get('action') === 'noticeList') return j({ result: 'success', notices: [] });
+      if (q.get('action') === 'noticeList') return j({ result: 'success', notices: NOTICE_ROWS });
       if (q.get('key')) return j({ result: 'success', info: { name: '박보검', id: '30000001', school: '능곡고', grade: '2026 고등 2학년', teacher: '이수경', enrolled: '재원', classA: '금 5:30', classB: '' },
         authed: false, examCount: 0, notices: NOTICES, homework: [], analyses: [], clinic: null, stars: { total: 3 }, mockGates: { grades: [], open: false }, clinicEligible: false, vocaTaken: false, mockSignups: [] });
       return j({ result: 'success' });
@@ -188,10 +189,50 @@ const alimSends = () => posts.filter(b => b.action === 'alimSend');
   posts.length = 0;
   await page.evaluate(() => { currentSel = { type: '전체', target: '', count: 125, summary: '전 학년' }; });
   await page.fill('#title', '숨김 공지'); await page.check('#alimOn'); await page.uncheck('#pub');
+  ok(await page.$eval('#alimOn', e => e.disabled && !e.checked) && /숨김으로 저장하는 공지는 알림톡을 보내지 않습니다/.test(await page.$eval('#alimNote', e => e.textContent)), '[지금 바로 노출하기]를 끄면 알림톡 체크가 잠기고 이유가 보인다 (2026-10-14 우현정T 건)');
+  await page.check('#pub');
+  ok(!(await page.$eval('#alimOn', e => e.disabled)), '다시 켜면 알림톡 체크가 풀린다');
+  await page.uncheck('#pub');
   await page.click('#submitBtn');
   await page.waitForFunction(() => /등록됐어요/.test(document.getElementById('status').textContent), { timeout: 8000 });
   await sleep(400);
   ok(posts.some(b => b.action === 'addNotice' && b.hidden === true) && await page.$eval('#alimBox', e => e.style.display) === 'none', '숨김으로 저장한 공지는 알림톡을 묻지 않는다');
+  ok(await page.$eval('#pub', e => e.checked) && !(await page.$eval('#alimOn', e => e.disabled)), '등록 뒤 폼이 돌아오면 알림톡 체크도 다시 열린다');
+  // 체크가 켜진 채 다른 이유로 못 묻는 경우 — 조용히 건너뛰지 않고 상자에 이유
+  await page.evaluate(() => { document.getElementById('alimOn').checked = true; document.getElementById('pub').checked = false; });
+  await page.fill('#title', '숨김인데 체크'); await page.click('#submitBtn');
+  await sleep(300);
+  ok(/숨김으로 저장하면 알림톡이 가지 않습니다/.test(await page.$eval('#status', e => e.textContent)) && !posts.some(b => b.action === 'addNotice' && b.title === '숨김인데 체크'), '알림톡 체크 + 숨김으로 등록하려 하면 저장 전에 막고 이유를 적는다');
+  await page.check('#pub');
+  await page.evaluate(() => { alimCfg = Object.assign({}, alimCfg, { ready: false }); document.getElementById('alimOn').checked = true; });
+  await page.click('#submitBtn');
+  await page.waitForFunction(() => /등록됐어요/.test(document.getElementById('status').textContent), { timeout: 8000 });
+  await sleep(300);
+  ok(await page.$eval('#alimBox', e => e.style.display) === 'block' && /알림톡 설정 전이라 보내지 못했습니다/.test(await page.$eval('#alimBox', e => e.textContent)), '체크했는데 설정 전이면 상자에 이유를 보여 준다 (조용히 건너뛰지 않음)');
+  await page.evaluate(() => alimCancel());
+
+  console.log('①-2 공지 목록 줄의 [알림톡 보내기]');
+  NOTICE_ROWS = [
+    { rowIndex: 7, type: '일부', target: '박보검, 한동명|능곡고|2026고등2학년', title: '분석 업데이트', body: '', date: '2026-10-14', hidden: false },
+    { rowIndex: 8, type: '학년', target: '2026 고등 2학년', title: '숨긴 공지', body: '', date: '2026-10-14', hidden: true } ];
+  posts.length = 0;
+  await page.goto(NURL, { waitUntil: 'domcontentloaded' });
+  await page.waitForFunction(() => !document.getElementById('alimOn').disabled && document.querySelectorAll('#mgrList .n-item .alim').length === 2, { timeout: 8000 });
+  ok(true, '공지 목록 줄마다 [알림톡 보내기] 버튼');
+  await page.selectOption('#alimKind', 'notice_reportup');
+  await page.click('#mgrList .n-item[data-row="7"] .alim');
+  await page.waitForFunction(() => document.getElementById('alimBox').style.display === 'block' && document.getElementById('alimGo'), { timeout: 8000 });
+  const lt = await page.$eval('#alimBox', e => e.textContent);
+  ok(/지필고사 리포트 업데이트 안내/.test(lt) && /지정 학생 2명 중 2명/.test(lt), '목록 줄에서 누르면 그 공지의 대상으로 상자가 열린다(고른 종류·동명이인 토큰 대조)');
+  await page.click('#alimGo');
+  await page.waitForFunction(() => /공지 알림톡/.test(document.getElementById('status').textContent), { timeout: 8000 });
+  const ls = alimSends();
+  ok(ls.length === 1 && ls[0].kind === 'notice_reportup' && ls[0].items.every(it => /^N:\d{4}-\d\d-\d\d\|분석 업데이트$/.test(it.date)) && ls[0].items.map(x => x.student).sort().join() === '박보검,박보검,한동명', '목록에서 보낸 알림톡 — 종류·중복 키(N:오늘|제목)·대상이 맞다');
+  await page.click('#mgrList .n-item[data-row="8"] .alim');
+  await sleep(200);
+  ok(/숨김 공지는 알림톡을 보내지 않습니다/.test(await page.$eval('#alimBox', e => e.textContent)) && alimSends().length === 1, '숨김 공지 줄의 버튼은 보내지 않고 [다시 노출] 안내');
+  await page.evaluate(() => alimCancel());
+  NOTICE_ROWS = [];
   ALIM_CFG = Object.assign({}, ALIM_CFG, { templates: { absent: ALIM_CFG.templates.absent, notice_sched: ntpl('수업 일정 안내', false), notice_mock: ntpl('주말 실전 모의고사 신청 안내', false), notice_gramma: ntpl('문법 테스트 참여 안내', false) } });
   await page.goto(NURL, { waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => /템플릿이 아직 없어요/.test(document.getElementById('alimNote').textContent), { timeout: 8000 });

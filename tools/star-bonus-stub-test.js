@@ -5,6 +5,7 @@
 const stub = require('./tt-twin-stub.js');
 const { SHEETS, mkSheet, J } = stub;
 const F = stub.fns;
+function SpreadsheetAppSS(){ return global.SpreadsheetApp ? global.SpreadsheetApp.getActiveSpreadsheet() : null; }
 let pass = 0, fail = 0;
 const ok = (m, c, x) => { c ? (pass++, console.log('  ✓ ' + m)) : (fail++, console.log('  ✗ ' + m + (x ? ' ' + x : ''))); };
 mkSheet(F.TAB_STARS, [['일시', '학생ID', '이름', '학교', '별', '사유', '학년']]);
@@ -30,5 +31,21 @@ ok('dedupe 없는 옛 호출(깜짝 보너스)은 그대로 저장', r.result ==
 r = call({ name: '박보검', school: '화정고', stars: 1, reason: '', dedupe: '1' });
 ok('사유가 비면 dedupe 를 안 건다(그대로 저장)', r.result === 'success' && !r.dup && rows() === 6);
 ok('starKey_ — 앞뒤 괄호·끝 A 제거, B 유지', F.starKey_('(화정)김하늘A') === '김하늘' && F.starKey_('김하늘B') === '김하늘B' && F.starKey_('A') === 'A');
+
+// 별을 준 선생님(050, 2026-10-14) — H열 '보낸사람'
+r = call({ name: '김하늘', school: '화정고', grade: '2026 고등 2학년', stars: 3, reason: '수업 태도', by: '김현지' });
+const last = SHEETS[F.TAB_STARS][SHEETS[F.TAB_STARS].length - 1];
+ok('by → H열 보낸사람', r.result === 'success' && last[7] === '김현지', JSON.stringify(last));
+ok('머리글 H열 보낸사람 보충', SHEETS[F.TAB_STARS][0][7] === '보낸사람', JSON.stringify(SHEETS[F.TAB_STARS][0]));
+r = call({ name: '이소율', school: '화정고', stars: 1, reason: '' });
+ok('by 없는 옛 호출 — H열 빈 값', SHEETS[F.TAB_STARS][SHEETS[F.TAB_STARS].length - 1][7] === '');
+if (F.starLogData_) {
+  const lg = F.starLogData_();
+  ok('starLog 에 giver', lg.some(g => g.name === '김하늘' && g.giver === '김현지'), JSON.stringify(lg.slice(0, 3)));
+}
+if (F.sumBonus_) {
+  const sb = F.sumBonus_(SpreadsheetAppSS(), '', '김하늘', '화정고', '2026 고등 2학년', true);
+  ok('학생 최근 보너스 giver', sb.latest && sb.latest.giver === '김현지', JSON.stringify(sb));
+}
 console.log('\n' + pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);

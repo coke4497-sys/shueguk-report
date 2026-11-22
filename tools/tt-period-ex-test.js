@@ -8,7 +8,9 @@
  * ③ 주차별: 같은 섞임 · 예외 없는 다음 주로 가면 중2 내신 반으로 돌아오고 · 다시 돌아오면 예외
  * ④ 전체 시간표: 순수한 내신 시간표(ov 없이 다시 받음)
  * ⑤ 캘린더: [학년 예외] 표시·설정 창·저장 본문(시트 + 수파베이스 overrides)
- * ⑥ 047 전(overrides 열 없음): 예외 없이 동작, 설정 창은 안내만 */
+ * ⑥ 047 전(overrides 열 없음): 예외 없이 동작, 설정 창은 안내만
+ * ⑦ 다른 기간 수업 당기기(2026-10-24 수정 요청 김상우): 중2 정규 예외 주에 중2 내신 반을 옮긴 복사본이 보이고
+ *    명단은 원본 내신 반을 따라간다 · [이 주만 시간 옮기기]의 옮길 주는 기간이 달라도 잠기지 않는다 */
 const { chromium } = require('playwright');
 const http = require('http'), fs = require('fs'), path = require('path');
 const ROOT = path.join(__dirname, '..');
@@ -35,6 +37,7 @@ const CLASSES = [
 ];
 const ATT = [{ date: TS, book: '정규', class_id: 'r01', student: '가나', status: '출석', memo: '' },
              { date: TS, book: '내신', class_id: 'n02', student: '마바', status: '출석', memo: '' }];
+let LOGS = [];
 let pass = 0, fail = 0;
 const ok = (n, c, x) => { if (c) pass++; else { fail++; console.log('  ✗ ' + n + (x ? ' — ' + x : '')); } };
 
@@ -73,13 +76,16 @@ const ok = (n, c, x) => { if (c) pass++; else { fail++; console.log('  ✗ ' + n
         const bk = bm ? decodeURIComponent(bm[1]) : '';
         return json(ATT.filter(a => (!g || a.date >= g[1]) && (!l || a.date <= l[1]) && (!bk || a.book === bk)));
       }
+      if (/\/tt_log/.test(u)) return json(LOGS);
       if (/\/tt_tasks/.test(u)) return r.fulfill({ status: 404, contentType: 'application/json', body: '{"code":"42P01"}' });
       return json([]);
     });
     return ctx;
   }
+  let pwAns = 'sh'; const dlg = [];
   async function open(ctx, mode){
     const page = await ctx.newPage();
+    page.on('dialog', d => { dlg.push(d.type() + ':' + d.message()); d.type() === 'prompt' ? d.accept(pwAns) : d.accept(); });
     await page.addInitScript(m => {
       sessionStorage.setItem('tt_mode', m); sessionStorage.setItem('tt_book', '내신');
       sessionStorage.setItem('tt_vmopen', '0'); sessionStorage.setItem('tt_chopen', '0');
@@ -148,6 +154,11 @@ const ok = (n, c, x) => { if (c) pass++; else { fail++; console.log('  ✗ ' + n
   await page.waitForTimeout(900);   // 캐시 그림 뒤 최신 조회까지
   mn = await minis();
   ok('③ 돌아오면 다시 예외 적용', mn.some(x => /정리정독 중2/.test(x)) && !mn.some(x => /서정\(비상\)/.test(x)), JSON.stringify(mn));
+  // 2026-10-30 수정 요청함 김상우 — 다른 주로 넘겼다 오면 예외 반(중2 정규) 출석이 비었다(loadWeek가 ov=1을 안 보냄)
+  await page.evaluate(() => loadWeek());
+  await page.waitForTimeout(900);
+  r = await page.evaluate(() => Object.keys(weekAttend));
+  ok('③ 주차를 다시 불러와도 예외 반(중2 정규) 출석이 남는다', r.some(k => /\|r01\|/.test(k)), JSON.stringify(r));
 
   /* ④ 전체 시간표 — 순수 */
   reqs.length = 0;
@@ -168,14 +179,27 @@ const ok = (n, c, x) => { if (c) pass++; else { fail++; console.log('  ✗ ' + n
     return { n: btns.length, has, plain: btns.filter(b => !b.classList.contains('has')).map(b => b.textContent)[0] };
   }, W0);
   ok('⑤ 캘린더 주마다 [학년 예외] 버튼 · 이번 주는 "중2 정규"', r.n >= 4 && r.has.length === 1 && r.has[0] === '중2 정규' && r.plain === '학년 예외', JSON.stringify(r));
+  /* 비밀번호(2026-10-15) — 틀리면 창이 안 열리고, 맞으면 열리며 그 뒤 탭 안에서는 다시 묻지 않는다 */
+  pwAns = 'xx'; dlg.length = 0;
+  await page.evaluate(() => document.querySelector('.cal-ov.has').click());
+  await page.waitForTimeout(400);
+  r = await page.evaluate(() => ({ modal: !!document.querySelector('.pex-list'), mem: sessionStorage.getItem('tt_period_pw') }));
+  ok('⑤ 비밀번호가 틀리면 학년 예외 창이 열리지 않는다', !r.modal && r.mem === null && dlg.some(x => /^prompt:.*비밀번호/.test(x)) && dlg.some(x => /^alert:.*틀렸/.test(x)), JSON.stringify([r, dlg]));
+  posts.length = 0; legacy.length = 0; dlg.length = 0;
+  await page.evaluate(() => [...document.querySelectorAll('.cal-period button')].find(b => b.textContent === '정규' && !b.classList.contains('on-reg')).click());
+  await page.waitForTimeout(400);
+  ok('⑤ 비밀번호가 틀리면 [정규] 저장 요청을 보내지 않는다', !posts.some(p => /\/tt_period/.test(p.url)) && !legacy.some(x => /ttPeriodSet/.test(x)), JSON.stringify(posts.map(p => p.url)));
+  pwAns = 'sh'; dlg.length = 0;
   await page.evaluate(() => document.querySelector('.cal-ov.has').click());
   await page.waitForSelector('.pex-list');
+  ok('⑤ 비밀번호가 맞으면 창이 열리고 이 탭에 기억', dlg.filter(x => /^prompt:/.test(x)).length === 1 && await page.evaluate(() => sessionStorage.getItem('tt_period_pw')) === '1', JSON.stringify(dlg));
   r = await page.evaluate(() => ({ title: document.querySelector('#modal h3').textContent,
     rows: [...document.querySelectorAll('[data-pex]')].map(s => s.getAttribute('data-pex') + '=' + s.value), note: document.querySelector('#modal .mdesc').textContent }));
   ok('⑤ 설정 창: 중1·중2·고1·고2 줄, 중2 = 정규, 주 기준 내신 안내', r.rows.join() === '중1=,중2=정규,고1=,고2=' && /내신/.test(r.note) && /중3·고3/.test(r.note), JSON.stringify(r));
   posts.length = 0; legacy.length = 0;
   await page.selectOption('[data-pex="고1"]', '정규');
   await page.selectOption('[data-pex="고2"]', '내신');   // 주 기준과 같은 값 — 예외가 아니다
+  dlg.length = 0;
   await page.evaluate(() => document.querySelector('#modal .mbtns .primary').click());
   await page.waitForFunction(() => /자동 반영/.test(document.getElementById('status').textContent), null, { timeout: 10000 });
   const sbp = posts.find(p => /\/tt_period/.test(p.url));
@@ -184,6 +208,7 @@ const ok = (n, c, x) => { if (c) pass++; else { fail++; console.log('  ✗ ' + n
      !!lg && lg.week === W0 && lg.book === '내신' && JSON.stringify(lg.ov) === JSON.stringify({ '중2': '정규', '고1': '정규' }) &&
      !!sbp && /on_conflict=week_wednesday/.test(sbp.url) && /"overrides":\{"중2":"정규","고1":"정규"\}/.test(sbp.body), JSON.stringify([lg, sbp && sbp.body]));
   r = await page.evaluate(() => ({ lab: document.querySelector('.cal-ov.has').textContent, st: document.getElementById('status').textContent }));
+  ok('⑤ 한 번 맞힌 뒤에는 다시 묻지 않는다', !dlg.some(x => /^prompt:/.test(x)), JSON.stringify(dlg));
   ok('⑤ 저장 뒤 캘린더 표기 "고1 정규 · 중2 정규"', r.lab === '고1 정규 · 중2 정규' && /고1 정규 · 중2 정규/.test(r.st), JSON.stringify(r));
   await page.evaluate(() => setMode('today'));
   await page.waitForFunction(() => /고1 정규/.test(document.getElementById('period-badge').textContent) && [...document.querySelectorAll('.blk')].some(e => /^고1 가/.test(e.querySelector('.nm').textContent.trim())), null, { timeout: 15000 });
@@ -205,6 +230,28 @@ const ok = (n, c, x) => { if (c) pass++; else { fail++; console.log('  ✗ ' + n
   await page.waitForSelector('.pex-list');
   r = await page.evaluate(() => ({ err: document.querySelector('#modal .merr').textContent, dis: document.querySelector('#modal .mbtns .primary').disabled }));
   ok('⑥ 설정 창은 "마이그레이션 047" 안내 + 저장 잠김', /047/.test(r.err) && r.dis, JSON.stringify(r));
+  await page.close(); await ctx.close();
+
+  /* ⑦ 다른 기간 수업 당기기 */
+  const CP = 'w' + TS.slice(2).replace(/-/g, '') + 'a';
+  CLASSES.push(Object.assign(mk('내신', CP, '중2 서정(비상)', '6:30', '8:00', '은지', '정리정독', ''), {}));
+  LOGS = [{ id: 1, kind: '주간반이동', student: '', book: '내신', from_class_id: 'n01', from_class: '중2 서정(비상)',
+            to_class_id: CP, to_class: '중2 서정(비상)', reason: '시험 전 당겨서', apply_date: W1, at: TS + 'T01:00:00+00:00' }];
+  ctx = await ctxOf();
+  page = await open(ctx, 'today');
+  await page.waitForFunction(() => document.querySelectorAll('.blk').length >= 4, null, { timeout: 15000 });
+  await page.waitForTimeout(300);
+  r = await page.evaluate(id => { const c = classes.find(x => x.id === id); return c ? { book: c.book, st: c.students.join(' ') } : null; }, CP);
+  nm = await names(page);
+  ok('⑦ 정규 예외 주에 옮겨 온 중2 내신 복사본이 오늘 시간표에 보인다', !!r && nm.some(x => /서정\(비상\)/.test(x)), JSON.stringify([r, nm]));
+  ok('⑦ 복사본은 내신 시간표 반이고 명단은 원본(n01) 그대로', !!r && r.book === '내신' && r.st === '가나', JSON.stringify(r));
+  ok('⑦ 중2 원본 내신 반(n01)은 여전히 빠진다', await page.evaluate(() => !classes.some(c => c.id === 'n01')));
+  r = await page.evaluate(() => {
+    const c = { id: 'n01', cls: '중2 서정(비상)', book: '내신', day: '토', start: '5:00', end: '6:30', students: [] };
+    const lock = weekSelHtml('x', weekStart, c), free = weekSelHtml('x', weekStart, c, true);
+    return { lock: /disabled/.test(lock), free: /disabled/.test(free) };
+  });
+  ok('⑦ 옮길 주 선택: 반 전체 옮기기는 기간이 달라도 잠기지 않는다(학생 옮기기는 그대로 잠금)', r.lock && !r.free, JSON.stringify(r));
   await page.close(); await ctx.close();
 
   await b.close(); srv.close();

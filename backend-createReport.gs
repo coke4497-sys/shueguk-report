@@ -809,7 +809,7 @@ function getStudent(opts) {
   for (var n3 = 1; n3 < sv.length; n3++) {
     var rn3 = String(sv[n3][1] || '').trim();
     if (!rn3 || baseName_(rn3) !== myBase) continue;
-    if (/^(퇴원|n|no|off|x|중단|비재원)$/i.test(String(sv[n3][10] || '').trim())) continue;
+    if (/^(퇴원|n|no|off|x|중단|비재원|졸업)$/i.test(String(sv[n3][10] || '').trim())) continue;
     nameDupCount++;
   }
   info.nameDup = nameDupCount > 1;
@@ -1118,6 +1118,19 @@ function collectAssignments_(ss, info, key, tool) {
 }
 
 /** 날짜 셀을 yyyy-MM-dd 문자열로 (빈값·문자열도 안전) */
+/** 마감일 칸 → 'yyyy-MM-dd'. 날짜 값·이미 글자로 굳은 영어 날짜('Wed Nov 25 2026 …') 모두 (2026-11-19) */
+function dueYmd_(v) {
+  if (v instanceof Date) return fmtCellDate_(v);
+  var t = String(v || '').trim();
+  if (!t || /^\d{4}-\d{2}-\d{2}$/.test(t)) return t;
+  var m = t.match(/(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+(\d{1,2}),?\s+(\d{4})/);
+  if (m) {
+    var mo = 'JanFebMarAprMayJunJulAugSepOctNovDec'.indexOf(m[1]) / 3 + 1;
+    return m[3] + '-' + (mo < 10 ? '0' : '') + mo + '-' + (m[2].length < 2 ? '0' : '') + m[2];
+  }
+  return t;
+}
+
 function fmtCellDate_(d) {
   if (!d) return '';
   try { return (d instanceof Date) ? Utilities.formatDate(d, 'GMT+9', 'yyyy-MM-dd') : String(d).trim(); }
@@ -1545,7 +1558,7 @@ function starRankingData_() {
   for (var i = 1; i < sv.length; i++) {
     var nm = String(sv[i][1] || '').trim();
     if (!nm) continue;
-    if (/^(퇴원|n|no|off|x|중단|비재원)$/i.test(String(sv[i][10] || '').trim())) continue;
+    if (/^(퇴원|n|no|off|x|중단|비재원|졸업)$/i.test(String(sv[i][10] || '').trim())) continue;
     var id = String(sv[i][0] || '').trim();
     var k = stus.length;
     stus.push({ id: id, name: nm, school: String(sv[i][2] || '').trim(), grade: String(sv[i][3] || '').trim(),
@@ -2139,20 +2152,24 @@ function sumBonus_(ss, sid, name, school, grade, uniq) {
     if (!match) continue;
     var n = parseInt(v[i][4], 10) || 0;
     out.sum += n;
-    out.latest = { stars: n, reason: String(v[i][5] || '').trim(), date: fmtCellDate_(v[i][0]) };
+    out.latest = { stars: n, reason: String(v[i][5] || '').trim(), date: fmtCellDate_(v[i][0]),
+                   giver: String(v[i].length > 7 ? v[i][7] : '').trim() };
   }
   return out;
 }
 
-/** '별' 탭이 없으면 만든다. 옛 시트에 '학년'(G열) 머리글이 없으면 추가. */
+/** '별' 탭이 없으면 만든다. 옛 시트에 '학년'(G열)·'보낸사람'(H열) 머리글이 없으면 추가. */
 function ensureStarsSheet_(ss) {
   var sh = ss.getSheetByName(TAB_STARS);
   if (!sh) {
     sh = ss.insertSheet(TAB_STARS);
-    sh.appendRow(['일시', '학생ID', '이름', '학교', '별', '사유', '학년']);
-    sh.getRange(1, 1, 1, 7).setFontWeight('bold').setBackground('#DDE5E1');
-  } else if (String(sh.getRange(1, 7).getValue() || '').trim() !== '학년') {
-    sh.getRange(1, 7).setValue('학년').setFontWeight('bold').setBackground('#DDE5E1');
+    sh.appendRow(['일시', '학생ID', '이름', '학교', '별', '사유', '학년', '보낸사람']);
+    sh.getRange(1, 1, 1, 8).setFontWeight('bold').setBackground('#DDE5E1');
+  } else {
+    if (String(sh.getRange(1, 7).getValue() || '').trim() !== '학년')
+      sh.getRange(1, 7).setValue('학년').setFontWeight('bold').setBackground('#DDE5E1');
+    if (String(sh.getRange(1, 8).getValue() || '').trim() !== '보낸사람')
+      sh.getRange(1, 8).setValue('보낸사람').setFontWeight('bold').setBackground('#DDE5E1');
   }
   return sh;
 }
@@ -2164,7 +2181,9 @@ function addStarBonus(data) {
   var name = String(data.name || '').trim();
   if (!name || !stars || stars < 1 || stars > 50) return json({ result: 'error', message: '학생과 별 개수(1~50)를 확인해주세요.' });
   var school = String(data.school || '').trim(), reason = String(data.reason || '').trim();
-  var row = [new Date(), String(data.id || '').trim() ? "'" + String(data.id).trim() : '', name, school, stars, reason, String(data.grade || '').trim()];
+  // H열 '보낸사람' = 별을 준 선생님(허브 로그인 이름, 2026-10-14 원장님 — 학생 페이지 '○○ 선생님이 별을 선물하셨어요')
+  var giver = String(data.by || '').trim().slice(0, 40);
+  var row = [new Date(), String(data.id || '').trim() ? "'" + String(data.id).trim() : '', name, school, stars, reason, String(data.grade || '').trim(), giver];
   // dedupe:'1' — 같은 학생(이름·학교)·같은 사유가 이미 있으면 다시 쓰지 않는다(시험 별 한꺼번에 주기, 2026-10-06).
   // 중복 확인과 추가를 잠금 안에서 함께 해 두 조교가 동시에 눌러도 한 번만 들어간다. 시트는 캐시가 아니라 바로 읽는다(60초 캐시는 방금 쓴 줄을 모른다).
   if (String(data.dedupe || '') === '1' && reason) {
@@ -2206,7 +2225,8 @@ function starLogData_() {
         rowIndex: i + 1, date: fmtCellDate_(v[i][0]),
         name: String(v[i][2] || '').trim(), school: String(v[i][3] || '').trim(),
         grade: String(v[i].length > 6 ? v[i][6] : '').trim(),
-        stars: parseInt(v[i][4], 10) || 0, reason: String(v[i][5] || '').trim()
+        stars: parseInt(v[i][4], 10) || 0, reason: String(v[i][5] || '').trim(),
+        giver: String(v[i].length > 7 ? v[i][7] : '').trim()
       });
     }
   }
@@ -2388,7 +2408,7 @@ function addStudent(data) {
       if (tk) used[tk] = true;
       var rn = String(v[i][1] || '').trim();
       if (!rn) continue;
-      if (/^(퇴원|n|no|off|x|중단|비재원)$/i.test(String(v[i][10] || '').trim())) continue;
+      if (/^(퇴원|n|no|off|x|중단|비재원|졸업)$/i.test(String(v[i][10] || '').trim())) continue;
       var rid = String(v[i][0] || '').replace(/^'/, '').trim();
       var who = rn + ' (' + String(v[i][2] || '') + ' ' + String(v[i][3] || '') + ')';
       if (rn === name) warns.push('같은 이름의 재원생이 이미 있어요: ' + who + ' — 동명이인이면 이름 뒤에 A·B 접미사를 붙여 등록하세요 (예: ' + name + 'B).');
@@ -2591,6 +2611,8 @@ function doPost(e) {
     if (data && data.action === 'addStudent')      { return addStudent(data); }
     if (data && data.action === 'updateStudent')   { return updateStudent(data); }
     if (data && data.action === 'studentRename')   { return studentRename(data); }
+    if (data && data.action === 'studentEnrolledSet') { return studentEnrolledSet(data); }
+    if (data && data.action === 'submissionBlankDelete') { return submissionBlankDelete(data); }
 
     // (12-1) 정규 시간표 (timetable.html) — 학생 반 이동/추가/빼기, 전체 교체(가져오기·재동기화)
     if (data && data.action === 'timetableMove')    { return timetableMove(data); }
@@ -2605,9 +2627,12 @@ function doPost(e) {
     if (data && data.action === 'ttMemoSet')        { return ttMemoSet(data); }
     if (data && data.action === 'editReqAdd')       { return editReqAdd(data); }
     if (data && data.action === 'grammaReport')     { return grammaReport(data); }
+    if (data && data.action === 'hworkReport')      { return hworkReport(data); }
     if (data && data.action === 'editReqSet')       { return editReqSet(data); }
     if (data && data.action === 'editReqTokenSet')  { return editReqTokenSet(data); }
     if (data && data.action === 'alimSend')         { return alimSend(data); }
+    if (data && data.action === 'alimCancel')       { return alimCancel(data); }
+    if (data && data.action === 'alimLogDelete')    { return alimLogDelete(data); }
     if (data && data.action === 'alimConfigSet')    { return alimConfigSet(data); }
     if (data && data.action === 'alimDiscover')     { return alimDiscover(data); }
     if (data && data.action === 'naeshinSet')       { return naeshinSet(data); }
@@ -2703,7 +2728,7 @@ function getNewStudents(monthParam) {
       var ds = (d && d.getTime) ? Utilities.formatDate(d, 'Asia/Seoul', 'yyyy-MM-dd') : String(d || '').trim();
       if (ds.slice(0, 7) !== month) continue;
       if (!String(v[i][1] || '').trim()) continue;
-      if (/^(퇴원|n|no|off|x|중단|비재원)$/i.test(String(v[i][10] || '').trim())) continue;
+      if (/^(퇴원|n|no|off|x|중단|비재원|졸업)$/i.test(String(v[i][10] || '').trim())) continue;
       out.push({
         date: ds,
         name: String(v[i][1] || '').trim(), school: String(v[i][2] || '').trim(),
@@ -2727,7 +2752,7 @@ function getRoster() {
     var name = String(v[i][1] || '').trim();
     if (!name) continue;
     var enrolled = String(v[i][10] || '').trim();   // K: 재원여부
-    if (/^(퇴원|n|no|off|x|중단|비재원)$/i.test(enrolled)) continue;   // 퇴원 등은 제외
+    if (/^(퇴원|n|no|off|x|중단|비재원|졸업)$/i.test(enrolled)) continue;   // 퇴원 등은 제외
     out.push({
       name: name,
       school: String(v[i][2] || '').trim(),
@@ -2750,7 +2775,7 @@ function studentLinksData_() {
   for (var i = 1; i < v.length; i++) {
     var name = String(v[i][1] || '').trim();
     if (!name) continue;
-    if (/^(퇴원|n|no|off|x|중단|비재원)$/i.test(String(v[i][10] || '').trim())) continue;
+    if (/^(퇴원|n|no|off|x|중단|비재원|졸업)$/i.test(String(v[i][10] || '').trim())) continue;
     out.push({
       name:   name,
       sid:    String(v[i][0] || '').replace(/^'/, '').trim(),   // 학생ID(부모님 8자리 = 비밀번호)
@@ -2781,6 +2806,63 @@ function getStudentLinks() {
 /** 학생 이름 표기 변경 (동명이인 A/B 구분 등). { pw, code(접근코드), to(새 이름) }
  *  '학생정보' 탭 B열만 바꾼다 — 접근코드·8자리·시간표 열은 그대로라 학생 개인 페이지 링크는 유지된다.
  *  시간표의 이름은 timetableRenameStudent로 따로 바꿔야 한다(명단과 맞춰둘 것). */
+/* 재원여부(K열)만 고친다 — 2026-10-29 원장님 "시트 학생정보 재원 칸도 채워주세요"(수파베이스의 빈 값 23명을 '재원'으로 채운 뒤 시트 사본도 맞춤).
+ * POST { pw, items:[{code, enrolled}] } — 접근코드로 찾고, enrolled 는 '재원'/'퇴원'/'' 같은 글 그대로. 다른 열은 건드리지 않는다. */
+function studentEnrolledSet(data) {
+  if (String(data.pw || '') !== TEACHER_PW) return json({ result: 'error', message: 'unauthorized' });
+  var items = Array.isArray(data.items) ? data.items : [];
+  if (!items.length || items.length > 200) return json({ result: 'error', message: '고칠 학생이 없거나 너무 많아요(200명까지).' });
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ss.getSheetByName(TAB_STUDENTS);
+  if (!sh) return json({ result: 'error', message: "'" + TAB_STUDENTS + "' 탭이 없습니다." });
+  var lock = LockService.getScriptLock();
+  try { lock.waitLock(10000); } catch (e) { return json({ result: 'error', message: '잠시 후 다시 시도해 주세요.' }); }
+  try {
+    var v = sh.getDataRange().getValues();
+    var codeCol = findHeaderCol_(v[0], '접근코드', STU_CODE_COL);
+    var enrCol = findHeaderCol_(v[0], '재원 여부', findHeaderCol_(v[0], '재원여부', 10));   // 실제 머리글은 '재원 여부'(띄어쓰기) — 둘 다 보고 없으면 K열
+    var rowOf = {};
+    for (var i = 1; i < v.length; i++) { var c = String(v[i][codeCol] || '').trim(); if (c && rowOf[c] === undefined) rowOf[c] = i + 1; }
+    var done = [], missing = [];
+    items.forEach(function (it) {
+      var code = String(it && it.code || '').trim(), val = String(it && it.enrolled || '').trim();
+      if (!code) return;
+      var row = rowOf[code];
+      if (!row) { missing.push(code); return; }
+      var rg = sh.getRange(row, enrCol + 1);
+      rg.setNumberFormat('@');
+      rg.setValue(val);
+      done.push({ code: code, name: String(v[row - 1][1] || '').trim(), enrolled: val });
+    });
+    if (done.length) dropTab_(TAB_STUDENTS);
+    return json({ result: 'success', done: done, missing: missing });
+  } finally {
+    try { lock.releaseLock(); } catch (e) {}
+  }
+}
+
+/* '제출결과' 탭의 빈 줄(시험·이름이 모두 빈 줄)만 지운다 — 2026-10-29: 배포 직후 옛 버전이 받은 studentEnrolledSet 호출이 복기 제출 기본 분기로
+ * 떨어져 생긴 줄을 치우려고. 실제 제출(시험이나 이름이 있는 줄)은 절대 건드리지 않는다. POST { pw } → { result, deleted:[{row, ts}] } */
+function submissionBlankDelete(data) {
+  if (String(data.pw || '') !== TEACHER_PW) return json({ result: 'error', message: 'unauthorized' });
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ss.getSheetByName(TAB_RESULT);
+  if (!sh) return json({ result: 'error', message: "'" + TAB_RESULT + "' 탭이 없습니다." });
+  var lock = LockService.getScriptLock();
+  try { lock.waitLock(10000); } catch (e) { return json({ result: 'error', message: '잠시 후 다시 시도해 주세요.' }); }
+  try {
+    var v = sh.getDataRange().getValues(), deleted = [];
+    for (var i = v.length - 1; i >= 1; i--) {   // 아래부터 지워야 행 번호가 안 밀린다
+      var title = String(v[i][1] || '').trim(), name = String(v[i][4] || '').trim();
+      if (!title && !name) { sh.deleteRow(i + 1); deleted.push({ row: i + 1, ts: String(v[i][0] || '') }); }
+    }
+    if (deleted.length) dropExamIdx_();
+    return json({ result: 'success', deleted: deleted });
+  } finally {
+    try { lock.releaseLock(); } catch (e) {}
+  }
+}
+
 function studentRename(data) {
   if (String(data.pw || '') !== TEACHER_PW) return json({ result: 'error', message: 'unauthorized' });
   var code = String(data.code || '').trim();
@@ -2980,10 +3062,10 @@ function ttTwinRoster_(ss, book, v, fromRow, toRow, name) {
       var pn = String(name || '').replace(/\(.*\)$/, '');
       if (tr >= 0) {
         var tk = ttKind_(t.v[tr][6]);
-        if (tk) ttRosterSet_(ss, pn, tk, String(t.v[tr][1] || '').trim() + ttTime_(t.v[tr][2]));
+        if (tk) ttRosterSet_(ss, pn, tk, String(t.v[tr][1] || '').trim() + ttTime_(t.v[tr][2]), name);
       } else if (fr >= 0) {
         var fk = ttKind_(t.v[fr][6]);
-        if (fk) ttRosterSet_(ss, pn, fk, '');
+        if (fk) ttRosterSet_(ss, pn, fk, '', name);
       }
     }
   }
@@ -3157,7 +3239,9 @@ function timetableMove(data) {
     var tk = (book === '내신') ? ttNKind_(v[toRow][6]) : ttKind_(v[toRow][6]);
     var slot = String(v[toRow][1] || '').trim() + ttTime_(v[toRow][2]);   // 예: 토6:00
     var rosterUpdated = false, rosterMsg = '';
-    if (tk) {
+    if (tk && ttPendingName_(moved)) {
+      rosterMsg = TT_PENDING_MSG;
+    } else if (tk) {
       var colOf = ttKindCol_;   // 정규가 G=7 · 정규나 H=8 · 내신진도 I=9 · 내신확인 J=10
       var ssh = ss.getSheetByName(TAB_STUDENTS);
       var sv = ssh ? ssh.getDataRange().getValues() : null;
@@ -3185,9 +3269,19 @@ function timetableMove(data) {
     try { lock.releaseLock(); } catch (e) {}
   }
 }
-/** 학생정보의 정규가/나 열 갱신 (이름 유일 매칭일 때만). kind: 'A'/'B'/'S', slot 빈 문자열이면 비우기 */
-function ttRosterSet_(ss, plainName, kind, slot) {
+/** 아직 등록 전인 학생 표기('박서연(입학예정)'·'(미정)'·'(입테)' 등)인가.
+ *  괄호를 떼면 같은 이름의 재원생과 겹쳐 그 학생의 학생정보를 덮어썼다(2026-10-16 수정 요청함 189 — 박서연 무원중3).
+ *  'M/D부터'처럼 등록을 마친 학생의 표기는 해당 없음. */
+function ttPendingName_(raw) {
+  var m = String(raw || '').trim().match(/\(([^()]*)\)\s*$/);
+  return !!m && /입학|예비|미정|입테|상담|체험/.test(m[1]);
+}
+var TT_PENDING_MSG = '입학 예정 등 아직 등록 전 표기라 리포트에는 반영하지 않았어요.';
+/** 학생정보의 정규가/나 열 갱신 (이름 유일 매칭일 때만). kind: 'A'/'B'/'S', slot 빈 문자열이면 비우기.
+ *  raw(명단의 원래 표기)가 등록 전 표기면 건드리지 않는다. */
+function ttRosterSet_(ss, plainName, kind, slot, raw) {
   if (!kind) return { updated: false, msg: '논술 수업은 리포트 시간표에 반영하지 않아요.' };
+  if (raw && ttPendingName_(raw)) return { updated: false, msg: TT_PENDING_MSG };
   var ssh = ss.getSheetByName(TAB_STUDENTS);
   if (!ssh) return { updated: false, msg: "'학생정보' 탭이 없습니다." };
   var sv = ssh.getDataRange().getValues();
@@ -3228,7 +3322,7 @@ function timetableAdd(data) {
     sh.getRange(toRow + 1, 8).setValue(toList.join(' '));
     var tk = (book === '내신') ? ttNKind_(v[toRow][6]) : ttKind_(v[toRow][6]);
     var slot = String(v[toRow][1] || '').trim() + ttTime_(v[toRow][2]);
-    var r = ttRosterSet_(ss, plain, tk, slot);
+    var r = ttRosterSet_(ss, plain, tk, slot, name);
     ttLog_(ss, '추가', name, '', '', toId, String(v[toRow][6] || ''), String(data.reason || ''), book);
     var twin = ttTwinRoster_(ss, book, v, -1, toRow, name);
     return json({ result:'success', added: name, rosterUpdated: r.updated, rosterMsg: r.msg,
@@ -3263,7 +3357,7 @@ function timetableRemove(data) {
     var removed = fromList.splice(idx, 1)[0];
     sh.getRange(fromRow + 1, 8).setValue(fromList.join(' '));
     var fk = (book === '내신') ? ttNKind_(v[fromRow][6]) : ttKind_(v[fromRow][6]);
-    var r = ttRosterSet_(ss, plain, fk, '');   // 해당 열 비우기
+    var r = ttRosterSet_(ss, plain, fk, '', removed);   // 해당 열 비우기
     ttLog_(ss, '빼기', removed, fromId, String(v[fromRow][6] || ''), '', '', String(data.reason || ''), book);
     var twin = ttTwinRoster_(ss, book, v, fromRow, -1, removed);
     return json({ result:'success', removed: removed, rosterUpdated: r.updated, rosterMsg: r.msg,
@@ -3391,7 +3485,7 @@ function timetableMoveClass(data) {
       var names = String(v[row][7] || '').trim().split(/\s+/).filter(String);
       for (var n = 0; n < names.length; n++) {
         var plain = names[n].replace(/\(.*\)$/, '');
-        var r = ttRosterSet_(ss, plain, kind, slot);
+        var r = ttRosterSet_(ss, plain, kind, slot, names[n]);
         if (r.updated) updated++; else skipped.push(plain);
       }
     }
@@ -3409,7 +3503,7 @@ function timetableMoveClass(data) {
       if (tkind) {
         var tnames = ttListAt_(twin.v, twinRow);
         for (var tn = 0; tn < tnames.length; tn++) {
-          ttRosterSet_(ss, tnames[tn].replace(/\(.*\)$/, ''), tkind, newDay + newStart);
+          ttRosterSet_(ss, tnames[tn].replace(/\(.*\)$/, ''), tkind, newDay + newStart, tnames[tn]);
         }
       }
     }
@@ -4023,6 +4117,23 @@ function grammaReport(data) {
   if (cut(data.mine, 120) || cut(data.answer, 120)) body += '\n내 답: ' + (cut(data.mine, 120) || '-') + ' / 정답: ' + (cut(data.answer, 120) || '-');
   return editReqAppend_(writer, GRAMMA_REPORT_SCREEN, body);
 }
+/** H WORK 문항 오류 신고(2026-11-11 원장님 "문항 오류 신고도 수정 요청함으로 가게").
+ *  학생 오답하기 화면(shueguk-h-work hwork.html)에서 오므로 비밀번호 없음 — 대신 길이 제한·내용 필수.
+ *  원본 기록은 수파베이스 hwork_submissions.review[q].error(hwork_flag) — 여기는 수정 요청함 알림용 사본.
+ *  { name, school, grade, teacher, code, qno, mine, text } → '수정요청' 탭에 화면 'H WORK 오류 신고'로 한 줄. */
+var HWORK_REPORT_SCREEN = 'H WORK 오류 신고';
+function hworkReport(data) {
+  var cut = function(v, n) { return String(v == null ? '' : v).replace(/[\r\n]+/g, ' ').trim().slice(0, n); };
+  var text = String(data.text || '').trim().slice(0, 300);
+  if (!text) return json({ result:'error', message:'어떤 점이 이상한지 적어 주세요.' });
+  var code = cut(data.code, 160), qno = cut(data.qno, 6);
+  if (!code || !qno) return json({ result:'error', message:'과제와 문항 번호가 필요합니다.' });
+  var writer = cut(data.name, 20) || '(이름 없음)';
+  if (cut(data.school, 20) || cut(data.grade, 10)) writer += ' (' + [cut(data.school, 20), cut(data.grade, 10)].filter(function(x) { return x; }).join(' ') + ')';
+  var body = '[' + code + ' · ' + qno + '번 · 담당 ' + (cut(data.teacher, 20) || '-') + ']\n내용: ' + text;
+  if (cut(data.mine, 120)) body += '\n학생이 고른 답: ' + cut(data.mine, 120);
+  return editReqAppend_(writer, HWORK_REPORT_SCREEN, body);
+}
 /** 요청 접수 즉시 클로드 호출 — 알림 채널 PR(#329, 항상 열어 두는 PR)에 댓글을 달면
  *  그 PR을 구독 중인 클로드 세션이 댓글 이벤트로 깨어나 요청함을 바로 처리한다
  *  (매시 순찰의 최대 1시간 대기 해소, 순찰은 안전망으로 유지).
@@ -4042,7 +4153,8 @@ function editReqNotify_(writer, screen, text) {
     headers: { 'Authorization': 'Bearer ' + token, 'Accept': 'application/vnd.github+json' },
     muteHttpExceptions: true,
     payload: JSON.stringify({
-      body: (screen === GRAMMA_REPORT_SCREEN ? '[문법 오류 제보 접수] 문법 테스트 화면에서 오류 제보가 들어왔습니다(CLAUDE.md 「시간표 수정 요청함」 절의 \'문법 테스트 오류 제보\' 정책 — 데이터를 고치지 말고 확인 결과만 보류로 남긴다).\n\n' : '[수정 요청 접수] 티쳐스 \'수정 요청함\'에 새 요청이 등록됐습니다.\n\n') +
+      body: (screen === GRAMMA_REPORT_SCREEN ? '[문법 오류 제보 접수] 문법 테스트 화면에서 오류 제보가 들어왔습니다(CLAUDE.md 「시간표 수정 요청함」 절의 \'문법 테스트 오류 제보\' 정책 — 데이터를 고치지 말고 확인 결과만 보류로 남긴다).\n\n' :
+             screen === HWORK_REPORT_SCREEN ? '[H WORK 오류 신고 접수] 학생 오답하기 화면에서 문항 오류 신고가 들어왔습니다(CLAUDE.md 「시간표 수정 요청함」 절의 \'H WORK 오류 신고\' 정책 — 정답 데이터를 고치지 말고 확인 결과만 보류로 남긴다).\n\n' : '[수정 요청 접수] 티쳐스 \'수정 요청함\'에 새 요청이 등록됐습니다.\n\n') +
             '- 작성자: ' + (writer || '(미기재)') + ' / 화면: ' + (screen || '-') + '\n' +
             '- 내용: ' + text + '\n\n' +
             "구독 세션 처리 안내: CLAUDE.md 「시간표 수정 요청함」 절의 '자동 순찰(Routine)' 정책 그대로 — " +
@@ -4096,12 +4208,22 @@ function alimNoticeTpl_(name, prop, tail, btnName, body, extra) {
     text: '[이수경국어학원] ' + name + '\n' +
           '#{학생명} 학생에게 ' + name + '가 도착했어요.\n' +
           '\n' +
-          '▶ #{제목}\n' +
-          '\n' +
-          (body ? body + '\n\n' : '') +
-          (tail || '학생 페이지에서 내용을 확인해 주세요.'),   // 마지막 줄만 종류별로 다르게 둘 수 있다(사용자 지정 문구)
+          '▶ #{제목}' +
+          (body ? '\n\n' + body : '') +
+          // 마지막 줄만 종류별로 다르게 둘 수 있다(사용자 지정 문구). tail 이 null 이면 마지막 줄 없이 ▶ 제목 줄로 끝난다
+          // (2026-10-29 원장님 '수업 일정 안내(학생페이지 안내 없음)' — 뒤 줄이 없으니 ▶ 줄 뒤 빈 줄도 없다).
+          (tail === null ? '' : '\n\n' + (tail || '학생 페이지에서 내용을 확인해 주세요.')),
     buttons: [{ name: btnName || '학생 페이지 링크', type: 'WL', linkMo: ALIM_STU_LINK_, linkPc: ALIM_STU_LINK_ }]
   };
+}
+function alimAvailText_(who) {
+  return '[이수경국어학원] ' + who + ' 스케쥴 조사 안내\n' +
+         '#{학생명} 학생, 학부모님 안녕하세요.\n' +
+         '효율적인 학습 시간표 구성을 위해 학생이 수업에 참여하기 어려운 시간을 조사합니다.\n' +
+         '\n' +
+         '▶ #{제목}\n' +
+         '▶ 마감: #{마감일}\n' +
+         '슈퍼스타 페이지의 시간표 조사 메뉴에서 수업에 참여할 수 없는 시간을 모두 골라 제출해 주세요. 학생과 학부모님이 같은 응답을 함께 수정할 수 있습니다.';
 }
 var ALIM_TPL_ = {
   absent: {
@@ -4110,6 +4232,47 @@ var ALIM_TPL_ = {
     vars: ['학생명', '수업일', '반이름'],
     text: '[이수경국어학원] 결석 안내\n' +
           '#{학생명} 학생이 #{수업일} #{반이름} 수업에 결석했습니다.'
+  },
+  /* 결석 예고(2026-10-16 원장님 "내일 결석 친구가 오늘 결석 통보를 해서 기록하면 바로 보낼 수 있도록").
+   * 슈국 스케쥴에서 앞날(오늘 뒤) 수업에 결석을 기록하면 결석 안내 대신 이 창이 뜬다 — 자동 발송 없음.
+   * 문구는 2026-09-16 '결석 예정 확인'(원장님 지정, 그때는 쓰지 않기로 해 뺐다)을 이름만 '결석 예고'로 바꿔 되살렸다. */
+  preabsent: {
+    label: '결석 예고 안내',
+    prop: 'ALIM_TPL_PREABSENT',
+    // 알린분 = 결석 연락을 누구에게 받았는지(창의 라디오 — 2026-10-16 원장님 "학부모님이 알려주신 경우는요?" → 템플릿 하나 + 알린 분 고르기)
+    // 사유 = 학생·학부모님이 말한 사유(조교 입력), 보충안내 = 아래 둘 중 하나
+    vars: ['학생명', '수업일', '반이름', '알린분', '사유', '보충안내'],
+    text: '[이수경국어학원] 결석 예고 안내\n' +
+          '#{학생명} 학생이 #{수업일} #{반이름} 수업에 결석한다는 연락을 #{알린분} 받았습니다.\n' +
+          '사유: #{사유}\n' +
+          '#{보충안내}\n' +
+          '내용이 다르면 학원으로 연락 부탁드립니다.',
+    /* 선택지 — 화면 라디오, 문구는 여기와 timetable.html ALIM_MK_OPTS·ALIM_FROM_OPTS 가 같아야 한다 */
+    options: { '알린분': ['학부모님께', '학생에게'],
+               '보충안내': ['보충 일정은 별도 안내드립니다.', '당일 결석이므로 보충을 진행하지 않습니다.'] }
+  },
+  /* 미등원 안내(2026-10-29 원장님 "수업이 시작했는데 친구가 등원하지 않았고 전화를 받지 않았고 학부모님께도 전화드렸으나
+   * 부재중인 경우 … 알림톡을 보내고 싶어요" — 문구는 원장님 승인 그대로). 슈국 스케쥴 출석 창의 [미등원 알림톡]으로만 보낸다
+   * (자동 발송 없음, 출석 기록은 바꾸지 않음). 중복 키는 다른 종류와 같이 학생·수업일·받는 분. */
+  /* #{학원번호} = 그 수업 센터의 전화번호(2026-10-30 원장님 — 화면 ALIM_CENTER_TEL: 본원·화정센터·민트초코·정리정독·도래울) */
+  noshow: {
+    label: '미등원 안내',
+    prop: 'ALIM_TPL_NOSHOW',
+    vars: ['학생명', '수업일', '반이름', '학원번호'],
+    text: '[이수경국어학원] 미등원 안내\n' +
+          '#{학생명} 학생이 #{수업일} #{반이름} 수업 시간에 아직 등원하지 않았습니다.\n' +
+          '학생과 학부모님께 연락을 드렸으나 연결되지 않았습니다.\n' +
+          '확인 후 학원(#{학원번호})으로 연락 부탁드립니다.'
+  },
+  /* 지각 등원 안내(같은 날 원장님 "미등원 친구가 뒤늦게 등원했을 경우" — 이름은 2026-10-30 원장님 "지각 등원 안내로"; 처음 '등원 안내'. 원장님 "미등원 친구가 뒤늦게 등원했을 경우 지금 등원했습니다 알림톡도") — 미등원 안내를 보낸 학생이
+   * 뒤늦게 와서 출석·지각을 찍으면 출석 창·확인 창이 이 종류를 연다. #{등원시각} = 화면이 보내는 그 순간의 시각('오후 5:52'). */
+  arrived: {
+    label: '지각 등원 안내',
+    prop: 'ALIM_TPL_ARRIVED',
+    vars: ['학생명', '수업일', '반이름', '등원시각'],
+    text: '[이수경국어학원] 지각 등원 안내\n' +
+          '#{학생명} 학생이 #{수업일} #{반이름} 수업에 지금 등원했습니다. (#{등원시각} 도착)\n' +
+          '앞서 보내 드린 미등원 안내는 확인하지 않으셔도 됩니다.'
   },
   /* 공지 알림(2026-09-15 사용자 "공지사항을 올릴 때 푸시 팝업" → 알림톡 + 학생 페이지 팝업으로 결정).
    * 공지 등록 화면(notice.html)이 대상 학생(또는 학부모1)에게 보낸다. 중복 키(수업일 칸)는
@@ -4124,6 +4287,11 @@ var ALIM_TPL_ = {
    * 확인해 주세요.', 버튼 이름 '학생 페이지 링크'). 다시 심사받지 않으려고 코드 쪽을 등록본에 맞췄다 — 바꾸지 말 것. */
   notice_sched:    alimNoticeTpl_('수업 일정 안내',              'ALIM_TPL_NOTICE_SCHED',
                      '학생 페이지에서 내용을 확인해 주세요.', '학생 페이지 링크'),
+  /* 같은 문구에서 마지막 줄 '학생 페이지에서 내용을 확인해 주세요.'만 뺀 종류(2026-10-29 원장님 "그 표현이 들어가지 않아도
+   * 될 것 같아요" → 기존 템플릿은 그대로 두고 솔라피에 '수업 일정 안내(학생페이지 안내 없음)'으로 따로 등록해 심사 중).
+   * 제목 줄·둘째 줄은 '수업 일정 안내' 그대로라 화면 이름만 다르다. 자동 가져오기는 문구 대조라 두 템플릿이 섞이지 않는다. */
+  notice_sched2:   Object.assign(alimNoticeTpl_('수업 일정 안내',              'ALIM_TPL_NOTICE_SCHED2', null, '학생 페이지 링크'),
+                     { label: '수업 일정 안내 (학생 페이지 안내 없음)' }),
   /* 주말 실전 모의고사는 안내 네 줄을 문구에 넣는다(2026-09-29 원장님 "이 내용이 추가되어야 해요" — 원장님 안내문 그대로).
    * ▶ 제목 = '2027학년도 수능대비 실전 모의고사'처럼 회차 이름, #{신청일} = '3/14(토), 3/15(일)'처럼 매번 바뀌는 신청 요일,
    * #{장소} = '대감빌딩 5층 이수경 국어 본원'(같은 날 원장님 "장소를 변수로" — 화면이 이 값을 기본으로 채운다),
@@ -4145,7 +4313,98 @@ var ALIM_TPL_ = {
   notice_voca:     alimNoticeTpl_('어휘 테스트 참여 안내',       'ALIM_TPL_NOTICE_VOCA',
                      alimTail_('학생 페이지의 어휘 테스트 메뉴에서 이번 주 테스트에 참여해 주세요.')),
   notice_gramma:   alimNoticeTpl_('문법 테스트 참여 안내',       'ALIM_TPL_NOTICE_GRAMMA',
-                     alimTail_('학생 페이지의 문법 테스트 메뉴에서 배정된 테스트에 참여해 주세요.'))
+                     alimTail_('학생 페이지의 문법 테스트 메뉴에서 배정된 테스트에 참여해 주세요.')),
+  /* 예비 고1 학교 분석(2026-11-03 원장님 — 학생 페이지 [예비 고1 학교 분석] 메뉴를 학생·학부모님께 알리는 알림톡).
+   * 둘째 줄부터 원장님이 쓴 문장 그대로라 alimNoticeTpl_ 를 쓰지 않는다(▶ #{제목} 줄 없음 — 변수는 학생명·접근코드뿐,
+   * 허브 화면의 제목 칸은 중복 막는 열쇠로만 쓰인다). 솔라피 등록·심사 뒤 [솔라피에서 가져오기]로 ID 저장. */
+  notice_pre1: {
+    label: '고1 국어 미리보기 안내', prop: 'ALIM_TPL_NOTICE_PRE1', notice: true,
+    vars: ['학생명', '접근코드'],
+    text: '[이수경국어학원] 고1 국어 미리보기 안내\n' +
+          '#{학생명} 학생, 학부모님 안녕하세요.\n' +
+          '\n' +
+          '고등학교 입학을 앞두고 내가 입학할 학교의 국어시험은 과연 어떤 모습일지 궁금하기도 하고 떨리기도 할 것 같아요! 그래서 수경쌤이 자세히 준비했습니다.\n' +
+          '\n' +
+          '덕양구 8개 주요 학교의 1학기 중간고사의 모습이 어떤지 학생페이지의 <덕양구 8개 주요학교 고1 국어 미리보기>에서 확인하세요.',
+    buttons: [{ name: '학생 페이지 링크', type: 'WL', linkMo: ALIM_STU_LINK_, linkPc: ALIM_STU_LINK_ }]
+  },
+  /* 교육청·평가원 모의고사 리포트(2026-10-21 원장님 — 10월 경기도교육청 학력평가 뒤 "결과를 입력하는 알림톡").
+   * 문구는 원장님이 정한 그대로(옛 문자 '[이수경 국어 고2 / 26년 9월 모의고사 리포트 제출]'을 참고해 함께 다듬음) —
+   * 둘째 줄부터 모양이 다른 공지 템플릿과 달라 alimNoticeTpl_ 를 쓰지 않는다. #{제목} = '26년 10월 학력평가',
+   * #{마감일} = '10/25(일)'. 학생 페이지 입력 메뉴는 아직 없다(원장님 "알림톡만 준비").
+   * 2026-10-22 승인본(솔라피 '…(사본)')에 맞춤 — '선택 입력해 주세요. 채점한…'은 한 줄(줄바꿈 없음), 버튼 '학생 개인 페이지'. */
+  notice_mockrep: {
+    label: '교육청·평가원 모의고사 리포트 제출 안내', prop: 'ALIM_TPL_NOTICE_MOCKREP', notice: true,
+    vars: ['학생명', '제목', '마감일', '접근코드'],
+    text: '[이수경국어학원] 교육청·평가원 모의고사 리포트 제출 안내\n' +
+          '#{학생명} 학생, #{제목}를 성실하게 치러 내느라 정말 고생 많았습니다.\n' +
+          '\n' +
+          '학생 페이지의 교육청·평가원 모의고사 리포트 메뉴에서 틀린 문제를 선택 입력해 주세요. 채점한 시험지를 준비했다면 1분이면 끝나요!\n' +
+          '\n' +
+          '▶ 제출 기한: #{마감일}\n' +
+          '\n' +
+          '애타게 기다리고 있을 선생님들의 마음을 헤아려 얼른 제출해 주세요.',
+    buttons: [{ name: '학생 개인 페이지', type: 'WL', linkMo: ALIM_STU_LINK_, linkPc: ALIM_STU_LINK_ }]   // 승인본 버튼 이름
+  }
+  ,
+  /* 스케쥴 조사 안내 두 종류(2026-11-05 원장님 문구 그대로 — 시간표 조사 062). 재원생용·신입생용은 제목 줄만 다르다.
+   * #{제목} = 조사 제목('화정고1 겨울방학 새 시간표 조사'), #{마감일} = '11/12(목)'. 학생 페이지 메뉴 이름은 '시간표 조사'. */
+  notice_avail: {
+    label: '재원생 스케쥴 조사 안내', prop: 'ALIM_TPL_NOTICE_AVAIL', notice: true,
+    vars: ['학생명', '제목', '마감일', '접근코드'],
+    text: alimAvailText_('재원생'),
+    buttons: [{ name: '학생 페이지 링크', type: 'WL', linkMo: ALIM_STU_LINK_, linkPc: ALIM_STU_LINK_ }]
+  },
+  notice_avail_new: {
+    label: '신입생 스케쥴 조사 안내', prop: 'ALIM_TPL_NOTICE_AVAIL_NEW', notice: true,
+    vars: ['학생명', '제목', '마감일', '접근코드'],
+    text: alimAvailText_('신입생'),
+    buttons: [{ name: '학생 페이지 링크', type: 'WL', linkMo: ALIM_STU_LINK_, linkPc: ALIM_STU_LINK_ }]
+  }
+  ,
+  /* 신입생 등록 안내(2026-11-10 원장님 "신입전용 알림톡을 연결해주세요" — 문구는 원장님이 솔라피에 등록한 그대로).
+   * 슈퍼스타 관리 → 신입 슈스 등록이 끝난 화면의 [신입생 안내 알림톡 보내기]로만 보낸다(자동 발송 없음).
+   * #{첫수업} = '11/14(토) 11:00 정리정독 중3'(등록 때 고른 반에서 화면이 채움), #{장소} = 그 반 센터(고칠 수 있음).
+   * 중복 키(수업일 칸)는 'N:등록일|신입' — 같은 학생·받는 분에게 하루 한 번. */
+  // H WORK 질문 답장 안내 (2026-11-17 원장님 "질문에 답변이 등록되었다는 것을 알림톡으로 학생에게" — 과제마다 한 번, 학생에게)
+  // 보내는 곳 = H WORK 채점 결과 화면(hwork_result.html) '과제 검사' 상자. 중복 키(수업일 칸) = 'H:제출번호|마지막 답장 번호'.
+  hwork_reply: {
+    label: 'H WORK 질문 답장 안내', prop: 'ALIM_TPL_HWORK_REPLY',
+    vars: ['학생명', '과제', '접근코드'],
+    text: '[이수경국어학원] H WORK 질문 답장 안내\n' +
+          '#{학생명} 학생이 남긴 H WORK 질문에 선생님 답장이 등록되었습니다.\n' +
+          '\n' +
+          '▶ #{과제}\n' +
+          '\n' +
+          '슈퍼스타 페이지의 H WORK 메뉴에서 답장을 확인해 주세요.',
+    buttons: [{ name: '슈퍼스타 페이지', type: 'WL', linkMo: ALIM_STU_LINK_, linkPc: ALIM_STU_LINK_ }]
+  },
+  // H WORK 과제 미완료 안내 (같은 날 원장님 "과제가 완료되지 않았습니다. 선생님이 기다리고 있어요. 알림톡 필요")
+  // 보내는 곳 = hwork_result.html '과제 검사' 상자(오답하기를 아직 다 마치지 않은 제출). 중복 키 = 'T:제출번호|날짜' — 하루 한 번.
+  hwork_todo: {
+    label: 'H WORK 과제 미완료 안내', prop: 'ALIM_TPL_HWORK_TODO',
+    vars: ['학생명', '과제', '접근코드'],
+    text: '[이수경국어학원] H WORK 과제 미완료 안내\n' +
+          '#{학생명} 학생의 H WORK 과제가 아직 완료되지 않았습니다.\n' +
+          '선생님이 기다리고 있어요.\n' +
+          '\n' +
+          '▶ #{과제}\n' +
+          '\n' +
+          '슈퍼스타 페이지의 H WORK 메뉴에서 과제를 마무리해 주세요.',
+    buttons: [{ name: '슈퍼스타 페이지', type: 'WL', linkMo: ALIM_STU_LINK_, linkPc: ALIM_STU_LINK_ }]
+  },
+  newstu: {
+    label: '신입생 등록 안내', prop: 'ALIM_TPL_NEWSTU',
+    vars: ['학생명', '첫수업', '장소', '접근코드'],
+    text: '[이수경국어학원] 신입생 등록 안내\n' +
+          '#{학생명} 학생의 등록이 완료되었습니다.\n' +
+          '\n' +
+          '▶ 첫 수업: #{첫수업}\n' +
+          '▶ 수업 장소: #{장소}\n' +
+          '\n' +
+          '학생 페이지에서 공지, 수업 리포트, 테스트를 확인할 수 있습니다.',
+    buttons: [{ name: '학생 페이지 링크', type: 'WL', linkMo: ALIM_STU_LINK_, linkPc: ALIM_STU_LINK_ }]
+  }
   // 행사 안내(notice_event)는 2026-09-29 사용자 "행사 안내는 삭제"로 뺐다 — 공지 알림은 일곱 종류(결석까지 8종).
 };
 function alimProps_() { return PropertiesService.getScriptProperties(); }
@@ -4153,11 +4412,21 @@ function alimSheet_(ss) {
   var sh = ss.getSheetByName(TAB_ALIM);
   if (!sh) {
     sh = ss.insertSheet(TAB_ALIM);
-    sh.appendRow(['기록일시', '종류', '학생', '받는분', '번호', '반', '수업일', '결과', '메시지', '그룹ID', '보낸사람']);
-    sh.getRange(1, 1, 1, 11).setFontWeight('bold').setBackground('#DDE5E1');
-  } else if (String(sh.getRange(1, 11).getValue() || '').trim() !== '보낸사람') {
-    // 옛 시트(A~J)에 K열 머리글 보충 — 2026-10-03 '누가 보냈는지'를 남기기 시작
-    sh.getRange(1, 11).setValue('보낸사람').setFontWeight('bold').setBackground('#DDE5E1');
+    sh.appendRow(['기록일시', '종류', '학생', '받는분', '번호', '반', '수업일', '결과', '메시지', '그룹ID', '보낸사람', '예약시각', '내용']);
+    sh.getRange(1, 1, 1, 13).setFontWeight('bold').setBackground('#DDE5E1');
+  } else {
+    if (String(sh.getRange(1, 11).getValue() || '').trim() !== '보낸사람') {
+      // 옛 시트(A~J)에 K열 머리글 보충 — 2026-10-03 '누가 보냈는지'를 남기기 시작
+      sh.getRange(1, 11).setValue('보낸사람').setFontWeight('bold').setBackground('#DDE5E1');
+    }
+    if (String(sh.getRange(1, 12).getValue() || '').trim() !== '예약시각') {
+      // L열 — 예약 발송(2026-10-18). 결과 '예약'/'예약 취소' 줄의 보낼 시각(yyyy-MM-dd HH:mm, 한국 시각)
+      sh.getRange(1, 12).setValue('예약시각').setFontWeight('bold').setBackground('#DDE5E1');
+    }
+    if (String(sh.getRange(1, 13).getValue() || '').trim() !== '내용') {
+      // M열 — 실제로 보낸 글(템플릿에 변수를 채운 것, 2026-11-11 원장님 "알림톡 뭐라고 보냈는지 발송내역에서 확인")
+      sh.getRange(1, 13).setValue('내용').setFontWeight('bold').setBackground('#DDE5E1');
+    }
   }
   return sh;
 }
@@ -4168,7 +4437,7 @@ function alimConfigGet() {
   var tpls = {};
   Object.keys(ALIM_TPL_).forEach(function(k) {
     var t = ALIM_TPL_[k];
-    tpls[k] = { label: t.label, text: t.text, vars: t.vars, buttons: t.buttons || [], notice: !!t.notice, ready: has(t.prop) };
+    tpls[k] = { label: t.label, text: t.text, vars: t.vars, buttons: t.buttons || [], options: t.options || {}, notice: !!t.notice, ready: has(t.prop) };
   });
   var ready = has(ALIM_PROP_.key) && has(ALIM_PROP_.secret) && has(ALIM_PROP_.pfId);
   return json({ result:'success', ready: ready,
@@ -4228,6 +4497,10 @@ function alimSend(data) {
   var tplId = String(props.getProperty(tpl.prop) || '').trim();
   if (!key || !secret || !pfId) return json({ result:'error', message:'알림톡 설정(API 키·채널)이 아직 없어요. [알림톡] 설정에서 넣어 주세요.' });
   if (!tplId) return json({ result:'error', message:"'" + tpl.label + "' 템플릿 ID가 아직 없어요. 솔라피 심사가 끝나면 [알림톡] 설정에 넣어 주세요." });
+  var sched = alimSchedule_(data.schedule);
+  if (sched && sched.error) return json({ result:'error', message: sched.error });
+  if (sched && ['absent', 'noshow', 'arrived'].indexOf(kind) >= 0) return json({ result:'error', message: tpl.label + '는 예약하지 않고 바로 보냅니다.' });
+  data._sched = sched;
   // 중복 확인 → 발송 → 기록을 한 잠금 안에서 — 조교 둘이 같은 결석을 거의 동시에 보내면 둘 다 중복 확인을 통과해 두 번 갔다(2026-10-03)
   var lock = LockService.getScriptLock();
   try { lock.waitLock(20000); }
@@ -4246,7 +4519,8 @@ function alimSendLocked_(data, kind, tpl, items, key, secret, pfId, from, tplId)
     tail.forEach(function(r) {
       // 받는 분(D열)까지 키에 넣는다 — 학생·학부모에게 함께 보내므로(2026-09-29 사용자 "학생, 학부모님 모두에게")
       // 한 사람에게 간 기록이 다른 사람 발송을 막지 않게.
-      if (String(r[1]) === kind && String(r[7]) === '성공') done[String(r[2]).trim() + '|' + alimYmd_(r[6]) + '|' + String(r[3]).trim()] = true;
+      // 예약해 둔 것도 보낸 것으로 본다(예약 취소한 것은 아님) — 같은 알림이 예약과 바로 보내기로 두 번 가지 않게
+      if (String(r[1]) === kind && (String(r[7]) === '성공' || String(r[7]) === '예약')) done[String(r[2]).trim() + '|' + alimYmd_(r[6]) + '|' + String(r[3]).trim()] = true;
     });
   }
   var msgs = [], sent = [], pending = [];
@@ -4263,7 +4537,8 @@ function alimSendLocked_(data, kind, tpl, items, key, secret, pfId, from, tplId)
     var m = { to: to, type: 'ATA', kakaoOptions: { pfId: pfId, templateId: tplId, variables: vars, disableSms: !from } };
     if (from) m.from = from;
     msgs.push(m);
-    pending.push({ student: student, to: to, who: who, cls: String(it.cls || '').trim(), date: date });
+    var body = String(tpl.text || '').replace(/#\{([^}]+)\}/g, function(_, k) { return vars['#{' + k + '}'] != null ? vars['#{' + k + '}'] : '#{' + k + '}'; });
+    pending.push({ student: student, to: to, who: who, cls: String(it.cls || '').trim(), date: date, text: body.slice(0, 2000) });
   });
   var groupId = '';
   if (msgs.length) {
@@ -4273,7 +4548,7 @@ function alimSendLocked_(data, kind, tpl, items, key, secret, pfId, from, tplId)
         method: 'post', contentType: 'application/json',
         headers: { 'Authorization': alimAuthHeader_(key, secret) },
         muteHttpExceptions: true,
-        payload: JSON.stringify({ messages: msgs })
+        payload: JSON.stringify(data._sched ? { messages: msgs, scheduledDate: data._sched.iso } : { messages: msgs })
       });
       code = res.getResponseCode();
       try { body = JSON.parse(res.getContentText() || '{}'); } catch (e) { body = {}; }
@@ -4288,21 +4563,84 @@ function alimSendLocked_(data, kind, tpl, items, key, secret, pfId, from, tplId)
     var errAll = code === 200 ? '' : ('솔라피 오류 ' + (code || '') + ' ' + String(body.errorMessage || body.message || '')).trim();
     pending.forEach(function(p) {
       var err = errAll || failedByTo[p.to] || '';
-      sent.push({ student: p.student, who: p.who, ok: !err, message: err || '보냈어요' });
+      sent.push({ student: p.student, who: p.who, ok: !err, message: err || (data._sched ? '예약했어요' : '보냈어요') });
     });
     // 기록 — 학생마다 한 줄
     var rows = pending.map(function(p) {
       var err = errAll || failedByTo[p.to] || '';
-      return [new Date(), kind, p.student, p.who, p.to, p.cls, p.date, err ? '실패' : '성공', err, groupId, by];
+      var res = err ? '실패' : (data._sched ? '예약' : '성공');
+      return [new Date(), kind, p.student, p.who, p.to, p.cls, p.date, res, err, groupId, by, data._sched ? data._sched.text : '', p.text];
     });
     var r0 = sh.getLastRow() + 1;
-    var rg = sh.getRange(r0, 1, rows.length, 11);
-    rg.setNumberFormats(rows.map(function() { return ['yyyy-mm-dd hh:mm', '@', '@', '@', '@', '@', '@', '@', '@', '@', '@']; }));
+    var rg = sh.getRange(r0, 1, rows.length, 13);
+    rg.setNumberFormats(rows.map(function() { return ['yyyy-mm-dd hh:mm', '@', '@', '@', '@', '@', '@', '@', '@', '@', '@', '@', '@']; }));
     rg.setValues(rows);
   }
   var okCount = sent.filter(function(x) { return x.ok && !x.dup; }).length;
   var failCount = sent.filter(function(x) { return !x.ok; }).length;
-  return json({ result:'success', sent: sent, okCount: okCount, failCount: failCount, groupId: groupId });
+  return json({ result:'success', sent: sent, okCount: okCount, failCount: failCount, groupId: groupId,
+                scheduled: data._sched ? data._sched.text : '' });
+}
+/* 예약 시각 — 'yyyy-MM-dd HH:mm'(한국 시각). 없으면 null(바로 보내기).
+ * 30분 단위(사용자 결정 2026-10-18) · 지금부터 10분 뒤 ~ 30일 안. 솔라피에는 ISO(+09:00)로 넘긴다. */
+function alimSchedule_(v) {
+  var s = String(v || '').trim();
+  if (!s) return null;
+  var m = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})$/.exec(s);
+  if (!m) return { error: '예약 시각 형식이 맞지 않아요: ' + s };
+  if (+m[5] % 30 !== 0) return { error: '예약 시각은 30분 단위로 골라 주세요.' };
+  var iso = m[1] + '-' + m[2] + '-' + m[3] + 'T' + m[4] + ':' + m[5] + ':00+09:00';
+  var t = Date.parse(iso);
+  if (isNaN(t)) return { error: '예약 시각을 읽지 못했어요: ' + s };
+  if (t < Date.now() + 10 * 60 * 1000) return { error: '예약 시각은 지금부터 10분 뒤 이후로 골라 주세요.' };
+  if (t > Date.now() + 30 * 24 * 3600 * 1000) return { error: '예약은 30일 안까지만 할 수 있어요.' };
+  return { iso: iso, text: m[1] + '-' + m[2] + '-' + m[3] + ' ' + m[4] + ':' + m[5], at: t };
+}
+/** 예약 취소. { pw, groupId } — 솔라피 그룹 예약을 지우고(DELETE groups/{id}/schedule) 그 그룹의 '예약' 줄을 '예약 취소'로.
+ *  보낼 시각이 지났으면 거절(이미 나갔을 수 있다). */
+function alimCancel(data) {
+  if (String(data.pw || '') !== TEACHER_PW) return json({ result:'error', message:'unauthorized' });
+  var gid = String(data.groupId || '').trim();
+  if (!/^[A-Za-z0-9_-]{2,80}$/.test(gid)) return json({ result:'error', message:'예약 묶음 번호가 없어요.' });
+  var props = alimProps_();
+  var key = String(props.getProperty(ALIM_PROP_.key) || '').trim();
+  var secret = String(props.getProperty(ALIM_PROP_.secret) || '').trim();
+  if (!key || !secret) return json({ result:'error', message:'알림톡 설정(API 키)이 아직 없어요.' });
+  var lock = LockService.getScriptLock();
+  try { lock.waitLock(20000); } catch (e) { return json({ result:'error', message:'다른 알림톡 작업이 진행 중이에요. 잠시 뒤 다시 눌러 주세요.' }); }
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var sh = alimSheet_(ss);
+    // 예약은 30일 안까지라 기록일시 31일 꼬리만 본다
+    var tail = sheetTail_(sh, 0, Date.now() - 31 * 24 * 3600 * 1000);
+    var hit = [], schedAt = 0;
+    tail.rows.forEach(function(r, i) {
+      if (String(r[9]).trim() === gid && String(r[7]).trim() === '예약') {
+        hit.push(tail.start + i);
+        var st = alimSchedule_parse_(r[11]); if (st) schedAt = st;
+      }
+    });
+    if (!hit.length) return json({ result:'error', message:'취소할 예약이 없어요. 이미 취소했거나 보낸 알림톡이에요.' });
+    if (schedAt && schedAt <= Date.now() + 60 * 1000) return json({ result:'error', message:'보낼 시각이 지나 취소할 수 없어요.' });
+    var res, code, body;
+    try {
+      res = UrlFetchApp.fetch('https://api.solapi.com/messages/v4/groups/' + encodeURIComponent(gid) + '/schedule', {
+        method: 'delete', headers: { 'Authorization': alimAuthHeader_(key, secret) }, muteHttpExceptions: true });
+      code = res.getResponseCode();
+      try { body = JSON.parse(res.getContentText() || '{}'); } catch (e) { body = {}; }
+    } catch (e) { code = 0; body = { errorMessage: '솔라피 연결 실패: ' + e }; }
+    if (code !== 200) return json({ result:'error', message: ('솔라피에서 예약을 취소하지 못했어요 ' + (code || '') + ' ' + String(body.errorMessage || body.message || '')).trim() });
+    var by = String(data.by || '').trim().slice(0, 40);
+    hit.forEach(function(row) {
+      sh.getRange(row, 8, 1, 2).setNumberFormat('@').setValues([['예약 취소', '취소함' + (by ? ' · ' + by : '')]]);
+    });
+    return json({ result:'success', canceled: hit.length });
+  } finally { lock.releaseLock(); }
+}
+function alimSchedule_parse_(v) {
+  if (v && v.getTime) return v.getTime();
+  var m = /^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2})/.exec(String(v || '').trim());
+  return m ? Date.parse(m[1] + 'T' + m[2] + ':00+09:00') : 0;
 }
 /** 솔라피에서 채널(pfId)·승인된 템플릿 ID를 읽어 와 저장 — 원장님이 콘솔에서 값을 찾아 옮겨 적지 않아도 되게.
  *  { pw } — 저장된 API 키·비밀로 GET kakao/v1/plus-friends, kakao/v1/templates 를 부른다.
@@ -4413,12 +4751,42 @@ function alimLogGet(from, to, limit) {
       if (to && ymd && ymd > to) return;
       out.push({ ts: (r[0] && r[0].getTime) ? alimFmtTs_(r[0]) : String(r[0] || ''), kind: String(r[1] || ''),
                  student: String(r[2] || '').trim(), who: String(r[3] || ''), to: String(r[4] || ''),
-                 cls: String(r[5] || ''), date: ymd, ok: String(r[7] || '') === '성공', message: String(r[8] || ''), by: String(r[10] || '').trim() });
+                 cls: String(r[5] || ''), date: ymd, ok: String(r[7] || '') === '성공', message: String(r[8] || ''), by: String(r[10] || '').trim(),
+                 res: String(r[7] || '').trim(), groupId: String(r[9] || '').trim(),
+                 sched: (r[11] && r[11].getTime) ? alimFmtTs_(r[11]) : String(r[11] || '').trim(),
+                 text: String(r[12] == null ? '' : r[12]) });
     });
   }
   out.reverse();
   var lim = Math.max(1, Math.min(2000, parseInt(limit, 10) || 300));
   return json({ result:'success', rows: out.slice(0, lim) });
+}
+/** 실패한 발송 기록 지우기(2026-10-22 원장님 "실패 내역은 지워주세요"). { pw, items:[{ts, kind, student, who, to}] }
+ *  결과가 '실패'인 줄만, 기록일시(분까지)·종류·학생·받는 분·번호가 모두 맞을 때만 지운다 — 성공·예약 기록은 지우지 않는다. */
+function alimLogDelete(data) {
+  if (String(data.pw || '') !== TEACHER_PW) return json({ result:'error', message:'unauthorized' });
+  var items = Array.isArray(data.items) ? data.items.slice(0, 200) : [];
+  if (!items.length) return json({ result:'error', message:'지울 기록이 없습니다.' });
+  var want = {};
+  items.forEach(function(it) {
+    want[[String(it.ts || '').trim(), String(it.kind || '').trim(), String(it.student || '').trim(),
+          String(it.who || '').trim(), String(it.to || '').replace(/\D/g, '')].join('|')] = true;
+  });
+  var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(TAB_ALIM);
+  if (!sh || sh.getLastRow() < 2) return json({ result:'success', deleted: 0 });
+  var lock = LockService.getScriptLock();
+  try { lock.waitLock(20000); } catch (e) { return json({ result:'error', message:'잠시 후 다시 시도해 주세요.' }); }
+  try {
+    var n = sh.getLastRow() - 1, vals = sh.getRange(2, 1, n, 8).getValues(), hit = [];
+    vals.forEach(function(r, i) {
+      if (String(r[7] || '').trim() !== '실패') return;
+      var ts = (r[0] && r[0].getTime) ? alimFmtTs_(r[0]) : String(r[0] || '').trim();
+      var k = [ts, String(r[1] || '').trim(), String(r[2] || '').trim(), String(r[3] || '').trim(), String(r[4] || '').replace(/\D/g, '')].join('|');
+      if (want[k]) hit.push(i + 2);
+    });
+    for (var j = hit.length - 1; j >= 0; j--) sh.deleteRow(hit[j]);
+    return json({ result:'success', deleted: hit.length });
+  } finally { lock.releaseLock(); }
 }
 /** 요청 상태·처리메모 변경(클로드 코드 세션·페이지 공용). { pw, row, ts, status, note, del }
  *  ts = 그 줄의 기록일시(목록 응답의 값 그대로) — 줄이 지워져 행이 밀렸을 때 엉뚱한 줄을 고치지 않기 위한 대조.
@@ -4895,7 +5263,7 @@ function getAssignList(tool, item) {
       out.push({
         rowIndex: i+1, date: ds, tool: t, item: it,
         type: String(r[3]||'').trim(), target: tg,
-        due: String(r[5]||'').trim(), memo: String(r[6]||'').trim()
+        due: dueYmd_(r[5]), memo: String(r[6]||'').trim()
       });
     }
   }
@@ -4912,6 +5280,8 @@ function addAssignment(data) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sh = ensureAssignSheet_(ss);
   sh.appendRow([ new Date(), tool, String(data.item||'').trim(), type, String(data.target||'').trim(), String(data.due||'').trim(), String(data.memo||'').trim() ]);
+  // 마감일 칸은 글자로 — 시트가 '2026-11-25'를 날짜로 바꾸면 assignList 가 영어 날짜를 돌려줬다 (2026-11-19)
+  try { var lr = sh.getLastRow(); sh.getRange(lr, 6).setNumberFormat('@').setValue(String(data.due||'').trim()); } catch (e) {}
   dropTab_(TAB_ASSIGN);
   return json({ result:'success' });
 }

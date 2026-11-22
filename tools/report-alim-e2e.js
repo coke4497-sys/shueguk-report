@@ -122,6 +122,11 @@ const STUS = [
   await pg.fill('#alTitle', '직접 고친 제목');
   await pg.click('.al-kind[data-mode="up"]');
   ok('직접 고친 제목은 종류를 바꿔도 그대로', (await pg.inputValue('#alTitle')) === '직접 고친 제목');
+  r = await pg.evaluate(() => document.getElementById('alPrev').textContent);
+  ok('제목을 고쳐 \'담당 선생님\'이 빠져도 끝에 내신 진도 담당 이름이 붙는다', /▶ 직접 고친 제목 \(이현지 선생님 피드백\)/.test(r) && /제목 끝에 학생마다/.test(r), r);
+  await pg.fill('#alTitle', '이현지 선생님 리포트 도착');
+  r = await pg.evaluate(() => document.getElementById('alPrev').textContent);
+  ok('제목에 이름을 직접 적었으면 두 번 붙이지 않는다', /▶ 이현지 선생님 리포트 도착\n/.test(r) && !/도착 \(/.test(r), r);
   await pg.fill('#alTitle', '2학기 중간고사 화정고1 공통국어2 리포트에 담당 선생님 피드백이 등록되었습니다');
   dialogs.length = 0;
   await pg.click('#alGo');

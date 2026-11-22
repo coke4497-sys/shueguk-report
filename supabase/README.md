@@ -836,3 +836,75 @@ default privileges 까지 되돌렸다. `tools/check_lock.py` 통과(표 15/15 �
 - 슈국 스케쥴 오늘의 시간표 옆 패널의 할 일 상자 원본(시트 사본 없음). 한 행 = 요청 한 건(ymd 보이는 날짜·loc 센터·text·student·author·status '대기'/'완료'·done_by·done_at·done_ymd·history jsonb). 교사 전용 — 공개 키(anon)는 권한 없음(401).
 - **정책은 034·036·038처럼 `authenticated` 전체 허용.** 처음 `private.is_active_teacher()`로 만들어 적용했더니 공용 교사 계정(teachers@shueguk.internal)에서 저장이 RLS로 막혔다(038과 같은 사고) — 같은 날 045 파일을 고쳐 다시 실행했다(재실행 안전). **새 교사 전용 표의 정책에 그 함수를 쓰지 말 것.**
 - **적용 상태: 2026-10-08 실제 수파베이스에 적용 완료**(관리 API — 원장님이 준 sbp_ 토큰, 저장 안 함). 확인: anon 401, 공용 교사 계정으로 INSERT → `status=eq.대기` 목록 → 못 함 PATCH(ymd 내일·history 1건·updated_at 트리거) → 완료 PATCH → 완료 줄에 다시 `status=eq.대기` PATCH는 `[]` → 주간 조회 → DELETE 204, 상태·빈 글 check 제약 거절, 검증 행은 모두 지웠다(표 비어 있음). 한글 조건값은 URL 인코딩해야 한다(`%EB%8C%80%EA%B8%B0` — curl로 날 것을 보내면 빈 결과).
+
+## 049 — 슈국 캘린더 수정 기록 `tt_calendar_log` (2026-10-12)
+- `migrations/049_calendar_log.sql` — 캘린더(주별 기간·학년 예외·날짜 메모·지필 일정)를 바꿀 때마다 한 줄씩 쌓는 기록 표(at·what·target·action·before·after·author). 교사(authenticated)는 넣기·읽기만, 공개 키 차단, 재실행 안전. 화면에는 보이지 않고 물으면 클로슈가 조회한다(CLAUDE.md '슈국 캘린더 수정 기록' 절).
+- **적용 상태: 2026-10-13 실제 수파베이스에 적용 완료**(관리 API — 원장님이 준 sbp_ 토큰, 저장 안 함). 확인: 열 9개 생김, 공개 키 읽기·넣기 401, 공용 교사 계정 넣기 201·읽기 OK, 고치기·지우기는 42501 거절. **적용 때 발견**: 수파베이스 기본 권한이 새 표에 authenticated UPDATE·DELETE·TRUNCATE까지 줘서 '넣기·읽기만'이 지켜지지 않았다 — `revoke all … from authenticated` 뒤 select·insert만 다시 주도록 049 파일을 고치고 실제 DB에도 같은 revoke를 실행했다(검증 행은 지움). **새 기록 표를 만들 땐 authenticated 기본 권한도 먼저 거둘 것.**
+
+## 050 — 별을 준 선생님 `star_bonus.giver` (2026-10-14)
+- 슈퍼스타 관리에서 별을 줄 때 허브에 로그인한 선생님 이름. 시트 '별' 탭 H열 '보낸사람'과 같은 값, 옛 기록은 빈 값. `student_bundle`(048 본문 + star_bonus 항목에 giver)로 학생 페이지 '○○ 선생님이 별 n개를 선물하셨어요'에 쓰인다.
+- **2026-10-14 실제 수파베이스에 적용 완료**(관리 API — 원장님이 준 sbp_ 토큰, 저장 안 함). 확인: 열 생김(기본 빈 값)·기존 25건 그대로·공개 키 표 401·공개 키 student_bundle 이 giver 를 돌려줌(검증 행은 지움).
+- 적용 전에는 미러가 giver 없이 다시 넣고, 학생 페이지는 '선생님이 …'로 보인다. 검증 `tools/star-giver-sql-test.sh`.
+
+## 051 — 지필 복기 고치기 `submission_mine`·`submission_update` (2026-10-16)
+- `submissions.edited_at`·`edited_by`(마지막으로 고친 시각·사람 — '학생' 또는 '○○ 선생님').
+- 학생 함수(anon): `submission_mine(p {exam_id,title,name,phone})` — 이름(끝 알파벳 뗌)+학부모 8자리+시험이 같은 가장 최근 제출(한 마디 없음). `submission_update(p {id,name,phone,wrong_count,wrong_text,vow,score})` — 보내기 전(sent_at 없음)일 때만 그 줄을 고친다(`not_found`/`sent` 거절).
+- 선생님은 교사 인증으로 표를 바로 PATCH(t.html). **적용 상태: 2026-10-16 실제 수파베이스에 적용 완료**(관리 API — 원장님이 준 sbp_ 토큰, 저장 안 함). 확인: edited_at·edited_by 열 생김, 공개 키로 두 함수 응답(없는 학생 found false·not_found), 표 직접 읽기 401, 실제 최근 제출 3건을 submission_mine 이 찾음.
+
+## 052 — 27 예상 정규 시간표 학생 배치 `tt_plan_students` (2026-10-17)
+- 예비 고1(지금 중3) 반 배치 계획. 슈국 스케쥴 [27 예상] 탭(원장님 계정에만 보임)이 학생마다 가 반·나 반 ID를 upsert(on_conflict plan,student)한다. 반 자체는 timetable.html `P27_CLASSES`에 고정.
+- 실제 시간표 `tt_classes`·학생정보와 무관 — 읽는 화면도 이 탭 하나뿐이다.
+- 권한: authenticated(공용 교사 계정 포함) select/insert/update/delete, anon 없음.
+- **적용 상태: 2026-10-17 실제 수파베이스에 적용 완료**(관리 API — 원장님이 준 sbp_ 토큰, 저장 안 함). 확인: authenticated 권한 4종, 공개 키 401, 공용 교사 계정으로 넣기→고치기(merge)→읽기→지우기 왕복(검증 줄은 지움). 적용 전이면 탭에 '데이터베이스 052' 안내가 뜨고 저장되지 않는다.
+
+## 053 — 27 예상 학생 반 신청(선착순) `tt_plan_config`·`tt_plan_log`·`plan_view`·`plan_pick` (2026-10-17)
+- 원장님 "학생 페이지 신청으로 만들어줘, 선착순으로" + "가 반 이동도 가능하게". 052 tt_plan_students 위에 얹는다.
+- `tt_plan_config`(plan 기본키 · open · cap · classes jsonb — 선생님 화면 [학생 신청 받기 시작]이 P27_CLASSES를 넣는다) · `tt_plan_log`(학생이 바꾼 기록 — 교사 읽기만). 둘 다 공개 키 차단.
+- `plan_view(p {key|student})` = 내 가·나 + 반마다 인원. `plan_pick(p {key|student, part, cls})` = 가 옮기기·나 고르기/바꾸기/취소(cls ''는 나만). 잠금(`pg_advisory_xact_lock`) 안에서 열림·반 구분·정원(cap, 내 반은 제외하고 셈)·가·나 같은 요일(054부터 시간과 상관없이 — 053은 120분 안만)을 확인한다. 거절 값: closed·full·clash·bad_class·bad_part·ga_required·not_in_plan·no_student.
+- 학생 ↔ 계획 줄: 031 `review_me_` → 이름 정확히 → 끝 A 붙여서 → 끝 A 떼고, 두 쪽 학교가 다 적혀 있는데 다르면 다른 학생. 계획에서 뺀 학생(excluded)은 신청 불가.
+- **적용 상태: 2026-10-17 실제 수파베이스에 적용 완료**(관리 API — 원장님이 준 sbp_ 토큰, 저장 안 함). 확인: 공개 키로 tt_plan_config 401·plan_view/plan_pick 응답, 실제 계획 학생으로 열기→보기(인원 8)→나 고르기를 한 거래 안에서 해 보고 되돌림(설정·기록 0줄, 나 배치 0줄 그대로).
+- 검증: `PGHOST=/home/pgtest PGPORT=5499 PGUSER=postgres bash tools/plan-signup-sql-test.sh`.
+
+## 055 — 공지 첨부 파일 `notice_files`·버킷 `notice-files` (2026-10-18)
+- 공지에 붙인 파일(비공개 버킷, 파일당 20MB)과 목록 표. 공지와는 공지 키 '작성일|제목'으로 잇는다. 교사(authenticated)는 표·저장소 전부, 공개 키는 함수 `notice_files_mine`·`notice_file_url`(그 공지가 보이는 학생만, 10분 창)과 창이 열린 경로 읽기(`notice_file_ok`)만. 022·031 뒤에 실행. 검증 `tools/notice-files-sql-test.sh`.
+
+## 060 — 수정 요청함 첨부 파일 `edit_req_files`·버킷 `edit-req-files` (2026-10-26)
+- 수정 요청에 붙인 캡처·사진·PDF(비공개 버킷, 파일당 20MB)와 목록 표. 요청 글은 시트가 원본이라 번호가 없어 화면이 만든 열쇠 `rq_…`로 잇고 글 끝에 `[첨부 n] … #rq_…` 줄을 둔다. 교사(authenticated)는 표·저장소 전부, 공개 키는 접근 없음. 036(exam-drafts)과 같은 구조. 검증 `tools/editreq-files-sql-test.sh`.
+- **적용 상태: 2026-10-26 실제 수파베이스에 적용 완료**(관리 API `database/query`, 원장님이 준 sbp_ 토큰 — 저장하지 않음, 두 번 실행해 재실행 안전 확인). 확인: 표·비공개 버킷(20MB)·정책 각 1개, anon 권한 없음, 공개 키 `/edit_req_files` 401, 교사 계정 200, 교사 신분으로 저장소 올리기 200 → 공개 키 받기 400 → 교사 받기 200 → 지우기 200(시험 파일은 지움, 남은 객체 0).
+
+## 056 — 별 선물 사유 다듬은 문장 `star_bonus.reason_nice` (2026-10-19)
+- 선생님 원문(reason)은 그대로, 클로슈가 다듬은 문장을 `reason_nice`에(빈 값 = 다듬기 전 — 학생 화면에 사유를 안 보임). 처음 적용할 때 옛 기록은 원문으로 채운다(열이 이미 있으면 다시 채우지 않음 — 재실행 안전). `student_bundle`은 050 본문 + reason_nice.
+- 다듬기·처리 절차는 저장소 CLAUDE.md '별 선물 사유 다듬기' 절, 도구 `tools/star_reason.py`. 검증 `tools/star-reason-sql-test.sh`.
+- **적용 상태: 2026-10-19 실제 수파베이스에 적용 완료**(관리 API, 토큰 저장 안 함 — 59건 원문 채움, 공개 키 student_bundle 의 reason_nice 확인). 같은 날 최근 14일 사유 10건(id 36·37·72·98~101·103~105)을 다듬었다.
+
+## 057 — 학력평가 성적 `smock_exams`·`smock_entries`·`smock_mine`·`smock_submit` (2026-10-21)
+- 학교 모의고사(학력평가) 회차와 학생 입력 기록. 표는 교사(authenticated)만 읽고 쓰고, 학생은 함수 두 개(anon)로만 — 접근코드(key) 또는 학생ID(student)로 031 `review_me_`가 학생을 찾는다.
+- `smock_submit`은 열린 회차·학생 학년(`smock_grade_` — '2026 고등 1학년' → '고1')·점수(100 이하, 숫자가 아니면 score null + score_text)·틀린 문항 범위(`smock_clean_wrong_`/`smock_range_`)·고3 선택과목을 확인하고, 같은 회차는 덮어쓴다(first로 처음 여부).
+- `student_bundle`을 056 본문 그대로 + `smock_entries` 항목(내 기록의 회차·시각 — 별 집계용)으로 다시 정의한다. **057 뒤에 056을 다시 돌리면 이 항목이 빠지니 057도 다시 돌릴 것.**
+- 검증: `tools/smock-sql-test.sh`.
+- **적용 상태: 2026-10-21 실제 수파베이스에 적용 완료**(관리 API — 원장님이 준 sbp_ 토큰, 저장 안 함). 적용 전 student_bundle 정의가 056과 같음을 확인했다. 확인: 표 두 개·함수 다섯 개 생김, 공개 키로 표 읽기 401, 공개 키 smock_mine 은 없는 학생 거절, 실제 고1 학생으로 거래 안에서 회차 열기→제출(first)→smock_mine·student_bundle 반영을 돌리고 되돌림(남은 기록 0). 같은 날 **2026년 10월 고1·고2·고3 모의고사 회차를 만들어 두었다(입력 받기 꺼짐)**.
+
+## 058 — 모의고사 회차 정답·배점·등급컷 `smock_exams.info` (2026-10-21)
+- info jsonb(answers·points·items·cuts·nat — 저장소 CLAUDE.md '교육청, 평가원 모의고사 리포트' 절). 배점이 있는 회차는 `smock_submit` 이 점수를 계산해 저장한다. `smock_mine` 이 info 를 함께 준다. 057 을 다시 돌리면 이 두 함수가 옛 정의로 돌아가니 058 도 다시 돌릴 것.
+- **적용 상태: 2026-10-21 실제 수파베이스에 적용 완료**(관리 API, 토큰 저장 안 함). 같은 날 `supabase/smock-info/2026-10-고1.json`·`2026-10-고2.json` 을 info 로 넣었다. 실제 고2 학생으로 거래 안에서 회차 열기 → 틀린 23·20·7번 제출(화면 점수 5) → 92점 저장을 확인하고 되돌림.
+
+## 064 — H WORK 다시 풀기 · 오답 정리 `hwork_retry`·`hwork_review`·`hwork_retry_state` (2026-11-11)
+- `hwork_submissions` 새 열 retry_key·retry_answers·retry_detail·retry_got·retry_at·review·review_at. `hwork_submit`(020 본문 + 열쇠)이 id·key를 돌려주고 응답 detail에서 틀린 문항 ans를 뺀다. 다시 풀기·정리는 id+key가 맞아야 하고 각각 한 번만. 도우미 함수는 anon 실행 불가. 자세한 흐름은 shueguk-h-work CLAUDE.md 같은 절.
+- **063을 다시 돌려도 hwork_submit은 그대로**(063은 hwork_grade_만 바꿈). **020을 다시 돌리면 hwork_submit이 열쇠 없는 옛 본문으로 돌아가니 그 뒤 064도 다시 돌릴 것.**
+- 검증: `PGHOST=/home/pgtest PGPORT=5499 PGUSER=postgres bash tools/hwork-retry-sql-test.sh`(35건).
+
+## 065 — H WORK 오답하기 `hwork_fix`·`hwork_flag` (2026-11-11)
+- 064의 '다시 풀기 한 번 → 오답 정리'를 같은 날 원장님 지시로 바꿨다: 틀린 문항마다 ① 내가 틀린 답을 고른 이유 ② 다시 고른 답 ③ 이 답이 정답인 이유 → `hwork_fix` 재채점, 맞으면 클리어(정답 공개)·틀리면 ①부터 다시. `hwork_flag`(도움 요청·문항 오류 신고, 오류는 내용 필수). 064의 hwork_retry·hwork_review는 지움. 자세한 흐름은 shueguk-h-work CLAUDE.md '오답하기' 절.
+- **064를 다시 돌리면 그 뒤 065도 다시 돌릴 것**(064가 지운 두 함수를 되살린다).
+- 검증: `PGHOST=/home/pgtest PGPORT=5499 PGUSER=postgres bash tools/hwork-retry-sql-test.sh`(41건).
+
+## 067 — 모의고사 문법 문항 은행 `gbank_*` · H WORK 질문 대화 `hwork_qa` (2026-11-17)
+- `gbank_items`(문항 454 — 학생용 HTML·정답·해설)·`gbank_passages`(지문 84)는 authenticated 만(anon 권한 없음). `hwork_qa`(제출 cascade)는 교사가 선생님 글만 넣고(정책 with check), 학생은 `hwork_qa_list/post/mine`(제출 열쇠·접근코드). `hwork_qs`(문제, 정답 없음)·`hwork_expl`(맞힌·클리어한 문항만). `hwork_meta` 다시 정의(+bank). 제출 트리거 `hwork_qa_from_submit`, 이미 쌓인 review.help → 대화(한 번).
+- 2026-11-17 실제 적용(관리 API, 두 번 실행) · 옮긴 도움 요청 20건 · 공개 키 표 401 · 한 거래 안 왕복 뒤 되돌림. 문항은 `tools/gbank_load.py put`.
+
+
+## 068 — 이미 낸 H WORK 과제에 문제 원문 잇기 `hwork_src_items`·`hwork_src_passages` (2026-11-17)
+- 「SHUEGUK REAL 내신 기출」 교재 과제(이미 H WORK 에 정답만 올라가 있던 것)에 문제 원문을 잇는다. 과제 이름(code) × 과제 안 번호(no)로 잇고 `hwork_homeworks.data` 는 건드리지 않는다. 학교 기출이라 표는 교사(authenticated)만, 학생은 `hwork_qs`·`hwork_expl`(맞힌·클리어한 문항의 정답·예시 답만)로만.
+- `hwork_meta`·`hwork_qs`·`hwork_expl` 을 067 본문 + 원문 갈래로 다시 정의(`style` 'gbank'|'real'). **020·067 을 다시 돌리면 068 도.**
+- 올리기 = `tools/real_load.py build <out.json> <교재 폴더>… → put`(교재 작업 폴더 zip — 드라이브 「클로슈」, 저장소 밖). check 가 지금 H WORK 과제와 이름·문항 수·5지 정답을 대조해 알린다.
+- **적용 상태: 2026-11-17 실제 수파베이스에 적용 완료**(관리 API, 두 번 실행. 적용 전 세 함수 md5 가 067 본문과 같음 확인). 문장 1·2권·음운 1~4권 70과제 1,757문항·지문 149 올림, 공개 키로 표 401, 공개 키 `hwork_meta`/`hwork_qs` 가 교재 과제에 style 'real'·문항 46개(정답 없음) 확인. 검증: `tools/hwork-src-sql-test.sh`(20건).

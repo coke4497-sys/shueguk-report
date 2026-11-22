@@ -1,0 +1,400 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>슈퍼스타 페이지 안내 · 이수경국어</title>
+<meta name="description" content="학생을 공부하게 만듭니다. 이수경국어 슈퍼스타 페이지를 학부모님께 소개합니다." />
+<link rel="icon" href="icon-192.png" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=Gowun+Dodum&family=Do+Hyeon&family=Sacramento&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --bg:#E4EFEA; --surface:#FFFFFF; --soft:#F6F9F7;
+    --ink:#2A332F; --ink2:#4F5C56; --cap:#5C6A64; --line:#E2EAE5;
+    --sage:#3A6B5E; --sage2:#628C83; --sageBg:#EAF1EC;
+    --lav:#EDE4F4; --lavInk:#5A4A6A; --yel:#F9EFD0; --yelInk:#7A6430;
+    --pnk:#F7E2DE; --pnkInk:#9A5A50; --sky:#E9EDF8; --skyInk:#4E5D84;
+    --serif:"Gowun Batang","Apple SD Gothic Neo",serif;
+    --sans:"Gowun Dodum","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;
+    --disp:"Do Hyeon","Gowun Dodum",sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:16px;line-height:1.8;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:760px;margin:0 auto;padding:0 16px 56px}
+  a{color:var(--sage)}
+
+  /* 머리 */
+  .hero{padding:44px 4px 26px;text-align:center}
+  .wm{font-family:"Sacramento",cursive;font-size:30px;color:var(--sage2);line-height:1}
+  .hero h1{font-family:var(--serif);font-weight:700;font-size:34px;line-height:1.35;margin:14px 0 6px;letter-spacing:-.01em}
+  .hero h1 em{font-style:normal;color:var(--sage)}
+  .hero .brand{font-family:var(--disp);font-size:24px;color:var(--sage);letter-spacing:.02em}
+  .hero p{color:var(--ink2);margin:16px auto 0;max-width:540px}
+  .hero img{width:118px;height:auto;display:block;margin:6px auto 0}
+
+  .card{background:var(--surface);border-radius:22px;padding:26px 24px;margin:16px 0;box-shadow:0 1px 2px rgba(40,60,50,.05)}
+  .eyebrow{font-size:12.5px;letter-spacing:.14em;color:var(--cap)}
+  h2{font-family:var(--serif);font-weight:700;font-size:23px;line-height:1.45;margin:4px 0 12px}
+  h3{font-family:var(--serif);font-weight:700;font-size:18px;margin:0 0 4px}
+  p{margin:0 0 10px}
+  .muted{color:var(--ink2)}
+  .small{font-size:14px;color:var(--cap)}
+
+  /* 순환 */
+  .cycle{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:16px}
+  .step{background:var(--soft);border-radius:16px;padding:14px 12px;text-align:center}
+  .step .n{font-family:var(--disp);font-size:26px;color:var(--sage2);line-height:1}
+  .step b{display:block;font-family:var(--serif);font-size:16px;margin:6px 0 2px}
+  .step span{font-size:13px;color:var(--cap);line-height:1.5;display:block}
+  @media (max-width:560px){ .cycle{grid-template-columns:1fr 1fr} }
+
+  /* 장 */
+  .chap{display:flex;gap:14px;align-items:flex-start;margin-bottom:8px}
+  .ico{flex:none;width:46px;height:46px;border-radius:14px;display:grid;place-items:center}
+  .ico svg{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+  .t-mnt{background:var(--sageBg);color:var(--sage)}
+  .t-lav{background:var(--lav);color:var(--lavInk)}
+  .t-yel{background:var(--yel);color:var(--yelInk)}
+  .t-pnk{background:var(--pnk);color:var(--pnkInk)}
+  .t-sky{background:var(--sky);color:var(--skyInk)}
+  .chap .no{font-family:var(--disp);font-size:15px;color:var(--cap)}
+
+  ul.dots{list-style:none;padding:0;margin:8px 0 0}
+  ul.dots li{position:relative;padding-left:16px;margin:6px 0}
+  ul.dots li::before{content:"";position:absolute;left:3px;top:.78em;width:5px;height:5px;border-radius:50%;background:var(--sage2)}
+
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}
+  .mini{background:var(--soft);border-radius:16px;padding:14px 16px}
+  .mini b{font-family:var(--serif);font-size:16px}
+  .mini p{font-size:14.5px;color:var(--ink2);margin:4px 0 0;line-height:1.65}
+  @media (max-width:560px){ .grid2{grid-template-columns:1fr} }
+
+  /* 예시 카드 */
+  .sample{background:var(--soft);border-radius:18px;padding:18px;margin-top:14px}
+  .sample .lab{display:inline-block;font-size:12px;background:var(--yel);color:var(--yelInk);border-radius:999px;padding:2px 10px;margin-bottom:10px}
+  .rc-top{display:flex;justify-content:space-between;align-items:flex-end;gap:8px}
+  .rc-day{font-family:var(--disp);font-size:30px;line-height:1}
+  .rc-sub{font-size:13px;color:var(--cap)}
+  .pill{display:inline-block;border-radius:999px;padding:2px 10px;font-size:12.5px;margin-left:4px}
+  .p-ok{background:var(--sky);color:var(--skyInk)}
+  .p-part{background:var(--lav);color:var(--lavInk)}
+  .tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:14px 0}
+  .tile{background:#fff;border-radius:12px;padding:10px;text-align:center}
+  .tile small{display:block;font-size:12px;color:var(--cap)}
+  .tile b{font-family:var(--disp);font-weight:400;font-size:19px}
+  .tile.hl{background:var(--sageBg)}
+  .rc-tbl{width:100%;border-collapse:separate;border-spacing:0 6px;font-size:13.5px}
+  .rc-tbl th{font-weight:400;color:var(--cap);font-size:12px;text-align:center;padding:0 4px}
+  .rc-tbl th:first-child{text-align:left}
+  .rc-tbl td{background:#fff;padding:8px 6px;text-align:center}
+  .rc-tbl td:first-child{text-align:left;border-radius:10px 0 0 10px}
+  .rc-tbl td:last-child{border-radius:0 10px 10px 0}
+  .lv{display:inline-block;border-radius:999px;padding:1px 8px;font-size:12px}
+  .lv.full{background:var(--lav);color:var(--lavInk)} .lv.part{background:#F8E6CF;color:#8A6232}
+  .rc-cm{background:var(--lav);color:var(--lavInk);border-radius:12px;padding:10px 12px;margin-top:10px;font-size:14px;line-height:1.65}
+  @media (max-width:420px){ .rc-tbl th:nth-child(4),.rc-tbl td:nth-child(4){display:none} }
+
+  /* 별 등급 */
+  .lvls{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
+  .lvls span{background:var(--soft);border-radius:999px;padding:3px 11px;font-size:13px;color:var(--ink2)}
+  .lvls span.top{background:#FFF1C2;color:#7A5A10;font-family:var(--disp);font-size:14px}
+
+  /* 사용법 */
+  ol.how{counter-reset:h;list-style:none;padding:0;margin:10px 0 0}
+  ol.how li{counter-increment:h;position:relative;padding-left:40px;margin:12px 0}
+  ol.how li::before{content:counter(h);position:absolute;left:0;top:1px;width:28px;height:28px;border-radius:50%;background:var(--lav);color:var(--lavInk);font-family:var(--disp);display:grid;place-items:center;font-size:15px}
+
+  /* 시험 세 가지 */
+  .trio{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:14px}
+  .tri{display:block;text-decoration:none;color:var(--ink);background:var(--pnk);border-radius:16px;padding:14px}
+  .tri:nth-child(2){background:var(--lav)} .tri:nth-child(3){background:var(--sky)}
+  .tri .tn{font-family:var(--disp);font-size:20px;color:var(--pnkInk);display:block;line-height:1}
+  .tri:nth-child(2) .tn{color:var(--lavInk)} .tri:nth-child(3) .tn{color:var(--skyInk)}
+  .tri b{display:block;font-family:var(--serif);font-size:16px;margin:6px 0 2px;line-height:1.4}
+  .tri span:last-child{font-size:13px;color:var(--cap);line-height:1.5;display:block}
+  @media (max-width:560px){ .trio{grid-template-columns:1fr} }
+
+  .feat{padding:30px 24px}
+  .fhead{display:flex;gap:14px;align-items:center;margin-bottom:6px}
+  .fn{flex:none;width:52px;height:52px;border-radius:16px;background:var(--sage);color:#fff;font-family:var(--disp);font-size:24px;display:grid;place-items:center}
+  .fhead h2{margin:0;font-size:25px}
+  .lead{font-size:17px;color:var(--ink);margin:10px 0 4px}
+  ol.flow{list-style:none;counter-reset:f;padding:0;margin:16px 0 0;display:grid;gap:8px}
+  ol.flow li{counter-increment:f;background:var(--soft);border-radius:14px;padding:12px 14px 12px 50px;position:relative}
+  ol.flow li::before{content:counter(f);position:absolute;left:14px;top:13px;width:26px;height:26px;border-radius:50%;background:var(--sageBg);color:var(--sage);font-family:var(--disp);display:grid;place-items:center;font-size:15px}
+  ol.flow b{display:block;font-family:var(--serif);font-size:16px}
+  ol.flow span{display:block;font-size:14.5px;color:var(--ink2);line-height:1.7}
+
+  .shots{display:flex;gap:12px;overflow-x:auto;scroll-snap-type:x mandatory;margin:18px -24px 0;padding:4px 24px 12px;-webkit-overflow-scrolling:touch}
+  .shots figure{flex:0 0 232px;margin:0;scroll-snap-align:start}
+  .shots.two figure{flex-basis:280px}
+  .shots img{display:block;width:100%;height:420px;object-fit:cover;object-position:top;border-radius:16px;background:var(--bg);box-shadow:0 2px 10px rgba(40,60,50,.12);cursor:zoom-in}
+  .shots figcaption{font-size:13.5px;color:var(--cap);line-height:1.55;margin-top:8px}
+  .shots figcaption b{display:block;color:var(--ink);font-size:14.5px}
+  .see{background:var(--soft);border-radius:16px;padding:16px 18px;margin-top:10px}
+  .see > b{font-family:var(--serif);font-size:16px}
+  .see .small{margin:10px 0 0}
+
+  #lb{position:fixed;inset:0;background:rgba(30,40,36,.86);display:none;z-index:50;overflow:auto;padding:20px 16px 40px}
+  #lb.on{display:block}
+  #lb img{display:block;max-width:420px;width:100%;margin:0 auto;border-radius:14px}
+  #lb button{position:fixed;top:12px;right:12px;width:44px;height:44px;border-radius:50%;border:0;background:#fff;color:var(--ink);font-size:22px;cursor:pointer}
+
+  .closing{text-align:center;padding:30px 20px}
+  .closing h2{font-size:26px}
+  .closing .brand{font-family:var(--disp);font-size:22px;color:var(--sage)}
+  .foot{text-align:center;font-size:13px;color:var(--cap);margin-top:10px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="hero">
+    <div class="wm">Shueguk</div>
+    <h1>학생을<br><em>공부하게</em> 만듭니다.</h1>
+    <div class="brand">이수경국어</div>
+    <img src="assets/sk-cheer-hearts.png" alt="" />
+    <p>학부모님께 이수경국어 <b>슈퍼스타 페이지</b>를 소개합니다. 학생마다 자기만의 페이지가 하나씩 있고, 수업과 과제, 시험과 질문이 모두 이곳에 기록됩니다. 아이가 오늘 무엇을 배웠고 무엇을 해야 하는지, 학부모님도 같은 화면으로 확인하실 수 있어요.</p>
+  </header>
+
+  <section class="card">
+    <div class="eyebrow">왜 슈퍼스타 페이지인가요</div>
+    <h2>공부는 '했다'는 기록이 쌓일 때 계속됩니다</h2>
+    <p>수업 시간에 열심히 듣는 것만으로는 실력이 오르지 않습니다. 배운 것을 다시 풀어 보고, 틀린 것을 돌아보고, 모르는 것을 묻는 시간이 이어져야 합니다. 슈퍼스타 페이지는 이 과정을 하루하루 눈에 보이게 만듭니다.</p>
+    <div class="cycle">
+      <div class="step"><div class="n">1</div><b>배우고</b><span>수업 리포트로<br>오늘 수업 정리</span></div>
+      <div class="step"><div class="n">2</div><b>익히고</b><span>어휘·문법·과제<br>매주 스스로</span></div>
+      <div class="step"><div class="n">3</div><b>돌아보고</b><span>시험 복기와<br>성적 리포트</span></div>
+      <div class="step"><div class="n">4</div><b>묻습니다</b><span>클리닉과<br>질문하기</span></div>
+    </div>
+  </section>
+
+  <!-- 1 수업 리포트 -->
+  <section class="card">
+    <div class="chap">
+      <div class="ico t-mnt"><svg viewBox="0 0 24 24"><rect x="5" y="3.5" width="14" height="17" rx="2.5"/><path d="M8.5 8h7M8.5 11.5h7M8.5 15h4"/></svg></div>
+      <div><div class="no">하나 · 배우고</div><h3>수업 리포트</h3></div>
+    </div>
+    <p>수업이 끝나면 담당 선생님이 학생 한 명 한 명의 수업 기록을 남기고, 정리된 리포트가 슈퍼스타 페이지에 올라갑니다. 수업 한 번에 한 장씩 쌓입니다.</p>
+    <ul class="dots">
+      <li><b>출석과 수업 태도</b> — 제시간 출석·지각·결석과 그날의 수업 태도를 적습니다.</li>
+      <li><b>수업 진도와 수업 내용</b> — 오늘 어디까지 배웠는지 한눈에 볼 수 있습니다.</li>
+      <li><b>과제 검사</b> — 지난 수업에서 낸 과제를 하나씩 검사합니다. 얼마나 했는지(학습량)와 함께 채점·학습 분석·오답 분석까지 했는지 나누어 봅니다.</li>
+      <li><b>다음 수업까지 과제</b> — 무엇을 해 와야 하는지 집에서도 확인할 수 있어요.</li>
+      <li><b>선생님 코멘트</b> — 담당 선생님이 학생에게 건네는 말입니다.</li>
+    </ul>
+
+    <div class="sample" aria-label="수업 리포트 예시">
+      <span class="lab">예시 화면</span>
+      <div class="rc-top">
+        <div><div class="rc-day">11/5</div><div class="rc-sub">수요일 · 고1 · 담당 선생님</div></div>
+        <div><span class="pill p-part">정규 수업</span><span class="pill p-ok">출석</span></div>
+      </div>
+      <div class="tiles">
+        <div class="tile"><small>수업 태도</small><b>매우 좋음</b></div>
+        <div class="tile"><small>수업 진도</small><b>2단원</b></div>
+        <div class="tile hl"><small>과제 검사</small><b>91%</b></div>
+      </div>
+      <table class="rc-tbl">
+        <tr><th>과제</th><th>학습량</th><th>채점</th><th>학습 분석</th><th>오답 분석</th></tr>
+        <tr><td>주간 과제집</td><td>5/5</td><td><span class="lv full">완벽</span></td><td><span class="lv full">완벽</span></td><td><span class="lv part">일부함</span></td></tr>
+      </table>
+      <div class="rc-cm">과제를 빠짐없이 풀고 채점까지 마쳤습니다. 다음에는 오답 분석을 조금 더 꼼꼼히 해 봐요.</div>
+    </div>
+    <p class="small" style="margin-top:10px">같은 화면의 <b>출석 기록</b> 탭에서는 지금까지의 출석·지각·결석 내역과 출석률을 모두 보실 수 있습니다.</p>
+  </section>
+
+  <!-- 2 익히고 -->
+  <section class="card">
+    <div class="chap">
+      <div class="ico t-yel"><svg viewBox="0 0 24 24"><path d="M4 6.5c2.5-1.5 5-1.5 8 0v12c-3-1.5-5.5-1.5-8 0z"/><path d="M20 6.5c-2.5-1.5-5-1.5-8 0v12c3-1.5 5.5-1.5 8 0z"/></svg></div>
+      <div><div class="no">둘 · 익히고</div><h3>매주 스스로 하는 공부</h3></div>
+    </div>
+    <p>수업 밖에서도 공부가 이어지도록, 슈퍼스타 페이지에서 바로 풀고 바로 결과를 확인합니다.</p>
+    <div class="grid2">
+      <div class="mini"><b>어휘 테스트</b><p>주차마다 정해진 어휘를 공부하고 테스트를 봅니다. 제출했는지가 카드에 바로 표시됩니다.</p></div>
+      <div class="mini"><b>문법 테스트</b><p>단원별 스테이지를 하나씩 깨는 방식입니다. 정답률 70%를 넘겨야 다음 스테이지가 열려요.</p></div>
+      <div class="mini"><b>H-work</b><p>선생님이 내 준 과제를 슈퍼스타 페이지에서 풀고 제출합니다. 남은 과제 수가 카드에 보입니다.</p></div>
+      <div class="mini"><b>복습 영상</b><p>결석한 수업 등을 영상으로 다시 봅니다. 본 구간과 시청 시간이 기록돼요.</p></div>
+    </div>
+  </section>
+
+  <!-- 3 돌아보고 -->
+  <section class="card">
+    <div class="chap">
+      <div class="ico t-pnk"><svg viewBox="0 0 24 24"><path d="M4.5 19.5h15"/><path d="M7 16V11M12 16V6M17 16v-7"/></svg></div>
+      <div><div class="no">셋 · 돌아보고</div><h3>시험이 끝난 뒤가 진짜 공부입니다</h3></div>
+    </div>
+    <p>점수만 확인하고 넘어가면 같은 문제를 또 틀립니다. 이수경국어는 시험 하나하나를 <b>기록하고, 분석하고, 다시 들여다보게</b> 만듭니다. 학교 지필고사, 주말 실전 모의고사, 교육청·평가원 모의고사 세 가지 시험이 모두 슈퍼스타 페이지에 쌓입니다.</p>
+    <div class="trio">
+      <a href="#exam" class="tri"><span class="tn">01</span><b>지필고사 리포트</b><span>학교 시험 · 복기와 선생님 피드백</span></a>
+      <a href="#mock" class="tri"><span class="tn">02</span><b>주말 실전 모의고사</b><span>학원 모의고사 · 성적표와 성적 추이</span></a>
+      <a href="#smock" class="tri"><span class="tn">03</span><b>교육청·평가원 모의고사</b><span>학교 모의고사 · 자동 채점과 오답 분석</span></a>
+    </div>
+    <p class="small" style="margin-top:12px">아래 화면은 모두 예시 학생 '박보검'의 가상 데이터로 만든 실제 화면입니다. 그림을 누르면 크게 볼 수 있고, 휴대폰에서는 그림을 옆으로 넘겨 보실 수 있어요.</p>
+  </section>
+
+  <!-- 3-1 지필고사 리포트 -->
+  <section class="card feat" id="exam">
+    <div class="fhead"><span class="fn">01</span><div><div class="eyebrow">학교 지필고사</div><h2>지필고사 리포트</h2></div></div>
+    <p class="lead">시험지를 분석한 학원의 리포트, 학생이 직접 쓰는 복기, 담당 선생님의 피드백이 한 장에 모입니다.</p>
+
+    <ol class="flow">
+      <li><b>학원이 시험지를 분석합니다</b><span>학교 시험이 끝나면 시험지를 문항마다 영역·세부 유형·난도·배점으로 나누고, 시험 범위와 시험 총평을 정리해 리포트의 바탕을 만듭니다.</span></li>
+      <li><b>학생이 스스로 복기합니다</b><span>슈퍼스타 페이지에서 틀린 문항을 누르면 배점대로 점수가 계산됩니다. 틀린 문항마다 '왜 틀렸는지'를 적고, 다음 시험을 위한 다짐을 남깁니다.</span></li>
+      <li><b>담당 선생님이 읽고 답합니다</b><span>선생님이 학생의 반성을 읽고 한 마디를 적어 보내면, 그때 리포트가 학생 페이지에 도착합니다. 도착하면 알림톡으로도 안내드려요.</span></li>
+    </ol>
+
+    <div class="shots">
+      <figure><img src="assets/guide/exam-1-input.jpg" alt="시험 복기 입력 화면"><figcaption><b>① 복기 입력</b>틀린 문항을 누르면 점수가 바로 계산됩니다.</figcaption></figure>
+      <figure><img src="assets/guide/exam-2-reflect.jpg" alt="문항별 반성 입력"><figcaption><b>② 문항마다 반성</b>영역·유형·난도·배점이 문항에 붙어 있습니다.</figcaption></figure>
+      <figure><img src="assets/guide/exam-3-report.jpg" alt="개인별 분석 리포트"><figcaption><b>③ 개인별 분석 리포트</b>시험 범위, 총평, 영역·난도 비율과 내가 틀린 영역.</figcaption></figure>
+      <figure><img src="assets/guide/exam-4-teacher.jpg" alt="반성과 선생님의 한 마디"><figcaption><b>④ 반성과 선생님의 한 마디</b>누가 썼는지 이름이 함께 표시됩니다.</figcaption></figure>
+    </div>
+
+    <div class="see">
+      <b>리포트에서 함께 보실 곳</b>
+      <ul class="dots">
+        <li><b>시험 총평</b> — 시험 구성, 점수가 갈린 변별 문항, '이렇게 공부하면 좋습니다'까지 정리합니다.</li>
+        <li><b>문항 분석</b> — 시험 전체의 영역·난도 비율 옆에 우리 아이가 틀린 영역을 나란히 보여 드립니다.</li>
+        <li><b>학생의 반성과 다짐</b> — 아이가 자기 말로 쓴 글입니다. 다음 시험 전에 함께 읽어 보세요.</li>
+        <li>시험이 끝날 때마다 리포트가 한 장씩 쌓여, 학기마다 무엇이 나아졌는지 비교할 수 있습니다.</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- 3-2 주말 실전 모의고사 -->
+  <section class="card feat" id="mock">
+    <div class="fhead"><span class="fn">02</span><div><div class="eyebrow">학원 실전 모의고사</div><h2>주말 실전 모의고사</h2></div></div>
+    <p class="lead">실제 시험과 같은 시간·형식으로 치르는 학원 모의고사입니다. 신청부터 답안 제출, 성적표까지 모두 슈퍼스타 페이지에서 이어집니다.</p>
+
+    <ol class="flow">
+      <li><b>신청</b><span>열린 요일 가운데 하나를 골라 신청합니다. 요일마다 정원이 있는 선착순입니다.</span></li>
+      <li><b>OMR 답안 제출</b><span>시험을 마치면 OMR 답안을 입력해 제출합니다. 제출하면 자동으로 채점됩니다.</span></li>
+      <li><b>성적표와 성적 추이</b><span>회차마다 성적표가 만들어지고, 회차가 쌓이면 점수와 등급의 흐름을 한눈에 보여 드립니다.</span></li>
+    </ol>
+
+    <div class="shots two">
+      <figure><img src="assets/guide/mock-1-trend.jpg" alt="모의고사 성적 추이"><figcaption><b>성적 추이</b>내 점수와 슈국 평균, 등급 흐름, 영역별 성취도 변화.</figcaption></figure>
+      <figure><img src="assets/guide/mock-2-card.jpg" alt="회차별 성적표"><figcaption><b>회차별 성적표</b>점수·등급·등급컷과 영역별 배점·득점·성취도.</figcaption></figure>
+    </div>
+
+    <div class="see">
+      <b>성적표에서 함께 보실 곳</b>
+      <ul class="dots">
+        <li><b>한 줄 요약</b> — 응시 횟수, 최근 3회 평균, 지난 회차와 슈국 평균에 견준 차이, 성취도가 가장 낮았던 영역을 문장으로 알려 드립니다.</li>
+        <li><b>점수 그래프</b> — 내 점수(실선)와 같은 회차 슈국 평균(점선)을 함께 그립니다. 점을 누르면 그 회차 성적표로 갑니다.</li>
+        <li><b>영역별 성취도</b> — 독서·문학·문법처럼 영역마다 몇 퍼센트를 맞혔는지 회차별로 비교합니다. 약한 영역이 바로 보입니다.</li>
+        <li><b>문항 채점표</b> — 성적표 아래에 문항마다 정답과 학생의 답이 함께 나옵니다.</li>
+      </ul>
+      <p class="small">성적 화면은 학부모님 휴대전화 번호 뒤 8자리로 한 번 더 확인한 뒤 열립니다.</p>
+    </div>
+  </section>
+
+  <!-- 3-3 교육청·평가원 모의고사 -->
+  <section class="card feat" id="smock">
+    <div class="fhead"><span class="fn">03</span><div><div class="eyebrow">학교에서 보는 모의고사</div><h2>교육청·평가원 모의고사 리포트</h2></div></div>
+    <p class="lead">학교에서 치른 전국연합학력평가와 모의평가도 그냥 지나가지 않습니다. 틀린 번호만 누르면 채점과 분석이 따라옵니다. 고1·고2 학생이 사용합니다.</p>
+
+    <ol class="flow">
+      <li><b>틀린 번호를 누릅니다</b><span>학교에서 시험을 마치면 슈퍼스타 페이지에서 틀린 문항 번호만 고릅니다. 학원이 정답과 배점을 넣어 둔 회차는 원점수가 바로 계산됩니다.</span></li>
+      <li><b>예상 등급을 확인합니다</b><span>원점수와 함께 예상 등급·표준점수·백분위를 보여 드립니다. 체감 난이도와 시험 후기도 남겨요.</span></li>
+      <li><b>틀린 문항을 살펴봅니다</b><span>틀린 문항마다 영역·출제 의도·배점·정답·작품 출처를 정리해 보여 드리고, 많이 틀린 문항 순위에서 내가 틀린 문항을 표시합니다.</span></li>
+    </ol>
+
+    <div class="shots two">
+      <figure><img src="assets/guide/smock-1-input.jpg" alt="틀린 문항 입력과 자동 계산"><figcaption><b>입력과 자동 계산</b>틀린 번호를 누르면 점수와 예상 등급이 바로 바뀝니다.</figcaption></figure>
+      <figure><img src="assets/guide/smock-2-record.jpg" alt="회차별 기록과 오답 분석"><figcaption><b>회차별 기록과 오답 분석</b>틀린 문항 살펴보기, 등급컷, 오답률 TOP 15.</figcaption></figure>
+    </div>
+
+    <div class="see">
+      <b>기록에서 함께 보실 곳</b>
+      <ul class="dots">
+        <li><b>영역별 틀린 문항</b> — 화법·언어·독서·작문·문학 가운데 어디서 틀렸는지 한눈에 보입니다.</li>
+        <li><b>틀린 문항 살펴보기</b> — 문항이 무엇을 묻는지(출제 의도)와 지문 출처까지 확인하며 다시 풀어 볼 수 있어요.</li>
+        <li><b>오답률 TOP 15</b> — 많은 학생이 어려워한 문항 가운데 우리 아이가 틀린 것이 표시됩니다. 남들도 어려워한 문항인지, 놓치면 안 되는 문항인지 구분하는 데 도움이 됩니다.</li>
+        <li>회차가 쌓이면 <b>점수 흐름</b>이 막대로 이어져 학년 내 변화를 볼 수 있습니다.</li>
+      </ul>
+      <p class="small">등급컷과 오답률은 EBSi가 발표한 분석 자료를 기준으로 하며, 시험 직후에는 예상 등급컷입니다. 확정 성적은 학교에서 받는 성적표로 확인해 주십시오.</p>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="chap">
+      <div class="ico t-mnt"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2.5"/><path d="M8 9h8M8 12.5h8M8 16h5"/></svg></div>
+      <div><div class="no">덧붙여</div><h3>학교별 시험 분석 자료</h3></div>
+    </div>
+    <p>학교별 시험 분석과 같은 자료도 슈퍼스타 페이지에서 볼 수 있어요. 예비 고1에게는 지금 '덕양구 8개 주요학교 고1 국어 미리보기'가 열려 있습니다.</p>
+  </section>
+
+  <!-- 4 묻습니다 -->
+  <section class="card">
+    <div class="chap">
+      <div class="ico t-sky"><svg viewBox="0 0 24 24"><path d="M5 5.5h14v10H10l-4 3.5v-3.5H5z"/><path d="M10 9.2a2 2 0 1 1 2.6 1.9c-.4.2-.6.5-.6.9M12 13.6v.1"/></svg></div>
+      <div><div class="no">넷 · 묻습니다</div><h3>모르는 것을 그냥 두지 않습니다</h3></div>
+    </div>
+    <ul class="dots">
+      <li><b>클리닉 신청</b> — 따로 설명을 들어야 할 부분을 미리 신청하면, 담당 선생님 클리닉 시간에 다룹니다.</li>
+      <li><b>질문하기</b> — 학원에서 질문 내용과 사진을 올리면 선생님별 대기 순서에 들어가고, 차례가 되면 강의실 화면으로 이름이 불립니다.</li>
+    </ul>
+  </section>
+
+  <!-- 5 슈퍼스타 -->
+  <section class="card">
+    <div class="chap">
+      <div class="ico t-lav"><svg viewBox="0 0 24 24"><path d="M12 3.8l2.4 5 5.4.6-4 3.7 1.1 5.4L12 15.8l-4.9 2.7 1.1-5.4-4-3.7 5.4-.6z"/></svg></div>
+      <div><div class="no">꾸준함에는 보상을</div><h3>슈퍼스타 별</h3></div>
+    </div>
+    <p>어휘 테스트 제출, 과제 검사 만점, 문법 세트 클리어, 시험 복기, 공지 확인처럼 해야 할 공부를 해낼 때마다 별이 쌓입니다. 별이 모이면 등급이 올라가고, '알려드립니다'에는 별을 가장 많이 모은 TOP 30이 오릅니다. 선생님이 직접 별을 선물하기도 해요.</p>
+    <div class="lvls">
+      <span>원석</span><span>오디션 합격</span><span>연습생</span><span>월말평가 통과</span><span>데뷔조</span><span>데뷔 쇼케이스</span><span>데뷔 신인</span><span>첫 음악방송</span><span>음방 1위</span><span>신인상 수상</span><span>대상 후보</span><span class="top">슈퍼스타</span>
+    </div>
+  </section>
+
+  <!-- 알려드립니다 -->
+  <section class="card">
+    <div class="chap">
+      <div class="ico t-mnt"><svg viewBox="0 0 24 24"><path d="M6 16.5V11a6 6 0 0 1 12 0v5.5l1.5 1.5h-15z"/><path d="M10 20.2a2 2 0 0 0 4 0"/></svg></div>
+      <div><div class="no">학원 소식</div><h3>알려드립니다</h3></div>
+    </div>
+    <p>학원 공지와 첨부 파일, 지필고사 분석지를 이곳에서 확인합니다. 학생이 [확인했습니다]를 눌러야 확인한 것으로 남습니다.</p>
+  </section>
+
+  <!-- 사용법 -->
+  <section class="card">
+    <div class="eyebrow">학부모님께</div>
+    <h2>이렇게 열어 보세요</h2>
+    <ol class="how">
+      <li>학원에서 보내 드리는 카카오 알림톡의 <b>[학생 페이지 링크]</b> 버튼을 누르면 우리 아이 페이지가 열립니다. 학생마다 주소가 달라요.</li>
+      <li>휴대폰 브라우저에서 <b>'홈 화면에 추가'</b>를 해 두시면 앱처럼 바로 열 수 있습니다.</li>
+      <li>일부 성적 화면은 <b>학부모님 휴대전화 번호 뒤 8자리</b>로 한 번 더 확인합니다.</li>
+      <li>링크는 학생 개인 페이지이므로 다른 분과 나누지 말아 주십시오.</li>
+    </ol>
+    <p class="small" style="margin-top:12px">학원 공지나 지필고사 리포트처럼 꼭 확인하실 내용은 알림톡으로도 안내드립니다. 아이와 함께 화면을 열어 오늘 배운 것과 해야 할 과제를 이야기 나눠 보세요.</p>
+  </section>
+
+  <section class="card closing">
+    <h2>공부하는 습관은<br>매일의 기록에서 시작됩니다.</h2>
+    <p class="muted">학생이 스스로 공부하는 힘을 기를 때까지, 이수경국어가 함께 기록하고 함께 확인하겠습니다.</p>
+    <div class="brand">학생을 공부하게 만듭니다. 이수경국어</div>
+  </section>
+
+  <p class="foot">이수경국어 · 슈국</p>
+</div>
+<div id="lb" role="dialog" aria-label="크게 보기"><button type="button" aria-label="닫기">×</button><img alt=""></div>
+<script>
+(function(){
+  var lb = document.getElementById('lb'), big = lb.querySelector('img');
+  function close(){ lb.classList.remove('on'); document.body.style.overflow = ''; }
+  document.querySelectorAll('.shots img').forEach(function(im){
+    im.addEventListener('click', function(){ big.src = im.src; big.alt = im.alt; lb.classList.add('on'); lb.scrollTop = 0; document.body.style.overflow = 'hidden'; });
+  });
+  lb.addEventListener('click', function(e){ if (e.target !== big) close(); });
+  document.addEventListener('keydown', function(e){ if (e.key === 'Escape') close(); });
+})();
+</script>
+</body>
+</html>

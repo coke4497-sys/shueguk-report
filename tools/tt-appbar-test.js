@@ -2,7 +2,7 @@
 /* 앱 바 검증 (timetable.html, 2026-09-21 사용자 요청 "화면 위아래의 너저분한 것 없이 앱처럼").
  *   NODE_PATH=$(npm root -g) node tools/tt-appbar-test.js
  * 확인 대상 — ① 백링크 줄·설명 문단·푸터·팁이 사라졌고 ② 앱 바가 화면 위에 붙어 스크롤해도 남으며
- * ③ 기간은 작은 칩(자세한 문장은 title) ④ 보기 탭 6개가 한 줄 ⑤ 창으로 여는 기능 세 개는 상시 버튼(⋯ 안에 숨기지 않음)
+ * ③ 기간은 작은 칩(자세한 문장은 title) ④ 보기 탭 7개가 한 줄 ⑤ 창으로 여는 기능 세 개는 상시 버튼(⋯ 안에 숨기지 않음)
  * ⑥ 상태 문구는 화면 아래 알림(비면 안 보임) ⑦ 안내문은 한 줄 + ⓘ로 펼침(세션 기억)
  * ⑧ 휴대폰: 탭 한 줄 가로 스크롤 · 오늘 보충 패널 기본 접힘 · 칩에서 날짜 숨김 ⑨ 옆 패널은 바 아래에서 시작. */
 const { chromium } = require('playwright');
@@ -32,7 +32,7 @@ const ok = (n, c, x) => { if (c) pass++; else { fail++; console.log('  ✗ ' + n
       localStorage.setItem('ttc:list:정규', JSON.stringify({ t: Date.now(), d: { classes: cls, onceMoves: [] } }));
     }, { cls: CLASSES, mode });
     await page.goto('http://127.0.0.1:' + port + '/timetable.html');
-    await page.waitForSelector('#bar .viewtabs button', { timeout: 15000 });
+    await page.waitForSelector('#bar .viewtabs button:not([hidden])', { timeout: 15000 });
     await page.waitForTimeout(500);
     return page;
   }
@@ -66,10 +66,10 @@ const ok = (n, c, x) => { if (c) pass++; else { fail++; console.log('  ✗ ' + n
   ok('칩 title = 원래 안내 문장', pb[1].includes('시간표로 운영합니다'), pb[1]);
   ok('칩은 낮다(30px 이하)·둥근 알약', pb[2] <= 30 && pb[3].indexOf('999') === 0, JSON.stringify([pb[2], pb[3]]));
 
-  /* ④ 보기 탭 6개 한 줄 */
-  const tabs = await page.$$eval('#bar .viewtabs button', bs => bs.map(x => [x.id, x.textContent.trim(), x.offsetTop]));
-  ok('탭 6개 · 순서', JSON.stringify(tabs.map(t => t[0])) === JSON.stringify(['v-today','v-week','v-all','v-att','v-cal','v-exs']), JSON.stringify(tabs));
-  ok('짧은 이름', JSON.stringify(tabs.map(t => t[1])) === JSON.stringify(['오늘','주차별','전체','출석 현황','캘린더','지필고사']), JSON.stringify(tabs.map(t => t[1])));
+  /* ④ 보기 탭 7개 한 줄 */
+  const tabs = await page.$$eval('#bar .viewtabs button:not([hidden])', bs => bs.map(x => [x.id, x.textContent.trim(), x.offsetTop]));
+  ok('탭 7개 · 순서', JSON.stringify(tabs.map(t => t[0])) === JSON.stringify(['v-today','v-week','v-all','v-att','v-cal','v-exs','v-scope']), JSON.stringify(tabs));
+  ok('짧은 이름', JSON.stringify(tabs.map(t => t[1])) === JSON.stringify(['오늘','주차별','전체','출석 현황','캘린더','지필고사','시험 범위']), JSON.stringify(tabs.map(t => t[1])));
   ok('한 줄(줄바꿈 없음)', tabs.every(t => t[2] === tabs[0][2]), JSON.stringify(tabs.map(t => t[2])));
   ok('지금 보기 표시', await page.$eval('#v-today', e => e.classList.contains('on')));
   await page.click('#v-att');
@@ -130,7 +130,7 @@ const ok = (n, c, x) => { if (c) pass++; else { fail++; console.log('  ✗ ' + n
   await small.route(/script\.google\.com|supabase\.co|googleusercontent/, r => r.fulfill({ status: 200, contentType: 'application/json', body: '{"result":"error"}' }));
   await small.route(/fonts\.g/, r => r.abort());
   const m = await open(small, 'today');
-  const mt = await m.$$eval('#bar .viewtabs button', bs => bs.map(x => x.offsetTop));
+  const mt = await m.$$eval('#bar .viewtabs button:not([hidden])', bs => bs.map(x => x.offsetTop));
   ok('휴대폰에서도 탭 한 줄', mt.every(t => t === mt[0]), JSON.stringify(mt));
   ok('탭 줄은 가로로 민다', await m.$eval('#bar .viewtabs', e => e.scrollWidth > e.clientWidth + 2 && getComputedStyle(e).overflowX === 'auto'));
   ok('기간 칩은 날짜를 숨겨 안 잘린다', await m.$eval('#period-badge .pb-range', e => getComputedStyle(e).display === 'none'));

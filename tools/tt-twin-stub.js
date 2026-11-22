@@ -47,8 +47,9 @@ let src=fs.readFileSync(__dirname+'/../backend-createReport.gs','utf8');
 eval(src);
 function J(r){ return JSON.parse(r.__t !== undefined ? r.__t : r); }
 module.exports={ SHEETS, mkSheet, J, get fns(){ return { timetableMove, timetableAdd, timetableRemove, timetableRenameStudent, timetableMoveClass, TEACHER_PW,
-    alimSend, alimConfigGet, alimConfigSet, alimLogGet, alimDiscover, ALIM_TPL_,
-    editReqAdd, grammaReport, getEditReqList, editReqSet,
+    alimSend, alimCancel, alimConfigGet, alimConfigSet, alimLogGet, alimDiscover, ALIM_TPL_,
+    editReqAdd, grammaReport, hworkReport, getEditReqList, editReqSet,
     hwcheckSave, hwcheckData_, collectHwchecks_, countHwcheckPerfect_, getHwcheckPlans, hwcheckPlanDone, TAB_HWCHECK,
-    addStarBonus, starKey_, TAB_STARS,
-    ttPeriodSet, ttPeriodData_, ttPeriodSheet_, TAB_TT_PERIOD }; } };
+    addStarBonus, starKey_, TAB_STARS, starLogData_, sumBonus_,
+    ttPeriodSet, ttPeriodData_, ttPeriodSheet_, TAB_TT_PERIOD,
+    studentEnrolledSet, TAB_STUDENTS, submissionBlankDelete, TAB_RESULT }; } };

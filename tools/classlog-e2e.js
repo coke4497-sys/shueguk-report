@@ -55,6 +55,7 @@ const ATT = [
   { date: '2026-10-03', book: '정규', class_id: 'r004', student: '박보검', status: '지각', memo: '5분' }
 ];
 const LOGS = [];
+let SPANS = [];   // 적용일 변경(tt_log '적용일변경') — 마지막 절에서만 채운다
 (async () => {
   const srv = await serve(), port = srv.address().port;
   const br = await chromium.launch();
@@ -80,7 +81,7 @@ const LOGS = [];
     }
     if (/script\.google/.test(u)){ legacy.push(JSON.parse(rt.request().postData() || '{}')); return j({ result: 'success' }); }
     if (/\/rest\/v1\/attendance/.test(u)) return j(ATT);
-    if (/\/rest\/v1\/tt_log/.test(u)) return j(LOGS);
+    if (/\/rest\/v1\/tt_log/.test(u)) return j(/적용일변경/.test(decodeURIComponent(u)) ? SPANS : LOGS);
     if (/\/rest\/v1\/teacher_accounts/.test(u)) return j([]);
     return rt.fulfill({ status: 204, body: '' });
   });
@@ -160,6 +161,41 @@ const LOGS = [];
   ok('"기록 없는 수업도 보기"를 끄면 수업 기록 있는 카드만', r.length === 3, JSON.stringify(r));
   await p.check('#showNone');
 
+  // ⑤-2 날짜 정렬 · 요약 카드 거르기 (2026-10-21 원장님)
+  r = await p.$$eval('.card', cs => cs.map(c => c.getAttribute('data-key').split('|')[2] + ' ' + c.querySelector('.tm').textContent));
+  ok('빠른 날짜가 위 · 같은 날은 시작 시간이 빠른 순', r.length > 1 && r.every((x, i) => {
+    if (!i) return true; const [d0, t0] = r[i - 1].split(' '), [d1, t1] = x.split(' ');
+    const m = t => { const [h, mm] = t.split(':').map(Number); return (h < 9 ? h + 12 : h) * 60 + mm; };
+    return d0 < d1 || (d0 === d1 && m(t0) <= m(t1));
+  }), JSON.stringify(r));
+  const tileN = async k => +(await p.textContent('#tiles [data-tf="' + k + '"] b'));
+  const cardN = () => p.$$eval('#recView .card', a => a.length);
+  for (const [k, lab] of [['rec', '기록한 수업'], ['pub', '리포트 공개'], ['none', '기록 없는 수업'], ['lack', '기록이 부족한 수업']]){
+    const n = await tileN(k);
+    await p.click('#tiles [data-tf="' + k + '"]');
+    const c = await cardN(), on = await p.$eval('#tiles [data-tf="' + k + '"]', e => e.classList.contains('on')), note = await p.textContent('#tfNote');
+    ok('[' + lab + '] 카드 → 수업 ' + n + '개만 · 선택 표시 · 안내 줄', c === n && on && note.indexOf(lab + ' ' + n + '개 보는 중') >= 0 && /전체 보기/.test(note), JSON.stringify({ n, c, on, note }));
+    await p.click('#tiles [data-tf="' + k + '"]');
+  }
+  r = { c: await cardN(), note: await p.textContent('#tfNote'), on: await p.$$eval('#tiles .tile.on', a => a.length) };
+  ok('같은 카드를 다시 누르면 필터 해제', r.note === '' && r.on === 0, JSON.stringify(r));
+  const allN = await cardN();
+  await p.click('#tiles [data-tf="miss"]');
+  r = await p.$$eval('#recView .card', cs => cs.map(c => ({ ln: (c.querySelector('.missln') || {}).textContent || '', open: !!c.querySelector('.cb') })));
+  const missN = await tileN('miss');
+  ok('[미제출 학생] → 미제출 학생이 있는 수업만, 이름이 펼쳐진 채로', r.length >= 1 && r.length < allN && r.every(x => /미제출/.test(x.ln) && x.open) && r.some(x => /박보검/.test(x.ln)), JSON.stringify(r));
+  r = await p.textContent('#tfNote');
+  ok('미제출 안내 줄 — 학생 수가 카드 숫자와 같다', r.indexOf('미제출 학생 ' + missN + '명') >= 0, r);
+  await p.click('#tfNote [data-tf=""]');
+  ok('[전체 보기] → 전체 목록으로', (await cardN()) === allN && (await p.textContent('#tfNote')) === '');
+  await p.click('#tiles [data-tf="lack"]');
+  await p.click('[data-view="teacher"]');
+  await p.selectOption('#subSel', '현지');
+  r = { n: await tileN('lack'), c: await cardN(), nm: await p.$$eval('#recView .card .meta', a => a.map(x => x.textContent)) };
+  ok('보기 거르기(담당 선생님)와 함께 — 숫자와 목록이 같다', r.n === r.c && r.nm.every(t => /현지/.test(t)), JSON.stringify(r));
+  await p.click('#tiles [data-tf="lack"]');
+  await p.click('[data-view="all"]');
+
   // ⑥ 칭찬 · 요주의
   r = await p.evaluate(() => [document.getElementById('tnPraise').textContent, document.getElementById('tnWarn').textContent]);
   ok('칭찬 슈스·요주의 슈스 버튼이 따로, 옆에 학생 수', JSON.stringify(r) === '["1","1"]', JSON.stringify(r));
@@ -209,6 +245,31 @@ const LOGS = [];
   await p.setViewportSize({ width: 390, height: 1400 });
   r = await p.evaluate(() => document.documentElement.scrollWidth <= 390);
   ok('휴대폰 폭에서 가로 스크롤 없음', r);
+  await p.click('#tiles [data-tf="none"]');
+  r = await p.evaluate(() => ({ w: document.documentElement.scrollWidth <= 390, t: [...document.querySelectorAll('#tiles .tile')].every(e => e.getBoundingClientRect().right <= 390), n: document.getElementById('tfNote').getBoundingClientRect().right <= 390 }));
+  ok('휴대폰 — 카드를 눌러 거른 상태에서도 화면 안', r.w && r.t && r.n, JSON.stringify(r));
+  if (process.env.SHOT) await p.screenshot({ path: process.env.SHOT, fullPage: false });
+
+  // ⑨ 적용일 변경 (2026-11-01) — 종강 뒤는 기록 없는 수업 아님 · 지운 반은 그 전 날짜에 snap · 그 날짜 담당
+  const SPEC = o => '사유\n#spec ' + JSON.stringify(o);
+  SPANS = [
+    { book: '정규', from_class_id: 'r006', apply_date: '2026-10-02', reason: SPEC({ end: true }) },
+    { book: '정규', from_class_id: 'r099', apply_date: '2026-10-04', reason: SPEC({ end: true, snap: { day: '목', start: '7:30', end: '9:00', location: '민트초코', teacher: '연주', name: '고2 지운반', roster: '김하늘' } }) },
+    { book: '정규', from_class_id: 'r003', apply_date: '2026-10-02', reason: SPEC({ before: { teacher: '승연' }, after: { teacher: '은지' } }) },
+  ];
+  await p.setViewportSize({ width: 900, height: 1600 });
+  await p.goto('http://127.0.0.1:' + port + '/classlog.html');
+  await p.evaluate(() => { localStorage.removeItem('cl_view'); });
+  await p.goto('http://127.0.0.1:' + port + '/classlog.html');
+  await p.waitForFunction(() => /수업 \d+개/.test(document.getElementById('status').textContent), null, { timeout: 8000 });
+  await p.click('[data-per="this"]').catch(() => {});
+  await p.waitForTimeout(400);
+  r = await p.evaluate(() => D.sessions.map(s => s.id + '|' + s.ymd + '|' + s.teacher + '|' + (s.none ? 'none' : '')));
+  ok('적용일: 종강한 r006(금 10/2)은 기록 없는 수업 아님', !r.some(t => /^r006\|2026-10-02/.test(t)), JSON.stringify(r));
+  ok('적용일: 지운 반 r099(목 10/1)은 snap으로 기록 없는 수업 · 연주', r.some(t => t === 'r099|2026-10-01|연주|none'), JSON.stringify(r));
+  ok('적용일: r003(금 10/2)은 변경일부터 은지', r.some(t => /^r003\|2026-10-02\|은지\|/.test(t)), JSON.stringify(r));
+  r = await p.evaluate(() => { var d = document.querySelector('[data-view="teacher"]'); if (d) d.click(); return [...document.querySelectorAll('#viewSub option')].map(o => o.value); });
+  ok('적용일: 담당 선생님 목록에 지난 담당(연주)도', r.indexOf('연주') >= 0, JSON.stringify(r));
 
   ok('페이지 오류 없음', perr === 0);
   await br.close(); srv.close();

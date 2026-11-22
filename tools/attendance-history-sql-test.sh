@@ -23,7 +23,7 @@ psql -v ON_ERROR_STOP=1 -q -d "$DB" <<'SQL'
 alter table hwcheck_records add column if not exists class_id text not null default '';
 SQL
 for f in supabase/migrations/039_class_history.sql supabase/migrations/041_attendance_history.sql supabase/migrations/044_attendance_history_makeup.sql \
-         supabase/migrations/044_attendance_history_makeup.sql; do
+         supabase/migrations/044_attendance_history_makeup.sql supabase/migrations/059_no_cross_school_link.sql; do
   psql -v ON_ERROR_STOP=1 -q -d "$DB" -f "$f" >/dev/null || { echo "적용 실패: $f"; exit 1; }
 done
 psql -v ON_ERROR_STOP=1 -q -d "$DB" <<'SQL'
@@ -90,5 +90,14 @@ begin
   begin perform 1 from attendance limit 1; raise exception 'anon read attendance'; exception when insufficient_privilege then null; end;
 end $$;
 reset role;
+SQL
+psql -v ON_ERROR_STOP=1 -q -d "$DB" <<'SQL'
+-- 059: 학교가 다른 학생과 잇지 않는다
+do $$ begin
+  assert public.ch_who_('박보검(입학예정)') is null, '등록 전 표기는 잇지 않는다';
+  assert public.ch_who_('(능곡)박보검') is null, '앞 괄호 학교가 다르면 잇지 않는다';
+  assert public.ch_who_('(화정)박보검') is not null, '앞 괄호 학교가 같으면 잇는다';
+  assert public.ch_who_('박보검(8/30부터)') is not null, '등원 시작 표기는 그대로 잇는다';
+end $$;
 SQL
 echo "attendance-history-sql-test: 모두 통과"
