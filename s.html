@@ -139,6 +139,16 @@
   .hw-part .ps{font-size:.74rem;border-radius:20px;padding:2px 10px;white-space:nowrap;background:#F6E6E9;color:#8A3F4B;}
   .hw-part.done .ps{background:#DCE6E0;color:var(--accent);}
   .hw-part .hw-go{margin-top:0;}
+  /* 카드·줄 전체가 링크 (2026-11-22) — 누르는 곳이 어디든 풀러 가기 */
+  a.hw-part{text-decoration:none;color:inherit;cursor:pointer;border-radius:10px;}
+  a.hw-part:hover,a.hw-part:focus-visible{background:#F3F7F4;outline:none;}
+  a.hw-part .hw-go{margin-left:auto;}
+  a.notice-item.hw-card{display:block;text-decoration:none;color:inherit;cursor:pointer;transition:box-shadow .15s,transform .15s;}
+  a.notice-item.hw-card:hover,a.notice-item.hw-card:focus-visible{box-shadow:0 4px 16px rgba(60,80,70,.12);transform:translateY(-1px);outline:none;}
+  a.notice-item.hw-card:active{transform:none;}
+  .hw-card .hw-act{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;}
+  .hw-card .hw-act .hw-go{margin-left:auto;}
+  .hw-card .hw-act .nchk-done{margin-top:12px;}
   .hw-clsnote{text-align:center;color:#65726B;font-size:13px;margin:14px 0 4px;}
   .hwqa{background:#fff;border-radius:16px;padding:12px 14px;margin:0 0 14px;}
   .hwqa-h{font-family:'Gowun Batang',serif;font-weight:700;font-size:15px;margin-bottom:6px;}
@@ -1561,6 +1571,10 @@ function api(extra){
 
   /* ── 백엔드 규칙 이식 ── */
   var STAR_RULES = { exam: 2, clinic: 1, voca: 1, hwork: 1, notice: 1, mock: 1, hwcheck: 1, gramma: 1, smock: 1, avail: 1 };   // smock = 학력평가 성적 입력 회차당(057, 2026-10-21) · avail = 시간표 조사 제출 조사당(062, 2026-11-05)
+  // H WORK 별 +1 은 2026-11-22 부터 중지(원장님 "H work 별 +1 중지") — 이 날짜(한국 날짜)까지 낸 제출만 별로 센다. 그 뒤 제출은 세지 않는다.
+  // 제출 시각(ts)은 091 student_bundle 이 돌려준다 — 없으면(091 전·옛 경로) 옛 제출로 보고 센다. superstar.html·백엔드 HWORK_STAR_UNTIL 과 세 벌.
+  var HWORK_STAR_UNTIL = '2026-11-21';
+  function hworkStarOk(ts){ var d = String(ts || '').slice(0, 10); return !/^\d{4}-\d{2}-\d{2}$/.test(d) || d <= HWORK_STAR_UNTIL; }
   // 복습 영상은 별 없음(2026-09-27 사용자 "결석자 보충이므로 포상이 되면 안됨") · gramma = 문법 세트 클리어(스테이지 5개를 모두 70% 이상 — 2026-09-16, 옛 '회차마다 90%' 규칙 대체)
   function baseName(s){ return tr(s).replace(/[A-Za-z]$/, ''); }
   function schoolMatch(a, b){
@@ -1755,7 +1769,7 @@ function api(extra){
       var key = isId ? '' : qsKey;
       var sid = tr(me.student_id);
       var info = { id: sid, name: tr(me.name), school: String(me.school || ''), grade: String(me.grade || ''),
-                   teacher: String(me.teacher || ''), memo: String(me.memo || ''), classA: String(me.class_a || ''),
+                   teacher: String(me.teacher || ''), nsTeacher: String(me.ns_teacher || ''), memo: String(me.memo || ''), classA: String(me.class_a || ''),
                    classB: String(me.class_b || ''), progress: String(me.naeshin_a || ''), checkup: String(me.naeshin_b || ''),
                    enrolled: String(me.enrolled || '') };
       var myBase = baseName(info.name);
@@ -1992,6 +2006,7 @@ function api(extra){
         });
         var hworkSet = {};
         hwsub.forEach(function(r, i){
+          if (!hworkStarOk(r.ts)) return;                 // 2026-11-22 부터 낸 H WORK 는 별 없음
           var rn = tr(r.name);
           if (rn !== name && rn !== base) return;
           if (myGd) { var rGd = gradeDigit(r.grade); if (rGd && rGd !== myGd) return; }
@@ -2291,7 +2306,7 @@ function renderStars(){
       ['voca',   '어휘 테스트',        bd.voca,   '회', bd.voca],
       ['mock',   '실전 모의고사 응시', bd.mock,   '회', bd.mock],
       ['clinic', '클리닉 신청',        bd.clinic, '회', bd.clinic],
-      ['hwork',  'H-work 과제',        bd.hwork,  '개', bd.hwork],
+      ['hwork',  'H-work 과제 (11/21까지)', bd.hwork,  '개', bd.hwork],   // 2026-11-22 부터 H WORK 별 +1 중지 — 그전 제출만
       ['hwcheck','과제 검사 만점',     bd.hwcheck,'회', bd.hwcheck],
       ['notice', '공지 확인',          bd.notice, '건', bd.notice],
       ['gramma', '문법 세트 클리어', bd.gramma || 0, '세트', bd.gramma || 0],
@@ -2357,9 +2372,13 @@ function renderHub(){
     b.style.display='inline-block';
   }
 
-  // 내 수업 정보 (담당 교사 + 정규/내신 시간표 가로 배치)
-  var teacherRow = (info.teacher && String(info.teacher).trim()!=='')
-    ? '<div class="info-teacher"><span class="k">담당 교사</span><span class="v">'+esc(info.teacher)+'</span></div>' : '';
+  // 내 수업 정보 (담당 선생님 + 정규/내신 시간표 가로 배치)
+  // 담당 선생님 = 내신 진도 반 담당 선생님(090 student_bundle의 me.ns_teacher — 2026-10-12 원장님 "이 이름을 내신반 담당 선생님으로").
+  // 진도 반을 못 찾거나(담당이 둘·명단에 없음) 옛 경로(앱스스크립트)면 종전의 슈스 링크 담당(students.teacher)을 쓴다.
+  var tName = String(info.nsTeacher || '').trim() || String(info.teacher || '').trim();
+  if(tName && !/선생님$/.test(tName)) tName += ' 선생님';
+  var teacherRow = tName
+    ? '<div class="info-teacher"><span class="k">담당 선생님</span><span class="v">'+esc(tName)+'</span></div>' : '';
   // 정규 기간: 가·나 둘 다 있으면 '가/나 수업'(고등), 하나만 있으면 '정규 수업'(중등: 주 1회)
   var hasA = info.classA && String(info.classA).trim()!=='';
   var hasB = info.classB && String(info.classB).trim()!=='';
@@ -3519,10 +3538,11 @@ function renderHomework(keepScroll){
       var c = String(h.code||''), i = c.lastIndexOf(' · '), name = i > 0 ? c.slice(i + 3) : c;
       var href = hwGoHref(base, h, hwNextOf(todo, h));
       var sub = []; if(h.due) sub.push('마감 '+hwFmtDue(h.due)); if(h.memo) sub.push(h.memo);
-      return '<div class="hw-part'+(h.done?' done':'')+'"><span class="pt">'+esc(name)+(sub.length?'<small>'+esc(sub.join(' · '))+'</small>':'')+'</span>' +
+      /* 줄 전체가 링크 — 누르면 바로 풀러 가기·오답하기 (2026-11-22 원장님 "풀러가기 버튼이 불편해요") */
+      return '<a class="hw-part'+(h.done?' done':'')+'" href="'+esc(h.done ? href+'&done=1' : href)+'" target="_blank" rel="noopener">' +
+        '<span class="pt">'+esc(name)+(sub.length?'<small>'+esc(sub.join(' · '))+'</small>':'')+'</span>' +
         '<span class="ps">'+(h.done?'제출 완료':'아직 안 냄')+'</span>' +
-        (h.done ? '<a class="hw-go hw-re" href="'+esc(href+'&done=1')+'" target="_blank" rel="noopener">오답하기 '+svg(ICON.arrow)+'</a>'
-                : '<a class="hw-go" href="'+esc(href)+'" target="_blank" rel="noopener">풀러 가기 '+svg(ICON.arrow)+'</a>') + '</div>';
+        '<span class="hw-go'+(h.done?' hw-re':'')+'">'+(h.done?'오답하기':'풀러 가기')+' '+svg(ICON.arrow)+'</span></a>';
     };
     var groupHtml = function(k){
       var hs2 = grp[k].slice().sort(function(a, b){ return String(a.code||'').localeCompare(String(b.code||''), 'ko', { numeric:true }); }), left = hs2.filter(function(h){ return !h.done; }).length;
@@ -3542,17 +3562,18 @@ function renderHomework(keepScroll){
       if(h.due)  meta.push('마감 '+hwFmtDue(h.due));
       if(h.memo) meta.push(h.memo);
       var href = hwGoHref(base, h, hwNextOf(todo, h));
+      /* 카드 전체가 링크 — 어디를 눌러도 바로 풀러 가기·오답하기 (2026-11-22 원장님 "풀러가기 버튼이 불편해요") */
       var action = h.done
         ? '<span class="nchk-done">✓ 제출 완료 · 별 +1</span>' +
-          '<a class="hw-go hw-re" href="'+esc(href+'&done=1')+'" target="_blank" rel="noopener">오답하기 이어 하기 '+svg(ICON.arrow)+'</a>'
-        : '<a class="hw-go" href="'+esc(href)+'" target="_blank" rel="noopener">H WORK 풀러 가기 '+svg(ICON.arrow)+'</a>';
-      return '<div class="notice-item">' +
+          '<span class="hw-go hw-re">오답하기 이어 하기 '+svg(ICON.arrow)+'</span>'
+        : '<span class="hw-go">풀러 가기 '+svg(ICON.arrow)+'</span>';
+      return '<a class="notice-item hw-card'+(h.done?' done':'')+'" href="'+esc(h.done ? href+'&done=1' : href)+'" target="_blank" rel="noopener">' +
         '<span class="ntag">'+(h.done?'제출 완료':'배정 과제')+'</span>' +
         '<div class="nh"><span class="ntitle">'+hwKwTitle(title, h.code)+'</span>' +
         (h.date ? '<span class="ndate">'+esc(h.date)+'</span>' : '') + '</div>' +
         (meta.length ? '<div class="nbody">'+esc(meta.join(' · '))+'</div>' : '') +
-        action +
-        '</div>';
+        '<div class="hw-act">'+action+'</div>' +
+        '</a>';
     }
   }
   if(clsN) list.innerHTML += '<p class="hw-clsnote">수업 시간에 선생님과 확인한 과제 '+clsN+'개는 목록에서 뺐습니다.</p>';

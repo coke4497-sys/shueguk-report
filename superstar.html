@@ -1054,6 +1054,8 @@
    * 기록을 다뤄도 되는 곳). 상위 30명은 star_ranking 표에 저장해 학생 화면 TOP30이
    * 개인정보 없이 즉시 읽게 한다. 계산이 실패하면 기존 백엔드로 자동 폴백. */
   var STAR_RULES = { exam: 2, clinic: 1, voca: 1, hwork: 1, notice: 1, mock: 1, hwcheck: 1, gramma: 1, smock: 1, avail: 1 };   // smock = 학력평가 성적 입력 회차당(057) · avail = 시간표 조사 제출 조사당(062)   // 복습 영상은 별 없음(2026-09-27 사용자 "결석자 보충이므로 포상이 되면 안됨")
+  var HWORK_STAR_UNTIL = '2026-11-21';   // H WORK 별 +1 은 2026-11-22 부터 중지(원장님) — 이 날짜(한국 날짜)까지 낸 제출만. s.html·백엔드와 세 벌
+  function hworkStarOk_(ts){ var d = tr_(ts).slice(0, 10); return !/^\d{4}-\d{2}-\d{2}$/.test(d) || d <= HWORK_STAR_UNTIL; }
   // gramma = 문법 세트 클리어(gramma_sets 한 줄 = 별 1개, 2026-09-16)
   var SB_PAGE = 1000;
   function sbAll(path, _from, _acc){          // PostgREST 1,000행 한도 자동 페이징
@@ -1177,6 +1179,7 @@
         if (k >= 0) mark_(stus[k].voca, tr_(r.round) || String(i), tsOf_(r.ts));
       });
       hwk.forEach(function(r, i){                        // H WORK (강사|제목 단위)
+        if (!hworkStarOk_(r.ts)) return;                   // 2026-11-22 부터 낸 H WORK 는 별 없음
         var k = resolve('', r.name, r.school, r.grade);
         if (k < 0) return;
         var t = tr_(r.code);
@@ -2695,7 +2698,7 @@
       ['voca',  '어휘 테스트',        bd.voca,   '회', bd.voca],
       ['mock',  '실전 모의고사 응시', bd.mock,   '회', bd.mock],
       ['clinic','클리닉 신청',        bd.clinic, '회', bd.clinic],
-      ['hwork', 'H-work 과제',        bd.hwork,  '개', bd.hwork],
+      ['hwork', 'H-work 과제 (11/21까지)', bd.hwork,  '개', bd.hwork],   // 2026-11-22 부터 H WORK 별 +1 중지
       ['hwcheck','과제 검사 만점',    bd.hwcheck || 0, '회', bd.hwcheck || 0],   // 2026-09-16 사용자 신고 "숙제검사 별이 탑 30에 안 보여요" — 집계(computeRanking)에는 있었고 이 목록에만 빠져 있었다
       ['notice','공지 확인',          bd.notice, '건', bd.notice],
       ['gramma','문법 세트 클리어', bd.gramma || 0, '세트', bd.gramma || 0],

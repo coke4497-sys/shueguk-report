@@ -748,6 +748,16 @@ curl -s -X POST "https://api.supabase.com/v1/projects/bangdbhqpphqqdwcledg/datab
 - `migrations/033_review_done_75.sql` — `review_done_pct()`를 75로(사용자 "75%를 보면 완료, 별 없음 — 결석 보충") + 75% 이상인데 completed_at 이 비어 있던 줄을 채운다. 페이지는 별을 세지 않는다.
 - 적용 상태: **2026-09-27 실제 수파베이스에 적용 완료** — 공개 키로 review_done_pct() = 75 확인(당시 시청 기록 0건이라 채움 대상 없음).
 
+## 091 — H WORK 별 +1 중지용 제출 시각 `student_bundle.hwork_submissions[].ts` (2026-11-22)
+- 원장님 "H work 별 +1 중지" → 2026-11-22부터 낸 H WORK 제출은 별로 세지 않는다(그전 별은 그대로). 판정은 화면(s.html·superstar.html·백엔드 `HWORK_STAR_UNTIL`)이 하고, 이 마이그레이션은 `student_bundle`의 hwork_submissions 항목에 제출 시각 `ts` 한 칸만 더한다(090 본문 + ts). 088·090을 다시 돌리면 091도.
+- 적용 전에는 학생 페이지가 ts를 몰라 옛 제출로 보고 그대로 센다(슈퍼스타 관리 랭킹은 표를 직접 읽어 바로 멈춤).
+- **적용 상태: 아직 실제 수파베이스 적용 전**(090과 함께 — 관리 API sbp_ 토큰 필요, 저장하지 않음). 검증 `tools/student-ns-teacher-sql-test.sh`(090·091).
+
+## 090 — 학생 페이지 '담당 선생님' = 내신 진도 반 담당 `student_bundle.me.ns_teacher` (2026-11-22)
+- `migrations/090_student_ns_teacher.sql` — `student_bundle` 다시 정의(088 본문 그대로 + `me.ns_teacher` = 048의 `exam_ns_teacher_(이름)` 값, 함수가 이미 계산하던 `v_nst`). 원장님 2026-10-12 "학생 페이지의 담당 교사 → 담당 선생님. 이 이름을 내신반 담당 선생님으로" → 그때의 049는 머지되지 않았고 번호도 캘린더 기록이 가져가 2026-11-22 "반영"으로 다시 만듦. s.html '내 수업 정보' 줄이 라벨 '담당 선생님'으로 바뀌고 값은 `ns_teacher`를 먼저, 비어 있으면(진도 담당이 둘·명단에 없음·090 전·옛 경로) 종전 `students.teacher`(슈스 링크 담당)를 쓴다. 표·열 변경 없음, 재실행 안전. **088을 다시 돌리면 090도 다시 돌릴 것.**
+- **적용 상태: 아직 실제 수파베이스에 적용 전** — 관리 API(sbp_ 토큰)로 실행해야 한다. 적용 전에는 함수가 `ns_teacher`를 주지 않아 화면이 종전 담당(슈스 링크)으로 폴백한다(라벨만 바뀜). 적용 뒤 확인: 공개 키로 `student_bundle('<접근코드>')`의 `me.ns_teacher`가 그 학생의 내신 진도 반 담당 이름인지, 퇴원생은 종전처럼 `left`만 오는지.
+- 검증: `PGHOST=/home/pgtest PGPORT=5499 PGUSER=postgres bash tools/student-ns-teacher-sql-test.sh`(001~089를 얹고 — 실제 DB 전용 표를 전제한 070·071·072·082와 허브 표 teacher_accounts는 건너뛰거나 흉내 — 090 두 번·진도 담당·둘이면 빈 값·088 퇴원생 가림 유지·anon 권한).
+
 ## 048 — 지필 리포트 담당 선생님 이름 `submissions.teacher_name` (2026-10-12)
 - `migrations/048_report_teacher.sql` — `submissions.teacher_name`(선생님이 [리포트 보내기]를 누를 때 함께 적는 이름, 허브 로그인 이름 자동) + 함수 `exam_ns_teacher_(이름)`(이름이 빈 리포트의 폴백 — 내신 진도 반 담당T, security definer로 tt_classes·students를 읽음, anon 직접 실행 불가) + `student_bundle` 다시 정의(043 본문 + `teacher_name`을 보낸 뒤에만, 비면 폴백). 재실행 안전(add column if not exists).
 - **적용 상태: 2026-10-12 실제 수파베이스에 적용 완료**(관리 API — 원장님이 준 sbp_ 토큰, 저장 안 함. 끝 A만 떼는 수정판으로 다시 실행). 확인: `teacher_name` 열(text)·`exam_ns_teacher_`·`student_bundle` 생김, 보낸 제출 406건의 teacher_name은 전부 비어 있고(048 전) 폴백이 채운다 — 2학기 중간 보낸 리포트 158건 중 157건이 진도 담당 선생님으로 잡힘(은지 40·지원 33·현지 32·덕기 23·현정 17·연주 11·수경 1), 안 잡힌 1건은 이름이 '서지우1'인 제출(이름에 숫자 — 복기 제출 때 잘못 적은 것으로 보임). 1학기 기말 리포트는 내신 명단이 바뀌어 42건이 '담당 선생님'으로만 보인다. 공개 키 student_bundle이 보낸 제출에만 teacher_name을 주고, 공개 키로 `exam_ns_teacher_` 직접 호출은 401.
