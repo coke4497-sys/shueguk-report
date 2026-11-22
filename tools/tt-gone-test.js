@@ -224,10 +224,18 @@ const ok = (n, c, x) => { if (c) pass++; else { fail++; console.log('  ✗ ' + n
   await page.evaluate(() => { weekZoomDay = null; keepScroll = false; render(); });
   await page.waitForSelector('.wk-mini', { timeout: 15000 });
   r = await page.evaluate(() => ({
-    mvd: [...document.querySelectorAll('.wk-mini.mvd')].length,
-    offm: [...document.querySelectorAll('.wk-mini.offm, .wk-mini.wkoffsum')].length }));
+    mvd: [...document.querySelectorAll('.wk-mini.mvd:not(.gonem)')].length,
+    offm: [...document.querySelectorAll('.wk-mini.offm, .wk-mini.wkoffsum')].length,
+    gone: [...document.querySelectorAll('.wk-mini.gonem')].map(e => ({ t: e.textContent, op: getComputedStyle(e).opacity })),
+    keep: ([...document.querySelectorAll('.wk-mini')].find(e => /중2 확인/.test(e.textContent)) || {}).textContent || '' }));
   ok('개요: 이동 미니 카드는 그대로(3개)', r.mvd === 3, String(r.mvd));
   ok('개요: 휴강 표시도 그대로', r.offm >= 1, String(r.offm));
+  ok('개요(2026-11-22): 전원 빠진 고2 확인은 흐린 "사라진 수업" 카드', r.gone.length === 1 && /고2 확인/.test(r.gone[0].t) && /모두 빠짐/.test(r.gone[0].t) && /사라짐/.test(r.gone[0].t) && +r.gone[0].op < 0.7, JSON.stringify(r.gone));
+  ok('개요: 한 명 빠진 반은 인원 "2-1명"', /2-1명/.test(r.keep), r.keep);
+  await page.evaluate(() => [...document.querySelectorAll('.wk-mini.gonem')][0].click());
+  r = await page.evaluate(() => (document.querySelector('#modal') || document.body).textContent);
+  ok('개요: 사라진 카드를 누르면 누가 왜 빠졌는지', /모두 빠졌어요/.test(r) && /김소은/.test(r), r.slice(0, 80));
+  await page.evaluate(() => closeModal());
   await page.close();
 
   /* ④-3 휴대폰 목록 보기는 종전대로 흐린 카드 */

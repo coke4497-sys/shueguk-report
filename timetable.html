@@ -459,6 +459,7 @@
   .blk .stus button.kept{outline:1px dashed rgba(0,0,0,.28);outline-offset:-1px;opacity:.88;}
   .blk .stus button.kept em{font-style:normal;font-size:.66rem;margin-left:3px;opacity:.75;}
   .blk .stus button.away{opacity:.5;}
+  .wk-mini.gonem .gone-why{display:block;color:#B0736A;font-size:.72rem;line-height:1.35;}
   .blk .stus button.away.jbout{text-decoration:line-through;}
   .blk .stus button.away em{font-style:normal;font-size:.66rem;color:var(--accent);margin-left:3px;}
   .blk .empty-note{color:var(--ink-soft);font-size:.72rem;}
@@ -6736,6 +6737,20 @@ function buildWeekOverview(){
       if (off){ pendingOff.push({ c: c, off: off }); return; }
       var m = document.createElement('button');
       m.type = 'button';
+      // 학생이 모두 빠진 수업(직전보강 등) — 개요에서도 '사라진 수업'으로, 누르면 누가 왜 빠졌는지 (2026-11-22 원장님)
+      var gone = emptyAt(c, dstr);
+      if (gone){
+        m.className = 'wk-mini mvd gonem ' + colorOf(c.cls);
+        m.setAttribute('data-cid', c.id);
+        m.innerHTML = '<b><span class="wk-nm">'+wkTeacherTag(c)+esc(c.cls)+'</span>'+jbBadge(c)+'</b><small>'+esc(c.start)+'~'+esc(c.end)+
+                      ' · 학생 '+gone.n+'명 모두 빠짐</small><small class="gone-why">'+esc(emptyReasonText(gone))+'</small>'+
+                      '<span class="sum"><i class="none">사라짐</i></span>';
+        m.title = c.cls + ' — 학생이 모두 빠졌어요 · ' + emptyReasonText(gone) + ' (누르면 자세히)';
+        durHeight(m, c, DUR_PX.week);
+        m.addEventListener('click', function(){ openGoneEmpty(c, dstr, gone, true); });
+        col.appendChild(m);
+        return;
+      }
       var mvd = wkMovedAway(c.id, dstr);
       m.className = 'wk-mini ' + colorOf(c.cls) + (mvd ? ' mvd' : '');
       m.setAttribute('data-cid', c.id);
@@ -6747,7 +6762,7 @@ function buildWeekOverview(){
           (s.cnt['결석'] ? '<i class="abs">'+s.cnt['결석']+'</i>' : '')
         : '<i class="none">—</i>';
       m.innerHTML = '<b><span class="wk-nm">'+wkTeacherTag(c)+esc(c.cls)+'</span>'+jbBadge(c)+'</b><small>'+
-                    (mvd ? '→ '+esc(wkMovedToLabel(mvd)) : esc(c.start)+'~'+esc(c.end)+' · '+c.students.length+'명')+
+                    (mvd ? '→ '+esc(wkMovedToLabel(mvd)) : esc(c.start)+'~'+esc(c.end)+' · '+wkMiniCount(c, dstr))+
                     '</small><span class="sum">'+att+'</span>';
       m.title = mvd ? esc(c.cls) + ' — 이 주는 ' + wkMovedToLabel(mvd) + ' 에서 해요'
                     : esc(c.cls) + ' — 누르면 ' + dname + '요일 확대';
@@ -6764,6 +6779,11 @@ function buildWeekOverview(){
     wrap.appendChild(col);
   });
   return wrap;
+}
+/* 개요 카드 인원 — 그 날 빠진 학생·들어온 학생을 반영('8-3명', '3-1+1명' — 확대 화면 카드와 같은 표기) */
+function wkMiniCount(c, dstr){
+  var st = awayStateOf(c, dstr);
+  return countLabel(c, st.awayOf, st.temps);
 }
 function buildWeekZoom(dname){
   var dates = weekDates();
