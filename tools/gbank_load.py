@@ -104,7 +104,7 @@ def problems(d):
         if i in seen:
             out.append(f'{i}: 문항 번호가 겹칩니다')
         seen.add(i)
-        if it['ans'] not in (1, 2, 3, 4, 5):
+        if it['ans'] not in (1, 2, 3, 4, 5) or it['id'] >= 100000:
             out.append(f'{i}: 정답 {it["ans"]!r} (1~5 아님)')
         if it['lvl'] not in LVL_ORDER:
             out.append(f'{i}: 난도 {it["lvl"]!r}')
@@ -138,7 +138,7 @@ def main():
         for k in range(0, len(rows), 40):
             rest('POST', '/gbank_items?on_conflict=id', rows[k:k + 40], 'resolution=merge-duplicates,return=minimal')
         ids = ','.join(str(it['id']) for it in d['items'])
-        rest('PATCH', f'/gbank_items?id=not.in.({ids})&active=is.true', {'active': False}, 'return=minimal')
+        rest('PATCH', f'/gbank_items?id=lt.100000&id=not.in.({ids})&active=is.true', {'active': False}, 'return=minimal')   # 100000 부터는 슈국 자체 자료(gbank_manual.py)
         print('올렸습니다.')
     elif cmd == 'list':
         rows, off = [], 0
