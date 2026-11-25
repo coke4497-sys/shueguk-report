@@ -579,27 +579,32 @@ const STUDENTS = [
       asg: [{ seq: 1, date: D7, type: '일부', target: '박보검, 김하늘', item: '이수경 / ' + SF, due: FUT },
             { seq: 2, date: D16, type: '일부', target: '최다은', item: '이수경 / ' + SF2, due: '' },
             { seq: 3, date: D7, type: '일부', target: '최다은|서정고|2026 고등 2학년', item: '이수경 / ' + SF3, due: '' },
-            { seq: 4, date: D7, type: '일부', target: '최다은', item: '이수경 / 문장 1권 01', due: '' }],
+            { seq: 4, date: D7, type: '일부', target: '최다은', item: '이수경 / 문장 1권 01', due: '' },
+            { seq: 5, date: D16, type: '일부', target: '김하늘', item: '이수경 / ' + SF2, due: '' }],
       sfSubs: [{ id: 5, ts: '2026-11-01 10:00', teacher: '이수경', code: SF, school: '서정고', grade: '고2', name: '박보검', got: 2, total: 10, detail: {}, review: {} },
                { id: 7, ts: '2026-11-02 10:00', teacher: '이수경', code: SF, school: '화정고', grade: '고2', name: '박보검', got: 9, total: 10,
-                 detail: { '1': { ok: true }, '3': { ok: false } }, review: { '3': { cleared_at: '2026-11-02 10:10' } } }] }));
+                 detail: { '1': { ok: true }, '3': { ok: false } }, review: { '3': { cleared_at: '2026-11-02 10:10' } } },
+               // 마감 지난 과제도 모두 보인다 (2026-11-25 원장님 — 윤진우)
+               { id: 9, ts: ymd(T0) + ' 10:00', teacher: '이수경', code: SF2, school: '화정고', grade: '고2', name: '최다은', got: 30, total: 33, detail: {}, review: {}, review_at: ymd(T0) + ' 10:40' },
+               { id: 11, ts: D16 + ' 10:00', teacher: '이수경', code: SF2, school: '화정고', grade: '고2', name: '김하늘', got: 30, total: 33, detail: {}, review: {} }] }));
     await openCard(page, '고2 가');
     await page.waitForFunction(() => document.querySelector('.cr-sf'), null, { timeout: 8000 }).catch(() => {});
     r = await page.evaluate(() => [...document.querySelectorAll('.cr-card')].map(c => ({ nm: c.querySelector('.cr-top b').textContent,
       tasks: [...c.querySelectorAll('.cr-tname')].map(x => x.textContent), src: (c.querySelector('.cr-src') || {}).textContent || '', items: c.querySelectorAll('.cr-item').length })));
     const cd = n => r.find(x => x.nm === n) || {};
     ok('슈핏: 배정 학생 검사 목록에 H WORK 과제 이름 그대로 + 제출 결과(점수·오답하기 클리어)', cd('박보검').tasks.length === 1 && cd('박보검').tasks[0].indexOf(SF + ' H WORK · 제출 · 9/10점 · 오답하기 클리어 1/1') === 0 && /슈핏 문법 H WORK 과제/.test(cd('박보검').src) && cd('박보검').items === 4, JSON.stringify(r));
-    ok('슈핏: 아직 안 낸 학생은 미제출 표시', cd('김하늘').tasks.join('|') === SF + ' H WORK · 미제출', JSON.stringify(cd('김하늘')));
-    ok('슈핏: 마감 없는 배정은 배정일 + 14일까지만 · 다른 학교 토큰·슈핏이 아닌 과제는 넣지 않음', cd('최다은').tasks.length === 0, JSON.stringify(cd('최다은')));
+    ok('슈핏: 아직 안 낸 학생은 미제출 표시', cd('김하늘').tasks[0] === SF + ' H WORK · 미제출', JSON.stringify(cd('김하늘')));
+    ok('슈핏: 마감 지난 과제·마감 없는 오래된 배정도 보임 · 다른 학교 토큰·슈핏이 아닌 과제는 넣지 않음', cd('최다은').tasks.length === 1 && cd('최다은').tasks[0].indexOf(SF2 + ' H WORK · 제출 · 30/33점') === 0, JSON.stringify(cd('최다은')));
+    ok('슈핏: 마감 지난 과제도 모두 — 김하늘은 두 과제', cd('김하늘').tasks.length === 2, JSON.stringify(cd('김하늘')));
     ok('슈핏: 배정 조회 = H WORK·shuefit', (st.asgGets || []).some(u => /tool=eq\.H WORK/.test(u) && /item=ilike\.\*shuefit\*/.test(u)), JSON.stringify(st.asgGets));
     // 제출했는데 아직 평가하지 않은 H WORK → 이름 옆 빨간 원 숫자(2026-11-19 원장님)
     const dots = () => page.evaluate(() => { const o = {}; document.querySelectorAll('.cr-card, .cr-row').forEach(c => { const b = c.querySelector('b'); o[b.textContent] = (c.querySelector('.cr-nb') || {}).textContent || ''; }); return o; });
     r = await dots();
-    ok('슈핏: 제출했는데 평가 전이면 이름 옆 빨간 원 1 · 안 낸 학생은 없음', r['박보검'] === '1' && r['김하늘'] === '' && r['최다은'] === '', JSON.stringify(r));
+    ok('슈핏: 제출했는데 평가 전이면 이름 옆 빨간 원 1', r['박보검'] === '1' && r['김하늘'] === '1' && r['최다은'] === '1', JSON.stringify(r));
     const iP = await page.evaluate(() => CR.names.map(x => x.p).indexOf('박보검'));
     await page.evaluate(() => { CR_STU_LIST = true; crRender(); });
     r = await dots();
-    ok('슈핏: 학생 목록 줄에도 같은 빨간 원', r['박보검'] === '1' && r['김하늘'] === '', JSON.stringify(r));
+    ok('슈핏: 학생 목록 줄에도 같은 빨간 원', r['박보검'] === '1' && r['김하늘'] === '1', JSON.stringify(r));
     await page.click(`.cr-row[data-sel="${iP}"]`);
     await page.click(`.cr-card [data-star^="${iP}|"]`);
     r = await dots();
