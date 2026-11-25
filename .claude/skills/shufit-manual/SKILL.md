@@ -21,7 +21,20 @@ python3 -I .claude/skills/shufit-manual/scripts/hwp_lines.py <파일.hwp> <hypua
 - 기본 `reading_hwp5.pua_fix`를 끄고 한양 PUA → 조합형 자모(hypua2jamo). 끄지 않으면 ‘’처럼 빈다.
 - PDF 는 `pdftotext -layout`으로 대조용(줄·밑줄·선지 순서 확인). fitz 는 없을 수 있다.
 
-## 2. src.json 쓰기 (손으로 — 스크래치에 src_<번호>.py 로 만들어 json.dump)
+## 2. 초안 만들기 → 고치기 (2026-11-25 4-51·53·54·55 에서 굳힘)
+```bash
+python3 -I .claude/skills/shufit-manual/scripts/draft.py <스크래치>/lines.json <스크래치>/d.json   # 문항 초안
+# 스크래치에 s<번호>.py: from mk import mk; mk(d.json, src.json, meta, 고침표 P, 고친 기록 F)
+#   P = {문항 번호: {'rep': [(옛 글, 새 글)…], 'box': HTML, 'box2': …, 'stem'/'answer'/'opts'/'head'/'rows': …}}
+```
+- mk.py 가 〈보기〉 꺾쇠(‘<보기>’ → ‘〈보기〉’)와 밑줄 ‘않은’ → `<b><u>않은</u></b>`을 맞춘다.
+- **한글 파일에서 빠지는 것 — PDF 를 그림으로 봐야 한다**(`pdftoppm -r 120 -png`): 보기 상자 안의 표(4-51 14번), 줄바꿈이 섞인 〈보기〉(초안은 줄마다 `<p>` — `<br>`로 다시 묶을 것), 빈칸 □·( ㉠ ) 자리, 표 첫 칸에 머리가 없는 표(4-55 18번 — rows 가 밀림).
+- 정답 줄이 ‘[이감]’으로 된 파일도 있다(4-53). draft.py 가 둘 다 읽는다.
+- PDF 글자 층에는 옛한글이 빠진다(4-49). 한글 파일이 없으면 원장님께 한글 파일을 부탁한다.
+- 자주 나온 원문 문제: 해설 끝 잘림(보충하고 fixes 에), 선지·해설의 형태 불일치(‘-ᄉᆞᇦ-’/‘-ᅀᆞᇦ-’), 정답이 둘이 되는 선지, 같은 선지 두 개(고치지 말고 원장님께).
+- **번호 = 장 번호로 칸 나누기**: id_from = 100000 + 100 × (장 − 47) + 1 (4-47 → 100001, 4-51 → 100401, 4-55 → 100801). 나중에 빠진 장을 넣어도 차례가 맞다.
+
+## 2-1. src.json 모양
 ```json
 {"set":"슈국 매뉴얼","src":"슈국 문법 매뉴얼 4-47 · 주격 조사","area":"국어사","lvl":"기본",
  "kind":"슈국","year":"2026","id_from":100001,"fixes":["고친 오타 기록…"],
@@ -49,6 +62,7 @@ python3 -I tools/gbank_manual.py put <스크래치>/out.json                    
   `select id, qtype, ans, answer, src from gbank_items where id between <from> and <to> order by id`
 
 ## 4. 문제지 저장 (원장님이 '문제지 출제'를 원하면)
+- 여러 세트면 관리 API 한 번에: `insert into shufit_papers (teacher,title,ids,author,school) … on conflict (teacher,title) do nothing`.
 - `shufit_papers`에 한 줄: teacher(원장님이면 '이수경')·title(그날 다른 문제지와 같은 꼴 — 예 `[1125]Shuefit 문법: 중세 국어 주격 조사 (20)`)·ids(문항 순서)·print_date·school(모르면 '').
 - 같은 teacher·title 이 있으면 덮어쓸지 먼저 묻는다.
 - 그러면 허브 Shuefit 문법 → [내 문제지함]에서 바로 인쇄·H WORK 출제가 된다(OX → ox, 단답 → essay 예시 답 비교 — 옛한글은 휴대폰으로 칠 수 없어 채점하지 않음).
