@@ -11,11 +11,17 @@ for i, x in enumerate(L):
     if t in ('OX 체크', '실전 공략 훈련'): started = True; continue
     if not started: continue
     if t == '정답과 해설': break
-    if lv == 2 and (t.startswith('¶') or re.match(r'^4-\d+\.', t)): continue
+    if lv == 2 and t.startswith('¶'):
+        # 답 상자의 사본 — 본문 쪽 [정답] 줄이 잘려 있으면 이쪽이 온전하다
+        if items and len(t) > len(items[-1].get('rawans', '')):
+            parts = [q.strip() for q in t.split('¶')]
+            items[-1].update(ansraw=parts[1], good=parts[2] if len(parts) > 2 else '', badraw=' ¶ '.join(parts[3:]), rawans=t)
+        continue
+    if lv == 2 and re.match(r'^4-\d+\.', t): continue
     if re.match(r'^\[(정답|이감)\]', t):
         parts = [p.strip() for p in t.split('¶')]
         cur['ansraw'] = parts[1]; cur['good'] = parts[2] if len(parts) > 2 else ''
-        cur['badraw'] = ' ¶ '.join(parts[3:]); items.append(cur); cur = None; continue
+        cur['badraw'] = ' ¶ '.join(parts[3:]); cur['rawans'] = '¶' + t.split('¶', 1)[1] if '¶' in t else t; items.append(cur); cur = None; continue
     if cur is None:
         cur = {'line': i, 'stem': un(h), 'opts': [], 'box': [], 'cells': [], 'ox': False}; continue
     if t == '(O/X)': cur['ox'] = True; continue
