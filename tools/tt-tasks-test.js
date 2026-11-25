@@ -269,6 +269,9 @@ function makeStore(){
     ok('⑫ 정렬: 지난 날짜 → 오늘 → 내일 → 날짜 없음', r.map(x => x.id).join(',') === '34,33,31,32', JSON.stringify(r));
     ok('⑫ 칩: 오늘은 노랑·지난 날짜는 분홍·내일은 기본, 날짜 없는 줄은 칩 없음',
       /오늘/.test(r[1].due) && /today/.test(r[1].cls) && /지난 날짜/.test(r[0].due) && /past/.test(r[0].cls) && r[2].due.indexOf(md(TMRW)) === 0 && !/today|past/.test(r[2].cls) && r[3].due === '', JSON.stringify(r));
+    // 1010(2026-11-25 김현지T): 어제 남긴 요청이라도 해결할 날이 내일이면 '지난 요청'이 아니다. 날짜 없는 어제 요청은 '지난 요청'
+    r = await page.evaluate(() => { const g = id => document.querySelector('#tk-list .tk-item[data-id="' + id + '"] .carried'); return { a31: !!g(31), a32: !!g(32), sub: (document.querySelector('#tk-sub') || {}).textContent || '' }; });
+    ok('⑫ 미리 남긴 요청(해결할 날 내일)은 지난 요청 표시 없음, 날짜 없는 어제 요청은 있음', !r.a31 && r.a32, JSON.stringify(r));
     await ctx.close();
   }
 
