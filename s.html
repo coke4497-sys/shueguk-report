@@ -3533,7 +3533,7 @@ function renderHomework(keepScroll){
     var base = 'https://coke4497-sys.github.io/shueguk-h-work/hwork.html';
     // 안 푼 과제 먼저, 제출 완료는 아래로
     var todo = hwOldFirst(hs.filter(function(h){ return !h.done; }));
-    var ordered = todo.concat(hwBookSort(hs.filter(function(h){ return h.done; })));
+    var ordered = todo.concat(hwOldFirst(hs.filter(function(h){ return h.done; })));
     /* 같은 단원으로 나뉜 과제(제목의 마지막 ' · ' 앞이 같고 강사가 같음, 2개 이상)는 단원 카드 하나로 묶는다 (2026-11-21 원장님) */
     var gkOf = function(h){ var c = String(h.code||''), i = c.lastIndexOf(' · '); return i > 0 ? (h.teacher||'') + '\t' + c.slice(0, i) : ''; };
     var gcnt = {}; ordered.forEach(function(h){ var k = gkOf(h); if(k) gcnt[k] = (gcnt[k]||0) + 1; });
