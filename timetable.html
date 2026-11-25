@@ -9720,7 +9720,7 @@ function crRowTasks(r, nm){
  * 그 학생에게 맞고 배정일 ≤ 수업일 ≤ 마감일(없으면 배정일 + 14일)이면 그 수업의 검사 목록에 H WORK 과제 이름 그대로 넣는다
  * (학생 페이지의 '수업에서 확인한 H WORK는 목록에서 뺀다' 규칙과 이어지게). 옆에 제출 결과(점수·오답하기 클리어) 표시,
  * 수행 평가는 선생님이 매긴다. 배정 판정 = s.html noticeMatches, 제출 = 이름(끝 알파벳 뗌)+학년 숫자+학교 — 학교가 다르면 잇지 않는다. */
-var CR_SF_RE = /shuefit/i, CR_SF_DAYS = 14;
+var CR_SF_RE = /shuefit/i;
 function crSfTr(v){ return String(v == null ? '' : v).trim(); }
 function crSfGd(s){ s = String(s || '').replace(/\s+/g, ''); var m = s.match(/([1-3])학년/) || s.match(/[고중초]([1-6])/); if (m) return m[1]; var a = s.match(/[1-6]/g); return a ? a[a.length - 1] : ''; }
 function crSfLv(s){ s = String(s || ''); return /고/.test(s) ? '고' : /중/.test(s) ? '중' : /초/.test(s) ? '초' : ''; }
@@ -9772,20 +9772,23 @@ function crSfYmd(v, base){   // '2026-11-24' · 'Tue Nov 24' · Date 문자열 �
   return '';
 }
 function crSfAddDays(ymd, n){ var d = new Date(ymd + 'T00:00:00'); d.setDate(d.getDate() + n); return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); }
+function crSfAll(path){   // 1000줄씩 끝까지 — 마감 지난 과제까지 모두 읽으므로
+  var out = [];
+  function step(off){ return crGet(path + '&limit=1000&offset=' + off).then(function(rows){ out = out.concat(rows || []); return (rows || []).length === 1000 ? step(off + 1000) : out; }); }
+  return step(0);
+}
 function crSfLoad(ymd){
-  var from = crSfAddDays(ymd, -70);
   return Promise.all([
-    crGet('/assignments?tool=eq.' + encodeURIComponent('H WORK') + '&item=ilike.*shuefit*&select=seq,date,type,target,item,due&order=seq.asc'),
-    crGet('/hwork_submissions?code=ilike.*shuefit*&ts=gte.' + from + '&select=id,ts,teacher,code,school,grade,name,got,total,detail,review,review_at&order=id.asc')
+    crSfAll('/assignments?tool=eq.' + encodeURIComponent('H WORK') + '&item=ilike.*shuefit*&select=seq,date,type,target,item,due&order=seq.asc'),
+    crSfAll('/hwork_submissions?code=ilike.*shuefit*&select=id,ts,teacher,code,school,grade,name,got,total,detail,review,review_at,check_done&order=id.asc')
   ]).then(function(r){ return { asg: r[0] || [], subs: r[1] || [] }; });
 }
 function crSfApply(data, ymd){   // CR.sf = {접근코드: [{code, teacher, due, sub}]}
   CR.sf = {}; if (!data) return;
+  // 배정일 ≤ 수업일인 과제 모두 — 마감이 지난 과제도 넣는다 (2026-11-25 원장님 "마감이 지난 과제도 모두 확인할 수 있어야해요")
   var asg = data.asg.filter(function(a){
     if (!CR_SF_RE.test(a.item || '')) return false;
-    var d = crSfYmd(a.date); if (!d || d > ymd) return false;
-    var due = crSfYmd(a.due, d) || crSfAddDays(d, CR_SF_DAYS);
-    return ymd <= due;
+    var d = crSfYmd(a.date); return !!d && d <= ymd;
   });
   if (!asg.length) return;
   CR.names.forEach(function(x){
