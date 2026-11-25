@@ -89,6 +89,19 @@ const RT = [{ id: 5, teacher: '이현지', code: '[테스트] 문장 1회', n: 2
   ok('세부 문제지 — 구간 이름·제출 여부·바로 열기', g.parts.length === 3 && g.parts[0].t.startsWith('01 OX 쉬움') && g.parts[0].d && /&done=1$/.test(g.parts[0].h) && /hwork\.html\?c=/.test(g.parts[1].h), JSON.stringify(g.parts));
   ok('세부 문제지 줄 전체가 링크 (2026-11-22)', g.parts.every(p => p.whole), JSON.stringify(g.parts.map(p => p.whole)));
   ok('낱개 카드 전체가 링크 — 안 낸 과제는 풀러 가기, 낸 과제는 오답하기', g.cards.length === 2 && g.cards.every(c => c.whole && /hwork\.html\?c=/.test(c.h)) && g.cards.some(c => !c.done && !/&done=1/.test(c.h) && /풀러 가기/.test(c.t)) && g.cards.some(c => c.done && /&done=1/.test(c.h)) && !g.cards.some(c => c.inner), JSON.stringify(g.cards));
+  // 안 낸 과제는 배정이 오래된 것부터 (2026-11-25 원장님)
+  const ord = await pg.evaluate(() => {
+    STATE.hwqa = []; STATE.hwrt = [];
+    STATE.homework = [   // 들어오는 차례는 최근 배정 먼저
+      { teacher: '이수경', code: '새 과제 C', date: '2026-11-25', done: false },
+      { teacher: '이수경', code: '같은 날 과제 B2', date: '2026-11-20', done: false },
+      { teacher: '이수경', code: '같은 날 과제 B1', date: '2026-11-20', done: false },
+      { teacher: '이수경', code: '낸 과제 Z', date: '2026-11-01', done: true },
+      { teacher: '이수경', code: '오래된 과제 A', date: '2026-11-10', done: false } ];
+    renderHomework();
+    return [...document.querySelectorAll('#homeworkList > .notice-item .ntitle')].map(e => e.textContent.replace(/^이수경 · /, ''));
+  });
+  ok('안 낸 과제는 오래된 배정부터 · 같은 날은 먼저 배정한 것 · 낸 과제는 아래', JSON.stringify(ord) === JSON.stringify(['오래된 과제 A', '같은 날 과제 B1', '같은 날 과제 B2', '새 과제 C', '낸 과제 Z']), JSON.stringify(ord));
   await br.close(); srv.close();
   console.log(`통과 ${pass} · 실패 ${fail}`); process.exit(fail ? 1 : 0);
 })().catch(e => { console.error(e); process.exit(1); });

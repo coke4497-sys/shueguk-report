@@ -3504,6 +3504,18 @@ function hwKwTitle(text, code){
   var re = new RegExp(w.re.source);
   return '<span class="hwk k'+w.c+'">'+esc(w.k)+'</span>' + h.replace(re, function(m){ return '<mark class="hwm k'+w.c+'">'+m+'</mark>'; });
 }
+/* 안 낸 과제는 배정이 오래된 것부터 (2026-11-25 원장님 "학생들이 h work를 열면 가장 오래된 과제가 제일 먼저 위에").
+ * 배정일(date)이 같으면 둘 다 교재 과제일 때 교재 순서(hwBookSort), 아니면 들어온 차례(목록은 최근 배정 먼저 오므로 뒤쪽이 더 오래된 것). */
+function hwDateNum(s){
+  var m = String(s||'').match(/(\d{4})\D+(\d{1,2})\D+(\d{1,2})(?:\D+(\d{1,2}):(\d{2}))?/);
+  return m ? ((+m[1])*1e8 + (+m[2])*1e6 + (+m[3])*1e4 + (+(m[4]||0))*100 + (+(m[5]||0))) : Infinity;
+}
+function hwOldFirst(arr){
+  var bk = hwBookSort(arr), pos = {}; bk.forEach(function(h, i){ pos[arr.indexOf(h)] = i; });
+  return arr.map(function(h, i){ return { h:h, i:i, d:hwDateNum(h.date), b:pos[i], k:!!hwBookKey(h.code) }; })
+    .sort(function(x, y){ return x.d !== y.d ? (x.d < y.d ? -1 : 1) : (x.k && y.k && x.b !== y.b ? x.b - y.b : y.i - x.i); })
+    .map(function(x){ return x.h; });
+}
 var HW_GOPEN = {};   // 펼친 단원(이 화면에서만)
 function hwGroupToggle(btn){
   var box = btn.closest('.hw-grp'); if(!box) return;
@@ -3520,7 +3532,7 @@ function renderHomework(keepScroll){
   } else {
     var base = 'https://coke4497-sys.github.io/shueguk-h-work/hwork.html';
     // 안 푼 과제 먼저, 제출 완료는 아래로
-    var todo = hwBookSort(hs.filter(function(h){ return !h.done; }));
+    var todo = hwOldFirst(hs.filter(function(h){ return !h.done; }));
     var ordered = todo.concat(hwBookSort(hs.filter(function(h){ return h.done; })));
     /* 같은 단원으로 나뉜 과제(제목의 마지막 ' · ' 앞이 같고 강사가 같음, 2개 이상)는 단원 카드 하나로 묶는다 (2026-11-21 원장님) */
     var gkOf = function(h){ var c = String(h.code||''), i = c.lastIndexOf(' · '); return i > 0 ? (h.teacher||'') + '\t' + c.slice(0, i) : ''; };
