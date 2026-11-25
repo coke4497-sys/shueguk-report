@@ -96,12 +96,13 @@ const RT = [{ id: 5, teacher: '이현지', code: '[테스트] 문장 1회', n: 2
       { teacher: '이수경', code: '새 과제 C', date: '2026-11-25', done: false },
       { teacher: '이수경', code: '같은 날 과제 B2', date: '2026-11-20', done: false },
       { teacher: '이수경', code: '같은 날 과제 B1', date: '2026-11-20', done: false },
+      { teacher: '이수경', code: '낸 과제 Y', date: '2026-11-12', done: true },
       { teacher: '이수경', code: '낸 과제 Z', date: '2026-11-01', done: true },
       { teacher: '이수경', code: '오래된 과제 A', date: '2026-11-10', done: false } ];
     renderHomework();
     return [...document.querySelectorAll('#homeworkList > .notice-item .ntitle')].map(e => e.textContent.replace(/^이수경 · /, ''));
   });
-  ok('안 낸 과제는 오래된 배정부터 · 같은 날은 먼저 배정한 것 · 낸 과제는 아래', JSON.stringify(ord) === JSON.stringify(['오래된 과제 A', '같은 날 과제 B1', '같은 날 과제 B2', '새 과제 C', '낸 과제 Z']), JSON.stringify(ord));
+  ok('안 낸 과제는 오래된 배정부터 · 같은 날은 먼저 배정한 것 · 낸 과제도 아래에 오래된 배정부터', JSON.stringify(ord) === JSON.stringify(['오래된 과제 A', '같은 날 과제 B1', '같은 날 과제 B2', '새 과제 C', '낸 과제 Z', '낸 과제 Y']), JSON.stringify(ord));
   await br.close(); srv.close();
   console.log(`통과 ${pass} · 실패 ${fail}`); process.exit(fail ? 1 : 0);
 })().catch(e => { console.error(e); process.exit(1); });
