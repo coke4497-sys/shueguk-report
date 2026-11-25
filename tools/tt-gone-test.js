@@ -53,7 +53,7 @@ const LOGS = [
   { row: 4, kind: '주간반휴강', date: TS, ymd: TS, student: '', fromId: 'r09', toId: '', reason: '시험 주간' },
   { row: 5, kind: '주간빼기', date: TS, ymd: TS, student: '김소은(화정)', fromId: 'r11', toId: '', reason: '10/8 목4:00-7:00' },
   { row: 6, kind: '주간빼기', date: TS, ymd: TS, student: '채정후(화정)', fromId: 'r11', toId: '', reason: '10/8 목4:00-7:00' },
-  { row: 7, kind: '주간빼기', date: TS, ymd: TS, student: '문준승', fromId: 'r12', toId: '', reason: '시험 전 미리 진행' },
+  { row: 7, kind: '주간빼기', date: TS, ymd: TS, student: '문준승', fromId: 'r12', toId: '', reason: '직전보강으로 이동 (12/3)' },
 ];
 let pass = 0, fail = 0;
 const ok = (n, c, x) => { if (c) pass++; else { fail++; console.log('  ✗ ' + n + (x ? ' — ' + x : '')); } };
@@ -130,6 +130,11 @@ const ok = (n, c, x) => { if (c) pass++; else { fail++; console.log('  ✗ ' + n
   ok('⑤ 오늘: 전원 빠진 반은 카드 대신 "사라진 1"', r.has && r.t === '사라진 1' && /전원 빠짐/.test(r.title), JSON.stringify([r.t, r.title]));
   ok('⑤ 오늘: 버튼이 같은 칸 4:00~7:00 수업 카드 안 맨 위', r.inblk && r.first && /고2 화정A/.test(r.host), JSON.stringify([r.inblk, r.first, r.host]));
   ok('⑤ 오늘: 4:00~7:00 수업이 열 폭을 그대로 쓴다(반으로 안 나뉨)', r.live > r.cell * 0.9, JSON.stringify([r.live, r.cell]));
+  {
+    const jb = await page.evaluate(() => { const b = [...document.querySelectorAll('.stus button.away')].find(x => /문준승/.test(x.textContent));
+      return b ? { jb: b.classList.contains('jbout'), title: b.title, deco: getComputedStyle(b).textDecorationLine, em: !!b.querySelector('em') } : null; });
+    ok('⑤-2 직전보강으로 빠진 학생: 가로줄 · 마우스를 올리면 사유만', !!jb && jb.jb && /line-through/.test(jb.deco) && jb.title === '직전보강으로 이동 (12/3)' && !jb.em, JSON.stringify(jb));
+  }
   ok('⑤ 오늘: 한 명이라도 남으면 카드 유지(빠진 칩 1 · 전체 2)', r.keep && r.keepAway === 1 && r.keepAll === 2, JSON.stringify([r.keep, r.keepAway, r.keepAll]));
   ok('⑥ 오늘: 다른 날짜 "이 주만" 반은 열을 만들지 않음(은지 본원 없음)', !r.heads.some(h => /은지/.test(h) && /본원/.test(h)) && r.heads.some(h => /은지/.test(h) && /정리정독/.test(h)), JSON.stringify(r.heads));
   await page.evaluate(() => [...document.querySelectorAll('.gonebtn')].find(x => /고2 확인/.test(x.title)).click());
@@ -219,13 +224,21 @@ const ok = (n, c, x) => { if (c) pass++; else { fail++; console.log('  ✗ ' + n
   await page.evaluate(() => { weekZoomDay = null; keepScroll = false; render(); });
   await page.waitForSelector('.wk-mini', { timeout: 15000 });
   r = await page.evaluate(() => ({
-    mvd: [...document.querySelectorAll('.wk-mini.mvd')].length,
-    offm: [...document.querySelectorAll('.wk-mini.offm, .wk-mini.wkoffsum')].length }));
+    mvd: [...document.querySelectorAll('.wk-mini.mvd:not(.gonem)')].length,
+    offm: [...document.querySelectorAll('.wk-mini.offm, .wk-mini.wkoffsum')].length,
+    gone: [...document.querySelectorAll('.wk-mini.gonem')].map(e => ({ t: e.textContent, op: getComputedStyle(e).opacity })),
+    keep: ([...document.querySelectorAll('.wk-mini')].find(e => /중2 확인/.test(e.textContent)) || {}).textContent || '' }));
   ok('개요: 이동 미니 카드는 그대로(3개)', r.mvd === 3, String(r.mvd));
   ok('개요: 휴강 표시도 그대로', r.offm >= 1, String(r.offm));
+  ok('개요(2026-11-22): 전원 빠진 고2 확인은 흐린 "사라진 수업" 카드', r.gone.length === 1 && /고2 확인/.test(r.gone[0].t) && /모두 빠짐/.test(r.gone[0].t) && /사라짐/.test(r.gone[0].t) && +r.gone[0].op < 0.7, JSON.stringify(r.gone));
+  ok('개요: 한 명 빠진 반은 인원 "2-1명"', /2-1명/.test(r.keep), r.keep);
+  await page.evaluate(() => [...document.querySelectorAll('.wk-mini.gonem')][0].click());
+  r = await page.evaluate(() => (document.querySelector('#modal') || document.body).textContent);
+  ok('개요: 사라진 카드를 누르면 누가 왜 빠졌는지', /모두 빠졌어요/.test(r) && /김소은/.test(r), r.slice(0, 80));
+  await page.evaluate(() => closeModal());
   await page.close();
 
-  /* ④-3 휴대폰 목록 보기는 종전대로 흐린 카드 */
+  /* ④-3 휴대폰 목록 보기 — 휴강·이동은 흐린 카드, 전원 빠짐은 흐린 '사라짐' 카드 */
   const narrow = await b.newContext({ viewport: { width: 420, height: 860 }, timezoneId: 'Asia/Seoul' });
   await narrow.route(/script\.google\.com|supabase\.co|googleusercontent/, r2 => r2.fulfill({ status: 200, contentType: 'application/json', body: '{"result":"error"}' }));
   await narrow.route(/fonts\.g/, r2 => r2.abort());
@@ -238,6 +251,11 @@ const ok = (n, c, x) => { if (c) pass++; else { fail++; console.log('  ✗ ' + n
   r = await page.evaluate(() => ({ card: [...document.querySelectorAll('.daylist .blk')].some(e => /정리정독 중2/.test(e.textContent)),
     btn: [...document.querySelectorAll('.daylist .gonebtn.inlist')].map(e => e.title) }));
   ok('⑦ 휴대폰 목록: 빈 명단 반은 카드 없이 작은 버튼', !r.card && r.btn.length === 1 && /정리정독 중2/.test(r.btn[0]), JSON.stringify(r));
+  r = await page.evaluate(() => [...document.querySelectorAll('.daylist .blk.gonel')].map(e => ({ t: e.textContent, op: getComputedStyle(e).opacity })));
+  ok('휴대폰 목록(2026-11-22): 전원 빠진 고2 확인은 흐린 "사라짐" 카드', r.length === 1 && /고2 확인/.test(r[0].t) && /사라짐/.test(r[0].t) && /2명 모두 빠짐/.test(r[0].t) && +r[0].op < 0.7, JSON.stringify(r));
+  await page.evaluate(() => document.querySelector('.daylist .blk.gonel').click());
+  r = await page.evaluate(() => (document.querySelector('#modal') || document.body).textContent);
+  ok('휴대폰 목록: 사라짐 카드를 누르면 빠진 학생', /모두 빠졌어요/.test(r) && /김소은/.test(r), r.slice(0, 80));
   await page.close();
 
   /* ⑦ 오늘 그리드: 빈 명단 반 = 작은 버튼, 누르면 그 반 */

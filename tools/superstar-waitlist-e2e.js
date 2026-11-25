@@ -361,6 +361,25 @@ function serve(){
   r = await pg.evaluate(() => document.querySelectorAll('#wtFilt button[data-f="fg"].on').length === 1 && document.querySelector('#wtFilt button[data-f="fg"].on').getAttribute('data-v') === '');
   ok('[전체]를 누르면 학년 고르기가 모두 풀림', r);
 
+  // ⑦-9 이름 찾기(2026-11-12 원장님 "대기생 이름을 검색할 수 있도록")
+  await pg.evaluate(() => wtSetKind('예비'));
+  await pg.fill('#wtQ', '늦은');
+  r = await pg.evaluate(() => ({ n: document.querySelectorAll('#wtList .wt-row').length, nm: [...document.querySelectorAll('#wtList .wt-row .wt-l1 b')].map(b => b.textContent), mark: (document.querySelector('#wtList .wt-row mark') || {}).textContent || '', note: document.getElementById('wtQNote').textContent, x: !document.getElementById('wtQx').hidden, foc: document.activeElement.id }));
+  ok('이름 일부로 찾으면 그 학생만 · 찾은 글자 표시 · 입력칸 그대로', r.nm.length >= 1 && r.nm.every(n => n.includes('늦은')) && r.mark === '늦은' && /찾은 결과/.test(r.note) && r.x && r.foc === 'wtQ', JSON.stringify(r));
+  await pg.fill('#wtQ', '5666');
+  r = await pg.evaluate(() => [...document.querySelectorAll('#wtList .wt-row .wt-l1 b')].map(b => b.textContent));
+  ok('연락처 뒤 4자리로도 찾음', r.length === 1 && r[0] === '늦은대기', JSON.stringify(r));
+  await pg.fill('#wtQ', '김하늘');
+  r = await pg.evaluate(() => ({ n: document.querySelectorAll('#wtList .wt-row').length, note: document.getElementById('wtQNote').textContent }));
+  ok('다른 명단(재원)에 있으면 알려 줌', r.n === 0 && /재원 슈스 반 이동 대기 명단에도 1명/.test(r.note), JSON.stringify(r));
+  await pg.click('#wtQNote button[data-kind]');
+  r = await pg.evaluate(() => [...document.querySelectorAll('#wtList .wt-row .wt-l1 b')].map(b => b.textContent));
+  ok('알림을 누르면 그 명단으로 넘어가 찾은 학생이 보임', r.length === 1 && r[0] === '김하늘', JSON.stringify(r));
+  await pg.click('#wtQx');
+  r = await pg.evaluate(() => ({ q: document.getElementById('wtQ').value, note: document.getElementById('wtQNote').textContent, x: document.getElementById('wtQx').hidden }));
+  ok('[지우기]로 찾기를 풂', r.q === '' && r.note === '' && r.x, JSON.stringify(r));
+  await pg.evaluate(() => wtSetKind('예비'));
+
   // ⑧ 표 없음(마이그레이션 전)
   wlMissing = true;
   await pg.click('#wtListCard .wt-head .bt .wt-pill:last-child');

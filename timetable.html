@@ -459,6 +459,8 @@
   .blk .stus button.kept{outline:1px dashed rgba(0,0,0,.28);outline-offset:-1px;opacity:.88;}
   .blk .stus button.kept em{font-style:normal;font-size:.66rem;margin-left:3px;opacity:.75;}
   .blk .stus button.away{opacity:.5;}
+  .wk-mini.gonem .gone-why{display:block;color:#B0736A;font-size:.72rem;line-height:1.35;}
+  .blk .stus button.away.jbout{text-decoration:line-through;}
   .blk .stus button.away em{font-style:normal;font-size:.66rem;color:var(--accent);margin-left:3px;}
   .blk .empty-note{color:var(--ink-soft);font-size:.72rem;}
   /* 도구 버튼(전체 출석·숙제 검사 등)은 은은한 세이지 톤 + 진초록 굵은 글자 + 아래 구분선 —
@@ -5121,15 +5123,13 @@ function blockEl(c, forList){
       // 지각은 이름 옆 글자 대신 색으로만 구분, 세부는 마우스 호버·출석 창에서 (공간 확보, 2026-08-20 사용자 확정)
       if (a && a.status==='지각') tp.push('지각' + (a.memo ? ' — ' + a.memo : ''));
       else if (a && a.memo) tp.push(a.memo);
-      else if (away) tp.push(awayOf[plain].kind === '주간빼기'
-        ? ('이 주만 빠짐' + (awayOf[plain].reason ? ' — ' + awayOf[plain].reason : ''))
-        : ('이 주 1회 이동: ' + awayOf[plain].label));
+      else if (away) tp.push(awayTip(awayOf[plain]));
       var tk = viewIsToday() ? tkByName[plainName(nm)] : null;   // 이 학생에게 걸린 할 일(2026-10-08) — 오늘 화면에서만 — 붉은 점 + 설명. 앞 괄호(학교 구분)도 뗀 이름으로 저장돼 있다
       if (tk) tp.push('할 일: ' + tk.text + (tk.author ? ' (' + tk.author + ')' : ''));
-      return '<button data-att-cid="'+esc(c.id)+'" data-nm="'+esc(nm)+'" class="'+cls2+(away?' away':'')+(tk?' task':'')+'"'+
+      return '<button data-att-cid="'+esc(c.id)+'" data-nm="'+esc(nm)+'" class="'+cls2+(away?' away'+(awayJb(awayOf[plain])?' jbout':''):'')+(tk?' task':'')+'"'+
              (away ? ' data-away-row="'+awayOf[plain].row+'"' : '')+
              (tp.length ? ' title="'+esc(tp.join(' · '))+'"' : '')+'>'+
-             esc(plain)+(away ? (awayOf[plain].kind === '주간빼기' ? '<em>이 주 빠짐</em>' : '<em>1회↗</em>') : '')+'</button>';   // 앞날 1회 이동 예약 표시는 없앴다(2026-10-24 원장님 "예약 기능 삭제" — 이동은 적용일 칸에만 보인다)
+             esc(plain)+(away ? (awayJb(awayOf[plain]) ? '' : awayOf[plain].kind === '주간빼기' ? '<em>이 주 빠짐</em>' : '<em>1회↗</em>') : '')+'</button>';   // 앞날 1회 이동 예약 표시는 없앴다(2026-10-24 원장님 "예약 기능 삭제" — 이동은 적용일 칸에만 보인다)
     });
     chips += temps.sort(function(a,b){ return a.student.localeCompare(b.student,'ko'); }).map(function(o){
       var a = attend[attKey(c.id, o.student)];
@@ -5431,6 +5431,18 @@ function mviewToggleBtn(){
   return tg;
 }
 /* 구역(정리정독→화정센터→민트초코→본원)별로 묶고 구역 안에서 시간순 정렬한 카드 목록 */
+/* 휴대폰 목록 — 학생이 모두 빠진 수업(직전보강 등)은 흐린 '사라짐' 카드, 누르면 누가 왜 빠졌는지 (2026-11-22 원장님) */
+function goneListCard(c, dstr, gone, canManage){
+  var b = document.createElement('div');
+  b.className = 'blk ' + colorOf(c.cls) + (c.wk ? ' wkonly' : '') + ' wkoff gonel';
+  b.setAttribute('data-cid', c.id);
+  b.innerHTML = '<div class="bt"><span class="nm">'+esc(c.cls)+jbBadge(c)+' <em class="wkflag">사라짐</em></span>'+
+                '<small>'+esc(c.start)+'~'+esc(c.end)+' · '+esc(c.teacher)+'T'+(c.loc ? ' · '+esc(c.loc) : '')+'</small></div>'+
+                '<div class="stus"><span class="empty-note">학생 '+gone.n+'명 모두 빠짐 — '+esc(emptyReasonText(gone))+'</span></div>';
+  b.title = c.cls + ' — 학생이 모두 빠졌어요 (누르면 자세히)';
+  b.addEventListener('click', function(e){ e.stopPropagation(); openGoneEmpty(c, dstr, gone, canManage); });
+  return b;
+}
 function locGroupList(list, makeCard, offCtx){
   var box = document.createElement('div');
   box.className = 'daylist';
@@ -5476,6 +5488,8 @@ function locGroupList(list, makeCard, offCtx){
       box.appendChild(gb);
       return;
     }
+    var gone = offCtx ? emptyAt(c, offCtx.dstr) : null;
+    if (gone){ box.appendChild(goneListCard(c, offCtx.dstr, gone, offCtx.canManage)); return; }   // 전원 빠짐 — 흐린 '사라짐' 카드 (2026-11-22)
     box.appendChild(makeCard(c));
   });
   flushOff();
@@ -5573,6 +5587,12 @@ function goneInfo(c, dstr){
   if (em) return { kind: '전원 빠짐', info: em };
   if (noRosterAt(c, dstr)) return { kind: '명단 없음', info: {} };   // 2026-11-04 — 작은 버튼, 누르면 그 반
   return null;
+}
+/* 직전보강으로 빠진 학생(2026-11-22 원장님) — 이름에 가로줄, 마우스를 올리면 사유('직전보강으로 이동 (12/3)')만 */
+function awayJb(o){ return !!o && o.kind === '주간빼기' && /직전보강|직보/.test(String(o.reason || '')); }
+function awayTip(o){
+  if (awayJb(o)) return String(o.reason);
+  return o.kind === '주간빼기' ? ('이 주만 빠짐' + (o.reason ? ' — ' + o.reason : '')) : ('이 주 1회 이동: ' + o.label);
 }
 /* 명단 전원이 '이 주 빠짐'·'1회 이동'으로 빠지고 들어온 학생도 없는 수업 — 학생이 한 명도 없으니
  * 없어진 수업과 같다. 카드로 두면 같은 칸의 실제 수업과 폭을 나눠 가져 글자를 못 읽는다
@@ -5827,13 +5847,11 @@ function weekBlockEl(c, dstr, forList){
     if (note) tp.push(note);
     if (a && a.status==='지각') tp.push('지각' + (a.memo ? ' — ' + a.memo : ''));
     else if (a && a.memo) tp.push(a.memo);
-    else if (away) tp.push(awayOf[plain].kind === '주간빼기'
-      ? ('이 주만 빠짐' + (awayOf[plain].reason ? ' — ' + awayOf[plain].reason : ''))
-      : ('이 주 1회 이동: ' + awayOf[plain].label));
-    return '<button data-nm="'+esc(nm)+'" class="'+cls2+(away?' away':'')+'"'+
+    else if (away) tp.push(awayTip(awayOf[plain]));
+    return '<button data-nm="'+esc(nm)+'" class="'+cls2+(away?' away'+(awayJb(awayOf[plain])?' jbout':''):'')+'"'+
            (away ? ' data-away-row="'+awayOf[plain].row+'"' : '')+
            (tp.length ? ' title="'+esc(tp.join(' · '))+'"' : '')+'>'+
-           esc(plain)+(away ? (awayOf[plain].kind === '주간빼기' ? '<em>이 주 빠짐</em>' : '<em>1회↗</em>') : '')+'</button>';
+           esc(plain)+(away ? (awayJb(awayOf[plain]) ? '' : awayOf[plain].kind === '주간빼기' ? '<em>이 주 빠짐</em>' : '<em>1회↗</em>') : '')+'</button>';
   });
   chips += temps.sort(function(a,b){ return a.student.localeCompare(b.student,'ko'); }).map(function(o){
     var a = weekAttend[wkAttKey(dstr, c.id, o.student)];
@@ -6733,6 +6751,20 @@ function buildWeekOverview(){
       if (off){ pendingOff.push({ c: c, off: off }); return; }
       var m = document.createElement('button');
       m.type = 'button';
+      // 학생이 모두 빠진 수업(직전보강 등) — 개요에서도 '사라진 수업'으로, 누르면 누가 왜 빠졌는지 (2026-11-22 원장님)
+      var gone = emptyAt(c, dstr);
+      if (gone){
+        m.className = 'wk-mini mvd gonem ' + colorOf(c.cls);
+        m.setAttribute('data-cid', c.id);
+        m.innerHTML = '<b><span class="wk-nm">'+wkTeacherTag(c)+esc(c.cls)+'</span>'+jbBadge(c)+'</b><small>'+esc(c.start)+'~'+esc(c.end)+
+                      ' · 학생 '+gone.n+'명 모두 빠짐</small><small class="gone-why">'+esc(emptyReasonText(gone))+'</small>'+
+                      '<span class="sum"><i class="none">사라짐</i></span>';
+        m.title = c.cls + ' — 학생이 모두 빠졌어요 · ' + emptyReasonText(gone) + ' (누르면 자세히)';
+        durHeight(m, c, DUR_PX.week);
+        m.addEventListener('click', function(){ openGoneEmpty(c, dstr, gone, true); });
+        col.appendChild(m);
+        return;
+      }
       var mvd = wkMovedAway(c.id, dstr);
       m.className = 'wk-mini ' + colorOf(c.cls) + (mvd ? ' mvd' : '');
       m.setAttribute('data-cid', c.id);
@@ -6744,7 +6776,7 @@ function buildWeekOverview(){
           (s.cnt['결석'] ? '<i class="abs">'+s.cnt['결석']+'</i>' : '')
         : '<i class="none">—</i>';
       m.innerHTML = '<b><span class="wk-nm">'+wkTeacherTag(c)+esc(c.cls)+'</span>'+jbBadge(c)+'</b><small>'+
-                    (mvd ? '→ '+esc(wkMovedToLabel(mvd)) : esc(c.start)+'~'+esc(c.end)+' · '+c.students.length+'명')+
+                    (mvd ? '→ '+esc(wkMovedToLabel(mvd)) : esc(c.start)+'~'+esc(c.end)+' · '+wkMiniCount(c, dstr))+
                     '</small><span class="sum">'+att+'</span>';
       m.title = mvd ? esc(c.cls) + ' — 이 주는 ' + wkMovedToLabel(mvd) + ' 에서 해요'
                     : esc(c.cls) + ' — 누르면 ' + dname + '요일 확대';
@@ -6761,6 +6793,11 @@ function buildWeekOverview(){
     wrap.appendChild(col);
   });
   return wrap;
+}
+/* 개요 카드 인원 — 그 날 빠진 학생·들어온 학생을 반영('8-3명', '3-1+1명' — 확대 화면 카드와 같은 표기) */
+function wkMiniCount(c, dstr){
+  var st = awayStateOf(c, dstr);
+  return countLabel(c, st.awayOf, st.temps);
 }
 function buildWeekZoom(dname){
   var dates = weekDates();
