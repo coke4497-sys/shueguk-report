@@ -86,7 +86,7 @@ const RT = [{ id: 5, teacher: '이현지', code: '[테스트] 문장 1회', n: 2
   ok('단원 카드는 두 개 이상 나뉜 단원만 (하나뿐인 단원은 그대로)', g.n === 1 && g.singles.length === 2, JSON.stringify(g.singles));
   ok('단원 카드 — 이름 · 문제지 수 · 남은 수', /문화를 담은 건축물/.test(g.head) && /문제지 3개/.test(g.head) && /남은 2개/.test(g.head), g.head);
   ok('처음엔 접혀 있고 누르면 세부 문제지', g.before === 'none' && g.after === 'block', g.before + '→' + g.after);
-  ok('세부 문제지 — 구간 이름·제출 여부·바로 열기', g.parts.length === 3 && g.parts[0].t.startsWith('01 OX 쉬움') && g.parts[0].d && /&done=1$/.test(g.parts[0].h) && /hwork\.html\?c=/.test(g.parts[1].h), JSON.stringify(g.parts));
+  ok('세부 문제지 — 구간 이름·제출 여부·바로 열기', g.parts.length === 3 && g.parts[0].t.startsWith('01 OX 쉬움') && g.parts[0].d && /&done=1&(k|st)=/.test(g.parts[0].h) && /hwork\.html\?c=/.test(g.parts[1].h), JSON.stringify(g.parts));
   ok('세부 문제지 줄 전체가 링크 (2026-11-22)', g.parts.every(p => p.whole), JSON.stringify(g.parts.map(p => p.whole)));
   ok('낱개 카드 전체가 링크 — 안 낸 과제는 풀러 가기, 낸 과제는 오답하기', g.cards.length === 2 && g.cards.every(c => c.whole && /hwork\.html\?c=/.test(c.h)) && g.cards.some(c => !c.done && !/&done=1/.test(c.h) && /풀러 가기/.test(c.t)) && g.cards.some(c => c.done && /&done=1/.test(c.h)) && !g.cards.some(c => c.inner), JSON.stringify(g.cards));
   // 안 낸 과제는 배정이 오래된 것부터 (2026-11-25 원장님)

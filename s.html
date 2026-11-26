@@ -3451,6 +3451,11 @@ function hwGoHref(base, h, nx){
        + '&gr=' + encodeURIComponent(levelGrade(i.grade) || '')
        + (nx && nx.length ? '&nx=' + encodeURIComponent(nx.map(function(x){ return (x.teacher||'')+'\t'+(x.code||''); }).join('\n')) : '');
 }
+/* 제출한 과제 — 다른 기기에서도 결과·문항·정답지를 다시 보도록 본인 확인(접근코드/학생ID)을 함께 싣는다 (2026-11-26, 094) */
+function hwDoneHref(href){
+  var who = rvWho();
+  return href + '&done=1' + (who.key ? '&k=' + encodeURIComponent(who.key) : who.student ? '&st=' + encodeURIComponent(who.student) : '');
+}
 /* 클리어 뒤 '다음 챕터에 도전할까요?'(2026-11-19 원장님) — 아직 안 낸 과제를 교재 순서로, 이 과제 다음 것부터 최대 6개 */
 function hwNextOf(todo, h){
   var at = todo.indexOf(h);
@@ -3560,7 +3565,7 @@ function renderHomework(keepScroll){
       var href = hwGoHref(base, h, hwNextOf(todo, h));
       var sub = []; if(h.due) sub.push('마감 '+hwFmtDue(h.due)); if(h.memo) sub.push(h.memo);
       /* 줄 전체가 링크 — 누르면 바로 풀러 가기·오답하기 (2026-11-22 원장님 "풀러가기 버튼이 불편해요") */
-      return '<a class="hw-part'+(h.done?' done':'')+'" href="'+esc(h.done ? href+'&done=1' : href)+'" target="_blank" rel="noopener">' +
+      return '<a class="hw-part'+(h.done?' done':'')+'" href="'+esc(h.done ? hwDoneHref(href) : href)+'" target="_blank" rel="noopener">' +
         '<span class="pt">'+hwWeekPill(hwWeekOf(h.date))+esc(name)+(sub.length?'<small>'+esc(sub.join(' · '))+'</small>':'')+'</span>' +
         '<span class="ps">'+(h.done?'제출 완료':'아직 안 냄')+'</span>' +
         '<span class="hw-go'+(h.done?' hw-re':'')+'">'+(h.done?'오답하기':'풀러 가기')+' '+svg(ICON.arrow)+'</span></a>';
@@ -3589,7 +3594,7 @@ function renderHomework(keepScroll){
         ? '<span class="nchk-done">✓ 제출 완료 · 별 +1</span>' +
           '<span class="hw-go hw-re">오답하기 이어 하기 '+svg(ICON.arrow)+'</span>'
         : '<span class="hw-go">풀러 가기 '+svg(ICON.arrow)+'</span>';
-      return '<a class="notice-item hw-card'+(h.done?' done':'')+'" href="'+esc(h.done ? href+'&done=1' : href)+'" target="_blank" rel="noopener">' +
+      return '<a class="notice-item hw-card'+(h.done?' done':'')+'" href="'+esc(h.done ? hwDoneHref(href) : href)+'" target="_blank" rel="noopener">' +
         '<span class="ntag">'+(h.done?'제출 완료':'배정 과제')+'</span>' +
         '<div class="nh"><span class="ntitle">'+hwWeekPill(hwWeekOf(h.date))+hwKwTitle(title, h.code)+'</span>' +
         (h.date ? '<span class="ndate">'+esc(h.date)+'</span>' : '') + '</div>' +
