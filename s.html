@@ -118,6 +118,7 @@
   .hw-grp .hw-gcnt{font-size:.8rem;color:var(--ink-soft);white-space:nowrap;}
   .hw-grp .hw-gcnt b{color:#B0525D;}
   /* 단원 키워드 색 (2026-11-21 원장님 — 독점·이타적·건축물·문장 등을 목록에서 빨리 찾게) */
+  .hwwk{display:inline-block;font-family:var(--sans);font-weight:700;font-size:.74rem;border-radius:20px;padding:2px 9px;margin-right:6px;vertical-align:2px;white-space:nowrap;background:#E4F0EC;color:#3D675D;}
   .hwk{display:inline-block;font-family:var(--sans);font-weight:700;font-size:.78rem;border-radius:20px;padding:2px 10px;margin-right:6px;vertical-align:2px;white-space:nowrap;}
   mark.hwm{font-weight:700;border-radius:4px;padding:0 3px;}
   .hwk.k0,mark.hwm.k0{background:#F7DCD6;color:#8A3F35;}
@@ -3506,6 +3507,14 @@ function hwKwTitle(text, code){
 }
 /* 안 낸 과제는 배정이 오래된 것부터 (2026-11-25 원장님 "학생들이 h work를 열면 가장 오래된 과제가 제일 먼저 위에").
  * 배정일(date)이 같으면 둘 다 교재 과제일 때 교재 순서(hwBookSort), 아니면 들어온 차례(목록은 최근 배정 먼저 오므로 뒤쪽이 더 오래된 것). */
+/* 주차 = 배정한 날로 센다 — 4주차가 11/24(화)부터, 7일마다 한 주 (2026-11-26 원장님 "2주차, 3주차, 4주차(11/24-)").
+ * H WORK hw-alim.js weekOf 와 같은 규칙 — 고치면 함께 */
+function hwWeekOf(s){
+  var m = String(s||'').match(/(\d{4})\D+(\d{1,2})\D+(\d{1,2})/); if(!m) return 0;
+  var n = 4 + Math.floor((Date.UTC(+m[1], +m[2]-1, +m[3]) - Date.UTC(2026, 10, 24)) / (7*864e5));
+  return n >= 1 ? n : 0;
+}
+function hwWeekPill(n){ return n ? '<span class="hwwk">'+n+'주차</span>' : ''; }
 function hwDateNum(s){
   var m = String(s||'').match(/(\d{4})\D+(\d{1,2})\D+(\d{1,2})(?:\D+(\d{1,2}):(\d{2}))?/);
   return m ? ((+m[1])*1e8 + (+m[2])*1e6 + (+m[3])*1e4 + (+(m[4]||0))*100 + (+(m[5]||0))) : Infinity;
@@ -3552,17 +3561,18 @@ function renderHomework(keepScroll){
       var sub = []; if(h.due) sub.push('마감 '+hwFmtDue(h.due)); if(h.memo) sub.push(h.memo);
       /* 줄 전체가 링크 — 누르면 바로 풀러 가기·오답하기 (2026-11-22 원장님 "풀러가기 버튼이 불편해요") */
       return '<a class="hw-part'+(h.done?' done':'')+'" href="'+esc(h.done ? href+'&done=1' : href)+'" target="_blank" rel="noopener">' +
-        '<span class="pt">'+esc(name)+(sub.length?'<small>'+esc(sub.join(' · '))+'</small>':'')+'</span>' +
+        '<span class="pt">'+hwWeekPill(hwWeekOf(h.date))+esc(name)+(sub.length?'<small>'+esc(sub.join(' · '))+'</small>':'')+'</span>' +
         '<span class="ps">'+(h.done?'제출 완료':'아직 안 냄')+'</span>' +
         '<span class="hw-go'+(h.done?' hw-re':'')+'">'+(h.done?'오답하기':'풀러 가기')+' '+svg(ICON.arrow)+'</span></a>';
     };
     var groupHtml = function(k){
       var hs2 = grp[k].slice().sort(function(a, b){ return String(a.code||'').localeCompare(String(b.code||''), 'ko', { numeric:true }); }), left = hs2.filter(function(h){ return !h.done; }).length;
       var unit = k.split('\t')[1], t = hs2[0].teacher;
+      var gw = 0; hs2.forEach(function(h){ var n = hwWeekOf(h.date); if(n && (!gw || n < gw)) gw = n; });
       var open = HW_GOPEN[k] ? ' open' : '';
       return '<div class="notice-item hw-grp'+open+'" data-hwg="'+esc(k)+'">' +
         '<span class="ntag">'+(left?'배정 과제 · 단원':'제출 완료 · 단원')+'</span>' +
-        '<button type="button" class="hw-gh" onclick="hwGroupToggle(this)"><span class="ntitle">'+hwKwTitle((t?t+' · ':'')+unit, unit)+'</span>' +
+        '<button type="button" class="hw-gh" onclick="hwGroupToggle(this)"><span class="ntitle">'+hwWeekPill(gw)+hwKwTitle((t?t+' · ':'')+unit, unit)+'</span>' +
         '<span class="hw-gcnt">문제지 '+hs2.length+'개 · '+(left?'<b>남은 '+left+'개</b>':'모두 제출')+'</span>' +
         '<svg class="hw-gar" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></button>' +
         '<div class="hw-parts">'+hs2.map(partHtml).join('')+'</div></div>';
@@ -3581,7 +3591,7 @@ function renderHomework(keepScroll){
         : '<span class="hw-go">풀러 가기 '+svg(ICON.arrow)+'</span>';
       return '<a class="notice-item hw-card'+(h.done?' done':'')+'" href="'+esc(h.done ? href+'&done=1' : href)+'" target="_blank" rel="noopener">' +
         '<span class="ntag">'+(h.done?'제출 완료':'배정 과제')+'</span>' +
-        '<div class="nh"><span class="ntitle">'+hwKwTitle(title, h.code)+'</span>' +
+        '<div class="nh"><span class="ntitle">'+hwWeekPill(hwWeekOf(h.date))+hwKwTitle(title, h.code)+'</span>' +
         (h.date ? '<span class="ndate">'+esc(h.date)+'</span>' : '') + '</div>' +
         (meta.length ? '<div class="nbody">'+esc(meta.join(' · '))+'</div>' : '') +
         '<div class="hw-act">'+action+'</div>' +
