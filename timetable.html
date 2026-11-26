@@ -11505,7 +11505,9 @@ function wkOverlapOk(dstr, dayName, s, e, teacher, excludeId){
     if (excludeId && c.id === excludeId) return false;
     if (String(c.teacher || '').trim() !== t) return false;
     if (c.wk ? c.wk !== dstr : c.day !== dayName) return false;
-    if (wkOffAt(c.id, dstr) || wkMovedAway(c.id, dstr)) return false;   // 그 날짜엔 안 하는 수업
+    // 그 날짜엔 안 하는 수업(휴강·이동·학생 전원 빠짐·명단 없음 = 그리드의 '사라진' 수업)은 겹침이 아니다
+    // (2026-11-26 우현정T — 12/3 고2 확인 5:30이 전원 빠져 '사라진 1'인데 직전보강 반을 막았다)
+    if (goneInfo(c, dstr)) return false;
     return mins(c.start) < e && minsEnd(c) > s;
   });
   if (!hit.length) return true;
