@@ -596,6 +596,8 @@
   .cr-src{font-size:.72rem;color:var(--ink-soft);margin:2px 0 4px;}
   .cr-tst{display:inline-block;margin-left:4px;padding:1px 7px;border-radius:999px;background:#EDE4F4;color:#5A4A6A;font-size:.66rem;font-weight:400;vertical-align:middle;}
   .cr-tst.done{background:#E3EFE7;color:#2F5B44;}
+  .cr-tnw{min-width:0;}
+  .cr-twk{display:inline-block;margin-bottom:3px;padding:1px 7px;border-radius:999px;background:#E3F1EC;color:#2F5B4C;font-size:.66rem;font-weight:400;vertical-align:middle;white-space:nowrap;}
   .cr-tfbtn{display:inline-block;margin:6px 0 2px;padding:5px 12px;border:0;border-radius:999px;background:#EDE4F4;color:#5A4A6A;font:inherit;font-size:.74rem;cursor:pointer;}
   .cr-tfbtn:hover{background:#E3D7EE;}
   .cr-tfall{margin:4px 0;padding:6px 10px;border-radius:10px;background:#E3EFE7;color:#2F5B44;font-size:.76rem;}
@@ -9573,7 +9575,8 @@ function crHwSrcLoad2(c, bk, ymd, twinId, othSib){
         if (crRuleBook(k, bk) === '내신' && k.cls) lb += ' ' + crPartLabel(crPartOf(k, bk));
         else if (sibIds.indexOf(r.class_id) >= 0) lb += ' ' + (k.cls || '') + (k.teacher ? ' · ' + k.teacher + 'T' : '') + ' 반';   // 같은 이름 반 기록
         else if (r.class_id !== c.id && r.class_id !== twinId && k.cls) lb += ' ' + k.cls;   // 정규 1회 이동 학생 — 원래 반 이름
-        return { tasks: crRowTasks(r, nm), ymd: r.ymd, cls: k.cls || '', part: crPartOf(k, bk), label: lb };
+        var tk = crRowTasks(r, nm), ymds = {}; tk.forEach(function(t){ ymds[t] = r.ymd; });
+        return { tasks: tk, ymds: ymds, ymd: r.ymd, cls: k.cls || '', part: crPartOf(k, bk), label: lb };
       }
       var by = {};
       // 같은 이름 반은 지난주까지 기록만(이번 주에 다른 반이 낸 과제는 다음 주 검사할 것이라서) · 반 과제만(개별 과제는 그 반 학생 것)
@@ -9595,12 +9598,12 @@ function crHwSrcLoad2(c, bk, ymd, twinId, othSib){
             // 진도·확인에서 이름이 같은 과제('과제집 w15' — 독서 과제집과 문학 과제집)는 다른 책이라 둘 다 두고 '독서 · '/'문학 · '을 붙여 가른다
             // (2026-10-28 원장님 "지난주 고1 과제는 총 4권이에요. 지금은 세권만" — 이름만 보고 하나로 합쳐 한 권이 빠졌다 → "가 독서, 나 문학": 진도(가) = 독서, 확인(나) = 문학, CR_NS_SUBJ).
             // 같은 구분 안의 같은 이름은 한 번만.
-            var tasks = [], labs = [], partsOf = {};
+            var tasks = [], labs = [], partsOf = {}, ymds = {};
             var packed = all.slice().reverse().map(function(r){ return pack(r, x.p); });
             packed.forEach(function(pk){ labs.push(pk.label); pk.tasks.forEach(function(t){ var ps = partsOf[t] = partsOf[t] || []; if (ps.indexOf(pk.part) < 0) ps.push(pk.part); }); });
-            packed.forEach(function(pk){ pk.tasks.forEach(function(t){ var nm = partsOf[t].length > 1 ? (CR_NS_SUBJ[pk.part] || crPartLabel(pk.part)) + ' · ' + t : t; if (tasks.indexOf(nm) < 0) tasks.push(nm); }); });
+            packed.forEach(function(pk){ pk.tasks.forEach(function(t){ var nm = partsOf[t].length > 1 ? (CR_NS_SUBJ[pk.part] || crPartLabel(pk.part)) + ' · ' + t : t; if (tasks.indexOf(nm) < 0){ tasks.push(nm); ymds[nm] = pk.ymd; } }); });
             var top = pack(own, x.p);
-            by[x.p] = { tasks: tasks, ymd: top.ymd, cls: top.cls, part: top.part, cum: true,
+            by[x.p] = { tasks: tasks, ymds: ymds, ymd: top.ymd, cls: top.cls, part: top.part, cum: true,
                         label: '내신 기간(' + mdOfYmdStr(nsStart) + '~) 누적 · ' + (labs.length > 3 ? labs[0] + ' ~ ' + labs[labs.length - 1] + ' · ' +
                           packed.map(function(pk){ return crPartLabel(pk.part); }).filter(function(v, i, a){ return a.indexOf(v) === i; }).join('·') + ' ' + labs.length + '회' : labs.join(' · ')) };
             return;
@@ -9807,10 +9810,22 @@ function crSfApply(data, ymd){   // CR.sf = {접근코드: [{code, teacher, due,
         if (!crSfSch(r.school, s.school)) return;   // 학교가 다르면 잇지 않는다
         sub = r;   // id 오름차순 → 마지막이 가장 최근 제출
       });
-      list.push({ code: code, teacher: teacher, sub: sub });
+      list.push({ code: code, teacher: teacher, sub: sub, date: crSfYmd(a.date) });
     });
     if (list.length) CR.sf[s.code] = list;
   });
+}
+/* 과제 주차 — 그 과제를 받은 날로 센다. 4주차가 11/24(화)부터, 7일마다 한 주(2026-11-26 원장님 "학생 수업기록에 과제 수행 주차가 떠야해요").
+ * H WORK hw-alim.js weekOf · s.html hwWeekOf 와 같은 규칙 — 고치면 함께. 1주차(11/3) 전은 날짜만. */
+function crWeekOf(ymd){
+  var m = String(ymd || '').match(/(\d{4})-(\d{2})-(\d{2})/); if (!m) return 0;
+  var n = 4 + Math.floor((Date.UTC(+m[1], +m[2] - 1, +m[3]) - Date.UTC(2026, 10, 24)) / (7 * 864e5));
+  return n >= 1 ? n : 0;
+}
+function crTaskWeekHtml(src, t){
+  var y = src && src.ymds && src.ymds[t]; if (!y) return '';
+  var n = crWeekOf(y), md = mdOfYmdStr(y);
+  return '<span class="cr-twk" title="' + esc(md + '에 받은 과제') + '">' + (n ? n + '주차 · ' : '') + esc(md) + ' 부여</span>';
 }
 function crSfOf(x, t){ var l = (x && x.stu && CR.sf && CR.sf[x.stu.code]) || []; for (var i = 0; i < l.length; i++) if (l[i].code === t) return l[i]; return null; }
 function crSfBadge(x, t){
@@ -9859,7 +9874,10 @@ function crSrcOf(x){
   if (tasks.length < all) head += ' (이 학생 ' + (all - tasks.length) + '개 뺌)';
   var cum = !!(base && base.cum);
   if (cum) head += ' — 지난 검사 점수를 이어받았어요. 끝낸 과제는 그대로 두고 남은 과제만 매기면 됩니다.';
-  return { tasks: tasks, head: head, cum: cum };
+  // 과제마다 받은 날(주차 표시용) — 지난 수업 과제는 그 수업 날, 슈핏 H WORK 는 배정일, 반 전체 추가 과제는 날짜 없음
+  var ymds = {};
+  tasks.forEach(function(t){ var y = (base && base.ymds && base.ymds[t]) || (base && !base.ymds && baseTasks.indexOf(t) >= 0 ? base.ymd : ''); var f = crSfOf(x, t); if (!y && f && f.date) y = f.date; if (y) ymds[t] = y; });
+  return { tasks: tasks, head: head, cum: cum, ymds: ymds };
 }
 var CR_XRMBY_KEY = '__검사제외학생';
 function crXrmByOf(m){ var out = {}; if (m && typeof m === 'object') Object.keys(m).forEach(function(k){ var v = crTasksOf(m[k]); if (v.length) out[k] = v; }); return out; }
@@ -10030,8 +10048,8 @@ function crStarsHtml(i, code){
     if (!showHid && crTaskHide(h, t)){ ii += crDims().length; return ''; }   // 다 한 과제는 숨김(2026-11-18 원장님) — 별 번호(ii)는 그대로 센다
     var tm = crTaskMissed(h, t);
     var tfull = crTaskFull(h, t), tcar = !tfull && !!h && !!h.carried && crDims().some(function(d){ return h.carried[t + ' (' + d + ')']; });
-    return '<div class="cr-task' + (tm ? ' miss' : '') + (tfull ? ' tfull' : '') + '"><div class="cr-thead"><div class="cr-tname">' + esc(t) + crSfBadge(x, t) +
-      (tfull ? ' <small class="cr-tst done">완료</small>' : tcar ? ' <small class="cr-tst">지난 검사 이어받음</small>' : '') + '</div>' +
+    return '<div class="cr-task' + (tm ? ' miss' : '') + (tfull ? ' tfull' : '') + '"><div class="cr-thead"><div class="cr-tnw">' + crTaskWeekHtml(src, t) + '<div class="cr-tname">' + esc(t) + crSfBadge(x, t) +
+      (tfull ? ' <small class="cr-tst done">완료</small>' : tcar ? ' <small class="cr-tst">지난 검사 이어받음</small>' : '') + '</div></div>' +
       '<div class="cr-tacts"><button type="button" class="cr-mini cr-tmiss' + (tm ? ' on' : '') + '" data-tmiss="' + i + '|' + ti + '" aria-pressed="' + tm + '" aria-label="' + esc(t) + ' 미제출">미제출</button>' +
       '<button type="button" class="cr-mini cr-trm" data-trmme="' + i + '|' + ti + '" title="이 학생의 검사 목록에서만 빼기" aria-label="' + esc(t) + ' 이 학생만 빼기">이 학생만 빼기</button>' +
       '<button type="button" class="cr-mini cr-trm" data-trm="' + i + '|' + ti + '" title="이 수업 검사 목록에서 빼기 (학생 모두)" aria-label="' + esc(t) + ' 모두 빼기">모두 빼기</button></div></div>' + crDims().map(function(d){
