@@ -2880,8 +2880,8 @@ function rcSortByYmd(list, ymdOf){
     return a.i - b.i;
   }).map(function(o){ return o.v; });
 }
-function rcHwTable(hw, tasks, ymds, cur){
-  tasks = rcSortByYmd(tasks, function(g){ return rcYmdOf(ymds, g.t, cur); });
+function rcHwTable(hw, tasks, ymds, cur, order){   // order(t, cur) = 정렬 열쇠(없으면 받은 날)
+  tasks = rcSortByYmd(tasks, function(g){ return order ? order(g.t, cur) : rcYmdOf(ymds, g.t, cur); });
   if (tasks.some(function(g){ return g.lv.hasOwnProperty(RC_PERF); })){   // 내신 기간: 과제 | 수행 평가
     var ph = '<div class="rc-tr th perf"><span class="n">과제</span><span>수행 평가</span></div>';
     return '<div class="rc-tbl perf">' + ph + tasks.map(function(g){
@@ -2935,7 +2935,7 @@ function rcCardHtml(it, opt){
     body += (body ? '<hr class="rc-hr">' : '') + '<div class="rc-sec"><h5>이번주 과제 검사</h5>' +
       (nsn ? '<p class="rc-empty">' + esc(RC_NS_HW_NOTE) + '</p>'
         : hw.none ? '<p class="rc-empty">' + esc(hw.text || '확인할 것이 없습니다.') + '</p>'
-        : rcHwTable(hw, tasks, opt.ymds, it.ymd) + (hw.text ? '<p class="rc-hwtxt">' + esc(hw.text) + '</p>' : '') +
+        : rcHwTable(hw, tasks, opt.ymds, it.ymd, opt.order) + (hw.text ? '<p class="rc-hwtxt">' + esc(hw.text) + '</p>' : '') +
           (!hw.missing && (+hw.pct || 0) >= 100 ? '<span class="rc-star1">★ 슈퍼스타 별 +1 · 모든 과제를 완벽하게 했어요</span>' : '')) + '</div>';
   }
   var hwk = (it.homework || []).filter(Boolean);
@@ -2957,6 +2957,17 @@ function lhYmdBuild(){
   (STATE.homework || []).forEach(function(h){ var d = String(h.date || '').match(/(\d{4})\D+(\d{1,2})\D+(\d{1,2})/);
     if (d) put(h.code, d[1] + '-' + ('0' + d[2]).slice(-2) + '-' + ('0' + d[3]).slice(-2), true); });
   LH_YMD = m;
+  // 처음 검사한 날 — 리포트 과제 검사 항목은 저장 순서가 섞여 있어(점수 jsonb) 진행 순서를 여기서 되살린다
+  var f = {};
+  (STATE.lhist || []).forEach(function(it){ ((it.hw && it.hw.items) || []).forEach(function(x){
+    var k = lhYmdKey(String((x && x.name) || '').replace(RC_DIM_RE, '')); if (k && it.ymd && (!f[k] || it.ymd < f[k])) f[k] = it.ymd; }); });
+  LH_FIRST = f;
+}
+/* 과제 검사 진행 순서(2026-11-26 원장님 "학생페이지도요") — 처음 검사한 날 → 받은 날 → 이름(숫자는 크기대로) */
+var LH_FIRST = {};
+function lhTaskOrder(t, cur){
+  var k = lhYmdKey(t);
+  return (LH_FIRST[k] || cur || '9999') + '|' + (lhTaskYmd(t, cur) || '9999') + '|' + k.replace(/\d+/g, function(n){ return ('0000' + n).slice(-5); });
 }
 /* 그 수업(cur) 전에 받은 날 중 가장 늦은 날 — 같은 이름 과제를 여러 번 받았으면 이번 검사 직전 것. H WORK 배정일은 그 수업 날까지 */
 function lhTaskYmd(t, cur){
@@ -2965,7 +2976,7 @@ function lhTaskYmd(t, cur){
   return best;
 }
 function lhItemHtml(it){   // 카드 모양은 rcCardHtml(timetable 미리보기와 공용 블록)
-  return rcCardHtml(it, { ymds: lhTaskYmd, star: lhStar(it) ? '<span class="lh-star1 rc-chip star" data-star="' + esc(lhStarKey(it)) + '">★ 별 +1</span>' : '' });
+  return rcCardHtml(it, { ymds: lhTaskYmd, order: lhTaskOrder, star: lhStar(it) ? '<span class="lh-star1 rc-chip star" data-star="' + esc(lhStarKey(it)) + '">★ 별 +1</span>' : '' });
 }
 function lhRender(){
   Array.prototype.forEach.call($('lhTabs').querySelectorAll('button'), function(b){ b.classList.toggle('on', b.getAttribute('data-t') === (LH.tab || 'rep')); });
