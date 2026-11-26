@@ -100,8 +100,11 @@ const RT = [{ id: 5, teacher: '이현지', code: '[테스트] 문장 1회', n: 2
       { teacher: '이수경', code: '낸 과제 Z', date: '2026-11-01', done: true },
       { teacher: '이수경', code: '오래된 과제 A', date: '2026-11-10', done: false } ];
     renderHomework();
-    return [...document.querySelectorAll('#homeworkList > .notice-item .ntitle')].map(e => e.textContent.replace(/^이수경 · /, ''));
+    return [...document.querySelectorAll('#homeworkList > .notice-item .ntitle')].map(e => e.textContent.replace(/^\d+주차/, '').replace(/^이수경 · /, ''));
   });
+  // 주차 표시 (2026-11-26 원장님 — 4주차 11/24~, 7일마다)
+  const wk = await pg.evaluate(() => [...document.querySelectorAll('#homeworkList > .notice-item')].map(e => { const w = e.querySelector('.hwwk'); return w ? w.textContent : ''; }));
+  ok('주차 표시 — 11/10·11/20·11/25 (11/1은 1주차 전이라 없음)', JSON.stringify(wk) === JSON.stringify(['2주차', '3주차', '3주차', '4주차', '', '2주차']), JSON.stringify(wk));
   ok('안 낸 과제는 오래된 배정부터 · 같은 날은 먼저 배정한 것 · 낸 과제도 아래에 오래된 배정부터', JSON.stringify(ord) === JSON.stringify(['오래된 과제 A', '같은 날 과제 B1', '같은 날 과제 B2', '새 과제 C', '낸 과제 Z', '낸 과제 Y']), JSON.stringify(ord));
   await br.close(); srv.close();
   console.log(`통과 ${pass} · 실패 ${fail}`); process.exit(fail ? 1 : 0);
