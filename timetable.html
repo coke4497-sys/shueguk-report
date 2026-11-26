@@ -776,6 +776,7 @@
   .rc-v.miss{background:#fff;color:#9A5A52;}
   .rc-hwtxt{margin:10px 2px 0;font-size:.86rem;line-height:1.7;color:#4F5C56;}
   .rc-star1{font-size:.8rem;font-weight:700;border-radius:999px;padding:4px 12px;background:#FBEFC6;color:#8A6417;margin-top:10px;display:inline-block;}
+  .rc-wk{display:inline-block;margin-right:6px;padding:1px 7px;border-radius:999px;background:#E3F1EC;color:#2F5B4C;font-size:.68rem;font-weight:400;vertical-align:1px;white-space:nowrap;}
   .rc-list{list-style:none;padding:0;margin:0;display:flex;flex-wrap:wrap;gap:8px 22px;font-size:.9rem;color:#3A443F;}
   .rc-list li{display:flex;gap:9px;align-items:baseline;}
   .rc-list li::before{content:"";flex:none;width:6px;height:6px;border-radius:50%;background:#8DA89F;transform:translateY(-2px);}
@@ -10818,7 +10819,7 @@ function crPvItem(i){
   return { nm: x.p, stu: x.stu, part: CR.part, cls: CR.c.cls, teacher: CR.c.teacher, ymd: CR.ymd,
            attend: a ? a.status : '', progress: String(n.progress || '').trim(),
            units: CR.ns ? crNsUnitsOfWeek(CR.ns) : [], homework: crRowTasks(n, x.p),
-           comment: String(cm[x.p] || '').trim() || (hw && hw.missing ? crMissComment(x.p) : ''), attitude: crAttOf(x.p), hw: hw, src: !!src };
+           comment: String(cm[x.p] || '').trim() || (hw && hw.missing ? crMissComment(x.p) : ''), attitude: crAttOf(x.p), hw: hw, src: !!src, ymds: src ? src.ymds : null };
 }
 /* 수업 리포트 카드 — 2026-10-01 원장님 시안 2(큰 날짜 · 타일 셋 · 수업 내용 · '이번주 과제 검사' 표 · 다음 수업까지 과제 한 줄).
  * 과제 검사 표 = 과제마다 한 줄, 열 = 학습량(n/5) · 채점 · 학습 분석 · 오답 분석(완벽/일부함/안함, 미체크는 —).
@@ -10866,11 +10867,24 @@ function rcLvCell(g, d){
   var v = g.lv[d];
   return '<span data-l="' + d + '"><span class="rc-v l' + v + '">' + RC_LV[v] + '</span></span>';
 }
-function rcHwTable(hw, tasks){
+/* 과제 주차 알약 (2026-11-26 원장님 "학생 수업기록에 과제 수행 주차가 떠야해요" → "학생페이지도 필요") — 4주차 = 11/24부터 7일마다.
+ * s.html·timetable.html 두 벌(rcCardHtml 공용 블록) + H WORK hw-alim.js weekOf 와 같은 규칙 — 고치면 함께. */
+function rcWkNo(ymd){
+  var m = String(ymd || '').match(/(\d{4})\D+(\d{1,2})\D+(\d{1,2})/); if (!m) return 0;
+  var n = 4 + Math.floor((Date.UTC(+m[1], +m[2] - 1, +m[3]) - Date.UTC(2026, 10, 24)) / (7 * 864e5));
+  return n >= 1 ? n : 0;
+}
+function rcWkTag(ymd){
+  var n = rcWkNo(ymd); if (!ymd) return '';
+  var m = String(ymd).match(/\d{4}\D+(\d{1,2})\D+(\d{1,2})/), md = m ? (+m[1]) + '/' + (+m[2]) : '';
+  return '<span class="rc-wk" title="' + esc(md) + '에 받은 과제">' + (n ? n + '주차' : md) + '</span>';
+}
+function rcYmdOf(ymds, t, cur){ return !ymds ? '' : typeof ymds === 'function' ? ymds(t, cur) : (ymds[t] || ''); }
+function rcHwTable(hw, tasks, ymds, cur){
   if (tasks.some(function(g){ return g.lv.hasOwnProperty(RC_PERF); })){   // 내신 기간: 과제 | 수행 평가
     var ph = '<div class="rc-tr th perf"><span class="n">과제</span><span>수행 평가</span></div>';
     return '<div class="rc-tbl perf">' + ph + tasks.map(function(g){
-      var nm = '<span class="n">' + esc(itemLabel(g.t)) + '</span>';
+      var nm = '<span class="n">' + rcWkTag(rcYmdOf(ymds, g.t, cur)) + esc(itemLabel(g.t)) + '</span>';
       if (g.miss || hw.missing) return '<div class="rc-tr perf miss">' + nm + '<span data-l="수행 평가"><span class="rc-v miss">미제출</span></span></div>';
       var v = g.lv.hasOwnProperty(RC_PERF) ? g.lv[RC_PERF] : null;
       return '<div class="rc-tr perf">' + nm + '<span data-l="수행 평가">' + (v === null ? '<span class="rc-v none">—</span>' : '<span class="rc-v p' + v + '">' + RC_PERF_LV[v] + '</span>') + '</span></div>';
@@ -10878,7 +10892,7 @@ function rcHwTable(hw, tasks){
   }
   var head = '<div class="rc-tr th"><span class="n">과제</span><span>학습량</span><span>채점</span><span>학습 분석</span><span>오답 분석</span></div>';
   var rows = tasks.map(function(g){
-    var nm = '<span class="n">' + esc(itemLabel(g.t)) + (g.depth && !g.miss && !hw.missing ? '<small>깊이 ' + g.depth.sc + '/' + g.depth.mx + '</small>' : '') + '</span>';
+    var nm = '<span class="n">' + rcWkTag(rcYmdOf(ymds, g.t, cur)) + esc(itemLabel(g.t)) + (g.depth && !g.miss && !hw.missing ? '<small>깊이 ' + g.depth.sc + '/' + g.depth.mx + '</small>' : '') + '</span>';
     if (g.miss || hw.missing) return '<div class="rc-tr miss">' + nm + '<span data-l="학습량"><span class="rc-v miss">미제출</span></span><span></span><span></span><span></span></div>';
     var s = g.vol || g.legacy;
     return '<div class="rc-tr">' + nm + '<span data-l="학습량">' + (s ? '<span class="rc-v vol">' + s.sc + '/' + s.mx + '</span>' : '<span class="rc-v none">—</span>') + '</span>' +
@@ -10920,11 +10934,11 @@ function rcCardHtml(it, opt){
     body += (body ? '<hr class="rc-hr">' : '') + '<div class="rc-sec"><h5>이번주 과제 검사</h5>' +
       (nsn ? '<p class="rc-empty">' + esc(RC_NS_HW_NOTE) + '</p>'
         : hw.none ? '<p class="rc-empty">' + esc(hw.text || '확인할 것이 없습니다.') + '</p>'
-        : rcHwTable(hw, tasks) + (hw.text ? '<p class="rc-hwtxt">' + esc(hw.text) + '</p>' : '') +
+        : rcHwTable(hw, tasks, opt.ymds, it.ymd) + (hw.text ? '<p class="rc-hwtxt">' + esc(hw.text) + '</p>' : '') +
           (!hw.missing && (+hw.pct || 0) >= 100 ? '<span class="rc-star1">★ 슈퍼스타 별 +1 · 모든 과제를 완벽하게 했어요</span>' : '')) + '</div>';
   }
   var hwk = (it.homework || []).filter(Boolean);
-  if (hwk.length) body += (body ? '<hr class="rc-hr">' : '') + '<div class="rc-sec"><h5>다음 수업까지 과제</h5><ul class="rc-list">' + hwk.map(function(x){ return '<li>' + esc(x) + '</li>'; }).join('') + '</ul></div>';
+  if (hwk.length) body += (body ? '<hr class="rc-hr">' : '') + '<div class="rc-sec"><h5>' + rcWkTag(it.ymd) + '다음 수업까지 과제</h5><ul class="rc-list">' + hwk.map(function(x){ return '<li>' + esc(x) + '</li>'; }).join('') + '</ul></div>';
   h += body;
   var cm = String(it.comment || '').trim();
   if (cm) h += '<div class="rc-sec rc-cm"><h5>선생님 코멘트</h5><p>' + esc(cm) + '</p></div>';
@@ -10935,7 +10949,7 @@ function crPvHtml(it){   // 학생 페이지 수업 리포트 카드와 같은 �
   var hw = it.hw ? { items: it.hw.items, pct: it.hw.pct, missing: it.hw.missing, missing_items: it.hw.miss || [], text: it.hw.text } : null;
   return rcCardHtml({ ymd: it.ymd, part: crPartLabel(it.part), cls: it.cls, teacher: it.teacher, attend: it.attend, attitude: it.attitude,
                       units: it.units, summary: it.progress, homework: it.homework, hw: hw, comment: it.comment },
-                    { empty: '아직 적힌 기록이 없어요.' });
+                    { empty: '아직 적힌 기록이 없어요.', ymds: it.ymds });
 }
 function crPvRender(){
   var n = CR.names.length, i = CR_PV.i, it = crPvItem(i), warn = [];
