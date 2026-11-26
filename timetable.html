@@ -9878,6 +9878,7 @@ function crSrcOf(x){
   // 과제마다 받은 날(주차 표시용) — 지난 수업 과제는 그 수업 날, 슈핏 H WORK 는 배정일, 반 전체 추가 과제는 날짜 없음
   var ymds = {};
   tasks.forEach(function(t){ var y = (base && base.ymds && base.ymds[t]) || (base && !base.ymds && baseTasks.indexOf(t) >= 0 ? base.ymd : ''); var f = crSfOf(x, t); if (!y && f && f.date) y = f.date; if (y) ymds[t] = y; });
+  tasks = rcSortByYmd(tasks, function(t){ return ymds[t]; });   // 진행 순서대로(받은 날 이른 것부터)
   return { tasks: tasks, head: head, cum: cum, ymds: ymds };
 }
 var CR_XRMBY_KEY = '__검사제외학생';
@@ -10880,7 +10881,16 @@ function rcWkTag(ymd){
   return '<span class="rc-wk" title="' + esc(md) + '에 받은 과제">' + (n ? n + '주차' : md) + '</span>';
 }
 function rcYmdOf(ymds, t, cur){ return !ymds ? '' : typeof ymds === 'function' ? ymds(t, cur) : (ymds[t] || ''); }
+/* 과제 검사 내역은 진행 순서대로 — 받은 날이 이른 과제부터(2026-11-26 원장님). 날짜를 모르는 과제는 뒤에 원래 순서로. 두 벌 */
+function rcSortByYmd(list, ymdOf){
+  return list.map(function(v, i){ return { v: v, y: ymdOf(v) || '', i: i }; }).sort(function(a, b){
+    if (!a.y !== !b.y) return a.y ? -1 : 1;
+    if (a.y !== b.y) return a.y < b.y ? -1 : 1;
+    return a.i - b.i;
+  }).map(function(o){ return o.v; });
+}
 function rcHwTable(hw, tasks, ymds, cur){
+  tasks = rcSortByYmd(tasks, function(g){ return rcYmdOf(ymds, g.t, cur); });
   if (tasks.some(function(g){ return g.lv.hasOwnProperty(RC_PERF); })){   // 내신 기간: 과제 | 수행 평가
     var ph = '<div class="rc-tr th perf"><span class="n">과제</span><span>수행 평가</span></div>';
     return '<div class="rc-tbl perf">' + ph + tasks.map(function(g){

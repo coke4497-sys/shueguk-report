@@ -593,7 +593,7 @@ const STUDENTS = [
       tasks: [...c.querySelectorAll('.cr-tname')].map(x => x.textContent), src: (c.querySelector('.cr-src') || {}).textContent || '', items: c.querySelectorAll('.cr-item').length })));
     const cd = n => r.find(x => x.nm === n) || {};
     ok('슈핏: 배정 학생 검사 목록에 H WORK 과제 이름 그대로 + 제출 결과(점수·오답하기 클리어)', cd('박보검').tasks.length === 1 && cd('박보검').tasks[0].indexOf(SF + ' H WORK · 제출 · 9/10점 · 오답하기 클리어 1/1') === 0 && /슈핏 문법 H WORK 과제/.test(cd('박보검').src) && cd('박보검').items === 4, JSON.stringify(r));
-    ok('슈핏: 아직 안 낸 학생은 미제출 표시', cd('김하늘').tasks[0] === SF + ' H WORK · 미제출', JSON.stringify(cd('김하늘')));
+    ok('슈핏: 아직 안 낸 학생은 미제출 표시', (cd('김하늘').tasks || []).indexOf(SF + ' H WORK · 미제출') >= 0 && cd('김하늘').tasks[0].indexOf(SF2) === 0, JSON.stringify(cd('김하늘')));
     ok('슈핏: 마감 지난 과제·마감 없는 오래된 배정도 보임 · 다른 학교 토큰·슈핏이 아닌 과제는 넣지 않음', cd('최다은').tasks.length === 1 && cd('최다은').tasks[0].indexOf(SF2 + ' H WORK · 제출 · 30/33점') === 0, JSON.stringify(cd('최다은')));
     ok('슈핏: 마감 지난 과제도 모두 — 김하늘은 두 과제', cd('김하늘').tasks.length === 2, JSON.stringify(cd('김하늘')));
     ok('슈핏: 배정 조회 = H WORK·shuefit', (st.asgGets || []).some(u => /tool=eq\.H WORK/.test(u) && /item=ilike\.\*shuefit\*/.test(u)), JSON.stringify(st.asgGets));
