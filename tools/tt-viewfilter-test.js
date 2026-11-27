@@ -52,7 +52,7 @@ const ok = (n, c, x) => { if (c) pass++; else { fail++; console.log('  ✗ ' + n
   const locTxt = await page.$$eval('#vf-loc option', o => o.map(x => x.textContent));
   ok('오늘: 센터 드롭다운 = 모든 센터 + 센터 순서', JSON.stringify(locOpts) === JSON.stringify(['', '본원', '화정센터', '민트초코', '정리정독']), JSON.stringify(locOpts));
   ok('오늘: 민트초코는 민초센터로 표기', locTxt.indexOf('민초센터') >= 0, JSON.stringify(locTxt));
-  ok('오늘: 강사 드롭다운도 함께', (await page.$$('#vf-teacher option')).length === 6);
+  ok('오늘: 강사 드롭다운도 함께', (await page.$$('#vf-teacher option')).length === 7);
   ok('오늘: 처음엔 카드 4개', (await page.$$('.grid.fitgrid .blk')).length === 4);
   ok('오늘: 처음엔 [모두 보기] 없음', !(await page.$('.vfil-clear')));
 

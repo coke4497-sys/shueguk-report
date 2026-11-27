@@ -38,7 +38,7 @@ const CLASSES = [
   let pass = 0, fail = 0;
   const ok = (n, c, x) => { if (c) pass++; else { fail++; console.log('  ✗ ' + n + (x ? ' — ' + x : '')); } };
   const opts = await page.$$eval('#all-teacher option', o => o.map(x => x.value));
-  ok('옵션 = 모든 강사 + TEACHER_ORDER 순', JSON.stringify(opts) === JSON.stringify(['', '슈', '승연', '지원', '덕기', '은지']), JSON.stringify(opts));
+  ok('옵션 = 모든 강사 + TEACHER_ORDER 순', JSON.stringify(opts) === JSON.stringify(['', '슈', '승연', '지원', '덕기', '은지', '예솔']), JSON.stringify(opts));
   ok('처음엔 전체 카드 6개', (await page.$$('.wk-mini')).length === 6);
   // 강사 선택
   await page.selectOption('#all-teacher', '은지');

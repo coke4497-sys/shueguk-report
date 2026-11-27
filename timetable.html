@@ -3404,7 +3404,10 @@
 <script>
 var ENDPOINT = "https://script.google.com/macros/s/AKfycbzhCncBwn-JlqXARC3wfrWUCuNHzlNK2df0bdhx-w78Xr8mzYUcIYZOJdRi9N4bHtsb/exec";
 var DAYS = ['월', '화', '수', '목', '금', '토', '일'];
-var TEACHER_ORDER = ['슈', '선주', '승연', '주혜', '현정', '연주', '현지', '지원', '덕기', '은지'];
+var TEACHER_ORDER = ['슈', '선주', '승연', '주혜', '현정', '연주', '현지', '지원', '덕기', '은지', '예솔'];
+/* 반이 없어도 늘 보이는 강사 칸 — 시간표 칸은 반이 있는 선생님만 생기므로 새 선생님은 여기에 둔다
+ * (2026-11-27 원장님 "정리정독 박예솔 선생님 칸이 필요해요" → '빈 칸을 늘 보이게'). 반이 생기면 그대로 겹치지 않는다. */
+var EXTRA_COLS = [{ loc: '정리정독', teacher: '예솔' }];
 
 var pw = 'sh';   // 티쳐스 페이지 비밀번호 제거(접속 간소화, 2026-08-14) — 백엔드 TEACHER_PW 내장
 var classes = [];      // {id, day, start, end, loc, teacher, cls, students[]}
@@ -5321,6 +5324,10 @@ function buildDayGrid(list){
     var key = c.loc + '|' + c.teacher;
     if (!seen[key]){ seen[key] = true; cols.push({ key:key, loc:c.loc, teacher:c.teacher }); }
   });
+  EXTRA_COLS.forEach(function(x){
+    var key = x.loc + '|' + x.teacher;
+    if (!seen[key] && viewOn(x)){ seen[key] = true; cols.push({ key:key, loc:x.loc, teacher:x.teacher }); }
+  });
   cols.sort(function(a,b){
     var ia = TEACHER_ORDER.indexOf(a.teacher), ib = TEACHER_ORDER.indexOf(b.teacher);
     return (ia<0?99:ia) - (ib<0?99:ib);
@@ -5890,6 +5897,10 @@ function buildFullGrid(){
     var key = c.loc + '|' + c.teacher;
     if (!seenB[key]){ seenB[key] = true; baseCols.push({ key:key, loc:c.loc, teacher:c.teacher }); }
   });
+  EXTRA_COLS.forEach(function(x){
+    var key = x.loc + '|' + x.teacher;
+    if (!seenB[key] && allTeacherOn(x)){ seenB[key] = true; baseCols.push({ key:key, loc:x.loc, teacher:x.teacher }); }
+  });
   baseCols.sort(function(a,b){
     var ia = TEACHER_ORDER.indexOf(a.teacher), ib = TEACHER_ORDER.indexOf(b.teacher);
     return (ia<0?99:ia) - (ib<0?99:ib);
@@ -6025,7 +6036,7 @@ var allTeacher = sessionStorage.getItem('tt_allteacher') || '';   // '' = 모든
 function allTeacherOn(c){ return !allTeacher || String(c.teacher || '').trim() === allTeacher; }
 function allTeacherList(){
   var seen = {}, out = [];
-  classes.forEach(function(c){
+  EXTRA_COLS.concat(classes).forEach(function(c){
     if (c.wk) return;
     var t = String(c.teacher || '').trim();
     if (t && !seen[t]){ seen[t] = true; out.push(t); }
@@ -6207,6 +6218,14 @@ function zoomCenterGrids(big, dname, list, makeBlock, goneOf, dstr){   // dstr =
     if (!byLoc[c.loc]){ byLoc[c.loc] = []; order.push(c.loc); }
     byLoc[c.loc].push(c);
   });
+  var extraOn = function(x){ return dstr ? viewOn(x) : allTeacherOn(x); };
+  EXTRA_COLS.forEach(function(x){
+    if (!extraOn(x) || byLoc[x.loc]) return;
+    byLoc[x.loc] = [];
+    var at = order.length;
+    for (var i = 0; i < order.length; i++){ if (wkLocRank(order[i]) > wkLocRank(x.loc)){ at = i; break; } }
+    order.splice(at, 0, x.loc);
+  });
   var offLoc = dstr ? teacherOffsByLoc(dstr, dname) : {};
   var offOnly = function(beforeRank){
     Object.keys(offLoc).filter(function(l){ return !offLoc[l].done && wkLocRank(l) < beforeRank; })
@@ -6223,12 +6242,14 @@ function zoomCenterGrids(big, dname, list, makeBlock, goneOf, dstr){   // dstr =
     if (offLoc[loc] && !offLoc[loc].done){ offLoc[loc].done = true; big.appendChild(teacherOffCtrEl(offLoc[loc])); }
     var cols = [], seen = {};
     cl.forEach(function(c){ if (!seen[c.teacher]){ seen[c.teacher] = true; cols.push(c.teacher); } });
+    EXTRA_COLS.forEach(function(x){ if (x.loc === loc && !seen[x.teacher] && extraOn(x)){ seen[x.teacher] = true; cols.push(x.teacher); } });
     cols.sort(function(a, b){
       var ia = TEACHER_ORDER.indexOf(a), ib = TEACHER_ORDER.indexOf(b);
       return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
     });
     var lo = 24 * 60, hi = 0;
     cl.forEach(function(c){ lo = Math.min(lo, mins(c.start)); hi = Math.max(hi, minsEnd(c)); });
+    if (!cl.length){ lo = 17 * 60 + 30; hi = 22 * 60; }   // 반이 없는 센터(늘 보이는 빈 칸만) — 저녁 칸
     lo = Math.floor(lo / 30) * 30; hi = Math.ceil(hi / 30) * 30;
     var n = Math.max(1, Math.round((hi - lo) / 30));
     var g = document.createElement('div');
