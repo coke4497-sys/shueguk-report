@@ -4193,8 +4193,7 @@ function renderView(){
   if (narrowScreen()) host.appendChild(mviewToggleBtn());
   host.appendChild(useListView() ? buildWeekList()
                  : (weekZoomDay ? buildWeekZoom(weekZoomDay) : buildWeekOverview()));
-  host.appendChild(weekMemoSection());
-  host.appendChild(tkWeekSection());
+  // 주차별 아래 '주간 메모'·'할 일 · 전달 사항 — 이 주' 상자는 2026-11-27 원장님 지시로 뺐다(되살리지 말 것)
 }
 
 /* ── 슈국 캘린더 (달력 + 주별 기간 + 날짜 메모) ── */
@@ -4971,7 +4970,7 @@ function memoCard(dateStr){
   box.className = 'memobox';
   box.innerHTML =
     '<p class="memotitle">오늘의 이슈 메모</p>' +
-    '<textarea id="memo-ta" placeholder="오늘 있었던 일·전달 사항을 적어 두세요. 주차별 보기의 주간 메모에 모아 볼 수 있어요."></textarea>' +
+    '<textarea id="memo-ta" placeholder="오늘 있었던 일·전달 사항을 적어 두세요. 캘린더의 그 날짜 칸에서도 볼 수 있어요."></textarea>' +
     '<div class="memoact"><button onclick="saveMemo(\'' + dateStr + '\')">메모 저장</button><span id="memo-stat"></span></div>';
   box.querySelector('#memo-ta').value = (memoDraft != null) ? memoDraft : (memos[dateStr] || '');
   memoDraft = null;
