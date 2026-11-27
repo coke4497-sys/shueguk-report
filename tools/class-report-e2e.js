@@ -1060,7 +1060,9 @@ const STUDENTS = [
             pct: 45, missing: false, missing_items: ['오답 노트'], text: '학습지는 충실히 해 왔고 오답 노트는 제출하지 않았습니다.' },
       comment: '집중이 좋았습니다.' }) },
     { ymd: '2026-09-28', book: '정규', part: '나', cls: '고2 나', teacher: '현지', time: '월 5:30~7:00', body: B({ attend: '결석', attend_note: '가족 행사로 결석했습니다.',
-      summary: '이번 수업에서는 「속미인곡」을 다뤘습니다.', hw: { items: [], pct: 0, missing: true, text: '' }, comment: '박보검 친구는 과제 제출을 하지 않았습니다!!!!' }) },
+      summary: '이번 수업에서는 「속미인곡」을 다뤘습니다.', hw: { items: [], pct: 0, missing: true, text: '' }, comment: '박보검 친구는 과제 제출을 하지 않았습니다!!!!',
+      // 2026-11-27: 받은 날 열쇠는 선생님 원문(homework_raw) — 다듬은 문장(homework)은 검사 항목 이름과 달라 주차가 안 붙었다
+      homework: ['「관동별곡」 학습지를 풀어 옵니다.'], homework_raw: ['관동별곡 학습지'] }) },
     // 이 규칙 전에 공개된 진도 수업 리포트(0%·전체 미제출)도 학생 화면에서는 안내 문장으로(2026-10-28)
     { ymd: '2026-08-29', book: '내신', part: '진도', cls: '고2 화정A', teacher: '주혜', time: '토 2:00~4:00', body: B({ attend: '지각', attitude: '노력 필요', units: ['사미인곡'],
       hw: { items: [{ name: '과제 (학습량)', score: 0, max: 5 }], pct: 0, missing: true, missing_items: ['과제'], text: '' } }) },
@@ -1121,6 +1123,7 @@ const STUDENTS = [
      /박보검 친구는 과제 제출을 하지 않았습니다!!!!/.test(r.items[1]), r.items[1]);
   ok('8/29 내신 진도 — 수업 진도 타일·과제 검사 없음은 "내신대비 기간에는 확인 수업에서 과제 검사를 진행합니다…"(2026-10-28 원장님 문장, 학부모님 오해 방지)',
      /진도 수업/.test(r.items[2]) && /수업 진도사미인곡/.test(r.items[2]) && /내신대비 기간에는 확인 수업에서 과제 검사를 진행합니다\. 이번 정규 수업에서는 과제 기록이 없습니다\./.test(r.items[2]) && !/확인할 것이 없습니다/.test(r.items[2]) && /확인 수업에서/.test(r.items[2]) && !/%/.test(r.items[2]) && !/미제출/.test(r.items[2]), r.items[2]);
+  ok('9/30 과제 검사의 관동별곡 학습지에 받은 날(9/28, 9/28 리포트의 선생님 원문 homework_raw 로 찾음) 알약', /9\/28관동별곡 학습지/.test(r.items[0]), r.items[0]);
   ok('"숙제"라는 말이 없다', !r.items.some(t => /숙제/.test(t)));
   ok('100% 아닌 수업에는 별 +1 표시·효과가 없다', await hp.evaluate(() => !document.querySelector('.lh-star1') && !document.querySelector('.rc-star1') && !document.querySelector('.lh-sb')));
   await hp.click('#lhMoreBtn');

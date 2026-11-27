@@ -2721,7 +2721,7 @@ function lhFlat(it){   // class_history 한 줄 → 카드에 쓰는 평평한 �
   var b = it.body || {};
   return { ymd: it.ymd, book: it.book, part: it.part, cls: it.cls, teacher: it.teacher, time: it.time,
            attend: b.attend || '', attend_note: b.attend_note || '', attitude: b.attitude || '', summary: b.summary || '',
-           units: b.units || [], homework: b.homework || [], hw: b.hw || null, comment: b.comment || '' };
+           units: b.units || [], homework: b.homework || [], homework_raw: b.homework_raw || [], hw: b.hw || null, comment: b.comment || '' };
 }
 function lhRefresh(quiet){
   LH.loading = true;
@@ -2953,7 +2953,9 @@ function lhYmdKey(t){ return String(t || '').replace(/^(독서|문학) · /, '')
 function lhYmdBuild(){
   var m = {};
   function put(t, y, hw){ var k = lhYmdKey(t); if (!k || !y) return; (m[k] = m[k] || []).push({ y: y, hw: !!hw }); }
-  (STATE.lhist || []).forEach(function(it){ (it.homework || []).forEach(function(t){ put(t, it.ymd); }); });
+  // 받은 날의 열쇠는 선생님이 적은 원문(body.homework_raw — 2026-11-27부터 publish 가 넣는다)이 먼저. body.homework 는 클로슈가 다듬은 문장이라
+  // 과제 검사 항목 이름('4(1) 워드투벡, 지문 필사하며 복습하기')과 글자가 달라 주차가 안 붙었다(2026-11-27 원장님 "3주차만 표시가 되어 있습니다").
+  (STATE.lhist || []).forEach(function(it){ (it.homework_raw || []).concat(it.homework || []).forEach(function(t){ put(t, it.ymd); }); });
   (STATE.homework || []).forEach(function(h){ var d = String(h.date || '').match(/(\d{4})\D+(\d{1,2})\D+(\d{1,2})/);
     if (d) put(h.code, d[1] + '-' + ('0' + d[2]).slice(-2) + '-' + ('0' + d[3]).slice(-2), true); });
   LH_YMD = m;
