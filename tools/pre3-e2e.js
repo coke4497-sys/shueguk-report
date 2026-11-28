@@ -257,8 +257,12 @@ const CHK = [
   ok('개인 로그인 신분으로 pre3_univs 를 직접 읽음(visible·ord)', TU.length === 1 && /Bearer T-OK/.test(TU[0].auth) && /visible=is\.true/.test(TU[0].url) && /order=ord/.test(TU[0].url));
   ok('대학 줄 수 = 대학 수(공통 줄은 전국 흐름으로)', await pg.locator('.urow').count() === nUniv && await pg.locator('.sched').count() === 1);
   ok('선생님 보기 띠 + 슈국 운영 링크', await pg.locator('#tband').isVisible() && /shueguk-hub\/ops\.html/.test(await pg.locator('#tband a').getAttribute('href')) && await pg.evaluate(() => document.body.classList.contains('teacher')));
-  await pg.click('[data-v="check"]'); await pg.waitForSelector('.trow[data-stu]');
-  ok('체크리스트 탭 = 학생들이 저장한 목록(pre3_checks 를 개인 로그인으로 읽음)', TCALLS.filter(c => /pre3_checks/.test(c.url) && /Bearer T-OK/.test(c.auth)).length === 1 && await pg.locator('.trow[data-stu]').count() === 2);
+  await pg.click('[data-v="check"]'); await pg.waitForSelector('.tsub');
+  ok('체크리스트 탭 = 학생 화면과 같은 체크리스트(표시 가능, 이 기기에만) + 위 하위 탭 [체크리스트][학생 저장 목록 2]', await pg.locator('.ci[data-no]').count() === 30 && !(await pg.locator('[data-mk="1|o"]').isDisabled()) && (await pg.locator('.tsub').textContent()).replace(/\s+/g, ' ').includes('학생 저장 목록 2') && await pg.locator('.tsub button.on[data-tsub="check"]').count() === 1 && (await pg.locator('.tnote').textContent()).includes('이 기기에만'));
+  const sv0 = SAVES.length; await pg.click('[data-mk="3|t"]'); await pg.waitForTimeout(1500);
+  ok('선생님이 표시한 것은 이 기기에만 · 서버로 보내지 않음', await pg.locator('[data-mk="3|t"].on').count() === 1 && (await pg.evaluate(() => JSON.parse(localStorage.getItem('pre3_check_teacher') || '{}').m['3'])) === 't' && SAVES.length === sv0 && (await pg.locator('#ckSaved').textContent()).includes('이 기기에 저장됨'));
+  await pg.click('[data-tsub="stulist"]'); await pg.waitForSelector('.trow[data-stu]');
+  ok('[학생 저장 목록] = 학생들이 저장한 목록(pre3_checks 를 개인 로그인으로 읽음)', /#stulist/.test(pg.url()) && TCALLS.filter(c => /pre3_checks/.test(c.url) && /Bearer T-OK/.test(c.auth)).length === 1 && await pg.locator('.trow[data-stu]').count() === 2);
   ok('요약 줄 — 2명 저장 · 고2 2', (await pg.locator('.tsum').textContent()).replace(/\s+/g, ' ').includes('2명 저장 · 고2 2'));
   const r0 = await pg.locator('.trow[data-stu]').first().textContent();
   ok('최근 저장한 학생이 위 · 표시 3/30 · ○△× 수 · 이번 주 행동 · 희망 1순위', r0.startsWith('김철수') && r0.includes('3 / 30') && r0.includes('모의고사 국어 기출') && r0.includes('연세대학교 · 국어국문학과') && (await pg.locator('.trow[data-stu]').first().locator('.cs em').allTextContents()).join() === '1,1,1,0');
@@ -270,9 +274,11 @@ const CHK = [
   ok('학생이 표시한 그대로 보임', await pg.locator('[data-mk="1|o"].on').count() === 1 && await pg.locator('[data-mk="7|t"].on').count() === 1 && (await pg.inputValue('#f3w')) === '야자 전' && (await pg.inputValue('#w1u')) === '연세대학교' && (await pg.inputValue('#h11k')) === '2');
   ok('선생님은 바꿀 수 없음(버튼·칸 잠김, 지우기 없음)', await pg.locator('[data-mk="1|o"]').isDisabled() && await pg.locator('#f3w').isDisabled() && await pg.locator('.rst').count() === 0 && (await pg.locator('#ckSaved').textContent()).includes('학생이 마지막으로 저장한 때'));
   await pg.locator('[data-mk="2|o"]').click({ force: true }).catch(() => {});
-  ok('눌러도 표시가 안 바뀜 · 선생님 기기에 저장되지 않음', await pg.locator('[data-mk="2|o"].on').count() === 0 && !(await pg.evaluate(() => localStorage.getItem('pre3_check_teacher'))));
+  ok('눌러도 표시가 안 바뀜 · 선생님 기기의 체크리스트에도 섞이지 않음', await pg.locator('[data-mk="2|o"].on').count() === 0 && !(await pg.evaluate(() => JSON.parse(localStorage.getItem('pre3_check_teacher') || '{}').m['2'])));
   await pg.click('[data-tback]'); await pg.waitForSelector('.trow[data-stu]');
-  ok('[← 학생 목록]으로 돌아옴', await pg.locator('.trow[data-stu]').count() === 2);
+  ok('[← 학생 목록]으로 돌아옴(#stulist)', /#stulist/.test(pg.url()) && await pg.locator('.trow[data-stu]').count() === 2);
+  await pg.click('[data-tsub="check"]'); await pg.waitForSelector('.ci[data-no]');
+  ok('[체크리스트]로 돌아오면 선생님 기기의 표시가 그대로', await pg.locator('[data-mk="3|t"].on').count() === 1 && await pg.locator('.tsub button.on[data-tsub="check"]').count() === 1);
   await pg.evaluate(() => { localStorage.removeItem('shueguk_teacher_session_v2'); localStorage.removeItem('pre3_check_teacher'); });
   await pg.goto(base + '/pre3.html?teacher=1&key=ABC#summary'); await pg.waitForSelector('.urow');
   ok('키가 있으면 학생 보기(pre3_list) 그대로', TCALLS.filter(c => /pre3_univs/.test(c.url)).length === 1 && !(await pg.locator('#tband').isVisible()));
