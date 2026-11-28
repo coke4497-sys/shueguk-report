@@ -410,6 +410,8 @@
   .kb{display:inline-block;font-size:11px;padding:2px 8px;border-radius:999px;margin-right:6px;vertical-align:2px;font-weight:700;}
   .kb.mock{background:#E3F0EC;color:#2E5A4A;} .kb.csat{background:#F6DCD6;color:#8A3F35;} .kb.susi{background:#ECE4F3;color:#4A3F63;} .kb.jeongsi{background:#E9EDF8;color:#3B4E7E;} .kb.extra{background:#F9EFD0;color:#7A6230;} .kb.etc{background:#EEF1EF;color:#54655C;}
   .tbat{display:inline-block;font-size:11px;padding:2px 8px;border-radius:999px;background:#FFF4D6;color:#7A6230;margin-left:6px;vertical-align:2px;}
+  .tbat.plan{background:#EEF1EF;color:#54655C;}
+  .ev .d.alt{font-size:14px;line-height:1.35;}
   @media (max-width:640px){ .dday{grid-template-columns:1fr 1fr;} .dday b{font-size:26px;} .ev{grid-template-columns:76px minmax(0,1fr);} .ev .d{font-size:15px;} }
   .tnote{font-size:13px;color:#54655C;background:#F6F7F4;border-radius:12px;padding:8px 14px;margin:10px 0 0;line-height:1.55;}
   .tsub{margin-top:0;}
@@ -894,21 +896,24 @@ var TRACKS = [
 /* ── 2028 입시 일정 (2026-11-28 원장님 "2028 입시의 주요 일정을 확인하는 페이지") ──
  * 출처: 대교협 「2028학년도 대학입학전형 기본계획」(2025. 8. 28.)·「2028학년도 대학입학전형시행계획 주요사항」(2026. 4. 29.) 일정표,
  *       교육부 2028학년도 수능 시행일·성적통지일 발표(2025. 4.), 교육부 2025. 4. 16. 보도(하반기 모의평가 8월 말 시행·수시 접수 순연).
- * sure:false = 시기만 정해졌고 날짜는 아직 발표 전(2027년 학력평가 일정은 시도교육청이, 모의평가·수능 원서접수는 2027년 3월 수능 시행 기본계획이 정한다).
- * 날짜가 발표되면 이 표만 고친다 — 지어 넣지 않는다. d·e = 'YYYY-MM-DD'(e 는 끝 날짜), tba = 시기 글(날짜 모를 때), mon = 묶을 달(tba 줄). */
+ * 2027년 모의고사 날짜 = 2026-11-28 원장님이 준 시도교육청 일정(안)(3/24 서울 · 5/11 경기 · 6/2 또는 6/3 평가원 · 7/8 인천 · 8/25 평가원 · 10/19 서울) — sure:'plan' = '일정(안)' 표시,
+ * 6월·8월 모의평가 확정일·접수 기간은 평가원이 2027년 3월·7월 계획에서 공고. sure:false = 시기만 정해지고 날짜 발표 전(수능 원서접수).
+ * 날짜가 확정되면 이 표만 고친다 — 지어 넣지 않는다. d·e = 'YYYY-MM-DD'(e 는 끝 날짜), alt = 날짜 자리에 대신 보일 글('6/2 (수) 또는 6/3 (목)'), tba = 시기 글(날짜 모를 때), mon = 묶을 달. */
 var SCHED = [
-  { mon: '2027-03', tba: '3월 넷째 주 무렵', kind: 'mock', t: '3월 전국연합학력평가', who: '서울시교육청 주관 · 고3 첫 모의고사', sure: false },
-  { mon: '2027-05', tba: '5월', kind: 'mock', t: '5월 전국연합학력평가', who: '경기도교육청 주관', sure: false },
-  { mon: '2027-06', tba: '6월 첫째 주 무렵', kind: 'mock', t: '6월 수능 모의평가', who: '한국교육과정평가원 · 2028 수능 체제로 치르는 첫 모의평가, 졸업생도 응시', sure: false },
-  { mon: '2027-07', tba: '7월', kind: 'mock', t: '7월 전국연합학력평가', who: '인천시교육청 주관', sure: false },
+  { mon: '2027-03', d: '2027-03-24', kind: 'mock', t: '3월 전국연합학력평가', who: '서울시교육청 주관 · 고1·2·3 · 고3 첫 모의고사', sure: 'plan' },
+  { mon: '2027-03', tba: '3월 예정', kind: 'csat', t: '2028학년도 수능 시행기본계획 발표', who: '한국교육과정평가원 · 수능 원서접수 기간과 6월 모의평가 날짜가 여기서 확정', sure: true },
+  { mon: '2027-05', d: '2027-05-11', kind: 'mock', t: '5월 전국연합학력평가', who: '경기도교육청 주관 · 고3', sure: 'plan' },
+  { mon: '2027-06', d: '2027-06-02', alt: '6/2 (수) 또는 6/3 (목)', kind: 'mock', t: '6월 수능 모의평가', who: '한국교육과정평가원 · 2028 수능 체제로 치르는 첫 모의평가, 졸업생도 응시 · 고1·2는 같은 날 부산시교육청 학력평가', sure: 'plan' },
   { mon: '2027-07', d: '2027-07-05', e: '2027-07-09', kind: 'etc', t: '수시 재외국민·외국인 특별전형 원서접수(7월 접수 대학)', who: '대교협 기본계획 · 해당 대학만, 일반 수시는 9월 20일부터', sure: true },
-  { mon: '2027-08', tba: '8월 넷째 주 또는 다섯째 주', kind: 'mock', t: '8월 수능 모의평가 (옛 9월 모평)', who: '한국교육과정평가원 · 2028학년도부터 9월이 아니라 8월 말에 치르고, 성적은 2주 뒤 통지', sure: false },
-  { mon: '2027-08', tba: '8월 하순 ~ 9월 초 무렵', kind: 'csat', t: '수능 응시원서 접수', who: '한국교육과정평가원 · 2027년 3월 수능 시행 기본계획에서 날짜 확정', sure: false },
+  { mon: '2027-07', d: '2027-07-08', kind: 'mock', t: '7월 전국연합학력평가', who: '인천시교육청 주관 · 고3', sure: 'plan' },
+  { mon: '2027-07', tba: '7월 예정', kind: 'csat', t: '2028학년도 수능 시행세부계획 공고', who: '한국교육과정평가원 · 8월 모의평가 날짜와 접수 기간도 이 무렵 공고', sure: true },
+  { mon: '2027-08', d: '2027-08-25', kind: 'mock', t: '8월 수능 모의평가 (옛 9월 모평)', who: '한국교육과정평가원 · 2028학년도부터 9월이 아니라 8월 말에 치르고, 성적은 2주 뒤 통지 · 고1·2는 같은 날 인천시교육청 학력평가', sure: 'plan' },
+  { mon: '2027-08', tba: '8월 말 ~ 9월 초 무렵', kind: 'csat', t: '수능 응시원서 접수', who: '한국교육과정평가원 · 2027년 3월 수능 시행기본계획에서 날짜 확정', sure: false },
   { mon: '2027-09', d: '2027-09-20', e: '2027-09-23', kind: 'susi', t: '수시모집 원서접수', who: '이 기간 중 3일 이상 · 8월 모의평가 성적을 받은 뒤 접수', sure: true },
   { mon: '2027-09', d: '2027-09-24', e: '2027-12-20', kind: 'susi', t: '수시 전형기간 (88일)', who: '서류·면접·논술고사 등 대학별 전형', sure: true },
-  { mon: '2027-10', tba: '10월', kind: 'mock', t: '10월 전국연합학력평가', who: '서울시교육청 주관 · 수능 전 마지막 전국 모의고사', sure: false },
+  { mon: '2027-10', d: '2027-10-19', kind: 'mock', t: '10월 전국연합학력평가', who: '서울시교육청 주관 · 고3 · 수능 전 마지막 전국 모의고사 (고1·2는 경기도교육청)', sure: 'plan' },
   { mon: '2027-11', d: '2027-11-18', kind: 'csat', t: '2028학년도 대학수학능력시험', who: '목요일 · 선택과목 없는 통합형 첫 수능 · 1교시 08:40 시작', sure: true, big: true },
-  { mon: '2027-12', d: '2027-12-10', kind: 'csat', t: '수능 성적 통지', who: '한국교육과정평가원(예정)', sure: true },
+  { mon: '2027-12', d: '2027-12-10', kind: 'csat', t: '수능 성적 통지', who: '한국교육과정평가원', sure: true },
   { mon: '2027-12', d: '2027-12-21', kind: 'susi', t: '수시 합격자 발표 마감', who: '이 날까지 대학마다 발표 · 수능 최저가 있는 전형은 성적 통지 뒤에', sure: true, until: true },
   { mon: '2027-12', d: '2027-12-22', e: '2027-12-24', kind: 'susi', t: '수시 합격자 등록', who: '3일', sure: true },
   { mon: '2027-12', d: '2027-12-26', e: '2027-12-30', kind: 'susi', t: '수시 미등록 충원 합격 통보', who: '마감일 18시까지 (홈페이지 발표는 14시까지, 그 뒤는 개별 통보)', sure: true },
@@ -933,6 +938,7 @@ function dowOf(s){ var p = ymdParts(s); return p ? DOW[new Date(Date.UTC(p.y, p.
 function mdOf(s){ var p = ymdParts(s); return p ? p.m + '/' + p.d : ''; }
 function evDateHtml(ev){
   if (!ev.d) return '<div class="d tba">' + esc(ev.tba || '날짜 미정') + '</div>';
+  if (ev.alt) return '<div class="d alt">' + esc(ev.alt) + '</div>';
   var p = ymdParts(ev.d), h = '<div class="d">' + p.m + '/' + p.d + ' <small style="display:inline">(' + dowOf(ev.d) + ')</small>';
   if (ev.e){ var q = ymdParts(ev.e); h += '<small>~ ' + (q.m !== p.m ? q.m + '/' : '') + q.d + ' (' + dowOf(ev.e) + ')</small>'; }
   else if (ev.until) h += '<small>까지</small>';
@@ -954,7 +960,7 @@ function renderSched(){
   var today = kstToday();
   var h = '<div class="card"><div class="sec-t">2028학년도 입시 주요 일정<span class="sub">2027년 3월 ~ 2028년 2월 · 팀09(지금 고2)가 치르는 입시</span></div>' +
     ddayHtml(today) +
-    '<p class="scnote">날짜가 적힌 일정은 대교협 「2028학년도 대학입학전형 기본계획」과 교육부 발표에 따른 것입니다. <span class="tbat">날짜 확정 전</span> 표시가 붙은 모의고사·수능 원서접수는 시기만 정해져 있어요. 시도교육청과 평가원이 날짜를 발표하면 바로 채워 둘게요.</p></div>';
+    '<p class="scnote">날짜가 적힌 일정은 대교협 「2028학년도 대학입학전형 기본계획」과 교육부 발표에 따른 것입니다. 모의고사 날짜는 시도교육청 일정(안)이라 <span class="tbat plan">일정(안)</span> 표시를 붙였고, 6월·8월 모의평가 확정일과 접수 기간은 평가원이 2027년 3월과 7월에 공고해요. <span class="tbat">날짜 확정 전</span>인 수능 원서접수는 확정되는 대로 채워 둘게요.</p></div>';
   h += '<div class="card"><div class="skf">' + [['all', '전체']].concat(Object.keys(KIND_LB).map(function(k){ return [k, KIND_LB[k]]; })).map(function(o){
     return '<button class="pill' + (SK === o[0] ? ' on' : '') + '" data-sk="' + o[0] + '">' + esc(o[1]) + '</button>'; }).join('') + '</div>';
   var rows = SCHED.filter(function(ev){ return SK === 'all' || ev.kind === SK; });
@@ -969,11 +975,11 @@ function renderSched(){
       var end = ev.e || ev.d, past = end && dayDiff(today, end) < 0, on = ev.d && dayDiff(today, ev.d) <= 0 && dayDiff(today, end) >= 0;
       var left = ev.d && !past && dayDiff(today, ev.d) > 0 ? ' · D-' + dayDiff(today, ev.d) : '';
       return '<div class="ev' + (past ? ' past' : '') + (on ? ' today' : '') + '">' + evDateHtml(ev) +
-        '<div><div class="t"><span class="kb ' + ev.kind + '">' + KIND_LB[ev.kind] + '</span><b>' + esc(ev.t) + '</b>' + (ev.sure ? '' : '<span class="tbat">날짜 확정 전</span>') + '</div>' +
+        '<div><div class="t"><span class="kb ' + ev.kind + '">' + KIND_LB[ev.kind] + '</span><b>' + esc(ev.t) + '</b>' + (ev.sure === true ? '' : ev.sure === 'plan' ? '<span class="tbat plan">일정(안)</span>' : '<span class="tbat">날짜 확정 전</span>') + '</div>' +
         '<div class="m">' + esc(ev.who || '') + (on ? ' · <b>진행 중</b>' : esc(left)) + '</div></div></div>';
     }).join('') + '</div>';
   }).join('');
-  h += '<p class="srcline">출처 · 대교협 「2028학년도 대학입학전형 기본계획」(2025. 8. 28.)·「2028학년도 대학입학전형시행계획 주요사항」(2026. 4. 29.) · 교육부 2028학년도 수능 시행일 안내(2025. 4.) · 교육부 「2028학년도 대입제도 개편에 따른 안내사항」(2025. 4. 16.). 대학마다 원서접수 날짜가 다르니 지원할 대학의 모집요강을 꼭 확인해 주세요.</p></div>';
+  h += '<p class="srcline">출처 · 대교협 「2028학년도 대학입학전형 기본계획」(2025. 8. 28.)·「2028학년도 대학입학전형시행계획 주요사항」(2026. 4. 29.) · 교육부 2028학년도 수능 시행일 안내(2025. 4.) · 교육부 「2028학년도 대입제도 개편에 따른 안내사항」(2025. 4. 16.) · 2027년 모의고사는 시도교육청 일정(안)(2026. 11. 기준). 대학마다 원서접수 날짜가 다르니 지원할 대학의 모집요강을 꼭 확인해 주세요.</p></div>';
   $('view').innerHTML = h;
 }
 function renderReform(){

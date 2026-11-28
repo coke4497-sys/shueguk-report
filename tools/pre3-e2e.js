@@ -288,14 +288,15 @@ const CHK = [
   ok('탭 네 개 · [2028 입시 일정] 켜짐', await pg.locator('#seg button').count() === 4 && await pg.locator('#seg button.on[data-v="sched"]').count() === 1);
   ok('D-day 카드 셋(수능·수시 접수·정시 접수)', await pg.locator('.dday > div').count() === 3 && /D-\d+|D-day|끝/.test(await pg.locator('.dday b').first().textContent()) && (await pg.locator('.dday').textContent()).includes('2027. 11. 18.'));
   const evN = await pg.locator('.ev').count(), tbaN = await pg.locator('.ev .tbat').count(), mons = await pg.locator('.mon .mh').allTextContents();
-  ok('달별 묶음 2027년 3월 → 2028년 2월 · 일정 25줄', mons[0].startsWith('2027년 3월') && mons[mons.length - 1].startsWith('2028년 2월') && evN === 25, mons.join('|') + ' ' + evN);
-  ok('날짜 확정 전 표시 = 모의고사 6 + 수능 원서접수 1', tbaN === 7 && (await pg.locator('.ev .d.tba').count()) === 7);
+  ok('달별 묶음 2027년 3월 → 2028년 2월 · 일정 25줄', mons[0].startsWith('2027년 3월') && mons[mons.length - 1].startsWith('2028년 2월') && evN === 27, mons.join('|') + ' ' + evN);
+  ok('일정(안) 표시 = 모의고사 6 · 날짜 확정 전 = 수능 원서접수 1 · 시기만 적은 줄 3(원서접수·기본계획·세부계획)', tbaN === 7 && (await pg.locator('.ev .tbat.plan').count()) === 6 && (await pg.locator('.ev .d.tba').count()) === 3);
+  ok('모의고사 날짜 — 3/24 (수) · 5/11 (화) · 6/2 또는 6/3 · 7/8 (목) · 8/25 (수) · 10/19 (화)', (await pg.locator('.ev').filter({ hasText: '3월 전국연합학력평가' }).locator('.d').textContent()).replace(/\s+/g, '').includes('3/24(수)') && (await pg.locator('.ev').filter({ hasText: '6월 수능 모의평가' }).locator('.d').textContent()).includes('6/2 (수) 또는 6/3 (목)') && (await pg.locator('.ev').filter({ hasText: '8월 수능 모의평가' }).locator('.d').textContent()).replace(/\s+/g, '').includes('8/25(수)') && (await pg.locator('.ev').filter({ hasText: '10월 전국연합학력평가' }).locator('.d').textContent()).replace(/\s+/g, '').includes('10/19(화)'));
   const csat = pg.locator('.ev').filter({ hasText: '대학수학능력시험' });
   ok('수능 11/18 (목) · 성적 통지 12/10 (금) · 수시 접수 9/20~23 · 정시 접수 1/3~6', (await csat.locator('.d').textContent()).replace(/\s+/g, '').includes('11/18(목)') && (await pg.locator('.ev').filter({ hasText: '수능 성적 통지' }).locator('.d').textContent()).replace(/\s+/g, '').includes('12/10(금)') && (await pg.locator('.ev').filter({ hasText: '수시모집 원서접수' }).locator('.d').textContent()).replace(/\s+/g, '').includes('9/20(월)~23(목)') && (await pg.locator('.ev').filter({ hasText: '정시모집 원서접수' }).locator('.d').textContent()).replace(/\s+/g, '').includes('1/3(월)~6(목)'));
   await pg.click('[data-sk="susi"]');
   ok('[수시] 거르기 — 수시 줄만', await pg.locator('.ev').count() === 6 && (await pg.locator('.ev .kb').allTextContents()).every(t => t === '수시') && await pg.locator('.skf .pill.on[data-sk="susi"]').count() === 1);
   await pg.click('[data-sk="all"]');
-  ok('[전체]로 돌아옴', await pg.locator('.ev').count() === 25);
+  ok('[전체]로 돌아옴', await pg.locator('.ev').count() === 27);
   ok('개편안 탭의 일정 카드에 안내', (src0 => src0.includes('[2028 입시 일정] 탭에서'))(fs.readFileSync(path.join(ROOT, 'pre3.html'), 'utf8')));
   if (SHOT) await pg.screenshot({ path: path.join(SHOT, 'pre3-sched.png'), fullPage: true });
   await mp.goto(base + '/pre3.html?key=ABC&r=9#sched'); await mp.waitForSelector('.dday');
