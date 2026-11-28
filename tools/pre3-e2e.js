@@ -68,8 +68,14 @@ let MODE = 'ok', CALLS = [];
       return rt.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, items: ITEMS }) });
     }
     if (m) return rt.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":false}' });
+    if (/\/rest\/v1\/pre3_univs\?/.test(u)){
+      TCALLS.push({ url: u, auth: rt.request().headers()['authorization'] || '' });
+      if (!/Bearer T-OK/.test(rt.request().headers()['authorization'] || '')) return rt.fulfill({ status: 401, body: '{}' });
+      return rt.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(ITEMS) });
+    }
     return rt.fulfill({ status: 204, body: '' });
   });
+  const TCALLS = [];
   const real = !!process.env.PRE3_JSON;
   const nUniv = ITEMS.filter(x => x.kind === 'univ').length;
 
@@ -182,6 +188,22 @@ let MODE = 'ok', CALLS = [];
   if (SHOT) await mp.screenshot({ path: path.join(SHOT, 'pre3-mobile-univ.png'), fullPage: true });
   await mp.goto(base + '/pre3.html?key=ABC#check'); await mp.waitForSelector('.ci');
   ok('가로 스크롤 없음(점검표)', await mp.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
+
+  console.log('⑤-2 선생님 보기(?teacher=1 — 허브 슈국 운영 카드)');
+  await pg.goto(base + '/pre3.html?teacher=1#summary'); await pg.waitForSelector('.msg');
+  ok('로그인 없음 = 허브 로그인 안내 + login.html 링크', (await pg.locator('.msg').textContent()).includes('허브에 로그인') && /shueguk-hub\/login\.html\?next=/.test(await pg.locator('.msg a').getAttribute('href')));
+  ok('표 조회를 보내지 않음', TCALLS.length === 0);
+  await pg.evaluate(() => localStorage.setItem('shueguk_teacher_session_v2', JSON.stringify({ access_token: 'T-OK', refresh_token: 'R', expires_at: Math.floor(Date.now() / 1000) + 3600 })));
+  await pg.goto(base + '/pre3.html?teacher=1&r=2#summary'); await pg.waitForSelector('.urow');   // 해시만 다른 주소는 다시 불러오지 않아 r=2
+  ok('개인 로그인 신분으로 pre3_univs 를 직접 읽음(visible·ord)', TCALLS.length === 1 && /Bearer T-OK/.test(TCALLS[0].auth) && /visible=is\.true/.test(TCALLS[0].url) && /order=ord/.test(TCALLS[0].url));
+  ok('대학 줄 수 = 대학 수(공통 줄은 전국 흐름으로)', await pg.locator('.urow').count() === nUniv && await pg.locator('.sched').count() === 1);
+  ok('선생님 보기 띠 + 슈국 운영 링크', await pg.locator('#tband').isVisible() && /shueguk-hub\/ops\.html/.test(await pg.locator('#tband a').getAttribute('href')) && await pg.evaluate(() => document.body.classList.contains('teacher')));
+  await pg.click('[data-v="check"]'); await pg.waitForSelector('.ci');
+  await pg.locator('.ci').first().locator('button').first().click();
+  ok('점검표는 이 기기 teacher 키에만', await pg.evaluate(() => !!localStorage.getItem('pre3_check_teacher') && !localStorage.getItem('pre3_check_guest')));
+  await pg.evaluate(() => { localStorage.removeItem('shueguk_teacher_session_v2'); localStorage.removeItem('pre3_check_teacher'); });
+  await pg.goto(base + '/pre3.html?teacher=1&key=ABC#summary'); await pg.waitForSelector('.urow');
+  ok('키가 있으면 학생 보기(pre3_list) 그대로', TCALLS.length === 1 && !(await pg.locator('#tband').isVisible()));
 
   console.log('⑥ s.html 카드');
   const src = fs.readFileSync(path.join(ROOT, 's.html'), 'utf8');

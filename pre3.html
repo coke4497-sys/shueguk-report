@@ -13,7 +13,7 @@
 <!--
   예비 고3 — 인서울 15개 대학 2028학년도 입시전형 · 고3 자가 점검 (2026-11-28 원장님, 095)
   · pre1.html(예비 고1 학교 분석)과 같은 틀. 학생 페이지(s.html) 카드가 ?key=(접근코드) 또는 ?id=(학생ID)를 실어 연다.
-  · 전형 자료는 수파베이스 pre3_univs 를 함수 pre3_list 로 받는다(재원생 모두). 출처 = 대입정보포털 '어디가'에 게재된 각 대학
+  · 전형 자료는 수파베이스 pre3_univs 를 함수 pre3_list 로 받는다(재원생 모두). ?teacher=1(허브 슈국 운영 카드)이면 허브 개인 로그인 신분으로 표를 직접 읽는다. 출처 = 대입정보포털 '어디가'에 게재된 각 대학
     2028학년도 대학입학전형 시행계획 원문 + 대교협 「2028학년도 대학입학전형시행계획 주요사항」(2026. 4. 29.).
   · 화면 셋(탭 순서): 나의 점검표(#check — 기본, 이 기기에만 저장) · 전체 요약(#summary) · 대학별 전형(#univ=<key>).
 -->
@@ -354,7 +354,10 @@
     .srow{grid-template-columns:1fr;gap:2px;}
     table.cmp .hide-m{display:none;}
   }
-  @media print{ .seg,.spills,.nav2,.rst,#back-top,.me-back{display:none !important;} body{background:#fff;} .card{box-shadow:none;} }
+  .tband{background:#ECE4F3;color:#4A3F63;border-radius:14px;padding:10px 16px;font-size:.88rem;line-height:1.6;margin:0 0 14px;}
+  .tband a{color:#4A3F63;font-weight:700;text-decoration:none;margin-left:6px;}
+  body.teacher #me-back-row{display:none;}
+  @media print{ .seg,.spills,.nav2,.rst,#back-top,.me-back,.tband{display:none !important;} body{background:#fff;} .card{box-shadow:none;} }
 </style>
 <style>
   /* ── 예비 고3 전용(pre1 스타일 위에 덧씌움) ── */
@@ -418,6 +421,7 @@
     <h1>인서울 15개 대학 2028 입시 미리보기</h1>
     <p class="lead">지금 고2가 치르는 2028학년도 입시를 대학별로 정리했습니다. 고3이 되기 전에 나를 먼저 점검해 보세요.</p>
   </header>
+  <div class="tband" id="tband" hidden>선생님 보기 · 학생 페이지에 보이는 화면 그대로입니다. 점검표 표시는 이 기기에만 남아요. <a href="https://coke4497-sys.github.io/shueguk-hub/ops.html">← 슈국 운영</a></div>
   <nav class="seg" id="seg">
     <button data-v="check">나의 점검표</button>
     <button data-v="summary">전체 요약</button>
@@ -431,7 +435,11 @@ var SB_URL = 'https://bangdbhqpphqqdwcledg.supabase.co';
 var SB_KEY = 'sb_publishable_dE9d1KIbpgYaQkaS2MSrlg_-7SiRJuT';
 var QS = new URLSearchParams(location.search);
 var KEY = (QS.get('key') || '').trim(), SID = (QS.get('id') || QS.get('student') || '').trim();
+/* 선생님 보기(2026-11-28 원장님 "슈국 운영에서도 확인 가능하게") — 허브 슈국 운영 카드가 ?teacher=1 로 연다. 학생 접근코드 없이
+ * 허브 개인 로그인 신분(localStorage shueguk_teacher_session_v2 — s.html teacherTok 과 같은 규칙)으로 pre3_univs 를 직접 읽는다. */
+var TEACHER = QS.get('teacher') === '1' && !KEY && !SID;
 var ITEMS = null, COMMON = null, LOAD_ERR = '', SORT = 'susi', TF = 'all';
+if (TEACHER){ document.body.classList.add('teacher'); var _tb = document.getElementById('tband'); if (_tb) _tb.hidden = false; }
 
 function $(id){ return document.getElementById(id); }
 function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
@@ -442,7 +450,47 @@ function pct(a, b){ return b ? Math.round(a * 1000 / b) / 10 : 0; }
 function pct0(a, b){ return b ? Math.round(a * 100 / b) : 0; }
 
 /* ── 데이터 ── */
+var TEACHER_TOK = null;
+function teacherTok(){
+  if (TEACHER_TOK !== null) return Promise.resolve(TEACHER_TOK);
+  var LS = 'shueguk_teacher_session_v2', s = null;
+  try { s = JSON.parse(localStorage.getItem(LS) || 'null'); } catch (e) { s = null; }
+  if (!s || !s.access_token || !s.refresh_token){ TEACHER_TOK = ''; return Promise.resolve(''); }
+  if (Number(s.expires_at || 0) > Date.now() / 1000 + 90){ TEACHER_TOK = s.access_token; return Promise.resolve(TEACHER_TOK); }
+  return fetch(SB_URL + '/auth/v1/token?grant_type=refresh_token', {
+      method: 'POST', headers: { apikey: SB_KEY, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refresh_token: s.refresh_token }) })
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      if (!d || !d.access_token){ TEACHER_TOK = ''; return ''; }
+      try { localStorage.setItem(LS, JSON.stringify({ access_token: d.access_token, refresh_token: d.refresh_token,
+        expires_at: Number(d.expires_at || (Date.now() / 1000 + Number(d.expires_in || 3600))), user: d.user || s.user || null })); } catch (e) {}
+      TEACHER_TOK = d.access_token; return TEACHER_TOK;
+    })
+    .catch(function(){ TEACHER_TOK = ''; return ''; });
+}
+function applyItems(items){
+  ITEMS = [];
+  (items || []).forEach(function(x){
+    if (x.kind === 'common'){ COMMON = x.data || {}; return; }
+    var o = x.data || {}; o._key = x.key; o.name = o.name || x.name; o.year = x.year || '2028'; ITEMS.push(o);
+  });
+}
+function loadTeacher(){
+  teacherTok().then(function(tok){
+    if (!tok) throw { code: 'nologin' };
+    return fetch(SB_URL + '/rest/v1/pre3_univs?select=key,kind,name,year,data&visible=is.true&order=ord.asc,name.asc', {
+      headers: { apikey: SB_KEY, Authorization: 'Bearer ' + tok } });
+  }).then(function(r){
+    if (r.status === 401 || r.status === 403) throw { code: 'nologin' };
+    if (r.status === 404) throw { code: 'missing' };
+    if (!r.ok) throw { code: 'net' };
+    return r.json();
+  }).then(function(rows){ applyItems(rows); render(); })
+  .catch(function(e){ LOAD_ERR = (e && e.code) || 'net'; ITEMS = []; render(); });
+}
 function load(){
+  if (TEACHER){ loadTeacher(); return; }
   if (!KEY && !SID){ LOAD_ERR = 'nokey'; render(); return; }
   var p = KEY ? { key: KEY } : { student: SID };
   fetch(SB_URL + '/rest/v1/rpc/pre3_list', {
@@ -454,13 +502,7 @@ function load(){
     return r.json();
   }).then(function(d){
     if (!d || !d.ok){ LOAD_ERR = (d && d.error) || 'net'; ITEMS = []; }
-    else {
-      ITEMS = [];
-      (d.items || []).forEach(function(x){
-        if (x.kind === 'common'){ COMMON = x.data || {}; return; }
-        var o = x.data || {}; o._key = x.key; o.name = o.name || x.name; o.year = x.year || '2028'; ITEMS.push(o);
-      });
-    }
+    else applyItems(d.items);
     render();
   }).catch(function(e){ LOAD_ERR = (e && e.code) || 'net'; ITEMS = []; render(); });
 }
@@ -532,6 +574,7 @@ function render(){
   if (r.v === 'univ') renderUniv(r.key); else renderSummary();
 }
 function msgHtml(){
+  if (LOAD_ERR === 'nologin') return '<div class="msg"><b>허브에 로그인해 주세요</b>선생님 보기는 티쳐스 허브 개인 로그인이 있어야 열립니다. <a href="https://coke4497-sys.github.io/shueguk-hub/login.html?next=' + encodeURIComponent(location.href) + '">로그인하러 가기</a></div>';
   if (LOAD_ERR === 'nokey') return '<div class="msg"><b>학생 페이지에서 열어 주세요</b>학생 페이지의 [인서울 15개 대학 2028 입시 미리보기] 카드를 누르면 바로 열립니다.</div>';
   if (LOAD_ERR === 'no_student') return '<div class="msg"><b>학생 정보를 찾지 못했습니다</b>학생 페이지 주소가 맞는지 확인해 주세요.</div>';
   if (LOAD_ERR === 'missing') return '<div class="msg"><b>준비 중입니다</b>곧 대학별 전형 정리를 열어 드릴게요.</div>';
@@ -732,7 +775,7 @@ var CL = [
   ]}
 ];
 var MARKS = [['o', '○', '대체로 하고 있다'], ['t', '△', '가끔 놓친다'], ['x', '×', '아직 안 하고 있다'], ['n', '–', '해당 상황이 없었다']];
-var CK_LS = 'pre3_check_' + (KEY || SID || 'guest');
+var CK_LS = 'pre3_check_' + (TEACHER ? 'teacher' : (KEY || SID || 'guest'));
 var CK = { m: {}, f: {} };
 try { var _c = JSON.parse(localStorage.getItem(CK_LS) || 'null'); if (_c && _c.m) CK = { m: _c.m || {}, f: _c.f || {}, at: _c.at }; } catch(e){}
 function ckSave(){ CK.at = Date.now(); try { localStorage.setItem(CK_LS, JSON.stringify(CK)); } catch(e){} }
