@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>인서울 15개 대학 2028 입시 미리보기</title>
+<title>2028 대입 미리보기</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=Gowun+Dodum&family=Do+Hyeon&family=Sacramento&display=swap" rel="stylesheet" />
@@ -11,7 +11,8 @@
 <meta name="theme-color" content="#E4EFEA" />
 <link rel="manifest" href="manifest-student.json" />
 <!--
-  예비 고3 — 인서울 15개 대학 2028학년도 입시전형 · 고3 자가 점검 (2026-11-28 원장님, 095)
+  예비 고3 — 2028 대입 미리보기 (2026-11-28 원장님, 095) — ① 팀09(2009년생) 셀프 체크리스트 ② 대입 개편안 주요 특징과 전형 요약 ③ 15개 주요 대학 입시 미리보기
+  (같은 날 원장님 "2028 대입 미리보기 — 1. 팀09 셀프 체크리스트(+내신 히스토리·수능 목표 등급·지원 희망 대학 학과) 2. 대입 개편안 주요 특징과 각 전형 요약 3. 15개 주요 대학 입시 미리보기")
   · pre1.html(예비 고1 학교 분석)과 같은 틀. 학생 페이지(s.html) 카드가 ?key=(접근코드) 또는 ?id=(학생ID)를 실어 연다.
   · 전형 자료는 수파베이스 pre3_univs 를 함수 pre3_list 로 받는다(재원생 모두). ?teacher=1(허브 슈국 운영 카드)이면 허브 개인 로그인 신분으로 표를 직접 읽는다. 출처 = 대입정보포털 '어디가'에 게재된 각 대학
     2028학년도 대학입학전형 시행계획 원문 + 대교협 「2028학년도 대학입학전형시행계획 주요사항」(2026. 4. 29.).
@@ -354,6 +355,33 @@
     .srow{grid-template-columns:1fr;gap:2px;}
     table.cmp .hide-m{display:none;}
   }
+  .sub2{display:flex;gap:6px;margin:14px 0 0;}
+  .sub2 button{border:0;background:#fff;border-radius:999px;padding:8px 16px;font-family:var(--sans);font-size:14px;color:#54655C;cursor:pointer;}
+  .sub2 button.on{background:#ECE4F3;color:#4A3F63;font-weight:700;}
+  .rf{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:10px;margin-top:12px;}
+  .rf .it{background:#FAFBF9;border-radius:14px;padding:14px 16px;}
+  .rf .it h4{margin:0 0 6px;font-family:var(--serif);font-size:1rem;color:#2B3A33;}
+  .rf .it p{margin:0;font-size:.9rem;line-height:1.7;color:#2B3A33;word-break:keep-all;}
+  .rf .it .was{display:inline-block;background:#F1F4F1;color:#54655C;border-radius:999px;padding:2px 10px;font-size:.76rem;margin-bottom:8px;}
+  .g5{display:grid;grid-template-columns:repeat(5,1fr);gap:4px;margin:10px 0 4px;}
+  .g5 div{background:#ECE4F3;border-radius:10px;padding:8px 4px;text-align:center;font-size:.8rem;color:#4A3F63;line-height:1.4;}
+  .g5 div b{display:block;font-family:var(--disp);font-weight:400;font-size:1.1rem;}
+  .rtk{border-top:1px solid #EEF1EE;padding:16px 0 4px;margin-top:14px;}
+  .rtk:first-of-type{border-top:0;padding-top:0;margin-top:0;}
+  .rtk h4{margin:0 0 6px;font-family:var(--serif);font-size:1.05rem;color:#2B3A33;}
+  .rtk h4 .tag{display:inline-block;margin-left:8px;background:#F6E9C4;color:#6B5A1F;border-radius:999px;padding:2px 10px;font-size:.74rem;font-family:var(--sans);font-weight:400;vertical-align:middle;}
+  .rtk p{margin:4px 0;font-size:.92rem;line-height:1.7;color:#2B3A33;word-break:keep-all;}
+  .rtk .k{color:var(--accent);font-weight:700;}
+  .rtk .lk{display:inline-block;margin-top:6px;font-size:.84rem;color:#4A3F63;background:#ECE4F3;border-radius:999px;padding:4px 12px;cursor:pointer;}
+  .hist{display:grid;grid-template-columns:72px repeat(3,minmax(0,1fr)) minmax(0,1.4fr);gap:6px 8px;align-items:center;font-size:13px;color:#54655C;}
+  .hist .hh{font-size:12px;color:#8A978F;}
+  .hist .sm{font-family:var(--disp);font-size:15px;color:#2B3A33;}
+  .hist select,.hist input{width:100%;height:40px;font-family:var(--sans);font-size:14px;color:#2B3A33;border:1px solid #DFE5E1;border-radius:10px;background:#FAFBF9;padding:0 8px;}
+  .wish{display:grid;grid-template-columns:36px minmax(0,1.3fr) minmax(0,1.3fr) minmax(0,1fr);gap:6px 8px;align-items:center;}
+  .wish .sm{font-family:var(--disp);font-size:15px;color:#8A978F;text-align:center;}
+  .wish .hh{font-size:12px;color:#8A978F;}
+  .wish input,.wish select{width:100%;height:40px;font-family:var(--sans);font-size:14px;color:#2B3A33;border:1px solid #DFE5E1;border-radius:10px;background:#FAFBF9;padding:0 10px;}
+  @media (max-width:640px){ .hist{grid-template-columns:52px repeat(3,minmax(0,1fr));} .hist .hh.memo{display:none;} .hist input.memo{grid-column:2 / -1;margin-top:-2px;} .wish{grid-template-columns:30px minmax(0,1fr) minmax(0,1fr);} .wish .typ{grid-column:2 / -1;} }
   .tband{background:#ECE4F3;color:#4A3F63;border-radius:14px;padding:10px 16px;font-size:.88rem;line-height:1.6;margin:0 0 14px;}
   .tband a{color:#4A3F63;font-weight:700;text-decoration:none;margin-left:6px;}
   body.teacher #me-back-row{display:none;}
@@ -417,15 +445,15 @@
 <body>
 <div class="wrap">
   <header>
-    <p class="eyebrow">SHUEGUK · 예비 고3</p>
-    <h1>인서울 15개 대학 2028 입시 미리보기</h1>
-    <p class="lead">지금 고2가 치르는 2028학년도 입시를 대학별로 정리했습니다. 고3이 되기 전에 나를 먼저 점검해 보세요.</p>
+    <p class="eyebrow">SHUEGUK · 팀09 · 예비 고3</p>
+    <h1>2028 대입 미리보기</h1>
+    <p class="lead">2009년생, 지금 고2가 치르는 2028학년도 입시를 한곳에 모았습니다. 나를 먼저 점검하고, 바뀐 제도와 전형을 알고, 15개 대학을 살펴보세요.</p>
   </header>
   <div class="tband" id="tband" hidden>선생님 보기 · 학생 페이지에 보이는 화면 그대로입니다. 점검표 표시는 이 기기에만 남아요. <a href="https://coke4497-sys.github.io/shueguk-hub/ops.html">← 슈국 운영</a></div>
   <nav class="seg" id="seg">
-    <button data-v="check">나의 점검표</button>
-    <button data-v="summary">전체 요약</button>
-    <button data-v="univ">대학별 전형</button>
+    <button data-v="check">팀09 셀프 체크리스트</button>
+    <button data-v="reform">대입 개편안 · 전형 요약</button>
+    <button data-v="univ15">15개 주요 대학</button>
   </nav>
   <div id="view"></div>
 </div>
@@ -553,29 +581,36 @@ function stackLegend(){
 /* ── 화면 ── */
 function route(){
   var h = location.hash.replace(/^#/, '');
-  if (h.indexOf('univ=') === 0) return { v: 'univ', key: decodeURIComponent(h.slice(5)) };
-  if (h === 'univ' || h === 'summary') return { v: h };
-  return { v: 'check' };   // pre1 과 같이 처음 열면 점검표
+  if (h.indexOf('univ=') === 0) return { v: 'univ', key: decodeURIComponent(h.slice(5)), tab: 'univ15' };
+  if (h === 'univ' || h === 'summary') return { v: h, tab: 'univ15' };
+  if (h === 'reform') return { v: 'reform', tab: 'reform' };
+  return { v: 'check', tab: 'check' };   // pre1 과 같이 처음 열면 체크리스트
 }
 function go(hash){ if (location.hash !== '#' + hash) location.hash = hash; else render(); }
 window.addEventListener('hashchange', function(){ render(); window.scrollTo(0, 0); });
 $('seg').addEventListener('click', function(e){
   var b = e.target.closest('button'); if (!b) return;
   var v = b.getAttribute('data-v');
-  if (v === 'univ'){ var r = route(); go(r.key ? 'univ=' + encodeURIComponent(r.key) : 'univ'); }
+  if (v === 'univ15'){ var r = route(); go(r.tab === 'univ15' ? (r.v === 'univ' ? (r.key ? 'univ=' + encodeURIComponent(r.key) : 'univ') : 'summary') : 'summary'); }
   else go(v);
 });
+/* 15개 대학 탭 안의 하위 탭 — [전체 요약][대학별 전형] */
+function sub2Html(v){
+  return '<div class="sub2"><button class="' + (v === 'summary' ? 'on' : '') + '" data-sub="summary">전체 요약</button><button class="' + (v === 'univ' ? 'on' : '') + '" data-sub="univ">대학별 전형</button></div>';
+}
 function render(){
   var r = route();
-  Array.prototype.forEach.call($('seg').children, function(b){ b.classList.toggle('on', b.getAttribute('data-v') === r.v); });
+  Array.prototype.forEach.call($('seg').children, function(b){ b.classList.toggle('on', b.getAttribute('data-v') === r.tab); });
   if (r.v === 'check'){ renderCheck(); return; }
-  if (ITEMS === null && !LOAD_ERR){ $('view').innerHTML = '<div class="msg">불러오는 중입니다…</div>'; return; }
-  if (LOAD_ERR || !ITEMS.length){ $('view').innerHTML = msgHtml(); return; }
+  if (r.v === 'reform'){ renderReform(); return; }
+  if (ITEMS === null && !LOAD_ERR){ $('view').innerHTML = sub2Html(r.v) + '<div class="msg">불러오는 중입니다…</div>'; return; }
+  if (LOAD_ERR || !ITEMS.length){ $('view').innerHTML = sub2Html(r.v) + msgHtml(); return; }
   if (r.v === 'univ') renderUniv(r.key); else renderSummary();
+  $('view').insertAdjacentHTML('afterbegin', sub2Html(r.v));
 }
 function msgHtml(){
   if (LOAD_ERR === 'nologin') return '<div class="msg"><b>허브에 로그인해 주세요</b>선생님 보기는 티쳐스 허브 개인 로그인이 있어야 열립니다. <a href="https://coke4497-sys.github.io/shueguk-hub/login.html?next=' + encodeURIComponent(location.href) + '">로그인하러 가기</a></div>';
-  if (LOAD_ERR === 'nokey') return '<div class="msg"><b>학생 페이지에서 열어 주세요</b>학생 페이지의 [인서울 15개 대학 2028 입시 미리보기] 카드를 누르면 바로 열립니다.</div>';
+  if (LOAD_ERR === 'nokey') return '<div class="msg"><b>학생 페이지에서 열어 주세요</b>학생 페이지의 [2028 대입 미리보기] 카드를 누르면 바로 열립니다.</div>';
   if (LOAD_ERR === 'no_student') return '<div class="msg"><b>학생 정보를 찾지 못했습니다</b>학생 페이지 주소가 맞는지 확인해 주세요.</div>';
   if (LOAD_ERR === 'missing') return '<div class="msg"><b>준비 중입니다</b>곧 대학별 전형 정리를 열어 드릴게요.</div>';
   if (LOAD_ERR) return '<div class="msg"><b>불러오지 못했습니다</b>인터넷 연결을 확인한 뒤 새로고침해 주세요.</div>';
@@ -615,7 +650,7 @@ function renderSummary(){
     (topS ? '<div class="top"><span class="k">수시 비율이 가장 높은 대학</span><span class="v">' + esc(sname(topS)) + '</span><span class="u">수시 ' + pct(ts[topS._key].susi, ts[topS._key].total) + '%</span></div>' : '') +
     (topJ ? '<div class="top"><span class="k">정시 비율이 가장 높은 대학</span><span class="v">' + esc(sname(topJ)) + '</span><span class="u">정시 ' + pct(ts[topJ._key].jeongsi, ts[topJ._key].total) + '%</span></div>' : '') +
     (topK ? '<div class="top es0"><span class="k">정시에서 국어를 가장 크게 보는 대학</span><span class="v">' + esc(sname(topK.u)) + '</span><span class="u">국어 ' + topK.k.hum + '% (' + esc(topK.k.humT) + ')</span></div>' : '') +
-    '<div class="top' + (nonU.length ? ' es1' : '') + '"><span class="k">논술 전형</span><span class="v">' + nonU.length + '개 대학</span><span class="u">' + (ITEMS.length - nonU.length ? '없는 대학 ' + ITEMS.length - nonU.length + '곳: ' + esc(ITEMS.filter(function(u){ return !ts[u._key].non; }).map(sname).join(' · ')) : '15개 대학 모두 논술을 봅니다') + '</span></div>' +
+    '<div class="top' + (nonU.length ? ' es1' : '') + '"><span class="k">논술 전형</span><span class="v">' + nonU.length + '개 대학</span><span class="u">' + (ITEMS.length - nonU.length ? '없는 대학 ' + (ITEMS.length - nonU.length) + '곳: ' + esc(ITEMS.filter(function(u){ return !ts[u._key].non; }).map(sname).join(' · ')) : '15개 대학 모두 논술을 봅니다') + '</span></div>' +
     '</div>';
   // 1 모집 구조
   h += '<div class="card"><div class="sec-t"><span class="n">1</span>어떤 전형으로 몇 명을 뽑나<span class="sub">2028학년도 전형유형별 모집인원(대교협 집계, 2026. 4. 29. 기준) · ' + ITEMS.length + '개 대학</span></div>' +
@@ -738,12 +773,56 @@ function trackHtml(x){
     (x.essay ? '<b>논술고사</b><span>' + esc(x.essay) + '</span>' : '') +
     (x.note ? '<b>참고</b><span>' + esc(x.note) + '</span>' : '') + '</div></div>';
 }
+/* ── 대입 개편안 주요 특징과 각 전형 요약 (2026-11-28 원장님) ──
+ * 근거: 교육부 「미래 사회를 대비하는 2028 대학입시제도 개편 확정안」(2023. 12. 27.) · 대교협 「2028학년도 대학입학전형시행계획 주요사항」(2026. 4. 29.).
+ * 전국 숫자는 COMMON.national(대교협), 15개 대학 수는 ITEMS 에서 센다. 글은 공식 자료의 내용만 — 추측·예상은 적지 않는다. */
+var REFORM = [
+  { h: '수능 — 선택과목이 사라집니다', was: '지금 고3까지: 국어 화작/언매 · 수학 확통/미적/기하 · 탐구 17과목 중 택 2',
+    p: '2028학년도 수능은 국어·수학·사회·과학탐구·직업탐구에서 선택과목이 없어지고 모든 수험생이 같은 문제를 풉니다. 탐구는 통합사회와 통합과학을 둘 다 봅니다. 제2외국어/한문만 선택이 남아요. 영어·한국사는 지금처럼 절대평가(9등급)이고, 국어·수학·탐구는 상대평가 9등급 그대로입니다.' },
+  { h: '내신 — 9등급에서 5등급으로', was: '지금 고3까지: 9등급 상대평가(1등급 4%)',
+    p: '2025년 고1(2009년생)부터 고1~3 전 학년 내신이 5등급 상대평가로 바뀌고, 절대평가 성취도(A~E)가 함께 적힙니다. 1등급은 상위 10%까지라 같은 등급 안에 지금보다 많은 학생이 모여요. 사회·과학 융합선택 9과목은 석차 등급 없이 성취도만 냅니다.' },
+  { h: '고교학점제 첫 세대', was: '2025년 고1부터 전면 적용',
+    p: '과목을 골라 이수하고 192학점을 채워 졸업합니다. 학생부에는 어떤 과목을 골라 어떻게 공부했는지가 남고, 학생부종합전형은 이 과목 선택과 세부능력·특기사항을 함께 봅니다.' },
+  { h: '수시 80% 시대', was: '대교협 집계 2028학년도 전국 모집',
+    p: '전국 4년제 대학 모집인원 중 수시가 80.8%로 처음 80%를 넘었습니다. 서울 주요 대학도 정시를 줄이고 수시를 늘리는 흐름이라, 내신·학생부 관리와 수능 준비를 함께 해야 합니다.' }
+];
+var TRACKS = [
+  { h: '학생부교과', k: '내신 등급이 중심', body: '교과 성적(내신)을 정해진 공식으로 점수화해 뽑습니다. 대부분 학교장 추천(지역균형·고교추천)이 붙고, 수능 최저학력기준을 두는 대학이 많아요. 5등급제로 같은 등급 학생이 많아지면서 최저 기준·면접·서류의 역할이 커집니다.', kor: '수능 최저를 맞추려면 국어 등급이 안정적이어야 합니다. 내신 국어는 서술형·논술형이 늘어나는 흐름이에요.', cnt: 'gyo' },
+  { h: '학생부종합', k: '학생부 전체를 종합 평가', body: '내신 등급과 함께 과목 선택, 세부능력·특기사항, 창의적 체험활동을 서류로 평가하고 면접을 보는 대학이 많습니다. 자기소개서는 없고, 수능 최저를 두지 않는 대학이 대부분이지만 일부는 둡니다.', kor: '수업 시간의 발표·토론·글쓰기가 세특에 남습니다. 국어 수업에서 읽고 쓰고 말한 기록이 곧 서류입니다.', cnt: 'jong' },
+  { h: '논술', k: '대학별 논술고사', body: '논술 100% 또는 논술 + 교과로 뽑습니다. 인문 논술은 제시문을 읽고 요약·비교·비판하는 글쓰기예요. 수능 최저를 두는 대학과 두지 않는 대학이 갈립니다. 대학마다 출제 유형이 달라 기출 확인이 먼저입니다.', kor: '제시문 독해와 논리적인 글쓰기 — 국어 비문학 독해와 서술형 훈련이 그대로 닿습니다.', cnt: 'non' },
+  { h: '정시(수능)', k: '수능 성적으로', body: '수능 표준점수·백분위를 대학마다 정한 영역별 비율로 반영합니다. 가·나·다군 중 군마다 한 번씩 지원할 수 있어요. 2028학년도부터 모든 수험생이 같은 과목을 보므로 영역별 반영 비율이 대학을 고르는 기준이 됩니다.', kor: '국어 반영 비율이 30~40%인 대학이 많습니다. 15개 대학의 비율은 [15개 주요 대학] 탭에서 비교해 보세요.', cnt: 'su' }
+];
+function renderReform(){
+  var n = (COMMON && COMMON.national) || null, types = n ? arr(n.types) : [];
+  var tn = {}; types.forEach(function(t){ tn[t[0]] = t; });
+  var cntOf = function(key){
+    var map = { gyo: '학생부교과', jong: '학생부종합', non: '논술', su: '수능(정시)' }, t = tn[map[key]];
+    var u15 = ITEMS ? ITEMS.filter(function(u){ return tot(u)[key] > 0; }).length : null;
+    return (t ? '<span class="k">전국 ' + nf(t[1]) + '명 · ' + t[2] + '%</span>' : '') + (u15 != null && ITEMS.length ? (t ? ' · ' : '') + '15개 대학 중 ' + u15 + '곳' : '');
+  };
+  var h = '<div class="card"><div class="sec-t"><span class="n">1</span>2028 대입 개편안 — 무엇이 달라지나<span class="sub">교육부 확정안(2023. 12. 27.) · 2009년생이 첫 적용</span></div>' +
+    '<div class="rf">' + REFORM.map(function(r){ return '<div class="it"><span class="was">' + esc(r.was) + '</span><h4>' + esc(r.h) + '</h4><p>' + esc(r.p) + '</p></div>'; }).join('') + '</div>' +
+    '<div class="g5">' + [['1', '~10%'], ['2', '~34%'], ['3', '~66%'], ['4', '~90%'], ['5', '~100%']].map(function(g){ return '<div><b>' + g[0] + '등급</b>누적 ' + g[1] + '</div>'; }).join('') + '</div>' +
+    '<p class="muted" style="font-size:12px;line-height:1.7;margin:4px 0 0">내신 5등급 상대평가의 등급별 누적 비율입니다(1등급 10% · 2등급 24% · 3등급 32% · 4등급 24% · 5등급 10%).</p></div>';
+  h += '<div class="card"><div class="sec-t"><span class="n">2</span>전형별 요약<span class="sub">네 가지 전형이 각각 무엇을 보는지</span></div>' +
+    TRACKS.map(function(t){ return '<div class="rtk"><h4>' + esc(t.h) + '<span class="tag">' + esc(t.k) + '</span></h4><p>' + esc(t.body) + '</p><p>' + cntOf(t.cnt) + '</p><p><b>국어 공부와 닿는 점</b> · ' + esc(t.kor) + '</p></div>'; }).join('') +
+    (n ? '<p class="muted" style="font-size:12px;line-height:1.7;margin:14px 0 0">전국 숫자는 대교협 「2028학년도 대학입학전형시행계획 주요사항」(2026. 4. 29.)의 전형유형별 모집인원입니다. 전체 ' + nf(n.total) + '명 · 수시 ' + n.susi_pct + '% · 정시 ' + n.jeongsi_pct + '%.</p>' : '') + '</div>';
+  h += '<div class="card"><div class="sec-t"><span class="n">3</span>그래서 팀09는 어떻게 준비하나</div><ul class="with">' +
+    ['내신 5등급제에서는 한 등급 차이가 더 크게 보입니다. 3학년 1학기까지 국어 내신을 끝까지 챙기세요.',
+     '수능은 모두 같은 시험입니다. 국어는 화법·작문·언어(문법)·독서·문학을 고르게 — 선택과목에 숨을 곳이 없어요.',
+     '수시를 쓰더라도 수능 최저학력기준이 있는 대학이 많습니다. 모의고사 등급을 꾸준히 확인하세요.',
+     '학생부종합은 수업 시간의 기록이 서류입니다. 발표·토론·글쓰기를 성실하게 남기세요.',
+     '[15개 주요 대학] 탭에서 희망 대학의 전형·최저·정시 국어 비율을 확인하고 체크리스트의 지원 희망 대학에 적어 두세요.'].map(function(t, i){ return '<li><b>' + (i + 1) + '</b><span>' + esc(t) + '</span></li>'; }).join('') + '</ul>' +
+    '<p class="srcline">출처 · 교육부 「미래 사회를 대비하는 2028 대학입시제도 개편 확정안」(2023. 12. 27.) · 대교협 「2028학년도 대학입학전형시행계획 주요사항」(2026. 4. 29.). 세부 전형은 대학마다 다르니 각 대학 시행계획을 확인해 주세요.</p></div>';
+  $('view').innerHTML = h;
+}
 function sec(n, title, sub, body){
   return '<div class="card"><div class="sec-t"><span class="n">' + n + '</span>' + esc(title) + (sub ? '<span class="sub">' + esc(sub) + '</span>' : '') + '</div>' + body + '</div>';
 }
 
 $('view').addEventListener('click', function(e){
-  var t = e.target.closest('[data-go],[data-sort],[data-tf],[data-sum],[data-mk],[data-re],[data-rst]'); if (!t) return;
+  var t = e.target.closest('[data-go],[data-sort],[data-tf],[data-sum],[data-mk],[data-re],[data-rst],[data-sub]'); if (!t) return;
+  if (t.hasAttribute('data-sub')){ var sv = t.getAttribute('data-sub'); if (sv === 'univ'){ var rr = route(); go(rr.key ? 'univ=' + encodeURIComponent(rr.key) : 'univ'); } else go('summary'); return; }
   if (t.hasAttribute('data-re')){ var rv = t.getAttribute('data-re'); if (CK.f.f4m === rv) delete CK.f.f4m; else CK.f.f4m = rv; ckSave();
     Array.prototype.forEach.call($('f4m').querySelectorAll('button'), function(b){ b.classList.toggle('on', b.getAttribute('data-re') === CK.f.f4m); }); savedRow(); return; }
   if (t.hasAttribute('data-go')){ TF = 'all'; go('univ=' + encodeURIComponent(t.getAttribute('data-go'))); return; }
@@ -826,6 +905,46 @@ function fld(id, label, type){
 function step(n, title, hint, body){
   return '<div class="st"><span class="cn c' + n + '">' + n + '</span><div class="bd"><div><h4>' + esc(title) + '</h4><p class="hint">' + esc(hint) + '</p></div>' + body + '</div></div>';
 }
+/* 2026-11-28 원장님 추가 항목 셋 — 내신 히스토리 · 수능 목표 등급 · 지원 희망 대학 학과(모두 이 기기 CK.f 에만 저장) */
+var SEMS = [['11', '1-1'], ['12', '1-2'], ['21', '2-1'], ['22', '2-2'], ['31', '3-1']];
+var UNIV_NAMES = ['서울대학교', '연세대학교', '고려대학교', '서강대학교', '성균관대학교', '한양대학교', '중앙대학교', '경희대학교', '한국외국어대학교', '서울시립대학교', '이화여자대학교', '건국대학교', '동국대학교', '홍익대학교', '숙명여자대학교'];
+function selHtml(id, opts, cls, blank){
+  var v = CK.f[id] || '';
+  return '<select id="' + id + '" data-f="' + id + '"' + (cls ? ' class="' + cls + '"' : '') + '><option value="">' + (blank || '–') + '</option>' +
+    opts.map(function(o){ var val = Array.isArray(o) ? o[0] : o, lb = Array.isArray(o) ? o[1] : o; return '<option value="' + esc(val) + '"' + (String(v) === String(val) ? ' selected' : '') + '>' + esc(lb) + '</option>'; }).join('') + '</select>';
+}
+function inHtml(id, ph, type){ return '<input id="' + id + '" data-f="' + id + '" type="' + (type || 'text') + '" value="' + esc(CK.f[id] || '') + '" placeholder="' + esc(ph || '') + '" />'; }
+function histCard(){
+  var g5 = ['1', '2', '3', '4', '5'], ach = ['A', 'B', 'C', 'D', 'E'];
+  var rows = SEMS.map(function(sm){
+    return '<span class="sm">' + sm[1] + (sm[0] === '31' ? '<small style="font-size:10px;color:#8A978F;display:block">예정</small>' : '') + '</span>' +
+      selHtml('h' + sm[0] + 'k', g5, '', '등급') + selHtml('h' + sm[0] + 'a', ach, '', '성취도') + inHtml('h' + sm[0] + 'g', '1.0~5.0', 'number') + inHtml('h' + sm[0] + 'm', '예) 문학 1 · 독서 2').replace('<input ', '<input class="memo" ');
+  }).join('');
+  return '<div class="card"><div class="sec-t">내신 히스토리<span class="sub">5등급 상대평가 + 성취도 A~E (2025년 고1부터)</span></div>' +
+    '<p class="ckp s">학기마다 국어 등급과 성취도, 전 과목 평균 등급을 적어 두세요. 3학년 1학기까지가 수시에 들어가는 내신입니다.</p>' +
+    '<div class="hist"><span class="hh">학기</span><span class="hh">국어 등급</span><span class="hh">국어 성취도</span><span class="hh">전 과목 평균</span><span class="hh memo">메모(과목별 등급 등)</span>' + rows + '</div>' +
+    '<p class="muted" style="margin:10px 0 0;font-size:12px;line-height:1.7">2028학년도 입시는 내신 5등급제가 처음 적용되는 해입니다. 1등급은 상위 10%까지예요. 등급과 성취도가 함께 쓰이니 둘 다 적어 두면 좋습니다.</p></div>';
+}
+function goalCard(){
+  var g9 = ['1', '2', '3', '4', '5', '6', '7', '8', '9'];
+  var areas = [['gk', '국어'], ['gm', '수학'], ['ge', '영어(절대평가)'], ['gs', '통합사회'], ['gc', '통합과학'], ['gh', '한국사(절대평가)']];
+  return '<div class="card"><div class="sec-t">수능 목표 등급<span class="sub">2028 수능 — 선택과목 없이 모두 같은 시험</span></div>' +
+    '<p class="ckp s">영역마다 목표 등급을 고르세요. 목표는 다음 모의고사 뒤에 다시 고쳐도 됩니다.</p>' +
+    '<div class="f2" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))">' + areas.map(function(a){ return '<label class="fld" for="' + a[0] + '">' + a[1] + selHtml(a[0], g9, '', '목표 등급') + '</label>'; }).join('') + '</div>' +
+    '<div class="f2" style="margin-top:10px">' + fld('gwhy', '이 목표를 정한 이유 · 지금 가장 멀리 있는 영역', 'area') + fld('gnow', '최근 모의고사 등급(국·수·영·탐)', 'text') + '</div></div>';
+}
+function wishCard(){
+  var types = ['학생부교과', '학생부종합', '논술', '정시(수능)', '아직 모름'];
+  var rows = [1, 2, 3].map(function(i){
+    return '<span class="sm">' + i + '</span>' + '<input id="w' + i + 'u" data-f="w' + i + 'u" list="univlist" value="' + esc(CK.f['w' + i + 'u'] || '') + '" placeholder="대학" />' +
+      inHtml('w' + i + 'd', '학과 · 학부') + selHtml('w' + i + 't', types, 'typ', '생각하는 전형');
+  }).join('');
+  return '<div class="card"><div class="sec-t">지원 희망 대학 · 학과<span class="sub">지금 마음에 둔 곳 세 군데</span></div>' +
+    '<p class="ckp s">확정이 아니어도 괜찮습니다. 적어 두면 [15개 주요 대학] 탭에서 그 대학의 전형과 정시 국어 비율을 바로 찾아보게 돼요.</p>' +
+    '<div class="wish"><span class="hh"></span><span class="hh">대학</span><span class="hh">학과 · 학부</span><span class="hh typ">생각하는 전형</span>' + rows + '</div>' +
+    '<datalist id="univlist">' + UNIV_NAMES.map(function(n){ return '<option value="' + n + '">'; }).join('') + '</datalist>' +
+    fld('wmemo', '왜 이 대학·학과인가요 (한 줄)', 'text') + '</div>';
+}
 var OK_SVG = '<svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="#7F9E8E" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 8.3l3 3 6-6.6"/></svg>';
 function savedHtml(){
   return (CK.at ? '<span class="ok">' + OK_SVG + '이 기기에 저장됨 · ' + new Date(CK.at).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: 'numeric', minute: '2-digit' }) + '</span>'
@@ -838,7 +957,7 @@ function reHtml(){
     return '<button class="' + m[0] + (CK.f.f4m === m[0] ? ' on' : '') + '" data-re="' + m[0] + '" title="' + m[2] + '" aria-label="' + m[2] + '">' + m[1] + '</button>'; }).join('') + '</div></div>';
 }
 function renderCheck(){
-  var h = '<div class="card"><div class="sec-t">예비 고3 · 고3이 되기 전, 나를 먼저 점검하기</div>' +
+  var h = '<div class="card"><div class="sec-t">팀09 셀프 체크리스트 · 고3이 되기 전, 나를 먼저 점검하기</div>' +
     '<p class="ckp">어느 대학을 목표로 하든, 고3의 1년을 버티는 습관은 지금 내가 준비할 수 있습니다.</p>' +
     '<p class="ckp s">이 표는 시험이 아닙니다. 점수도 등급도 없고, 누가 채점하지도 않습니다. 잘 보이려고 고르지 말고, 최근 2주 동안 실제로 어땠는지 떠올리며 솔직하게 표시해 주세요.</p>' +
     '<div class="cklg" id="ckCount">' + countHtml() + '</div></div>' +
@@ -851,6 +970,7 @@ function renderCheck(){
       }).join('');
     }).join('') + '</div>';
   }).join('');
+  h += histCard() + goalCard() + wishCard();
   h += '<div class="card"><div class="sec-t">나를 돌아보고, 행동 하나 정하기</div>' +
     step(1, '내가 이미 잘하고 있는 것 하나', '○를 표시한 항목 중에서 하나를 골라 주세요.', fld('f1n', '번호', 'select') + fld('f1t', '어떻게 지키고 있나요', 'area')) +
     step(2, '자꾸 놓치는 것 하나', '△나 ×를 표시한 항목 중 하나를 골라 주세요. "내가 게을러서"보다 "그때 무슨 일이 있었는지"를 떠올려 보세요.', fld('f2n', '번호', 'select') + fld('f2t', '주로 놓치는 상황', 'area')) +
