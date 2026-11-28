@@ -384,6 +384,8 @@
   @media (max-width:640px){ .hist{grid-template-columns:52px repeat(3,minmax(0,1fr));} .hist .hh.memo{display:none;} .hist input.memo{grid-column:2 / -1;margin-top:-2px;} .wish{grid-template-columns:30px minmax(0,1fr) minmax(0,1fr);} .wish .typ{grid-column:2 / -1;} }
   .tband{background:#ECE4F3;color:#4A3F63;border-radius:14px;padding:10px 16px;font-size:.88rem;line-height:1.6;margin:0 0 14px;}
   /* 선생님 보기 — 학생 체크리스트 목록·열람 */
+  .tnote{font-size:13px;color:#54655C;background:#F6F7F4;border-radius:12px;padding:8px 14px;margin:10px 0 0;line-height:1.55;}
+  .tsub{margin-top:0;}
   .tsum{font-size:14px;color:#54655C;margin:4px 0 12px;}
   .tsum b{font-family:var(--disp);font-weight:400;font-size:22px;color:#2B3A33;margin-right:2px;}
   .tfil{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-bottom:12px;}
@@ -483,7 +485,7 @@
     <h1>2028 대입 미리보기</h1>
     <p class="lead">2009년생, 지금 고2가 치르는 2028학년도 입시를 한곳에 모았습니다. 나를 먼저 점검하고, 바뀐 제도와 전형을 알고, 15개 대학을 살펴보세요.</p>
   </header>
-  <div class="tband" id="tband" hidden>선생님 보기 · [팀09 셀프 체크리스트] 탭에서 학생들이 저장한 체크리스트를 볼 수 있습니다. 나머지 두 탭은 학생 페이지와 같아요. <a href="https://coke4497-sys.github.io/shueguk-hub/ops.html">← 슈국 운영</a></div>
+  <div class="tband" id="tband" hidden>선생님 보기 · 학생 페이지와 같은 화면입니다. [팀09 셀프 체크리스트] 탭 위 [학생 저장 목록]에서 학생들이 저장한 체크리스트를 볼 수 있어요. <a href="https://coke4497-sys.github.io/shueguk-hub/ops.html">← 슈국 운영</a></div>
   <nav class="seg" id="seg">
     <button data-v="check">팀09 셀프 체크리스트</button>
     <button data-v="reform">대입 개편안 · 전형 요약</button>
@@ -565,8 +567,14 @@ function loadChecks(){
     if (r.status === 404) throw { code: 'missing' };
     if (!r.ok) throw { code: 'net' };
     return r.json();
-  }).then(function(rows){ CHECKS = rows || []; if (route().tab === 'check') render(); })
-  .catch(function(e){ CHECKS_ERR = (e && e.code) || 'net'; CHECKS = []; if (route().tab === 'check') render(); });
+  }).then(function(rows){ CHECKS = rows || []; checksArrived(); })
+  .catch(function(e){ CHECKS_ERR = (e && e.code) || 'net'; CHECKS = []; checksArrived(); });
+}
+/* 목록이 오면 — 목록·학생 화면은 다시 그리고, 체크리스트 화면은 하위 탭의 숫자만 바꾼다(표시 중인 칸을 건드리지 않게) */
+function checksArrived(){
+  var r = route();
+  if (r.v === 'stulist' || r.v === 'stu') render();
+  else if (r.v === 'check'){ var el = document.querySelector('.tsub'); if (el) el.outerHTML = tsubHtml('check'); }
 }
 function load(){
   if (TEACHER){ loadTeacher(); return; }
@@ -637,6 +645,7 @@ function route(){
   if (h === 'univ' || h === 'summary') return { v: h, tab: 'univ15' };
   if (h === 'reform') return { v: 'reform', tab: 'reform' };
   if (h.indexOf('stu=') === 0) return { v: 'stu', key: decodeURIComponent(h.slice(4)), tab: 'check' };   // 선생님 보기 — 학생 한 명의 체크리스트
+  if (h === 'stulist') return { v: 'stulist', tab: 'check' };   // 선생님 보기 — 학생들이 저장한 목록
   return { v: 'check', tab: 'check' };   // pre1 과 같이 처음 열면 체크리스트
 }
 function go(hash){ if (location.hash !== '#' + hash) location.hash = hash; else render(); }
@@ -651,10 +660,16 @@ $('seg').addEventListener('click', function(e){
 function sub2Html(v){
   return '<div class="sub2"><button class="' + (v === 'summary' ? 'on' : '') + '" data-sub="summary">전체 요약</button><button class="' + (v === 'univ' ? 'on' : '') + '" data-sub="univ">대학별 전형</button></div>';
 }
+/* 선생님 보기 — 체크리스트 탭 안 하위 탭 [체크리스트(학생 화면과 같음)][학생 저장 목록 n] */
+function tsubHtml(v){
+  var n = CHECKS ? CHECKS.length : null;
+  return '<div class="sub2 tsub"><button class="' + (v === 'check' ? 'on' : '') + '" data-tsub="check">체크리스트</button><button class="' + (v === 'stulist' ? 'on' : '') + '" data-tsub="stulist">학생 저장 목록' + (n === null ? '' : ' ' + n) + '</button></div>';
+}
 function render(){
   var r = route();
   Array.prototype.forEach.call($('seg').children, function(b){ b.classList.toggle('on', b.getAttribute('data-v') === r.tab); });
-  if (r.v === 'check'){ if (TEACHER) renderTeacherChecks(); else renderCheck(); return; }
+  if (r.v === 'check'){ renderCheck(); return; }   // 선생님 보기도 학생 화면과 같은 체크리스트(2026-11-28 원장님)
+  if (r.v === 'stulist'){ if (TEACHER) renderTeacherChecks(); else go('check'); return; }
   if (r.v === 'stu'){ if (TEACHER) renderStudentCheck(r.key); else go('check'); return; }
   if (r.v === 'reform'){ renderReform(); return; }
   if (ITEMS === null && !LOAD_ERR){ $('view').innerHTML = sub2Html(r.v) + '<div class="msg">불러오는 중입니다…</div>'; return; }
@@ -875,10 +890,11 @@ function sec(n, title, sub, body){
 }
 
 $('view').addEventListener('click', function(e){
-  var t = e.target.closest('[data-go],[data-sort],[data-tf],[data-sum],[data-mk],[data-re],[data-rst],[data-sub],[data-stu],[data-tg],[data-tback]'); if (!t) return;
+  var t = e.target.closest('[data-go],[data-sort],[data-tf],[data-sum],[data-mk],[data-re],[data-rst],[data-sub],[data-stu],[data-tg],[data-tback],[data-tsub]'); if (!t) return;
   if (RO && (t.hasAttribute('data-mk') || t.hasAttribute('data-re') || t.hasAttribute('data-rst'))) return;   // 학생 체크리스트 열람은 읽기만
   if (t.hasAttribute('data-stu')){ go('stu=' + encodeURIComponent(t.getAttribute('data-stu'))); return; }
-  if (t.hasAttribute('data-tback')){ go('check'); return; }
+  if (t.hasAttribute('data-tback')){ go('stulist'); return; }
+  if (t.hasAttribute('data-tsub')){ go(t.getAttribute('data-tsub')); return; }
   if (t.hasAttribute('data-tg')){ TG = t.getAttribute('data-tg'); drawTeacherList(); return; }
   if (t.hasAttribute('data-sub')){ var sv = t.getAttribute('data-sub'); if (sv === 'univ'){ var rr = route(); go(rr.key ? 'univ=' + encodeURIComponent(rr.key) : 'univ'); } else go('summary'); return; }
   if (t.hasAttribute('data-re')){ var rv = t.getAttribute('data-re'); if (CK.f.f4m === rv) delete CK.f.f4m; else CK.f.f4m = rv; ckSave();
@@ -1069,7 +1085,8 @@ function reHtml(){
 }
 var RO = false;   // 선생님이 학생 체크리스트를 열람하는 중(읽기만)
 function renderCheck(){
-  var h = (RO ? roHead() : '') + '<div class="card"><div class="sec-t">팀09 셀프 체크리스트 · 고3이 되기 전, 나를 먼저 점검하기</div>' +
+  var h = (RO ? roHead() : (TEACHER ? tsubHtml('check') + '<div class="tnote">학생 페이지와 같은 화면입니다. 여기서 표시하거나 적은 것은 이 기기에만 남고 학생에게 가지 않아요.</div>' : '')) +
+    '<div class="card"><div class="sec-t">팀09 셀프 체크리스트 · 고3이 되기 전, 나를 먼저 점검하기</div>' +
     '<p class="ckp">어느 대학을 목표로 하든, 고3의 1년을 버티는 습관은 지금 내가 준비할 수 있습니다.</p>' +
     '<p class="ckp s">이 표는 시험이 아닙니다. 점수도 등급도 없습니다. 표시한 내용은 담당 선생님이 함께 보며 상담에 씁니다. 잘 보이려고 고르지 말고, 최근 2주 동안 실제로 어땠는지 떠올리며 솔직하게 표시해 주세요.</p>' +
     '<div class="cklg" id="ckCount">' + countHtml() + '</div></div>' +
@@ -1114,7 +1131,7 @@ function ckStat(d){
   return c;
 }
 function renderTeacherChecks(){
-  var h = '<div class="card"><div class="sec-t">학생 셀프 체크리스트<span class="sub">학생이 저장하면 여기 바로 쌓입니다 · 이름을 누르면 그 학생의 표시와 적은 글을 봅니다</span></div>';
+  var h = tsubHtml('stulist') + '<div class="card"><div class="sec-t">학생 셀프 체크리스트<span class="sub">학생이 저장하면 여기 바로 쌓입니다 · 이름을 누르면 그 학생의 표시와 적은 글을 봅니다</span></div>';
   if (CHECKS === null && !CHECKS_ERR){ $('view').innerHTML = h + '<div class="msg">불러오는 중입니다…</div></div>'; return; }
   if (CHECKS_ERR === 'nologin'){ $('view').innerHTML = h + '<div class="msg"><b>허브에 로그인해 주세요</b>학생 체크리스트는 티쳐스 허브 개인 로그인이 있어야 열립니다. <a href="https://coke4497-sys.github.io/shueguk-hub/login.html?next=' + encodeURIComponent(location.href) + '">로그인하러 가기</a></div></div>'; return; }
   if (CHECKS_ERR === 'missing'){ $('view').innerHTML = h + '<div class="msg"><b>준비 중입니다</b>체크리스트 저장 표(096)가 아직 적용되지 않았습니다.</div></div>'; return; }
