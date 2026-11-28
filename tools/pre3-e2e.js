@@ -82,11 +82,13 @@ let MODE = 'ok', CALLS = [];
   console.log('① 전체 요약');
   await pg.goto(base + '/pre3.html?key=ABC', { waitUntil: 'domcontentloaded' });
   await pg.waitForSelector('.ci');
-  ok('처음 열면 [나의 점검표] — 탭 맨 앞', (await pg.locator('#seg button').first().textContent()) === '나의 점검표' && (await pg.locator('#seg button.on').textContent()) === '나의 점검표');
-  await pg.locator('#seg button[data-v="summary"]').click();
+  ok('처음 열면 [팀09 셀프 체크리스트] — 탭 맨 앞', (await pg.locator('#seg button').first().textContent()) === '팀09 셀프 체크리스트' && (await pg.locator('#seg button.on').textContent()) === '팀09 셀프 체크리스트');
+  ok('탭 셋 — 체크리스트 · 개편안 · 15개 대학', (await pg.locator('#seg button').allTextContents()).join('|') === '팀09 셀프 체크리스트|대입 개편안 · 전형 요약|15개 주요 대학');
+  await pg.locator('#seg button[data-v="univ15"]').click();
   await pg.waitForSelector('.urow');
+  ok('15개 대학 탭 = 전체 요약 하위 탭부터', (await pg.locator('.sub2 button.on').textContent()) === '전체 요약');
   ok('접근코드로 pre3_list 를 부름', CALLS[0] && CALLS[0].key === 'ABC');
-  ok('[전체 요약] 탭이 켜짐', await pg.locator('#seg button.on').textContent() === '전체 요약');
+  ok('[15개 주요 대학] 탭이 켜짐', await pg.locator('#seg button.on').textContent() === '15개 주요 대학');
   ok('대학 줄 수 = 대학 수(공통 줄 제외)', await pg.locator('.urow').count() === nUniv);
   ok('전국 흐름·일정 카드(공통 줄)', (await pg.locator('.sec-t').allTextContents()).join('|').includes('큰 흐름') && await pg.locator('.sched').count() === 1);
   if (SHOT) await pg.screenshot({ path: path.join(SHOT, 'pre3-summary.png'), fullPage: true });
@@ -115,7 +117,7 @@ let MODE = 'ok', CALLS = [];
   await pg.click('.sbox');
   await pg.waitForSelector('.shead');
   ok('주소가 #univ=… 로', /#univ=/.test(pg.url()));
-  ok('[대학별 전형] 탭이 켜짐', await pg.locator('#seg button.on').textContent() === '대학별 전형');
+  ok('[대학별 전형] 하위 탭이 켜짐', await pg.locator('.sub2 button.on').textContent() === '대학별 전형' && await pg.locator('#seg button.on').textContent() === '15개 주요 대학');
   if (SHOT) await pg.screenshot({ path: path.join(SHOT, 'pre3-univ.png'), fullPage: true });
   if (!real){
     ok('첫 카드 = 가대학교(정렬 유지)', (await pg.locator('.shead .nm').textContent()) === '가대학교');
@@ -138,13 +140,36 @@ let MODE = 'ok', CALLS = [];
     ok('나대 정시 표 국어 40%·자연 30%·영어 가감점', (await pg.locator('.rt').nth(1).textContent()).includes('40') && (await pg.locator('.rt').nth(2).textContent()).includes('30') && (await pg.locator('.rt').nth(1).textContent()).includes('가감점'));
     ok('논술고사 줄', (await pg.locator('.tk').nth(2).textContent()).includes('인문 90분'));
     await pg.click('[data-sum]'); await pg.waitForSelector('.urow');
-    ok('전체 요약으로', await pg.locator('#seg button.on').textContent() === '전체 요약');
+    ok('전체 요약으로', await pg.locator('.sub2 button.on').textContent() === '전체 요약');
+    await pg.click('.sub2 [data-sub="univ"]'); await pg.waitForSelector('.shead');
+    ok('하위 탭 [대학별 전형]으로', /#univ/.test(pg.url()));
   }
 
-  console.log('③ 나의 점검표');
+  console.log('②-2 대입 개편안 · 전형 요약');
+  await pg.click('#seg button[data-v="reform"]'); await pg.waitForSelector('.rf');
+  ok('주소 #reform · 탭 켜짐', /#reform$/.test(pg.url()) && await pg.locator('#seg button.on').textContent() === '대입 개편안 · 전형 요약');
+  ok('개편안 특징 카드 4 — 수능 선택과목 폐지 · 내신 5등급', await pg.locator('.rf .it').count() === 4 && (await pg.locator('.rf').textContent()).includes('통합사회와 통합과학') && (await pg.locator('.rf').textContent()).includes('5등급'));
+  ok('5등급 누적 비율 띠', (await pg.locator('.g5').textContent()).includes('누적 ~34%'));
+  ok('전형 요약 넷 — 교과·종합·논술·정시', (await pg.locator('.rtk h4').allTextContents()).map(t => t.split(/\s/)[0]).join('|').replace(/내신.*?\|/,'|') .length > 0 && await pg.locator('.rtk').count() === 4);
+  if (!real){
+    ok('전국 숫자(대교협) + 15개 대학 중 몇 곳', (await pg.locator('.rtk').nth(2).textContent()).includes('전국 12,727명') && (await pg.locator('.rtk').nth(2).textContent()).includes('중 1곳'));
+  }
+  ok('개편안 탭에 하위 탭 없음', await pg.locator('.sub2').count() === 0);
+  await pg.goto(base + '/pre3.html#reform'); await pg.waitForSelector('.rf');
+  ok('키 없어도 개편안 탭은 열림(전국 숫자만 없음)', await pg.locator('.rf .it').count() === 4 && await pg.locator('.rtk').count() === 4);
+
+  console.log('③ 팀09 셀프 체크리스트');
   await pg.goto(base + '/pre3.html?key=ABC#check');
   await pg.waitForSelector('.ci');
   ok('30개 항목', await pg.locator('.ci').count() === 30);
+  ok('내신 히스토리 — 학기 5줄 × 등급(1~5)·성취도(A~E)·평균·메모', await pg.locator('.hist select').count() === 10 && await pg.locator('.hist input').count() === 10 && (await pg.locator('#h11k option').allTextContents()).join('') === '등급12345' && (await pg.locator('#h11a option').allTextContents()).join('') === '성취도ABCDE');
+  ok('수능 목표 등급 — 국·수·영·통합사회·통합과학·한국사(1~9)', await pg.locator('#gk, #gm, #ge, #gs, #gc, #gh').count() === 6 && await pg.locator('#gk option').count() === 10);
+  ok('지원 희망 대학·학과 세 줄 + 15개 대학 자동완성', await pg.locator('.wish input[list="univlist"]').count() === 3 && await pg.locator('#univlist option').count() === 15 && (await pg.locator('#w1t option').allTextContents()).includes('정시(수능)'));
+  await pg.selectOption('#h11k', '2'); await pg.selectOption('#h11a', 'B'); await pg.fill('#h11g', '2.3');
+  await pg.selectOption('#gk', '1'); await pg.fill('#w1u', '연세대학교'); await pg.fill('#w1d', '국어국문학과'); await pg.selectOption('#w1t', '학생부종합');
+  await pg.reload(); await pg.waitForSelector('.hist');
+  ok('새 칸도 이 기기에 저장·되살림', await pg.inputValue('#h11k') === '2' && await pg.inputValue('#h11a') === 'B' && await pg.inputValue('#h11g') === '2.3' && await pg.inputValue('#gk') === '1' && await pg.inputValue('#w1u') === '연세대학교' && await pg.inputValue('#w1d') === '국어국문학과' && await pg.inputValue('#w1t') === '학생부종합');
+  ok('새 칸은 ○△× 개수에 들지 않음', (await pg.locator('#ckProg').textContent()).includes('0</b>') || (await pg.locator('#ckProg .lb b').textContent()) === '0');
   ok('4층', await pg.locator('.flh').count() === 4);
   await pg.click('[data-mk="1|o"]'); await pg.click('[data-mk="7|t"]'); await pg.click('[data-mk="22|x"]');
   ok('개수 3/30', (await pg.locator('#ckProg').textContent()).includes('3 / 30') && (await pg.locator('#ckCount b').allTextContents()).join() === '1,1,1,0');
@@ -207,7 +232,7 @@ let MODE = 'ok', CALLS = [];
 
   console.log('⑥ s.html 카드');
   const src = fs.readFileSync(path.join(ROOT, 's.html'), 'utf8');
-  ok('허브에 [인서울 15개 대학 2028 입시 미리보기] 카드', src.includes("href=\"pre3.html?'+(IS_ID ? 'id=' : 'key=')") && src.includes('<h3>인서울 15개 대학 2028 입시 미리보기</h3>'));
+  ok('허브에 [2028 대입 미리보기] 카드', src.includes("href=\"pre3.html?'+(IS_ID ? 'id=' : 'key=')") && src.includes('<h3>2028 대입 미리보기</h3>'));
 
   ok('페이지 오류 없음', perr === 0);
   await br.close(); srv.close();
