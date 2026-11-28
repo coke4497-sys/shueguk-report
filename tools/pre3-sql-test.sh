@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# 예비 고3 인서울 15개 대학(095) 왕복 검증 — 로컬 PostgreSQL.
-# 001~095 을 얹고 pre3_list(학생 확인·보이는 것만·순서)·표 권한(anon 직접 못 읽음)·재실행 안전을 assert 로 본다.
+# 예비 고3 인서울 15개 대학(095) · 셀프 체크리스트 서버 저장(096) 왕복 검증 — 로컬 PostgreSQL.
+# 001~096 을 얹고 pre3_list(학생 확인·보이는 것만·순서)·pre3_check_save/mine(학생 확인·덮어쓰기·모양 검사)·표 권한(anon 직접 못 읽음)·재실행 안전을 assert 로 본다.
 # 사용:  PGHOST=/home/pgtest PGPORT=5499 PGUSER=postgres bash tools/pre3-sql-test.sh   (원격에는 절대 돌리지 말 것)
 set -euo pipefail
 export PGOPTIONS="${PGOPTIONS:---client-min-messages=warning}"
@@ -36,6 +36,7 @@ for f in supabase/migrations/0*.sql; do
   psql -v ON_ERROR_STOP=1 -q -d "$DB" -f "$f" >/dev/null || { echo "적용 실패: $f"; exit 1; }
 done
 psql -v ON_ERROR_STOP=1 -q -d "$DB" -f supabase/migrations/095_pre3_univs.sql >/dev/null   # 재실행 안전
+psql -v ON_ERROR_STOP=1 -q -d "$DB" -f supabase/migrations/096_pre3_checks.sql >/dev/null  # 재실행 안전
 
 psql -v ON_ERROR_STOP=1 -q -d "$DB" <<'SQL'
 insert into students (student_id, name, school, grade, code, enrolled) values
@@ -80,6 +81,53 @@ do $$ begin
   begin perform 1 from public.pre3_univs; raise exception 'anon 이 표를 읽음';
   exception when insufficient_privilege then null; end;
   assert (public.pre3_list('{"key":"tok-kim"}')->>'ok') = 'true', 'anon 으로 함수';
+end $$;
+reset role;
+-- 096 체크리스트 저장 — 학생 확인·덮어쓰기·표시 수·모양 검사·내 것 읽기
+do $$
+declare r jsonb; sid bigint;
+begin
+  r := public.pre3_check_save('{"key":"nope","data":{"m":{}}}');
+  assert r->>'ok' = 'false' and r->>'error' = 'no_student', '없는 학생 저장 거절';
+  r := public.pre3_check_save('{"key":"tok-kim"}');
+  assert r->>'ok' = 'false' and r->>'error' = 'bad_data', 'data 없음 거절';
+  r := public.pre3_check_save('{"key":"tok-kim","data":[1,2]}');
+  assert r->>'ok' = 'false' and r->>'error' = 'bad_data', '객체 아님 거절';
+  r := public.pre3_check_save(jsonb_build_object('key','tok-kim','data', jsonb_build_object('f', jsonb_build_object('x', repeat('가', 20001)))));
+  assert r->>'ok' = 'false' and r->>'error' = 'too_long', '20,000자 넘김 거절';
+  r := public.pre3_check_mine('{"key":"tok-kim"}');
+  assert r->>'ok' = 'true' and r->'data' = 'null'::jsonb, '저장 전 내 것 = null';
+  r := public.pre3_check_save('{"key":"tok-kim","data":{"m":{"1":"o","7":"t","22":"x","9":"zz"},"f":{"f3w":"자습 전"},"at":1}}');
+  assert r->>'ok' = 'true' and (r->>'at') is not null, '저장';
+  select id into sid from students where code = 'tok-kim';
+  assert (select count(*) from pre3_checks) = 1, '한 줄';
+  assert (select marks from pre3_checks where student_id = sid) = 3, '표시 수 3(엉뚱한 값 zz 는 안 셈)';
+  assert (select name || '|' || school || '|' || grade from pre3_checks where student_id = sid) = '김철수|화정중|2026 중등 3학년', '이름·학교·학년 스냅숏';
+  r := public.pre3_check_mine('{"key":"tok-kim"}');
+  assert r->'data'->'f'->>'f3w' = '자습 전' and (r->>'at') is not null, '내 것 읽기';
+  r := public.pre3_check_save('{"student":"12345678","data":{"m":{"1":"o"},"f":{},"at":2}}');
+  assert r->>'ok' = 'true', '학생ID로 저장(덮어쓰기)';
+  assert (select count(*) from pre3_checks) = 1 and (select marks from pre3_checks where student_id = sid) = 1, '같은 학생은 한 줄로 덮어씀';
+  r := public.pre3_check_mine('{"key":"tok-lee"}');
+  assert r->>'ok' = 'true' and r->'data' = 'null'::jsonb, '다른 학생 것은 안 보임';
+  delete from students where code = 'tok-kim';
+  assert (select count(*) from pre3_checks) = 0, '학생을 지우면 체크리스트도(cascade)';
+end $$;
+do $$
+begin
+  assert not has_table_privilege('anon', 'public.pre3_checks', 'select'), 'anon select 없음(체크리스트)';
+  assert has_table_privilege('authenticated', 'public.pre3_checks', 'select'), '교사 select';
+  assert not has_table_privilege('authenticated', 'public.pre3_checks', 'insert'), '교사 insert 없음(함수로만)';
+  assert not has_table_privilege('authenticated', 'public.pre3_checks', 'update'), '교사 update 없음';
+  assert has_function_privilege('anon', 'public.pre3_check_save(jsonb)', 'execute'), 'anon 저장 함수';
+  assert has_function_privilege('anon', 'public.pre3_check_mine(jsonb)', 'execute'), 'anon 읽기 함수';
+end $$;
+set role anon;
+do $$ begin
+  begin perform 1 from public.pre3_checks; raise exception 'anon 이 체크리스트 표를 읽음';
+  exception when insufficient_privilege then null; end;
+  assert (public.pre3_check_save('{"key":"tok-lee","data":{"m":{"2":"t"},"f":{}}}')->>'ok') = 'true', 'anon 으로 저장 함수';
+  assert (public.pre3_check_mine('{"key":"tok-lee"}')->'data'->'m'->>'2') = 't', 'anon 으로 읽기 함수';
 end $$;
 reset role;
 select 'pre3 SQL 검증 통과' as result;

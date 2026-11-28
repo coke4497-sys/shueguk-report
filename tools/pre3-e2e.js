@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/* 예비 고3 인서울 15개 대학(pre3.html, 095 — 2026-11-28) 검증.
+/* 예비 고3 인서울 15개 대학(pre3.html, 095·096 — 2026-11-28) 검증.
  *   LC_ALL=C.UTF-8 NODE_PATH=$(npm root -g) node tools/pre3-e2e.js
  * 가짜 pre3_list 로 전체 요약(맨 위 카드·모집 구조·정렬·비교표·대학 카드·전국 흐름·일정)·대학 상세(바뀐 점·전형 거르기·
  * 정시 반영 표·국어 요점·앞뒤 대학)·점검표(30항목 표시·개수·저장·되살리기·지우기)·오류 안내·휴대폰·s.html 카드를 본다.
@@ -44,7 +44,12 @@ if (process.env.PRE3_JSON){
   ITEMS.forEach(x => { if (x.kind === 'univ' && !x.data.totals){ const t = kc[AL[x.data.short] || x.data.short]; if (t) x.data.totals = t; } });
   ITEMS.sort((a, b) => (a.kind === 'common' ? -1 : b.kind === 'common' ? 1 : 0));
 }
-let MODE = 'ok', CALLS = [];
+let MODE = 'ok', CALLS = [], SAVES = [], MINE = { ok: true, data: null };
+// 096 — 학생들이 저장한 체크리스트(선생님 보기 목록용 가짜 두 줄)
+const CHK = [
+  { student_id: 11, code: 'ABC', name: '김철수', school: '화정고', grade: '2026 고등 2학년', marks: 3, updated_at: '2026-11-28T10:00:00+09:00', data: { m: { 1: 'o', 7: 't', 22: 'x' }, f: { f3n: '7', f3w: '야자 전', w1u: '연세대학교', w1d: '국어국문학과', h11k: '2' }, at: 1764295200000 } },
+  { student_id: 12, code: 'DEF', name: '이영희', school: '능곡고', grade: '2026 고등 2학년', marks: 1, updated_at: '2026-11-27T09:00:00+09:00', data: { m: { 3: 'n' }, f: {}, at: 1764200000000 } }
+];
 
 (async () => {
   const srv = await new Promise(res => { const s = http.createServer((q, r) => {
@@ -67,7 +72,14 @@ let MODE = 'ok', CALLS = [];
       if (MODE === 'nostudent') return rt.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":false,"error":"no_student"}' });
       return rt.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, items: ITEMS }) });
     }
+    if (m && m[1] === 'pre3_check_save'){ SAVES.push(JSON.parse(rt.request().postData() || '{}').p || {}); return rt.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, at: new Date().toISOString() }) }); }
+    if (m && m[1] === 'pre3_check_mine'){ return rt.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(MINE) }); }
     if (m) return rt.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":false}' });
+    if (/\/rest\/v1\/pre3_checks\?/.test(u)){
+      TCALLS.push({ url: u, auth: rt.request().headers()['authorization'] || '' });
+      if (!/Bearer T-OK/.test(rt.request().headers()['authorization'] || '')) return rt.fulfill({ status: 401, body: '{}' });
+      return rt.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(CHK) });
+    }
     if (/\/rest\/v1\/pre3_univs\?/.test(u)){
       TCALLS.push({ url: u, auth: rt.request().headers()['authorization'] || '' });
       if (!/Bearer T-OK/.test(rt.request().headers()['authorization'] || '')) return rt.fulfill({ status: 401, body: '{}' });
@@ -182,12 +194,33 @@ let MODE = 'ok', CALLS = [];
   await pg.click('[data-re="t"]');
   await pg.reload(); await pg.waitForSelector('.ci');
   ok('새로고침 뒤 표시·글 남음', await pg.locator('[data-mk="1|o"].on').count() === 1 && (await pg.inputValue('#f3w')) === '자습 시작 전 10분' && await pg.locator('[data-re="t"].on').count() === 1);
-  ok('저장 시각 줄', (await pg.locator('#ckSaved').textContent()).includes('이 기기에 저장됨'));
+  await pg.waitForFunction(() => /선생님도 함께/.test(document.getElementById('ckSaved').textContent), null, { timeout: 4000 });
+  ok('저장 시각 줄 — 서버에 저장됨 · 선생님도 함께 봅니다', (await pg.locator('#ckSaved').textContent()).includes('저장됨 ·'));
+  const last = SAVES[SAVES.length - 1];
+  ok('서버 저장 본문(pre3_check_save) = 접근코드 + m·f·at', last && last.key === 'ABC' && last.data && last.data.m['1'] === 'o' && last.data.f.f3w === '자습 시작 전 10분' && last.data.f.f1n === '1' && last.data.f.f4m === 't' && typeof last.data.at === 'number');
+  ok('1.2초 모아서 보냄(표시 셋 + 글 셋을 다섯 번 아래로)', SAVES.length >= 1 && SAVES.length <= 5, String(SAVES.length));
   ok('pre1 점검표와 따로 저장(pre3_check_)', await pg.evaluate(() => !!localStorage.getItem('pre3_check_ABC') && !localStorage.getItem('pre1_check_ABC')));
   if (SHOT) await pg.screenshot({ path: path.join(SHOT, 'pre3-check.png'), fullPage: true });
   pg.once('dialog', d => d.accept());
+  const nS = SAVES.length;
   await pg.click('[data-rst]');
   ok('모두 지우기', (await pg.locator('#ckProg').textContent()).includes('0 / 30') && (await pg.inputValue('#f3w')) === '');
+  await pg.waitForTimeout(1500);
+  ok('지운 것도 서버에 저장(빈 m·f)', SAVES.length === nS + 1 && Object.keys(SAVES[nS].data.m).length === 0 && Object.keys(SAVES[nS].data.f).length === 0);
+
+  console.log('③-2 서버에 더 새로 저장한 것이 있으면 그것을 쓴다(다른 기기에서 적은 것)');
+  MINE = { ok: true, data: { m: { 5: 'o', 9: 'x' }, f: { f3w: '서버에 적은 글', gk: '2' }, at: Date.now() + 100000 }, at: new Date(Date.now() + 100000).toISOString() };
+  await pg.goto(base + '/pre3.html?key=ABC&r=3'); await pg.waitForSelector('.ci');
+  await pg.waitForFunction(() => document.querySelector('[data-mk="5|o"].on'), null, { timeout: 4000 });
+  ok('서버 것으로 표시·글이 바뀜', await pg.locator('[data-mk="5|o"].on').count() === 1 && await pg.locator('[data-mk="9|x"].on').count() === 1 && (await pg.inputValue('#f3w')) === '서버에 적은 글' && (await pg.inputValue('#gk')) === '2');
+  ok('이 기기에도 내려받아 둠', await pg.evaluate(() => JSON.parse(localStorage.getItem('pre3_check_ABC')).f.f3w === '서버에 적은 글'));
+  ok('받은 뒤 상태 줄 = 저장됨', (await pg.locator('#ckSaved').textContent()).includes('저장됨 ·'));
+  const nS2 = SAVES.length;
+  MINE = { ok: true, data: { m: { 5: 'o' }, f: {}, at: 1000 }, at: '2026-01-01T00:00:00Z' };
+  await pg.goto(base + '/pre3.html?key=ABC&r=4'); await pg.waitForSelector('.ci');
+  await pg.waitForTimeout(600);
+  ok('이 기기 것이 더 새로우면 그대로 두고 서버로 올림', await pg.locator('[data-mk="9|x"].on').count() === 1 && SAVES.length === nS2 + 1 && SAVES[nS2].data.m['9'] === 'x');
+  MINE = { ok: true, data: null };
 
   console.log('④ 오류 안내');
   await pg.goto(base + '/pre3.html#summary'); await pg.waitForSelector('.msg');
@@ -220,15 +253,29 @@ let MODE = 'ok', CALLS = [];
   ok('표 조회를 보내지 않음', TCALLS.length === 0);
   await pg.evaluate(() => localStorage.setItem('shueguk_teacher_session_v2', JSON.stringify({ access_token: 'T-OK', refresh_token: 'R', expires_at: Math.floor(Date.now() / 1000) + 3600 })));
   await pg.goto(base + '/pre3.html?teacher=1&r=2#summary'); await pg.waitForSelector('.urow');   // 해시만 다른 주소는 다시 불러오지 않아 r=2
-  ok('개인 로그인 신분으로 pre3_univs 를 직접 읽음(visible·ord)', TCALLS.length === 1 && /Bearer T-OK/.test(TCALLS[0].auth) && /visible=is\.true/.test(TCALLS[0].url) && /order=ord/.test(TCALLS[0].url));
+  const TU = TCALLS.filter(c => /pre3_univs/.test(c.url));
+  ok('개인 로그인 신분으로 pre3_univs 를 직접 읽음(visible·ord)', TU.length === 1 && /Bearer T-OK/.test(TU[0].auth) && /visible=is\.true/.test(TU[0].url) && /order=ord/.test(TU[0].url));
   ok('대학 줄 수 = 대학 수(공통 줄은 전국 흐름으로)', await pg.locator('.urow').count() === nUniv && await pg.locator('.sched').count() === 1);
   ok('선생님 보기 띠 + 슈국 운영 링크', await pg.locator('#tband').isVisible() && /shueguk-hub\/ops\.html/.test(await pg.locator('#tband a').getAttribute('href')) && await pg.evaluate(() => document.body.classList.contains('teacher')));
-  await pg.click('[data-v="check"]'); await pg.waitForSelector('.ci');
-  await pg.locator('.ci').first().locator('button').first().click();
-  ok('점검표는 이 기기 teacher 키에만', await pg.evaluate(() => !!localStorage.getItem('pre3_check_teacher') && !localStorage.getItem('pre3_check_guest')));
+  await pg.click('[data-v="check"]'); await pg.waitForSelector('.trow[data-stu]');
+  ok('체크리스트 탭 = 학생들이 저장한 목록(pre3_checks 를 개인 로그인으로 읽음)', TCALLS.filter(c => /pre3_checks/.test(c.url) && /Bearer T-OK/.test(c.auth)).length === 1 && await pg.locator('.trow[data-stu]').count() === 2);
+  ok('요약 줄 — 2명 저장 · 고2 2', (await pg.locator('.tsum').textContent()).replace(/\s+/g, ' ').includes('2명 저장 · 고2 2'));
+  const r0 = await pg.locator('.trow[data-stu]').first().textContent();
+  ok('최근 저장한 학생이 위 · 표시 3/30 · ○△× 수 · 이번 주 행동 · 희망 1순위', r0.startsWith('김철수') && r0.includes('3 / 30') && r0.includes('모의고사 국어 기출') && r0.includes('연세대학교 · 국어국문학과') && (await pg.locator('.trow[data-stu]').first().locator('.cs em').allTextContents()).join() === '1,1,1,0');
+  await pg.fill('#tq', '영희'); await pg.waitForTimeout(100);
+  ok('이름 찾기 — 1명', await pg.locator('.trow[data-stu]').count() === 1 && (await pg.locator('.trow[data-stu]').textContent()).startsWith('이영희'));
+  await pg.fill('#tq', '');
+  await pg.click('.trow[data-stu="11"]'); await pg.waitForSelector('.rohead');
+  ok('학생을 누르면 #stu= 로 그 학생 체크리스트(읽기 전용)', /#stu=11/.test(pg.url()) && (await pg.locator('.rohead .who').textContent()).includes('김철수') && await pg.locator('#view.ro').count() === 1);
+  ok('학생이 표시한 그대로 보임', await pg.locator('[data-mk="1|o"].on').count() === 1 && await pg.locator('[data-mk="7|t"].on').count() === 1 && (await pg.inputValue('#f3w')) === '야자 전' && (await pg.inputValue('#w1u')) === '연세대학교' && (await pg.inputValue('#h11k')) === '2');
+  ok('선생님은 바꿀 수 없음(버튼·칸 잠김, 지우기 없음)', await pg.locator('[data-mk="1|o"]').isDisabled() && await pg.locator('#f3w').isDisabled() && await pg.locator('.rst').count() === 0 && (await pg.locator('#ckSaved').textContent()).includes('학생이 마지막으로 저장한 때'));
+  await pg.locator('[data-mk="2|o"]').click({ force: true }).catch(() => {});
+  ok('눌러도 표시가 안 바뀜 · 선생님 기기에 저장되지 않음', await pg.locator('[data-mk="2|o"].on').count() === 0 && !(await pg.evaluate(() => localStorage.getItem('pre3_check_teacher'))));
+  await pg.click('[data-tback]'); await pg.waitForSelector('.trow[data-stu]');
+  ok('[← 학생 목록]으로 돌아옴', await pg.locator('.trow[data-stu]').count() === 2);
   await pg.evaluate(() => { localStorage.removeItem('shueguk_teacher_session_v2'); localStorage.removeItem('pre3_check_teacher'); });
   await pg.goto(base + '/pre3.html?teacher=1&key=ABC#summary'); await pg.waitForSelector('.urow');
-  ok('키가 있으면 학생 보기(pre3_list) 그대로', TCALLS.length === 1 && !(await pg.locator('#tband').isVisible()));
+  ok('키가 있으면 학생 보기(pre3_list) 그대로', TCALLS.filter(c => /pre3_univs/.test(c.url)).length === 1 && !(await pg.locator('#tband').isVisible()));
 
   console.log('⑥ s.html 카드');
   const src = fs.readFileSync(path.join(ROOT, 's.html'), 'utf8');

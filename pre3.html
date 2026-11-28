@@ -383,6 +383,40 @@
   .wish input,.wish select{width:100%;height:40px;font-family:var(--sans);font-size:14px;color:#2B3A33;border:1px solid #DFE5E1;border-radius:10px;background:#FAFBF9;padding:0 10px;}
   @media (max-width:640px){ .hist{grid-template-columns:52px repeat(3,minmax(0,1fr));} .hist .hh.memo{display:none;} .hist input.memo{grid-column:2 / -1;margin-top:-2px;} .wish{grid-template-columns:30px minmax(0,1fr) minmax(0,1fr);} .wish .typ{grid-column:2 / -1;} }
   .tband{background:#ECE4F3;color:#4A3F63;border-radius:14px;padding:10px 16px;font-size:.88rem;line-height:1.6;margin:0 0 14px;}
+  /* 선생님 보기 — 학생 체크리스트 목록·열람 */
+  .tsum{font-size:14px;color:#54655C;margin:4px 0 12px;}
+  .tsum b{font-family:var(--disp);font-weight:400;font-size:22px;color:#2B3A33;margin-right:2px;}
+  .tfil{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-bottom:12px;}
+  .tfil .sort{margin:0;}
+  .tfil #tq{flex:1;min-width:160px;height:38px;border:1px solid #DFE5E1;border-radius:12px;padding:0 12px;font:inherit;font-size:14px;background:#FAFBF9;}
+  .trows{display:flex;flex-direction:column;gap:6px;}
+  .trow{display:grid;grid-template-columns:1.3fr .9fr .9fr 1.5fr 1.3fr .8fr;gap:10px;align-items:center;width:100%;text-align:left;background:#FAFBF9;border:0;border-radius:12px;padding:10px 12px;font:inherit;font-size:13px;color:#2B3A33;cursor:pointer;}
+  .trow:hover{background:#F1F4F1;}
+  .trow.th{background:transparent;color:#8A978F;font-size:12px;padding:0 12px;cursor:default;}
+  .trow .nm{font-weight:700;font-size:15px;line-height:1.3;}
+  .trow .nm small{display:block;font-weight:400;font-size:12px;color:#8A978F;}
+  .trow .dn{position:relative;padding-bottom:8px;}
+  .trow .dn b{font-family:var(--disp);font-weight:400;font-size:17px;}
+  .trow .dn i{position:absolute;left:0;bottom:0;height:4px;border-radius:999px;background:#8F7BB5;}
+  .trow .cs{display:flex;gap:4px;}
+  .trow .cs em{font-style:normal;min-width:26px;text-align:center;border-radius:8px;padding:2px 4px;font-size:12px;}
+  .trow .cs .o{background:#E3F0E9;color:#2F5F47;} .trow .cs .t{background:#F7EDD2;color:#7A5A12;} .trow .cs .x{background:#F6E0E3;color:#8A3540;} .trow .cs .n{background:#EEF1EE;color:#5C6A64;}
+  .trow .ac,.trow .ws{line-height:1.45;word-break:keep-all;}
+  .trow .at{color:#8A978F;font-size:12px;text-align:right;}
+  .trow .muted{color:#B5BDB8;}
+  .rohead{display:flex;flex-wrap:wrap;align-items:center;gap:12px;background:#fff;border-radius:16px;padding:12px 16px;margin-bottom:14px;box-shadow:0 2px 10px rgba(43,58,51,.05);}
+  .rohead .tback{border:1px solid #DFE5E1;background:#fff;border-radius:999px;padding:7px 14px;font:inherit;font-size:13px;color:#2B3A33;cursor:pointer;}
+  .rohead .who b{font-family:var(--disp);font-weight:400;font-size:22px;margin-right:8px;}
+  .rohead .who span{color:#54655C;font-size:14px;}
+  .rohead .rotag{margin-left:auto;background:#ECE4F3;color:#4A3F63;border-radius:999px;padding:5px 12px;font-size:12px;}
+  #view.ro .mk button,#view.ro input,#view.ro select,#view.ro textarea{opacity:1;pointer-events:none;}
+  #view.ro input,#view.ro select,#view.ro textarea{background:#FAFBF9;color:#2B3A33;}
+  .savedrow .warn{color:#B0525D;}
+  @media (max-width:760px){
+    .trow{grid-template-columns:1.2fr .8fr 1fr .7fr;}
+    .trow .ac,.trow .ws{display:none;}
+    .rohead .rotag{margin-left:0;}
+  }
   .tband a{color:#4A3F63;font-weight:700;text-decoration:none;margin-left:6px;}
   body.teacher #me-back-row{display:none;}
   @media print{ .seg,.spills,.nav2,.rst,#back-top,.me-back,.tband{display:none !important;} body{background:#fff;} .card{box-shadow:none;} }
@@ -449,7 +483,7 @@
     <h1>2028 대입 미리보기</h1>
     <p class="lead">2009년생, 지금 고2가 치르는 2028학년도 입시를 한곳에 모았습니다. 나를 먼저 점검하고, 바뀐 제도와 전형을 알고, 15개 대학을 살펴보세요.</p>
   </header>
-  <div class="tband" id="tband" hidden>선생님 보기 · 학생 페이지에 보이는 화면 그대로입니다. 점검표 표시는 이 기기에만 남아요. <a href="https://coke4497-sys.github.io/shueguk-hub/ops.html">← 슈국 운영</a></div>
+  <div class="tband" id="tband" hidden>선생님 보기 · [팀09 셀프 체크리스트] 탭에서 학생들이 저장한 체크리스트를 볼 수 있습니다. 나머지 두 탭은 학생 페이지와 같아요. <a href="https://coke4497-sys.github.io/shueguk-hub/ops.html">← 슈국 운영</a></div>
   <nav class="seg" id="seg">
     <button data-v="check">팀09 셀프 체크리스트</button>
     <button data-v="reform">대입 개편안 · 전형 요약</button>
@@ -467,6 +501,8 @@ var KEY = (QS.get('key') || '').trim(), SID = (QS.get('id') || QS.get('student')
  * 허브 개인 로그인 신분(localStorage shueguk_teacher_session_v2 — s.html teacherTok 과 같은 규칙)으로 pre3_univs 를 직접 읽는다. */
 var TEACHER = QS.get('teacher') === '1' && !KEY && !SID;
 var ITEMS = null, COMMON = null, LOAD_ERR = '', SORT = 'susi', TF = 'all';
+/* 선생님 보기의 학생 체크리스트 목록(096 pre3_checks — 2026-11-28 원장님 "제가 확인 가능해야 해요") */
+var CHECKS = null, CHECKS_ERR = '', TG = 'all', TQ = '';
 if (TEACHER){ document.body.classList.add('teacher'); var _tb = document.getElementById('tband'); if (_tb) _tb.hidden = false; }
 
 function $(id){ return document.getElementById(id); }
@@ -516,11 +552,27 @@ function loadTeacher(){
     return r.json();
   }).then(function(rows){ applyItems(rows); render(); })
   .catch(function(e){ LOAD_ERR = (e && e.code) || 'net'; ITEMS = []; render(); });
+  loadChecks();
+}
+/* 학생들이 저장한 체크리스트 — 교사(authenticated)는 표를 직접 읽는다(1000줄까지, 재원생 수가 그 아래). */
+function loadChecks(){
+  teacherTok().then(function(tok){
+    if (!tok) throw { code: 'nologin' };
+    return fetch(SB_URL + '/rest/v1/pre3_checks?select=student_id,code,name,school,grade,data,marks,updated_at&order=updated_at.desc&limit=1000', {
+      headers: { apikey: SB_KEY, Authorization: 'Bearer ' + tok } });
+  }).then(function(r){
+    if (r.status === 401 || r.status === 403) throw { code: 'nologin' };
+    if (r.status === 404) throw { code: 'missing' };
+    if (!r.ok) throw { code: 'net' };
+    return r.json();
+  }).then(function(rows){ CHECKS = rows || []; if (route().tab === 'check') render(); })
+  .catch(function(e){ CHECKS_ERR = (e && e.code) || 'net'; CHECKS = []; if (route().tab === 'check') render(); });
 }
 function load(){
   if (TEACHER){ loadTeacher(); return; }
   if (!KEY && !SID){ LOAD_ERR = 'nokey'; render(); return; }
   var p = KEY ? { key: KEY } : { student: SID };
+  ckPull(p);
   fetch(SB_URL + '/rest/v1/rpc/pre3_list', {
     method: 'POST', headers: { apikey: SB_KEY, 'Content-Type': 'application/json' },
     body: JSON.stringify({ p: p })
@@ -584,6 +636,7 @@ function route(){
   if (h.indexOf('univ=') === 0) return { v: 'univ', key: decodeURIComponent(h.slice(5)), tab: 'univ15' };
   if (h === 'univ' || h === 'summary') return { v: h, tab: 'univ15' };
   if (h === 'reform') return { v: 'reform', tab: 'reform' };
+  if (h.indexOf('stu=') === 0) return { v: 'stu', key: decodeURIComponent(h.slice(4)), tab: 'check' };   // 선생님 보기 — 학생 한 명의 체크리스트
   return { v: 'check', tab: 'check' };   // pre1 과 같이 처음 열면 체크리스트
 }
 function go(hash){ if (location.hash !== '#' + hash) location.hash = hash; else render(); }
@@ -601,7 +654,8 @@ function sub2Html(v){
 function render(){
   var r = route();
   Array.prototype.forEach.call($('seg').children, function(b){ b.classList.toggle('on', b.getAttribute('data-v') === r.tab); });
-  if (r.v === 'check'){ renderCheck(); return; }
+  if (r.v === 'check'){ if (TEACHER) renderTeacherChecks(); else renderCheck(); return; }
+  if (r.v === 'stu'){ if (TEACHER) renderStudentCheck(r.key); else go('check'); return; }
   if (r.v === 'reform'){ renderReform(); return; }
   if (ITEMS === null && !LOAD_ERR){ $('view').innerHTML = sub2Html(r.v) + '<div class="msg">불러오는 중입니다…</div>'; return; }
   if (LOAD_ERR || !ITEMS.length){ $('view').innerHTML = sub2Html(r.v) + msgHtml(); return; }
@@ -821,7 +875,11 @@ function sec(n, title, sub, body){
 }
 
 $('view').addEventListener('click', function(e){
-  var t = e.target.closest('[data-go],[data-sort],[data-tf],[data-sum],[data-mk],[data-re],[data-rst],[data-sub]'); if (!t) return;
+  var t = e.target.closest('[data-go],[data-sort],[data-tf],[data-sum],[data-mk],[data-re],[data-rst],[data-sub],[data-stu],[data-tg],[data-tback]'); if (!t) return;
+  if (RO && (t.hasAttribute('data-mk') || t.hasAttribute('data-re') || t.hasAttribute('data-rst'))) return;   // 학생 체크리스트 열람은 읽기만
+  if (t.hasAttribute('data-stu')){ go('stu=' + encodeURIComponent(t.getAttribute('data-stu'))); return; }
+  if (t.hasAttribute('data-tback')){ go('check'); return; }
+  if (t.hasAttribute('data-tg')){ TG = t.getAttribute('data-tg'); drawTeacherList(); return; }
   if (t.hasAttribute('data-sub')){ var sv = t.getAttribute('data-sub'); if (sv === 'univ'){ var rr = route(); go(rr.key ? 'univ=' + encodeURIComponent(rr.key) : 'univ'); } else go('summary'); return; }
   if (t.hasAttribute('data-re')){ var rv = t.getAttribute('data-re'); if (CK.f.f4m === rv) delete CK.f.f4m; else CK.f.f4m = rv; ckSave();
     Array.prototype.forEach.call($('f4m').querySelectorAll('button'), function(b){ b.classList.toggle('on', b.getAttribute('data-re') === CK.f.f4m); }); savedRow(); return; }
@@ -857,7 +915,54 @@ var MARKS = [['o', '○', '대체로 하고 있다'], ['t', '△', '가끔 놓�
 var CK_LS = 'pre3_check_' + (TEACHER ? 'teacher' : (KEY || SID || 'guest'));
 var CK = { m: {}, f: {} };
 try { var _c = JSON.parse(localStorage.getItem(CK_LS) || 'null'); if (_c && _c.m) CK = { m: _c.m || {}, f: _c.f || {}, at: _c.at }; } catch(e){}
-function ckSave(){ CK.at = Date.now(); try { localStorage.setItem(CK_LS, JSON.stringify(CK)); } catch(e){} }
+function ckSave(){ CK.at = Date.now(); try { localStorage.setItem(CK_LS, JSON.stringify(CK)); } catch(e){} ckPushLater(); }
+/* ── 서버 저장(096 pre3_check_save) — 학생(접근코드·학생ID)만. 1.2초 모아서 한 번, 창을 닫을 때 남은 것은 keepalive 로. ──
+ * 상태: '' 아직 서버와 안 맞춤 · saving · saved · fail(이 기기에만 남음 — 다음 변경 때 다시). 선생님 보기·키 없는 화면은 이 기기에만. */
+var CK_SYNC = '', CK_SRV_AT = 0, CK_TIMER = null, CK_DIRTY = false;
+function ckOnline(){ return !TEACHER && !!(KEY || SID); }
+function ckParam(){ return KEY ? { key: KEY } : { student: SID }; }
+function ckPushLater(){
+  if (!ckOnline()) return;
+  CK_DIRTY = true; CK_SYNC = 'saving'; savedRow();
+  clearTimeout(CK_TIMER); CK_TIMER = setTimeout(function(){ ckPush(false); }, 1200);
+}
+function ckPush(unload){
+  if (!ckOnline() || !CK_DIRTY) return;
+  clearTimeout(CK_TIMER); CK_DIRTY = false;
+  var p = ckParam(); p.data = { m: CK.m, f: CK.f, at: CK.at };
+  var sentAt = CK.at;
+  fetch(SB_URL + '/rest/v1/rpc/pre3_check_save', {
+    method: 'POST', headers: { apikey: SB_KEY, 'Content-Type': 'application/json' }, body: JSON.stringify({ p: p }), keepalive: !!unload
+  }).then(function(r){ return r.ok ? r.json() : null; })
+  .then(function(d){
+    if (!d || !d.ok) throw 0;
+    CK_SRV_AT = Date.parse(d.at) || Date.now();
+    if (!CK_DIRTY) CK_SYNC = 'saved';   // 보내는 동안 또 고쳤으면 다음 저장을 기다린다
+    savedRow();
+  }).catch(function(){ CK_SYNC = 'fail'; CK_DIRTY = true; savedRow(); });
+}
+window.addEventListener('pagehide', function(){ if (CK_DIRTY) ckPush(true); });
+/* 열 때 서버 것을 받아 더 늦게 저장한 쪽을 쓴다(다른 기기에서 적은 것도 이어진다). 이 기기 것이 더 새로우면 서버로 올린다. */
+function ckPull(p){
+  var q = JSON.parse(JSON.stringify(p));
+  fetch(SB_URL + '/rest/v1/rpc/pre3_check_mine', {
+    method: 'POST', headers: { apikey: SB_KEY, 'Content-Type': 'application/json' }, body: JSON.stringify({ p: q })
+  }).then(function(r){ return r.ok ? r.json() : null; })
+  .then(function(d){
+    if (!d || !d.ok) throw 0;
+    var sv = d.data, svAt = sv && sv.at ? Number(sv.at) : (d.at ? Date.parse(d.at) : 0);
+    var localHas = Object.keys(CK.m).length || Object.keys(CK.f).length;
+    if (sv && sv.m && (!localHas || svAt > (CK.at || 0))){
+      CK = { m: sv.m || {}, f: sv.f || {}, at: svAt || Date.now() };
+      try { localStorage.setItem(CK_LS, JSON.stringify(CK)); } catch(e){}
+      CK_SRV_AT = Date.parse(d.at) || svAt; CK_SYNC = 'saved';
+      if (route().v === 'check') renderCheck(); else savedRow();
+    } else if (localHas && (!sv || !sv.m || (CK.at || 0) > svAt)){
+      CK_DIRTY = true; ckPush(false);   // 이 기기 것이 더 새롭다(096 전에 적은 것 포함)
+    } else { CK_SYNC = 'saved'; CK_SRV_AT = d.at ? Date.parse(d.at) : 0; savedRow(); }
+  }).catch(function(){ CK_SYNC = localHas_() ? 'fail' : ''; savedRow(); });
+}
+function localHas_(){ return !!(Object.keys(CK.m).length || Object.keys(CK.f).length); }
 function allItems(){ var a = []; CL.forEach(function(f){ f.g.forEach(function(g){ g[2].forEach(function(it){ a.push(it); }); }); }); return a; }
 function setMark(no, m){
   if (CK.m[no] === m) delete CK.m[no]; else CK.m[no] = m;
@@ -946,20 +1051,27 @@ function wishCard(){
     fld('wmemo', '왜 이 대학·학과인가요 (한 줄)', 'text') + '</div>';
 }
 var OK_SVG = '<svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="#7F9E8E" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 8.3l3 3 6-6.6"/></svg>';
+function fmtAt(ms){ return new Date(ms).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: 'numeric', minute: '2-digit' }); }
 function savedHtml(){
-  return (CK.at ? '<span class="ok">' + OK_SVG + '이 기기에 저장됨 · ' + new Date(CK.at).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: 'numeric', minute: '2-digit' }) + '</span>'
-                : '<span class="ok">표시하고 적은 내용은 이 기기에만 저장돼요.</span>') +
-    '<button class="rst" data-rst="1">모두 지우기</button>';
+  if (RO) return '<span class="ok">' + OK_SVG + '학생이 마지막으로 저장한 때 · ' + (CK.at ? fmtAt(CK.at) : '기록 없음') + '</span>';
+  var t;
+  if (!ckOnline()) t = CK.at ? OK_SVG + '이 기기에 저장됨 · ' + fmtAt(CK.at) : '표시하고 적은 내용은 이 기기에만 저장돼요.';
+  else if (CK_SYNC === 'saving') t = '저장하는 중…';
+  else if (CK_SYNC === 'fail') t = '<span class="warn">이 기기에만 저장됨 · 연결되면 다시 저장합니다</span>';
+  else if (CK_SYNC === 'saved' && CK.at) t = OK_SVG + '저장됨 · ' + fmtAt(CK.at) + ' · 선생님도 함께 봅니다';
+  else t = CK.at ? OK_SVG + '이 기기에 저장됨 · ' + fmtAt(CK.at) : '표시하고 적은 내용은 저장되어 선생님도 함께 봅니다.';
+  return '<span class="ok">' + t + '</span><button class="rst" data-rst="1">모두 지우기</button>';
 }
 function savedRow(){ var el = $('ckSaved'); if (el) el.innerHTML = savedHtml(); }
 function reHtml(){
   return '<div class="fld">다시 표시<div class="mk re" id="f4m">' + MARKS.slice(0, 3).map(function(m){
     return '<button class="' + m[0] + (CK.f.f4m === m[0] ? ' on' : '') + '" data-re="' + m[0] + '" title="' + m[2] + '" aria-label="' + m[2] + '">' + m[1] + '</button>'; }).join('') + '</div></div>';
 }
+var RO = false;   // 선생님이 학생 체크리스트를 열람하는 중(읽기만)
 function renderCheck(){
-  var h = '<div class="card"><div class="sec-t">팀09 셀프 체크리스트 · 고3이 되기 전, 나를 먼저 점검하기</div>' +
+  var h = (RO ? roHead() : '') + '<div class="card"><div class="sec-t">팀09 셀프 체크리스트 · 고3이 되기 전, 나를 먼저 점검하기</div>' +
     '<p class="ckp">어느 대학을 목표로 하든, 고3의 1년을 버티는 습관은 지금 내가 준비할 수 있습니다.</p>' +
-    '<p class="ckp s">이 표는 시험이 아닙니다. 점수도 등급도 없고, 누가 채점하지도 않습니다. 잘 보이려고 고르지 말고, 최근 2주 동안 실제로 어땠는지 떠올리며 솔직하게 표시해 주세요.</p>' +
+    '<p class="ckp s">이 표는 시험이 아닙니다. 점수도 등급도 없습니다. 표시한 내용은 담당 선생님이 함께 보며 상담에 씁니다. 잘 보이려고 고르지 말고, 최근 2주 동안 실제로 어땠는지 떠올리며 솔직하게 표시해 주세요.</p>' +
     '<div class="cklg" id="ckCount">' + countHtml() + '</div></div>' +
     '<div class="ckprog" id="ckProg">' + progHtml() + '</div>';
   h += CL.map(function(f){
@@ -988,13 +1100,79 @@ function renderCheck(){
     '</ul><p class="closing">고3은 한 번에 달리는 해가 아니라, 매주 하나씩 쌓는 해입니다.<br>지금 표시한 △ 하나를 ○로 바꾸는 것부터 시작해요.<br>마지막까지 함께 걸어 갈게요.</p></div>';
   $('view').innerHTML = h;
   fillSelects();
+  if (RO){
+    $('view').classList.add('ro');
+    Array.prototype.forEach.call($('view').querySelectorAll('input,select,textarea,button[data-mk],button[data-re]'), function(el){ el.disabled = true; });
+    Array.prototype.forEach.call($('view').querySelectorAll('.rst'), function(el){ el.remove(); });
+  } else $('view').classList.remove('ro');
+}
+/* ── 선생님 보기 — 학생들이 저장한 체크리스트(096) ── */
+function gradeShort(g){ var m = /(고등|중등|초등)\s*(\d)/.exec(g || ''); if (!m) return (g || '').replace(/^\d{4}\s*/, '') || '학년 미상'; return { '고등': '고', '중등': '중', '초등': '초' }[m[1]] + m[2]; }
+function ckStat(d){
+  var c = { o: 0, t: 0, x: 0, n: 0, done: 0 }, m = (d && d.m) || {};
+  for (var k in m){ if (c[m[k]] != null){ c[m[k]]++; c.done++; } }
+  return c;
+}
+function renderTeacherChecks(){
+  var h = '<div class="card"><div class="sec-t">학생 셀프 체크리스트<span class="sub">학생이 저장하면 여기 바로 쌓입니다 · 이름을 누르면 그 학생의 표시와 적은 글을 봅니다</span></div>';
+  if (CHECKS === null && !CHECKS_ERR){ $('view').innerHTML = h + '<div class="msg">불러오는 중입니다…</div></div>'; return; }
+  if (CHECKS_ERR === 'nologin'){ $('view').innerHTML = h + '<div class="msg"><b>허브에 로그인해 주세요</b>학생 체크리스트는 티쳐스 허브 개인 로그인이 있어야 열립니다. <a href="https://coke4497-sys.github.io/shueguk-hub/login.html?next=' + encodeURIComponent(location.href) + '">로그인하러 가기</a></div></div>'; return; }
+  if (CHECKS_ERR === 'missing'){ $('view').innerHTML = h + '<div class="msg"><b>준비 중입니다</b>체크리스트 저장 표(096)가 아직 적용되지 않았습니다.</div></div>'; return; }
+  if (CHECKS_ERR){ $('view').innerHTML = h + '<div class="msg"><b>불러오지 못했습니다</b>인터넷 연결을 확인한 뒤 새로고침해 주세요.</div></div>'; return; }
+  var grades = {}; CHECKS.forEach(function(r){ var g = gradeShort(r.grade); grades[g] = (grades[g] || 0) + 1; });
+  var gk = Object.keys(grades).sort(function(a, b){ return a.localeCompare(b, 'ko'); });
+  h += '<div class="tsum"><b>' + CHECKS.length + '</b>명 저장' + (gk.length ? ' · ' + gk.map(function(g){ return g + ' ' + grades[g]; }).join(' · ') : '') + '</div>' +
+    '<div class="tfil"><div class="sort">' + [['all', '전체']].concat(gk.map(function(g){ return [g, g]; })).map(function(o){ return '<button class="pill' + (TG === o[0] ? ' on' : '') + '" data-tg="' + esc(o[0]) + '">' + esc(o[1]) + '</button>'; }).join('') + '</div>' +
+    '<input id="tq" type="search" placeholder="이름 · 학교 찾기" value="' + esc(TQ) + '" autocomplete="off" /></div>' +
+    '<div id="tlist"></div></div>';
+  $('view').innerHTML = h;
+  drawTeacherList();
+  var q = $('tq'); if (q) q.addEventListener('input', function(){ TQ = q.value; drawTeacherList(); });   // 입력칸은 다시 그리지 않는다(한글 조합)
+}
+function drawTeacherList(){
+  var el = $('tlist'); if (!el) return;
+  var qq = TQ.replace(/\s+/g, '').toLowerCase();
+  var rows = (CHECKS || []).filter(function(r){
+    if (TG !== 'all' && gradeShort(r.grade) !== TG) return false;
+    if (qq && ((r.name || '') + (r.school || '')).replace(/\s+/g, '').toLowerCase().indexOf(qq) < 0) return false;
+    return true;
+  });
+  Array.prototype.forEach.call(document.querySelectorAll('[data-tg]'), function(b){ b.classList.toggle('on', b.getAttribute('data-tg') === TG); });
+  if (!CHECKS.length){ el.innerHTML = '<div class="msg"><b>아직 저장한 학생이 없습니다</b>학생이 체크리스트에 표시하거나 적으면 바로 여기에 보여요.</div>'; return; }
+  if (!rows.length){ el.innerHTML = '<div class="msg">조건에 맞는 학생이 없습니다.</div>'; return; }
+  var total = allItems().length;
+  el.innerHTML = '<div class="trows"><div class="trow th"><span>학생</span><span>표시</span><span>○ △ × –</span><span class="ac">이번 주 행동</span><span class="ws">희망 1순위</span><span class="at">저장</span></div>' + rows.map(function(r){
+    var d = r.data || {}, f = d.f || {}, c = ckStat(d);
+    var act = f.f3n ? (allItems().filter(function(it){ return String(it[0]) === String(f.f3n); })[0] || [])[1] : '';
+    var wish = f.w1u ? f.w1u + (f.w1d ? ' · ' + f.w1d : '') : '';
+    return '<button class="trow" data-stu="' + r.student_id + '"><span class="nm">' + esc(r.name) + '<small>' + esc(gradeShort(r.grade)) + (r.school ? ' · ' + esc(r.school) : '') + '</small></span>' +
+      '<span class="dn"><b>' + c.done + '</b> / ' + total + '<i style="width:' + pct0(c.done, total) + '%"></i></span>' +
+      '<span class="cs"><em class="o">' + c.o + '</em><em class="t">' + c.t + '</em><em class="x">' + c.x + '</em><em class="n">' + c.n + '</em></span>' +
+      '<span class="ac">' + (act ? esc(act) : '<span class="muted">–</span>') + '</span>' +
+      '<span class="ws">' + (wish ? esc(wish) : '<span class="muted">–</span>') + '</span>' +
+      '<span class="at">' + (r.updated_at ? fmtAt(Date.parse(r.updated_at)) : '') + '</span></button>';
+  }).join('') + '</div>';
+}
+function roHead(){
+  var r = RO_ROW || {};
+  return '<div class="rohead"><button class="tback" data-tback="1">← 학생 목록</button><div class="who"><b>' + esc(r.name || '') + '</b><span>' + esc(gradeShort(r.grade)) + (r.school ? ' · ' + esc(r.school) : '') + '</span></div><span class="rotag">읽기 전용 · 학생이 저장한 그대로</span></div>';
+}
+var RO_ROW = null;
+function renderStudentCheck(id){
+  if (CHECKS === null && !CHECKS_ERR){ $('view').innerHTML = '<div class="msg">불러오는 중입니다…</div>'; return; }
+  var r = (CHECKS || []).filter(function(x){ return String(x.student_id) === String(id); })[0];
+  if (!r){ $('view').innerHTML = '<div class="rohead"><button class="tback" data-tback="1">← 학생 목록</button></div><div class="msg"><b>이 학생의 체크리스트가 없습니다</b>저장한 학생 목록에서 다시 골라 주세요.</div>'; return; }
+  var keep = CK, d = r.data || {};
+  RO = true; RO_ROW = r; CK = { m: d.m || {}, f: d.f || {}, at: d.at || (r.updated_at ? Date.parse(r.updated_at) : 0) };
+  try { renderCheck(); } finally { CK = keep; RO = false; RO_ROW = null; }
+  $('view').classList.add('ro');
 }
 $('view').addEventListener('input', function(e){
-  var id = e.target.getAttribute && e.target.getAttribute('data-f'); if (!id) return;
+  var id = e.target.getAttribute && e.target.getAttribute('data-f'); if (!id || $('view').classList.contains('ro')) return;
   CK.f[id] = e.target.value; ckSave(); savedRow();
 });
 $('view').addEventListener('change', function(e){
-  var id = e.target.getAttribute && e.target.getAttribute('data-f'); if (!id) return;
+  var id = e.target.getAttribute && e.target.getAttribute('data-f'); if (!id || $('view').classList.contains('ro')) return;
   CK.f[id] = e.target.value; ckSave(); savedRow();
 });
 
