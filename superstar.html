@@ -132,12 +132,13 @@
   .card .sub{color:var(--ink-soft);font-size:.84rem;margin:0 0 14px;}
   label{display:block;font-size:13px;color:var(--ink-soft);margin:14px 0 7px;font-weight:700;}
   label .opt{font-weight:400;color:#9aa6a0;}
-  input[type=text],details.extra select{
+  input[type=text],details.extra select,#f-grade{
     width:100%;padding:12px 13px;border:1.5px solid var(--line);border-radius:10px;
     font:inherit;font-size:15px;background:#fafbfa;color:var(--ink);
   }
   details.extra select{font-size:14px;padding:11px 10px;}
-  input:focus,details.extra select:focus{outline:none;border-color:var(--accent);background:#fff;}
+  #f-grade{cursor:pointer;}
+  input:focus,details.extra select:focus,#f-grade:focus{outline:none;border-color:var(--accent);background:#fff;}
   .row2{display:flex;gap:10px;}
   .row2>div{flex:1;min-width:0;}
   details.extra{margin-top:16px;border:1px solid var(--line-soft);border-radius:12px;padding:12px 14px;}

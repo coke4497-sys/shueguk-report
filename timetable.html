@@ -12839,6 +12839,13 @@ function tkReload(){ tkList = null; tkLog = null; tkRender(); tkEnsure(true); }
 function tkWaiting(){ return (tkList || []).filter(function(t){ return t.status === '대기'; }); }
 /* 해결할 날 — 글 안의 첫 'M/D'(예: '11/15(일) 2:00 …')를 읽는다. 저장 칸이 따로 없어 글에서만 찾는다(2026-11-14 수정 요청함 최예나 → 원장님 1안).
    연도는 남긴 날(ymd) 기준으로 가장 가까운 해(12월에 남긴 '1/3'은 다음 해). 못 찾으면 '' */
+/* '지난 요청' = 남긴 날이 지났고, 글에 적힌 해결할 날도 없거나 이미 지난 대기 요청(2026-11-25 수정 요청 1010 김현지T — 미리 남긴 요청에
+ * '지난 요청'이 붙던 것). 해결할 날이 오늘이거나 앞날이면 아직 지난 요청이 아니다 */
+function tkCarried(t){
+  if (!t || t.status === '완료' || !(t.ymd < todayStr())) return false;
+  var due = tkDueOf(t);
+  return !due || due < todayStr();
+}
 function tkDueOf(t){
   var m = /(^|[^\d])(\d{1,2})\/(\d{1,2})(?!\d)/.exec(String(t.text || ''));
   if (!m) return '';
@@ -12898,7 +12905,7 @@ function tkFindStudent(text){
   return best;
 }
 function tkItemHtml(t, done){
-  var carried = (!done && t.ymd < todayStr());
+  var carried = (!done && tkCarried(t));
   var hist = (t.history || []).map(function(h){
     return '<span>' + esc(tkMd(h.ymd)) + ' ' + esc(tkLocLabel(h.loc)) + (h.by ? ' (' + esc(h.by) + ')' : '') + ' 못 함: ' + esc(h.reason) + '</span>';
   }).join('');
@@ -12924,7 +12931,7 @@ function tkRender(){
   }
   tkRebuildByName();
   var all = tkWaiting(), wait = tkSortWait(all.filter(tkVisible));
-  var carried = wait.filter(function(t){ return t.ymd < todayStr(); }).length;
+  var carried = wait.filter(tkCarried).length;
   var done = (tkList || []).filter(function(t){ return t.status === '완료' && tkVisible(t); });
   if (cnt){ cnt.textContent = all.length; cnt.hidden = !all.length; }
   if (sub) sub.textContent = tkMissing ? '준비 전' : (wait.length ? ('안 한 일 ' + wait.length + (carried ? ' · 지난 요청 ' + carried : '')) : '모두 마쳤어요');
@@ -13042,7 +13049,7 @@ function tkLinesByDate(rows, from, to){
     if (t.status === '완료' && t.doneYmd)
       add(t.doneYmd, '<div class="tk-ln">' + head(t) + '<em>완료 · ' + esc(t.doneBy || '이름 없음') + ' ' + esc(tkHm(t.doneAt)) + '</em></div>');
     else if (t.status === '대기')
-      add(t.ymd, '<div class="tk-ln">' + head(t) + '<em class="wait">' + (t.ymd < todayStr() ? '대기 (지난 요청)' : t.ymd > todayStr() ? '예정' : '대기') + '</em></div>');
+      add(t.ymd, '<div class="tk-ln">' + head(t) + '<em class="wait">' + (tkCarried(t) ? '대기 (지난 요청)' : t.ymd > todayStr() ? '예정' : '대기') + '</em></div>');
   });
   return by;
 }
@@ -13083,7 +13090,7 @@ function tkStrip(){
 }
 function tkStripUpdate(el){
   el = el || $('tk-strip'); if (!el || tkList === null) return;
-  var all = tkWaiting(), carried = all.filter(function(t){ return t.ymd < todayStr(); }).length;
+  var all = tkWaiting(), carried = all.filter(tkCarried).length;
   el.querySelector('.tk-strip-txt').innerHTML = all.length
     ? '<i class="tk-cnt">' + all.length + '</i> 안 한 일 ' + all.length + (carried ? ' · 지난 요청 ' + carried : '')
     : (tkMissing ? '준비 전' : '모두 마쳤어요');
