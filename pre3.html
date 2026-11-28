@@ -803,7 +803,7 @@ function renderSummary(){
       (n.note ? '<p class="para" style="margin-top:12px">' + esc(n.note) + '</p>' : '') + '</div>';
     if (arr(COMMON.schedule).length) h += '<div class="card"><div class="sec-t"><span class="n">5</span>2028학년도 주요 일정<span class="sub">모의고사·발표·등록까지 달별로는 [2028 입시 일정] 탭에서</span></div><div class="sched">' +
       arr(COMMON.schedule).map(function(s){ return '<b>' + esc(s.k) + '</b><span>' + esc(s.v) + '</span>'; }).join('') + '</div>' +
-      '<p class="muted" style="margin:12px 0 0;font-size:12px;line-height:1.7">대학마다 원서 접수 날짜가 이 기간 안에서 조금씩 다릅니다. 수능은 2027년 11월 셋째 주 목요일로 예정되어 있어요(교육부 발표를 확인하세요).</p></div>';
+      '<p class="muted" style="margin:12px 0 0;font-size:12px;line-height:1.7">대학마다 원서 접수 날짜가 이 기간 안에서 조금씩 다릅니다. 수능은 2027년 11월 18일(목), 성적 통지는 12월 10일(금)입니다(교육부 확정).</p></div>';
     if (COMMON.src) h += '<p class="srcline">출처: ' + esc(COMMON.src) + '. 대학별 모집요강(수시 5월·정시 9월 발표)에서 바뀔 수 있으니 지원 전에 꼭 확인하세요.</p>';
   }
   $('view').innerHTML = h;
@@ -897,7 +897,7 @@ var TRACKS = [
  * 출처: 대교협 「2028학년도 대학입학전형 기본계획」(2025. 8. 28.)·「2028학년도 대학입학전형시행계획 주요사항」(2026. 4. 29.) 일정표,
  *       교육부 2028학년도 수능 시행일·성적통지일 발표(2025. 4.), 교육부 2025. 4. 16. 보도(하반기 모의평가 8월 말 시행·수시 접수 순연).
  * 2027년 모의고사 날짜 = 2026-11-28 원장님이 준 시도교육청 일정(안)(3/24 서울 · 5/11 경기 · 6/2 또는 6/3 평가원 · 7/8 인천 · 8/25 평가원 · 10/19 서울) — sure:'plan' = '일정(안)' 표시,
- * 6월·8월 모의평가 확정일·접수 기간은 평가원이 2027년 3월·7월 계획에서 공고. sure:false = 시기만 정해지고 날짜 발표 전(수능 원서접수).
+ * 6월 모의평가 확정일·접수 기간은 평가원 2027년 3월 수능 시행기본계획, 8월 모의평가는 6월 무렵 시행계획에서 공고(7월은 수능 시행세부계획). sure:false = 시기만 정해지고 날짜 발표 전(수능 원서접수).
  * 날짜가 확정되면 이 표만 고친다 — 지어 넣지 않는다. d·e = 'YYYY-MM-DD'(e 는 끝 날짜), alt = 날짜 자리에 대신 보일 글('6/2 (수) 또는 6/3 (목)'), tba = 시기 글(날짜 모를 때), mon = 묶을 달. */
 var SCHED = [
   { mon: '2027-03', d: '2027-03-24', kind: 'mock', t: '3월 전국연합학력평가', who: '서울시교육청 주관 · 고1·2·3 · 고3 첫 모의고사', sure: 'plan' },
@@ -906,7 +906,8 @@ var SCHED = [
   { mon: '2027-06', d: '2027-06-02', alt: '6/2 (수) 또는 6/3 (목)', kind: 'mock', t: '6월 수능 모의평가', who: '한국교육과정평가원 · 2028 수능 체제로 치르는 첫 모의평가, 졸업생도 응시 · 고1·2는 같은 날 부산시교육청 학력평가', sure: 'plan' },
   { mon: '2027-07', d: '2027-07-05', e: '2027-07-09', kind: 'etc', t: '수시 재외국민·외국인 특별전형 원서접수(7월 접수 대학)', who: '대교협 기본계획 · 해당 대학만, 일반 수시는 9월 20일부터', sure: true },
   { mon: '2027-07', d: '2027-07-08', kind: 'mock', t: '7월 전국연합학력평가', who: '인천시교육청 주관 · 고3', sure: 'plan' },
-  { mon: '2027-07', tba: '7월 예정', kind: 'csat', t: '2028학년도 수능 시행세부계획 공고', who: '한국교육과정평가원 · 8월 모의평가 날짜와 접수 기간도 이 무렵 공고', sure: true },
+  { mon: '2027-06', tba: '6월 무렵', kind: 'csat', t: '8월 수능 모의평가 시행계획 공고', who: '한국교육과정평가원 · 8월 모의평가 확정일과 접수 기간', sure: true },
+  { mon: '2027-07', tba: '7월 예정', kind: 'csat', t: '2028학년도 수능 시행세부계획 공고', who: '한국교육과정평가원', sure: true },
   { mon: '2027-08', d: '2027-08-25', kind: 'mock', t: '8월 수능 모의평가 (옛 9월 모평)', who: '한국교육과정평가원 · 2028학년도부터 9월이 아니라 8월 말에 치르고, 성적은 2주 뒤 통지 · 고1·2는 같은 날 인천시교육청 학력평가', sure: 'plan' },
   { mon: '2027-08', tba: '8월 말 ~ 9월 초 무렵', kind: 'csat', t: '수능 응시원서 접수', who: '한국교육과정평가원 · 2027년 3월 수능 시행기본계획에서 날짜 확정', sure: false },
   { mon: '2027-09', d: '2027-09-20', e: '2027-09-23', kind: 'susi', t: '수시모집 원서접수', who: '이 기간 중 3일 이상 · 8월 모의평가 성적을 받은 뒤 접수', sure: true },
@@ -960,7 +961,7 @@ function renderSched(){
   var today = kstToday();
   var h = '<div class="card"><div class="sec-t">2028학년도 입시 주요 일정<span class="sub">2027년 3월 ~ 2028년 2월 · 팀09(지금 고2)가 치르는 입시</span></div>' +
     ddayHtml(today) +
-    '<p class="scnote">날짜가 적힌 일정은 대교협 「2028학년도 대학입학전형 기본계획」과 교육부 발표에 따른 것입니다. 모의고사 날짜는 시도교육청 일정(안)이라 <span class="tbat plan">일정(안)</span> 표시를 붙였고, 6월·8월 모의평가 확정일과 접수 기간은 평가원이 2027년 3월과 7월에 공고해요. <span class="tbat">날짜 확정 전</span>인 수능 원서접수는 확정되는 대로 채워 둘게요.</p></div>';
+    '<p class="scnote">날짜가 적힌 일정은 대교협 「2028학년도 대학입학전형 기본계획」과 교육부 발표에 따른 것입니다. 모의고사 날짜는 시도교육청 일정(안)이라 <span class="tbat plan">일정(안)</span> 표시를 붙였고, 6월·8월 모의평가 확정일과 접수 기간은 평가원이 2027년 3월과 6월 무렵에 각각 공고해요. <span class="tbat">날짜 확정 전</span>인 수능 원서접수는 확정되는 대로 채워 둘게요.</p></div>';
   h += '<div class="card"><div class="skf">' + [['all', '전체']].concat(Object.keys(KIND_LB).map(function(k){ return [k, KIND_LB[k]]; })).map(function(o){
     return '<button class="pill' + (SK === o[0] ? ' on' : '') + '" data-sk="' + o[0] + '">' + esc(o[1]) + '</button>'; }).join('') + '</div>';
   var rows = SCHED.filter(function(ev){ return SK === 'all' || ev.kind === SK; });
@@ -1193,7 +1194,7 @@ function fmtAt(ms){ return new Date(ms).toLocaleString('ko-KR', { month: 'numeri
 function savedHtml(){
   if (RO) return '<span class="ok">' + OK_SVG + '학생이 마지막으로 저장한 때 · ' + (CK.at ? fmtAt(CK.at) : '기록 없음') + '</span>';
   var t;
-  if (!ckOnline()) t = CK.at ? OK_SVG + '이 기기에 저장됨 · ' + fmtAt(CK.at) : '표시하고 적은 내용은 이 기기에만 저장돼요.';
+  if (!ckOnline()) t = (TEACHER ? '선생님 보기 · ' : '') + (CK.at ? OK_SVG + '이 기기에 저장됨 · ' + fmtAt(CK.at) : '표시하고 적은 내용은 이 기기에만 저장돼요.') + (TEACHER ? ' · 학생 것은 [학생 저장 목록]에서' : '');
   else if (CK_SYNC === 'saving') t = '저장하는 중…';
   else if (CK_SYNC === 'fail') t = '<span class="warn">이 기기에만 저장됨 · 연결되면 다시 저장합니다</span>';
   else if (CK_SYNC === 'saved' && CK.at) t = OK_SVG + '저장됨 · ' + fmtAt(CK.at) + ' · 선생님도 함께 봅니다';
@@ -1207,10 +1208,11 @@ function reHtml(){
 }
 var RO = false;   // 선생님이 학생 체크리스트를 열람하는 중(읽기만)
 function renderCheck(){
-  var h = (RO ? roHead() : (TEACHER ? tsubHtml('check') + '<div class="tnote">학생 페이지와 같은 화면입니다. 여기서 표시하거나 적은 것은 이 기기에만 남고 학생에게 가지 않아요.</div>' : '')) +
+  var h = (RO ? roHead() : (TEACHER ? tsubHtml('check') + '<div class="tnote"><b>학생 페이지와 같은 화면입니다.</b> 학생이 자기 페이지에서 표시하면 1~2초 뒤 자동으로 저장되어 위 [학생 저장 목록]에 쌓입니다. 학생이 따로 제출하거나 캡처해 보낼 필요가 없어요. 이 화면에서 선생님이 표시한 것은 이 기기에만 남고 목록에는 들어가지 않습니다.</div>' : '')) +
     '<div class="card"><div class="sec-t">팀09 셀프 체크리스트 · 고3이 되기 전, 나를 먼저 점검하기</div>' +
     '<p class="ckp">어느 대학을 목표로 하든, 고3의 1년을 버티는 습관은 지금 내가 준비할 수 있습니다.</p>' +
     '<p class="ckp s">이 표는 시험이 아닙니다. 점수도 등급도 없습니다. 표시한 내용은 담당 선생님이 함께 보며 상담에 씁니다. 잘 보이려고 고르지 말고, 최근 2주 동안 실제로 어땠는지 떠올리며 솔직하게 표시해 주세요.</p>' +
+    (TEACHER ? '' : '<p class="ckp s">표시하고 적으면 1~2초 뒤 자동으로 저장되어 담당 선생님께 전해집니다. 따로 제출 버튼을 누르거나 캡처해 보낼 필요가 없어요.</p>') +
     '<div class="cklg" id="ckCount">' + countHtml() + '</div></div>' +
     '<div class="ckprog" id="ckProg">' + progHtml() + '</div>';
   h += CL.map(function(f){
