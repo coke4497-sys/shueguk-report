@@ -2590,6 +2590,10 @@ function renderHub(){
   html += '<a class="card t-mnt" href="pre1.html?'+(IS_ID ? 'id=' : 'key=')+encodeURIComponent(KEY)+'"><span class="icon">'+svg(ICON.book)+'</span>' +
           '<h3>덕양구 8개 주요학교 고1 국어 미리보기</h3><p class="desc">고등학교별 국어 시험 분석 · 고등학교 가기 전 점검표</p>' +
           '<span class="go">열기 '+svg(ICON.arrow)+'</span></a>';
+  // 예비 고3 — 인서울 15개 대학 2028 입시 (2026-11-28 원장님, 095) — 재원생 모두. 대학별 전형·정시 국어 반영 비율 + 고3 자가 점검표(pre3.html)
+  html += '<a class="card t-lav" href="pre3.html?'+(IS_ID ? 'id=' : 'key=')+encodeURIComponent(KEY)+'"><span class="icon">'+svg(ICON.cal)+'</span>' +
+          '<h3>인서울 15개 대학 2028 입시 미리보기</h3><p class="desc">대학별 전형 · 정시 국어 반영 비율 · 고3이 되기 전 점검표</p>' +
+          '<span class="go">열기 '+svg(ICON.arrow)+'</span></a>';
   // 지필고사 데이터 (잠금)
   var cntTxt = STATE.examCount>0 ? ('내신 기록 '+STATE.examCount+'건') : '내신 기록';
   if(anTodo>0) cntTxt += ' · 복기 '+anTodo+'건 입력 필요';
