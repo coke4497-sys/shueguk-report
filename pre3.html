@@ -1,0 +1,1325 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>2028 대입 미리보기</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=Gowun+Dodum&family=Do+Hyeon&family=Sacramento&display=swap" rel="stylesheet" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='48' fill='%23DCE9E4'/%3E%3C/svg%3E" />
+<meta name="theme-color" content="#E4EFEA" />
+<link rel="manifest" href="manifest-student.json" />
+<!--
+  예비 고3 — 2028 대입 미리보기 (2026-11-28 원장님, 095) — ① 팀09(2009년생) 셀프 체크리스트 ② 대입 개편안 주요 특징과 전형 요약 ③ 15개 주요 대학 입시 미리보기
+  (같은 날 원장님 "2028 대입 미리보기 — 1. 팀09 셀프 체크리스트(+내신 히스토리·수능 목표 등급·지원 희망 대학 학과) 2. 대입 개편안 주요 특징과 각 전형 요약 3. 15개 주요 대학 입시 미리보기")
+  · pre1.html(예비 고1 학교 분석)과 같은 틀. 학생 페이지(s.html) 카드가 ?key=(접근코드) 또는 ?id=(학생ID)를 실어 연다.
+  · 전형 자료는 수파베이스 pre3_univs 를 함수 pre3_list 로 받는다(재원생 모두). ?teacher=1(허브 슈국 운영 카드)이면 허브 개인 로그인 신분으로 표를 직접 읽는다. 출처 = 대입정보포털 '어디가'에 게재된 각 대학
+    2028학년도 대학입학전형 시행계획 원문 + 대교협 「2028학년도 대학입학전형시행계획 주요사항」(2026. 4. 29.).
+  · 화면 셋(탭 순서): 나의 점검표(#check — 기본, 이 기기에만 저장) · 전체 요약(#summary) · 대학별 전형(#univ=<key>).
+-->
+<style>
+  :root{
+    --bg:#E4EFEA; --surface:#FFFFFF; --ink:#2A332F; --ink-soft:#5C6A64; --accent:#3A6B5E;
+    --line:#D7E3DD; --line-soft:#E5EDE8; --soft:#F3F7F5;
+    --lav:#EDE4F4; --lav-ink:#5A4A6A;
+    --lv0:#E3ECE7; --lv1:#BFD5CA; --lv2:#8FB3A3; --lv3:#4F7A6A;
+    --sans:"Gowun Dodum","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;
+    --serif:"Gowun Batang",serif; --disp:"Do Hyeon",var(--sans);
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;padding:0;}
+  body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:16px;line-height:1.75;-webkit-font-smoothing:antialiased;padding-bottom:48px;}
+  .wrap{max-width:760px;margin:0 auto;padding:0 16px;}
+  header{padding:34px 4px 18px;}
+  .eyebrow{font-size:.74rem;letter-spacing:.22em;color:var(--accent);margin:0;}
+  h1{font-family:var(--serif);font-weight:700;font-size:1.6rem;margin:6px 0 4px;line-height:1.35;word-break:keep-all;}
+  .lead{font-family:var(--serif);color:var(--ink-soft);font-size:.95rem;margin:0;}
+  .seg{display:flex;gap:4px;background:#fff;border-radius:999px;padding:4px;margin:18px 0 6px;}
+  .seg button{flex:1;border:0;background:transparent;border-radius:999px;padding:9px 6px;font-family:var(--sans);font-size:.92rem;color:var(--ink-soft);cursor:pointer;}
+  .seg button.on{background:var(--lav);color:var(--lav-ink);font-weight:700;}
+  .card{background:var(--surface);border-radius:18px;padding:20px 20px;margin:14px 0;box-shadow:0 1px 3px rgba(40,60,50,.05);}
+  .sec-t{font-family:var(--serif);font-weight:700;font-size:1.08rem;margin:0 0 12px;display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;}
+  .sec-t .n{font-family:var(--disp);font-weight:400;color:var(--accent);font-size:1.15rem;}
+  .sec-t .sub{font-family:var(--sans);font-weight:400;font-size:.8rem;color:var(--ink-soft);}
+  .muted{color:var(--ink-soft);font-size:.86rem;}
+  .msg{text-align:center;padding:60px 20px;font-family:var(--serif);color:var(--ink-soft);}
+  .msg b{display:block;color:var(--ink);font-size:1.1rem;margin-bottom:8px;}
+  p.para{margin:0 0 12px;font-size:.95rem;}
+  p.para:last-child{margin-bottom:0;}
+
+  /* 전체 요약 */
+  .sort{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 10px;}
+  .pill{border:0;background:var(--soft);color:var(--ink-soft);border-radius:999px;padding:5px 12px;font-family:var(--sans);font-size:.82rem;cursor:pointer;}
+  .pill.on{background:var(--lav);color:var(--lav-ink);font-weight:700;}
+  table.cmp{width:100%;border-collapse:collapse;font-size:.86rem;}
+  table.cmp th{font-weight:400;color:var(--ink-soft);font-size:.76rem;text-align:left;padding:6px 6px;border-bottom:1px solid var(--line);}
+  table.cmp td{padding:10px 6px;border-bottom:1px solid var(--line-soft);vertical-align:top;}
+  table.cmp tr.go{cursor:pointer;}
+  table.cmp tr.go:hover td{background:#F7FAF8;}
+  table.cmp .sc{font-family:var(--disp);font-size:1.08rem;white-space:nowrap;}
+  table.cmp .num{font-family:var(--disp);font-size:1.05rem;white-space:nowrap;}
+  table.cmp .arrow{color:var(--accent);white-space:nowrap;}
+  .lvbar{display:flex;height:12px;border-radius:999px;overflow:hidden;background:var(--lv0);min-width:90px;}
+  .lvbar i{display:block;height:100%;}
+  .lvbar i.l0{background:var(--lv0);} .lvbar i.l1{background:var(--lv1);} .lvbar i.l2{background:var(--lv2);} .lvbar i.l3{background:var(--lv3);}
+  .legend{display:flex;gap:12px;flex-wrap:wrap;font-size:.78rem;color:var(--ink-soft);margin:10px 0 0;}
+  .legend span::before{content:"";display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px;background:var(--c);}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+  .sbox{background:var(--surface);border:0;border-radius:16px;padding:16px;text-align:left;cursor:pointer;font-family:var(--sans);color:var(--ink);box-shadow:0 1px 3px rgba(40,60,50,.05);}
+  .sbox:hover{background:#FAFCFB;}
+  .sbox .nm{font-family:var(--disp);font-size:1.35rem;line-height:1.2;}
+  .sbox .ex{font-size:.78rem;color:var(--ink-soft);margin:2px 0 10px;}
+  .sbox .row{display:flex;justify-content:space-between;gap:8px;font-size:.84rem;margin:3px 0;}
+  .sbox .row b{font-weight:400;color:var(--ink-soft);}
+  .sbox .areas{font-size:.8rem;color:var(--ink-soft);margin-top:8px;line-height:1.55;}
+  .sbox .more{display:block;margin-top:10px;color:var(--accent);font-size:.84rem;}
+
+  /* 서술형 있음/없음 — 한눈에 */
+  .es{display:inline-block;border-radius:999px;padding:3px 11px;font-size:.8rem;font-weight:700;white-space:nowrap;}
+  .es.no{background:#E7F1EC;color:#2F5D4F;}
+  .es.yes{background:#C8463F;color:#fff;}
+  .es.big{font-family:var(--disp);font-weight:400;font-size:1.02rem;padding:5px 14px;}
+  .essum{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--soft);border-radius:14px;padding:10px 12px;margin:0 0 12px;font-size:.88rem;}
+  .esband{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:12px;}
+  /* 시험 범위의 양 */
+  :root{--k-t:#8FB3A3;--k-p:#B9A5CC;--k-m:#E3C97E;--k-e:#EAB6C2;}
+  .tops{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:0 0 12px;}
+  .top{background:var(--soft);border-radius:14px;padding:12px 14px;display:flex;flex-direction:column;}
+  .top .k{font-size:.78rem;color:var(--ink-soft);}
+  .top .v{font-family:var(--disp);font-size:1.5rem;line-height:1.25;}
+  .top .u{font-size:.84rem;color:var(--accent);}
+  .rhead{display:grid;grid-template-columns:96px 1.3fr 1fr;gap:12px;font-size:.76rem;color:var(--ink-soft);padding:6px 4px;border-bottom:1px solid var(--line);}
+  .rrow{display:grid;grid-template-columns:96px 1.3fr 1fr;gap:6px 12px;align-items:center;padding:12px 4px;border-bottom:1px solid var(--line-soft);cursor:pointer;}
+  .rrow:hover{background:#F7FAF8;}
+  .rn{font-family:var(--disp);font-size:1.15rem;line-height:1.2;}
+  .most{display:block;font-family:var(--sans);font-size:.7rem;color:#fff;background:var(--lav-ink);border-radius:999px;padding:1px 8px;width:fit-content;margin-top:3px;}
+  .rc{display:grid;grid-template-columns:34px 1fr;gap:6px 8px;align-items:center;}
+  .rc .big{font-family:var(--disp);font-size:1.45rem;line-height:1;text-align:right;}
+  .rc .big.e{color:#A4475C;}
+  .rbar{display:flex;height:16px;border-radius:6px;background:var(--soft);overflow:hidden;}
+  .rbar i{display:block;height:100%;}
+  .rbar i.k-t{background:var(--k-t);} .rbar i.k-p{background:var(--k-p);} .rbar i.k-m{background:var(--k-m);} .rbar i.k-e{background:var(--k-e);}
+  .rk{grid-column:2;font-size:.74rem;color:var(--ink-soft);}
+  .rf{grid-column:2 / 4;display:flex;flex-wrap:wrap;gap:5px;align-items:center;}
+  .feats{display:flex;flex-wrap:wrap;gap:5px;}
+  .sbox .feats{margin-top:10px;}
+  .ft{font-size:.76rem;border-radius:999px;padding:2px 9px;background:var(--soft);color:var(--ink-soft);}
+  .ft.on{background:var(--lav);color:var(--lav-ink);font-weight:700;}
+  .sgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:0 0 12px;}
+  .sk{background:var(--soft);border-radius:14px;padding:10px 12px;}
+  .sk .sh{display:flex;align-items:center;gap:6px;font-size:.84rem;color:var(--ink-soft);margin-bottom:6px;}
+  .sk .sh b{margin-left:auto;font-family:var(--disp);font-weight:400;font-size:1.2rem;color:var(--ink);}
+  .sk .dot{display:inline-block;width:10px;height:10px;border-radius:3px;}
+  .sit{display:inline-block;background:#fff;border-radius:8px;padding:2px 8px;margin:0 4px 4px 0;font-size:.82rem;}
+  details.orig{margin-top:12px;}
+  details.orig summary{cursor:pointer;font-size:.84rem;color:var(--accent);margin-bottom:6px;}
+  .rbar i.k-in{background:var(--k-t);}
+  .xe{color:#A4475C;font-weight:700;}
+  .rc.pc{grid-template-columns:62px 1fr;}
+  .rc.pc .big{white-space:nowrap;}
+  .rc.pc .big small{font-family:var(--sans);font-size:.62rem;color:var(--ink-soft);margin-left:1px;}
+  .rc.pc .rk{font-size:.78rem;}
+  .tscroll{overflow-x:auto;}
+  /* 시험지 지문 분량 */
+  .ppr{background:var(--soft);border-radius:14px;padding:12px 14px;margin:0 0 12px;}
+  .pph{display:flex;flex-wrap:wrap;gap:4px 12px;align-items:baseline;font-size:.84rem;margin-bottom:8px;}
+  .pph b{font-family:var(--serif);font-size:.95rem;}
+  .pp{display:grid;grid-template-columns:minmax(0,1.4fr) 1fr 64px;gap:8px;align-items:center;font-size:.84rem;margin:5px 0;}
+  .pp .pt2{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .pp .pt2 small{color:var(--ink-soft);}
+  .pp .dot{display:inline-block;width:9px;height:9px;border-radius:3px;margin-right:5px;}
+  .pp .rbar{height:10px;background:#fff;}
+  .pp .pc2{font-family:var(--disp);text-align:right;}
+  .xtag{font-size:.68rem;background:#A4475C;color:#fff;border-radius:999px;padding:0 6px;font-weight:400;}
+  /* 대표 유형 미리보기 */
+  .smp{display:grid;gap:12px;}
+  .sq{border:1px solid var(--line);border-radius:16px;padding:16px 18px;background:#FFFEFB;}
+  .sqh{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin-bottom:8px;}
+  .sty{font-size:.8rem;font-weight:700;border-radius:999px;padding:3px 11px;background:var(--lav);color:var(--lav-ink);}
+  .sty.multi{background:#C8463F;color:#fff;}
+  .sno{font-family:var(--disp);font-size:1.15rem;}
+  .sctx{font-size:.78rem;color:var(--ink-soft);}
+  .sst{font-family:var(--serif);font-weight:700;font-size:1rem;line-height:1.65;margin:0 0 10px;}
+  .sbg{border:1px solid #CFD9D4;border-radius:10px;padding:18px 14px 12px;margin:14px 0 10px;position:relative;font-size:.88rem;line-height:1.7;background:#fff;}
+  .sbl{position:absolute;top:-11px;left:50%;transform:translateX(-50%);background:#FFFEFB;padding:0 8px;font-size:.84rem;color:var(--ink-soft);}
+  .sop{list-style:none;margin:0;padding:0;}
+  .sop li{font-size:.92rem;line-height:1.6;padding:6px 10px;border-radius:10px;margin:2px 0;}
+  .sq.show .sop li.ans{background:#E3F0E8;color:#1F4A3A;font-weight:700;}
+  .sq.show .sop li.ans::after{content:"정답";font-size:.7rem;background:var(--accent);color:#fff;border-radius:999px;padding:0 7px;margin-left:8px;font-weight:400;}
+  .sbtn{margin-top:8px;border:0;background:var(--lav);color:var(--lav-ink);border-radius:999px;padding:6px 14px;font-family:var(--sans);font-size:.84rem;cursor:pointer;}
+  .sans{display:none;margin-left:8px;font-family:var(--disp);color:var(--accent);}
+  .sq.show .sans{display:inline;}
+  /* 학교 상세 */
+  .spills{display:flex;gap:6px;overflow-x:auto;padding:4px 0 8px;scrollbar-width:none;}
+  .spills::-webkit-scrollbar{display:none;}
+  .spills .pill{white-space:nowrap;background:#fff;font-size:.88rem;padding:7px 14px;}
+  .spills .pill.on{background:var(--lav);}
+  .shead .nm{font-family:var(--disp);font-size:2rem;line-height:1.15;}
+  .shead .ex{font-family:var(--serif);color:var(--ink-soft);font-size:.95rem;margin-top:4px;}
+  .tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:14px;}
+  .tile{background:var(--soft);border-radius:14px;padding:10px 12px;}
+  .tile .k{font-size:.74rem;color:var(--ink-soft);}
+  .tile .v{font-family:var(--disp);font-size:1.12rem;line-height:1.3;word-break:keep-all;}
+  .scope-main{font-size:.9rem;margin:0 0 10px;}
+  .scope-main b{font-weight:400;color:var(--ink-soft);margin-right:6px;}
+  .srow{display:grid;grid-template-columns:120px 1fr;gap:10px;padding:9px 0;border-top:1px solid var(--line-soft);font-size:.9rem;}
+  .srow:first-of-type{border-top:0;}
+  .srow .lb{color:var(--accent);font-size:.84rem;}
+  .bars{display:grid;grid-template-columns:1fr 1fr;gap:18px;}
+  .bars h4{margin:0 0 8px;font-weight:400;font-size:.82rem;color:var(--ink-soft);}
+  .hb{display:grid;grid-template-columns:76px 1fr 30px;gap:8px;align-items:center;font-size:.86rem;margin:5px 0;}
+  .hb .tr{height:12px;border-radius:999px;background:var(--soft);overflow:hidden;}
+  .hb .tr i{display:block;height:100%;background:var(--lv2);border-radius:999px;}
+  .hb .c{font-family:var(--disp);text-align:right;}
+  .notes{display:flex;flex-wrap:wrap;gap:6px;margin-top:14px;}
+  .chip{background:var(--soft);border-radius:999px;padding:4px 11px;font-size:.8rem;color:var(--ink);}
+  .qf{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 8px;}
+  .q{display:grid;grid-template-columns:34px 1fr;gap:10px;padding:11px 0;border-top:1px solid var(--line-soft);}
+  .q:first-child{border-top:0;}
+  .q .no{width:30px;height:30px;border-radius:50%;background:var(--soft);display:flex;align-items:center;justify-content:center;font-family:var(--disp);font-size:.98rem;}
+  .q .tags{display:flex;gap:5px;flex-wrap:wrap;align-items:center;margin-bottom:2px;}
+  .q .tg{font-size:.72rem;border-radius:999px;padding:1px 8px;background:var(--soft);color:var(--ink-soft);}
+  .q .tg.lv{background:var(--lv0);color:#2F4C40;}
+  .q .tg.lv.l2{background:var(--lv1);} .q .tg.lv.l3{background:var(--lv3);color:#fff;}
+  .q .sc2{font-size:.78rem;color:var(--ink-soft);}
+  .q .tx{font-size:.92rem;line-height:1.6;}
+  .trend{margin:0 0 16px;}
+  .trend:last-child{margin-bottom:0;}
+  .trend h4{margin:0 0 6px;font-family:var(--serif);font-size:.98rem;}
+  .hard{background:var(--soft);border-radius:14px;padding:14px 16px;margin:10px 0;}
+  .hard .top{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px;}
+  .hard .bn{font-family:var(--disp);font-size:1.4rem;line-height:1;}
+  .hard .tg{font-size:.74rem;border-radius:999px;padding:2px 9px;background:#fff;color:var(--ink-soft);}
+  .hard .tg.l3{background:var(--lv3);color:#fff;}
+  .hard .ttl{font-family:var(--serif);font-weight:700;font-size:.95rem;margin:0 0 8px;}
+  .hard .kv{margin:6px 0 0;font-size:.9rem;}
+  .hard .kv b{display:inline-block;font-weight:400;font-size:.74rem;background:#fff;border-radius:999px;padding:1px 9px;margin-right:6px;color:var(--accent);}
+  .pt{margin:0 0 18px;}
+  .pt:last-child{margin-bottom:0;}
+  .pt h4{margin:0 0 4px;font-family:var(--serif);font-size:1rem;display:flex;gap:8px;align-items:baseline;}
+  .pt h4 .i{font-family:var(--disp);font-weight:400;color:var(--accent);font-size:1.1rem;}
+  .pt .body{font-size:.92rem;margin:0 0 8px;}
+  .step{display:grid;grid-template-columns:auto 1fr;gap:8px;font-size:.88rem;margin:5px 0;line-height:1.6;}
+  .step .sl{font-family:var(--disp);font-size:.8rem;background:var(--soft);border-radius:999px;padding:1px 9px;white-space:nowrap;height:fit-content;}
+  .step .sl.star{background:var(--lav);color:var(--lav-ink);}
+  .nav2{display:flex;justify-content:space-between;gap:10px;margin:18px 0 0;}
+  .nav2 button{border:0;background:#fff;border-radius:999px;padding:9px 16px;font-family:var(--sans);font-size:.88rem;color:var(--accent);cursor:pointer;}
+
+  /* ── 디자인 개선안(2026-11-03 원장님 design_handoff_pre1_report — 나의 점검표·전체 요약. 학교별 분석은 종전 그대로) ── */
+  :root{--bg:#E4EFEA;--k-t:#8FB3A0;--k-p:#B9A8D0;--k-m:#E4C97A;--k-e:#E8B4BC;}
+  body{color:#33443C;}
+  .wrap{max-width:780px;padding:0 18px;}
+  header{padding:24px 4px 0;}
+  .eyebrow{font-size:12px;letter-spacing:3px;color:#4B6157;}
+  h1{font-size:30px;color:#2B3A33;margin:8px 0;}
+  .lead{font-family:var(--sans);font-size:15px;line-height:1.6;color:#54655C;}
+  .seg{position:sticky;top:8px;z-index:5;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px;padding:5px;margin:18px 0 0;box-shadow:0 4px 16px rgba(58,77,69,.10);border-radius:22px;}
+  .seg button{padding:11px 6px;font-size:15px;color:#54655C;}
+  .seg button.on{background:#ECE4F3;color:#4A3F63;}
+  .card{border-radius:24px;padding:24px 22px;margin:18px 0;box-shadow:none;}
+  .sec-t{font-size:20px;color:#2B3A33;gap:4px 10px;margin:0 0 14px;}
+  .sec-t .n{color:#7F9E8E;font-size:20px;}
+  .sec-t .sub{flex-basis:100%;font-size:13px;color:#8A978F;}
+  html #me-back-row{max-width:780px;padding:24px 18px 0;}
+  html #me-back{background:#fff;border-radius:999px;padding:8px 14px;font-size:14px;font-weight:400;color:#2B3A33;}
+  /* 나의 점검표 */
+  .ckp{font-size:16px;line-height:1.7;color:#2B3A33;margin:0 0 12px;}
+  .ckp.s{font-size:14px;line-height:1.75;color:#54655C;}
+  .cklg{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:6px;margin-top:4px;}
+  .cklg div{display:flex;align-items:center;gap:8px;background:#FAFBF9;border-radius:12px;padding:8px 10px;}
+  .cklg .sy{width:28px;height:28px;flex:none;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:15px;}
+  .cklg .tx{font-size:13px;color:#2B3A33;line-height:1.4;}
+  .cklg b{margin-left:auto;font-family:var(--disp);font-weight:400;font-size:16px;color:#54655C;}
+  .sy.o{background:#DCEBE3;color:#2F5C47;} .sy.t{background:#F6E9C4;color:#7A5D14;} .sy.x{background:#F6DDE1;color:#A8434F;} .sy.n{background:#EEF1EE;color:#54655C;}
+  .ckprog{position:sticky;top:72px;z-index:4;display:flex;align-items:center;gap:12px;background:#ECE4F3;color:#4A3F63;border-radius:999px;padding:10px 18px;margin:18px 0;box-shadow:0 4px 14px rgba(74,63,99,.12);}
+  .ckprog .lb{font-size:14px;white-space:nowrap;}
+  .ckprog .lb b{font-family:var(--disp);font-weight:400;font-size:18px;}
+  .ckprog .tr{flex:1;height:6px;border-radius:999px;background:#fff;overflow:hidden;}
+  .ckprog .tr i{display:block;height:100%;border-radius:999px;background:#8F7BB5;}
+  .flh{display:flex;align-items:baseline;gap:4px 10px;flex-wrap:wrap;margin-bottom:6px;}
+  .flh h3{margin:0;font-family:var(--serif);font-weight:700;font-size:19px;color:#2B3A33;}
+  .flh span{font-size:13px;color:#8A978F;}
+  .grp{font-size:13px;color:#4B6157;padding-bottom:6px;border-bottom:1px solid #E3E8E4;margin:16px 0 0;}
+  .ci{display:grid;grid-template-columns:28px minmax(0,1fr);gap:8px 10px;align-items:center;padding:12px 0;border-bottom:1px solid #F1F4F1;}
+  .ci .no{font-family:var(--disp);font-size:15px;color:#8A978F;}
+  .ci .bd{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px 14px;}
+  .ci .tx{font-size:15px;line-height:1.5;color:#2B3A33;flex:1 1 220px;word-break:keep-all;}
+  .sec-t,.ckp,.st h4,.st .hint,.with li,.closing{word-break:keep-all;}
+  .mk{display:flex;gap:4px;background:#F6F7F4;border-radius:999px;padding:3px;}
+  .mk button{width:40px;height:36px;border:0;border-radius:999px;background:transparent;color:#8A978F;font-size:16px;cursor:pointer;font-family:var(--sans);padding:0;}
+  .mk.re{align-self:flex-start;} .mk.re button{width:48px;height:38px;}
+  .mk button.on{color:#fff;}
+  .mk button.on.o{background:#4F7A66;} .mk button.on.t{background:#C59A2E;} .mk button.on.x{background:#B0525D;} .mk button.on.n{background:#8A978F;}
+  .st{display:grid;grid-template-columns:32px minmax(0,1fr);gap:12px;border-top:1px solid #EEF1EE;padding-top:18px;margin-top:18px;}
+  .sec-t + .st{border-top:0;padding-top:0;margin-top:0;}
+  .st .cn{width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--disp);font-size:16px;color:#2B3A33;}
+  .st .cn.c1{background:#DCEBE3;} .st .cn.c2{background:#F6E9C4;} .st .cn.c3{background:#ECE4F3;} .st .cn.c4{background:#F6DDE1;}
+  .st .bd{display:flex;flex-direction:column;gap:10px;min-width:0;}
+  .st h4{margin:0;font-family:var(--sans);font-size:16px;font-weight:700;color:#2B3A33;line-height:1.5;}
+  .st .hint{margin:2px 0 0;font-size:13px;line-height:1.6;color:#54655C;}
+  .fld{display:flex;flex-direction:column;gap:5px;font-size:13px;color:#54655C;margin:0;}
+  .fld input,.fld select,.fld textarea{width:100%;font-family:var(--sans);font-size:15px;color:#2B3A33;border:1px solid #DFE5E1;border-radius:12px;background:#FAFBF9;}
+  .fld input,.fld select{height:44px;padding:0 12px;}
+  .fld textarea{padding:10px 12px;min-height:66px;resize:vertical;line-height:1.6;}
+  .f2{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;}
+  .savedrow{display:flex;justify-content:flex-end;align-items:center;flex-wrap:wrap;gap:10px;font-size:12px;color:#8A978F;border-top:1px solid #EEF1EE;padding-top:14px;margin-top:18px;}
+  .savedrow .ok{display:flex;align-items:center;gap:5px;}
+  .rst{border:0;background:transparent;padding:0;color:#A8434F;font-family:var(--sans);font-size:12px;text-decoration:underline;cursor:pointer;}
+  .with{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:10px;}
+  .with li{display:grid;grid-template-columns:24px minmax(0,1fr);gap:8px;font-size:15px;line-height:1.6;color:#2B3A33;}
+  .with li b{font-family:var(--disp);font-weight:400;font-size:16px;color:#7F9E8E;}
+  .closing{margin:20px 0 0;background:#F4F8F5;border-radius:16px;padding:20px;text-align:center;font-family:var(--serif);font-size:16px;line-height:1.9;color:#4B6157;}
+  /* 전체 요약 */
+  .tops{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin:18px 0;}
+  .tops .top{background:#fff;border-radius:20px;padding:18px 20px;display:flex;flex-direction:column;gap:6px;}
+  .tops .k{font-size:13px;color:#54655C;line-height:1.4;}
+  .tops .v{font-family:var(--disp);font-size:24px;color:#2B3A33;line-height:1.25;}
+  .tops .u{font-size:13px;color:#4B6157;}
+  .tops .u.e{color:#A8434F;}
+  .tops .top.es0{background:#DCEBE3;} .tops .top.es0 .k{color:#4B6157;}
+  .tops .top.es1{background:#F6DDE1;} .tops .top.es1 .k,.tops .top.es1 .u{color:#A8434F;}
+  .sort{flex-wrap:nowrap;overflow-x:auto;gap:6px;margin:0 0 14px;padding-bottom:2px;scrollbar-width:none;}
+  .sort::-webkit-scrollbar{display:none;}
+  .sort .pill{flex:none;font-size:13px;padding:7px 13px;background:#F3F5F1;color:#54655C;font-weight:400;}
+  .sort .pill.on{background:#ECE4F3;color:#4A3F63;font-weight:400;}
+  .legend{gap:14px;font-size:12px;color:#54655C;margin:0 0 4px;}
+  .rrow{display:flex;flex-direction:column;align-items:stretch;gap:12px;padding:18px 0;border-top:1px solid #EEF1EE;border-bottom:0;cursor:pointer;}
+  .rrow:hover{background:transparent;}
+  .rrow .rn{display:flex;align-items:center;gap:8px;font-family:var(--disp);font-size:22px;line-height:1.2;color:#2B3A33;}
+  .rrow .most{display:inline-block;margin:0;font-size:11px;padding:2px 8px;background:#4A3F63;}
+  .r2{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px 24px;}
+  .rm{display:flex;flex-direction:column;gap:6px;}
+  .rm .hd{display:flex;align-items:baseline;justify-content:space-between;gap:8px;}
+  .rm .hd span{font-size:13px;color:#54655C;}
+  .rm .hd b{font-family:var(--disp);font-weight:400;font-size:20px;color:#2B3A33;}
+  .rm .hd b small{font-family:var(--sans);font-size:13px;color:#8A978F;margin-left:1px;}
+  .rm .hd b.e{color:#A8434F;}
+  .rm .rbar{height:10px;border-radius:999px;background:#F1F4F1;gap:2px;}
+  .rm .rbar.e{background:#EAF1EC;}
+  .rm .rk{font-size:12px;color:#8A978F;}
+  .ft{font-size:12px;padding:4px 10px;background:#F3F5F1;color:#6B7A72;}
+  .ft.on{background:#ECE4F3;color:#4A3F63;font-weight:400;}
+  .cmpw{overflow-x:auto;margin:0 -6px;}
+  .cmpi{min-width:600px;padding:0 6px;}
+  .cmh,.cmr{display:grid;grid-template-columns:64px 104px 1.2fr 56px 1fr 1fr 14px;gap:10px;align-items:center;}
+  .cmh{padding:0 0 10px;font-size:12px;line-height:1.4;color:#8A978F;border-bottom:1px solid #E3E8E4;}
+  .cmh .r{text-align:right;}
+  .cmr{padding:13px 0;border-bottom:1px solid #EEF1EE;cursor:pointer;}
+  .cmr:hover{background:#FAFBF9;}
+  .cmr .sc{font-family:var(--disp);font-size:18px;color:#2B3A33;white-space:nowrap;}
+  .mp{justify-self:start;font-size:12px;padding:3px 9px;border-radius:999px;white-space:nowrap;background:#F3F5F1;color:#8A978F;}
+  .mp.y{background:#F6DDE1;color:#A8434F;}
+  .cx{display:flex;flex-direction:column;gap:4px;min-width:0;}
+  .cx .l{display:flex;align-items:baseline;gap:6px;white-space:nowrap;font-size:13px;color:#2B3A33;}
+  .cx .l b{font-family:var(--disp);font-weight:400;font-size:16px;}
+  .cx .l b.e{color:#A8434F;}
+  .cx .l span{font-size:12px;color:#8A978F;}
+  .cx .br{height:5px;border-radius:999px;background:#F3ECEE;overflow:hidden;}
+  .cx .br i{display:block;height:100%;background:#E8B4BC;}
+  .cx .br.h{background:#EAF1EC;} .cx .br.h i{background:#4F7A66;}
+  .cq{text-align:right;font-size:14px;color:#2B3A33;line-height:1.35;}
+  .cq small{font-size:11px;color:#8A978F;}
+  .cq .y{display:block;font-size:11px;color:#A8434F;}
+  .cb{font-size:13px;color:#2B3A33;line-height:1.4;}
+  .cmr svg{justify-self:end;}
+  .sh3{padding:6px 4px 0;margin:18px 0 12px;}
+  .sh3 .sec-t{margin:0;}
+  .sh3 .sec-t .sub{color:#54655C;}
+  .grid{grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px;}
+  .sbox{display:flex;flex-direction:column;gap:14px;width:100%;border-radius:20px;padding:20px;box-shadow:none;transition:box-shadow .15s;}
+  .sbox:hover{background:#fff;box-shadow:0 6px 20px rgba(58,77,69,.12);}
+  .sbox .hd{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;}
+  .sbox .nm{font-size:24px;color:#2B3A33;}
+  .sbox .ex{font-size:12px;color:#8A978F;margin:3px 0 0;line-height:1.4;}
+  .esc{flex:none;font-size:12px;color:#4B6157;background:#DCEBE3;border-radius:999px;padding:3px 10px;white-space:nowrap;line-height:1.5;}
+  .esc.y{background:#F6DDE1;color:#A8434F;}
+  .sbox .info{display:grid;grid-template-columns:72px minmax(0,1fr);gap:7px 12px;font-size:14px;line-height:1.5;}
+  .sbox .info .k{color:#8A978F;}
+  .sbox .info .v{color:#2B3A33;}
+  .sbox .info .v b{font-family:var(--disp);font-weight:400;font-size:16px;}
+  .sbox .info .v small{font-size:13px;color:#54655C;}
+  .sbox .info .v .e{font-size:13px;color:#A8434F;}
+  .sbox .feats{border-top:1px dashed #E3E8E4;padding-top:12px;margin:0;}
+  .sbox .more{align-self:flex-end;margin:0;font-size:13px;color:#4A3F63;}
+
+  @media (max-width:640px){
+    h1{font-size:26px;}
+    .seg{grid-template-columns:repeat(2,minmax(0,1fr));} .seg button{font-size:14px;padding:10px 6px;}
+    .card{padding:22px 18px;}
+    .sgrid{grid-template-columns:1fr;}
+    .pp{grid-template-columns:minmax(0,1fr) 70px 54px;}
+    .sq{padding:14px 14px;}
+    .bars{grid-template-columns:1fr;}
+    .tiles{grid-template-columns:1fr 1fr 1fr;gap:6px;}
+    .tile{padding:8px 9px;} .tile .v{font-size:1rem;}
+    .srow{grid-template-columns:1fr;gap:2px;}
+    table.cmp .hide-m{display:none;}
+  }
+  .sub2{display:flex;gap:6px;margin:14px 0 0;}
+  .sub2 button{border:0;background:#fff;border-radius:999px;padding:8px 16px;font-family:var(--sans);font-size:14px;color:#54655C;cursor:pointer;}
+  .sub2 button.on{background:#ECE4F3;color:#4A3F63;font-weight:700;}
+  .rf{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:10px;margin-top:12px;}
+  .rf .it{background:#FAFBF9;border-radius:14px;padding:14px 16px;}
+  .rf .it h4{margin:0 0 6px;font-family:var(--serif);font-size:1rem;color:#2B3A33;}
+  .rf .it p{margin:0;font-size:.9rem;line-height:1.7;color:#2B3A33;word-break:keep-all;}
+  .rf .it .was{display:inline-block;background:#F1F4F1;color:#54655C;border-radius:999px;padding:2px 10px;font-size:.76rem;margin-bottom:8px;}
+  .g5{display:grid;grid-template-columns:repeat(5,1fr);gap:4px;margin:10px 0 4px;}
+  .g5 div{background:#ECE4F3;border-radius:10px;padding:8px 4px;text-align:center;font-size:.8rem;color:#4A3F63;line-height:1.4;}
+  .g5 div b{display:block;font-family:var(--disp);font-weight:400;font-size:1.1rem;}
+  .rtk{border-top:1px solid #EEF1EE;padding:16px 0 4px;margin-top:14px;}
+  .rtk:first-of-type{border-top:0;padding-top:0;margin-top:0;}
+  .rtk h4{margin:0 0 6px;font-family:var(--serif);font-size:1.05rem;color:#2B3A33;}
+  .rtk h4 .tag{display:inline-block;margin-left:8px;background:#F6E9C4;color:#6B5A1F;border-radius:999px;padding:2px 10px;font-size:.74rem;font-family:var(--sans);font-weight:400;vertical-align:middle;}
+  .rtk p{margin:4px 0;font-size:.92rem;line-height:1.7;color:#2B3A33;word-break:keep-all;}
+  .rtk .k{color:var(--accent);font-weight:700;}
+  .rtk .lk{display:inline-block;margin-top:6px;font-size:.84rem;color:#4A3F63;background:#ECE4F3;border-radius:999px;padding:4px 12px;cursor:pointer;}
+  .hist{display:grid;grid-template-columns:72px repeat(3,minmax(0,1fr)) minmax(0,1.4fr);gap:6px 8px;align-items:center;font-size:13px;color:#54655C;}
+  .hist .hh{font-size:12px;color:#8A978F;}
+  .hist .sm{font-family:var(--disp);font-size:15px;color:#2B3A33;}
+  .hist select,.hist input{width:100%;height:40px;font-family:var(--sans);font-size:14px;color:#2B3A33;border:1px solid #DFE5E1;border-radius:10px;background:#FAFBF9;padding:0 8px;}
+  .wish{display:grid;grid-template-columns:36px minmax(0,1.3fr) minmax(0,1.3fr) minmax(0,1fr);gap:6px 8px;align-items:center;}
+  .wish .sm{font-family:var(--disp);font-size:15px;color:#8A978F;text-align:center;}
+  .wish .hh{font-size:12px;color:#8A978F;}
+  .wish input,.wish select{width:100%;height:40px;font-family:var(--sans);font-size:14px;color:#2B3A33;border:1px solid #DFE5E1;border-radius:10px;background:#FAFBF9;padding:0 10px;}
+  @media (max-width:640px){ .hist{grid-template-columns:52px repeat(3,minmax(0,1fr));} .hist .hh.memo{display:none;} .hist input.memo{grid-column:2 / -1;margin-top:-2px;} .wish{grid-template-columns:30px minmax(0,1fr) minmax(0,1fr);} .wish .typ{grid-column:2 / -1;} }
+  .tband{background:#ECE4F3;color:#4A3F63;border-radius:14px;padding:10px 16px;font-size:.88rem;line-height:1.6;margin:0 0 14px;}
+  /* 선생님 보기 — 학생 체크리스트 목록·열람 */
+  /* ── 2028 입시 일정 ── */
+  .dday{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:0 0 6px;}
+  .dday div{background:#F6F7F4;border-radius:16px;padding:14px 14px 12px;}
+  .dday b{display:block;font-family:var(--disp);font-weight:400;font-size:30px;line-height:1.1;color:#2B3A33;}
+  .dday b.past{color:#8A978F;}
+  .dday small{display:block;font-size:12.5px;color:#54655C;margin-top:4px;line-height:1.45;}
+  .dday .lb{font-size:13px;color:#4A3F63;font-weight:700;}
+  .scnote{font-size:13px;color:#54655C;line-height:1.6;margin:8px 0 0;}
+  .skf{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 4px;}
+  .mon{margin:16px 0 0;}
+  .mon .mh{display:flex;align-items:baseline;gap:8px;font-family:var(--disp);font-size:19px;color:#2B3A33;padding:0 2px 6px;border-bottom:1px solid #E6ECE8;}
+  .mon .mh small{font-family:var(--sans);font-size:12.5px;color:#8A978F;}
+  .ev{display:grid;grid-template-columns:92px minmax(0,1fr);gap:4px 12px;padding:10px 2px;border-bottom:1px solid #F0F3F1;align-items:start;}
+  .ev:last-child{border-bottom:0;}
+  .ev .d{font-family:var(--disp);font-size:17px;color:#2B3A33;line-height:1.3;}
+  .ev .d small{display:block;font-family:var(--sans);font-size:11.5px;color:#8A978F;}
+  .ev .d.tba{color:#8A978F;font-size:13px;font-family:var(--sans);word-break:keep-all;line-height:1.4;}
+  .ev .t{font-size:15px;color:#2B3A33;line-height:1.45;}
+  .ev .t b{font-weight:700;}
+  .ev .m{font-size:12.5px;color:#54655C;line-height:1.5;margin-top:2px;}
+  .ev.today{background:#F8F4FB;border-radius:12px;padding-left:8px;padding-right:8px;}
+  .ev.past .d,.ev.past .t{color:#8A978F;}
+  .kb{display:inline-block;font-size:11px;padding:2px 8px;border-radius:999px;margin-right:6px;vertical-align:2px;font-weight:700;}
+  .kb.mock{background:#E3F0EC;color:#2E5A4A;} .kb.csat{background:#F6DCD6;color:#8A3F35;} .kb.susi{background:#ECE4F3;color:#4A3F63;} .kb.jeongsi{background:#E9EDF8;color:#3B4E7E;} .kb.extra{background:#F9EFD0;color:#7A6230;} .kb.etc{background:#EEF1EF;color:#54655C;}
+  .tbat{display:inline-block;font-size:11px;padding:2px 8px;border-radius:999px;background:#FFF4D6;color:#7A6230;margin-left:6px;vertical-align:2px;}
+  .tbat.plan{background:#EEF1EF;color:#54655C;}
+  .ev .d.alt{font-size:14px;line-height:1.35;}
+  @media (max-width:640px){ .dday{grid-template-columns:1fr 1fr;} .dday b{font-size:26px;} .ev{grid-template-columns:76px minmax(0,1fr);} .ev .d{font-size:15px;} }
+  .tnote{font-size:13px;color:#54655C;background:#F6F7F4;border-radius:12px;padding:8px 14px;margin:10px 0 0;line-height:1.55;}
+  .tsub{margin-top:0;}
+  .tsum{font-size:14px;color:#54655C;margin:4px 0 12px;}
+  .tsum b{font-family:var(--disp);font-weight:400;font-size:22px;color:#2B3A33;margin-right:2px;}
+  .tfil{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-bottom:12px;}
+  .tfil .sort{margin:0;}
+  .tfil #tq{flex:1;min-width:160px;height:38px;border:1px solid #DFE5E1;border-radius:12px;padding:0 12px;font:inherit;font-size:14px;background:#FAFBF9;}
+  .trows{display:flex;flex-direction:column;gap:6px;}
+  .trow{display:grid;grid-template-columns:1.3fr .9fr .9fr 1.5fr 1.3fr .8fr;gap:10px;align-items:center;width:100%;text-align:left;background:#FAFBF9;border:0;border-radius:12px;padding:10px 12px;font:inherit;font-size:13px;color:#2B3A33;cursor:pointer;}
+  .trow:hover{background:#F1F4F1;}
+  .trow.th{background:transparent;color:#8A978F;font-size:12px;padding:0 12px;cursor:default;}
+  .trow .nm{font-weight:700;font-size:15px;line-height:1.3;}
+  .trow .nm small{display:block;font-weight:400;font-size:12px;color:#8A978F;}
+  .trow .dn{position:relative;padding-bottom:8px;}
+  .trow .dn b{font-family:var(--disp);font-weight:400;font-size:17px;}
+  .trow .dn i{position:absolute;left:0;bottom:0;height:4px;border-radius:999px;background:#8F7BB5;}
+  .trow .cs{display:flex;gap:4px;}
+  .trow .cs em{font-style:normal;min-width:26px;text-align:center;border-radius:8px;padding:2px 4px;font-size:12px;}
+  .trow .cs .o{background:#E3F0E9;color:#2F5F47;} .trow .cs .t{background:#F7EDD2;color:#7A5A12;} .trow .cs .x{background:#F6E0E3;color:#8A3540;} .trow .cs .n{background:#EEF1EE;color:#5C6A64;}
+  .trow .ac,.trow .ws{line-height:1.45;word-break:keep-all;}
+  .trow .at{color:#8A978F;font-size:12px;text-align:right;}
+  .trow .muted{color:#B5BDB8;}
+  .rohead{display:flex;flex-wrap:wrap;align-items:center;gap:12px;background:#fff;border-radius:16px;padding:12px 16px;margin-bottom:14px;box-shadow:0 2px 10px rgba(43,58,51,.05);}
+  .rohead .tback{border:1px solid #DFE5E1;background:#fff;border-radius:999px;padding:7px 14px;font:inherit;font-size:13px;color:#2B3A33;cursor:pointer;}
+  .rohead .who b{font-family:var(--disp);font-weight:400;font-size:22px;margin-right:8px;}
+  .rohead .who span{color:#54655C;font-size:14px;}
+  .rohead .rotag{margin-left:auto;background:#ECE4F3;color:#4A3F63;border-radius:999px;padding:5px 12px;font-size:12px;}
+  #view.ro .mk button,#view.ro input,#view.ro select,#view.ro textarea{opacity:1;pointer-events:none;}
+  #view.ro input,#view.ro select,#view.ro textarea{background:#FAFBF9;color:#2B3A33;}
+  .savedrow .warn{color:#B0525D;}
+  @media (max-width:760px){
+    .trow{grid-template-columns:1.2fr .8fr 1fr .7fr;}
+    .trow .ac,.trow .ws{display:none;}
+    .rohead .rotag{margin-left:0;}
+  }
+  .tband a{color:#4A3F63;font-weight:700;text-decoration:none;margin-left:6px;}
+  body.teacher #me-back-row{display:none;}
+  @media print{ .seg,.spills,.nav2,.rst,#back-top,.me-back,.tband{display:none !important;} body{background:#fff;} .card{box-shadow:none;} }
+</style>
+<style>
+  /* ── 예비 고3 전용(pre1 스타일 위에 덧씌움) ── */
+  :root{--t-gyo:#8FB3A0;--t-jong:#4F7A66;--t-non:#B9A8D0;--t-etc:#DFE8E2;--t-su:#E4C97A;}
+  .stk{display:flex;height:14px;border-radius:999px;overflow:hidden;background:#F1F4F1;}
+  .stk i{display:block;height:100%;}
+  .stk i.gyo{background:var(--t-gyo);} .stk i.jong{background:var(--t-jong);} .stk i.non{background:var(--t-non);} .stk i.etc{background:var(--t-etc);} .stk i.su{background:var(--t-su);}
+  .urow{display:flex;flex-direction:column;gap:10px;padding:18px 0;border-top:1px solid #EEF1EE;cursor:pointer;}
+  .urow .un{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-family:var(--disp);font-size:22px;line-height:1.2;color:#2B3A33;}
+  .urow .un small{font-family:var(--sans);font-size:13px;color:#8A978F;}
+  .urow .pr{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px 24px;}
+  .kv{display:flex;flex-direction:column;gap:5px;}
+  .kv .hd{display:flex;align-items:baseline;justify-content:space-between;gap:8px;font-size:13px;color:#54655C;}
+  .kv .hd b{font-family:var(--disp);font-weight:400;font-size:19px;color:#2B3A33;}
+  .kv .hd b small{font-family:var(--sans);font-size:12px;color:#8A978F;margin-left:1px;}
+  .kv .rk{font-size:12px;color:#8A978F;}
+  .kbar{height:10px;border-radius:999px;background:#F1F4F1;overflow:hidden;}
+  .kbar i{display:block;height:100%;background:#4A3F63;border-radius:999px;}
+  .cmh.u,.cmr.u{grid-template-columns:72px 90px 1fr 1fr 1fr 110px 14px;}
+  .cmr .sm{font-size:12px;color:#8A978F;display:block;line-height:1.35;}
+  .cmr .v{font-family:var(--disp);font-size:16px;color:#2B3A33;}
+  .cmr .v.e{color:#A8434F;}
+  .cmr .ok{font-size:12px;border-radius:999px;padding:2px 8px;background:#DCEBE3;color:#2F5C47;white-space:nowrap;}
+  .cmr .ok.y{background:#F6DDE1;color:#A8434F;}
+  .cmr .ok.m{background:#F3F5F1;color:#8A978F;}
+  .tk{background:var(--soft);border-radius:16px;padding:16px 18px;margin:10px 0;}
+  .tk .top{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px;}
+  .tk .tn{font-family:var(--serif);font-weight:700;font-size:1rem;}
+  .tk .tg{font-size:.74rem;border-radius:999px;padding:2px 9px;background:#fff;color:var(--ink-soft);}
+  .tk .tg.p{background:#ECE4F3;color:#4A3F63;} .tk .tg.p.j{background:#F6E9C4;color:#7A5D14;}
+  .tk .tg.ty{background:#DCEBE3;color:#2F5C47;}
+  .tk .n{margin-left:auto;font-family:var(--disp);font-size:1.2rem;}
+  .tk .n small{font-family:var(--sans);font-size:.74rem;color:var(--ink-soft);margin-left:2px;}
+  .tk .kv2{display:grid;grid-template-columns:76px minmax(0,1fr);gap:6px 10px;font-size:.9rem;margin-top:8px;line-height:1.6;}
+  .tk .kv2 b{font-weight:400;font-size:.78rem;color:var(--accent);padding-top:3px;}
+  .tk .kv2 .mn{color:#2B3A33;}
+  .tk .kv2 .mn.none{color:#8A978F;}
+  .rt{display:grid;grid-template-columns:minmax(90px,1.2fr) repeat(4,minmax(0,1fr));gap:6px 10px;align-items:center;font-size:.86rem;padding:9px 0;border-top:1px solid var(--line-soft);}
+  .rt.h{border-top:0;font-size:.74rem;color:var(--ink-soft);padding-bottom:4px;}
+  .rt .tr{font-family:var(--serif);font-weight:700;}
+  .rt .pc{font-family:var(--disp);font-size:1.05rem;}
+  .rt .pc.k{color:#4A3F63;}
+  .rt .pc small{font-family:var(--sans);font-size:.7rem;color:var(--ink-soft);}
+  .rt .nt{grid-column:1 / -1;font-size:.78rem;color:var(--ink-soft);}
+  .kobox{background:#ECE4F3;border-radius:16px;padding:16px 18px;}
+  .kobox h4{margin:0 0 8px;font-family:var(--serif);font-size:1rem;color:#4A3F63;}
+  .kobox li{font-size:.92rem;line-height:1.7;margin:4px 0;}
+  .chg li{font-size:.92rem;line-height:1.7;margin:6px 0;}
+  .srcline{font-size:12px;color:#8A978F;line-height:1.6;margin:14px 0 0;}
+  .sched{display:grid;grid-template-columns:150px 1fr;gap:8px 12px;font-size:.9rem;}
+  .sched b{font-weight:400;color:var(--accent);}
+  .nat{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;}
+  .nat .top{background:var(--soft);}
+  @media (max-width:640px){ .cmh.u,.cmr.u{grid-template-columns:64px 80px 1fr 1fr 1fr 96px 14px;} .sched{grid-template-columns:1fr;gap:2px;} .rt{grid-template-columns:minmax(80px,1.1fr) repeat(4,minmax(0,1fr));font-size:.8rem;} }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <p class="eyebrow">SHUEGUK · 팀09 · 예비 고3</p>
+    <h1>2028 대입 미리보기</h1>
+    <p class="lead">2009년생, 지금 고2가 치르는 2028학년도 입시를 한곳에 모았습니다. 나를 먼저 점검하고, 바뀐 제도와 전형을 알고, 15개 대학을 살펴보세요.</p>
+  </header>
+  <div class="tband" id="tband" hidden>선생님 보기 · 학생 페이지와 같은 화면입니다. [팀09 셀프 체크리스트] 탭 위 [학생 저장 목록]에서 학생들이 저장한 체크리스트를 볼 수 있어요. <a href="https://coke4497-sys.github.io/shueguk-hub/ops.html">← 슈국 운영</a></div>
+  <nav class="seg" id="seg">
+    <button data-v="check">팀09 셀프 체크리스트</button>
+    <button data-v="sched">2028 입시 일정</button>
+    <button data-v="reform">대입 개편안 · 전형 요약</button>
+    <button data-v="univ15">15개 주요 대학</button>
+  </nav>
+  <div id="view"></div>
+</div>
+
+<script>
+var SB_URL = 'https://bangdbhqpphqqdwcledg.supabase.co';
+var SB_KEY = 'sb_publishable_dE9d1KIbpgYaQkaS2MSrlg_-7SiRJuT';
+var QS = new URLSearchParams(location.search);
+var KEY = (QS.get('key') || '').trim(), SID = (QS.get('id') || QS.get('student') || '').trim();
+/* 선생님 보기(2026-11-28 원장님 "슈국 운영에서도 확인 가능하게") — 허브 슈국 운영 카드가 ?teacher=1 로 연다. 학생 접근코드 없이
+ * 허브 개인 로그인 신분(localStorage shueguk_teacher_session_v2 — s.html teacherTok 과 같은 규칙)으로 pre3_univs 를 직접 읽는다. */
+var TEACHER = QS.get('teacher') === '1' && !KEY && !SID;
+var ITEMS = null, COMMON = null, LOAD_ERR = '', SORT = 'susi', TF = 'all';
+/* 선생님 보기의 학생 체크리스트 목록(096 pre3_checks — 2026-11-28 원장님 "제가 확인 가능해야 해요") */
+var CHECKS = null, CHECKS_ERR = '', TG = 'all', TQ = '';
+if (TEACHER){ document.body.classList.add('teacher'); var _tb = document.getElementById('tband'); if (_tb) _tb.hidden = false; }
+
+function $(id){ return document.getElementById(id); }
+function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+function arr(x){ return Array.isArray(x) ? x : (x == null || x === '' ? [] : [x]); }
+function paras(x){ return arr(x).map(function(t){ return '<p class="para">' + esc(t) + '</p>'; }).join(''); }
+function nf(n){ return (+n || 0).toLocaleString('ko-KR'); }
+function pct(a, b){ return b ? Math.round(a * 1000 / b) / 10 : 0; }
+function pct0(a, b){ return b ? Math.round(a * 100 / b) : 0; }
+
+/* ── 데이터 ── */
+var TEACHER_TOK = null;
+function teacherTok(){
+  if (TEACHER_TOK !== null) return Promise.resolve(TEACHER_TOK);
+  var LS = 'shueguk_teacher_session_v2', s = null;
+  try { s = JSON.parse(localStorage.getItem(LS) || 'null'); } catch (e) { s = null; }
+  if (!s || !s.access_token || !s.refresh_token){ TEACHER_TOK = ''; return Promise.resolve(''); }
+  if (Number(s.expires_at || 0) > Date.now() / 1000 + 90){ TEACHER_TOK = s.access_token; return Promise.resolve(TEACHER_TOK); }
+  return fetch(SB_URL + '/auth/v1/token?grant_type=refresh_token', {
+      method: 'POST', headers: { apikey: SB_KEY, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refresh_token: s.refresh_token }) })
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      if (!d || !d.access_token){ TEACHER_TOK = ''; return ''; }
+      try { localStorage.setItem(LS, JSON.stringify({ access_token: d.access_token, refresh_token: d.refresh_token,
+        expires_at: Number(d.expires_at || (Date.now() / 1000 + Number(d.expires_in || 3600))), user: d.user || s.user || null })); } catch (e) {}
+      TEACHER_TOK = d.access_token; return TEACHER_TOK;
+    })
+    .catch(function(){ TEACHER_TOK = ''; return ''; });
+}
+function applyItems(items){
+  ITEMS = [];
+  (items || []).forEach(function(x){
+    if (x.kind === 'common'){ COMMON = x.data || {}; return; }
+    var o = x.data || {}; o._key = x.key; o.name = o.name || x.name; o.year = x.year || '2028'; ITEMS.push(o);
+  });
+}
+function loadTeacher(){
+  teacherTok().then(function(tok){
+    if (!tok) throw { code: 'nologin' };
+    return fetch(SB_URL + '/rest/v1/pre3_univs?select=key,kind,name,year,data&visible=is.true&order=ord.asc,name.asc', {
+      headers: { apikey: SB_KEY, Authorization: 'Bearer ' + tok } });
+  }).then(function(r){
+    if (r.status === 401 || r.status === 403) throw { code: 'nologin' };
+    if (r.status === 404) throw { code: 'missing' };
+    if (!r.ok) throw { code: 'net' };
+    return r.json();
+  }).then(function(rows){ applyItems(rows); render(); })
+  .catch(function(e){ LOAD_ERR = (e && e.code) || 'net'; ITEMS = []; render(); });
+  loadChecks();
+}
+/* 학생들이 저장한 체크리스트 — 교사(authenticated)는 표를 직접 읽는다(1000줄까지, 재원생 수가 그 아래). */
+function loadChecks(){
+  teacherTok().then(function(tok){
+    if (!tok) throw { code: 'nologin' };
+    return fetch(SB_URL + '/rest/v1/pre3_checks?select=student_id,code,name,school,grade,data,marks,updated_at&order=updated_at.desc&limit=1000', {
+      headers: { apikey: SB_KEY, Authorization: 'Bearer ' + tok } });
+  }).then(function(r){
+    if (r.status === 401 || r.status === 403) throw { code: 'nologin' };
+    if (r.status === 404) throw { code: 'missing' };
+    if (!r.ok) throw { code: 'net' };
+    return r.json();
+  }).then(function(rows){ CHECKS = rows || []; checksArrived(); })
+  .catch(function(e){ CHECKS_ERR = (e && e.code) || 'net'; CHECKS = []; checksArrived(); });
+}
+/* 목록이 오면 — 목록·학생 화면은 다시 그리고, 체크리스트 화면은 하위 탭의 숫자만 바꾼다(표시 중인 칸을 건드리지 않게) */
+function checksArrived(){
+  var r = route();
+  if (r.v === 'stulist' || r.v === 'stu') render();
+  else if (r.v === 'check'){ var el = document.querySelector('.tsub'); if (el) el.outerHTML = tsubHtml('check'); }
+}
+function load(){
+  if (TEACHER){ loadTeacher(); return; }
+  if (!KEY && !SID){ LOAD_ERR = 'nokey'; render(); return; }
+  var p = KEY ? { key: KEY } : { student: SID };
+  ckPull(p);
+  fetch(SB_URL + '/rest/v1/rpc/pre3_list', {
+    method: 'POST', headers: { apikey: SB_KEY, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ p: p })
+  }).then(function(r){
+    if (r.status === 404) throw { code: 'missing' };
+    if (!r.ok) throw { code: 'net' };
+    return r.json();
+  }).then(function(d){
+    if (!d || !d.ok){ LOAD_ERR = (d && d.error) || 'net'; ITEMS = []; }
+    else applyItems(d.items);
+    render();
+  }).catch(function(e){ LOAD_ERR = (e && e.code) || 'net'; ITEMS = []; render(); });
+}
+
+/* 대교협 「대학별 모집인원」 줄(totals) — 수시·정시 합계. 전형기간 자율모집(a_*)은 대교협 규칙대로 학생부·실기·기타 → 수시, 수능 → 정시. */
+function tot(u){
+  var t = u.totals || {}, g = function(k){ return +t[k] || 0; };
+  var susi = g('s_gyo') + g('s_jong') + g('s_non') + g('s_sil') + g('s_etc') + g('a_gyo') + g('a_jong') + g('a_sil') + g('a_etc');
+  var jeongsi = g('j_su') + g('j_gyo') + g('j_jong') + g('j_sil') + g('j_etc') + g('a_su');
+  return { gyo: g('s_gyo') + g('a_gyo'), jong: g('s_jong') + g('a_jong'), non: g('s_non'), etc: g('s_sil') + g('s_etc') + g('a_sil') + g('a_etc'),
+           su: g('j_su') + g('a_su'), jo: jeongsi - g('j_su') - g('a_su'), susi: susi, jeongsi: jeongsi, total: g('total') || (susi + jeongsi),
+           jg: t.jg || null, nonsul: t.nonsul || null, has: !!u.totals };
+}
+function ratioRows(u){ return arr(u.jeongsi && u.jeongsi.ratio); }
+/* 정시 국어 비율 — 인문(또는 첫 줄)·자연, 그리고 전체 범위 */
+function korOf(u){
+  var all = ratioRows(u), rows = all.filter(function(r){ return r.kor != null; });
+  if (!rows.length){   // 국어·수학 중 '점수가 좋은 영역 순'처럼 고정 비율이 없는 대학(한양대 등) — 글로만 보여 준다
+    var r0 = all[0]; return r0 ? { text: true, note: String(r0.note || '').split('. ')[0], humT: r0.track } : null;
+  }
+  var hum = rows.filter(function(r){ return /인문|문과|상경|사회|A/.test(r.track); })[0] || rows[0];
+  var nat = rows.filter(function(r){ return /자연|이과|공학|B/.test(r.track) && r !== hum; })[0] || null;
+  var ks = rows.map(function(r){ return +r.kor; });
+  return { hum: +hum.kor, humT: hum.track, nat: nat ? +nat.kor : null, natT: nat ? nat.track : '', min: Math.min.apply(null, ks), max: Math.max.apply(null, ks), n: rows.length };
+}
+function trk(u, type){ return arr(u.tracks).filter(function(t){ return t.type === type; }); }
+function hasMin(t){ return !!t && !/^(없음|적용\s*안|미적용|적용하지)/.test(String(t.min || '').trim()); }
+function minState(u, type){
+  var ts = trk(u, type); if (!ts.length) return null;   // 그 전형이 없음
+  var yes = ts.filter(hasMin).length;
+  return yes === ts.length ? 'y' : yes ? 'p' : 'n';
+}
+function minChip(st, label){
+  if (st === null) return '<span class="ok m">' + label + ' 없음</span>';
+  return '<span class="ok' + (st === 'n' ? '' : ' y') + '">' + label + (st === 'n' ? ' 최저 없음' : st === 'y' ? ' 최저 있음' : ' 최저 일부') + '</span>';
+}
+function stack(t, max){
+  var w = function(v){ return (v * 100 / (max || 1)) + '%'; };
+  return '<div class="stk" title="학생부교과 ' + nf(t.gyo) + ' · 학생부종합 ' + nf(t.jong) + ' · 논술 ' + nf(t.non) + ' · 실기·기타 ' + nf(t.etc) + ' · 정시 수능 ' + nf(t.su) + '">' +
+    (t.gyo ? '<i class="gyo" style="width:' + w(t.gyo) + '"></i>' : '') + (t.jong ? '<i class="jong" style="width:' + w(t.jong) + '"></i>' : '') +
+    (t.non ? '<i class="non" style="width:' + w(t.non) + '"></i>' : '') + (t.etc ? '<i class="etc" style="width:' + w(t.etc) + '"></i>' : '') +
+    (t.su + t.jo ? '<i class="su" style="width:' + w(t.su + t.jo) + '"></i>' : '') + '</div>';
+}
+function stackLegend(){
+  return '<div class="legend"><span style="--c:var(--t-gyo)">학생부교과</span><span style="--c:var(--t-jong)">학생부종합</span><span style="--c:var(--t-non)">논술</span><span style="--c:var(--t-etc)">실기·기타</span><span style="--c:var(--t-su)">정시(수능)</span></div>';
+}
+
+/* ── 화면 ── */
+function route(){
+  var h = location.hash.replace(/^#/, '');
+  if (h.indexOf('univ=') === 0) return { v: 'univ', key: decodeURIComponent(h.slice(5)), tab: 'univ15' };
+  if (h === 'univ' || h === 'summary') return { v: h, tab: 'univ15' };
+  if (h === 'reform') return { v: 'reform', tab: 'reform' };
+  if (h === 'sched') return { v: 'sched', tab: 'sched' };
+  if (h.indexOf('stu=') === 0) return { v: 'stu', key: decodeURIComponent(h.slice(4)), tab: 'check' };   // 선생님 보기 — 학생 한 명의 체크리스트
+  if (h === 'stulist') return { v: 'stulist', tab: 'check' };   // 선생님 보기 — 학생들이 저장한 목록
+  return { v: 'check', tab: 'check' };   // pre1 과 같이 처음 열면 체크리스트
+}
+function go(hash){ if (location.hash !== '#' + hash) location.hash = hash; else render(); }
+window.addEventListener('hashchange', function(){ render(); window.scrollTo(0, 0); });
+$('seg').addEventListener('click', function(e){
+  var b = e.target.closest('button'); if (!b) return;
+  var v = b.getAttribute('data-v');
+  if (v === 'univ15'){ var r = route(); go(r.tab === 'univ15' ? (r.v === 'univ' ? (r.key ? 'univ=' + encodeURIComponent(r.key) : 'univ') : 'summary') : 'summary'); }
+  else go(v);
+});
+/* 15개 대학 탭 안의 하위 탭 — [전체 요약][대학별 전형] */
+function sub2Html(v){
+  return '<div class="sub2"><button class="' + (v === 'summary' ? 'on' : '') + '" data-sub="summary">전체 요약</button><button class="' + (v === 'univ' ? 'on' : '') + '" data-sub="univ">대학별 전형</button></div>';
+}
+/* 선생님 보기 — 체크리스트 탭 안 하위 탭 [체크리스트(학생 화면과 같음)][학생 저장 목록 n] */
+function tsubHtml(v){
+  var n = CHECKS ? CHECKS.length : null;
+  return '<div class="sub2 tsub"><button class="' + (v === 'check' ? 'on' : '') + '" data-tsub="check">체크리스트</button><button class="' + (v === 'stulist' ? 'on' : '') + '" data-tsub="stulist">학생 저장 목록' + (n === null ? '' : ' ' + n) + '</button></div>';
+}
+function render(){
+  var r = route();
+  Array.prototype.forEach.call($('seg').children, function(b){ b.classList.toggle('on', b.getAttribute('data-v') === r.tab); });
+  if (r.v === 'check'){ renderCheck(); return; }   // 선생님 보기도 학생 화면과 같은 체크리스트(2026-11-28 원장님)
+  if (r.v === 'stulist'){ if (TEACHER) renderTeacherChecks(); else go('check'); return; }
+  if (r.v === 'stu'){ if (TEACHER) renderStudentCheck(r.key); else go('check'); return; }
+  if (r.v === 'reform'){ renderReform(); return; }
+  if (r.v === 'sched'){ renderSched(); return; }
+  if (ITEMS === null && !LOAD_ERR){ $('view').innerHTML = sub2Html(r.v) + '<div class="msg">불러오는 중입니다…</div>'; return; }
+  if (LOAD_ERR || !ITEMS.length){ $('view').innerHTML = sub2Html(r.v) + msgHtml(); return; }
+  if (r.v === 'univ') renderUniv(r.key); else renderSummary();
+  $('view').insertAdjacentHTML('afterbegin', sub2Html(r.v));
+}
+function msgHtml(){
+  if (LOAD_ERR === 'nologin') return '<div class="msg"><b>허브에 로그인해 주세요</b>선생님 보기는 티쳐스 허브 개인 로그인이 있어야 열립니다. <a href="https://coke4497-sys.github.io/shueguk-hub/login.html?next=' + encodeURIComponent(location.href) + '">로그인하러 가기</a></div>';
+  if (LOAD_ERR === 'nokey') return '<div class="msg"><b>학생 페이지에서 열어 주세요</b>학생 페이지의 [2028 대입 미리보기] 카드를 누르면 바로 열립니다.</div>';
+  if (LOAD_ERR === 'no_student') return '<div class="msg"><b>학생 정보를 찾지 못했습니다</b>학생 페이지 주소가 맞는지 확인해 주세요.</div>';
+  if (LOAD_ERR === 'missing') return '<div class="msg"><b>준비 중입니다</b>곧 대학별 전형 정리를 열어 드릴게요.</div>';
+  if (LOAD_ERR) return '<div class="msg"><b>불러오지 못했습니다</b>인터넷 연결을 확인한 뒤 새로고침해 주세요.</div>';
+  return '<div class="msg"><b>아직 올라온 자료가 없습니다</b>자료가 준비되면 여기에 보여요.</div>';
+}
+
+function sorted(){
+  var a = ITEMS.slice(), nm = function(x, y){ return x.name.localeCompare(y.name, 'ko'); };
+  var T = function(u){ return tot(u); }, K = function(u){ var k = korOf(u); return k && !k.text ? k.hum : -1; };
+  if (SORT === 'susi') a.sort(function(x, y){ return pct(T(y).susi, T(y).total) - pct(T(x).susi, T(x).total) || nm(x, y); });
+  else if (SORT === 'jeongsi') a.sort(function(x, y){ return pct(T(y).jeongsi, T(y).total) - pct(T(x).jeongsi, T(x).total) || nm(x, y); });
+  else if (SORT === 'jong') a.sort(function(x, y){ return T(y).jong - T(x).jong || nm(x, y); });
+  else if (SORT === 'gyo') a.sort(function(x, y){ return T(y).gyo - T(x).gyo || nm(x, y); });
+  else if (SORT === 'non') a.sort(function(x, y){ return T(y).non - T(x).non || nm(x, y); });
+  else if (SORT === 'kor') a.sort(function(x, y){ return K(y) - K(x) || nm(x, y); });
+  else if (SORT === 'total') a.sort(function(x, y){ return T(y).total - T(x).total || nm(x, y); });
+  else a.sort(nm);
+  return a;
+}
+function sortPills(){
+  return '<div class="sort">' + [['susi', '수시 비율 높은 순'], ['jeongsi', '정시 비율 높은 순'], ['kor', '정시 국어 비율 높은 순'], ['jong', '학생부종합 많은 순'], ['gyo', '학생부교과 많은 순'], ['non', '논술 많은 순'], ['total', '모집인원 많은 순'], ['name', '대학 이름순']]
+    .map(function(o){ return '<button class="pill' + (SORT === o[0] ? ' on' : '') + '" data-sort="' + o[0] + '">' + o[1] + '</button>'; }).join('') + '</div>';
+}
+var CHEV = '<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#A3ADA7" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 2.5L8 6l-3.5 3.5"/></svg>';
+function sname(u){ return u.short || u.name; }
+
+function renderSummary(){
+  var a = sorted(), ts = {}; ITEMS.forEach(function(u){ ts[u._key] = tot(u); });
+  var withTot = ITEMS.filter(function(u){ return ts[u._key].has; });
+  var maxTot = Math.max.apply(null, ITEMS.map(function(u){ return ts[u._key].total; }).concat([1]));
+  var kors = ITEMS.map(function(u){ return { u: u, k: korOf(u) }; }).filter(function(x){ return x.k && !x.k.text; });
+  var topS = withTot.slice().sort(function(x, y){ return pct(ts[y._key].susi, ts[y._key].total) - pct(ts[x._key].susi, ts[x._key].total); })[0];
+  var topJ = withTot.slice().sort(function(x, y){ return pct(ts[y._key].jeongsi, ts[y._key].total) - pct(ts[x._key].jeongsi, ts[x._key].total); })[0];
+  var topK = kors.slice().sort(function(x, y){ return y.k.hum - x.k.hum; })[0];
+  var nonU = ITEMS.filter(function(u){ return ts[u._key].non > 0; });
+  var h = '<div class="tops">' +
+    (topS ? '<div class="top"><span class="k">수시 비율이 가장 높은 대학</span><span class="v">' + esc(sname(topS)) + '</span><span class="u">수시 ' + pct(ts[topS._key].susi, ts[topS._key].total) + '%</span></div>' : '') +
+    (topJ ? '<div class="top"><span class="k">정시 비율이 가장 높은 대학</span><span class="v">' + esc(sname(topJ)) + '</span><span class="u">정시 ' + pct(ts[topJ._key].jeongsi, ts[topJ._key].total) + '%</span></div>' : '') +
+    (topK ? '<div class="top es0"><span class="k">정시에서 국어를 가장 크게 보는 대학</span><span class="v">' + esc(sname(topK.u)) + '</span><span class="u">국어 ' + topK.k.hum + '% (' + esc(topK.k.humT) + ')</span></div>' : '') +
+    '<div class="top' + (nonU.length ? ' es1' : '') + '"><span class="k">논술 전형</span><span class="v">' + nonU.length + '개 대학</span><span class="u">' + (ITEMS.length - nonU.length ? '없는 대학 ' + (ITEMS.length - nonU.length) + '곳: ' + esc(ITEMS.filter(function(u){ return !ts[u._key].non; }).map(sname).join(' · ')) : '15개 대학 모두 논술을 봅니다') + '</span></div>' +
+    '</div>';
+  // 1 모집 구조
+  h += '<div class="card"><div class="sec-t"><span class="n">1</span>어떤 전형으로 몇 명을 뽑나<span class="sub">2028학년도 전형유형별 모집인원(대교협 집계, 2026. 4. 29. 기준) · ' + ITEMS.length + '개 대학</span></div>' +
+    sortPills() + stackLegend() + '<div>' +
+    a.map(function(u){
+      var t = ts[u._key], k = korOf(u);
+      return '<div class="urow" data-go="' + esc(u._key) + '"><div class="un">' + esc(sname(u)) + '<small>전체 ' + nf(t.total) + '명 · 수시 ' + pct(t.susi, t.total) + '% · 정시 ' + pct(t.jeongsi, t.total) + '%</small></div>' +
+        stack(t, maxTot) +
+        '<div class="pr"><div class="kv"><div class="hd"><span>수시</span><b>' + nf(t.susi) + '<small>명</small></b></div><span class="rk">교과 ' + nf(t.gyo) + ' · 종합 ' + nf(t.jong) + ' · 논술 ' + nf(t.non) + (t.etc ? ' · 실기·기타 ' + nf(t.etc) : '') + '</span></div>' +
+        '<div class="kv"><div class="hd"><span>정시</span><b>' + nf(t.jeongsi) + '<small>명</small></b></div><span class="rk">수능 ' + nf(t.su) + (t.jo ? ' · 그 밖 ' + nf(t.jo) : '') + (t.jg ? ' · 지역균형 ' + nf(t.jg[0]) + '명' : '') + '</span></div>' +
+        (k && k.text ? '<div class="kv"><div class="hd"><span>정시 국어 비율</span><b><small>유형별</small></b></div><span class="rk">' + esc(k.note) + '</span></div>' :
+         k ? '<div class="kv"><div class="hd"><span>정시 국어 비율' + (k.n > 1 ? ' (' + esc(k.humT) + ')' : '') + '</span><b>' + k.hum + '<small>%</small></b></div><div class="kbar"><i style="width:' + Math.min(100, k.hum * 2) + '%"></i></div><span class="rk">' + (k.nat != null ? esc(k.natT) + ' ' + k.nat + '%' : (k.n > 1 ? '모집단위마다 ' + k.min + '~' + k.max + '%' : '전 모집단위 같음')) + '</span></div>' : '') +
+        '</div><div class="feats">' + featChips(u, t) + '</div></div>';
+    }).join('') + '</div>' +
+    '<p class="muted" style="margin:14px 0 0;font-size:12px;line-height:1.7">모집인원은 대교협이 집계한 전형유형별 정원내·외 합계라, 대학별 전형 카드의 정원내 인원과 조금 다를 수 있습니다. 정시 국어 비율은 그 대학 시행계획의 수능 영역별 반영 비율(인문 또는 첫 줄 기준)입니다. 연보라 칩은 그 대학에서 특히 눈에 띄는 점이에요.</p></div>';
+  // 2 비교표
+  h += '<div class="card"><div class="sec-t"><span class="n">2</span>비교표<span class="sub">수능 최저학력기준 · 정시 국어 비율 · 논술</span></div>' +
+    '<div class="cmpw"><div class="cmpi"><div class="cmh u"><span>대학</span><span>수시 / 정시</span><span>학생부교과</span><span>학생부종합</span><span>논술</span><span class="r">정시 국어</span><span></span></div>' +
+    a.map(function(u){
+      var t = ts[u._key], k = korOf(u);
+      return '<div class="cmr u" data-go="' + esc(u._key) + '"><span class="sc">' + esc(sname(u)) + '</span>' +
+        '<span><span class="v">' + pct0(t.susi, t.total) + '<small style="font-size:11px"> : </small>' + pct0(t.jeongsi, t.total) + '</span><span class="sm">' + nf(t.total) + '명</span></span>' +
+        '<span><span class="v">' + (t.gyo ? nf(t.gyo) : '없음') + '</span>' + (t.gyo ? minChip(minState(u, '학생부교과'), '') : '') + '</span>' +
+        '<span><span class="v">' + (t.jong ? nf(t.jong) : '없음') + '</span>' + (t.jong ? minChip(minState(u, '학생부종합'), '') : '') + '</span>' +
+        '<span><span class="v' + (t.non ? '' : ' e') + '">' + (t.non ? nf(t.non) : '없음') + '</span>' + (t.non ? minChip(minState(u, '논술'), '') : '') + '</span>' +
+        '<span class="cq">' + (k && k.text ? '<small>유형별로 다름</small>' : k ? '<b style="font-family:var(--disp);font-weight:400;font-size:17px">' + k.hum + '%</b>' + (k.nat != null ? '<small> · 자연 ' + k.nat + '%</small>' : (k.n > 1 ? '<small> · ' + k.min + '~' + k.max + '%</small>' : '')) : '<small>자료 없음</small>') + '</span>' + CHEV + '</div>';
+    }).join('') + '</div></div>' +
+    '<p class="muted" style="margin:12px 0 0;font-size:12px;line-height:1.7">\'최저 있음\'은 그 전형에 수능 최저학력기준이 있다는 뜻이고, \'최저 일부\'는 같은 유형 안에서 전형마다 다른 경우입니다. 숫자는 대교협 집계 모집인원.</p></div>';
+  // 3 대학 카드
+  h += '<div class="sh3"><div class="sec-t"><span class="n">3</span>대학별 요약<span class="sub">대학을 누르면 전형별 자세한 내용이 열립니다</span></div></div><div class="grid">' +
+    a.map(function(u){
+      var t = ts[u._key], k = korOf(u), ch = arr(u.changes);
+      return '<button class="sbox" data-go="' + esc(u._key) + '"><div class="hd"><div><div class="nm">' + esc(u.name) + '</div><div class="ex">' + esc((u.src && u.src.title) || '2028학년도 대학입학전형 시행계획') + '</div></div>' +
+        '<span class="esc' + (t.non ? '' : ' y') + '">' + (t.non ? '논술 ' + nf(t.non) + '명' : '논술 없음') + '</span></div>' +
+        '<div class="info"><span class="k">모집인원</span><span class="v"><b>' + nf(t.total) + '명</b> <small>수시 ' + pct0(t.susi, t.total) + '% · 정시 ' + pct0(t.jeongsi, t.total) + '%</small></span>' +
+        '<span class="k">수시</span><span class="v">교과 ' + nf(t.gyo) + ' · 종합 ' + nf(t.jong) + ' · 논술 ' + nf(t.non) + '</span>' +
+        '<span class="k">정시 국어</span><span class="v">' + (k && k.text ? '<small>' + esc(k.note) + '</small>' : k ? k.hum + '%' + (k.nat != null ? ' <small>자연 ' + k.nat + '%</small>' : '') : '<small>자료 없음</small>') + '</span>' +
+        (ch.length ? '<span class="k">바뀐 점</span><span class="v"><small>' + esc(ch[0]) + (ch.length > 1 ? ' 외 ' + (ch.length - 1) + '건' : '') + '</small></span>' : '') + '</div>' +
+        '<div class="feats">' + featChips(u, t) + '</div><span class="more">자세히 보기 ›</span></button>';
+    }).join('') + '</div>';
+  // 4 전국 흐름 · 일정 (공통 줄)
+  if (COMMON){
+    var n = COMMON.national || {};
+    h += '<div class="card"><div class="sec-t"><span class="n">4</span>2028학년도 입시의 큰 흐름<span class="sub">대교협 「2028학년도 대학입학전형시행계획 주요사항」 · 전국 194개 대학</span></div>' +
+      '<div class="nat">' + [['전체 모집인원', nf(n.total) + '명', (n.total_prev ? (n.total - n.total_prev >= 0 ? '+' : '') + nf(n.total - n.total_prev) + '명 (2027 대비)' : '')],
+        ['수시', nf(n.susi) + '명', n.susi_pct + '%'], ['정시', nf(n.jeongsi) + '명', n.jeongsi_pct + '%']].map(function(x){
+        return '<div class="top"><span class="k">' + x[0] + '</span><span class="v">' + x[1] + '</span><span class="u">' + x[2] + '</span></div>'; }).join('') + '</div>' +
+      (n.types ? '<div style="margin-top:14px">' + hbars(n.types.map(function(x){ return { name: x[0], n: x[1], p: x[2] }; })) + '</div>' : '') +
+      (n.note ? '<p class="para" style="margin-top:12px">' + esc(n.note) + '</p>' : '') + '</div>';
+    if (arr(COMMON.schedule).length) h += '<div class="card"><div class="sec-t"><span class="n">5</span>2028학년도 주요 일정<span class="sub">모의고사·발표·등록까지 달별로는 [2028 입시 일정] 탭에서</span></div><div class="sched">' +
+      arr(COMMON.schedule).map(function(s){ return '<b>' + esc(s.k) + '</b><span>' + esc(s.v) + '</span>'; }).join('') + '</div>' +
+      '<p class="muted" style="margin:12px 0 0;font-size:12px;line-height:1.7">대학마다 원서 접수 날짜가 이 기간 안에서 조금씩 다릅니다. 수능은 2027년 11월 18일(목), 성적 통지는 12월 10일(금)입니다(교육부 확정).</p></div>';
+    if (COMMON.src) h += '<p class="srcline">출처: ' + esc(COMMON.src) + '. 대학별 모집요강(수시 5월·정시 9월 발표)에서 바뀔 수 있으니 지원 전에 꼭 확인하세요.</p>';
+  }
+  $('view').innerHTML = h;
+}
+function featChips(u, t){
+  var f = [];
+  var sp = pct0(t.susi, t.total); f.push({ t: '수시 ' + sp + '%', on: sp >= 75 });
+  if (t.non) f.push({ t: '논술 ' + nf(t.non) + '명', on: t.non >= 300 });
+  if (t.jg && t.jg[0]) f.push({ t: '지역균형 ' + nf(t.jg[0]) + '명', on: false });
+  var k = korOf(u); if (k && !k.text) f.push({ t: '정시 국어 ' + k.hum + '%', on: k.hum >= 35 }); else if (k) f.push({ t: '정시 국어 유형별', on: false });
+  var mn = minState(u, '학생부종합'); if (mn === 'n' && trk(u, '학생부종합').length) f.push({ t: '학종 최저 없음', on: false });
+  if (minState(u, '논술') === 'n') f.push({ t: '논술 최저 없음', on: true });
+  var ch = arr(u.changes); if (ch.length) f.push({ t: '바뀐 점 ' + ch.length + '건', on: false });
+  return f.map(function(x){ return '<span class="ft' + (x.on ? ' on' : '') + '">' + esc(x.t) + '</span>'; }).join('');
+}
+function hbars(list){
+  var mx = Math.max.apply(null, list.map(function(x){ return +x.n || 0; }).concat([1]));
+  return list.map(function(x){ return '<div class="hb" style="grid-template-columns:110px 1fr 90px"><span>' + esc(x.name) + '</span><span class="tr"><i style="width:' + ((+x.n || 0) * 100 / mx) + '%"></i></span><span class="c">' + nf(x.n) + (x.p != null ? '<small style="font-family:var(--sans);font-size:11px;color:#8A978F"> ' + x.p + '%</small>' : '') + '</span></div>'; }).join('');
+}
+
+function renderUniv(key){
+  var a = sorted(), u = null;
+  a.forEach(function(x){ if (x._key === key) u = x; });
+  if (!u) u = a[0];
+  var t = tot(u), k = korOf(u);
+  var h = '<div class="spills">' + a.map(function(x){ return '<button class="pill' + (x === u ? ' on' : '') + '" data-go="' + esc(x._key) + '">' + esc(sname(x)) + '</button>'; }).join('') + '</div>';
+  h += '<div class="card shead"><div class="nm">' + esc(u.name) + '</div><div class="ex">' + esc((u.src && u.src.title) || '2028학년도 대학입학전형 시행계획') + (u.src && u.src.date ? ' · ' + esc(u.src.date) : '') + '</div>' +
+    (t.has ? '<div class="tiles"><div class="tile"><div class="k">전체 모집인원</div><div class="v">' + nf(t.total) + '명</div></div>' +
+      '<div class="tile"><div class="k">수시</div><div class="v">' + nf(t.susi) + '명 · ' + pct0(t.susi, t.total) + '%</div></div>' +
+      '<div class="tile"><div class="k">정시</div><div class="v">' + nf(t.jeongsi) + '명 · ' + pct0(t.jeongsi, t.total) + '%</div></div></div>' +
+      '<div style="margin-top:12px">' + stack(t, t.total) + stackLegend() + '</div>' : '') +
+    '<div class="feats" style="margin-top:12px">' + featChips(u, t) + '</div></div>';
+  // 1 바뀐 점
+  var ch = arr(u.changes);
+  h += sec(1, '2027학년도와 달라진 점', ch.length ? ch.length + '건' : '', ch.length ? '<ul class="chg" style="margin:0;padding-left:20px">' + ch.map(function(c){ return '<li>' + esc(c) + '</li>'; }).join('') + '</ul>' : '<p class="muted">시행계획에 따로 정리된 변경 사항이 없습니다.</p>');
+  // 2 전형별
+  var tracks = arr(u.tracks).filter(function(x){ return TF === 'all' || (TF === '수시' ? x.period === '수시' : TF === '정시' ? x.period === '정시' : x.type === TF); });
+  var types = []; arr(u.tracks).forEach(function(x){ if (types.indexOf(x.type) < 0) types.push(x.type); });
+  h += sec(2, '전형별 자세히', '일반 학생이 지원하는 전형 ' + arr(u.tracks).length + '개 · 정원내 기준',
+    '<div class="qf"><button class="pill' + (TF === 'all' ? ' on' : '') + '" data-tf="all">전체</button><button class="pill' + (TF === '수시' ? ' on' : '') + '" data-tf="수시">수시</button><button class="pill' + (TF === '정시' ? ' on' : '') + '" data-tf="정시">정시</button>' +
+      types.map(function(x){ return '<button class="pill' + (TF === x ? ' on' : '') + '" data-tf="' + esc(x) + '">' + esc(x) + '</button>'; }).join('') + '</div>' +
+    (tracks.length ? tracks.map(trackHtml).join('') : '<p class="muted">해당하는 전형이 없습니다.</p>'));
+  // 3 정시 수능 반영
+  var j = u.jeongsi || {}, rows = ratioRows(u);
+  h += sec(3, '정시 수능 영역별 반영 비율', j.groups || '', (rows.length ?
+    '<div class="rt h"><span>모집단위</span><span>국어</span><span>수학</span><span>영어</span><span>탐구</span></div>' +
+    rows.map(function(r){ return '<div class="rt"><span class="tr">' + esc(r.track) + '</span><span class="pc k">' + (r.kor != null ? r.kor + '<small>%</small>' : '–') + '</span><span class="pc">' + (r.math != null ? r.math + '<small>%</small>' : '–') + '</span><span class="pc">' + (r.eng != null ? r.eng + '<small>%</small>' : '<small>가감점</small>') + '</span><span class="pc">' + (r.inq != null ? r.inq + '<small>%</small>' : '–') + '</span>' +
+      ((r.hist || r.note) ? '<span class="nt">' + esc([r.hist ? '한국사 ' + r.hist : '', r.note].filter(Boolean).join(' · ')) + '</span>' : '') + '</div>'; }).join('') : '<p class="muted">자료에 반영 비율 표가 없습니다.</p>') +
+    (j.score ? '<p class="para" style="margin-top:12px"><b style="font-weight:400;color:var(--accent);font-size:.8rem;margin-right:6px">점수</b>' + esc(j.score) + '</p>' : '') +
+    (j.extra ? '<p class="para"><b style="font-weight:400;color:var(--accent);font-size:.8rem;margin-right:6px">수능 외</b>' + esc(j.extra) + '</p>' : '') +
+    (j.note ? '<p class="muted">' + esc(j.note) + '</p>' : '') +
+    '<p class="muted" style="margin-top:10px;font-size:12px">2028학년도 수능은 선택과목이 없는 통합형입니다. 국어는 모두 같은 문제를 봅니다.</p>');
+  // 4 국어 포인트
+  if (arr(u.korean).length) h += sec(4, '국어 공부와 닿는 점', '', '<div class="kobox"><h4>이수경 국어 학생이 알아 둘 것</h4><ul style="margin:0;padding-left:18px">' + arr(u.korean).map(function(x){ return '<li>' + esc(x) + '</li>'; }).join('') + '</ul></div>');
+  h += '<p class="srcline">출처: ' + esc((u.src && u.src.title) || '2028학년도 대학입학전형 시행계획') + (u.src && u.src.note ? ' (' + esc(u.src.note) + ')' : '') + ' · 대입정보포털 어디가 게재 원문. 모집요강(수시 5월·정시 9월)에서 바뀔 수 있으니 지원 전에 대학 입학처 공지를 확인하세요.</p>';
+  var idx = a.indexOf(u), pv = a[idx - 1], nx = a[idx + 1];
+  h += '<div class="nav2"><span>' + (pv ? '<button data-go="' + esc(pv._key) + '">‹ ' + esc(sname(pv)) + '</button>' : '') + '</span>' +
+    '<button data-sum="1">전체 요약으로</button><span>' + (nx ? '<button data-go="' + esc(nx._key) + '">' + esc(sname(nx)) + ' ›</button>' : '') + '</span></div>';
+  $('view').innerHTML = h;
+}
+function trackHtml(x){
+  var mn = String(x.min || '').trim(), none = !hasMin(x);
+  return '<div class="tk"><div class="top"><span class="tg p' + (x.period === '정시' ? ' j' : '') + '">' + esc(x.period) + '</span><span class="tg ty">' + esc(x.type) + '</span><span class="tn">' + esc(x.name) + '</span>' +
+    (x.n != null ? '<span class="n">' + nf(x.n) + '<small>명' + (x.n_note ? ' · ' + esc(x.n_note) : '') + '</small></span>' : (x.n_note ? '<span class="n"><small>' + esc(x.n_note) + '</small></span>' : '')) + '</div>' +
+    '<div class="kv2">' + (x.apply ? '<b>지원 자격</b><span>' + esc(x.apply) + '</span>' : '') +
+    '<b>전형 방법</b><span>' + esc(x.method) + '</span>' +
+    '<b>수능 최저</b><span class="mn' + (none ? ' none' : '') + '">' + esc(mn || '없음') + '</span>' +
+    (x.essay ? '<b>논술고사</b><span>' + esc(x.essay) + '</span>' : '') +
+    (x.note ? '<b>참고</b><span>' + esc(x.note) + '</span>' : '') + '</div></div>';
+}
+/* ── 대입 개편안 주요 특징과 각 전형 요약 (2026-11-28 원장님) ──
+ * 근거: 교육부 「미래 사회를 대비하는 2028 대학입시제도 개편 확정안」(2023. 12. 27.) · 대교협 「2028학년도 대학입학전형시행계획 주요사항」(2026. 4. 29.).
+ * 전국 숫자는 COMMON.national(대교협), 15개 대학 수는 ITEMS 에서 센다. 글은 공식 자료의 내용만 — 추측·예상은 적지 않는다. */
+var REFORM = [
+  { h: '수능 — 선택과목이 사라집니다', was: '지금 고3까지: 국어 화작/언매 · 수학 확통/미적/기하 · 탐구 17과목 중 택 2',
+    p: '2028학년도 수능은 국어·수학·사회·과학탐구·직업탐구에서 선택과목이 없어지고 모든 수험생이 같은 문제를 풉니다. 탐구는 통합사회와 통합과학을 둘 다 봅니다. 제2외국어/한문만 선택이 남아요. 영어·한국사는 지금처럼 절대평가(9등급)이고, 국어·수학·탐구는 상대평가 9등급 그대로입니다.' },
+  { h: '내신 — 9등급에서 5등급으로', was: '지금 고3까지: 9등급 상대평가(1등급 4%)',
+    p: '2025년 고1(2009년생)부터 고1~3 전 학년 내신이 5등급 상대평가로 바뀌고, 절대평가 성취도(A~E)가 함께 적힙니다. 1등급은 상위 10%까지라 같은 등급 안에 지금보다 많은 학생이 모여요. 사회·과학 융합선택 9과목은 석차 등급 없이 성취도만 냅니다.' },
+  { h: '고교학점제 첫 세대', was: '2025년 고1부터 전면 적용',
+    p: '과목을 골라 이수하고 192학점을 채워 졸업합니다. 학생부에는 어떤 과목을 골라 어떻게 공부했는지가 남고, 학생부종합전형은 이 과목 선택과 세부능력·특기사항을 함께 봅니다.' },
+  { h: '수시 80% 시대', was: '대교협 집계 2028학년도 전국 모집',
+    p: '전국 4년제 대학 모집인원 중 수시가 80.8%로 처음 80%를 넘었습니다. 서울 주요 대학도 정시를 줄이고 수시를 늘리는 흐름이라, 내신·학생부 관리와 수능 준비를 함께 해야 합니다.' }
+];
+var TRACKS = [
+  { h: '학생부교과', k: '내신 등급이 중심', body: '교과 성적(내신)을 정해진 공식으로 점수화해 뽑습니다. 대부분 학교장 추천(지역균형·고교추천)이 붙고, 수능 최저학력기준을 두는 대학이 많아요. 5등급제로 같은 등급 학생이 많아지면서 최저 기준·면접·서류의 역할이 커집니다.', kor: '수능 최저를 맞추려면 국어 등급이 안정적이어야 합니다. 내신 국어는 서술형·논술형이 늘어나는 흐름이에요.', cnt: 'gyo' },
+  { h: '학생부종합', k: '학생부 전체를 종합 평가', body: '내신 등급과 함께 과목 선택, 세부능력·특기사항, 창의적 체험활동을 서류로 평가하고 면접을 보는 대학이 많습니다. 자기소개서는 없고, 수능 최저를 두지 않는 대학이 대부분이지만 일부는 둡니다.', kor: '수업 시간의 발표·토론·글쓰기가 세특에 남습니다. 국어 수업에서 읽고 쓰고 말한 기록이 곧 서류입니다.', cnt: 'jong' },
+  { h: '논술', k: '대학별 논술고사', body: '논술 100% 또는 논술 + 교과로 뽑습니다. 인문 논술은 제시문을 읽고 요약·비교·비판하는 글쓰기예요. 수능 최저를 두는 대학과 두지 않는 대학이 갈립니다. 대학마다 출제 유형이 달라 기출 확인이 먼저입니다.', kor: '제시문 독해와 논리적인 글쓰기 — 국어 비문학 독해와 서술형 훈련이 그대로 닿습니다.', cnt: 'non' },
+  { h: '정시(수능)', k: '수능 성적으로', body: '수능 표준점수·백분위를 대학마다 정한 영역별 비율로 반영합니다. 가·나·다군 중 군마다 한 번씩 지원할 수 있어요. 2028학년도부터 모든 수험생이 같은 과목을 보므로 영역별 반영 비율이 대학을 고르는 기준이 됩니다.', kor: '국어 반영 비율이 30~40%인 대학이 많습니다. 15개 대학의 비율은 [15개 주요 대학] 탭에서 비교해 보세요.', cnt: 'su' }
+];
+/* ── 2028 입시 일정 (2026-11-28 원장님 "2028 입시의 주요 일정을 확인하는 페이지") ──
+ * 출처: 대교협 「2028학년도 대학입학전형 기본계획」(2025. 8. 28.)·「2028학년도 대학입학전형시행계획 주요사항」(2026. 4. 29.) 일정표,
+ *       교육부 2028학년도 수능 시행일·성적통지일 발표(2025. 4.), 교육부 2025. 4. 16. 보도(하반기 모의평가 8월 말 시행·수시 접수 순연).
+ * 2027년 모의고사 날짜 = 2026-11-28 원장님이 준 시도교육청 일정(안)(3/24 서울 · 5/11 경기 · 6/2 또는 6/3 평가원 · 7/8 인천 · 8/25 평가원 · 10/19 서울) — sure:'plan' = '일정(안)' 표시,
+ * 6월 모의평가 확정일·접수 기간은 평가원 2027년 3월 수능 시행기본계획, 8월 모의평가는 6월 무렵 시행계획에서 공고(7월은 수능 시행세부계획). sure:false = 시기만 정해지고 날짜 발표 전(수능 원서접수).
+ * 날짜가 확정되면 이 표만 고친다 — 지어 넣지 않는다. d·e = 'YYYY-MM-DD'(e 는 끝 날짜), alt = 날짜 자리에 대신 보일 글('6/2 (수) 또는 6/3 (목)'), tba = 시기 글(날짜 모를 때), mon = 묶을 달. */
+var SCHED = [
+  { mon: '2027-03', d: '2027-03-24', kind: 'mock', t: '3월 전국연합학력평가', who: '서울시교육청 주관 · 고1·2·3 · 고3 첫 모의고사', sure: 'plan' },
+  { mon: '2027-03', tba: '3월 예정', kind: 'csat', t: '2028학년도 수능 시행기본계획 발표', who: '한국교육과정평가원 · 수능 원서접수 기간과 6월 모의평가 날짜가 여기서 확정', sure: true },
+  { mon: '2027-05', d: '2027-05-11', kind: 'mock', t: '5월 전국연합학력평가', who: '경기도교육청 주관 · 고3', sure: 'plan' },
+  { mon: '2027-06', d: '2027-06-02', alt: '6/2 (수) 또는 6/3 (목)', kind: 'mock', t: '6월 수능 모의평가', who: '한국교육과정평가원 · 2028 수능 체제로 치르는 첫 모의평가, 졸업생도 응시 · 고1·2는 같은 날 부산시교육청 학력평가', sure: 'plan' },
+  { mon: '2027-07', d: '2027-07-05', e: '2027-07-09', kind: 'etc', t: '수시 재외국민·외국인 특별전형 원서접수(7월 접수 대학)', who: '대교협 기본계획 · 해당 대학만, 일반 수시는 9월 20일부터', sure: true },
+  { mon: '2027-07', d: '2027-07-08', kind: 'mock', t: '7월 전국연합학력평가', who: '인천시교육청 주관 · 고3', sure: 'plan' },
+  { mon: '2027-06', tba: '6월 무렵', kind: 'csat', t: '8월 수능 모의평가 시행계획 공고', who: '한국교육과정평가원 · 8월 모의평가 확정일과 접수 기간', sure: true },
+  { mon: '2027-07', tba: '7월 예정', kind: 'csat', t: '2028학년도 수능 시행세부계획 공고', who: '한국교육과정평가원', sure: true },
+  { mon: '2027-08', d: '2027-08-25', kind: 'mock', t: '8월 수능 모의평가 (옛 9월 모평)', who: '한국교육과정평가원 · 2028학년도부터 9월이 아니라 8월 말에 치르고, 성적은 2주 뒤 통지 · 고1·2는 같은 날 인천시교육청 학력평가', sure: 'plan' },
+  { mon: '2027-08', tba: '8월 말 ~ 9월 초 무렵', kind: 'csat', t: '수능 응시원서 접수', who: '한국교육과정평가원 · 2027년 3월 수능 시행기본계획에서 날짜 확정', sure: false },
+  { mon: '2027-09', d: '2027-09-20', e: '2027-09-23', kind: 'susi', t: '수시모집 원서접수', who: '이 기간 중 3일 이상 · 8월 모의평가 성적을 받은 뒤 접수', sure: true },
+  { mon: '2027-09', d: '2027-09-24', e: '2027-12-20', kind: 'susi', t: '수시 전형기간 (88일)', who: '서류·면접·논술고사 등 대학별 전형', sure: true },
+  { mon: '2027-10', d: '2027-10-19', kind: 'mock', t: '10월 전국연합학력평가', who: '서울시교육청 주관 · 고3 · 수능 전 마지막 전국 모의고사 (고1·2는 경기도교육청)', sure: 'plan' },
+  { mon: '2027-11', d: '2027-11-18', kind: 'csat', t: '2028학년도 대학수학능력시험', who: '목요일 · 선택과목 없는 통합형 첫 수능 · 1교시 08:40 시작', sure: true, big: true },
+  { mon: '2027-12', d: '2027-12-10', kind: 'csat', t: '수능 성적 통지', who: '한국교육과정평가원', sure: true },
+  { mon: '2027-12', d: '2027-12-21', kind: 'susi', t: '수시 합격자 발표 마감', who: '이 날까지 대학마다 발표 · 수능 최저가 있는 전형은 성적 통지 뒤에', sure: true, until: true },
+  { mon: '2027-12', d: '2027-12-22', e: '2027-12-24', kind: 'susi', t: '수시 합격자 등록', who: '3일', sure: true },
+  { mon: '2027-12', d: '2027-12-26', e: '2027-12-30', kind: 'susi', t: '수시 미등록 충원 합격 통보', who: '마감일 18시까지 (홈페이지 발표는 14시까지, 그 뒤는 개별 통보)', sure: true },
+  { mon: '2027-12', d: '2027-12-31', kind: 'susi', t: '수시 미등록 충원 등록 마감', who: '18시까지', sure: true },
+  { mon: '2028-01', d: '2028-01-03', e: '2028-01-06', kind: 'jeongsi', t: '정시모집 원서접수', who: '이 기간 중 3일 이상 · 가·나·다군 각 1곳씩', sure: true },
+  { mon: '2028-01', d: '2028-01-10', e: '2028-01-17', kind: 'jeongsi', t: '정시 가군 전형기간', who: '8일 · 실기·면접 등 대학별 전형', sure: true },
+  { mon: '2028-01', d: '2028-01-18', e: '2028-01-25', kind: 'jeongsi', t: '정시 나군 전형기간', who: '8일', sure: true },
+  { mon: '2028-01', d: '2028-01-31', e: '2028-02-07', kind: 'jeongsi', t: '정시 다군 전형기간', who: '8일', sure: true },
+  { mon: '2028-02', d: '2028-02-10', kind: 'jeongsi', t: '정시 합격자 발표 마감', who: '이 날까지 대학마다 발표', sure: true, until: true },
+  { mon: '2028-02', d: '2028-02-11', e: '2028-02-14', kind: 'jeongsi', t: '정시 합격자 등록', who: '4일', sure: true },
+  { mon: '2028-02', d: '2028-02-15', e: '2028-02-20', kind: 'jeongsi', t: '정시 미등록 충원 합격 통보', who: '마감일 18시까지 (홈페이지 발표는 14시까지, 그 뒤는 개별 통보)', sure: true },
+  { mon: '2028-02', d: '2028-02-21', kind: 'jeongsi', t: '정시 미등록 충원 등록 마감', who: '18시까지', sure: true },
+  { mon: '2028-02', d: '2028-02-22', e: '2028-02-29', kind: 'extra', t: '추가모집 원서접수·전형·합격자 발표·등록', who: '합격 통보 2월 29일 18시까지 · 등록 마감 20시', sure: true }
+];
+var KIND_LB = { mock: '모의고사', csat: '수능', susi: '수시', jeongsi: '정시', extra: '추가모집', etc: '그 밖' };
+var SK = 'all';   // 일정 거르기
+var DOW = ['일', '월', '화', '수', '목', '금', '토'];
+function ymdParts(s){ var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s || ''); return m ? { y: +m[1], m: +m[2], d: +m[3] } : null; }
+function kstToday(){ var t = new Date(Date.now() + 9 * 3600 * 1000); return t.getUTCFullYear() + '-' + String(t.getUTCMonth() + 1).padStart(2, '0') + '-' + String(t.getUTCDate()).padStart(2, '0'); }
+function dayDiff(a, b){ var p = ymdParts(a), q = ymdParts(b); if (!p || !q) return null; return Math.round((Date.UTC(q.y, q.m - 1, q.d) - Date.UTC(p.y, p.m - 1, p.d)) / 86400000); }
+function dowOf(s){ var p = ymdParts(s); return p ? DOW[new Date(Date.UTC(p.y, p.m - 1, p.d)).getUTCDay()] : ''; }
+function mdOf(s){ var p = ymdParts(s); return p ? p.m + '/' + p.d : ''; }
+function evDateHtml(ev){
+  if (!ev.d) return '<div class="d tba">' + esc(ev.tba || '날짜 미정') + '</div>';
+  if (ev.alt) return '<div class="d alt">' + esc(ev.alt) + '</div>';
+  var p = ymdParts(ev.d), h = '<div class="d">' + p.m + '/' + p.d + ' <small style="display:inline">(' + dowOf(ev.d) + ')</small>';
+  if (ev.e){ var q = ymdParts(ev.e); h += '<small>~ ' + (q.m !== p.m ? q.m + '/' : '') + q.d + ' (' + dowOf(ev.e) + ')</small>'; }
+  else if (ev.until) h += '<small>까지</small>';
+  return h + '</div>';
+}
+function ddayHtml(today){
+  var pick = [
+    ['수능', '2027-11-18', '2027. 11. 18. (목)'],
+    ['수시 원서접수 시작', '2027-09-20', '2027. 9. 20. (월)'],
+    ['정시 원서접수 시작', '2028-01-03', '2028. 1. 3. (월)']
+  ];
+  return '<div class="dday">' + pick.map(function(x){
+    var n = dayDiff(today, x[1]);
+    var big = n > 0 ? 'D-' + n : (n === 0 ? 'D-day' : '끝');
+    return '<div><span class="lb">' + x[0] + '</span><b' + (n < 0 ? ' class="past"' : '') + '>' + big + '</b><small>' + x[2] + '</small></div>';
+  }).join('') + '</div>';
+}
+function renderSched(){
+  var today = kstToday();
+  var h = '<div class="card"><div class="sec-t">2028학년도 입시 주요 일정<span class="sub">2027년 3월 ~ 2028년 2월 · 팀09(지금 고2)가 치르는 입시</span></div>' +
+    ddayHtml(today) +
+    '<p class="scnote">날짜가 적힌 일정은 대교협 「2028학년도 대학입학전형 기본계획」과 교육부 발표에 따른 것입니다. 모의고사 날짜는 시도교육청 일정(안)이라 <span class="tbat plan">일정(안)</span> 표시를 붙였고, 6월·8월 모의평가 확정일과 접수 기간은 평가원이 2027년 3월과 6월 무렵에 각각 공고해요. <span class="tbat">날짜 확정 전</span>인 수능 원서접수는 확정되는 대로 채워 둘게요.</p></div>';
+  h += '<div class="card"><div class="skf">' + [['all', '전체']].concat(Object.keys(KIND_LB).map(function(k){ return [k, KIND_LB[k]]; })).map(function(o){
+    return '<button class="pill' + (SK === o[0] ? ' on' : '') + '" data-sk="' + o[0] + '">' + esc(o[1]) + '</button>'; }).join('') + '</div>';
+  var rows = SCHED.filter(function(ev){ return SK === 'all' || ev.kind === SK; });
+  var months = []; rows.forEach(function(ev){ if (months.indexOf(ev.mon) < 0) months.push(ev.mon); });
+  months.sort();
+  if (!rows.length) h += '<div class="msg">이 종류의 일정이 없습니다.</div>';
+  h += months.map(function(mo){
+    var mp = /^(\d{4})-(\d{2})$/.exec(mo), yr = +mp[1], mn = +mp[2];
+    var isNow = today.slice(0, 7) === mo;
+    var evs = rows.filter(function(ev){ return ev.mon === mo; }).sort(function(a, b){ return (a.d || a.mon + '-99') < (b.d || b.mon + '-99') ? -1 : 1; });
+    return '<div class="mon"><div class="mh">' + yr + '년 ' + mn + '월' + (isNow ? '<small>이번 달</small>' : '') + '</div>' + evs.map(function(ev){
+      var end = ev.e || ev.d, past = end && dayDiff(today, end) < 0, on = ev.d && dayDiff(today, ev.d) <= 0 && dayDiff(today, end) >= 0;
+      var left = ev.d && !past && dayDiff(today, ev.d) > 0 ? ' · D-' + dayDiff(today, ev.d) : '';
+      return '<div class="ev' + (past ? ' past' : '') + (on ? ' today' : '') + '">' + evDateHtml(ev) +
+        '<div><div class="t"><span class="kb ' + ev.kind + '">' + KIND_LB[ev.kind] + '</span><b>' + esc(ev.t) + '</b>' + (ev.sure === true ? '' : ev.sure === 'plan' ? '<span class="tbat plan">일정(안)</span>' : '<span class="tbat">날짜 확정 전</span>') + '</div>' +
+        '<div class="m">' + esc(ev.who || '') + (on ? ' · <b>진행 중</b>' : esc(left)) + '</div></div></div>';
+    }).join('') + '</div>';
+  }).join('');
+  h += '<p class="srcline">출처 · 대교협 「2028학년도 대학입학전형 기본계획」(2025. 8. 28.)·「2028학년도 대학입학전형시행계획 주요사항」(2026. 4. 29.) · 교육부 2028학년도 수능 시행일 안내(2025. 4.) · 교육부 「2028학년도 대입제도 개편에 따른 안내사항」(2025. 4. 16.) · 2027년 모의고사는 시도교육청 일정(안)(2026. 11. 기준). 대학마다 원서접수 날짜가 다르니 지원할 대학의 모집요강을 꼭 확인해 주세요.</p></div>';
+  $('view').innerHTML = h;
+}
+function renderReform(){
+  var n = (COMMON && COMMON.national) || null, types = n ? arr(n.types) : [];
+  var tn = {}; types.forEach(function(t){ tn[t[0]] = t; });
+  var cntOf = function(key){
+    var map = { gyo: '학생부교과', jong: '학생부종합', non: '논술', su: '수능(정시)' }, t = tn[map[key]];
+    var u15 = ITEMS ? ITEMS.filter(function(u){ return tot(u)[key] > 0; }).length : null;
+    return (t ? '<span class="k">전국 ' + nf(t[1]) + '명 · ' + t[2] + '%</span>' : '') + (u15 != null && ITEMS.length ? (t ? ' · ' : '') + '15개 대학 중 ' + u15 + '곳' : '');
+  };
+  var h = '<div class="card"><div class="sec-t"><span class="n">1</span>2028 대입 개편안 — 무엇이 달라지나<span class="sub">교육부 확정안(2023. 12. 27.) · 2009년생이 첫 적용</span></div>' +
+    '<div class="rf">' + REFORM.map(function(r){ return '<div class="it"><span class="was">' + esc(r.was) + '</span><h4>' + esc(r.h) + '</h4><p>' + esc(r.p) + '</p></div>'; }).join('') + '</div>' +
+    '<div class="g5">' + [['1', '~10%'], ['2', '~34%'], ['3', '~66%'], ['4', '~90%'], ['5', '~100%']].map(function(g){ return '<div><b>' + g[0] + '등급</b>누적 ' + g[1] + '</div>'; }).join('') + '</div>' +
+    '<p class="muted" style="font-size:12px;line-height:1.7;margin:4px 0 0">내신 5등급 상대평가의 등급별 누적 비율입니다(1등급 10% · 2등급 24% · 3등급 32% · 4등급 24% · 5등급 10%).</p></div>';
+  h += '<div class="card"><div class="sec-t"><span class="n">2</span>전형별 요약<span class="sub">네 가지 전형이 각각 무엇을 보는지</span></div>' +
+    TRACKS.map(function(t){ return '<div class="rtk"><h4>' + esc(t.h) + '<span class="tag">' + esc(t.k) + '</span></h4><p>' + esc(t.body) + '</p><p>' + cntOf(t.cnt) + '</p><p><b>국어 공부와 닿는 점</b> · ' + esc(t.kor) + '</p></div>'; }).join('') +
+    (n ? '<p class="muted" style="font-size:12px;line-height:1.7;margin:14px 0 0">전국 숫자는 대교협 「2028학년도 대학입학전형시행계획 주요사항」(2026. 4. 29.)의 전형유형별 모집인원입니다. 전체 ' + nf(n.total) + '명 · 수시 ' + n.susi_pct + '% · 정시 ' + n.jeongsi_pct + '%.</p>' : '') + '</div>';
+  h += '<div class="card"><div class="sec-t"><span class="n">3</span>그래서 팀09는 어떻게 준비하나</div><ul class="with">' +
+    ['내신 5등급제에서는 한 등급 차이가 더 크게 보입니다. 3학년 1학기까지 국어 내신을 끝까지 챙기세요.',
+     '수능은 모두 같은 시험입니다. 국어는 화법·작문·언어(문법)·독서·문학을 고르게 — 선택과목에 숨을 곳이 없어요.',
+     '수시를 쓰더라도 수능 최저학력기준이 있는 대학이 많습니다. 모의고사 등급을 꾸준히 확인하세요.',
+     '학생부종합은 수업 시간의 기록이 서류입니다. 발표·토론·글쓰기를 성실하게 남기세요.',
+     '[15개 주요 대학] 탭에서 희망 대학의 전형·최저·정시 국어 비율을 확인하고 체크리스트의 지원 희망 대학에 적어 두세요.'].map(function(t, i){ return '<li><b>' + (i + 1) + '</b><span>' + esc(t) + '</span></li>'; }).join('') + '</ul>' +
+    '<p class="srcline">출처 · 교육부 「미래 사회를 대비하는 2028 대학입시제도 개편 확정안」(2023. 12. 27.) · 대교협 「2028학년도 대학입학전형시행계획 주요사항」(2026. 4. 29.). 세부 전형은 대학마다 다르니 각 대학 시행계획을 확인해 주세요.</p></div>';
+  $('view').innerHTML = h;
+}
+function sec(n, title, sub, body){
+  return '<div class="card"><div class="sec-t"><span class="n">' + n + '</span>' + esc(title) + (sub ? '<span class="sub">' + esc(sub) + '</span>' : '') + '</div>' + body + '</div>';
+}
+
+$('view').addEventListener('click', function(e){
+  var t = e.target.closest('[data-go],[data-sort],[data-tf],[data-sum],[data-mk],[data-re],[data-rst],[data-sub],[data-stu],[data-tg],[data-tback],[data-tsub],[data-sk]'); if (!t) return;
+  if (RO && (t.hasAttribute('data-mk') || t.hasAttribute('data-re') || t.hasAttribute('data-rst'))) return;   // 학생 체크리스트 열람은 읽기만
+  if (t.hasAttribute('data-stu')){ go('stu=' + encodeURIComponent(t.getAttribute('data-stu'))); return; }
+  if (t.hasAttribute('data-tback')){ go('stulist'); return; }
+  if (t.hasAttribute('data-tsub')){ go(t.getAttribute('data-tsub')); return; }
+  if (t.hasAttribute('data-sk')){ SK = t.getAttribute('data-sk'); renderSched(); return; }
+  if (t.hasAttribute('data-tg')){ TG = t.getAttribute('data-tg'); drawTeacherList(); return; }
+  if (t.hasAttribute('data-sub')){ var sv = t.getAttribute('data-sub'); if (sv === 'univ'){ var rr = route(); go(rr.key ? 'univ=' + encodeURIComponent(rr.key) : 'univ'); } else go('summary'); return; }
+  if (t.hasAttribute('data-re')){ var rv = t.getAttribute('data-re'); if (CK.f.f4m === rv) delete CK.f.f4m; else CK.f.f4m = rv; ckSave();
+    Array.prototype.forEach.call($('f4m').querySelectorAll('button'), function(b){ b.classList.toggle('on', b.getAttribute('data-re') === CK.f.f4m); }); savedRow(); return; }
+  if (t.hasAttribute('data-go')){ TF = 'all'; go('univ=' + encodeURIComponent(t.getAttribute('data-go'))); return; }
+  if (t.hasAttribute('data-sort')){ SORT = t.getAttribute('data-sort'); render(); return; }
+  if (t.hasAttribute('data-tf')){ TF = t.getAttribute('data-tf'); render(); return; }
+  if (t.hasAttribute('data-sum')){ go('summary'); return; }
+  if (t.hasAttribute('data-mk')){ var p = t.getAttribute('data-mk').split('|'); setMark(p[0], p[1]); return; }
+  if (t.hasAttribute('data-rst')){ if (confirm('표시한 내용과 적은 글을 모두 지울까요?')){ CK = { m: {}, f: {} }; ckSave(); renderCheck(); } }
+});
+
+/* ── 나의 점검표 (고3이 되는 나 — 이 기기에만 저장) ──
+ * 2026-11-28 클로슈 초안(원장님 확정 전) — 항목·층 이름은 원장님이 바꾸라면 이 표만 고친다. */
+var CL = [
+  { t: '1층 · 생활 리듬과 시간', s: '고3의 하루를 버티는 기본', g: [
+    ['A', '수면과 하루 루틴', [[1, '잠드는 시간과 일어나는 시간이 대체로 일정하다'], [2, '아침에 그날 공부할 순서를 정해 두고 시작한다'], [3, '공부할 때 휴대폰은 손이 닿지 않는 곳에 둔다']]],
+    ['B', '주간 계획', [[4, '한 주 계획을 세우고, 주말에 지킨 것과 못 지킨 것을 확인한다'], [5, '학교 수업·학원 수업·혼자 공부하는 시간이 치우치지 않게 나눠져 있다'], [6, '쉬는 시간과 몸을 움직이는 시간을 정해 두고 지킨다']]]
+  ]},
+  { t: '2층 · 국어 공부 습관', s: '수능 국어를 올리는 연습', g: [
+    ['C', '기출과 실전', [[7, '모의고사 국어 기출을 시간을 재면서 푼다'], [8, '틀린 문제는 정답의 근거와 내 답이 틀린 이유를 지문에서 찾아 적는다'], [9, '독서(비문학) 지문은 문단마다 핵심을 한 줄로 정리하며 읽는다'], [10, '문학 작품은 화자·상황·정서·표현을 먼저 잡고 선지를 본다'], [11, '문법(언어) 개념을 정리한 노트가 있고, 틀린 개념은 다시 본다']]],
+    ['D', '어휘와 읽기 체력', [[12, '모르는 어휘·한자어를 따로 모아 외운다'], [13, '매일 일정한 분량의 글을 읽는 시간이 있다'], [14, '지문을 읽는 속도와 정확도를 스스로 점검한다'], [15, '모의고사가 끝나면 영역별 점수와 틀린 유형을 기록한다']]]
+  ]},
+  { t: '3층 · 내신과 학생부', s: '수시의 바탕이 되는 기록', g: [
+    ['E', '내신 관리', [[16, '학교 시험 범위와 수행평가 일정을 한곳에 적어 둔다'], [17, '내신 시험 4주 전부터 범위를 나눠 계획을 세운다'], [18, '학교 수업 필기와 프린트를 그날 복습한다']]],
+    ['F', '학생부 채우기', [[19, '세부능력·특기사항에 남을 활동(발표·탐구·독서)을 미리 계획한다'], [20, '읽은 책과 탐구한 주제를 기록해 둔다'], [21, '희망 전공과 이어지는 과목과 활동을 골라 하고 있다']]]
+  ]},
+  { t: '4층 · 입시 준비와 마음', s: '어디로 갈지 알고 가는 힘', g: [
+    ['G', '전형 이해', [[22, '수시와 정시의 차이, 학생부종합·학생부교과·논술 전형의 차이를 설명할 수 있다'], [23, '내 내신 등급과 모의고사 등급을 알고, 어느 전형이 맞는지 생각해 보았다'], [24, '목표 대학 2~3곳의 전형 방법과 수능 최저학력기준을 알고 있다'], [25, '2028학년도 수능이 선택과목 없는 통합형이라는 것을 알고 있다'], [26, '수시 원서(9월)·수능(11월)·정시 원서(1월)의 큰 일정을 알고 있다']]],
+    ['H', '마음 다루기', [[27, '불안하거나 막힐 때 의논할 사람(선생님·부모님·친구)이 있다'], [28, '결과가 나빴을 때도 다음에 할 행동 하나를 정하고 넘어간다'], [29, '다른 사람과 비교하는 대신 지난주의 나와 비교한다'], [30, '내가 공부하는 이유를 내 말로 말할 수 있다']]]
+  ]}
+];
+var MARKS = [['o', '○', '대체로 하고 있다'], ['t', '△', '가끔 놓친다'], ['x', '×', '아직 안 하고 있다'], ['n', '–', '해당 상황이 없었다']];
+var CK_LS = 'pre3_check_' + (TEACHER ? 'teacher' : (KEY || SID || 'guest'));
+var CK = { m: {}, f: {} };
+try { var _c = JSON.parse(localStorage.getItem(CK_LS) || 'null'); if (_c && _c.m) CK = { m: _c.m || {}, f: _c.f || {}, at: _c.at }; } catch(e){}
+function ckSave(){ CK.at = Date.now(); try { localStorage.setItem(CK_LS, JSON.stringify(CK)); } catch(e){} ckPushLater(); }
+/* ── 서버 저장(096 pre3_check_save) — 학생(접근코드·학생ID)만. 1.2초 모아서 한 번, 창을 닫을 때 남은 것은 keepalive 로. ──
+ * 상태: '' 아직 서버와 안 맞춤 · saving · saved · fail(이 기기에만 남음 — 다음 변경 때 다시). 선생님 보기·키 없는 화면은 이 기기에만. */
+var CK_SYNC = '', CK_SRV_AT = 0, CK_TIMER = null, CK_DIRTY = false;
+function ckOnline(){ return !TEACHER && !!(KEY || SID); }
+function ckParam(){ return KEY ? { key: KEY } : { student: SID }; }
+function ckPushLater(){
+  if (!ckOnline()) return;
+  CK_DIRTY = true; CK_SYNC = 'saving'; savedRow();
+  clearTimeout(CK_TIMER); CK_TIMER = setTimeout(function(){ ckPush(false); }, 1200);
+}
+function ckPush(unload){
+  if (!ckOnline() || !CK_DIRTY) return;
+  clearTimeout(CK_TIMER); CK_DIRTY = false;
+  var p = ckParam(); p.data = { m: CK.m, f: CK.f, at: CK.at };
+  var sentAt = CK.at;
+  fetch(SB_URL + '/rest/v1/rpc/pre3_check_save', {
+    method: 'POST', headers: { apikey: SB_KEY, 'Content-Type': 'application/json' }, body: JSON.stringify({ p: p }), keepalive: !!unload
+  }).then(function(r){ return r.ok ? r.json() : null; })
+  .then(function(d){
+    if (!d || !d.ok) throw 0;
+    CK_SRV_AT = Date.parse(d.at) || Date.now();
+    if (!CK_DIRTY) CK_SYNC = 'saved';   // 보내는 동안 또 고쳤으면 다음 저장을 기다린다
+    savedRow();
+  }).catch(function(){ CK_SYNC = 'fail'; CK_DIRTY = true; savedRow(); });
+}
+window.addEventListener('pagehide', function(){ if (CK_DIRTY) ckPush(true); });
+/* 열 때 서버 것을 받아 더 늦게 저장한 쪽을 쓴다(다른 기기에서 적은 것도 이어진다). 이 기기 것이 더 새로우면 서버로 올린다. */
+function ckPull(p){
+  var q = JSON.parse(JSON.stringify(p));
+  fetch(SB_URL + '/rest/v1/rpc/pre3_check_mine', {
+    method: 'POST', headers: { apikey: SB_KEY, 'Content-Type': 'application/json' }, body: JSON.stringify({ p: q })
+  }).then(function(r){ return r.ok ? r.json() : null; })
+  .then(function(d){
+    if (!d || !d.ok) throw 0;
+    var sv = d.data, svAt = sv && sv.at ? Number(sv.at) : (d.at ? Date.parse(d.at) : 0);
+    var localHas = Object.keys(CK.m).length || Object.keys(CK.f).length;
+    if (sv && sv.m && (!localHas || svAt > (CK.at || 0))){
+      CK = { m: sv.m || {}, f: sv.f || {}, at: svAt || Date.now() };
+      try { localStorage.setItem(CK_LS, JSON.stringify(CK)); } catch(e){}
+      CK_SRV_AT = Date.parse(d.at) || svAt; CK_SYNC = 'saved';
+      if (route().v === 'check') renderCheck(); else savedRow();
+    } else if (localHas && (!sv || !sv.m || (CK.at || 0) > svAt)){
+      CK_DIRTY = true; ckPush(false);   // 이 기기 것이 더 새롭다(096 전에 적은 것 포함)
+    } else { CK_SYNC = 'saved'; CK_SRV_AT = d.at ? Date.parse(d.at) : 0; savedRow(); }
+  }).catch(function(){ CK_SYNC = localHas_() ? 'fail' : ''; savedRow(); });
+}
+function localHas_(){ return !!(Object.keys(CK.m).length || Object.keys(CK.f).length); }
+function allItems(){ var a = []; CL.forEach(function(f){ f.g.forEach(function(g){ g[2].forEach(function(it){ a.push(it); }); }); }); return a; }
+function setMark(no, m){
+  if (CK.m[no] === m) delete CK.m[no]; else CK.m[no] = m;
+  ckSave();
+  var row = document.querySelector('.ci[data-no="' + no + '"]');
+  if (row) Array.prototype.forEach.call(row.querySelectorAll('button'), function(b){ b.classList.toggle('on', b.getAttribute('data-mk') === no + '|' + CK.m[no]); });
+  $('ckCount').innerHTML = countHtml();
+  $('ckProg').innerHTML = progHtml();
+  savedRow();
+  fillSelects();
+}
+function markCounts(){
+  var c = { o: 0, t: 0, x: 0, n: 0 }, done = 0;
+  for (var k in CK.m){ if (c[CK.m[k]] != null){ c[CK.m[k]]++; done++; } }
+  c.done = done; c.total = allItems().length;
+  return c;
+}
+function countHtml(){
+  var c = markCounts();
+  return MARKS.map(function(m){ return '<div><span class="sy ' + m[0] + '">' + m[1] + '</span><span class="tx">' + m[2] + '</span><b>' + c[m[0]] + '</b></div>'; }).join('');
+}
+function progHtml(){
+  var c = markCounts();
+  return '<span class="lb"><b>' + c.done + '</b> / ' + c.total + '개 표시</span><span class="tr"><i style="width:' + pct0(c.done, c.total) + '%"></i></span>';
+}
+function optList(want){
+  var items = allItems();
+  var pick = items.filter(function(it){ return want.indexOf(CK.m[it[0]]) >= 0; });
+  var rest = items.filter(function(it){ return want.indexOf(CK.m[it[0]]) < 0; });
+  function o(it){ var m = CK.m[it[0]]; var sym = m ? MARKS.filter(function(x){ return x[0] === m; })[0][1] + ' ' : ''; return '<option value="' + it[0] + '">' + sym + it[0] + '. ' + esc(it[1]) + '</option>'; }
+  return '<option value="">번호 고르기</option>' + (pick.length ? '<optgroup label="표시한 항목">' + pick.map(o).join('') + '</optgroup>' : '') + '<optgroup label="모든 항목">' + rest.map(o).join('') + '</optgroup>';
+}
+function fillSelects(){
+  [['f1n', ['o']], ['f2n', ['t', 'x']], ['f3n', ['t']]].forEach(function(p){
+    var el = $(p[0]); if (!el) return; var v = CK.f[p[0]] || ''; el.innerHTML = optList(p[1]); el.value = v;
+  });
+}
+function fld(id, label, type){
+  var v = esc(CK.f[id] || '');
+  var inp = type === 'select' ? '<select id="' + id + '" data-f="' + id + '"></select>'
+          : type === 'area' ? '<textarea id="' + id + '" data-f="' + id + '" rows="2">' + v + '</textarea>'
+          : '<input id="' + id + '" data-f="' + id + '" type="' + (type || 'text') + '" value="' + v + '" />';
+  return '<label class="fld" for="' + id + '">' + esc(label) + inp + '</label>';
+}
+function step(n, title, hint, body){
+  return '<div class="st"><span class="cn c' + n + '">' + n + '</span><div class="bd"><div><h4>' + esc(title) + '</h4><p class="hint">' + esc(hint) + '</p></div>' + body + '</div></div>';
+}
+/* 2026-11-28 원장님 추가 항목 셋 — 내신 히스토리 · 수능 목표 등급 · 지원 희망 대학 학과(모두 이 기기 CK.f 에만 저장) */
+var SEMS = [['11', '1-1'], ['12', '1-2'], ['21', '2-1'], ['22', '2-2'], ['31', '3-1']];
+var UNIV_NAMES = ['서울대학교', '연세대학교', '고려대학교', '서강대학교', '성균관대학교', '한양대학교', '중앙대학교', '경희대학교', '한국외국어대학교', '서울시립대학교', '이화여자대학교', '건국대학교', '동국대학교', '홍익대학교', '숙명여자대학교'];
+function selHtml(id, opts, cls, blank){
+  var v = CK.f[id] || '';
+  return '<select id="' + id + '" data-f="' + id + '"' + (cls ? ' class="' + cls + '"' : '') + '><option value="">' + (blank || '–') + '</option>' +
+    opts.map(function(o){ var val = Array.isArray(o) ? o[0] : o, lb = Array.isArray(o) ? o[1] : o; return '<option value="' + esc(val) + '"' + (String(v) === String(val) ? ' selected' : '') + '>' + esc(lb) + '</option>'; }).join('') + '</select>';
+}
+function inHtml(id, ph, type){ return '<input id="' + id + '" data-f="' + id + '" type="' + (type || 'text') + '" value="' + esc(CK.f[id] || '') + '" placeholder="' + esc(ph || '') + '" />'; }
+function histCard(){
+  var g5 = ['1', '2', '3', '4', '5'], ach = ['A', 'B', 'C', 'D', 'E'];
+  var rows = SEMS.map(function(sm){
+    return '<span class="sm">' + sm[1] + (sm[0] === '31' ? '<small style="font-size:10px;color:#8A978F;display:block">예정</small>' : '') + '</span>' +
+      selHtml('h' + sm[0] + 'k', g5, '', '등급') + selHtml('h' + sm[0] + 'a', ach, '', '성취도') + inHtml('h' + sm[0] + 'g', '1.0~5.0', 'number') + inHtml('h' + sm[0] + 'm', '예) 문학 1 · 독서 2').replace('<input ', '<input class="memo" ');
+  }).join('');
+  return '<div class="card"><div class="sec-t">내신 히스토리<span class="sub">5등급 상대평가 + 성취도 A~E (2025년 고1부터)</span></div>' +
+    '<p class="ckp s">학기마다 국어 등급과 성취도, 전 과목 평균 등급을 적어 두세요. 3학년 1학기까지가 수시에 들어가는 내신입니다.</p>' +
+    '<div class="hist"><span class="hh">학기</span><span class="hh">국어 등급</span><span class="hh">국어 성취도</span><span class="hh">전 과목 평균</span><span class="hh memo">메모(과목별 등급 등)</span>' + rows + '</div>' +
+    '<p class="muted" style="margin:10px 0 0;font-size:12px;line-height:1.7">2028학년도 입시는 내신 5등급제가 처음 적용되는 해입니다. 1등급은 상위 10%까지예요. 등급과 성취도가 함께 쓰이니 둘 다 적어 두면 좋습니다.</p></div>';
+}
+function goalCard(){
+  var g9 = ['1', '2', '3', '4', '5', '6', '7', '8', '9'];
+  var areas = [['gk', '국어'], ['gm', '수학'], ['ge', '영어(절대평가)'], ['gs', '통합사회'], ['gc', '통합과학'], ['gh', '한국사(절대평가)']];
+  return '<div class="card"><div class="sec-t">수능 목표 등급<span class="sub">2028 수능 — 선택과목 없이 모두 같은 시험</span></div>' +
+    '<p class="ckp s">영역마다 목표 등급을 고르세요. 목표는 다음 모의고사 뒤에 다시 고쳐도 됩니다.</p>' +
+    '<div class="f2" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))">' + areas.map(function(a){ return '<label class="fld" for="' + a[0] + '">' + a[1] + selHtml(a[0], g9, '', '목표 등급') + '</label>'; }).join('') + '</div>' +
+    '<div class="f2" style="margin-top:10px">' + fld('gwhy', '이 목표를 정한 이유 · 지금 가장 멀리 있는 영역', 'area') + fld('gnow', '최근 모의고사 등급(국·수·영·탐)', 'text') + '</div></div>';
+}
+function wishCard(){
+  var types = ['학생부교과', '학생부종합', '논술', '정시(수능)', '아직 모름'];
+  var rows = [1, 2, 3].map(function(i){
+    return '<span class="sm">' + i + '</span>' + '<input id="w' + i + 'u" data-f="w' + i + 'u" list="univlist" value="' + esc(CK.f['w' + i + 'u'] || '') + '" placeholder="대학" />' +
+      inHtml('w' + i + 'd', '학과 · 학부') + selHtml('w' + i + 't', types, 'typ', '생각하는 전형');
+  }).join('');
+  return '<div class="card"><div class="sec-t">지원 희망 대학 · 학과<span class="sub">지금 마음에 둔 곳 세 군데</span></div>' +
+    '<p class="ckp s">확정이 아니어도 괜찮습니다. 적어 두면 [15개 주요 대학] 탭에서 그 대학의 전형과 정시 국어 비율을 바로 찾아보게 돼요.</p>' +
+    '<div class="wish"><span class="hh"></span><span class="hh">대학</span><span class="hh">학과 · 학부</span><span class="hh typ">생각하는 전형</span>' + rows + '</div>' +
+    '<datalist id="univlist">' + UNIV_NAMES.map(function(n){ return '<option value="' + n + '">'; }).join('') + '</datalist>' +
+    fld('wmemo', '왜 이 대학·학과인가요 (한 줄)', 'text') + '</div>';
+}
+var OK_SVG = '<svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="#7F9E8E" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 8.3l3 3 6-6.6"/></svg>';
+function fmtAt(ms){ return new Date(ms).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: 'numeric', minute: '2-digit' }); }
+function savedHtml(){
+  if (RO) return '<span class="ok">' + OK_SVG + '학생이 마지막으로 저장한 때 · ' + (CK.at ? fmtAt(CK.at) : '기록 없음') + '</span>';
+  var t;
+  if (!ckOnline()) t = (TEACHER ? '선생님 보기 · ' : '') + (CK.at ? OK_SVG + '이 기기에 저장됨 · ' + fmtAt(CK.at) : '표시하고 적은 내용은 이 기기에만 저장돼요.') + (TEACHER ? ' · 학생 것은 [학생 저장 목록]에서' : '');
+  else if (CK_SYNC === 'saving') t = '저장하는 중…';
+  else if (CK_SYNC === 'fail') t = '<span class="warn">이 기기에만 저장됨 · 연결되면 다시 저장합니다</span>';
+  else if (CK_SYNC === 'saved' && CK.at) t = OK_SVG + '저장됨 · ' + fmtAt(CK.at) + ' · 선생님도 함께 봅니다';
+  else t = CK.at ? OK_SVG + '이 기기에 저장됨 · ' + fmtAt(CK.at) : '표시하고 적은 내용은 저장되어 선생님도 함께 봅니다.';
+  return '<span class="ok">' + t + '</span><button class="rst" data-rst="1">모두 지우기</button>';
+}
+function savedRow(){ var el = $('ckSaved'); if (el) el.innerHTML = savedHtml(); }
+function reHtml(){
+  return '<div class="fld">다시 표시<div class="mk re" id="f4m">' + MARKS.slice(0, 3).map(function(m){
+    return '<button class="' + m[0] + (CK.f.f4m === m[0] ? ' on' : '') + '" data-re="' + m[0] + '" title="' + m[2] + '" aria-label="' + m[2] + '">' + m[1] + '</button>'; }).join('') + '</div></div>';
+}
+var RO = false;   // 선생님이 학생 체크리스트를 열람하는 중(읽기만)
+function renderCheck(){
+  var h = (RO ? roHead() : (TEACHER ? tsubHtml('check') + '<div class="tnote"><b>학생 페이지와 같은 화면입니다.</b> 학생이 자기 페이지에서 표시하면 1~2초 뒤 자동으로 저장되어 위 [학생 저장 목록]에 쌓입니다. 학생이 따로 제출하거나 캡처해 보낼 필요가 없어요. 이 화면에서 선생님이 표시한 것은 이 기기에만 남고 목록에는 들어가지 않습니다.</div>' : '')) +
+    '<div class="card"><div class="sec-t">팀09 셀프 체크리스트 · 고3이 되기 전, 나를 먼저 점검하기</div>' +
+    '<p class="ckp">어느 대학을 목표로 하든, 고3의 1년을 버티는 습관은 지금 내가 준비할 수 있습니다.</p>' +
+    '<p class="ckp s">이 표는 시험이 아닙니다. 점수도 등급도 없습니다. 표시한 내용은 담당 선생님이 함께 보며 상담에 활용합니다. 잘 보이려고 고르지 말고, 최근 2주 동안 실제로 어땠는지 떠올리며 솔직하게 표시해 주세요.</p>' +
+    (TEACHER ? '' : '<p class="ckp s">표시하고 적으면 1~2초 뒤 자동으로 저장됩니다. 따로 제출 버튼을 누르거나 캡처해 보낼 필요가 없어요.</p>') +
+    '<div class="cklg" id="ckCount">' + countHtml() + '</div></div>' +
+    '<div class="ckprog" id="ckProg">' + progHtml() + '</div>';
+  h += CL.map(function(f){
+    return '<div class="card"><div class="flh"><h3>' + esc(f.t) + '</h3><span>' + esc(f.s) + '</span></div>' + f.g.map(function(g){
+      return '<div class="grp">' + g[0] + ' · ' + esc(g[1]) + '</div>' + g[2].map(function(it){
+        return '<div class="ci" data-no="' + it[0] + '"><span class="no">' + (it[0] < 10 ? '0' : '') + it[0] + '</span><div class="bd"><span class="tx">' + esc(it[1]) + '</span><span class="mk">' +
+          MARKS.map(function(m){ return '<button class="' + m[0] + (CK.m[it[0]] === m[0] ? ' on' : '') + '" data-mk="' + it[0] + '|' + m[0] + '" title="' + m[2] + '" aria-label="' + m[2] + '">' + m[1] + '</button>'; }).join('') + '</span></div></div>';
+      }).join('');
+    }).join('') + '</div>';
+  }).join('');
+  h += histCard() + goalCard() + wishCard();
+  h += '<div class="card"><div class="sec-t">나를 돌아보고, 행동 하나 정하기</div>' +
+    step(1, '내가 이미 잘하고 있는 것 하나', '○를 표시한 항목 중에서 하나를 골라 주세요.', fld('f1n', '번호', 'select') + fld('f1t', '어떻게 지키고 있나요', 'area')) +
+    step(2, '자꾸 놓치는 것 하나', '△나 ×를 표시한 항목 중 하나를 골라 주세요. "내가 게을러서"보다 "그때 무슨 일이 있었는지"를 떠올려 보세요.', fld('f2n', '번호', 'select') + fld('f2t', '주로 놓치는 상황', 'area')) +
+    step(3, '이번 주에 연습할 행동 하나', '×보다 △에서 골라 주세요. 가끔 놓치는 것을 줄이는 일이, 처음부터 바꾸는 일보다 쉽습니다.',
+      fld('f3n', '연습할 행동 번호', 'select') + '<div class="f2">' + fld('f3w', '언제, 어디서') + fld('f3h', '어떻게 확인할까') + '</div>' + fld('f3e', '도움이 필요한 일')) +
+    step(4, '일주일 뒤, 다시 확인하기', '해 보니 어땠는지 적고, 그 항목만 다시 표시해 주세요.',
+      '<div class="f2">' + fld('f4d', '날짜', 'date') + reHtml() + '</div>' + fld('f4t', '해 보니 어땠나요', 'area')) +
+    '<div class="savedrow" id="ckSaved">' + savedHtml() + '</div></div>';
+  h += '<div class="card"><div class="sec-t" style="font-size:19px">이수경 국어는 고3과 이렇게 함께합니다</div><ul class="with">' +
+    ['기출을 영역별로 분석하는 수업으로 수능 국어의 틀을 잡습니다.',
+     '주말 실전 모의고사와 성적 추이로 내 위치와 약한 영역을 확인합니다.',
+     '수업마다 리포트와 과제 검사로 그날 배운 것이 남는지 함께 봅니다.',
+     '질문과 클리닉으로 막힌 문제를 끝까지 풀어 갑니다.',
+     '입시 일정과 전형을 함께 살피며 흔들리지 않게 방향을 잡아 드려요.'].map(function(t, i){ return '<li><b>' + (i + 1) + '</b><span>' + esc(t) + '</span></li>'; }).join('') +
+    '</ul><p class="closing">고3은 한 번에 달리는 해가 아니라, 매주 하나씩 쌓는 해입니다.<br>지금 표시한 △ 하나를 ○로 바꾸는 것부터 시작해요.<br>마지막까지 함께 걸어 갈게요.</p></div>';
+  $('view').innerHTML = h;
+  fillSelects();
+  if (RO){
+    $('view').classList.add('ro');
+    Array.prototype.forEach.call($('view').querySelectorAll('input,select,textarea,button[data-mk],button[data-re]'), function(el){ el.disabled = true; });
+    Array.prototype.forEach.call($('view').querySelectorAll('.rst'), function(el){ el.remove(); });
+  } else $('view').classList.remove('ro');
+}
+/* ── 선생님 보기 — 학생들이 저장한 체크리스트(096) ── */
+function gradeShort(g){ var m = /(고등|중등|초등)\s*(\d)/.exec(g || ''); if (!m) return (g || '').replace(/^\d{4}\s*/, '') || '학년 미상'; return { '고등': '고', '중등': '중', '초등': '초' }[m[1]] + m[2]; }
+function ckStat(d){
+  var c = { o: 0, t: 0, x: 0, n: 0, done: 0 }, m = (d && d.m) || {};
+  for (var k in m){ if (c[m[k]] != null){ c[m[k]]++; c.done++; } }
+  return c;
+}
+function renderTeacherChecks(){
+  var h = tsubHtml('stulist') + '<div class="card"><div class="sec-t">학생 셀프 체크리스트<span class="sub">학생이 저장하면 여기 바로 쌓입니다 · 이름을 누르면 그 학생의 표시와 적은 글을 봅니다</span></div>';
+  if (CHECKS === null && !CHECKS_ERR){ $('view').innerHTML = h + '<div class="msg">불러오는 중입니다…</div></div>'; return; }
+  if (CHECKS_ERR === 'nologin'){ $('view').innerHTML = h + '<div class="msg"><b>허브에 로그인해 주세요</b>학생 체크리스트는 티쳐스 허브 개인 로그인이 있어야 열립니다. <a href="https://coke4497-sys.github.io/shueguk-hub/login.html?next=' + encodeURIComponent(location.href) + '">로그인하러 가기</a></div></div>'; return; }
+  if (CHECKS_ERR === 'missing'){ $('view').innerHTML = h + '<div class="msg"><b>준비 중입니다</b>체크리스트 저장 표(096)가 아직 적용되지 않았습니다.</div></div>'; return; }
+  if (CHECKS_ERR){ $('view').innerHTML = h + '<div class="msg"><b>불러오지 못했습니다</b>인터넷 연결을 확인한 뒤 새로고침해 주세요.</div></div>'; return; }
+  var grades = {}; CHECKS.forEach(function(r){ var g = gradeShort(r.grade); grades[g] = (grades[g] || 0) + 1; });
+  var gk = Object.keys(grades).sort(function(a, b){ return a.localeCompare(b, 'ko'); });
+  h += '<div class="tsum"><b>' + CHECKS.length + '</b>명 저장' + (gk.length ? ' · ' + gk.map(function(g){ return g + ' ' + grades[g]; }).join(' · ') : '') + '</div>' +
+    '<div class="tfil"><div class="sort">' + [['all', '전체']].concat(gk.map(function(g){ return [g, g]; })).map(function(o){ return '<button class="pill' + (TG === o[0] ? ' on' : '') + '" data-tg="' + esc(o[0]) + '">' + esc(o[1]) + '</button>'; }).join('') + '</div>' +
+    '<input id="tq" type="search" placeholder="이름 · 학교 찾기" value="' + esc(TQ) + '" autocomplete="off" /></div>' +
+    '<div id="tlist"></div></div>';
+  $('view').innerHTML = h;
+  drawTeacherList();
+  var q = $('tq'); if (q) q.addEventListener('input', function(){ TQ = q.value; drawTeacherList(); });   // 입력칸은 다시 그리지 않는다(한글 조합)
+}
+function drawTeacherList(){
+  var el = $('tlist'); if (!el) return;
+  var qq = TQ.replace(/\s+/g, '').toLowerCase();
+  var rows = (CHECKS || []).filter(function(r){
+    if (TG !== 'all' && gradeShort(r.grade) !== TG) return false;
+    if (qq && ((r.name || '') + (r.school || '')).replace(/\s+/g, '').toLowerCase().indexOf(qq) < 0) return false;
+    return true;
+  });
+  Array.prototype.forEach.call(document.querySelectorAll('[data-tg]'), function(b){ b.classList.toggle('on', b.getAttribute('data-tg') === TG); });
+  if (!CHECKS.length){ el.innerHTML = '<div class="msg"><b>아직 저장한 학생이 없습니다</b>학생이 체크리스트에 표시하거나 적으면 바로 여기에 보여요.</div>'; return; }
+  if (!rows.length){ el.innerHTML = '<div class="msg">조건에 맞는 학생이 없습니다.</div>'; return; }
+  var total = allItems().length;
+  el.innerHTML = '<div class="trows"><div class="trow th"><span>학생</span><span>표시</span><span>○ △ × –</span><span class="ac">이번 주 행동</span><span class="ws">희망 1순위</span><span class="at">저장</span></div>' + rows.map(function(r){
+    var d = r.data || {}, f = d.f || {}, c = ckStat(d);
+    var act = f.f3n ? (allItems().filter(function(it){ return String(it[0]) === String(f.f3n); })[0] || [])[1] : '';
+    var wish = f.w1u ? f.w1u + (f.w1d ? ' · ' + f.w1d : '') : '';
+    return '<button class="trow" data-stu="' + r.student_id + '"><span class="nm">' + esc(r.name) + '<small>' + esc(gradeShort(r.grade)) + (r.school ? ' · ' + esc(r.school) : '') + '</small></span>' +
+      '<span class="dn"><b>' + c.done + '</b> / ' + total + '<i style="width:' + pct0(c.done, total) + '%"></i></span>' +
+      '<span class="cs"><em class="o">' + c.o + '</em><em class="t">' + c.t + '</em><em class="x">' + c.x + '</em><em class="n">' + c.n + '</em></span>' +
+      '<span class="ac">' + (act ? esc(act) : '<span class="muted">–</span>') + '</span>' +
+      '<span class="ws">' + (wish ? esc(wish) : '<span class="muted">–</span>') + '</span>' +
+      '<span class="at">' + (r.updated_at ? fmtAt(Date.parse(r.updated_at)) : '') + '</span></button>';
+  }).join('') + '</div>';
+}
+function roHead(){
+  var r = RO_ROW || {};
+  return '<div class="rohead"><button class="tback" data-tback="1">← 학생 목록</button><div class="who"><b>' + esc(r.name || '') + '</b><span>' + esc(gradeShort(r.grade)) + (r.school ? ' · ' + esc(r.school) : '') + '</span></div><span class="rotag">읽기 전용 · 학생이 저장한 그대로</span></div>';
+}
+var RO_ROW = null;
+function renderStudentCheck(id){
+  if (CHECKS === null && !CHECKS_ERR){ $('view').innerHTML = '<div class="msg">불러오는 중입니다…</div>'; return; }
+  var r = (CHECKS || []).filter(function(x){ return String(x.student_id) === String(id); })[0];
+  if (!r){ $('view').innerHTML = '<div class="rohead"><button class="tback" data-tback="1">← 학생 목록</button></div><div class="msg"><b>이 학생의 체크리스트가 없습니다</b>저장한 학생 목록에서 다시 골라 주세요.</div>'; return; }
+  var keep = CK, d = r.data || {};
+  RO = true; RO_ROW = r; CK = { m: d.m || {}, f: d.f || {}, at: d.at || (r.updated_at ? Date.parse(r.updated_at) : 0) };
+  try { renderCheck(); } finally { CK = keep; RO = false; RO_ROW = null; }
+  $('view').classList.add('ro');
+}
+$('view').addEventListener('input', function(e){
+  var id = e.target.getAttribute && e.target.getAttribute('data-f'); if (!id || $('view').classList.contains('ro')) return;
+  CK.f[id] = e.target.value; ckSave(); savedRow();
+});
+$('view').addEventListener('change', function(e){
+  var id = e.target.getAttribute && e.target.getAttribute('data-f'); if (!id || $('view').classList.contains('ro')) return;
+  CK.f[id] = e.target.value; ckSave(); savedRow();
+});
+
+render();
+load();
+</script>
+<script src="me-back.js"></script>
+</body>
+</html>

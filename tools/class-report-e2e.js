@@ -579,27 +579,32 @@ const STUDENTS = [
       asg: [{ seq: 1, date: D7, type: '일부', target: '박보검, 김하늘', item: '이수경 / ' + SF, due: FUT },
             { seq: 2, date: D16, type: '일부', target: '최다은', item: '이수경 / ' + SF2, due: '' },
             { seq: 3, date: D7, type: '일부', target: '최다은|서정고|2026 고등 2학년', item: '이수경 / ' + SF3, due: '' },
-            { seq: 4, date: D7, type: '일부', target: '최다은', item: '이수경 / 문장 1권 01', due: '' }],
+            { seq: 4, date: D7, type: '일부', target: '최다은', item: '이수경 / 문장 1권 01', due: '' },
+            { seq: 5, date: D16, type: '일부', target: '김하늘', item: '이수경 / ' + SF2, due: '' }],
       sfSubs: [{ id: 5, ts: '2026-11-01 10:00', teacher: '이수경', code: SF, school: '서정고', grade: '고2', name: '박보검', got: 2, total: 10, detail: {}, review: {} },
                { id: 7, ts: '2026-11-02 10:00', teacher: '이수경', code: SF, school: '화정고', grade: '고2', name: '박보검', got: 9, total: 10,
-                 detail: { '1': { ok: true }, '3': { ok: false } }, review: { '3': { cleared_at: '2026-11-02 10:10' } } }] }));
+                 detail: { '1': { ok: true }, '3': { ok: false } }, review: { '3': { cleared_at: '2026-11-02 10:10' } } },
+               // 마감 지난 과제도 모두 보인다 (2026-11-25 원장님 — 윤진우)
+               { id: 9, ts: ymd(T0) + ' 10:00', teacher: '이수경', code: SF2, school: '화정고', grade: '고2', name: '최다은', got: 30, total: 33, detail: {}, review: {}, review_at: ymd(T0) + ' 10:40' },
+               { id: 11, ts: D16 + ' 10:00', teacher: '이수경', code: SF2, school: '화정고', grade: '고2', name: '김하늘', got: 30, total: 33, detail: {}, review: {} }] }));
     await openCard(page, '고2 가');
     await page.waitForFunction(() => document.querySelector('.cr-sf'), null, { timeout: 8000 }).catch(() => {});
     r = await page.evaluate(() => [...document.querySelectorAll('.cr-card')].map(c => ({ nm: c.querySelector('.cr-top b').textContent,
       tasks: [...c.querySelectorAll('.cr-tname')].map(x => x.textContent), src: (c.querySelector('.cr-src') || {}).textContent || '', items: c.querySelectorAll('.cr-item').length })));
     const cd = n => r.find(x => x.nm === n) || {};
     ok('슈핏: 배정 학생 검사 목록에 H WORK 과제 이름 그대로 + 제출 결과(점수·오답하기 클리어)', cd('박보검').tasks.length === 1 && cd('박보검').tasks[0].indexOf(SF + ' H WORK · 제출 · 9/10점 · 오답하기 클리어 1/1') === 0 && /슈핏 문법 H WORK 과제/.test(cd('박보검').src) && cd('박보검').items === 4, JSON.stringify(r));
-    ok('슈핏: 아직 안 낸 학생은 미제출 표시', cd('김하늘').tasks.join('|') === SF + ' H WORK · 미제출', JSON.stringify(cd('김하늘')));
-    ok('슈핏: 마감 없는 배정은 배정일 + 14일까지만 · 다른 학교 토큰·슈핏이 아닌 과제는 넣지 않음', cd('최다은').tasks.length === 0, JSON.stringify(cd('최다은')));
+    ok('슈핏: 아직 안 낸 학생은 미제출 표시', (cd('김하늘').tasks || []).indexOf(SF + ' H WORK · 미제출') >= 0 && cd('김하늘').tasks[0].indexOf(SF2) === 0, JSON.stringify(cd('김하늘')));
+    ok('슈핏: 마감 지난 과제·마감 없는 오래된 배정도 보임 · 다른 학교 토큰·슈핏이 아닌 과제는 넣지 않음', cd('최다은').tasks.length === 1 && cd('최다은').tasks[0].indexOf(SF2 + ' H WORK · 제출 · 30/33점') === 0, JSON.stringify(cd('최다은')));
+    ok('슈핏: 마감 지난 과제도 모두 — 김하늘은 두 과제', cd('김하늘').tasks.length === 2, JSON.stringify(cd('김하늘')));
     ok('슈핏: 배정 조회 = H WORK·shuefit', (st.asgGets || []).some(u => /tool=eq\.H WORK/.test(u) && /item=ilike\.\*shuefit\*/.test(u)), JSON.stringify(st.asgGets));
     // 제출했는데 아직 평가하지 않은 H WORK → 이름 옆 빨간 원 숫자(2026-11-19 원장님)
     const dots = () => page.evaluate(() => { const o = {}; document.querySelectorAll('.cr-card, .cr-row').forEach(c => { const b = c.querySelector('b'); o[b.textContent] = (c.querySelector('.cr-nb') || {}).textContent || ''; }); return o; });
     r = await dots();
-    ok('슈핏: 제출했는데 평가 전이면 이름 옆 빨간 원 1 · 안 낸 학생은 없음', r['박보검'] === '1' && r['김하늘'] === '' && r['최다은'] === '', JSON.stringify(r));
+    ok('슈핏: 제출했는데 평가 전이면 이름 옆 빨간 원 1', r['박보검'] === '1' && r['김하늘'] === '1' && r['최다은'] === '1', JSON.stringify(r));
     const iP = await page.evaluate(() => CR.names.map(x => x.p).indexOf('박보검'));
     await page.evaluate(() => { CR_STU_LIST = true; crRender(); });
     r = await dots();
-    ok('슈핏: 학생 목록 줄에도 같은 빨간 원', r['박보검'] === '1' && r['김하늘'] === '', JSON.stringify(r));
+    ok('슈핏: 학생 목록 줄에도 같은 빨간 원', r['박보검'] === '1' && r['김하늘'] === '1', JSON.stringify(r));
     await page.click(`.cr-row[data-sel="${iP}"]`);
     await page.click(`.cr-card [data-star^="${iP}|"]`);
     r = await dots();
@@ -1055,7 +1060,9 @@ const STUDENTS = [
             pct: 45, missing: false, missing_items: ['오답 노트'], text: '학습지는 충실히 해 왔고 오답 노트는 제출하지 않았습니다.' },
       comment: '집중이 좋았습니다.' }) },
     { ymd: '2026-09-28', book: '정규', part: '나', cls: '고2 나', teacher: '현지', time: '월 5:30~7:00', body: B({ attend: '결석', attend_note: '가족 행사로 결석했습니다.',
-      summary: '이번 수업에서는 「속미인곡」을 다뤘습니다.', hw: { items: [], pct: 0, missing: true, text: '' }, comment: '박보검 친구는 과제 제출을 하지 않았습니다!!!!' }) },
+      summary: '이번 수업에서는 「속미인곡」을 다뤘습니다.', hw: { items: [], pct: 0, missing: true, text: '' }, comment: '박보검 친구는 과제 제출을 하지 않았습니다!!!!',
+      // 2026-11-27: 받은 날 열쇠는 선생님 원문(homework_raw) — 다듬은 문장(homework)은 검사 항목 이름과 달라 주차가 안 붙었다
+      homework: ['「관동별곡」 학습지를 풀어 옵니다.'], homework_raw: ['관동별곡 학습지'] }) },
     // 이 규칙 전에 공개된 진도 수업 리포트(0%·전체 미제출)도 학생 화면에서는 안내 문장으로(2026-10-28)
     { ymd: '2026-08-29', book: '내신', part: '진도', cls: '고2 화정A', teacher: '주혜', time: '토 2:00~4:00', body: B({ attend: '지각', attitude: '노력 필요', units: ['사미인곡'],
       hw: { items: [{ name: '과제 (학습량)', score: 0, max: 5 }], pct: 0, missing: true, missing_items: ['과제'], text: '' } }) },
@@ -1109,13 +1116,14 @@ const STUDENTS = [
   ok('주간 리포트 카드·화면은 없다(수업 리포트로 합침)', await hp.evaluate(() => !document.getElementById('crView') && ![...document.querySelectorAll('#menu .card')].some(x => /주간 리포트/.test(x.textContent))));
   ok('달별 묶음 — 9월·8월', r.months.join('|') === '2026년 9월|2026년 8월', JSON.stringify(r.months));
   ok('9/30 — 날짜·가 수업·반·선생님·출석·태도·클로슈가 쓴 내용·과제 2줄·과제 검사 문장·코멘트', /9\/30수/.test(r.items[0]) && /가 수업/.test(r.items[0]) && /고2 가 · 지원T/.test(r.items[0]) && /출석/.test(r.items[0]) &&
-     /수업 태도 ?매우 좋음/.test(r.items[0]) && /표현상 특징을 정리했습니다/.test(r.items[0]) && r.li === 2 && /과제 검사45%2건 중 1건 미제출/.test(r.items[0]) && /관동별곡 학습지깊이 4\/55\/5일부함——오답 노트미제출/.test(r.items[0]) && /이번주 과제 검사과제학습량채점학습 분석오답 분석/.test(r.items[0]) &&
+     /수업 태도 ?매우 좋음/.test(r.items[0]) && /표현상 특징을 정리했습니다/.test(r.items[0]) && r.li === 2 && /과제 검사45%2건 중 1건 미제출/.test(r.items[0]) && /관동별곡 학습지깊이 4\/55\/5일부함——(\d+\/\d+|\d+주차)?오답 노트미제출/.test(r.items[0]) && /이번주 과제 검사과제학습량채점학습 분석오답 분석/.test(r.items[0]) &&
      /충실히 해 왔고/.test(r.items[0]) && /집중이 좋았습니다/.test(r.items[0]), r.items[0]);
   ok('수업 태도 타일 — 매우 좋음 · 노력 필요', /수업 태도매우 좋음/.test(r.items[0]) && r.items.some(t => /수업 태도노력 필요/.test(t)), JSON.stringify(r.items.map(t => t.slice(0, 60))));
   ok('9/28 — 결석·결석 안내·전체 미제출·정해 둔 코멘트, 태도 없으면 줄도 없음', /결석/.test(r.items[1]) && /가족 행사로/.test(r.items[1]) && /미제출/.test(r.items[1]) && !/수업 태도/.test(r.items[1]) &&
      /박보검 친구는 과제 제출을 하지 않았습니다!!!!/.test(r.items[1]), r.items[1]);
   ok('8/29 내신 진도 — 수업 진도 타일·과제 검사 없음은 "내신대비 기간에는 확인 수업에서 과제 검사를 진행합니다…"(2026-10-28 원장님 문장, 학부모님 오해 방지)',
      /진도 수업/.test(r.items[2]) && /수업 진도사미인곡/.test(r.items[2]) && /내신대비 기간에는 확인 수업에서 과제 검사를 진행합니다\. 이번 정규 수업에서는 과제 기록이 없습니다\./.test(r.items[2]) && !/확인할 것이 없습니다/.test(r.items[2]) && /확인 수업에서/.test(r.items[2]) && !/%/.test(r.items[2]) && !/미제출/.test(r.items[2]), r.items[2]);
+  ok('9/30 과제 검사의 관동별곡 학습지에 받은 날(9/28, 9/28 리포트의 선생님 원문 homework_raw 로 찾음) 알약', /9\/28관동별곡 학습지/.test(r.items[0]), r.items[0]);
   ok('"숙제"라는 말이 없다', !r.items.some(t => /숙제/.test(t)));
   ok('100% 아닌 수업에는 별 +1 표시·효과가 없다', await hp.evaluate(() => !document.querySelector('.lh-star1') && !document.querySelector('.rc-star1') && !document.querySelector('.lh-sb')));
   await hp.click('#lhMoreBtn');

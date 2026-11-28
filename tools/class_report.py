@@ -233,6 +233,25 @@ def checks_of(h):
 
 
 BODY_KEYS = ('attend', 'attend_note', 'attitude', 'summary', 'units', 'homework', 'hw', 'comment')
+
+
+def homework_raw(note, name):
+    """선생님이 적은 과제 원문 줄 — 반 과제 + 반 전체 검사 과제('__검사과제') + 이 학생만 과제('__개별과제').
+    학생 페이지가 과제 검사 항목의 '받은 날'(주차 알약)을 찾는 열쇠다 — body.homework 는 다듬은 문장이라 항목 이름과 글자가 달라서(2026-11-27)."""
+    cm = note.get('comments') if isinstance(note.get('comments'), dict) else {}
+    def lines(v):
+        return [t for t in (x.strip() for x in str(v or '').split('\n')) if t]
+    out = lines(note.get('homework')) + lines(cm.get('__검사과제'))
+    ih = cm.get('__개별과제') if isinstance(cm.get('__개별과제'), dict) else {}
+    base = re.sub(r'[A-Z]$', '', plain(name))
+    for k, v in ih.items():
+        if re.sub(r'[A-Z]$', '', plain(k)) == base:
+            out += lines(v)
+    seen, uniq = set(), []
+    for t in out:
+        if t not in seen:
+            seen.add(t); uniq.append(t)
+    return uniq
 COMMENT_END = re.compile(r'(다|요|죠|까|네)[.!?]+\s*$')
 COMMENT_RAW = re.compile(r'(ㅋ|ㅎ|ㅠ|ㅜ|굿\b|\bok\b|\bgood\b|~~|\.\.\.)', re.I)
 
@@ -270,6 +289,7 @@ def cmd_publish(path):
         if 'parts' in b or 'comments' in b:   # 2026-10-01 이전 주간 리포트 형식
             sys.exit('옛 주간 리포트 형식(parts·comments)이에요 — origin/main 의 CLAUDE.md 수업 리포트 절대로 body 를 써 주세요: %s' % studs[code]['name'])
         body = {k: b[k] for k in BODY_KEYS if k in b}
+        body['homework_raw'] = homework_raw(note, studs[code]['name'])   # 학생 페이지 주차 알약의 열쇠(원문 그대로)
         if '베낌' in json.dumps(body, ensure_ascii=False):   # 비공개 표시가 학생 리포트로 새지 않게
             sys.exit('리포트에 비공개 표시(베낌 의심)가 들어 있어요: %s' % studs[code]['name'])
         for k in ('units', 'homework'):

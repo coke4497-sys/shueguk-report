@@ -86,9 +86,26 @@ const RT = [{ id: 5, teacher: '이현지', code: '[테스트] 문장 1회', n: 2
   ok('단원 카드는 두 개 이상 나뉜 단원만 (하나뿐인 단원은 그대로)', g.n === 1 && g.singles.length === 2, JSON.stringify(g.singles));
   ok('단원 카드 — 이름 · 문제지 수 · 남은 수', /문화를 담은 건축물/.test(g.head) && /문제지 3개/.test(g.head) && /남은 2개/.test(g.head), g.head);
   ok('처음엔 접혀 있고 누르면 세부 문제지', g.before === 'none' && g.after === 'block', g.before + '→' + g.after);
-  ok('세부 문제지 — 구간 이름·제출 여부·바로 열기', g.parts.length === 3 && g.parts[0].t.startsWith('01 OX 쉬움') && g.parts[0].d && /&done=1$/.test(g.parts[0].h) && /hwork\.html\?c=/.test(g.parts[1].h), JSON.stringify(g.parts));
+  ok('세부 문제지 — 구간 이름·제출 여부·바로 열기', g.parts.length === 3 && g.parts[0].t.startsWith('01 OX 쉬움') && g.parts[0].d && /&done=1&(k|st)=/.test(g.parts[0].h) && /hwork\.html\?c=/.test(g.parts[1].h), JSON.stringify(g.parts));
   ok('세부 문제지 줄 전체가 링크 (2026-11-22)', g.parts.every(p => p.whole), JSON.stringify(g.parts.map(p => p.whole)));
   ok('낱개 카드 전체가 링크 — 안 낸 과제는 풀러 가기, 낸 과제는 오답하기', g.cards.length === 2 && g.cards.every(c => c.whole && /hwork\.html\?c=/.test(c.h)) && g.cards.some(c => !c.done && !/&done=1/.test(c.h) && /풀러 가기/.test(c.t)) && g.cards.some(c => c.done && /&done=1/.test(c.h)) && !g.cards.some(c => c.inner), JSON.stringify(g.cards));
+  // 안 낸 과제는 배정이 오래된 것부터 (2026-11-25 원장님)
+  const ord = await pg.evaluate(() => {
+    STATE.hwqa = []; STATE.hwrt = [];
+    STATE.homework = [   // 들어오는 차례는 최근 배정 먼저
+      { teacher: '이수경', code: '새 과제 C', date: '2026-11-25', done: false },
+      { teacher: '이수경', code: '같은 날 과제 B2', date: '2026-11-20', done: false },
+      { teacher: '이수경', code: '같은 날 과제 B1', date: '2026-11-20', done: false },
+      { teacher: '이수경', code: '낸 과제 Y', date: '2026-11-12', done: true },
+      { teacher: '이수경', code: '낸 과제 Z', date: '2026-11-01', done: true },
+      { teacher: '이수경', code: '오래된 과제 A', date: '2026-11-10', done: false } ];
+    renderHomework();
+    return [...document.querySelectorAll('#homeworkList > .notice-item .ntitle')].map(e => e.textContent.replace(/^\d+주차/, '').replace(/^이수경 · /, ''));
+  });
+  // 주차 표시 (2026-11-26 원장님 — 4주차 11/24~, 7일마다)
+  const wk = await pg.evaluate(() => [...document.querySelectorAll('#homeworkList > .notice-item')].map(e => { const w = e.querySelector('.hwwk'); return w ? w.textContent : ''; }));
+  ok('주차 표시 — 11/10·11/20·11/25 (11/1은 1주차 전이라 없음)', JSON.stringify(wk) === JSON.stringify(['2주차', '3주차', '3주차', '4주차', '', '2주차']), JSON.stringify(wk));
+  ok('안 낸 과제는 오래된 배정부터 · 같은 날은 먼저 배정한 것 · 낸 과제도 아래에 오래된 배정부터', JSON.stringify(ord) === JSON.stringify(['오래된 과제 A', '같은 날 과제 B1', '같은 날 과제 B2', '새 과제 C', '낸 과제 Z', '낸 과제 Y']), JSON.stringify(ord));
   await br.close(); srv.close();
   console.log(`통과 ${pass} · 실패 ${fail}`); process.exit(fail ? 1 : 0);
 })().catch(e => { console.error(e); process.exit(1); });

@@ -2616,6 +2616,7 @@ function doPost(e) {
     // (9) 도구별 배정 입력·삭제 (hwork_assign.html 등)
     if (data && data.action === 'addAssignment')    { return addAssignment(data); }
     if (data && data.action === 'deleteAssignment') { return deleteAssignment(data); }
+    if (data && data.action === 'assignSetDue')     { return assignSetDue(data); }
 
     // (10) 지필고사 분석지 배정 관리 (analyses.html) — 지난 분석지에 학생 배정/해제
     if (data && data.action === 'setAnalysisAssign')    { return setAnalysisAssign(data); }
@@ -5325,6 +5326,25 @@ function deleteAssignment(data) {
     sh.deleteRow(rowIndex);
     dropTab_(TAB_ASSIGN);
     return json({ result:'success' });
+  });
+}
+
+// 배정 마감일만 고친다 (2026-11-25 원장님 "오늘까지 마감인 미제출 과제의 기한을 27금요일로")
+//   { pw, rowIndex, tool, item, due:'yyyy-MM-dd'|'' } — 도구·항목이 그 행과 같을 때만 F열을 바꾼다(행 밀림 방지).
+function assignSetDue(data) {
+  if (String(data.pw||'') !== TEACHER_PW) return json({ result:'error', message:'unauthorized' });
+  var rowIndex = parseInt(data.rowIndex, 10), due = String(data.due||'').trim();
+  if (!rowIndex || rowIndex < 2) return json({ result:'error', message:'잘못된 행입니다.' });
+  if (due && !/^\d{4}-\d{2}-\d{2}$/.test(due)) return json({ result:'error', message:'마감일은 yyyy-MM-dd 형식으로 보내 주세요.' });
+  return withLock_(function () {
+    var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(TAB_ASSIGN);
+    if (!sh || rowIndex > sh.getLastRow()) return json({ result:'error', message:'존재하지 않는 행입니다.' });
+    var cur = sh.getRange(rowIndex, 2, 1, 2).getValues()[0];
+    if (String(cur[0]||'').trim() !== String(data.tool||'').trim() || String(cur[1]||'').trim() !== String(data.item||'').trim())
+      return json({ result:'error', message:'목록이 변경되었습니다. 새로고침 후 다시 시도하세요.' });
+    sh.getRange(rowIndex, 6).setNumberFormat('@').setValue(due);
+    dropTab_(TAB_ASSIGN);
+    return json({ result:'success', due: due });
   });
 }
 

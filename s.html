@@ -118,6 +118,7 @@
   .hw-grp .hw-gcnt{font-size:.8rem;color:var(--ink-soft);white-space:nowrap;}
   .hw-grp .hw-gcnt b{color:#B0525D;}
   /* 단원 키워드 색 (2026-11-21 원장님 — 독점·이타적·건축물·문장 등을 목록에서 빨리 찾게) */
+  .hwwk{display:inline-block;font-family:var(--sans);font-weight:700;font-size:.74rem;border-radius:20px;padding:2px 9px;margin-right:6px;vertical-align:2px;white-space:nowrap;background:#E4F0EC;color:#3D675D;}
   .hwk{display:inline-block;font-family:var(--sans);font-weight:700;font-size:.78rem;border-radius:20px;padding:2px 10px;margin-right:6px;vertical-align:2px;white-space:nowrap;}
   mark.hwm{font-weight:700;border-radius:4px;padding:0 3px;}
   .hwk.k0,mark.hwm.k0{background:#F7DCD6;color:#8A3F35;}
@@ -547,6 +548,7 @@
   .rc-v.miss{background:#fff;color:#9A5A52;}
   .rc-hwtxt{margin:10px 2px 0;font-size:.86rem;line-height:1.7;color:#4F5C56;}
   .rc-star1{font-size:.8rem;font-weight:700;border-radius:999px;padding:4px 12px;background:#FBEFC6;color:#8A6417;margin-top:10px;display:inline-block;}
+  .rc-wk{display:inline-block;margin-right:6px;padding:1px 7px;border-radius:999px;background:#E3F1EC;color:#2F5B4C;font-size:.68rem;font-weight:400;vertical-align:1px;white-space:nowrap;}
   .rc-list{list-style:none;padding:0;margin:0;display:flex;flex-wrap:wrap;gap:8px 22px;font-size:.9rem;color:#3A443F;}
   .rc-list li{display:flex;gap:9px;align-items:baseline;}
   .rc-list li::before{content:"";flex:none;width:6px;height:6px;border-radius:50%;background:#8DA89F;transform:translateY(-2px);}
@@ -2588,6 +2590,10 @@ function renderHub(){
   html += '<a class="card t-mnt" href="pre1.html?'+(IS_ID ? 'id=' : 'key=')+encodeURIComponent(KEY)+'"><span class="icon">'+svg(ICON.book)+'</span>' +
           '<h3>덕양구 8개 주요학교 고1 국어 미리보기</h3><p class="desc">고등학교별 국어 시험 분석 · 고등학교 가기 전 점검표</p>' +
           '<span class="go">열기 '+svg(ICON.arrow)+'</span></a>';
+  // 예비 고3 — 인서울 15개 대학 2028 입시 (2026-11-28 원장님, 095) — 재원생 모두. 대학별 전형·정시 국어 반영 비율 + 고3 자가 점검표(pre3.html)
+  html += '<a class="card t-lav" href="pre3.html?'+(IS_ID ? 'id=' : 'key=')+encodeURIComponent(KEY)+'"><span class="icon">'+svg(ICON.cal)+'</span>' +
+          '<h3>2028 대입 미리보기</h3><p class="desc">팀09 셀프 체크리스트 · 2028 입시 일정 · 대입 개편안과 전형 요약 · 15개 주요 대학</p>' +
+          '<span class="go">열기 '+svg(ICON.arrow)+'</span></a>';
   // 지필고사 데이터 (잠금)
   var cntTxt = STATE.examCount>0 ? ('내신 기록 '+STATE.examCount+'건') : '내신 기록';
   if(anTodo>0) cntTxt += ' · 복기 '+anTodo+'건 입력 필요';
@@ -2719,7 +2725,7 @@ function lhFlat(it){   // class_history 한 줄 → 카드에 쓰는 평평한 �
   var b = it.body || {};
   return { ymd: it.ymd, book: it.book, part: it.part, cls: it.cls, teacher: it.teacher, time: it.time,
            attend: b.attend || '', attend_note: b.attend_note || '', attitude: b.attitude || '', summary: b.summary || '',
-           units: b.units || [], homework: b.homework || [], hw: b.hw || null, comment: b.comment || '' };
+           units: b.units || [], homework: b.homework || [], homework_raw: b.homework_raw || [], hw: b.hw || null, comment: b.comment || '' };
 }
 function lhRefresh(quiet){
   LH.loading = true;
@@ -2857,11 +2863,33 @@ function rcLvCell(g, d){
   var v = g.lv[d];
   return '<span data-l="' + d + '"><span class="rc-v l' + v + '">' + RC_LV[v] + '</span></span>';
 }
-function rcHwTable(hw, tasks){
+/* 과제 주차 알약 (2026-11-26 원장님 "학생 수업기록에 과제 수행 주차가 떠야해요" → "학생페이지도 필요") — 4주차 = 11/24부터 7일마다.
+ * s.html·timetable.html 두 벌(rcCardHtml 공용 블록) + H WORK hw-alim.js weekOf 와 같은 규칙 — 고치면 함께. */
+function rcWkNo(ymd){
+  var m = String(ymd || '').match(/(\d{4})\D+(\d{1,2})\D+(\d{1,2})/); if (!m) return 0;
+  var n = 4 + Math.floor((Date.UTC(+m[1], +m[2] - 1, +m[3]) - Date.UTC(2026, 10, 24)) / (7 * 864e5));
+  return n >= 1 ? n : 0;
+}
+function rcWkTag(ymd){
+  var n = rcWkNo(ymd); if (!ymd) return '';
+  var m = String(ymd).match(/\d{4}\D+(\d{1,2})\D+(\d{1,2})/), md = m ? (+m[1]) + '/' + (+m[2]) : '';
+  return '<span class="rc-wk" title="' + esc(md) + '에 받은 과제">' + (n ? n + '주차' : md) + '</span>';
+}
+function rcYmdOf(ymds, t, cur){ return !ymds ? '' : typeof ymds === 'function' ? ymds(t, cur) : (ymds[t] || ''); }
+/* 과제 검사 내역은 진행 순서대로 — 받은 날이 이른 과제부터(2026-11-26 원장님). 날짜를 모르는 과제는 뒤에 원래 순서로. 두 벌 */
+function rcSortByYmd(list, ymdOf){
+  return list.map(function(v, i){ return { v: v, y: ymdOf(v) || '', i: i }; }).sort(function(a, b){
+    if (!a.y !== !b.y) return a.y ? -1 : 1;
+    if (a.y !== b.y) return a.y < b.y ? -1 : 1;
+    return a.i - b.i;
+  }).map(function(o){ return o.v; });
+}
+function rcHwTable(hw, tasks, ymds, cur, order){   // order(t, cur) = 정렬 열쇠(없으면 받은 날)
+  tasks = rcSortByYmd(tasks, function(g){ return order ? order(g.t, cur) : rcYmdOf(ymds, g.t, cur); });
   if (tasks.some(function(g){ return g.lv.hasOwnProperty(RC_PERF); })){   // 내신 기간: 과제 | 수행 평가
     var ph = '<div class="rc-tr th perf"><span class="n">과제</span><span>수행 평가</span></div>';
     return '<div class="rc-tbl perf">' + ph + tasks.map(function(g){
-      var nm = '<span class="n">' + esc(itemLabel(g.t)) + '</span>';
+      var nm = '<span class="n">' + rcWkTag(rcYmdOf(ymds, g.t, cur)) + esc(itemLabel(g.t)) + '</span>';
       if (g.miss || hw.missing) return '<div class="rc-tr perf miss">' + nm + '<span data-l="수행 평가"><span class="rc-v miss">미제출</span></span></div>';
       var v = g.lv.hasOwnProperty(RC_PERF) ? g.lv[RC_PERF] : null;
       return '<div class="rc-tr perf">' + nm + '<span data-l="수행 평가">' + (v === null ? '<span class="rc-v none">—</span>' : '<span class="rc-v p' + v + '">' + RC_PERF_LV[v] + '</span>') + '</span></div>';
@@ -2869,7 +2897,7 @@ function rcHwTable(hw, tasks){
   }
   var head = '<div class="rc-tr th"><span class="n">과제</span><span>학습량</span><span>채점</span><span>학습 분석</span><span>오답 분석</span></div>';
   var rows = tasks.map(function(g){
-    var nm = '<span class="n">' + esc(itemLabel(g.t)) + (g.depth && !g.miss && !hw.missing ? '<small>깊이 ' + g.depth.sc + '/' + g.depth.mx + '</small>' : '') + '</span>';
+    var nm = '<span class="n">' + rcWkTag(rcYmdOf(ymds, g.t, cur)) + esc(itemLabel(g.t)) + (g.depth && !g.miss && !hw.missing ? '<small>깊이 ' + g.depth.sc + '/' + g.depth.mx + '</small>' : '') + '</span>';
     if (g.miss || hw.missing) return '<div class="rc-tr miss">' + nm + '<span data-l="학습량"><span class="rc-v miss">미제출</span></span><span></span><span></span><span></span></div>';
     var s = g.vol || g.legacy;
     return '<div class="rc-tr">' + nm + '<span data-l="학습량">' + (s ? '<span class="rc-v vol">' + s.sc + '/' + s.mx + '</span>' : '<span class="rc-v none">—</span>') + '</span>' +
@@ -2911,19 +2939,50 @@ function rcCardHtml(it, opt){
     body += (body ? '<hr class="rc-hr">' : '') + '<div class="rc-sec"><h5>이번주 과제 검사</h5>' +
       (nsn ? '<p class="rc-empty">' + esc(RC_NS_HW_NOTE) + '</p>'
         : hw.none ? '<p class="rc-empty">' + esc(hw.text || '확인할 것이 없습니다.') + '</p>'
-        : rcHwTable(hw, tasks) + (hw.text ? '<p class="rc-hwtxt">' + esc(hw.text) + '</p>' : '') +
+        : rcHwTable(hw, tasks, opt.ymds, it.ymd, opt.order) + (hw.text ? '<p class="rc-hwtxt">' + esc(hw.text) + '</p>' : '') +
           (!hw.missing && (+hw.pct || 0) >= 100 ? '<span class="rc-star1">★ 슈퍼스타 별 +1 · 모든 과제를 완벽하게 했어요</span>' : '')) + '</div>';
   }
   var hwk = (it.homework || []).filter(Boolean);
-  if (hwk.length) body += (body ? '<hr class="rc-hr">' : '') + '<div class="rc-sec"><h5>다음 수업까지 과제</h5><ul class="rc-list">' + hwk.map(function(x){ return '<li>' + esc(x) + '</li>'; }).join('') + '</ul></div>';
+  if (hwk.length) body += (body ? '<hr class="rc-hr">' : '') + '<div class="rc-sec"><h5>' + rcWkTag(it.ymd) + '다음 수업까지 과제</h5><ul class="rc-list">' + hwk.map(function(x){ return '<li>' + esc(x) + '</li>'; }).join('') + '</ul></div>';
   h += body;
   var cm = String(it.comment || '').trim();
   if (cm) h += '<div class="rc-sec rc-cm"><h5>선생님 코멘트</h5><p>' + esc(cm) + '</p></div>';
   if (opt.empty && !tiles && !body && !cm) h += '<p class="rc-empty">' + esc(opt.empty) + '</p>';
   return h + '</article>';
 }
+/* 과제 받은 날 — 수업 리포트의 '다음 수업까지 과제'(그 수업 날)와 H WORK 배정일에서 이름으로 찾는다(띄어쓰기 무시, 가장 이른 날).
+ * 과제 검사 표의 과제 이름이 이 둘과 다르면(선생님이 다르게 적음) 주차 없이 둔다. */
+var LH_YMD = null;
+function lhYmdKey(t){ return String(t || '').replace(/^(독서|문학) · /, '').replace(/\s+/g, ''); }
+function lhYmdBuild(){
+  var m = {};
+  function put(t, y, hw){ var k = lhYmdKey(t); if (!k || !y) return; (m[k] = m[k] || []).push({ y: y, hw: !!hw }); }
+  // 받은 날의 열쇠는 선생님이 적은 원문(body.homework_raw — 2026-11-27부터 publish 가 넣는다)이 먼저. body.homework 는 클로슈가 다듬은 문장이라
+  // 과제 검사 항목 이름('4(1) 워드투벡, 지문 필사하며 복습하기')과 글자가 달라 주차가 안 붙었다(2026-11-27 원장님 "3주차만 표시가 되어 있습니다").
+  (STATE.lhist || []).forEach(function(it){ (it.homework_raw || []).concat(it.homework || []).forEach(function(t){ put(t, it.ymd); }); });
+  (STATE.homework || []).forEach(function(h){ var d = String(h.date || '').match(/(\d{4})\D+(\d{1,2})\D+(\d{1,2})/);
+    if (d) put(h.code, d[1] + '-' + ('0' + d[2]).slice(-2) + '-' + ('0' + d[3]).slice(-2), true); });
+  LH_YMD = m;
+  // 처음 검사한 날 — 리포트 과제 검사 항목은 저장 순서가 섞여 있어(점수 jsonb) 진행 순서를 여기서 되살린다
+  var f = {};
+  (STATE.lhist || []).forEach(function(it){ ((it.hw && it.hw.items) || []).forEach(function(x){
+    var k = lhYmdKey(String((x && x.name) || '').replace(RC_DIM_RE, '')); if (k && it.ymd && (!f[k] || it.ymd < f[k])) f[k] = it.ymd; }); });
+  LH_FIRST = f;
+}
+/* 과제 검사 진행 순서(2026-11-26 원장님 "학생페이지도요") — 처음 검사한 날 → 받은 날 → 이름(숫자는 크기대로) */
+var LH_FIRST = {};
+function lhTaskOrder(t, cur){
+  var k = lhYmdKey(t);
+  return (LH_FIRST[k] || cur || '9999') + '|' + (lhTaskYmd(t, cur) || '9999') + '|' + k.replace(/\d+/g, function(n){ return ('0000' + n).slice(-5); });
+}
+/* 그 수업(cur) 전에 받은 날 중 가장 늦은 날 — 같은 이름 과제를 여러 번 받았으면 이번 검사 직전 것. H WORK 배정일은 그 수업 날까지 */
+function lhTaskYmd(t, cur){
+  var l = (LH_YMD || {})[lhYmdKey(t)] || [], best = '';
+  l.forEach(function(o){ if ((!cur || (o.hw ? o.y <= cur : o.y < cur)) && o.y > best) best = o.y; });
+  return best;
+}
 function lhItemHtml(it){   // 카드 모양은 rcCardHtml(timetable 미리보기와 공용 블록)
-  return rcCardHtml(it, { star: lhStar(it) ? '<span class="lh-star1 rc-chip star" data-star="' + esc(lhStarKey(it)) + '">★ 별 +1</span>' : '' });
+  return rcCardHtml(it, { ymds: lhTaskYmd, order: lhTaskOrder, star: lhStar(it) ? '<span class="lh-star1 rc-chip star" data-star="' + esc(lhStarKey(it)) + '">★ 별 +1</span>' : '' });
 }
 function lhRender(){
   Array.prototype.forEach.call($('lhTabs').querySelectorAll('button'), function(b){ b.classList.toggle('on', b.getAttribute('data-t') === (LH.tab || 'rep')); });
@@ -2942,6 +3001,7 @@ function lhRender(){
     '<div><b>' + (avg == null ? '—' : avg + '%') + '</b><span>과제 검사 평균</span></div>' +
     '<div><b>' + good + '</b><span>태도 매우 좋음</span></div></div>';
   var h = '', mon = '';
+  lhYmdBuild();
   items.forEach(function(it){
     var m = String(it.ymd || '').slice(0, 7);
     if (m !== mon){ mon = m; h += '<p class="lh-month">' + esc(+m.slice(0, 4) + '년 ' + (+m.slice(5, 7)) + '월') + '</p>'; }
@@ -3450,6 +3510,11 @@ function hwGoHref(base, h, nx){
        + '&gr=' + encodeURIComponent(levelGrade(i.grade) || '')
        + (nx && nx.length ? '&nx=' + encodeURIComponent(nx.map(function(x){ return (x.teacher||'')+'\t'+(x.code||''); }).join('\n')) : '');
 }
+/* 제출한 과제 — 다른 기기에서도 결과·문항·정답지를 다시 보도록 본인 확인(접근코드/학생ID)을 함께 싣는다 (2026-11-26, 094) */
+function hwDoneHref(href){
+  var who = rvWho();
+  return href + '&done=1' + (who.key ? '&k=' + encodeURIComponent(who.key) : who.student ? '&st=' + encodeURIComponent(who.student) : '');
+}
 /* 클리어 뒤 '다음 챕터에 도전할까요?'(2026-11-19 원장님) — 아직 안 낸 과제를 교재 순서로, 이 과제 다음 것부터 최대 6개 */
 function hwNextOf(todo, h){
   var at = todo.indexOf(h);
@@ -3504,6 +3569,26 @@ function hwKwTitle(text, code){
   var re = new RegExp(w.re.source);
   return '<span class="hwk k'+w.c+'">'+esc(w.k)+'</span>' + h.replace(re, function(m){ return '<mark class="hwm k'+w.c+'">'+m+'</mark>'; });
 }
+/* 안 낸 과제는 배정이 오래된 것부터 (2026-11-25 원장님 "학생들이 h work를 열면 가장 오래된 과제가 제일 먼저 위에").
+ * 배정일(date)이 같으면 둘 다 교재 과제일 때 교재 순서(hwBookSort), 아니면 들어온 차례(목록은 최근 배정 먼저 오므로 뒤쪽이 더 오래된 것). */
+/* 주차 = 배정한 날로 센다 — 4주차가 11/24(화)부터, 7일마다 한 주 (2026-11-26 원장님 "2주차, 3주차, 4주차(11/24-)").
+ * H WORK hw-alim.js weekOf 와 같은 규칙 — 고치면 함께 */
+function hwWeekOf(s){
+  var m = String(s||'').match(/(\d{4})\D+(\d{1,2})\D+(\d{1,2})/); if(!m) return 0;
+  var n = 4 + Math.floor((Date.UTC(+m[1], +m[2]-1, +m[3]) - Date.UTC(2026, 10, 24)) / (7*864e5));
+  return n >= 1 ? n : 0;
+}
+function hwWeekPill(n){ return n ? '<span class="hwwk">'+n+'주차</span>' : ''; }
+function hwDateNum(s){
+  var m = String(s||'').match(/(\d{4})\D+(\d{1,2})\D+(\d{1,2})(?:\D+(\d{1,2}):(\d{2}))?/);
+  return m ? ((+m[1])*1e8 + (+m[2])*1e6 + (+m[3])*1e4 + (+(m[4]||0))*100 + (+(m[5]||0))) : Infinity;
+}
+function hwOldFirst(arr){
+  var bk = hwBookSort(arr), pos = {}; bk.forEach(function(h, i){ pos[arr.indexOf(h)] = i; });
+  return arr.map(function(h, i){ return { h:h, i:i, d:hwDateNum(h.date), b:pos[i], k:!!hwBookKey(h.code) }; })
+    .sort(function(x, y){ return x.d !== y.d ? (x.d < y.d ? -1 : 1) : (x.k && y.k && x.b !== y.b ? x.b - y.b : y.i - x.i); })
+    .map(function(x){ return x.h; });
+}
 var HW_GOPEN = {};   // 펼친 단원(이 화면에서만)
 function hwGroupToggle(btn){
   var box = btn.closest('.hw-grp'); if(!box) return;
@@ -3520,8 +3605,8 @@ function renderHomework(keepScroll){
   } else {
     var base = 'https://coke4497-sys.github.io/shueguk-h-work/hwork.html';
     // 안 푼 과제 먼저, 제출 완료는 아래로
-    var todo = hwBookSort(hs.filter(function(h){ return !h.done; }));
-    var ordered = todo.concat(hwBookSort(hs.filter(function(h){ return h.done; })));
+    var todo = hwOldFirst(hs.filter(function(h){ return !h.done; }));
+    var ordered = todo.concat(hwOldFirst(hs.filter(function(h){ return h.done; })));
     /* 같은 단원으로 나뉜 과제(제목의 마지막 ' · ' 앞이 같고 강사가 같음, 2개 이상)는 단원 카드 하나로 묶는다 (2026-11-21 원장님) */
     var gkOf = function(h){ var c = String(h.code||''), i = c.lastIndexOf(' · '); return i > 0 ? (h.teacher||'') + '\t' + c.slice(0, i) : ''; };
     var gcnt = {}; ordered.forEach(function(h){ var k = gkOf(h); if(k) gcnt[k] = (gcnt[k]||0) + 1; });
@@ -3539,18 +3624,19 @@ function renderHomework(keepScroll){
       var href = hwGoHref(base, h, hwNextOf(todo, h));
       var sub = []; if(h.due) sub.push('마감 '+hwFmtDue(h.due)); if(h.memo) sub.push(h.memo);
       /* 줄 전체가 링크 — 누르면 바로 풀러 가기·오답하기 (2026-11-22 원장님 "풀러가기 버튼이 불편해요") */
-      return '<a class="hw-part'+(h.done?' done':'')+'" href="'+esc(h.done ? href+'&done=1' : href)+'" target="_blank" rel="noopener">' +
-        '<span class="pt">'+esc(name)+(sub.length?'<small>'+esc(sub.join(' · '))+'</small>':'')+'</span>' +
+      return '<a class="hw-part'+(h.done?' done':'')+'" href="'+esc(h.done ? hwDoneHref(href) : href)+'" target="_blank" rel="noopener">' +
+        '<span class="pt">'+hwWeekPill(hwWeekOf(h.date))+esc(name)+(sub.length?'<small>'+esc(sub.join(' · '))+'</small>':'')+'</span>' +
         '<span class="ps">'+(h.done?'제출 완료':'아직 안 냄')+'</span>' +
         '<span class="hw-go'+(h.done?' hw-re':'')+'">'+(h.done?'오답하기':'풀러 가기')+' '+svg(ICON.arrow)+'</span></a>';
     };
     var groupHtml = function(k){
       var hs2 = grp[k].slice().sort(function(a, b){ return String(a.code||'').localeCompare(String(b.code||''), 'ko', { numeric:true }); }), left = hs2.filter(function(h){ return !h.done; }).length;
       var unit = k.split('\t')[1], t = hs2[0].teacher;
+      var gw = 0; hs2.forEach(function(h){ var n = hwWeekOf(h.date); if(n && (!gw || n < gw)) gw = n; });
       var open = HW_GOPEN[k] ? ' open' : '';
       return '<div class="notice-item hw-grp'+open+'" data-hwg="'+esc(k)+'">' +
         '<span class="ntag">'+(left?'배정 과제 · 단원':'제출 완료 · 단원')+'</span>' +
-        '<button type="button" class="hw-gh" onclick="hwGroupToggle(this)"><span class="ntitle">'+hwKwTitle((t?t+' · ':'')+unit, unit)+'</span>' +
+        '<button type="button" class="hw-gh" onclick="hwGroupToggle(this)"><span class="ntitle">'+hwWeekPill(gw)+hwKwTitle((t?t+' · ':'')+unit, unit)+'</span>' +
         '<span class="hw-gcnt">문제지 '+hs2.length+'개 · '+(left?'<b>남은 '+left+'개</b>':'모두 제출')+'</span>' +
         '<svg class="hw-gar" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></button>' +
         '<div class="hw-parts">'+hs2.map(partHtml).join('')+'</div></div>';
@@ -3567,9 +3653,9 @@ function renderHomework(keepScroll){
         ? '<span class="nchk-done">✓ 제출 완료 · 별 +1</span>' +
           '<span class="hw-go hw-re">오답하기 이어 하기 '+svg(ICON.arrow)+'</span>'
         : '<span class="hw-go">풀러 가기 '+svg(ICON.arrow)+'</span>';
-      return '<a class="notice-item hw-card'+(h.done?' done':'')+'" href="'+esc(h.done ? href+'&done=1' : href)+'" target="_blank" rel="noopener">' +
+      return '<a class="notice-item hw-card'+(h.done?' done':'')+'" href="'+esc(h.done ? hwDoneHref(href) : href)+'" target="_blank" rel="noopener">' +
         '<span class="ntag">'+(h.done?'제출 완료':'배정 과제')+'</span>' +
-        '<div class="nh"><span class="ntitle">'+hwKwTitle(title, h.code)+'</span>' +
+        '<div class="nh"><span class="ntitle">'+hwWeekPill(hwWeekOf(h.date))+hwKwTitle(title, h.code)+'</span>' +
         (h.date ? '<span class="ndate">'+esc(h.date)+'</span>' : '') + '</div>' +
         (meta.length ? '<div class="nbody">'+esc(meta.join(' · '))+'</div>' : '') +
         '<div class="hw-act">'+action+'</div>' +

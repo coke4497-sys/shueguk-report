@@ -107,6 +107,17 @@ const CLASSES = [
   ok('새 반: 겹치는 두 반 모두 명시', dlg.length === 1 && dlg[0].indexOf('고1 확인') >= 0 && dlg[0].indexOf('고1 백양C') >= 0, JSON.stringify(dlg));
   ok('새 반: 창 유지', await modalOpen());
   await page.evaluate(() => closeModal());
+  // ④-6 학생이 모두 빠진 수업('사라진' 수업)은 겹침이 아니다 (2026-11-26 우현정T 12/3 직전보강)
+  await page.evaluate(() => { weekOnce = weekOnce.concat(['라', '마'].map((n, i) => ({ kind: '주간빼기', student: n, fromId: 'rB', toId: '', row: 900 + i, reason: '직전보강으로 이동' }))); });
+  await page.evaluate(() => openAddWeekClass());
+  await page.evaluate((d) => { document.getElementById('nc-day').value = d; }, TODAY);
+  await page.selectOption('#nc-start', '3:30'); await page.selectOption('#nc-end', '5:00');
+  await page.fill('#nc-teacher', '지원'); await page.fill('#nc-cls', '테스트반');
+  dlg = [];
+  await page.click('text=이 주만 만들기');
+  await page.waitForTimeout(300);
+  ok('전원 빠진 반은 겹침에서 뺌', dlg.length === 1 && dlg[0].indexOf('고1 확인') >= 0 && dlg[0].indexOf('고1 백양C') < 0, JSON.stringify(dlg));
+  await page.evaluate(() => { closeModal(); weekOnce = weekOnce.filter(o => o.fromId !== 'rB'); });
   // ④-3 시간 옮기기: 같은 날짜로 옮기면 자기 자신은 어차피 숨어 제외, 백양C만 겹침으로 잡힘
   await page.evaluate(() => openWeekClassMove(classes.find(c => c.id === 'rA')));
   await page.selectOption('#nc-start', '4:00'); await page.selectOption('#nc-end', '5:30');

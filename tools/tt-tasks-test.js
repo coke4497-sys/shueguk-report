@@ -5,7 +5,7 @@
  * ① 옆 패널 위쪽 상자(오늘 보충 위)·탭 배지·안 한 일/지난 요청 수·학생 칩 붉은 점
  * ② 남기기(센터 알약·학생 이름 자동 찾기·작성자) ③ [완료] = PATCH + 처리한 조교 이름·시각
  * ④ [못 했어요] = 이유 필수 + 내일로 넘김 + 이력 ⑤ [완료 기록] ⑥ 센터 필터 ⑦ 이름 없으면 한 번 묻기
- * ⑧ 좁은 화면 접힌 줄 ⑨ 표가 없으면 안내 ⑩ 주차별 '이 주' 상자 */
+ * ⑧ 좁은 화면 접힌 줄 ⑨ 표가 없으면 안내 ⑩ 주차별 아래 상자 없음 */
 const { chromium } = require('playwright');
 const http = require('http'), fs = require('fs'), path = require('path');
 const ROOT = path.join(__dirname, '..');
@@ -83,8 +83,8 @@ function makeStore(){
       localStorage.setItem('ttc:list:정규', JSON.stringify({ t: Date.now(), d: { classes: cls, onceMoves: [] } }));
     }, { cls: CLASSES, mode: opts.mode || 'today', who: opts.who === undefined ? '박언호' : opts.who, vloc: opts.vloc || '', vmopen: opts.vmopen || '1' });
     await page.goto('http://127.0.0.1:' + port + '/timetable.html');
-    await page.waitForSelector('.blk, .wk-mini, .tk-week', { timeout: 15000 });
-    await page.waitForFunction(() => document.querySelector('#tk-list') && !/불러오는 중/.test(document.querySelector('#tk-list').textContent) || document.querySelector('.tk-week'), null, { timeout: 15000 });
+    await page.waitForSelector('.blk, .wk-mini, .tk-week, .weeknav-tt', { timeout: 15000 });
+    await page.waitForFunction(() => document.querySelector('#tk-list') && !/불러오는 중/.test(document.querySelector('#tk-list').textContent) || document.querySelector('.tk-week') || document.querySelector('.weeknav-tt'), null, { timeout: 15000 });
     await page.waitForTimeout(400);
     return { page, ctx, store };
   }
@@ -213,12 +213,12 @@ function makeStore(){
   ok('⑨ 마이그레이션 045 안내 + 쓰기 줄 없음', /마이그레이션 045/.test(r.txt) && r.comp === '' && r.sub === '준비 전' && r.badge, JSON.stringify(r));
   await ctx.close();
 
-  /* ⑩ 주차별: 이 주 할 일 */
+  /* ⑩ 주차별: 아래 상자 두 개(주간 메모·이 주 할 일)는 2026-11-27 원장님 지시로 뺐다 */
   ({ page, ctx, store } = await open({ mode: 'week' }));
-  await page.waitForFunction(() => document.querySelector('.tk-week .tk-wd'), null, { timeout: 10000 });
-  r = await page.evaluate(() => ({ title: document.querySelector('.tk-week .memotitle').textContent, rows: document.querySelectorAll('.tk-week .tk-wd').length, lines: [...document.querySelectorAll('.tk-week .tk-ln')].map(e => e.textContent), after: document.querySelector('.tk-week').previousElementSibling.className }));
-  ok('⑩ 주간 메모 아래 "이 주" 상자, 날짜 7줄', /할 일 · 전달 사항 — 이 주/.test(r.title) && r.rows === 7 && r.after === 'memobox', JSON.stringify([r.title, r.rows, r.after]));
-  ok('⑩ 대기·완료·못 함 이력이 날짜 줄에', r.lines.some(l => /허민 병결.*대기/.test(l)) && r.lines.some(l => /출석 체크는.*완료 · 박언호 14:02/.test(l)) && r.lines.some(l => /보충 일정 확인.*김상우 못 함 →/.test(l)), JSON.stringify(r.lines));
+  await page.waitForFunction(() => document.querySelector('.weeknav-tt'), null, { timeout: 10000 });
+  await page.waitForTimeout(600);
+  r = await page.evaluate(() => ({ tk: !!document.querySelector('.tk-week'), memo: !!document.querySelector('.memobox') }));
+  ok('⑩ 주차별 아래 주간 메모·이 주 할 일 상자 없음', !r.tk && !r.memo, JSON.stringify(r));
   await ctx.close();
 
   /* ⑪ Codex 검토 반영(2026-10-08): 앞 괄호 이름 · 동시 처리 · 보기 거르기와 저장 위치 */

@@ -596,6 +596,8 @@
   .cr-src{font-size:.72rem;color:var(--ink-soft);margin:2px 0 4px;}
   .cr-tst{display:inline-block;margin-left:4px;padding:1px 7px;border-radius:999px;background:#EDE4F4;color:#5A4A6A;font-size:.66rem;font-weight:400;vertical-align:middle;}
   .cr-tst.done{background:#E3EFE7;color:#2F5B44;}
+  .cr-tnw{min-width:0;}
+  .cr-twk{display:inline-block;margin-bottom:3px;padding:1px 7px;border-radius:999px;background:#E3F1EC;color:#2F5B4C;font-size:.66rem;font-weight:400;vertical-align:middle;white-space:nowrap;}
   .cr-tfbtn{display:inline-block;margin:6px 0 2px;padding:5px 12px;border:0;border-radius:999px;background:#EDE4F4;color:#5A4A6A;font:inherit;font-size:.74rem;cursor:pointer;}
   .cr-tfbtn:hover{background:#E3D7EE;}
   .cr-tfall{margin:4px 0;padding:6px 10px;border-radius:10px;background:#E3EFE7;color:#2F5B44;font-size:.76rem;}
@@ -774,6 +776,7 @@
   .rc-v.miss{background:#fff;color:#9A5A52;}
   .rc-hwtxt{margin:10px 2px 0;font-size:.86rem;line-height:1.7;color:#4F5C56;}
   .rc-star1{font-size:.8rem;font-weight:700;border-radius:999px;padding:4px 12px;background:#FBEFC6;color:#8A6417;margin-top:10px;display:inline-block;}
+  .rc-wk{display:inline-block;margin-right:6px;padding:1px 7px;border-radius:999px;background:#E3F1EC;color:#2F5B4C;font-size:.68rem;font-weight:400;vertical-align:1px;white-space:nowrap;}
   .rc-list{list-style:none;padding:0;margin:0;display:flex;flex-wrap:wrap;gap:8px 22px;font-size:.9rem;color:#3A443F;}
   .rc-list li{display:flex;gap:9px;align-items:baseline;}
   .rc-list li::before{content:"";flex:none;width:6px;height:6px;border-radius:50%;background:#8DA89F;transform:translateY(-2px);}
@@ -3401,7 +3404,10 @@
 <script>
 var ENDPOINT = "https://script.google.com/macros/s/AKfycbzhCncBwn-JlqXARC3wfrWUCuNHzlNK2df0bdhx-w78Xr8mzYUcIYZOJdRi9N4bHtsb/exec";
 var DAYS = ['월', '화', '수', '목', '금', '토', '일'];
-var TEACHER_ORDER = ['슈', '선주', '승연', '주혜', '현정', '연주', '현지', '지원', '덕기', '은지'];
+var TEACHER_ORDER = ['슈', '선주', '승연', '주혜', '현정', '연주', '현지', '지원', '덕기', '은지', '예솔'];
+/* 반이 없어도 늘 보이는 강사 칸 — 시간표 칸은 반이 있는 선생님만 생기므로 새 선생님은 여기에 둔다
+ * (2026-11-27 원장님 "정리정독 박예솔 선생님 칸이 필요해요" → '빈 칸을 늘 보이게'). 반이 생기면 그대로 겹치지 않는다. */
+var EXTRA_COLS = [{ loc: '정리정독', teacher: '예솔' }];
 
 var pw = 'sh';   // 티쳐스 페이지 비밀번호 제거(접속 간소화, 2026-08-14) — 백엔드 TEACHER_PW 내장
 var classes = [];      // {id, day, start, end, loc, teacher, cls, students[]}
@@ -4187,8 +4193,7 @@ function renderView(){
   if (narrowScreen()) host.appendChild(mviewToggleBtn());
   host.appendChild(useListView() ? buildWeekList()
                  : (weekZoomDay ? buildWeekZoom(weekZoomDay) : buildWeekOverview()));
-  host.appendChild(weekMemoSection());
-  host.appendChild(tkWeekSection());
+  // 주차별 아래 '주간 메모'·'할 일 · 전달 사항 — 이 주' 상자는 2026-11-27 원장님 지시로 뺐다(되살리지 말 것)
 }
 
 /* ── 슈국 캘린더 (달력 + 주별 기간 + 날짜 메모) ── */
@@ -4965,7 +4970,7 @@ function memoCard(dateStr){
   box.className = 'memobox';
   box.innerHTML =
     '<p class="memotitle">오늘의 이슈 메모</p>' +
-    '<textarea id="memo-ta" placeholder="오늘 있었던 일·전달 사항을 적어 두세요. 주차별 보기의 주간 메모에 모아 볼 수 있어요."></textarea>' +
+    '<textarea id="memo-ta" placeholder="오늘 있었던 일·전달 사항을 적어 두세요. 캘린더의 그 날짜 칸에서도 볼 수 있어요."></textarea>' +
     '<div class="memoact"><button onclick="saveMemo(\'' + dateStr + '\')">메모 저장</button><span id="memo-stat"></span></div>';
   box.querySelector('#memo-ta').value = (memoDraft != null) ? memoDraft : (memos[dateStr] || '');
   memoDraft = null;
@@ -5317,6 +5322,10 @@ function buildDayGrid(list){
     if (c.wk && !wkVisible(c, viewYmd())) return;
     var key = c.loc + '|' + c.teacher;
     if (!seen[key]){ seen[key] = true; cols.push({ key:key, loc:c.loc, teacher:c.teacher }); }
+  });
+  EXTRA_COLS.forEach(function(x){
+    var key = x.loc + '|' + x.teacher;
+    if (!seen[key] && viewOn(x)){ seen[key] = true; cols.push({ key:key, loc:x.loc, teacher:x.teacher }); }
   });
   cols.sort(function(a,b){
     var ia = TEACHER_ORDER.indexOf(a.teacher), ib = TEACHER_ORDER.indexOf(b.teacher);
@@ -5887,6 +5896,10 @@ function buildFullGrid(){
     var key = c.loc + '|' + c.teacher;
     if (!seenB[key]){ seenB[key] = true; baseCols.push({ key:key, loc:c.loc, teacher:c.teacher }); }
   });
+  EXTRA_COLS.forEach(function(x){
+    var key = x.loc + '|' + x.teacher;
+    if (!seenB[key] && allTeacherOn(x)){ seenB[key] = true; baseCols.push({ key:key, loc:x.loc, teacher:x.teacher }); }
+  });
   baseCols.sort(function(a,b){
     var ia = TEACHER_ORDER.indexOf(a.teacher), ib = TEACHER_ORDER.indexOf(b.teacher);
     return (ia<0?99:ia) - (ib<0?99:ib);
@@ -6022,7 +6035,7 @@ var allTeacher = sessionStorage.getItem('tt_allteacher') || '';   // '' = 모든
 function allTeacherOn(c){ return !allTeacher || String(c.teacher || '').trim() === allTeacher; }
 function allTeacherList(){
   var seen = {}, out = [];
-  classes.forEach(function(c){
+  EXTRA_COLS.concat(classes).forEach(function(c){
     if (c.wk) return;
     var t = String(c.teacher || '').trim();
     if (t && !seen[t]){ seen[t] = true; out.push(t); }
@@ -6204,6 +6217,14 @@ function zoomCenterGrids(big, dname, list, makeBlock, goneOf, dstr){   // dstr =
     if (!byLoc[c.loc]){ byLoc[c.loc] = []; order.push(c.loc); }
     byLoc[c.loc].push(c);
   });
+  var extraOn = function(x){ return dstr ? viewOn(x) : allTeacherOn(x); };
+  EXTRA_COLS.forEach(function(x){
+    if (!extraOn(x) || byLoc[x.loc]) return;
+    byLoc[x.loc] = [];
+    var at = order.length;
+    for (var i = 0; i < order.length; i++){ if (wkLocRank(order[i]) > wkLocRank(x.loc)){ at = i; break; } }
+    order.splice(at, 0, x.loc);
+  });
   var offLoc = dstr ? teacherOffsByLoc(dstr, dname) : {};
   var offOnly = function(beforeRank){
     Object.keys(offLoc).filter(function(l){ return !offLoc[l].done && wkLocRank(l) < beforeRank; })
@@ -6220,12 +6241,14 @@ function zoomCenterGrids(big, dname, list, makeBlock, goneOf, dstr){   // dstr =
     if (offLoc[loc] && !offLoc[loc].done){ offLoc[loc].done = true; big.appendChild(teacherOffCtrEl(offLoc[loc])); }
     var cols = [], seen = {};
     cl.forEach(function(c){ if (!seen[c.teacher]){ seen[c.teacher] = true; cols.push(c.teacher); } });
+    EXTRA_COLS.forEach(function(x){ if (x.loc === loc && !seen[x.teacher] && extraOn(x)){ seen[x.teacher] = true; cols.push(x.teacher); } });
     cols.sort(function(a, b){
       var ia = TEACHER_ORDER.indexOf(a), ib = TEACHER_ORDER.indexOf(b);
       return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
     });
     var lo = 24 * 60, hi = 0;
     cl.forEach(function(c){ lo = Math.min(lo, mins(c.start)); hi = Math.max(hi, minsEnd(c)); });
+    if (!cl.length){ lo = 17 * 60 + 30; hi = 22 * 60; }   // 반이 없는 센터(늘 보이는 빈 칸만) — 저녁 칸
     lo = Math.floor(lo / 30) * 30; hi = Math.ceil(hi / 30) * 30;
     var n = Math.max(1, Math.round((hi - lo) / 30));
     var g = document.createElement('div');
@@ -9573,7 +9596,8 @@ function crHwSrcLoad2(c, bk, ymd, twinId, othSib){
         if (crRuleBook(k, bk) === '내신' && k.cls) lb += ' ' + crPartLabel(crPartOf(k, bk));
         else if (sibIds.indexOf(r.class_id) >= 0) lb += ' ' + (k.cls || '') + (k.teacher ? ' · ' + k.teacher + 'T' : '') + ' 반';   // 같은 이름 반 기록
         else if (r.class_id !== c.id && r.class_id !== twinId && k.cls) lb += ' ' + k.cls;   // 정규 1회 이동 학생 — 원래 반 이름
-        return { tasks: crRowTasks(r, nm), ymd: r.ymd, cls: k.cls || '', part: crPartOf(k, bk), label: lb };
+        var tk = crRowTasks(r, nm), ymds = {}; tk.forEach(function(t){ ymds[t] = r.ymd; });
+        return { tasks: tk, ymds: ymds, ymd: r.ymd, cls: k.cls || '', part: crPartOf(k, bk), label: lb };
       }
       var by = {};
       // 같은 이름 반은 지난주까지 기록만(이번 주에 다른 반이 낸 과제는 다음 주 검사할 것이라서) · 반 과제만(개별 과제는 그 반 학생 것)
@@ -9595,12 +9619,12 @@ function crHwSrcLoad2(c, bk, ymd, twinId, othSib){
             // 진도·확인에서 이름이 같은 과제('과제집 w15' — 독서 과제집과 문학 과제집)는 다른 책이라 둘 다 두고 '독서 · '/'문학 · '을 붙여 가른다
             // (2026-10-28 원장님 "지난주 고1 과제는 총 4권이에요. 지금은 세권만" — 이름만 보고 하나로 합쳐 한 권이 빠졌다 → "가 독서, 나 문학": 진도(가) = 독서, 확인(나) = 문학, CR_NS_SUBJ).
             // 같은 구분 안의 같은 이름은 한 번만.
-            var tasks = [], labs = [], partsOf = {};
+            var tasks = [], labs = [], partsOf = {}, ymds = {};
             var packed = all.slice().reverse().map(function(r){ return pack(r, x.p); });
             packed.forEach(function(pk){ labs.push(pk.label); pk.tasks.forEach(function(t){ var ps = partsOf[t] = partsOf[t] || []; if (ps.indexOf(pk.part) < 0) ps.push(pk.part); }); });
-            packed.forEach(function(pk){ pk.tasks.forEach(function(t){ var nm = partsOf[t].length > 1 ? (CR_NS_SUBJ[pk.part] || crPartLabel(pk.part)) + ' · ' + t : t; if (tasks.indexOf(nm) < 0) tasks.push(nm); }); });
+            packed.forEach(function(pk){ pk.tasks.forEach(function(t){ var nm = partsOf[t].length > 1 ? (CR_NS_SUBJ[pk.part] || crPartLabel(pk.part)) + ' · ' + t : t; if (tasks.indexOf(nm) < 0){ tasks.push(nm); ymds[nm] = pk.ymd; } }); });
             var top = pack(own, x.p);
-            by[x.p] = { tasks: tasks, ymd: top.ymd, cls: top.cls, part: top.part, cum: true,
+            by[x.p] = { tasks: tasks, ymds: ymds, ymd: top.ymd, cls: top.cls, part: top.part, cum: true,
                         label: '내신 기간(' + mdOfYmdStr(nsStart) + '~) 누적 · ' + (labs.length > 3 ? labs[0] + ' ~ ' + labs[labs.length - 1] + ' · ' +
                           packed.map(function(pk){ return crPartLabel(pk.part); }).filter(function(v, i, a){ return a.indexOf(v) === i; }).join('·') + ' ' + labs.length + '회' : labs.join(' · ')) };
             return;
@@ -9720,7 +9744,7 @@ function crRowTasks(r, nm){
  * 그 학생에게 맞고 배정일 ≤ 수업일 ≤ 마감일(없으면 배정일 + 14일)이면 그 수업의 검사 목록에 H WORK 과제 이름 그대로 넣는다
  * (학생 페이지의 '수업에서 확인한 H WORK는 목록에서 뺀다' 규칙과 이어지게). 옆에 제출 결과(점수·오답하기 클리어) 표시,
  * 수행 평가는 선생님이 매긴다. 배정 판정 = s.html noticeMatches, 제출 = 이름(끝 알파벳 뗌)+학년 숫자+학교 — 학교가 다르면 잇지 않는다. */
-var CR_SF_RE = /shuefit/i, CR_SF_DAYS = 14;
+var CR_SF_RE = /shuefit/i;
 function crSfTr(v){ return String(v == null ? '' : v).trim(); }
 function crSfGd(s){ s = String(s || '').replace(/\s+/g, ''); var m = s.match(/([1-3])학년/) || s.match(/[고중초]([1-6])/); if (m) return m[1]; var a = s.match(/[1-6]/g); return a ? a[a.length - 1] : ''; }
 function crSfLv(s){ s = String(s || ''); return /고/.test(s) ? '고' : /중/.test(s) ? '중' : /초/.test(s) ? '초' : ''; }
@@ -9772,20 +9796,23 @@ function crSfYmd(v, base){   // '2026-11-24' · 'Tue Nov 24' · Date 문자열 �
   return '';
 }
 function crSfAddDays(ymd, n){ var d = new Date(ymd + 'T00:00:00'); d.setDate(d.getDate() + n); return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); }
+function crSfAll(path){   // 1000줄씩 끝까지 — 마감 지난 과제까지 모두 읽으므로
+  var out = [];
+  function step(off){ return crGet(path + '&limit=1000&offset=' + off).then(function(rows){ out = out.concat(rows || []); return (rows || []).length === 1000 ? step(off + 1000) : out; }); }
+  return step(0);
+}
 function crSfLoad(ymd){
-  var from = crSfAddDays(ymd, -70);
   return Promise.all([
-    crGet('/assignments?tool=eq.' + encodeURIComponent('H WORK') + '&item=ilike.*shuefit*&select=seq,date,type,target,item,due&order=seq.asc'),
-    crGet('/hwork_submissions?code=ilike.*shuefit*&ts=gte.' + from + '&select=id,ts,teacher,code,school,grade,name,got,total,detail,review,review_at&order=id.asc')
+    crSfAll('/assignments?tool=eq.' + encodeURIComponent('H WORK') + '&item=ilike.*shuefit*&select=seq,date,type,target,item,due&order=seq.asc'),
+    crSfAll('/hwork_submissions?code=ilike.*shuefit*&select=id,ts,teacher,code,school,grade,name,got,total,detail,review,review_at,check_done&order=id.asc')
   ]).then(function(r){ return { asg: r[0] || [], subs: r[1] || [] }; });
 }
 function crSfApply(data, ymd){   // CR.sf = {접근코드: [{code, teacher, due, sub}]}
   CR.sf = {}; if (!data) return;
+  // 배정일 ≤ 수업일인 과제 모두 — 마감이 지난 과제도 넣는다 (2026-11-25 원장님 "마감이 지난 과제도 모두 확인할 수 있어야해요")
   var asg = data.asg.filter(function(a){
     if (!CR_SF_RE.test(a.item || '')) return false;
-    var d = crSfYmd(a.date); if (!d || d > ymd) return false;
-    var due = crSfYmd(a.due, d) || crSfAddDays(d, CR_SF_DAYS);
-    return ymd <= due;
+    var d = crSfYmd(a.date); return !!d && d <= ymd;
   });
   if (!asg.length) return;
   CR.names.forEach(function(x){
@@ -9804,10 +9831,22 @@ function crSfApply(data, ymd){   // CR.sf = {접근코드: [{code, teacher, due,
         if (!crSfSch(r.school, s.school)) return;   // 학교가 다르면 잇지 않는다
         sub = r;   // id 오름차순 → 마지막이 가장 최근 제출
       });
-      list.push({ code: code, teacher: teacher, sub: sub });
+      list.push({ code: code, teacher: teacher, sub: sub, date: crSfYmd(a.date) });
     });
     if (list.length) CR.sf[s.code] = list;
   });
+}
+/* 과제 주차 — 그 과제를 받은 날로 센다. 4주차가 11/24(화)부터, 7일마다 한 주(2026-11-26 원장님 "학생 수업기록에 과제 수행 주차가 떠야해요").
+ * H WORK hw-alim.js weekOf · s.html hwWeekOf 와 같은 규칙 — 고치면 함께. 1주차(11/3) 전은 날짜만. */
+function crWeekOf(ymd){
+  var m = String(ymd || '').match(/(\d{4})-(\d{2})-(\d{2})/); if (!m) return 0;
+  var n = 4 + Math.floor((Date.UTC(+m[1], +m[2] - 1, +m[3]) - Date.UTC(2026, 10, 24)) / (7 * 864e5));
+  return n >= 1 ? n : 0;
+}
+function crTaskWeekHtml(src, t){
+  var y = src && src.ymds && src.ymds[t]; if (!y) return '';
+  var n = crWeekOf(y), md = mdOfYmdStr(y);
+  return '<span class="cr-twk" title="' + esc(md + '에 받은 과제') + '">' + (n ? n + '주차 · ' : '') + esc(md) + ' 부여</span>';
 }
 function crSfOf(x, t){ var l = (x && x.stu && CR.sf && CR.sf[x.stu.code]) || []; for (var i = 0; i < l.length; i++) if (l[i].code === t) return l[i]; return null; }
 function crSfBadge(x, t){
@@ -9856,7 +9895,11 @@ function crSrcOf(x){
   if (tasks.length < all) head += ' (이 학생 ' + (all - tasks.length) + '개 뺌)';
   var cum = !!(base && base.cum);
   if (cum) head += ' — 지난 검사 점수를 이어받았어요. 끝낸 과제는 그대로 두고 남은 과제만 매기면 됩니다.';
-  return { tasks: tasks, head: head, cum: cum };
+  // 과제마다 받은 날(주차 표시용) — 지난 수업 과제는 그 수업 날, 슈핏 H WORK 는 배정일, 반 전체 추가 과제는 날짜 없음
+  var ymds = {};
+  tasks.forEach(function(t){ var y = (base && base.ymds && base.ymds[t]) || (base && !base.ymds && baseTasks.indexOf(t) >= 0 ? base.ymd : ''); var f = crSfOf(x, t); if (!y && f && f.date) y = f.date; if (y) ymds[t] = y; });
+  tasks = rcSortByYmd(tasks, function(t){ return ymds[t]; });   // 진행 순서대로(받은 날 이른 것부터)
+  return { tasks: tasks, head: head, cum: cum, ymds: ymds };
 }
 var CR_XRMBY_KEY = '__검사제외학생';
 function crXrmByOf(m){ var out = {}; if (m && typeof m === 'object') Object.keys(m).forEach(function(k){ var v = crTasksOf(m[k]); if (v.length) out[k] = v; }); return out; }
@@ -10027,8 +10070,8 @@ function crStarsHtml(i, code){
     if (!showHid && crTaskHide(h, t)){ ii += crDims().length; return ''; }   // 다 한 과제는 숨김(2026-11-18 원장님) — 별 번호(ii)는 그대로 센다
     var tm = crTaskMissed(h, t);
     var tfull = crTaskFull(h, t), tcar = !tfull && !!h && !!h.carried && crDims().some(function(d){ return h.carried[t + ' (' + d + ')']; });
-    return '<div class="cr-task' + (tm ? ' miss' : '') + (tfull ? ' tfull' : '') + '"><div class="cr-thead"><div class="cr-tname">' + esc(t) + crSfBadge(x, t) +
-      (tfull ? ' <small class="cr-tst done">완료</small>' : tcar ? ' <small class="cr-tst">지난 검사 이어받음</small>' : '') + '</div>' +
+    return '<div class="cr-task' + (tm ? ' miss' : '') + (tfull ? ' tfull' : '') + '"><div class="cr-thead"><div class="cr-tnw">' + crTaskWeekHtml(src, t) + '<div class="cr-tname">' + esc(t) + crSfBadge(x, t) +
+      (tfull ? ' <small class="cr-tst done">완료</small>' : tcar ? ' <small class="cr-tst">지난 검사 이어받음</small>' : '') + '</div></div>' +
       '<div class="cr-tacts"><button type="button" class="cr-mini cr-tmiss' + (tm ? ' on' : '') + '" data-tmiss="' + i + '|' + ti + '" aria-pressed="' + tm + '" aria-label="' + esc(t) + ' 미제출">미제출</button>' +
       '<button type="button" class="cr-mini cr-trm" data-trmme="' + i + '|' + ti + '" title="이 학생의 검사 목록에서만 빼기" aria-label="' + esc(t) + ' 이 학생만 빼기">이 학생만 빼기</button>' +
       '<button type="button" class="cr-mini cr-trm" data-trm="' + i + '|' + ti + '" title="이 수업 검사 목록에서 빼기 (학생 모두)" aria-label="' + esc(t) + ' 모두 빼기">모두 빼기</button></div></div>' + crDims().map(function(d){
@@ -10797,7 +10840,7 @@ function crPvItem(i){
   return { nm: x.p, stu: x.stu, part: CR.part, cls: CR.c.cls, teacher: CR.c.teacher, ymd: CR.ymd,
            attend: a ? a.status : '', progress: String(n.progress || '').trim(),
            units: CR.ns ? crNsUnitsOfWeek(CR.ns) : [], homework: crRowTasks(n, x.p),
-           comment: String(cm[x.p] || '').trim() || (hw && hw.missing ? crMissComment(x.p) : ''), attitude: crAttOf(x.p), hw: hw, src: !!src };
+           comment: String(cm[x.p] || '').trim() || (hw && hw.missing ? crMissComment(x.p) : ''), attitude: crAttOf(x.p), hw: hw, src: !!src, ymds: src ? src.ymds : null };
 }
 /* 수업 리포트 카드 — 2026-10-01 원장님 시안 2(큰 날짜 · 타일 셋 · 수업 내용 · '이번주 과제 검사' 표 · 다음 수업까지 과제 한 줄).
  * 과제 검사 표 = 과제마다 한 줄, 열 = 학습량(n/5) · 채점 · 학습 분석 · 오답 분석(완벽/일부함/안함, 미체크는 —).
@@ -10845,11 +10888,33 @@ function rcLvCell(g, d){
   var v = g.lv[d];
   return '<span data-l="' + d + '"><span class="rc-v l' + v + '">' + RC_LV[v] + '</span></span>';
 }
-function rcHwTable(hw, tasks){
+/* 과제 주차 알약 (2026-11-26 원장님 "학생 수업기록에 과제 수행 주차가 떠야해요" → "학생페이지도 필요") — 4주차 = 11/24부터 7일마다.
+ * s.html·timetable.html 두 벌(rcCardHtml 공용 블록) + H WORK hw-alim.js weekOf 와 같은 규칙 — 고치면 함께. */
+function rcWkNo(ymd){
+  var m = String(ymd || '').match(/(\d{4})\D+(\d{1,2})\D+(\d{1,2})/); if (!m) return 0;
+  var n = 4 + Math.floor((Date.UTC(+m[1], +m[2] - 1, +m[3]) - Date.UTC(2026, 10, 24)) / (7 * 864e5));
+  return n >= 1 ? n : 0;
+}
+function rcWkTag(ymd){
+  var n = rcWkNo(ymd); if (!ymd) return '';
+  var m = String(ymd).match(/\d{4}\D+(\d{1,2})\D+(\d{1,2})/), md = m ? (+m[1]) + '/' + (+m[2]) : '';
+  return '<span class="rc-wk" title="' + esc(md) + '에 받은 과제">' + (n ? n + '주차' : md) + '</span>';
+}
+function rcYmdOf(ymds, t, cur){ return !ymds ? '' : typeof ymds === 'function' ? ymds(t, cur) : (ymds[t] || ''); }
+/* 과제 검사 내역은 진행 순서대로 — 받은 날이 이른 과제부터(2026-11-26 원장님). 날짜를 모르는 과제는 뒤에 원래 순서로. 두 벌 */
+function rcSortByYmd(list, ymdOf){
+  return list.map(function(v, i){ return { v: v, y: ymdOf(v) || '', i: i }; }).sort(function(a, b){
+    if (!a.y !== !b.y) return a.y ? -1 : 1;
+    if (a.y !== b.y) return a.y < b.y ? -1 : 1;
+    return a.i - b.i;
+  }).map(function(o){ return o.v; });
+}
+function rcHwTable(hw, tasks, ymds, cur, order){   // order(t, cur) = 정렬 열쇠(없으면 받은 날)
+  tasks = rcSortByYmd(tasks, function(g){ return order ? order(g.t, cur) : rcYmdOf(ymds, g.t, cur); });
   if (tasks.some(function(g){ return g.lv.hasOwnProperty(RC_PERF); })){   // 내신 기간: 과제 | 수행 평가
     var ph = '<div class="rc-tr th perf"><span class="n">과제</span><span>수행 평가</span></div>';
     return '<div class="rc-tbl perf">' + ph + tasks.map(function(g){
-      var nm = '<span class="n">' + esc(itemLabel(g.t)) + '</span>';
+      var nm = '<span class="n">' + rcWkTag(rcYmdOf(ymds, g.t, cur)) + esc(itemLabel(g.t)) + '</span>';
       if (g.miss || hw.missing) return '<div class="rc-tr perf miss">' + nm + '<span data-l="수행 평가"><span class="rc-v miss">미제출</span></span></div>';
       var v = g.lv.hasOwnProperty(RC_PERF) ? g.lv[RC_PERF] : null;
       return '<div class="rc-tr perf">' + nm + '<span data-l="수행 평가">' + (v === null ? '<span class="rc-v none">—</span>' : '<span class="rc-v p' + v + '">' + RC_PERF_LV[v] + '</span>') + '</span></div>';
@@ -10857,7 +10922,7 @@ function rcHwTable(hw, tasks){
   }
   var head = '<div class="rc-tr th"><span class="n">과제</span><span>학습량</span><span>채점</span><span>학습 분석</span><span>오답 분석</span></div>';
   var rows = tasks.map(function(g){
-    var nm = '<span class="n">' + esc(itemLabel(g.t)) + (g.depth && !g.miss && !hw.missing ? '<small>깊이 ' + g.depth.sc + '/' + g.depth.mx + '</small>' : '') + '</span>';
+    var nm = '<span class="n">' + rcWkTag(rcYmdOf(ymds, g.t, cur)) + esc(itemLabel(g.t)) + (g.depth && !g.miss && !hw.missing ? '<small>깊이 ' + g.depth.sc + '/' + g.depth.mx + '</small>' : '') + '</span>';
     if (g.miss || hw.missing) return '<div class="rc-tr miss">' + nm + '<span data-l="학습량"><span class="rc-v miss">미제출</span></span><span></span><span></span><span></span></div>';
     var s = g.vol || g.legacy;
     return '<div class="rc-tr">' + nm + '<span data-l="학습량">' + (s ? '<span class="rc-v vol">' + s.sc + '/' + s.mx + '</span>' : '<span class="rc-v none">—</span>') + '</span>' +
@@ -10899,11 +10964,11 @@ function rcCardHtml(it, opt){
     body += (body ? '<hr class="rc-hr">' : '') + '<div class="rc-sec"><h5>이번주 과제 검사</h5>' +
       (nsn ? '<p class="rc-empty">' + esc(RC_NS_HW_NOTE) + '</p>'
         : hw.none ? '<p class="rc-empty">' + esc(hw.text || '확인할 것이 없습니다.') + '</p>'
-        : rcHwTable(hw, tasks) + (hw.text ? '<p class="rc-hwtxt">' + esc(hw.text) + '</p>' : '') +
+        : rcHwTable(hw, tasks, opt.ymds, it.ymd, opt.order) + (hw.text ? '<p class="rc-hwtxt">' + esc(hw.text) + '</p>' : '') +
           (!hw.missing && (+hw.pct || 0) >= 100 ? '<span class="rc-star1">★ 슈퍼스타 별 +1 · 모든 과제를 완벽하게 했어요</span>' : '')) + '</div>';
   }
   var hwk = (it.homework || []).filter(Boolean);
-  if (hwk.length) body += (body ? '<hr class="rc-hr">' : '') + '<div class="rc-sec"><h5>다음 수업까지 과제</h5><ul class="rc-list">' + hwk.map(function(x){ return '<li>' + esc(x) + '</li>'; }).join('') + '</ul></div>';
+  if (hwk.length) body += (body ? '<hr class="rc-hr">' : '') + '<div class="rc-sec"><h5>' + rcWkTag(it.ymd) + '다음 수업까지 과제</h5><ul class="rc-list">' + hwk.map(function(x){ return '<li>' + esc(x) + '</li>'; }).join('') + '</ul></div>';
   h += body;
   var cm = String(it.comment || '').trim();
   if (cm) h += '<div class="rc-sec rc-cm"><h5>선생님 코멘트</h5><p>' + esc(cm) + '</p></div>';
@@ -10914,7 +10979,7 @@ function crPvHtml(it){   // 학생 페이지 수업 리포트 카드와 같은 �
   var hw = it.hw ? { items: it.hw.items, pct: it.hw.pct, missing: it.hw.missing, missing_items: it.hw.miss || [], text: it.hw.text } : null;
   return rcCardHtml({ ymd: it.ymd, part: crPartLabel(it.part), cls: it.cls, teacher: it.teacher, attend: it.attend, attitude: it.attitude,
                       units: it.units, summary: it.progress, homework: it.homework, hw: hw, comment: it.comment },
-                    { empty: '아직 적힌 기록이 없어요.' });
+                    { empty: '아직 적힌 기록이 없어요.', ymds: it.ymds });
 }
 function crPvRender(){
   var n = CR.names.length, i = CR_PV.i, it = crPvItem(i), warn = [];
@@ -11460,7 +11525,9 @@ function wkOverlapOk(dstr, dayName, s, e, teacher, excludeId){
     if (excludeId && c.id === excludeId) return false;
     if (String(c.teacher || '').trim() !== t) return false;
     if (c.wk ? c.wk !== dstr : c.day !== dayName) return false;
-    if (wkOffAt(c.id, dstr) || wkMovedAway(c.id, dstr)) return false;   // 그 날짜엔 안 하는 수업
+    // 그 날짜엔 안 하는 수업(휴강·이동·학생 전원 빠짐·명단 없음 = 그리드의 '사라진' 수업)은 겹침이 아니다
+    // (2026-11-26 우현정T — 12/3 고2 확인 5:30이 전원 빠져 '사라진 1'인데 직전보강 반을 막았다)
+    if (goneInfo(c, dstr)) return false;
     return mins(c.start) < e && minsEnd(c) > s;
   });
   if (!hit.length) return true;
